@@ -15,7 +15,8 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
 
   useEffect(() => {
     if (pin.length === 4) {
-      if (pin === "1417") {
+      const correctPin = process.env.NEXT_PUBLIC_LOCK_PASSWORD ;
+      if (pin === correctPin) {
         onUnlock();
         setPin("");
       } else {
@@ -54,10 +55,13 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
               animate={error ? { x: [-10, 10, -10, 10, 0] } : {}}
               className="flex flex-col items-center gap-6"
             >
+              <h1 className="text-3xl font-bold tracking-tight text-white mb-2 drop-shadow-lg">
+                Welcome to Astra
+              </h1>
               <div className="flex items-center gap-2 bg-black/40 px-6 py-2 rounded-full backdrop-blur-3xl border border-white/5 shadow-2xl">
                 <Lock size={16} className="text-white" />
                 <span className="text-xs font-medium tracking-wide">
-                  Enter Passcode
+                  Astra is Locked
                 </span>
               </div>
             </motion.div>
