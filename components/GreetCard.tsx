@@ -69,8 +69,8 @@ export const GreetCard = ({ pageTitle, caption }: GreetCardProps) => {
             {/* Background decoration */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:from-indigo-500/20 group-hover:to-purple-500/20 transition-colors" />
 
-            <div className="relative z-10 flex items-center justify-between">
-                <div className="flex items-center gap-6">
+            <div className="relative z-10 flex flex-col md:flex-row items-center md:items-center justify-between gap-6 md:gap-0">
+                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 text-center md:text-left">
                     <motion.div
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
@@ -102,7 +102,7 @@ export const GreetCard = ({ pageTitle, caption }: GreetCardProps) => {
                     </div>
                 </div>
 
-                <div className="text-right flex flex-col items-end gap-1">
+                <div className="text-center md:text-right flex flex-col items-center md:items-end gap-1">
                     <motion.h1
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}

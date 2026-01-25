@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   description: "A minimal, customizable dashboard application ",
 };
 
+export const viewport = {
+  themeColor: "#000000",
+};
+
+
 export default function RootLayout({
   children,
 }: Readonly<{

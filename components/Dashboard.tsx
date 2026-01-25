@@ -155,7 +155,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
         </header>
 
         <div className="md:hidden fixed top-24 left-4 right-4 z-40 pb-6 pointer-events-none">
-          <div className="flex items-center justify-between bg-white/5 p-1 rounded-2xl border border-white/5 backdrop-blur-md pointer-events-auto shadow-lg">
+          <div className="flex items-center justify-between bg-black/60 backdrop-blur-xl p-1 rounded-2xl border border-white/10 pointer-events-auto shadow-2xl">
             {tabsConfig.map((tab) => {
               const isActive = activeTabId === tab.id;
               const Icon = tab.icon;
@@ -192,7 +192,10 @@ export default function Dashboard({ onLock }: DashboardProps) {
         </div>
 
         {/* Scrollable Content Area */}
-        <main className="w-full h-full overflow-y-auto pt-48 md:pt-32 pb-6 px-4 md:px-8 no-scrollbar">
+        <main
+          className="w-full h-full overflow-y-auto pt-48 md:pt-32 pb-6 px-4 md:px-8 no-scrollbar mask-gradient-top"
+          style={{ maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 100%)' }}
+        >
           <GreetCard pageTitle={activeTab.label} caption={activeTab.caption} />
           <AnimatePresence mode="wait">
             <motion.div
