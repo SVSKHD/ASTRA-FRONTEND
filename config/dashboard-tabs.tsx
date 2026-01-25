@@ -10,6 +10,7 @@ import React from "react";
 export interface TabConfig {
   id: string;
   label: string;
+  caption: string;
   icon: any;
   component: React.ReactNode;
 }
@@ -18,36 +19,42 @@ export const tabsConfig: TabConfig[] = [
   {
     id: "overview",
     label: "Overview",
+    caption: "Your daily summary",
     icon: LayoutDashboard,
     component: <OverviewView />,
   },
   {
     id: "forex",
     label: "Forex",
+    caption: "Market",
     icon: Globe,
     component: <ForexView />,
   },
   {
     id: "indian",
     label: "Indian",
+    caption: "Market",
     icon: IndianRupee,
     component: <IndianView />,
   },
   {
     id: "notes",
     label: "Notes",
+    caption: "Note the markets and prices",
     icon: Notebook,
     component: <NotesView />,
   },
   {
     id: "tasks",
     label: "Tasks",
+    caption: "Manage your tasks",
     icon: CheckSquare,
     component: <TasksView />,
   },
   {
     id: "chat",
     label: "Chat",
+    caption: "Connect with others",
     icon: MessageCircle,
     component: <ChatView />,
   },

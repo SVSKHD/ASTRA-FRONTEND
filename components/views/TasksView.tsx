@@ -11,7 +11,9 @@ import {
   Circle,
   Columns,
   Rows,
-  ArrowRight
+  ArrowRight,
+  Flag,
+  Calendar
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -41,6 +43,7 @@ import {
   createBoard,
   subscribeToBoards,
   addTask as firebaseAddTask,
+  updateTask as firebaseUpdateTask,
   moveTask as firebaseMoveTask,
   deleteTask as firebaseDeleteTask,
   subscribeToTasks,
@@ -48,17 +51,18 @@ import {
   Task,
   ColumnType,
 } from "@/utils/kanban-service";
+import { TaskDialog } from "../TaskDialog";
 
 const AVAILABLE_COLUMNS: ColumnType[] = [
   "Backlog",
   "To Do",
   "In Progress",
-  "In Review", 
+  "In Review",
   "Testing",
   "Done",
   // Legacy/Custom
-  "Dock", 
-  "Finished", 
+  "Dock",
+  "Finished",
   "Parked"
 ];
 
@@ -68,10 +72,12 @@ const DEFAULT_SELECTION: ColumnType[] = ["To Do", "In Progress", "In Review", "D
 const SortableTaskItem = ({
   task,
   onDelete,
+  onEdit,
   isVerticalView
 }: {
   task: Task;
   onDelete: (id: string) => void;
+  onEdit: (task: Task) => void;
   isVerticalView?: boolean;
 }) => {
   const {
@@ -101,18 +107,17 @@ const SortableTaskItem = ({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group relative rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-white/10 touch-none ${
-        isVerticalView ? 'p-2 flex items-center justify-between gap-4 mb-2' : 'p-3 mb-3'
-      }`}
+      className={`group relative rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-white/10 touch-none ${isVerticalView ? 'p-2 flex items-center justify-between gap-4 mb-2' : 'p-3 mb-3'
+        }`}
     >
       <div className={`flex justify-between items-start gap-2 ${isVerticalView ? 'flex-1 items-center' : ''}`}>
         <p className={`text-white/80 break-all ${isVerticalView ? 'text-sm font-medium mb-0' : 'text-sm mb-2'}`}>
-            {task.content}
+          {task.content}
         </p>
         {!isVerticalView && (
-             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                <GripVertical size={14} className="text-white/20" />
-            </div>
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <GripVertical size={14} className="text-white/20" />
+          </div>
         )}
       </div>
 
@@ -167,28 +172,26 @@ const KanbanColumn = ({
   const isActive = isOver || droppableIsOver;
 
   if (isVerticalView) {
-      return (
-        <div 
-            ref={setNodeRef}
-            className={`flex flex-col rounded-2xl border transition-colors duration-200 overflow-hidden w-full ${
-                isActive
-                  ? "bg-white/10 border-blue-500/30"
-                  : "bg-white/5 border-white/5 backdrop-blur-sm"
-              }`}
-        >
-            {children}
-        </div>
-      )
+    return (
+      <div
+        ref={setNodeRef}
+        className={`flex flex-col rounded-2xl border transition-colors duration-200 overflow-hidden w-full ${isActive
+          ? "bg-white/10 border-blue-500/30"
+          : "bg-white/5 border-white/5 backdrop-blur-sm"
+          }`}
+      >
+        {children}
+      </div>
+    )
   }
 
   return (
     <div
       ref={setNodeRef}
-      className={`flex-none w-72 md:w-80 flex flex-col rounded-2xl border transition-colors duration-200 overflow-hidden h-full max-h-[600px] ${
-        isActive
-          ? "bg-white/10 border-blue-500/30"
-          : "bg-white/5 border-white/5 backdrop-blur-sm"
-      }`}
+      className={`flex-none w-72 md:w-80 flex flex-col rounded-2xl border transition-colors duration-200 overflow-hidden h-full max-h-[600px] ${isActive
+        ? "bg-white/10 border-blue-500/30"
+        : "bg-white/5 border-white/5 backdrop-blur-sm"
+        }`}
     >
       {children}
     </div>
@@ -199,6 +202,7 @@ export const TasksView = () => {
   const [boards, setBoards] = useState<Board[]>([]);
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -233,17 +237,17 @@ export const TasksView = () => {
   }, [activeBoard]);
 
   const tasksByColumn = useMemo(() => {
-     const acc: Record<string, Task[]> = {};
-     boardColumns.forEach( col => { acc[col] = [] });
+    const acc: Record<string, Task[]> = {};
+    boardColumns.forEach(col => { acc[col] = [] });
 
     tasks.forEach((task) => {
       if (acc[task.column]) {
         acc[task.column].push(task);
       } else {
-         // If a task ends up in a legacy column, or one not visible, we can group it under the first one or a "Parked" one if it exists.
-         // For now, let's look for "Backlog" or "Parked"
-         const fallback = boardColumns.includes("Backlog") ? "Backlog" : (boardColumns.includes("Parked") ? "Parked" : boardColumns[0]);
-         if (acc[fallback]) acc[fallback].push(task);
+        // If a task ends up in a legacy column, or one not visible, we can group it under the first one or a "Parked" one if it exists.
+        // For now, let's look for "Backlog" or "Parked"
+        const fallback = boardColumns.includes("Backlog") ? "Backlog" : (boardColumns.includes("Parked") ? "Parked" : boardColumns[0]);
+        if (acc[fallback]) acc[fallback].push(task);
       }
     });
     return acc;
@@ -290,14 +294,14 @@ export const TasksView = () => {
       try {
         setError(null);
         const columnsToSave = selectedColumns.length > 0 ? selectedColumns : DEFAULT_SELECTION;
-        
+
         setIsCreatingBoard(false);
         const boardId = await createBoard(newBoardName.trim(), columnsToSave);
-        
+
         setNewBoardName("");
         setSelectedColumns(DEFAULT_SELECTION);
         setSelectedBoardId(boardId);
-        
+
       } catch (error) {
         console.error("Failed to create board", error);
         setError("Failed to create board. Please try again.");
@@ -307,8 +311,8 @@ export const TasksView = () => {
   };
 
   const toggleColumnSelection = (column: ColumnType) => {
-    setSelectedColumns(prev => 
-      prev.includes(column) 
+    setSelectedColumns(prev =>
+      prev.includes(column)
         ? prev.filter(c => c !== column)
         : [...prev, column]
     );
@@ -322,10 +326,16 @@ export const TasksView = () => {
     }
   };
 
-  const deleteTask = async (taskId: string) => {
-    if (selectedBoardId) {
-      await firebaseDeleteTask(selectedBoardId, taskId);
+  const handleUpdateTask = async (taskId: string | undefined, updates: Partial<Task>) => {
+    if (taskId) {
+      await firebaseUpdateTask(taskId, updates);
     }
+    setEditingTask(null);
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    await firebaseDeleteTask(taskId);
+    setEditingTask(null);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -362,7 +372,7 @@ export const TasksView = () => {
       // Over another task
       const overTask = tasks.find((t) => t.id === overId);
       if (overTask && activeTask.column !== overTask.column) {
-         setTasks((items) => {
+        setTasks((items) => {
           return items.map((t) =>
             t.id === activeId ? { ...t, column: overTask.column } : t,
           );
@@ -374,14 +384,14 @@ export const TasksView = () => {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     const taskId = active.id as string;
-    
+
     // Use the stored activeTask from state which represents the task at DragStart
-    const originalTask = activeTask; 
-    
+    const originalTask = activeTask;
+
     if (!over) {
-        setActiveId(null);
-        setActiveTask(null);
-        return;
+      setActiveId(null);
+      setActiveTask(null);
+      return;
     }
 
     const overId = over.id;
@@ -400,7 +410,7 @@ export const TasksView = () => {
     if (originalTask && targetColumn && originalTask.column !== targetColumn) {
       moveTask(taskId, targetColumn);
     }
-    
+
     setActiveId(null);
     setActiveTask(null);
   };
@@ -410,7 +420,7 @@ export const TasksView = () => {
       setTasks((prev) =>
         prev.map((t) => (t.id === taskId ? { ...t, column: targetColumn } : t)),
       );
-      await firebaseMoveTask(selectedBoardId, taskId, targetColumn);
+      await firebaseMoveTask(taskId, targetColumn);
     }
   };
 
@@ -468,8 +478,8 @@ export const TasksView = () => {
               <h2 className="text-2xl font-bold text-white">Your Boards</h2>
               <button
                 onClick={() => {
-                   setIsCreatingBoard(true);
-                   setSelectedColumns(DEFAULT_SELECTION);
+                  setIsCreatingBoard(true);
+                  setSelectedColumns(DEFAULT_SELECTION);
                 }}
                 className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-xl font-semibold hover:bg-white/90 transition-colors"
               >
@@ -510,13 +520,13 @@ export const TasksView = () => {
             )}
           </motion.div>
         ) : (
-           // --- CREATE BOARD DIALOG ---
+          // --- CREATE BOARD DIALOG ---
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-lg p-8 rounded-3xl bg-neutral-900 border border-white/10 backdrop-blur-xl shadow-2xl"
           >
-             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-blue-500 mb-6 flex items-center justify-center shadow-lg shadow-purple-500/20">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-blue-500 mb-6 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <Plus size={24} className="text-white" />
             </div>
 
@@ -524,47 +534,45 @@ export const TasksView = () => {
               Create New Board
             </h2>
             <p className="text-white/40 mb-6 text-sm">Customize your Kanban workflow.</p>
-            
-            <div className="space-y-6">
-                <div className="space-y-2">
-                    <label className="text-xs font-semibold text-white/70 uppercase tracking-wider">Board Name</label>
-                    <input
-                        type="text"
-                        value={newBoardName}
-                        onChange={(e) => setNewBoardName(e.target.value)}
-                        placeholder="e.g. Q1 Roadmap"
-                        autoFocus
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-colors"
-                        onKeyDown={(e) => e.key === "Enter" && handleCreateBoard()}
-                    />
-                </div>
 
-                <div className="space-y-3">
-                     <label className="text-xs font-semibold text-white/70 uppercase tracking-wider">Statuses</label>
-                     <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                         {AVAILABLE_COLUMNS.map(col => {
-                             const isSelected = selectedColumns.includes(col);
-                             return (
-                                 <button
-                                    key={col}
-                                    onClick={() => toggleColumnSelection(col)}
-                                    className={`flex items-center gap-3 p-3 rounded-lg border text-sm transition-all ${
-                                        isSelected 
-                                        ? "bg-blue-500/10 border-blue-500/50 text-white" 
-                                        : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
-                                    }`}
-                                 >
-                                     <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                         isSelected ? "border-blue-400 bg-blue-400" : "border-white/30"
-                                     }`}>
-                                         {isSelected && <Check size={10} className="text-black" />}
-                                     </div>
-                                     {col}
-                                 </button>
-                             )
-                         })}
-                     </div>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-white/70 uppercase tracking-wider">Board Name</label>
+                <input
+                  type="text"
+                  value={newBoardName}
+                  onChange={(e) => setNewBoardName(e.target.value)}
+                  placeholder="e.g. Q1 Roadmap"
+                  autoFocus
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-colors"
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateBoard()}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-xs font-semibold text-white/70 uppercase tracking-wider">Statuses</label>
+                <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                  {AVAILABLE_COLUMNS.map(col => {
+                    const isSelected = selectedColumns.includes(col);
+                    return (
+                      <button
+                        key={col}
+                        onClick={() => toggleColumnSelection(col)}
+                        className={`flex items-center gap-3 p-3 rounded-lg border text-sm transition-all ${isSelected
+                          ? "bg-blue-500/10 border-blue-500/50 text-white"
+                          : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                          }`}
+                      >
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? "border-blue-400 bg-blue-400" : "border-white/30"
+                          }`}>
+                          {isSelected && <Check size={10} className="text-black" />}
+                        </div>
+                        {col}
+                      </button>
+                    )
+                  })}
                 </div>
+              </div>
             </div>
 
             <div className="flex gap-3 mt-8">
@@ -591,12 +599,12 @@ export const TasksView = () => {
   // --- KANBAN VIEW ---
 
   if (!activeBoard) {
-       return (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-white/50 animate-pulse">
-              <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-              <p>Setting up your board...</p>
-          </div>
-       );
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-white/50 animate-pulse">
+        <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+        <p>Setting up your board...</p>
+      </div>
+    );
   }
 
   return (
@@ -610,46 +618,46 @@ export const TasksView = () => {
             <Layout size={18} />
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-tight">
+            <h2 className="text-2xl font-bold text-white tracking-tight hidden">
               {activeBoard.name}
             </h2>
             <div className="flex gap-2 items-center text-white/40 text-xs mt-1">
-               <span>Kanban Board</span>
-               <span>•</span>
-               <span>{tasks.length} Tasks</span>
+              <span>Kanban Board</span>
+              <span>•</span>
+              <span>{tasks.length} Tasks</span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="bg-white/5 p-1 rounded-lg flex border border-white/10">
-             <button 
-                onClick={() => setIsVerticalView(false)}
-                className={`p-1.5 rounded-md transition-all ${!isVerticalView ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/80'}`}
-                title="Board View"
-             >
-                 <Columns size={16} />
-             </button>
-             <button 
-                onClick={() => setIsVerticalView(true)}
-                 className={`p-1.5 rounded-md transition-all ${isVerticalView ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/80'}`}
-                 title="List View"
-             >
-                 <Rows size={16} />
-             </button>
+            <button
+              onClick={() => setIsVerticalView(false)}
+              className={`p-1.5 rounded-md transition-all ${!isVerticalView ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/80'}`}
+              title="Board View"
+            >
+              <Columns size={16} />
+            </button>
+            <button
+              onClick={() => setIsVerticalView(true)}
+              className={`p-1.5 rounded-md transition-all ${isVerticalView ? 'bg-white/10 text-white shadow-sm' : 'text-white/40 hover:text-white/80'}`}
+              title="List View"
+            >
+              <Rows size={16} />
+            </button>
           </div>
 
           <div className="flex -space-x-2">
             {[1, 2, 3].map((i) => (
-                <div
+              <div
                 key={i}
                 className="w-8 h-8 rounded-full bg-white/10 border border-black backdrop-blur-md flex items-center justify-center text-[10px] text-white/70"
-                >
+              >
                 U{i}
-                </div>
+              </div>
             ))}
             <button className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white/50">
-                <Plus size={14} />
+              <Plus size={14} />
             </button>
           </div>
         </div>
@@ -675,16 +683,15 @@ export const TasksView = () => {
                   <h3 className={`font-semibold text-sm flex items-center gap-2 ${isVerticalView ? 'text-white/80' : 'text-white/90'}`}>
                     {/* Status Dot */}
                     <span
-                      className={`w-2 h-2 rounded-full ${
-                        column === "To Do" || column === "Backlog" || column === "Dock"? "bg-blue-400"
-                          : column === "In Progress"
-                            ? "bg-yellow-400"
-                            : column === "In Review" || column === "Testing"
-                                ? "bg-purple-400"
+                      className={`w-2 h-2 rounded-full ${column === "To Do" || column === "Backlog" || column === "Dock" ? "bg-blue-400"
+                        : column === "In Progress"
+                          ? "bg-yellow-400"
+                          : column === "In Review" || column === "Testing"
+                            ? "bg-purple-400"
                             : column === "Done" || column === "Finished"
                               ? "bg-green-400"
                               : "bg-gray-400"
-                      }`}
+                        }`}
                     />
                     {column}
                   </h3>
@@ -703,7 +710,8 @@ export const TasksView = () => {
                       <SortableTaskItem
                         key={task.id}
                         task={task}
-                        onDelete={deleteTask}
+                        onDelete={handleDeleteTask}
+                        onEdit={setEditingTask}
                         isVerticalView={isVerticalView}
                       />
                     ))}
@@ -714,11 +722,11 @@ export const TasksView = () => {
                         <p className="text-[10px] text-white/20">Drop here</p>
                       </div>
                     )}
-                     {(tasksByColumn[column] || []).length === 0 && isVerticalView && (
-                         <div className="py-2 px-4 border border-dashed border-white/5 rounded-lg text-center">
-                              <p className="text-[10px] text-white/20">Empty</p>
-                         </div>
-                     )}
+                    {(tasksByColumn[column] || []).length === 0 && isVerticalView && (
+                      <div className="py-2 px-4 border border-dashed border-white/5 rounded-lg text-center">
+                        <p className="text-[10px] text-white/20">Empty</p>
+                      </div>
+                    )}
                   </div>
                 </SortableContext>
 
@@ -726,7 +734,7 @@ export const TasksView = () => {
                 <div className={`${isVerticalView ? 'mt-3 mb-2' : 'p-3 border-t border-white/5'}`}>
                   {isAddingTask === column ? (
                     <div className="space-y-2">
-                       {/* Input UI */}
+                      {/* Input UI */}
                       <textarea
                         autoFocus
                         value={activeTaskContent}
@@ -785,6 +793,14 @@ export const TasksView = () => {
           ) : null}
         </DragOverlay>
       </DndContext>
-    </div>
+
+      <TaskDialog
+        isOpen={!!editingTask}
+        onClose={() => setEditingTask(null)}
+        onSave={handleUpdateTask}
+        onDelete={handleDeleteTask}
+        initialTask={editingTask}
+      />
+    </div >
   );
 };

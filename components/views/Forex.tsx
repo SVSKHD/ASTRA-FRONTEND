@@ -15,15 +15,6 @@ export const ForexView = () => {
 
   return (
     <div className="space-y-6 h-full flex flex-col">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Market Watch</h2>
-          <p className="text-white/40 text-sm">
-            Real-time prices and analytics
-          </p>
-        </div>
-      </div>
 
       {/* Stats & Active Symbol Selector */}
       <ForexStats>

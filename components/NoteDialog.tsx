@@ -21,9 +21,10 @@ interface NoteDialogProps {
     onClose: () => void;
     onSave: (note: Partial<Note>) => void;
     initialNote?: Note | null;
+    readOnly?: boolean;
 }
 
-export const NoteDialog = ({ isOpen, onClose, onSave, initialNote }: NoteDialogProps) => {
+export const NoteDialog = ({ isOpen, onClose, onSave, initialNote, readOnly = false }: NoteDialogProps) => {
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
 
@@ -87,8 +88,9 @@ export const NoteDialog = ({ isOpen, onClose, onSave, initialNote }: NoteDialogP
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="Note Title"
-                        className="bg-transparent text-2xl font-bold text-white placeholder:text-white/20 focus:outline-none w-full"
-                        autoFocus
+                        className="bg-transparent text-2xl font-bold text-white placeholder:text-white/20 focus:outline-none w-full disabled:opacity-70 disabled:cursor-default"
+                        autoFocus={!readOnly}
+                        disabled={readOnly}
                     />
                     <div className="flex items-center gap-3">
                         <button
@@ -98,12 +100,14 @@ export const NoteDialog = ({ isOpen, onClose, onSave, initialNote }: NoteDialogP
                         >
                             <Share2 size={20} />
                         </button>
-                        <button
-                            onClick={handleSave}
-                            className="px-4 py-2 rounded-xl bg-white text-black font-semibold hover:bg-white/90 transition-colors"
-                        >
-                            Save
-                        </button>
+                        {!readOnly && (
+                            <button
+                                onClick={handleSave}
+                                className="px-4 py-2 rounded-xl bg-white text-black font-semibold hover:bg-white/90 transition-colors"
+                            >
+                                Save
+                            </button>
+                        )}
                         <button
                             onClick={onClose}
                             className="p-2 rounded-xl hover:bg-white/10 text-white/50 hover:text-white transition-colors"
@@ -118,6 +122,7 @@ export const NoteDialog = ({ isOpen, onClose, onSave, initialNote }: NoteDialogP
                     <NoteEditor
                         content={content}
                         onChange={setContent}
+                        editable={!readOnly}
                     />
                 </div>
             </motion.div>

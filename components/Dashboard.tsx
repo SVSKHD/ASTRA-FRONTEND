@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { tabsConfig } from "../config/dashboard-tabs";
 import { Palette, Lock } from "lucide-react";
 import GradientPicker from "./GradientPicker";
+import { GreetCard } from "./GreetCard";
 
 interface DashboardProps {
   onLock: () => void;
@@ -182,6 +183,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
         {/* Scrollable Content Area */}
         <main className="w-full h-full overflow-y-auto pt-48 md:pt-32 pb-6 px-4 md:px-8 no-scrollbar">
+          <GreetCard pageTitle={activeTab.label} caption={activeTab.caption} />
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab.id}

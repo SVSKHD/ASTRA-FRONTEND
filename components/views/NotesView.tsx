@@ -1,105 +1,149 @@
 import React, { useState } from "react";
-import { Plus, Clock, Share2 } from "lucide-react";
-import { NoteDialog, Note } from "../NoteDialog";
+import { Plus, Clock, Share2, Trash2, Loader2, Eye, Maximize2 } from "lucide-react";
+import { NoteDialog, Note as DialogNote } from "../NoteDialog";
 import { AnimatePresence } from "framer-motion";
+import { useNotes } from "../../hooks/useNotes";
+import { Note } from "../../services/notesService";
+
+// Helper to map Service Note to Dialog Note if needed, though they are compatible
+const mapToDialogNote = (note: Note): DialogNote => ({
+    ...note
+});
 
 export const NotesView = () => {
-    const [notes, setNotes] = useState<Note[]>([
-        {
-            id: '1',
-            title: 'Project Ideas',
-            content: '<p>Some rough ideas for the new design system...</p>',
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-        },
-        {
-            id: '2',
-            title: 'Meeting Notes',
-            content: '<p>Discussed the Q1 roadmap and marketing strategy.</p><ul><li>Launch in April</li><li>Focus on mobile</li></ul>',
-            createdAt: Date.now() - 86400000,
-            updatedAt: Date.now() - 86400000
-        }
-    ]);
+    const { notes, loading, createNote, updateNote, deleteNote } = useNotes();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [editingNote, setEditingNote] = useState<Note | null>(null);
+    const [editingNote, setEditingNote] = useState<DialogNote | null>(null);
+    const [viewMode, setViewMode] = useState<'edit' | 'view'>('edit');
 
-    const handleCreateUpdateNote = (noteData: Partial<Note>) => {
+    const handleCreateUpdateNote = async (noteData: Partial<DialogNote>) => {
         if (noteData.id) {
             // Update
-            setNotes(prev => prev.map(n => n.id === noteData.id ? {
-                ...n,
-                ...noteData,
-                updatedAt: Date.now()
-            } as Note : n));
+            await updateNote(noteData.id, {
+                title: noteData.title,
+                content: noteData.content
+            });
         } else {
             // Create
-            const newNote: Note = {
-                id: Math.random().toString(36).substr(2, 9),
-                title: noteData.title || "Untitled",
-                content: noteData.content || "",
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-            };
-            setNotes(prev => [newNote, ...prev]);
+            if (noteData.title && noteData.content) {
+                await createNote({
+                    title: noteData.title,
+                    content: noteData.content
+                });
+            }
         }
     };
 
     const handleOpenCreate = () => {
         setEditingNote(null);
+        setViewMode('edit');
         setIsDialogOpen(true);
     };
 
     const handleOpenEdit = (note: Note) => {
-        setEditingNote(note);
+        setEditingNote(mapToDialogNote(note));
+        setViewMode('edit');
         setIsDialogOpen(true);
+    };
+
+    const handleOpenView = (e: React.MouseEvent, note: Note) => {
+        e.stopPropagation();
+        setEditingNote(mapToDialogNote(note));
+        setViewMode('view');
+        setIsDialogOpen(true);
+    };
+
+    const handleDelete = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        if (confirm("Are you sure you want to delete this note?")) {
+            await deleteNote(id);
+        }
     };
 
     const handleShare = (e: React.MouseEvent, note: Note) => {
         e.stopPropagation();
+        // Assuming we might have a route for sharing or just raw content
         const url = `${window.location.origin}/notes/${note.id}`;
         navigator.clipboard.writeText(url);
         alert(`Link copied to clipboard: ${url}`);
     };
 
+    if (loading) {
+        return (
+            <div className="h-full flex items-center justify-center text-white/50">
+                <Loader2 className="animate-spin" size={32} />
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6 h-full flex flex-col">
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white/90">Notes</h2>
-                <button
-                    onClick={handleOpenCreate}
-                    className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors border border-white/5"
-                >
-                    <Plus size={20} className="text-white/80" />
-                </button>
+            <div className="flex items-center justify-end">
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleOpenCreate}
+                        className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors border border-white/5"
+                    >
+                        <Plus size={20} className="text-white/80" />
+                    </button>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-6 overflow-y-auto">
                 {notes.map((note) => (
                     <div
                         key={note.id}
                         onClick={() => handleOpenEdit(note)}
                         className="p-5 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-all cursor-pointer group flex flex-col h-64 relative overflow-hidden"
                     >
-                        <h3 className="font-semibold text-lg text-white/90 mb-2 group-hover:text-blue-200 transition-colors line-clamp-1 pr-8">
+                        <h3 className="font-semibold text-lg text-white/90 mb-2 group-hover:text-blue-200 transition-colors line-clamp-1 pr-16">
                             {note.title}
                         </h3>
 
-                        <button
-                            onClick={(e) => handleShare(e, note)}
-                            className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/20 text-white/40 hover:text-white transition-all z-10 opacity-0 group-hover:opacity-100"
-                            title="Share note"
-                        >
-                            <Share2 size={16} />
-                        </button>
+                        <div className="absolute top-4 right-4 flex gap-1 transform translate-x-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 z-10">
+                            <button
+                                onClick={(e) => handleOpenView(e, note)}
+                                className="p-2 rounded-full bg-white/5 hover:bg-white/20 text-white/40 hover:text-white transition-all"
+                                title="View note"
+                            >
+                                <Eye size={16} />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEdit(note);
+                                }}
+                                className="p-2 rounded-full bg-white/5 hover:bg-white/20 text-white/40 hover:text-white transition-all"
+                                title="Open note"
+                            >
+                                <Maximize2 size={16} />
+                            </button>
+                            <button
+                                onClick={(e) => handleShare(e, note)}
+                                className="p-2 rounded-full bg-white/5 hover:bg-white/20 text-white/40 hover:text-white transition-all"
+                                title="Share note"
+                            >
+                                <Share2 size={16} />
+                            </button>
+                            <button
+                                onClick={(e) => handleDelete(e, note.id)}
+                                className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"
+                                title="Delete note"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
 
                         <div
                             className="text-sm text-white/60 line-clamp-6 prose prose-invert prose-sm"
                             dangerouslySetInnerHTML={{ __html: note.content }}
                         />
 
-                        <div className="mt-auto pt-4 flex items-center gap-2 text-xs text-white/30 border-t border-white/5">
-                            <Clock size={12} />
-                            <span>{new Date(note.updatedAt).toLocaleDateString()}</span>
+                        <div className="mt-auto pt-4 flex items-center justify-between text-xs text-white/30 border-t border-white/5">
+                            <div className="flex items-center gap-2">
+                                <Clock size={12} />
+                                <span>{new Date(note.updatedAt).toLocaleDateString()}</span>
+                            </div>
                         </div>
 
                         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/20 pointer-events-none" />
@@ -122,9 +166,11 @@ export const NotesView = () => {
                         onClose={() => setIsDialogOpen(false)}
                         onSave={handleCreateUpdateNote}
                         initialNote={editingNote}
+                        readOnly={viewMode === 'view'}
                     />
                 )}
             </AnimatePresence>
         </div>
     );
 };
+

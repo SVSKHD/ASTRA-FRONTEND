@@ -12,13 +12,18 @@ interface LockScreenProps {
 export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     if (pin.length === 4) {
       const correctPin = process.env.NEXT_PUBLIC_LOCK_PASSWORD;
       if (pin === correctPin) {
-        onUnlock();
-        setPin("");
+        setSuccess(true);
+        setTimeout(() => {
+          onUnlock();
+          setPin("");
+          setSuccess(false);
+        }, 800);
       } else {
         setError(true);
         setTimeout(() => {
@@ -29,8 +34,27 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
     }
   }, [pin, onUnlock]);
 
+  useEffect(() => {
+    if (!isLocked) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key;
+      if (/^[0-9]$/.test(key)) {
+        if (pin.length < 4 && !success) {
+          setPin((prev) => prev + key);
+          setError(false);
+        }
+      } else if (key === "Backspace") {
+        setPin((prev) => prev.slice(0, -1));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isLocked, pin, success]);
+
   const handleNumClick = (num: string) => {
-    if (pin.length < 4) {
+    if (pin.length < 4 && !success) {
       setPin((prev) => prev + num);
       setError(false);
     }
@@ -40,85 +64,148 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
     setPin((prev) => prev.slice(0, -1));
   };
 
+  // Staggered children variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2
+      }
+    },
+    exit: { opacity: 0 }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
+  };
+
   return (
     <AnimatePresence>
       {isLocked && (
         <motion.div
-          initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
-          animate={{ opacity: 1, backdropFilter: "blur(12px)", y: 0 }}
-          exit={{ opacity: 0, backdropFilter: "blur(0px)", y: "-100%" }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center text-white bg-black/40"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { delay: 0.2 } }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-3xl overflow-hidden"
         >
-          {/* Subtle Noise Texture for premium feel */}
-          <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] pointer-events-none" />
+          {/* Background Effects */}
+          <div className="absolute inset-0 z-0">
+            <div className="absolute top-[-20%] left-[-20%] w-[800px] h-[800px] bg-indigo-500/20 rounded-full blur-[150px] animate-pulse-slow" />
+            <div className="absolute bottom-[-20%] right-[-20%] w-[800px] h-[800px] bg-purple-500/20 rounded-full blur-[150px] animate-pulse-slow delay-1000" />
+            <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.05]" />
+          </div>
 
-          <div className="flex flex-col items-center gap-10 relative z-10">
+          {/* Dialog Container */}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="relative z-10 bg-black/40 backdrop-blur-2xl border border-white/10 p-12 rounded-[3.5rem] shadow-[0_0_80px_rgba(0,0,0,0.5)] flex flex-col items-center gap-10 max-w-sm w-full mx-4 overflow-hidden"
+          >
+            {/* Shine Effect */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
+
             <motion.div
+              variants={itemVariants}
               animate={error ? { x: [-10, 10, -10, 10, 0] } : {}}
-              className="flex flex-col items-center gap-6"
+              className="flex flex-col items-center gap-6 relative z-10"
             >
-              <h1 className="text-4xl font-light tracking-tight text-white mb-2 drop-shadow-2xl font-mono">
-                ASTRA
+              <h1 className="text-5xl font-extralight tracking-tight text-white mb-2 drop-shadow-xl font-sans">
+                Astra
               </h1>
-              <div className="flex items-center gap-2 bg-white/10 px-5 py-1.5 rounded-full backdrop-blur-3xl border border-white/10 shadow-lg">
-                <Lock size={14} className="text-white/70" />
-                <span className="text-[10px] font-medium tracking-widest uppercase text-white/70">
-                  System Locked
+              <motion.div
+                initial={{ background: "rgba(255,255,255,0.1)" }}
+                animate={
+                  success
+                    ? { background: "rgba(34, 197, 94, 0.2)", borderColor: "rgba(34, 197, 94, 0.4)" }
+                    : { background: "rgba(255,255,255,0.1)", borderColor: "rgba(255,255,255,0.1)" }
+                }
+                className="flex items-center gap-2 px-6 py-2 rounded-full backdrop-blur-3xl border shadow-lg transition-colors duration-500"
+              >
+                {success ? (
+                  <Unlock size={14} className="text-green-400" />
+                ) : (
+                  <Lock size={14} className="text-white/70" />
+                )}
+                <span className={`text-[10px] font-bold tracking-[0.2em] uppercase ${success ? "text-green-400" : "text-white/70"}`}>
+                  {success ? "Welcome Back" : "System Locked"}
                 </span>
-              </div>
+              </motion.div>
             </motion.div>
 
             {/* Pins dots */}
-            <div className="flex gap-4 mb-4">
+            <motion.div variants={itemVariants} className="flex gap-4 mb-2 relative z-10">
               {[0, 1, 2, 3].map((i) => (
-                <div
+                <motion.div
                   key={i}
-                  className={`w-4 h-4 rounded-full border border-white/30 transition-all duration-300 ${pin.length > i
-                      ? "bg-white border-white shadow-[0_0_15px_rgba(255,255,255,0.5)] scale-110"
-                      : "bg-transparent scale-100"
+                  animate={
+                    success
+                      ? { scale: [1, 1.5, 1], backgroundColor: "#4ade80", borderColor: "#4ade80", boxShadow: "0 0 20px #4ade80" }
+                      : { scale: 1 }
+                  }
+                  transition={{ delay: i * 0.1 }}
+                  className={`w-4 h-4 rounded-full border border-white/20 transition-all duration-300 ${pin.length > i
+                    ? "bg-white border-white shadow-[0_0_15px_rgba(255,255,255,0.5)]"
+                    : "bg-transparent"
                     }`}
                 />
               ))}
-            </div>
+            </motion.div>
 
             {/* Keypad */}
-            <div className="grid grid-cols-3 gap-x-8 gap-y-6 max-w-sm">
+            <motion.div variants={itemVariants} className="grid grid-cols-3 gap-x-6 gap-y-6 relative z-10">
               {[
                 { num: "1" }, { num: "2" }, { num: "3" },
                 { num: "4" }, { num: "5" }, { num: "6" },
                 { num: "7" }, { num: "8" }, { num: "9" },
               ].map(({ num }) => (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.1, backgroundColor: "rgba(255,255,255,0.15)" }}
+                  whileTap={{ scale: 0.9 }}
                   key={num}
                   onClick={() => handleNumClick(num)}
-                  className="w-20 h-20 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 shadow-lg flex flex-col items-center justify-center transition-all duration-200 active:scale-95 active:bg-white/20 group"
+                  disabled={success}
+                  className="w-16 h-16 rounded-full bg-white/5 backdrop-blur-md border border-white/5 shadow-lg flex flex-col items-center justify-center transition-colors group outline-none focus:ring-1 focus:ring-white/30"
                 >
-                  <span className="text-3xl font-light text-white/90 group-hover:text-white transition-colors">
+                  <span className="text-2xl font-light text-white/90 group-hover:text-white transition-colors">
                     {num}
                   </span>
-                </button>
+                </motion.button>
               ))}
 
               <div /> {/* Empty slot */}
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.1, backgroundColor: "rgba(255,255,255,0.15)" }}
+                whileTap={{ scale: 0.9 }}
                 onClick={() => handleNumClick("0")}
-                className="w-20 h-20 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 shadow-lg flex flex-col items-center justify-center transition-all duration-200 active:scale-95 active:bg-white/20 group"
+                disabled={success}
+                className="w-16 h-16 rounded-full bg-white/5 backdrop-blur-md border border-white/5 shadow-lg flex flex-col items-center justify-center transition-colors group outline-none focus:ring-1 focus:ring-white/30"
               >
-                <span className="text-3xl font-light text-white/90 group-hover:text-white transition-colors">0</span>
-              </button>
+                <span className="text-2xl font-light text-white/90 group-hover:text-white transition-colors">0</span>
+              </motion.button>
 
               <div className="flex items-center justify-center">
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.1, backgroundColor: "rgba(255,255,255,0.1)" }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={handleBackspace}
-                  className="w-20 h-20 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-all hover:bg-white/5 active:scale-95"
+                  disabled={success}
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-white/40 hover:text-white transition-colors hover:bg-white/5 outline-none focus:ring-1 focus:ring-white/20"
                 >
-                  <Delete size={28} strokeWidth={1.5} />
-                </button>
+                  <Delete size={22} strokeWidth={1.5} />
+                </motion.button>
               </div>
-            </div>
-          </div>
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="text-white/20 text-[10px] mt-2 font-mono tracking-widest uppercase relative z-10">
+              Authorized Access Only
+            </motion.div>
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

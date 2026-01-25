@@ -1,9 +1,6 @@
 export const OverviewView = () => (
   <div className="space-y-6">
-    <div className="p-6 rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
-      <h2 className="text-3xl font-bold mb-2">Welcome Back</h2>
-      <p className="text-white/60">Here is your daily overview.</p>
-    </div>
+
 
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className="h-40 rounded-3xl bg-gradient-to-br from-red-500/10 to-purple-500/10 backdrop-blur-2xl border border-white/20 p-6 flex flex-col justify-between shadow-lg">
