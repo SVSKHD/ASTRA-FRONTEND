@@ -1,9 +1,10 @@
 import { ForexView } from "@/components/views/Forex";
 import { OverviewView } from "@/components/views/Overview";
-import { LayoutDashboard, Globe, IndianRupee, Notebook, CheckSquare, MessageCircle } from "lucide-react";
+import { LayoutDashboard, Globe, IndianRupee, Notebook, CheckSquare, MessageCircle, Lock } from "lucide-react";
 import { IndianView } from "../components/views/Indian";
 import { NotesView } from "@/components/views/NotesView";
 import { TasksView } from "@/components/views/TasksView";
+import { RequestAccessView } from "@/components/views/RequestAccessView";
 import { ChatView } from "@/components/views/ChatView";
 import React from "react";
 
@@ -13,6 +14,7 @@ export interface TabConfig {
   caption: string;
   icon: any;
   component: React.ReactNode;
+  allowedRoles?: string[];
 }
 
 export const tabsConfig: TabConfig[] = [
@@ -29,6 +31,7 @@ export const tabsConfig: TabConfig[] = [
     caption: "Market",
     icon: Globe,
     component: <ForexView />,
+    allowedRoles: ["admin"],
   },
   {
     id: "indian",
@@ -36,6 +39,7 @@ export const tabsConfig: TabConfig[] = [
     caption: "Market",
     icon: IndianRupee,
     component: <IndianView />,
+    allowedRoles: ["admin"],
   },
   {
     id: "notes",
@@ -43,6 +47,7 @@ export const tabsConfig: TabConfig[] = [
     caption: "Note the markets and prices",
     icon: Notebook,
     component: <NotesView />,
+    allowedRoles: ["admin"],
   },
   {
     id: "tasks",
@@ -50,6 +55,15 @@ export const tabsConfig: TabConfig[] = [
     caption: "Manage your tasks",
     icon: CheckSquare,
     component: <TasksView />,
+    allowedRoles: ["admin"],
+  },
+  {
+    id: "request-access",
+    label: "Access",
+    caption: "Request Admin Access",
+    icon: Lock,
+    component: <RequestAccessView />,
+    allowedRoles: ["user"],
   },
   {
     id: "chat",

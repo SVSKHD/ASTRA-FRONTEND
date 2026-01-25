@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Unlock, Delete } from "lucide-react";
+import { useUser } from "@/context/UserContext";
 
 interface LockScreenProps {
   isLocked: boolean;
@@ -10,13 +11,14 @@ interface LockScreenProps {
 }
 
 export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
+  const { user } = useUser();
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     if (pin.length === 4) {
-      const correctPin = process.env.NEXT_PUBLIC_LOCK_PASSWORD;
+      const correctPin = user?.pin || process.env.NEXT_PUBLIC_LOCK_PASSWORD;
       if (pin === correctPin) {
         setSuccess(true);
         setTimeout(() => {
@@ -32,7 +34,7 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
         }, 500);
       }
     }
-  }, [pin, onUnlock]);
+  }, [pin, onUnlock, user]);
 
   useEffect(() => {
     if (!isLocked) return;
@@ -104,7 +106,7 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="relative z-10 bg-black/40 backdrop-blur-2xl border border-white/10 p-12 rounded-[3.5rem] shadow-[0_0_80px_rgba(0,0,0,0.5)] flex flex-col items-center gap-10 max-w-sm w-full mx-4 overflow-hidden"
+            className="relative z-10 bg-black/40 backdrop-blur-2xl border border-white/10 p-6 md:p-12 rounded-[3.5rem] shadow-[0_0_80px_rgba(0,0,0,0.5)] flex flex-col items-center gap-6 md:gap-10 max-w-sm w-full mx-4 overflow-hidden"
           >
             {/* Shine Effect */}
             <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
@@ -157,7 +159,7 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
             </motion.div>
 
             {/* Keypad */}
-            <motion.div variants={itemVariants} className="grid grid-cols-3 gap-x-6 gap-y-6 relative z-10">
+            <motion.div variants={itemVariants} className="grid grid-cols-3 gap-x-4 gap-y-4 md:gap-x-6 md:gap-y-6 relative z-10 transition-all">
               {[
                 { num: "1" }, { num: "2" }, { num: "3" },
                 { num: "4" }, { num: "5" }, { num: "6" },
@@ -184,9 +186,9 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
                 whileTap={{ scale: 0.9 }}
                 onClick={() => handleNumClick("0")}
                 disabled={success}
-                className="w-16 h-16 rounded-full bg-white/5 backdrop-blur-md border border-white/5 shadow-lg flex flex-col items-center justify-center transition-colors group outline-none focus:ring-1 focus:ring-white/30"
+                className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-white/5 backdrop-blur-md border border-white/5 shadow-lg flex flex-col items-center justify-center transition-colors group outline-none focus:ring-1 focus:ring-white/30"
               >
-                <span className="text-2xl font-light text-white/90 group-hover:text-white transition-colors">0</span>
+                <span className="text-xl md:text-2xl font-light text-white/90 group-hover:text-white transition-colors">0</span>
               </motion.button>
 
               <div className="flex items-center justify-center">
@@ -195,7 +197,7 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
                   whileTap={{ scale: 0.9 }}
                   onClick={handleBackspace}
                   disabled={success}
-                  className="w-16 h-16 rounded-full flex items-center justify-center text-white/40 hover:text-white transition-colors hover:bg-white/5 outline-none focus:ring-1 focus:ring-white/20"
+                  className="w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white/40 hover:text-white transition-colors hover:bg-white/5 outline-none focus:ring-1 focus:ring-white/20"
                 >
                   <Delete size={22} strokeWidth={1.5} />
                 </motion.button>

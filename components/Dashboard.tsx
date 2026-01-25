@@ -3,9 +3,13 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { tabsConfig } from "../config/dashboard-tabs";
-import { Palette, Lock } from "lucide-react";
+import { Palette, Lock, User as UserIcon } from "lucide-react";
 import GradientPicker from "./GradientPicker";
 import { GreetCard } from "./GreetCard";
+import { LoginDialog } from "./LoginDialog";
+import { auth } from "../utils/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { useUser } from "@/context/UserContext";
 
 interface DashboardProps {
   onLock: () => void;
@@ -14,9 +18,39 @@ interface DashboardProps {
 export default function Dashboard({ onLock }: DashboardProps) {
   const [activeTabId, setActiveTabId] = useState(tabsConfig[0].id);
   const [background, setBackground] = useState("#000000"); // Default black background
+  // ... existing state ...
+
+  const { user: appUser, loading } = useUser(); // Get user from our context
+  // NOTE: appUser is our UserProfile, but we also have local `user` state from Firebase direct auth listener below.
+  // We can remove the local listener and rely on Context, OR just use Context for the role.
+  // Let's rely on Context for everything eventually, but for minimal diff, just use appUser for role checking.
+
+  const visibleTabs = tabsConfig.filter(tab => {
+    if (!tab.allowedRoles) return true;
+    if (!appUser) return false;
+    return tab.allowedRoles.includes(appUser.role);
+  });
+
+  // Ensure active tab is visible
+  useEffect(() => {
+    const isVisible = visibleTabs.find(t => t.id === activeTabId);
+    if (!isVisible && visibleTabs.length > 0) {
+      setActiveTabId(visibleTabs[0].id);
+    }
+  }, [appUser, activeTabId, visibleTabs]);
+
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [timeLeft, setTimeLeft] = useState(3000); // 50 minutes in seconds
   const [isActiveMode, setIsActiveMode] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("astra-active-mode");
@@ -55,7 +89,9 @@ export default function Dashboard({ onLock }: DashboardProps) {
   };
 
   const activeTab =
-    tabsConfig.find((tab) => tab.id === activeTabId) || tabsConfig[0];
+    visibleTabs.find((tab) => tab.id === activeTabId) || visibleTabs[0];
+
+  if (!activeTab) return null; // Or loading state
 
   return (
     <div className="min-h-screen text-white relative overflow-hidden font-sans">
@@ -122,7 +158,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
           {/* Tab Bar - Desktop */}
           <div className="hidden md:flex items-center gap-1">
-            {tabsConfig.map((tab) => {
+            {visibleTabs.map((tab) => {
               const isActive = activeTabId === tab.id;
               const Icon = tab.icon;
               return (
@@ -141,6 +177,19 @@ export default function Dashboard({ onLock }: DashboardProps) {
           {/* Separator */}
           <div className="h-4 w-[1px] bg-white/10 hidden md:block" />
 
+          {/* User Login Button */}
+          <button
+            onClick={() => setIsLoginOpen(true)}
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5 flex items-center justify-center transition-all overflow-hidden"
+            title={user ? "Account" : "Sign In"}
+          >
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="User" className="w-full h-full object-cover" />
+            ) : (
+              <UserIcon size={14} />
+            )}
+          </button>
+
           {/* Lock Button */}
           <button
             onClick={onLock}
@@ -156,7 +205,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
         <div className="md:hidden fixed top-24 left-4 right-4 z-40 pb-6 pointer-events-none">
           <div className="flex items-center justify-between bg-black/60 backdrop-blur-xl p-1 rounded-2xl border border-white/10 pointer-events-auto shadow-2xl">
-            {tabsConfig.map((tab) => {
+            {visibleTabs.map((tab) => {
               const isActive = activeTabId === tab.id;
               const Icon = tab.icon;
               return (
@@ -209,6 +258,12 @@ export default function Dashboard({ onLock }: DashboardProps) {
             </motion.div>
           </AnimatePresence>
         </main>
+
+        <LoginDialog
+          isOpen={isLoginOpen}
+          onClose={() => setIsLoginOpen(false)}
+          user={user}
+        />
       </div>
     </div>
   );

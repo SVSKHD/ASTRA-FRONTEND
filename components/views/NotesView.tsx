@@ -109,39 +109,7 @@ export const NotesView = () => {
                             {note.title}
                         </h3>
 
-                        <div className="absolute top-4 right-4 flex gap-1 transform translate-x-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 z-10">
-                            <button
-                                onClick={(e) => handleOpenView(e, note)}
-                                className="p-2 rounded-full bg-white/5 hover:bg-white/20 text-white/40 hover:text-white transition-all"
-                                title="View note"
-                            >
-                                <Eye size={16} />
-                            </button>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenEdit(note);
-                                }}
-                                className="p-2 rounded-full bg-white/5 hover:bg-white/20 text-white/40 hover:text-white transition-all"
-                                title="Open note"
-                            >
-                                <Maximize2 size={16} />
-                            </button>
-                            <button
-                                onClick={(e) => handleShare(e, note)}
-                                className="p-2 rounded-full bg-white/5 hover:bg-white/20 text-white/40 hover:text-white transition-all"
-                                title="Share note"
-                            >
-                                <Share2 size={16} />
-                            </button>
-                            <button
-                                onClick={(e) => handleDelete(e, note.id)}
-                                className="p-2 rounded-full bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"
-                                title="Delete note"
-                            >
-                                <Trash2 size={16} />
-                            </button>
-                        </div>
+
 
                         <div
                             className="text-sm text-white/60 line-clamp-6 prose prose-invert prose-sm"
@@ -152,6 +120,40 @@ export const NotesView = () => {
                             <div className="flex items-center gap-2">
                                 <Clock size={12} />
                                 <span>{new Date(note.updatedAt).toLocaleDateString()}</span>
+                            </div>
+
+                            <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                <button
+                                    onClick={(e) => handleOpenView(e, note)}
+                                    className="p-1.5 rounded-lg hover:bg-white/20 text-white/40 hover:text-white transition-all"
+                                    title="View"
+                                >
+                                    <Eye size={14} />
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenEdit(note);
+                                    }}
+                                    className="p-1.5 rounded-lg hover:bg-white/20 text-white/40 hover:text-white transition-all"
+                                    title="Edit"
+                                >
+                                    <Maximize2 size={14} />
+                                </button>
+                                <button
+                                    onClick={(e) => handleShare(e, note)}
+                                    className="p-1.5 rounded-lg hover:bg-white/20 text-white/40 hover:text-white transition-all"
+                                    title="Share"
+                                >
+                                    <Share2 size={14} />
+                                </button>
+                                <button
+                                    onClick={(e) => handleDelete(e, note.id)}
+                                    className="p-1.5 rounded-lg hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"
+                                    title="Delete"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
                             </div>
                         </div>
 

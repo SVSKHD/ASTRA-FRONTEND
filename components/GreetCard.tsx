@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Cloud, Sun, Moon } from "lucide-react";
+import { useUser } from "@/context/UserContext";
 
 interface GreetCardProps {
     pageTitle: string;
@@ -10,6 +11,7 @@ interface GreetCardProps {
 }
 
 export const GreetCard = ({ pageTitle, caption }: GreetCardProps) => {
+    const { user } = useUser();
     const [greeting, setGreeting] = useState("");
     const [date, setDate] = useState("");
     const [quote, setQuote] = useState("");
@@ -53,7 +55,22 @@ export const GreetCard = ({ pageTitle, caption }: GreetCardProps) => {
     }, []);
 
     // Determine Icon based on greeting
+    // Determine Icon based on greeting
+    const getWeatherIcon = () => {
+        if (greeting === "Good Morning") return <Sun className="w-6 h-6 text-yellow-400 inline-block mr-2" />;
+        if (greeting === "Good Afternoon") return <Cloud className="w-6 h-6 text-blue-400 inline-block mr-2" />;
+        return <Moon className="w-6 h-6 text-indigo-400 inline-block mr-2" />;
+    };
+
     const getIcon = () => {
+        if (user?.avatarUrl) {
+            return (
+                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20">
+                    <img src={user.avatarUrl} alt={user.username} className="w-full h-full object-cover" />
+                </div>
+            );
+        }
+        // Fallback or large icon if no user
         if (greeting === "Good Morning") return <Sun className="w-8 h-8 text-yellow-400" />;
         if (greeting === "Good Afternoon") return <Cloud className="w-8 h-8 text-blue-400" />;
         return <Moon className="w-8 h-8 text-indigo-400" />;
@@ -75,7 +92,7 @@ export const GreetCard = ({ pageTitle, caption }: GreetCardProps) => {
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ delay: 0.2 }}
-                        className="p-3 bg-white/5 rounded-2xl border border-white/5 shadow-inner"
+                        className={`p-3 bg-white/5 border border-white/5 shadow-inner ${user ? 'rounded-full' : 'rounded-2xl'}`}
                     >
                         <div className="transform scale-150">
                             {getIcon()}
@@ -87,9 +104,10 @@ export const GreetCard = ({ pageTitle, caption }: GreetCardProps) => {
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: 0.3 }}
-                            className="text-2xl font-semibold text-white/80"
+                            className="text-2xl font-semibold text-white/80 flex items-center"
                         >
-                            {greeting}
+                            {user && getWeatherIcon()}
+                            {greeting}{user ? `, ${user.username.split(' ')[0]}` : ''}
                         </motion.h2>
                         <motion.p
                             initial={{ opacity: 0 }}
