@@ -5,14 +5,80 @@ import { ActiveSymbolCard } from "@/components/ui/cards/ActiveSymbolCard";
 import { MarketStatsCard } from "@/components/ui/cards/MarketStatsCard";
 import { GreetCard } from "@/components/GreetCard";
 import { DataTable, Column } from "@/components/ui/data-table";
-import { Wallet, TrendingUp, Activity, CheckCircle2, MoreVertical, Flag, Calendar, Target, CheckCircle, Share2, Trash2, Edit2, User, Play, Pause } from "lucide-react";
+import {
+  Wallet,
+  TrendingUp,
+  Activity,
+  CheckCircle2,
+  MoreVertical,
+  Flag,
+  Calendar,
+  Target,
+  CheckCircle,
+  Share2,
+  Trash2,
+  Edit2,
+  User,
+  Play,
+  Pencil,
+  Plus,
+  ArrowRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const CodeBlock = ({ code }: { code: string }) => (
-  <div className="relative group">
-    <pre className="bg-black/80 p-4 rounded-lg overflow-x-auto text-xs text-white/70 font-mono border border-white/10 mt-4 leading-relaxed">
-      <code>{code}</code>
-    </pre>
+// Types for documentation
+interface PropDef {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+  default?: string;
+}
+
+const PropsTable = ({ props }: { props: PropDef[] }) => (
+  <div className="mt-8 border rounded-xl border-white/10 overflow-hidden bg-black/20">
+    <div className="bg-white/5 px-4 py-3 border-b border-white/10 font-bold text-sm text-white/80">
+      Component Properties
+    </div>
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-xs">
+        <thead className="bg-white/5 text-white/60">
+          <tr>
+            <th className="px-4 py-3 font-medium w-1/4">Name</th>
+            <th className="px-4 py-3 font-medium w-1/4">Type</th>
+            <th className="px-4 py-3 font-medium w-1/2">Description</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {props.map((prop) => (
+            <tr key={prop.name} className="hover:bg-white/5 transition-colors">
+              <td className="px-4 py-3 font-mono text-blue-400 align-top">
+                {prop.name}
+                {prop.required && (
+                  <span className="text-red-400 ml-1" title="Required">
+                    *
+                  </span>
+                )}
+              </td>
+              <td className="px-4 py-3 font-mono text-purple-400 align-top break-words">
+                {prop.type}
+              </td>
+              <td className="px-4 py-3 text-white/70 align-top">
+                <div className="mb-1">{prop.description}</div>
+                {prop.default && (
+                  <div className="text-white/30 text-[10px]">
+                    Default:{" "}
+                    <span className="font-mono bg-white/5 px-1 rounded">
+                      {prop.default}
+                    </span>
+                  </div>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   </div>
 );
 
@@ -21,359 +87,668 @@ interface SectionProps {
   children: React.ReactNode;
   code: string;
   description?: string;
+  props?: PropDef[];
 }
 
-const Section = ({ title, children, code, description }: SectionProps) => (
-  <div className="mb-12 border-b border-white/10 pb-12 last:border-0">
-    <h2 className="text-2xl font-bold mb-4 text-white font-mono">{title}</h2>
-    {description && <p className="text-white/60 mb-6 font-mono text-sm">{description}</p>}
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
-      <div className="bg-white/5 p-8 rounded-2xl border border-white/10 flex flex-col gap-4">
-        {children}
+const Section = ({
+  title,
+  children,
+  code,
+  description,
+  props,
+}: SectionProps) => {
+  const [isFlipped, setIsFlipped] = React.useState(false);
+
+  return (
+    <div className="mb-20 border-b border-white/10 pb-20 last:border-0 last:pb-0">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-12 items-start">
+        {/* Left Column: Interactive Component Card */}
+        <div className="h-full min-h-[420px] w-full perspective-parent">
+          <div
+            className="relative w-full h-full cursor-pointer group"
+            style={{ perspective: "1000px" }}
+            onClick={() => setIsFlipped(!isFlipped)}
+          >
+            <div
+              className="relative w-full h-full transition-all duration-700 ease-in-out"
+              style={{
+                transformStyle: "preserve-3d",
+                transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+              }}
+            >
+              {/* Front Face: Component Visual */}
+              <div
+                className="absolute inset-0 bg-white/5 p-8 rounded-3xl border border-white/10 shadow-2xl flex flex-col items-center justify-center overflow-hidden"
+                style={{ backfaceVisibility: "hidden" }}
+              >
+                <div className="w-full h-full flex items-center justify-center overflow-y-auto custom-scrollbar p-2">
+                  <div className="w-full">{children}</div>
+                </div>
+
+                <div className="mt-6 flex items-center gap-2 text-xs font-mono text-white/30 uppercase tracking-[0.2em] group-hover:text-white/60 transition-colors">
+                  <ArrowRight size={12} className="animate-pulse" />
+                  Click to view Types & Usage
+                </div>
+              </div>
+
+              {/* Back Face: Code Usage */}
+              <div
+                className="absolute inset-0 bg-black p-0 rounded-3xl border border-white/20 shadow-2xl overflow-hidden flex flex-col"
+                style={{
+                  backfaceVisibility: "hidden",
+                  transform: "rotateY(180deg)",
+                }}
+              >
+                <div className="bg-white/5 px-6 py-4 border-b border-white/10 flex justify-between items-center shrink-0">
+                  <span className="text-xs font-bold text-white/50 uppercase tracking-widest font-mono">
+                    Usage Example
+                  </span>
+                  <div className="flex gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/50"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/50"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/50"></div>
+                  </div>
+                </div>
+                <div className="p-6 overflow-auto custom-scrollbar flex-1 bg-black/50">
+                  <pre className="text-xs text-blue-300 font-mono leading-relaxed whitespace-pre-wrap">
+                    <code>{code}</code>
+                  </pre>
+                </div>
+                <div className="px-6 py-3 bg-white/5 border-t border-white/10 text-center text-xs text-white/20 uppercase tracking-wider font-mono hover:text-white/40 transition-colors shrink-0">
+                  Click to return to Preview
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Documentation */}
+        <div className="flex flex-col justify-center h-full">
+          <div>
+            <h2 className="text-3xl font-bold mb-4 text-white font-mono">
+              {title}
+            </h2>
+            {description && (
+              <p className="text-white/60 mb-8 font-light leading-relaxed text-lg">
+                {description}
+              </p>
+            )}
+
+            {props && <PropsTable props={props} />}
+
+            <div className="mt-8 p-4 rounded-lg bg-blue-500/5 border border-blue-500/10 text-sm text-blue-200/60 flex gap-3 items-start">
+              <div className="mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]"></div>
+              </div>
+              <p>
+                Interact with the card on the left to invoke the 3D flip
+                animation and inspect the implementation code.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-      <div>
-        <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wider mb-2 font-mono">Usage & Props</h3>
-        <CodeBlock code={code} />
+    </div>
+  );
+};
+
+// --- Mocks Definitions ---
+
+const TaskCardMock = ({
+  title,
+  tag,
+  priority,
+}: {
+  title: string;
+  tag: string;
+  priority: "High" | "Medium" | "Low";
+}) => {
+  const priorityColor =
+    priority === "High"
+      ? "text-red-400 bg-red-400/10 border-red-400/20"
+      : priority === "Medium"
+        ? "text-orange-400 bg-orange-400/10 border-orange-400/20"
+        : "text-green-400 bg-green-400/10 border-green-400/20";
+
+  return (
+    <div className="group relative bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 p-4 rounded-xl cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:shadow-black/20 w-full">
+      <div className="flex justify-between items-start mb-3">
+        <div
+          className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${priorityColor}`}
+        >
+          {priority}
+        </div>
+        <button className="text-white/20 hover:text-white transition-colors">
+          <MoreVertical size={16} />
+        </button>
+      </div>
+      <h4 className="text-white font-medium text-sm leading-relaxed mb-3">
+        {title}
+      </h4>
+      <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/5">
+        <div className="flex items-center gap-2 text-[10px] text-white/40 font-medium bg-white/5 px-2 py-1 rounded-md">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+          {tag}
+        </div>
+        {priority === "High" && <Flag size={12} className="text-red-400" />}
+      </div>
+    </div>
+  );
+};
+
+const GoalCardMock = ({
+  title,
+  progress,
+  status,
+}: {
+  title: string;
+  progress: number;
+  status: "active" | "completed";
+}) => {
+  return (
+    <div
+      className={cn(
+        "group relative p-5 rounded-2xl border transition-all duration-300 w-full",
+        status === "completed"
+          ? "bg-green-500/5 border-green-500/20 opacity-70"
+          : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10",
+      )}
+    >
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex items-start gap-3">
+          <button
+            className={cn(
+              "mt-1 w-5 h-5 rounded-md border flex items-center justify-center transition-all",
+              status === "completed"
+                ? "bg-green-500 border-green-500 text-black"
+                : "border-white/20 hover:border-white/60 text-transparent",
+            )}
+          >
+            <CheckCircle size={12} strokeWidth={3} />
+          </button>
+          <div>
+            <h3
+              className={cn(
+                "font-medium text-lg leading-tight transition-all",
+                status === "completed" && "line-through text-white/50",
+              )}
+            >
+              {title}
+            </h3>
+            <div className="flex items-center gap-3 mt-2 text-xs text-white/40">
+              <span className="flex items-center gap-1">
+                <Calendar size={12} /> Dec 31, 2024
+              </span>
+              <span className="w-1 h-1 rounded-full bg-white/20"></span>
+              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/5">
+                High Priority
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button className="p-2 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors">
+            <Edit2 size={14} />
+          </button>
+          <button className="p-2 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors">
+            <Share2 size={14} />
+          </button>
+        </div>
+      </div>
+      {status === "active" && (
+        <div className="mt-4">
+          <div className="flex justify-between text-xs text-white/40 mb-2 font-medium">
+            <span>Progress</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ChatMessageMock = ({ text, isOwn }: { text: string; isOwn: boolean }) => (
+  <div
+    className={`flex w-full mb-4 ${isOwn ? "justify-end" : "justify-start"}`}
+  >
+    <div
+      className={`flex max-w-[80%] md:max-w-[90%] gap-3 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
+    >
+      <div className="flex-none">
+        {isOwn ? (
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xs font-bold ring-2 ring-white/10">
+            ME
+          </div>
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center text-xs font-bold text-black ring-2 ring-white/10">
+            JD
+          </div>
+        )}
+      </div>
+      <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-xs font-bold text-white/70">
+            {isOwn ? "You" : "John Doe"}
+          </span>
+          <span className="text-[10px] text-white/30">10:42 AM</span>
+        </div>
+        <div
+          className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+            isOwn
+              ? "bg-blue-600 text-white rounded-tr-none shadow-lg shadow-blue-900/20"
+              : "bg-white/10 text-white rounded-tl-none border border-white/5"
+          }`}
+        >
+          {text}
+        </div>
       </div>
     </div>
   </div>
 );
 
-const TaskCardMock = ({ title, tag, priority }: { title: string, tag: string, priority: "High" | "Medium" | "Low" }) => {
-    const priorityColor = 
-        priority === 'High' ? 'text-red-400 bg-red-400/10 border-red-400/20' : 
-        priority === 'Medium' ? 'text-orange-400 bg-orange-400/10 border-orange-400/20' : 
-        'text-green-400 bg-green-400/10 border-green-400/20';
-
-    return (
-        <div className="group relative bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 p-4 rounded-xl cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:shadow-black/20">
-            <div className="flex justify-between items-start mb-3">
-                <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${priorityColor}`}>
-                    {priority}
-                </div>
-                <button className="text-white/20 hover:text-white transition-colors">
-                    <MoreVertical size={16} />
-                </button>
-            </div>
-            <h4 className="text-white font-medium text-sm leading-relaxed mb-3">{title}</h4>
-            <div className="flex items-center justify-between mt-auto pt-3 border-t border-white/5">
-                <div className="flex items-center gap-2 text-[10px] text-white/40 font-medium bg-white/5 px-2 py-1 rounded-md">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-                    {tag}
-                </div>
-                {priority === "High" && <Flag size={12} className="text-red-400" />}
-            </div>
-        </div>
-    )
-}
-
-const GoalCardMock = ({ title, progress, status }: { title: string, progress: number, status: "active" | "completed" }) => {
-    return (
-        <div className={cn(
-            "group relative p-5 rounded-2xl border transition-all duration-300",
-            status === 'completed' 
-                ? "bg-green-500/5 border-green-500/20 opacity-70" 
-                : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10"
-        )}>
-            <div className="flex justify-between items-start mb-4">
-                <div className="flex items-start gap-3">
-                    <button className={cn(
-                        "mt-1 w-5 h-5 rounded-md border flex items-center justify-center transition-all",
-                        status === 'completed'
-                            ? "bg-green-500 border-green-500 text-black"
-                            : "border-white/20 hover:border-white/60 text-transparent"
-                    )}>
-                        <CheckCircle size={12} strokeWidth={3} />
-                    </button>
-                    <div>
-                        <h3 className={cn("font-medium text-lg leading-tight transition-all", status === 'completed' && "line-through text-white/50")}>
-                            {title}
-                        </h3>
-                        <div className="flex items-center gap-3 mt-2 text-xs text-white/40">
-                            <span className="flex items-center gap-1"><Calendar size={12} /> Dec 31, 2024</span>
-                            <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                            <span className="px-2 py-0.5 rounded bg-white/5 border border-white/5">High Priority</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="p-2 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"><Edit2 size={14}/></button>
-                    <button className="p-2 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"><Share2 size={14}/></button>
-                </div>
-            </div>
-            {status === 'active' && (
-                <div className="mt-4">
-                    <div className="flex justify-between text-xs text-white/40 mb-2 font-medium">
-                        <span>Progress</span>
-                        <span>{progress}%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" style={{ width: `${progress}%` }}></div>
-                    </div>
-                </div>
-            )}
-        </div>
-    )
-}
-
-const ChatMessageMock = ({ text, isOwn }: { text: string, isOwn: boolean }) => (
-    <div className={`flex w-full mb-4 ${isOwn ? "justify-end" : "justify-start"}`}>
-        <div className={`flex max-w-[80%] md:max-w-[70%] gap-3 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
-            <div className="flex-none">
-                {isOwn ? (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xs font-bold ring-2 ring-white/10">ME</div>
-                ) : (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center text-xs font-bold text-black ring-2 ring-white/10">JD</div>
-                )}
-            </div>
-            <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
-                <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-xs font-bold text-white/70">{isOwn ? "You" : "John Doe"}</span>
-                    <span className="text-[10px] text-white/30">10:42 AM</span>
-                </div>
-                <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                    isOwn 
-                        ? "bg-blue-600 text-white rounded-tr-none shadow-lg shadow-blue-900/20" 
-                        : "bg-white/10 text-white rounded-tl-none border border-white/5"
-                }`}>
-                    {text}
-                </div>
-            </div>
-        </div>
-    </div>
-)
-
 interface MarketMock {
-    id: string;
-    pair: string;
-    price: number;
-    change: number;
-    status: "Active" | "Closed";
+  id: string;
+  pair: string;
+  price: number;
+  change: number;
+  status: "Active" | "Closed";
 }
 
 const tableData: MarketMock[] = [
-    { id: "1", pair: "EUR/USD", price: 1.0924, change: 0.45, status: "Active" },
-    { id: "2", pair: "GBP/USD", price: 1.2634, change: -0.12, status: "Active" },
-    { id: "3", pair: "USD/JPY", price: 148.12, change: 0.89, status: "Active" },
+  { id: "1", pair: "EUR/USD", price: 1.0924, change: 0.45, status: "Active" },
+  { id: "2", pair: "GBP/USD", price: 1.2634, change: -0.12, status: "Active" },
+  { id: "3", pair: "USD/JPY", price: 148.12, change: 0.89, status: "Active" },
 ];
 
 const tableColumns: Column<MarketMock>[] = [
-    {
-        key: "pair",
-        header: "Symbol",
-        sortable: true,
-        render: (item) => <span className="font-bold text-blue-400">{item.pair}</span>
-    },
-    {
-        key: "price",
-        header: "Price",
-        sortable: true,
-        render: (item) => <span className="font-mono">{item.price}</span>
-    },
-    {
-        key: "change",
-        header: "24h Change",
-        sortable: true,
-        render: (item) => (
-            <span className={item.change >= 0 ? "text-green-400" : "text-red-400"}>
-                {item.change > 0 && "+"}{item.change}%
-            </span>
-        )
-    },
-    {
-        key: "status",
-        header: "Status",
-        render: (item) => (
-            <span className="px-2 py-1 rounded bg-white/10 text-xs border border-white/10">
-                {item.status}
-            </span>
-        )
-    }
+  {
+    key: "pair",
+    header: "Symbol",
+    sortable: true,
+    render: (item) => (
+      <span className="font-bold text-blue-400">{item.pair}</span>
+    ),
+  },
+  {
+    key: "price",
+    header: "Price",
+    sortable: true,
+    render: (item) => <span className="font-mono">{item.price}</span>,
+  },
+  {
+    key: "change",
+    header: "24h Change",
+    sortable: true,
+    render: (item) => (
+      <span className={item.change >= 0 ? "text-green-400" : "text-red-400"}>
+        {item.change > 0 && "+"}
+        {item.change}%
+      </span>
+    ),
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: (item) => (
+      <span className="px-2 py-1 rounded bg-white/10 text-xs border border-white/10">
+        {item.status}
+      </span>
+    ),
+  },
 ];
+
+// --- Main Component ---
 
 export default function UiPage() {
   return (
-    <div className="min-h-screen bg-black text-white p-8 md:p-12 font-mono">
-        <header className="mb-12 border-b border-white/10 pb-8">
-            <h1 className="text-4xl font-bold mb-4">UI Component Library</h1>
-            <p className="text-white/50">Displaying all card components, data tables, and feature views used in the application. Access this page via <span className="text-white bg-white/10 px-2 py-1 rounded">/ui</span> route.</p>
-        </header>
+    <div className="min-h-screen bg-black text-white p-8 md:p-12 font-mono selection:bg-blue-500/30">
+      <header className="mb-20 border-b border-white/10 pb-8">
+        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
+          Design System
+        </h1>
+        <p className="text-white/50 text-lg max-w-2xl">
+          Component registry and documentation for the application. Use these
+          components to build consistant user interfaces.
+        </p>
+      </header>
 
-      <div className="max-w-7xl mx-auto space-y-8">
-        <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest mb-6 pt-6">Core Cards</h2>
-        
-        <Section
-          title="GreetCard"
-          description="Displays a personalized greeting based on time of day, user info from context, and a random inspirational quote. It includes animations and weather icons."
-          code={`import { GreetCard } from "@/components/GreetCard";
+      <div className="max-w-7xl mx-auto space-y-24">
+        {/* SECTION: Cards */}
+        <div>
+          <div className="flex items-center gap-4 mb-12">
+            <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest">
+              Core Components
+            </h2>
+            <div className="h-px bg-white/10 flex-1"></div>
+          </div>
+
+          <Section
+            title="GreetCard"
+            description="Displays a dynamic personalized greeting. It calculates the time of day (Morning/Afternoon/Evening) and pair it with a context-aware user name and an inspirational quote."
+            props={[
+              {
+                name: "pageTitle",
+                type: "string",
+                required: true,
+                description:
+                  "The primary heading shown at the top of the card.",
+              },
+              {
+                name: "caption",
+                type: "string",
+                required: false,
+                description:
+                  "Secondary text typically used for subtitles or status messages.",
+              },
+            ]}
+            code={`import { GreetCard } from "@/components/GreetCard";
 
 <GreetCard 
   pageTitle="Dashboard" 
   caption="Welcome back to your workspace" 
 />`}
-        >
-          <GreetCard pageTitle="UI Library" caption="Welcome back to your workspace" />
-        </Section>
+          >
+            <GreetCard
+              pageTitle="UI Library"
+              caption="Welcome back to your workspace"
+            />
+          </Section>
 
-        <Section
-          title="MarketStatsCard"
-          description="A versatile card for displaying statistical data. It supports values, titles, icons, trend indicators, and custom gradients."
-          code={`import { MarketStatsCard } from "@/components/ui/cards/MarketStatsCard";
+          <Section
+            title="MarketStatsCard"
+            description="A highly visual statistic card used for financial dashboards. Supports positive/negative trends, various icon sets, and custom gradient backgrounds."
+            props={[
+              {
+                name: "title",
+                type: "string",
+                required: true,
+                description: "Label for the metric.",
+              },
+              {
+                name: "value",
+                type: "string | number",
+                required: true,
+                description: "The primary numerical value.",
+              },
+              {
+                name: "icon",
+                type: "LucideIcon",
+                required: false,
+                description: "Reactiv Component from lucide-react.",
+              },
+              {
+                name: "trend",
+                type: "TrendObject",
+                required: false,
+                description: "{ value: string, isPositive: boolean }",
+              },
+              {
+                name: "gradient",
+                type: "string",
+                required: false,
+                description:
+                  "Tailwind CSS class string for background gradient.",
+                default: "from-emerald-900...",
+              },
+            ]}
+            code={`import { MarketStatsCard } from "@/components/ui/cards/MarketStatsCard";
 import { Wallet, Activity } from "lucide-react";
 
 <MarketStatsCard
   title="Total Balance"
   value="$12,450.00"
   icon={Wallet}
-/>
-
-<MarketStatsCard
-  title="Equity"
-  value="$14,200.50"
-  icon={Activity}
-  gradient="from-blue-900/40 to-blue-600/10"
-  trend={{ 
-    value: "+2.5%", 
-    isPositive: true, 
-    label: "this week" 
-  }}
 />`}
-        >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <MarketStatsCard
-                    title="Total Balance"
-                    value="$12,450.00"
-                    icon={Wallet}
-                />
-                <MarketStatsCard
-                    title="Equity"
-                    value="$14,200.50"
-                    icon={Activity}
-                    gradient="from-blue-900/40 to-blue-600/10"
-                    trend={{ value: "+2.5%", isPositive: true, label: "this week" }}
-                />
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+              <MarketStatsCard
+                title="Total Balance"
+                value="$12,450.00"
+                icon={Wallet}
+              />
+              <MarketStatsCard
+                title="Equity"
+                value="$14,200.50"
+                icon={Activity}
+                gradient="from-blue-900/40 to-blue-600/10"
+                trend={{ value: "+2.5%", isPositive: true, label: "this week" }}
+              />
             </div>
-        </Section>
+          </Section>
 
-        <Section
-          title="ActiveSymbolCard"
-          description="Specialized card for displaying trading pairs. It automatically styles 'XAU' (Gold) and 'XAG' (Silver) pairs, and provides defaults for others. Displays trade counts and ticker symbols."
-          code={`import { ActiveSymbolCard } from "@/components/ui/cards/ActiveSymbolCard";
+          <Section
+            title="ActiveSymbolCard"
+            description="Interactive card representing a trading instrument. Includes specific logic for handling Gold (XAU) and Silver (XAG) asset classes."
+            props={[
+              {
+                name: "data",
+                type: "SymbolData",
+                required: true,
+                description: "{ pair: string, trades?: number, ... }",
+              },
+              {
+                name: "onClick",
+                type: "function",
+                required: false,
+                description: "Callback when card is clicked.",
+              },
+            ]}
+            code={`import { ActiveSymbolCard } from "@/components/ui/cards/ActiveSymbolCard";
 
-// Standard Pair (EURUSD)
-<ActiveSymbolCard
+// Pass trade count explicitly to avoid hydration mismatch
 <ActiveSymbolCard
   data={{
     pair: "EURUSD",
-    code: "€", 
-    name: "Euro / US Dollar",
+    code: "€",
     trades: 12
   }}
-/>
-
-    pair: "XAUUSD"
-  }}
 />`}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ActiveSymbolCard
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+              <ActiveSymbolCard
                 data={{
-                pair: "EURUSD",
-                code: "€",
-                name: "Euro / US Dollar",
-                trades: 12,
+                  pair: "EURUSD",
+                  code: "€",
+                  name: "Euro / US Dollar",
+                  trades: 12,
                 }}
-            />
-             <ActiveSymbolCard
+              />
+              <ActiveSymbolCard
                 data={{
-                pair: "XAUUSD",
-                trades: 5,
+                  pair: "XAUUSD",
+                  trades: 5,
                 }}
-            />
+              />
+            </div>
+          </Section>
+        </div>
+
+        {/* SECTION: Complex Views */}
+        <div>
+          <div className="flex items-center gap-4 mb-12">
+            <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest">
+              Complex Views
+            </h2>
+            <div className="h-px bg-white/10 flex-1"></div>
           </div>
-        </Section>
 
-        <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest mb-6 pt-12 border-t border-white/10">Data & Tables</h2>
+          <Section
+            title="DataTable"
+            description="A generic, reusable data table component with sorting, pagination support, and custom cell rendering."
+            props={[
+              {
+                name: "data",
+                type: "T[]",
+                required: true,
+                description: "Array of data objects.",
+              },
+              {
+                name: "columns",
+                type: "Column<T>[]",
+                required: true,
+                description:
+                  "Column definitions with headers and render functions.",
+              },
+              {
+                name: "onRowClick",
+                type: "(item: T) => void",
+                required: false,
+                description: "Row click handler.",
+              },
+            ]}
+            code={`import { DataTable } from "@/components/ui/data-table";
 
-        <Section
-            title="Data Table"
-            description="Reusable table component with sorting, filtering, and pagination support. Used heavily for market data display."
-            code={`import { DataTable, Column } from "@/components/ui/data-table";
-
-const columns: Column<MyData>[] = [
-  { key: "name", header: "Name", sortable: true },
-  { key: "value", header: "Value" }
+const columns = [
+  { key: "pair", header: "Symbol" },
+  { key: "price", header: "Price" }
 ];
 
 <DataTable 
-  data={myData} 
+  data={marketData} 
   columns={columns} 
-  searchKeys={["name"]} 
 />`}
-        >
-            <DataTable 
-                data={tableData} 
-                columns={tableColumns} 
-                searchKeys={["pair"]}
-            />
-        </Section>
-
-        <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest mb-6 pt-12 border-t border-white/10">Feature Components</h2>
-
-        <Section
-            title="Task Items (Kanban)"
-            description="Visual representation of task items used in the Project Board/Kanban view. Features priority indicators, tags, and action menus. (Component logic embedded in TasksView)"
-            code={`// Visual Structure (from TasksView.tsx)
-<div className="bg-white/5 border border-white/5 p-4 rounded-xl ...">
-  <div className="f    <div className="text-red-400 bg-red-400/10 ...">HIGH</div>
-  </div>
-  <h4>Task Title</h4>
-  <div className="flex items-center...">
-     <span>Frontend</span>
-  </div>
-</div>`}
-        >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <TaskCardMock title="Implement Auth Flow" tag="Backend" priority="High" />
-                <TaskCardMock title="Design System Updates" tag="Design" priority="Medium" />
+          >
+            <div className="w-full">
+              <DataTable data={tableData} columns={tableColumns} />
             </div>
-        </Section>
+          </Section>
 
-        <Section
-            title="Goal Items"
-            description="Interactive goal tracking cards with progress bars, completion toggles and metadata. Supports active and completed states."
-            code={`// Visual Structure (from GoalsView.tsx)
-<div className="p-5  <div className="flex justify-between...">
-     <CheckCircle size={12} />
-     <h3>Maximize Revenue</h3>
-  </div>
-  <div className="progress-bar-container">
-     <div style={{ width: '75%' }} ... />
-  </div>
+          <Section
+            title="Task Cards"
+            description="Kanban-style task cards used in the Tasks View. Supports priority tagging and visual indicators."
+            props={[
+              {
+                name: "title",
+                type: "string",
+                required: true,
+                description: "Task description.",
+              },
+              {
+                name: "priority",
+                type: "High | Medium | Low",
+                required: true,
+                description: "Determines color scheme.",
+              },
+              {
+                name: "tag",
+                type: "string",
+                required: true,
+                description: "Project category tag.",
+              },
+            ]}
+            code={`<div className="flex flex-col gap-4">
+  <TaskCard 
+     title="Refactor API endpoints" 
+     priority="High" 
+     tag="Backend" 
+  />
+  <TaskCard 
+     title="Update documentation" 
+     priority="Low" 
+     tag="Docs" 
+  />
 </div>`}
-        >
-            <div className="flex flex-col gap-4">
-                <GoalCardMock title="Complete Q1 Roadmap" progress={75} status="active" />
-                <GoalCardMock title="Update Documentation" progress={100} status="completed" />
+          >
+            <div className="flex flex-col gap-3 w-full max-w-sm mx-auto">
+              <TaskCardMock
+                title="Fix login validation bug on mobile"
+                tag="Authentication"
+                priority="High"
+              />
+              <TaskCardMock
+                title="Update dashboard icons"
+                tag="UI/UX"
+                priority="Medium"
+              />
+              <TaskCardMock
+                title="Write unit tests for services"
+                tag="Testing"
+                priority="Low"
+              />
             </div>
-        </Section>
+          </Section>
 
-        <Section
-            title="Chat Messages"
-            description="Message bubbles for the chat interface, handling sender/receiver styling states and user differentiation."
-            code={`// Visual Structure (from ChatView.tsx)
-<div className={isOwn ? "justify-end" : "justify-start"}>
-  <div className="b     Message content
-  </div>
-</div>`}
-        >
-            <div className="flex flex-col gap-2 p-4 bg-white/5 rounded-xl border border-white/5">
-                <ChatMessageMock text="Hey team, is the new build ready?" isOwn={true} />
-                <ChatMessageMock text="Yes, just deployed it to staging." isOwn={false} />
-                <ChatMessageMock text="Great work! I'll check it out." isOwn={true} />
+          <Section
+            title="Goal Tracker"
+            description="Progress tracking card for the Goals View. Visualizes completion percentage and status states."
+            props={[
+              {
+                name: "title",
+                type: "string",
+                required: true,
+                description: "Goal name.",
+              },
+              {
+                name: "progress",
+                type: "number",
+                required: true,
+                description: "0-100 integer.",
+              },
+              {
+                name: "status",
+                type: "active | completed",
+                required: true,
+                description: "Affects opacity and styling.",
+              },
+            ]}
+            code={`<GoalCard 
+  title="Reach $50k Revenue" 
+  progress={65} 
+  status="active" 
+/>`}
+          >
+            <div className="flex flex-col gap-3 w-full max-w-sm mx-auto">
+              <GoalCardMock
+                title="Complete Q1 Roadmap"
+                progress={75}
+                status="active"
+              />
+              <GoalCardMock
+                title="Hire Senior Designer"
+                progress={100}
+                status="completed"
+              />
             </div>
-        </Section>
+          </Section>
 
+          <Section
+            title="Chat Interface"
+            description="Message bubbles for the Chat/LLM views. Distinguishes between user (sent) and other (received) messages."
+            props={[
+              {
+                name: "text",
+                type: "string",
+                required: true,
+                description: "Message content.",
+              },
+              {
+                name: "isOwn",
+                type: "boolean",
+                required: true,
+                description: "True if sent by current user.",
+              },
+            ]}
+            code={`<ChatMessage text="Hello there!" isOwn={true} />
+<ChatMessage text="Hi! How can I help?" isOwn={false} />`}
+          >
+            <div className="w-full max-w-md mx-auto bg-black/40 p-4 rounded-xl border border-white/5">
+              <ChatMessageMock
+                text="Can you generate a summary of the gold market?"
+                isOwn={true}
+              />
+              <ChatMessageMock
+                text="Gold (XAU/USD) is currently trading at 2034.50, showing strong bullish momentum..."
+                isOwn={false}
+              />
+            </div>
+          </Section>
+        </div>
       </div>
     </div>
   );
