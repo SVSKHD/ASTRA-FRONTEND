@@ -101,6 +101,14 @@ export default function Dashboard({ onLock }: DashboardProps) {
   const activeTab =
     visibleTabs.find((tab) => tab.id === activeTabId) || visibleTabs[0];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+      </div>
+    );
+  }
+
   if (!activeTab) return null; // Or loading state
 
   return (
