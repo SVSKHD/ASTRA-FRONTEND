@@ -8,7 +8,6 @@ import { DataTable, Column } from "@/components/ui/data-table";
 import { Wallet, TrendingUp, Activity, CheckCircle2, MoreVertical, Flag, Calendar, Target, CheckCircle, Share2, Trash2, Edit2, User, Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Helper to display code
 const CodeBlock = ({ code }: { code: string }) => (
   <div className="relative group">
     <pre className="bg-black/80 p-4 rounded-lg overflow-x-auto text-xs text-white/70 font-mono border border-white/10 mt-4 leading-relaxed">
@@ -40,9 +39,6 @@ const Section = ({ title, children, code, description }: SectionProps) => (
   </div>
 );
 
-// --- MOCK COMPONENTS FOR DISPLAY ---
-
-// Mock Task Card (based on TasksView.tsx)
 const TaskCardMock = ({ title, tag, priority }: { title: string, tag: string, priority: "High" | "Medium" | "Low" }) => {
     const priorityColor = 
         priority === 'High' ? 'text-red-400 bg-red-400/10 border-red-400/20' : 
@@ -71,7 +67,6 @@ const TaskCardMock = ({ title, tag, priority }: { title: string, tag: string, pr
     )
 }
 
-// Mock Goal Card (based on GoalsView.tsx)
 const GoalCardMock = ({ title, progress, status }: { title: string, progress: number, status: "active" | "completed" }) => {
     return (
         <div className={cn(
@@ -121,7 +116,6 @@ const GoalCardMock = ({ title, progress, status }: { title: string, progress: nu
     )
 }
 
-// Mock Chat Message (based on ChatView.tsx)
 const ChatMessageMock = ({ text, isOwn }: { text: string, isOwn: boolean }) => (
     <div className={`flex w-full mb-4 ${isOwn ? "justify-end" : "justify-start"}`}>
         <div className={`flex max-w-[80%] md:max-w-[70%] gap-3 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
@@ -149,7 +143,6 @@ const ChatMessageMock = ({ text, isOwn }: { text: string, isOwn: boolean }) => (
     </div>
 )
 
-// Mock Data for Table
 interface MarketMock {
     id: string;
     pair: string;
@@ -207,7 +200,6 @@ export default function UiPage() {
         </header>
 
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* --- CARDS SECTION --- */}
         <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest mb-6 pt-6">Core Cards</h2>
         
         <Section
@@ -215,7 +207,6 @@ export default function UiPage() {
           description="Displays a personalized greeting based on time of day, user info from context, and a random inspirational quote. It includes animations and weather icons."
           code={`import { GreetCard } from "@/components/GreetCard";
 
-// Requires UserProvider context for full functionality
 <GreetCard 
   pageTitle="Dashboard" 
   caption="Welcome back to your workspace" 
@@ -230,14 +221,12 @@ export default function UiPage() {
           code={`import { MarketStatsCard } from "@/components/ui/cards/MarketStatsCard";
 import { Wallet, Activity } from "lucide-react";
 
-// Basic usage with icon
 <MarketStatsCard
   title="Total Balance"
   value="$12,450.00"
   icon={Wallet}
 />
 
-// Advanced usage with Trend and Custom Gradient
 <MarketStatsCard
   title="Equity"
   value="$14,200.50"
@@ -273,6 +262,7 @@ import { Wallet, Activity } from "lucide-react";
 
 // Standard Pair (EURUSD)
 <ActiveSymbolCard
+<ActiveSymbolCard
   data={{
     pair: "EURUSD",
     code: "€", 
@@ -281,9 +271,6 @@ import { Wallet, Activity } from "lucide-react";
   }}
 />
 
-// Gold Pair (Auto-styled based on 'XAU')
-<ActiveSymbolCard
-  data={{
     pair: "XAUUSD"
   }}
 />`}
@@ -306,7 +293,6 @@ import { Wallet, Activity } from "lucide-react";
           </div>
         </Section>
 
-        {/* --- DATA SECTION --- */}
         <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest mb-6 pt-12 border-t border-white/10">Data & Tables</h2>
 
         <Section
@@ -332,7 +318,6 @@ const columns: Column<MyData>[] = [
             />
         </Section>
 
-        {/* --- VIEW COMPONENTS SECTION --- */}
         <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest mb-6 pt-12 border-t border-white/10">Feature Components</h2>
 
         <Section
@@ -340,8 +325,7 @@ const columns: Column<MyData>[] = [
             description="Visual representation of task items used in the Project Board/Kanban view. Features priority indicators, tags, and action menus. (Component logic embedded in TasksView)"
             code={`// Visual Structure (from TasksView.tsx)
 <div className="bg-white/5 border border-white/5 p-4 rounded-xl ...">
-  <div className="flex justify-between...">
-    <div className="text-red-400 bg-red-400/10 ...">HIGH</div>
+  <div className="f    <div className="text-red-400 bg-red-400/10 ...">HIGH</div>
   </div>
   <h4>Task Title</h4>
   <div className="flex items-center...">
@@ -359,8 +343,7 @@ const columns: Column<MyData>[] = [
             title="Goal Items"
             description="Interactive goal tracking cards with progress bars, completion toggles and metadata. Supports active and completed states."
             code={`// Visual Structure (from GoalsView.tsx)
-<div className="p-5 rounded-2xl border bg-white/5 ...">
-  <div className="flex justify-between...">
+<div className="p-5  <div className="flex justify-between...">
      <CheckCircle size={12} />
      <h3>Maximize Revenue</h3>
   </div>
@@ -380,8 +363,7 @@ const columns: Column<MyData>[] = [
             description="Message bubbles for the chat interface, handling sender/receiver styling states and user differentiation."
             code={`// Visual Structure (from ChatView.tsx)
 <div className={isOwn ? "justify-end" : "justify-start"}>
-  <div className="bubble bg-blue-600 ...">
-     Message content
+  <div className="b     Message content
   </div>
 </div>`}
         >
