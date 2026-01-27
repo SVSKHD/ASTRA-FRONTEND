@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { DataTable } from "@/components/ui/data-table";
+import { useState, useEffect, useMemo } from "react";
+import { DataTable, Column } from "@/components/ui/data-table";
 import { marketData, MarketItem } from "@/components/market/data/marketData";
-import { columns, dealColumns, tradeColumns } from "@/components/market/data/columns";
+import { columns } from "@/components/market/data/columns";
 import { ForexStats } from "@/components/market/ForexStats";
 import { ActiveSymbolSelector } from "@/components/market/ActiveSymbolSelector";
-import { ForexActionPanel } from "@/components/market/ForexActionPanel";
 import { subscribeToUserBalances, subscribeToDeals, subscribeToTrades, UserBalance, Deal, Trade } from "@/utils/forex-service";
 import { Wallet, Search } from "lucide-react";
+import { useCurrency } from "../../hooks/useCurrency";
 
 export const ForexView = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<MarketItem>(
@@ -19,6 +19,7 @@ export const ForexView = () => {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const { currencySymbol, exchangeRate, formatCurrency } = useCurrency();
 
   const activeAccount = userBalances.find((u) => u.id === activeAccountId);
 
@@ -53,6 +54,113 @@ export const ForexView = () => {
 
   const wins = deals.filter(d => d.profit_usd > 0).length;
   const losses = deals.filter(d => d.profit_usd <= 0).length;
+
+  const dealColumns = useMemo<Column<Deal>[]>(() => [
+    {
+      key: "time",
+      header: "Time",
+      render: (deal) => <div className="text-xs text-white/60">{new Date(deal.time).toLocaleString()}</div>,
+      sortable: true,
+    },
+    {
+      key: "ticket",
+      header: "Ticket",
+      render: (deal) => <div className="font-mono text-xs text-white/40">#{deal.ticket}</div>,
+      sortable: true,
+    },
+    {
+      key: "symbol",
+      header: "Symbol",
+      render: (deal) => <div className="font-bold text-white">{deal.symbol}</div>,
+      sortable: true,
+    },
+    {
+      key: "side",
+      header: "Side",
+      render: (deal) => (
+        <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${deal.side === "BUY" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
+          {deal.side}
+        </span>
+      ),
+      sortable: true,
+    },
+    {
+      key: "volume",
+      header: "Volume",
+      render: (deal) => <div className="text-white/80">{deal.volume}</div>,
+      sortable: true,
+    },
+    {
+      key: "price",
+      header: "Start Price",
+      render: (deal) => <div className="text-white/60 text-xs">{deal.price}</div>,
+      sortable: true,
+    },
+    {
+      key: "profit_usd",
+      header: `Profit (${currencySymbol})`,
+      render: (deal) => {
+        const profit = (deal.profit_usd ?? 0) * exchangeRate;
+        return (
+          <div className={`font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}>
+            {profit > 0 ? "+" : ""}{currencySymbol}{Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        );
+      },
+      sortable: true,
+    },
+  ], [currencySymbol, exchangeRate]);
+
+  const tradeColumns = useMemo<Column<Trade>[]>(() => [
+    {
+      key: "date",
+      header: "Date",
+      render: (trade) => <div className="text-xs text-white/60">{trade.date}</div>,
+      sortable: true,
+    },
+    {
+      key: "symbol",
+      header: "Symbol",
+      render: (trade) => <div className="font-bold text-white">{trade.symbol}</div>,
+      sortable: true,
+    },
+    {
+      key: "id", // Using ID for key, but rendering Start Price logic
+      header: "Start Price",
+      render: (trade) => (
+        <div className="font-mono text-white/80">
+          {trade.last_event?.payload?.start_price?.toFixed(2) || "-"}
+        </div>
+      ),
+    },
+    {
+      key: "updated_at",
+      header: "Last Update",
+      render: (trade) => <div className="text-xs text-white/40">{new Date(trade.updated_at).toLocaleTimeString()}</div>,
+    },
+    {
+      key: "user_id", // Using user_id as key for Profit column wrapper
+      header: `Total PnL (${currencySymbol})`,
+      render: (trade) => {
+        const pnl = (trade.last_event?.payload?.risk?.total_pnl ?? 0) * exchangeRate;
+        return (
+          <div className={`font-bold ${pnl > 0 ? "text-green-400" : pnl < 0 ? "text-red-400" : "text-white/60"}`}>
+            {pnl > 0 ? "+" : ""}
+            {currencySymbol}{Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+        );
+      },
+    },
+    {
+      key: "last_event", // Status column - using unique key
+      header: "Status",
+      render: (trade) => (
+        <span className="px-2 py-1 rounded-md bg-white/5 text-[10px] uppercase text-white/50 border border-white/5">
+          {trade.last_event?.payload?.mode || "Unknown"}
+        </span>
+      ),
+    }
+  ], [currencySymbol, exchangeRate]);
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -148,7 +256,7 @@ export const ForexView = () => {
                   </div>
                   <div className="text-right">
                     <div className="font-bold text-green-400">
-                      ${user.balance?.toLocaleString() || "0"}
+                      {formatCurrency(user.balance ?? 0)}
                     </div>
                     <div className="text-[10px] text-white/30 uppercase">
                       Balance

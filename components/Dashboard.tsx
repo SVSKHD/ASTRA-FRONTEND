@@ -3,13 +3,23 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { tabsConfig } from "../config/dashboard-tabs";
-import { Palette, Lock, User as UserIcon } from "lucide-react";
+import {
+  Palette,
+  Lock,
+  User as UserIcon,
+  Coins,
+  DollarSign,
+  Euro,
+  IndianRupee,
+} from "lucide-react";
 import GradientPicker from "./GradientPicker";
 import { GreetCard } from "./GreetCard";
 import { LoginDialog } from "./LoginDialog";
 import { auth } from "../utils/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { useUser } from "@/context/UserContext";
+import { useCurrency } from "../hooks/useCurrency";
+import { Currency } from "@/context/CurrencyContext";
 
 interface DashboardProps {
   onLock: () => void;
@@ -17,17 +27,10 @@ interface DashboardProps {
 
 export default function Dashboard({ onLock }: DashboardProps) {
   const [activeTabId, setActiveTabId] = useState(tabsConfig[0].id);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("astra-active-tab");
-    if (saved && tabsConfig.find((t) => t.id === saved)) {
-      setActiveTabId(saved);
-    }
-  }, []);
-
-  const [background, setBackground] = useState("#000000");
+  const [background, setBackground] = useState("#000000"); // Default black background
 
   const { user: appUser, loading } = useUser();
+  const { currency, setCurrency } = useCurrency();
 
   const visibleTabs = tabsConfig.filter((tab) => {
     if (!tab.allowedRoles) return true;
@@ -35,7 +38,6 @@ export default function Dashboard({ onLock }: DashboardProps) {
     return tab.allowedRoles.includes(appUser.role);
   });
 
-  // Ensure active tab is visible
   useEffect(() => {
     if (loading) return;
     const isVisible = visibleTabs.find((t) => t.id === activeTabId);
@@ -50,6 +52,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
   };
 
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [timeLeft, setTimeLeft] = useState(3000);
   const [isActiveMode, setIsActiveMode] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -164,6 +167,87 @@ export default function Dashboard({ onLock }: DashboardProps) {
         </div>
 
         <header className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 p-2 pl-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl">
+          {/* Currency Picker */}
+          <div className="relative group z-50">
+            <button
+              onClick={() => setShowCurrencyPicker(!showCurrencyPicker)}
+              className={`h-8 px-3 rounded-full border transition-all flex items-center justify-center gap-2 ${
+                showCurrencyPicker
+                  ? "bg-white/20 border-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.3)]"
+                  : "bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <Coins
+                size={14}
+                className={showCurrencyPicker ? "text-white" : ""}
+              />
+              <span className="text-xs font-medium tracking-wide">
+                {currency}
+              </span>
+            </button>
+            <AnimatePresence>
+              {showCurrencyPicker && (
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    y: 10,
+                    scale: 0.95,
+                    filter: "blur(10px)",
+                  }}
+                  animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                  exit={{
+                    opacity: 0,
+                    y: 10,
+                    scale: 0.95,
+                    filter: "blur(10px)",
+                  }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="absolute top-12 left-0 min-w-[140px] bg-black/80 backdrop-blur-3xl border border-white/10 rounded-2xl p-1.5 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                  <div className="flex flex-col gap-1 relative z-10">
+                    {(["USD", "EUR", "INR"] as Currency[]).map((c) => {
+                      const Icon =
+                        c === "USD"
+                          ? DollarSign
+                          : c === "EUR"
+                            ? Euro
+                            : IndianRupee;
+                      const isActive = currency === c;
+                      return (
+                        <button
+                          key={c}
+                          onClick={() => {
+                            setCurrency(c);
+                            setShowCurrencyPicker(false);
+                          }}
+                          className={`px-3 py-2.5 rounded-xl text-xs font-medium text-left transition-all duration-300 flex items-center gap-3 group/item relative overflow-hidden ${
+                            isActive
+                              ? "bg-white/15 text-white border border-white/20"
+                              : "text-white/60 hover:bg-white/10 hover:text-white/90 border border-transparent"
+                          }`}
+                        >
+                          <div
+                            className={`p-1 rounded-full ${isActive ? "bg-white text-black" : "bg-white/10 text-white/50 group-hover/item:bg-white/20 group-hover/item:text-white"}`}
+                          >
+                            <Icon size={12} strokeWidth={3} />
+                          </div>
+                          <span className="flex-1">{c}</span>
+                          {isActive && (
+                            <motion.div
+                              layoutId="active-dot"
+                              className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* Color Picker */}
           <div className="relative group z-50">
             <button
