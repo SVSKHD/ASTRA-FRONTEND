@@ -25,9 +25,9 @@ export default function Dashboard({ onLock }: DashboardProps) {
     }
   }, []);
 
-  const [background, setBackground] = useState("#000000"); 
+  const [background, setBackground] = useState("#000000");
 
-  const { user: appUser, loading } = useUser(); 
+  const { user: appUser, loading } = useUser();
 
   const visibleTabs = tabsConfig.filter((tab) => {
     if (!tab.allowedRoles) return true;
@@ -103,8 +103,11 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
         <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+        <span className="text-white/40 font-medium tracking-[0.2em] text-sm animate-pulse">
+          ASTRA TRADING
+        </span>
       </div>
     );
   }
