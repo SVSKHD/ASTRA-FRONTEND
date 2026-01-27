@@ -16,16 +16,15 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onLock }: DashboardProps) {
-  const [activeTabId, setActiveTabId] = useState(() => {
-    // Try to load from local storage
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("astra-active-tab");
-      if (saved && tabsConfig.find((t) => t.id === saved)) {
-        return saved;
-      }
+  const [activeTabId, setActiveTabId] = useState(tabsConfig[0].id);
+
+  // Load saved tab setting on client mount
+  useEffect(() => {
+    const saved = localStorage.getItem("astra-active-tab");
+    if (saved && tabsConfig.find((t) => t.id === saved)) {
+      setActiveTabId(saved);
     }
-    return tabsConfig[0].id;
-  });
+  }, []);
 
   const [background, setBackground] = useState("#000000"); // Default black background
   // ... existing state ...
