@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Unlock, Delete } from "lucide-react";
 import { useUser } from "@/context/UserContext";
+import useBreakpoints from "@/hooks/useBreakpoints";
 
 interface LockScreenProps {
   isLocked: boolean;
@@ -12,6 +13,7 @@ interface LockScreenProps {
 
 export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
   const { user } = useUser();
+  const { isMobile } = useBreakpoints();
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -110,10 +112,16 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="relative z-10 bg-black/40 backdrop-blur-2xl border border-white/10 p-6 md:p-12 rounded-[3.5rem] shadow-[0_0_80px_rgba(0,0,0,0.5)] flex flex-col items-center gap-6 md:gap-10 max-w-sm w-full mx-4 overflow-hidden"
+            className={`relative z-10 ${
+              isMobile
+                ? "border-0 shadow-none bg-transparent"
+                : "bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.5)]"
+            } p-6 md:p-12 rounded-[3.5rem] flex flex-col items-center gap-6 md:gap-10 max-w-sm w-full mx-4 overflow-hidden`}
           >
             {/* Shine Effect */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
+            {!isMobile && (
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
+            )}
 
             <motion.div
               variants={itemVariants}
