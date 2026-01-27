@@ -48,11 +48,14 @@ const dealColumns: Column<Deal>[] = [
   {
     key: "profit_usd",
     header: "Profit",
-    render: (deal) => (
-      <div className={`font-bold ${deal.profit_usd > 0 ? "text-green-400" : "text-red-400"}`}>
-        {deal.profit_usd > 0 ? "+" : ""}{deal.profit_usd.toLocaleString()}
-      </div>
-    ),
+    render: (deal) => {
+      const profit = deal.profit_usd ?? 0;
+      return (
+        <div className={`font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}>
+          {profit > 0 ? "+" : ""}{profit.toLocaleString()}
+        </div>
+      );
+    },
     sortable: true,
   },
 ];
@@ -90,14 +93,14 @@ export const OverviewView = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <MarketStatsCard
           title="Total Balance"
-          value={activeAccount ? `$${activeAccount.balance.toLocaleString()}` : "$0.00"}
+          value={activeAccount ? `$${(activeAccount.balance ?? 0).toLocaleString()}` : "$0.00"}
           icon={Wallet}
           trend={{ value: "+0.0%", isPositive: true, label: "today" }}
           gradient="from-emerald-900/40 to-emerald-600/10"
         />
         <MarketStatsCard
           title="Equity"
-          value={activeAccount ? `$${activeAccount.equity.toLocaleString()}` : "$0.00"}
+          value={activeAccount ? `$${(activeAccount.equity ?? 0).toLocaleString()}` : "$0.00"}
           icon={Activity}
           gradient="from-blue-900/40 to-blue-600/10"
           subContent={

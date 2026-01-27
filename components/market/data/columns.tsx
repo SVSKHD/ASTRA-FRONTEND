@@ -115,11 +115,14 @@ export const dealColumns: Column<Deal>[] = [
   {
     key: "profit_usd",
     header: "Profit",
-    render: (deal) => (
-      <div className={`font-bold ${deal.profit_usd > 0 ? "text-green-400" : "text-red-400"}`}>
-        {deal.profit_usd > 0 ? "+" : ""}{deal.profit_usd.toLocaleString()}
-      </div>
-    ),
+    render: (deal) => {
+      const profit = deal.profit_usd ?? 0;
+      return (
+        <div className={`font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}>
+          {profit > 0 ? "+" : ""}{profit.toLocaleString()}
+        </div>
+      );
+    },
     sortable: true,
   },
 ];

@@ -40,7 +40,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
   }, [appUser, activeTabId, visibleTabs]);
 
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(3000); // 50 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(3000); 
   const [isActiveMode, setIsActiveMode] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -76,7 +76,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
         });
       }, 1000);
     } else if (isActiveMode) {
-      setTimeLeft(3000); // Reset when active mode is engaged
+      setTimeLeft(3000); 
     }
 
     return () => clearInterval(interval);
