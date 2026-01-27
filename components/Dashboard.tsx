@@ -18,7 +18,6 @@ interface DashboardProps {
 export default function Dashboard({ onLock }: DashboardProps) {
   const [activeTabId, setActiveTabId] = useState(tabsConfig[0].id);
 
-  // Load saved tab setting on client mount
   useEffect(() => {
     const saved = localStorage.getItem("astra-active-tab");
     if (saved && tabsConfig.find((t) => t.id === saved)) {
@@ -26,10 +25,9 @@ export default function Dashboard({ onLock }: DashboardProps) {
     }
   }, []);
 
-  const [background, setBackground] = useState("#000000"); // Default black background
-  // ... existing state ...
+  const [background, setBackground] = useState("#000000"); 
 
-  const { user: appUser, loading } = useUser(); // Get user from our context
+  const { user: appUser, loading } = useUser(); 
 
   const visibleTabs = tabsConfig.filter((tab) => {
     if (!tab.allowedRoles) return true;
