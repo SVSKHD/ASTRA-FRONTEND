@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence, PanInfo } from "framer-motion";
 import { tabsConfig } from "../config/dashboard-tabs";
 import {
   Palette,
@@ -38,6 +38,42 @@ export default function Dashboard({ onLock }: DashboardProps) {
     return tab.allowedRoles.includes(appUser.role);
   });
 
+  const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+
+  const handleDragEnd = (
+    event: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo
+  ) => {
+    const { point } = info;
+
+    for (const tab of visibleTabs) {
+      // Check both desktop and mobile refs
+      const keys = [`desktop-${tab.id}`, `mobile-${tab.id}`];
+      
+      for (const key of keys) {
+        const element = tabRefs.current[key];
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          // Skip hidden elements (0x0)
+          if (rect.width === 0 || rect.height === 0) continue;
+
+          if (
+            point.x >= rect.left &&
+            point.x <= rect.right &&
+            point.y >= rect.top &&
+            point.y <= rect.bottom
+          ) {
+            if (tab.id !== activeTabId) {
+              handleTabChange(tab.id);
+            }
+            return; // Found a match, exit
+          }
+        }
+      }
+    }
+  };
+
+  // Ensure active tab is visible
   useEffect(() => {
     if (loading) return;
     const isVisible = visibleTabs.find((t) => t.id === activeTabId);
@@ -281,11 +317,31 @@ export default function Dashboard({ onLock }: DashboardProps) {
               return (
                 <button
                   key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[`desktop-${tab.id}`] = el;
+                  }}
                   onClick={() => handleTabChange(tab.id)}
-                  className={`relative px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 flex items-center gap-2 ${isActive ? "bg-white/15 text-white shadow-sm ring-1 ring-white/5" : "text-white/50 hover:text-white hover:bg-white/5"}`}
+                  className={`relative px-4 py-1.5 rounded-full text-xs font-medium transition-colors duration-300 flex items-center gap-2 outline-none ${
+                    isActive
+                      ? "text-white"
+                      : "text-white/50 hover:text-white hover:bg-white/5"
+                  }`}
                 >
-                  <Icon size={14} />
-                  {tab.label}
+                  {isActive && (
+                    <motion.div
+                      layoutId="active-tab-indicator"
+                      className="absolute inset-0 bg-white/15 rounded-full ring-1 ring-white/5 shadow-sm"
+                      drag="x"
+                      dragSnapToOrigin
+                      onDragEnd={handleDragEnd}
+                      whileDrag={{ cursor: "grabbing" }}
+                      style={{ cursor: "grab" }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-2 pointer-events-none">
+                    <Icon size={14} />
+                    {tab.label}
+                  </span>
                 </button>
               );
             })}
@@ -332,8 +388,11 @@ export default function Dashboard({ onLock }: DashboardProps) {
               return (
                 <button
                   key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[`mobile-${tab.id}`] = el;
+                  }}
                   onClick={() => handleTabChange(tab.id)}
-                  className="flex-1 relative py-2 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-300"
+                  className="flex-1 relative py-2 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-300 outline-none"
                 >
                   {isActive && (
                     <motion.div
@@ -344,14 +403,19 @@ export default function Dashboard({ onLock }: DashboardProps) {
                         bounce: 0.2,
                         duration: 0.6,
                       }}
+                      drag="x"
+                      dragSnapToOrigin
+                      onDragEnd={handleDragEnd}
+                      whileDrag={{ cursor: "grabbing" }}
+                      style={{ touchAction: "none" }}
                     />
                   )}
                   <Icon
                     size={18}
-                    className={`relative z-10 ${isActive ? "text-white" : "text-white/50"}`}
+                    className={`relative z-10 pointer-events-none ${isActive ? "text-white" : "text-white/50"}`}
                   />
                   <span
-                    className={`relative z-10 text-[10px] font-medium ${isActive ? "text-white" : "text-white/50"}`}
+                    className={`relative z-10 text-[10px] font-medium pointer-events-none ${isActive ? "text-white" : "text-white/50"}`}
                   >
                     {tab.label}
                   </span>
