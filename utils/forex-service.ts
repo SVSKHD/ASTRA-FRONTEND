@@ -1,6 +1,6 @@
 
 import { db } from "./firebase";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
 
 export interface UserBalance {
     id: string; // Document ID
@@ -75,7 +75,7 @@ export interface Deal {
 const DEALS_COLLECTION_NAME = "Astra-symbol-account-deals";
 
 export const subscribeToDeals = (callback: (deals: Deal[]) => void) => {
-    const q = query(collection(db, DEALS_COLLECTION_NAME), orderBy("time", "desc"));
+    const q = query(collection(db, DEALS_COLLECTION_NAME), orderBy("time", "desc"), limit(50));
     return onSnapshot(q, (snapshot) => {
         const deals = snapshot.docs.map((doc) => ({
             id: doc.id,
@@ -126,7 +126,7 @@ export interface Trade {
 const TRADES_COLLECTION_NAME = "Astra-symbol-trades";
 
 export const subscribeToTrades = (callback: (trades: Trade[]) => void) => {
-    const q = query(collection(db, TRADES_COLLECTION_NAME), orderBy("updated_at", "desc"));
+    const q = query(collection(db, TRADES_COLLECTION_NAME), orderBy("updated_at", "desc"), limit(50));
     return onSnapshot(q, (snapshot) => {
         const trades = snapshot.docs.map((doc) => ({
             id: doc.id,
