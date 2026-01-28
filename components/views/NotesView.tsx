@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { NoteDialog, Note as DialogNote } from "../NoteDialog";
 import { DeleteConfirmationDialog } from "../DeleteConfirmationDialog";
+import { ShareDialog } from "../ShareDialog";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNotes } from "../../hooks/useNotes";
 import { Note } from "../../services/notesService";
@@ -23,7 +24,7 @@ const mapToDialogNote = (note: Note): DialogNote => ({
 export const NotesView = () => {
   const { notes, loading, createNote, updateNote, deleteNote } = useNotes();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState<DialogNote | null>(null);
+  const [conditingNote, setEditingNote] = useState<DialogNote | null>(null);
   const [viewMode, setViewMode] = useState<"edit" | "view">("edit");
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -31,6 +32,15 @@ export const NotesView = () => {
   }>({
     isOpen: false,
     noteId: null,
+  });
+  const [shareDialog, setShareDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    content: string;
+  }>({
+    isOpen: false,
+    title: "",
+    content: "",
   });
 
   const handleCreateUpdateNote = async (noteData: Partial<DialogNote>) => {
@@ -84,10 +94,12 @@ export const NotesView = () => {
 
   const handleShare = (e: React.MouseEvent, note: Note) => {
     e.stopPropagation();
-    // Assuming we might have a route for sharing or just raw content
     const url = `${window.location.origin}/notes/${note.id}`;
-    navigator.clipboard.writeText(url);
-    alert(`Link copied to clipboard: ${url}`);
+    setShareDialog({
+      isOpen: true,
+      title: note.title,
+      content: url,
+    });
   };
 
   if (loading) {
@@ -200,6 +212,13 @@ export const NotesView = () => {
             ? This action cannot be undone.
           </p>
         }
+      />
+
+      <ShareDialog
+        isOpen={shareDialog.isOpen}
+        onClose={() => setShareDialog((prev) => ({ ...prev, isOpen: false }))}
+        title={shareDialog.title}
+        content={shareDialog.content}
       />
 
       <AnimatePresence>

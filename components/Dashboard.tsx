@@ -108,6 +108,32 @@ export default function Dashboard({ onLock }: DashboardProps) {
     }
   }, [appUser, activeTabId, visibleTabs, loading]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't interfere if user is typing in an input
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      if (e.key === "ArrowRight") {
+        const currentIndex = visibleTabs.findIndex((t) => t.id === activeTabId);
+        const nextIndex = (currentIndex + 1) % visibleTabs.length;
+        handleTabChange(visibleTabs[nextIndex].id);
+      } else if (e.key === "ArrowLeft") {
+        const currentIndex = visibleTabs.findIndex((t) => t.id === activeTabId);
+        const prevIndex =
+          (currentIndex - 1 + visibleTabs.length) % visibleTabs.length;
+        handleTabChange(visibleTabs[prevIndex].id);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeTabId, visibleTabs]);
+
   const handleTabChange = (id: string) => {
     setActiveTabId(id);
     localStorage.setItem("astra-active-tab", id);

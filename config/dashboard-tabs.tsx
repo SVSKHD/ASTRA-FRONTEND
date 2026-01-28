@@ -16,12 +16,14 @@ import {
   Sparkles,
   Bot,
   Bitcoin,
+  Bell,
 } from "lucide-react";
 import { IndianView } from "@/components/views/Indian";
 import { CryptoView } from "@/components/views/CryptoView";
 import { BotsView } from "@/components/views/BotsView";
 import { NotesView } from "@/components/views/NotesView";
 import { TasksView } from "@/components/views/TasksView";
+import { RemindersView } from "@/components/views/RemindersView";
 import { RequestAccessView } from "@/components/views/RequestAccessView";
 
 export interface TabConfig {
@@ -117,5 +119,12 @@ export const tabsConfig: TabConfig[] = [
     caption: "Manage your bots",
     icon: Bot,
     component: <BotsView />,
+  },
+  {
+    id: "reminders",
+    label: "Reminders",
+    caption: "Never forget",
+    icon: Bell,
+    component: <RemindersView />,
   },
 ];
