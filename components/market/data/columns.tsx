@@ -75,13 +75,19 @@ export const dealColumns: Column<Deal>[] = [
   {
     key: "time",
     header: "Time",
-    render: (deal) => <div className="text-xs text-white/60">{new Date(deal.time).toLocaleString()}</div>,
+    render: (deal) => (
+      <div className="text-xs text-white/60">
+        {new Date(deal.time).toLocaleString()}
+      </div>
+    ),
     sortable: true,
   },
   {
     key: "ticket",
     header: "Ticket",
-    render: (deal) => <div className="font-mono text-xs text-white/40">#{deal.ticket}</div>,
+    render: (deal) => (
+      <div className="font-mono text-xs text-white/40">#{deal.ticket}</div>
+    ),
     sortable: true,
   },
   {
@@ -94,7 +100,9 @@ export const dealColumns: Column<Deal>[] = [
     key: "side",
     header: "Side",
     render: (deal) => (
-      <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${deal.side === "BUY" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
+      <span
+        className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${deal.side === "BUY" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}
+      >
         {deal.side}
       </span>
     ),
@@ -118,8 +126,11 @@ export const dealColumns: Column<Deal>[] = [
     render: (deal) => {
       const profit = deal.profit_usd ?? 0;
       return (
-        <div className={`font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}>
-          {profit > 0 ? "+" : ""}{profit.toLocaleString()}
+        <div
+          className={`font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}
+        >
+          {profit > 0 ? "+" : ""}
+          {profit.toLocaleString()}
         </div>
       );
     },
@@ -133,13 +144,17 @@ export const tradeColumns: Column<Trade>[] = [
   {
     key: "date",
     header: "Date",
-    render: (trade) => <div className="text-xs text-white/60">{trade.date}</div>,
+    render: (trade) => (
+      <div className="text-xs text-white/60">{trade.date}</div>
+    ),
     sortable: true,
   },
   {
     key: "symbol",
     header: "Symbol",
-    render: (trade) => <div className="font-bold text-white">{trade.symbol}</div>,
+    render: (trade) => (
+      <div className="font-bold text-white">{trade.symbol}</div>
+    ),
     sortable: true,
   },
   {
@@ -154,13 +169,19 @@ export const tradeColumns: Column<Trade>[] = [
   {
     key: "updated_at",
     header: "Last Update",
-    render: (trade) => <div className="text-xs text-white/40">{new Date(trade.updated_at).toLocaleTimeString()}</div>,
+    render: (trade) => (
+      <div className="text-xs text-white/40">
+        {new Date(trade.updated_at).toLocaleTimeString()}
+      </div>
+    ),
   },
   {
     key: "user_id", // Using user_id as key for Profit column wrapper
     header: "Total PnL",
     render: (trade) => (
-      <div className={`font-bold ${trade.last_event?.payload?.risk?.total_pnl > 0 ? "text-green-400" : trade.last_event?.payload?.risk?.total_pnl < 0 ? "text-red-400" : "text-white/60"}`}>
+      <div
+        className={`font-bold ${trade.last_event?.payload?.risk?.total_pnl > 0 ? "text-green-400" : trade.last_event?.payload?.risk?.total_pnl < 0 ? "text-red-400" : "text-white/60"}`}
+      >
         {trade.last_event?.payload?.risk?.total_pnl > 0 ? "+" : ""}
         {trade.last_event?.payload?.risk?.total_pnl?.toLocaleString() || "0"}
       </div>
@@ -174,5 +195,5 @@ export const tradeColumns: Column<Trade>[] = [
         {trade.last_event?.payload?.mode || "Unknown"}
       </span>
     ),
-  }
+  },
 ];

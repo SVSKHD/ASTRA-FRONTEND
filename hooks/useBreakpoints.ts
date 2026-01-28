@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 
 const useBreakpoints = () => {
@@ -14,7 +13,7 @@ const useBreakpoints = () => {
       setIsDesktop(width >= 1024);
     };
 
-    handleResize(); 
+    handleResize();
     window.addEventListener("resize", handleResize);
 
     return () => {

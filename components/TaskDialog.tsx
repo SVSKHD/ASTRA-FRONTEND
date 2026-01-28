@@ -169,10 +169,11 @@ export const TaskDialog = ({
                     <button
                       key={p}
                       onClick={() => setPriority(p)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${priority === p
-                        ? "bg-white/10 border-white/20 text-white"
-                        : "bg-transparent border-transparent text-white/30 hover:bg-white/5"
-                        }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                        priority === p
+                          ? "bg-white/10 border-white/20 text-white"
+                          : "bg-transparent border-transparent text-white/30 hover:bg-white/5"
+                      }`}
                     >
                       {p}
                     </button>

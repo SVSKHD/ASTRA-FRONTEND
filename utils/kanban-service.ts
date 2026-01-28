@@ -73,12 +73,12 @@ export const subscribeToBoards = (
   callback: (boards: Board[]) => void,
   onError?: (error: any) => void,
 ) => {
-  if (!userId) return () => { };
+  if (!userId) return () => {};
 
   const q = query(
     collection(db, "astra-boards"),
     where("userId", "==", userId),
-    orderBy("createdAt", "desc")
+    orderBy("createdAt", "desc"),
   );
   return onSnapshot(
     q,

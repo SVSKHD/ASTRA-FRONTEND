@@ -195,8 +195,7 @@ export const NotesView = () => {
           <p>
             Are you sure you want to delete{" "}
             <span className="text-white font-medium">
-              "
-              {notes.find((n) => n.id === deleteConfirmation.noteId)?.title}"
+              "{notes.find((n) => n.id === deleteConfirmation.noteId)?.title}"
             </span>
             ? This action cannot be undone.
           </p>

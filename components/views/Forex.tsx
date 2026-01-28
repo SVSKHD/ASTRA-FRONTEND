@@ -6,9 +6,17 @@ import { marketData, MarketItem } from "@/components/market/data/marketData";
 import { columns } from "@/components/market/data/columns";
 import { ForexStats } from "@/components/market/ForexStats";
 import { ActiveSymbolSelector } from "@/components/market/ActiveSymbolSelector";
-import { subscribeToUserBalances, subscribeToDeals, subscribeToTrades, UserBalance, Deal, Trade } from "@/utils/forex-service";
+import {
+  subscribeToUserBalances,
+  subscribeToDeals,
+  subscribeToTrades,
+  UserBalance,
+  Deal,
+  Trade,
+} from "@/utils/forex-service";
 import { Wallet, Search } from "lucide-react";
 import { useCurrency } from "../../hooks/useCurrency";
+import { ForexChart } from "@/components/market/ForexChart";
 
 export const ForexView = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<MarketItem>(
@@ -45,122 +53,191 @@ export const ForexView = () => {
     }
   }, [userBalances, activeAccountId]);
 
-  const filteredBalances = userBalances.filter(user =>
-    user.user_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredBalances = userBalances.filter(
+    (user) =>
+      user.user_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.name?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const activeAccount = userBalances.find((u) => u.id === activeAccountId);
 
-  const wins = deals.filter(d => d.profit_usd > 0).length;
-  const losses = deals.filter(d => d.profit_usd <= 0).length;
+  // Calculate Chart Data
+  const chartData = useMemo(() => {
+    if (userBalances.length === 0) return [];
 
-  const dealColumns = useMemo<Column<Deal>[]>(() => [
-    {
-      key: "time",
-      header: "Time",
-      render: (deal) => <div className="text-xs text-white/60">{new Date(deal.time).toLocaleString()}</div>,
-      sortable: true,
-    },
-    {
-      key: "ticket",
-      header: "Ticket",
-      render: (deal) => <div className="font-mono text-xs text-white/40">#{deal.ticket}</div>,
-      sortable: true,
-    },
-    {
-      key: "symbol",
-      header: "Symbol",
-      render: (deal) => <div className="font-bold text-white">{deal.symbol}</div>,
-      sortable: true,
-    },
-    {
-      key: "side",
-      header: "Side",
-      render: (deal) => (
-        <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${deal.side === "BUY" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
-          {deal.side}
-        </span>
-      ),
-      sortable: true,
-    },
-    {
-      key: "volume",
-      header: "Volume",
-      render: (deal) => <div className="text-white/80">{deal.volume}</div>,
-      sortable: true,
-    },
-    {
-      key: "price",
-      header: "Start Price",
-      render: (deal) => <div className="text-white/60 text-xs">{deal.price}</div>,
-      sortable: true,
-    },
-    {
-      key: "profit_usd",
-      header: `Profit (${currencySymbol})`,
-      render: (deal) => {
-        const profit = (deal.profit_usd ?? 0) * exchangeRate;
-        return (
-          <div className={`font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}>
-            {profit > 0 ? "+" : ""}{currencySymbol}{Math.abs(profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        );
-      },
-      sortable: true,
-    },
-  ], [currencySymbol, exchangeRate]);
-
-  const tradeColumns = useMemo<Column<Trade>[]>(() => [
-    {
-      key: "date",
-      header: "Date",
-      render: (trade) => <div className="text-xs text-white/60">{trade.date}</div>,
-      sortable: true,
-    },
-    {
-      key: "symbol",
-      header: "Symbol",
-      render: (trade) => <div className="font-bold text-white">{trade.symbol}</div>,
-      sortable: true,
-    },
-    {
-      key: "id", // Using ID for key, but rendering Start Price logic
-      header: "Start Price",
-      render: (trade) => (
-        <div className="font-mono text-white/80">
-          {trade.last_event?.payload?.start_price?.toFixed(2) || "-"}
-        </div>
-      ),
-    },
-    {
-      key: "updated_at",
-      header: "Last Update",
-      render: (trade) => <div className="text-xs text-white/40">{new Date(trade.updated_at).toLocaleTimeString()}</div>,
-    },
-    {
-      key: "user_id", // Using user_id as key for Profit column wrapper
-      header: `Total PnL (${currencySymbol})`,
-      render: (trade) => {
-        const pnl = (trade.last_event?.payload?.risk?.total_pnl ?? 0) * exchangeRate;
-        return (
-          <div className={`font-bold ${pnl > 0 ? "text-green-400" : pnl < 0 ? "text-red-400" : "text-white/60"}`}>
-            {pnl > 0 ? "+" : ""}
-            {currencySymbol}{Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        );
-      },
-    },
-    {
-      key: "last_event", // Status column - using unique key
-      header: "Status",
-      render: (trade) => (
-        <span className="px-2 py-1 rounded-md bg-white/5 text-[10px] uppercase text-white/50 border border-white/5">
-          {trade.last_event?.payload?.mode || "Unknown"}
-        </span>
-      ),
+    let targetBalances = userBalances;
+    // If we have an active account, filter to show only that user's history
+    if (activeAccount) {
+      targetBalances = userBalances.filter(
+        (u) =>
+          u.user_id === activeAccount.user_id &&
+          u.login === activeAccount.login,
+      );
     }
-  ], [currencySymbol, exchangeRate]);
+
+    // Map user balances to chart data
+    const history = targetBalances.map((user) => ({
+      // Use ts_utc if available for better sorting, otherwise date
+      time: user.ts_utc
+        ? new Date(user.ts_utc).getTime()
+        : new Date(user.date).getTime(),
+      value: user.balance,
+      isReal: true,
+    }));
+
+    // Sort by time ascending
+    return history.sort((a, b) => a.time - b.time);
+  }, [userBalances, activeAccount]);
+
+  const wins = deals.filter((d) => d.profit_usd > 0).length;
+  const losses = deals.filter((d) => d.profit_usd <= 0).length;
+
+  const dealColumns = useMemo<Column<Deal>[]>(
+    () => [
+      {
+        key: "time",
+        header: "Time",
+        render: (deal) => (
+          <div className="text-xs text-white/60">
+            {new Date(deal.time).toLocaleString()}
+          </div>
+        ),
+        sortable: true,
+      },
+      {
+        key: "ticket",
+        header: "Ticket",
+        render: (deal) => (
+          <div className="font-mono text-xs text-white/40">#{deal.ticket}</div>
+        ),
+        sortable: true,
+      },
+      {
+        key: "symbol",
+        header: "Symbol",
+        render: (deal) => (
+          <div className="font-bold text-white">{deal.symbol}</div>
+        ),
+        sortable: true,
+      },
+      {
+        key: "side",
+        header: "Side",
+        render: (deal) => (
+          <span
+            className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${deal.side === "BUY" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}
+          >
+            {deal.side}
+          </span>
+        ),
+        sortable: true,
+      },
+      {
+        key: "volume",
+        header: "Volume",
+        render: (deal) => <div className="text-white/80">{deal.volume}</div>,
+        sortable: true,
+      },
+      {
+        key: "price",
+        header: "Start Price",
+        render: (deal) => (
+          <div className="text-white/60 text-xs">{deal.price}</div>
+        ),
+        sortable: true,
+      },
+      {
+        key: "profit_usd",
+        header: `Profit (${currencySymbol})`,
+        render: (deal) => {
+          const profit = (deal.profit_usd ?? 0) * exchangeRate;
+          return (
+            <div
+              className={`font-bold ${profit > 0 ? "text-green-400" : "text-red-400"}`}
+            >
+              {profit > 0 ? "+" : ""}
+              {currencySymbol}
+              {Math.abs(profit).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+          );
+        },
+        sortable: true,
+      },
+    ],
+    [currencySymbol, exchangeRate],
+  );
+
+  const tradeColumns = useMemo<Column<Trade>[]>(
+    () => [
+      {
+        key: "date",
+        header: "Date",
+        render: (trade) => (
+          <div className="text-xs text-white/60">{trade.date}</div>
+        ),
+        sortable: true,
+      },
+      {
+        key: "symbol",
+        header: "Symbol",
+        render: (trade) => (
+          <div className="font-bold text-white">{trade.symbol}</div>
+        ),
+        sortable: true,
+      },
+      {
+        key: "id", // Using ID for key, but rendering Start Price logic
+        header: "Start Price",
+        render: (trade) => (
+          <div className="font-mono text-white/80">
+            {trade.last_event?.payload?.start_price?.toFixed(2) || "-"}
+          </div>
+        ),
+      },
+      {
+        key: "updated_at",
+        header: "Last Update",
+        render: (trade) => (
+          <div className="text-xs text-white/40">
+            {new Date(trade.updated_at).toLocaleTimeString()}
+          </div>
+        ),
+      },
+      {
+        key: "user_id", // Using user_id as key for Profit column wrapper
+        header: `Total PnL (${currencySymbol})`,
+        render: (trade) => {
+          const pnl =
+            (trade.last_event?.payload?.risk?.total_pnl ?? 0) * exchangeRate;
+          return (
+            <div
+              className={`font-bold ${pnl > 0 ? "text-green-400" : pnl < 0 ? "text-red-400" : "text-white/60"}`}
+            >
+              {pnl > 0 ? "+" : ""}
+              {currencySymbol}
+              {Math.abs(pnl).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+          );
+        },
+      },
+      {
+        key: "last_event", // Status column - using unique key
+        header: "Status",
+        render: (trade) => (
+          <span className="px-2 py-1 rounded-md bg-white/5 text-[10px] uppercase text-white/50 border border-white/5">
+            {trade.last_event?.payload?.mode || "Unknown"}
+          </span>
+        ),
+      },
+    ],
+    [currencySymbol, exchangeRate],
+  );
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -175,35 +252,31 @@ export const ForexView = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
         {/* Market Data Table - Takes up 2 columns */}
         <div className="lg:col-span-2 space-y-6 flex flex-col">
-          {/* Active Sessions (Trades) Table */}
-          <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col max-h-[50%]">
-            <div className="mb-4 px-2">
-              <h3 className="text-lg font-semibold">
-                Daily Sessions
-              </h3>
-            </div>
-            <div className="flex-1 overflow-auto">
-              <DataTable
-                columns={tradeColumns}
-                data={trades}
-                perPage={5}
-              />
-            </div>
+          {/* Chart Section */}
+          <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 shadow-xl h-[300px] mb-6">
+            <h3 className="text-lg font-semibold mb-4 px-2">Balance History</h3>
+            <ForexChart data={chartData} label="Balance" />
           </div>
 
-          {/* Recent Deals Table */}
-          <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col flex-1">
-            <div className="mb-4 px-2">
-              <h3 className="text-lg font-semibold">
-                Recent Deals
-              </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[400px]">
+            {/* Active Sessions (Trades) Table */}
+            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col">
+              <div className="mb-4 px-2">
+                <h3 className="text-lg font-semibold">Daily Sessions</h3>
+              </div>
+              <div className="flex-1 overflow-auto custom-scrollbar">
+                <DataTable columns={tradeColumns} data={trades} perPage={5} />
+              </div>
             </div>
-            <div className="flex-1 overflow-auto">
-              <DataTable
-                columns={dealColumns}
-                data={deals}
-                perPage={10}
-              />
+
+            {/* Recent Deals Table */}
+            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col">
+              <div className="mb-4 px-2">
+                <h3 className="text-lg font-semibold">Recent Deals</h3>
+              </div>
+              <div className="flex-1 overflow-auto custom-scrollbar">
+                <DataTable columns={dealColumns} data={deals} perPage={5} />
+              </div>
             </div>
           </div>
         </div>
@@ -221,7 +294,10 @@ export const ForexView = () => {
           </div>
 
           <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={14} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30"
+              size={14}
+            />
             <input
               type="text"
               placeholder="Search user ID..."
@@ -241,13 +317,17 @@ export const ForexView = () => {
                 <div
                   key={user.id}
                   onClick={() => setActiveAccountId(user.id)}
-                  className={`p-3 rounded-2xl border transition-colors flex justify-between items-center group cursor-pointer ${activeAccount?.id === user.id
-                    ? "bg-white/10 border-blue-500/50"
-                    : "bg-white/5 border-white/5 hover:bg-white/10"
-                    }`}
+                  className={`p-3 rounded-2xl border transition-colors flex justify-between items-center group cursor-pointer ${
+                    activeAccount?.id === user.id
+                      ? "bg-white/10 border-blue-500/50"
+                      : "bg-white/5 border-white/5 hover:bg-white/10"
+                  }`}
                 >
                   <div className="flex-1 min-w-0 pr-4">
-                    <div className="font-medium text-sm text-white truncate" title={user.user_id}>
+                    <div
+                      className="font-medium text-sm text-white truncate"
+                      title={user.user_id}
+                    >
                       {user.name || user.user_id || "Unknown User"}
                     </div>
                     <div className="text-xs text-white/40 truncate">

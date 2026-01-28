@@ -27,9 +27,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${jetbrainsMono.variable} antialiased font-mono`}>
         <UserProvider>
-          <CurrencyProvider>
-            {children}
-          </CurrencyProvider>
+          <CurrencyProvider>{children}</CurrencyProvider>
         </UserProvider>
       </body>
     </html>

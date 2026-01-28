@@ -129,10 +129,11 @@ export const ChatView = () => {
                     </span>
                   )}
                   <div
-                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${isMe
-                      ? "bg-blue-600 text-white rounded-tr-sm shadow-lg shadow-blue-900/20"
-                      : "bg-white/10 text-white/90 rounded-tl-sm border border-white/5"
-                      }`}
+                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                      isMe
+                        ? "bg-blue-600 text-white rounded-tr-sm shadow-lg shadow-blue-900/20"
+                        : "bg-white/10 text-white/90 rounded-tl-sm border border-white/5"
+                    }`}
                   >
                     {msg.text}
                   </div>

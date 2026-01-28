@@ -13,7 +13,9 @@ interface CurrencyContextType {
   formatCurrency: (value: number) => string;
 }
 
-const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
+const CurrencyContext = createContext<CurrencyContextType | undefined>(
+  undefined,
+);
 
 export const RATES: Record<Currency, number> = {
   USD: 1,
@@ -27,17 +29,21 @@ export const SYMBOLS: Record<Currency, string> = {
   INR: "₹",
 };
 
-export const CurrencyProvider = ({ children }: { children: React.ReactNode }) => {
+export const CurrencyProvider = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
   const { user } = useUser();
   const [currency, setCurrencyState] = useState<Currency>("USD");
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     if (user && !initialized) {
-        if (user.email === "rishivarma9090@gmail.com") {
-            setCurrencyState("EUR");
-        }
-        setInitialized(true);
+      if (user.email === "rishivarma9090@gmail.com") {
+        setCurrencyState("EUR");
+      }
+      setInitialized(true);
     }
   }, [user, initialized]);
 
@@ -75,7 +81,9 @@ export const CurrencyProvider = ({ children }: { children: React.ReactNode }) =>
 export const useCurrencyContext = () => {
   const context = useContext(CurrencyContext);
   if (!context) {
-    throw new Error("useCurrencyContext must be used within a CurrencyProvider");
+    throw new Error(
+      "useCurrencyContext must be used within a CurrencyProvider",
+    );
   }
   return context;
 };

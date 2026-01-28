@@ -50,14 +50,14 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
   const handleDragEnd = (
     event: MouseEvent | TouchEvent | PointerEvent,
-    info: PanInfo
+    info: PanInfo,
   ) => {
     const { point } = info;
 
     for (const tab of visibleTabs) {
       // Check both desktop and mobile refs
       const keys = [`desktop-${tab.id}`, `mobile-${tab.id}`];
-      
+
       for (const key of keys) {
         const element = tabRefs.current[key];
         if (element) {
@@ -270,8 +270,10 @@ export default function Dashboard({ onLock }: DashboardProps) {
                               : "text-white/60 hover:bg-white/10 hover:text-white/90 border border-transparent"
                           }`}
                         >
-                          <div className={`p-1 rounded-full ${isActive ? "bg-white text-black" : "bg-white/10 text-white/50 group-hover/item:bg-white/20 group-hover/item:text-white"}`}>
-                             <Icon size={12} strokeWidth={3} />
+                          <div
+                            className={`p-1 rounded-full ${isActive ? "bg-white text-black" : "bg-white/10 text-white/50 group-hover/item:bg-white/20 group-hover/item:text-white"}`}
+                          >
+                            <Icon size={12} strokeWidth={3} />
                           </div>
                           <span className="flex-1">{c}</span>
                           {isActive && (

@@ -23,7 +23,11 @@ export interface ChatMessage {
 
 const COLLECTION_NAME = "messages";
 
-export const sendMessage = async (text: string, sender: string, userId: string) => {
+export const sendMessage = async (
+  text: string,
+  sender: string,
+  userId: string,
+) => {
   try {
     await addDoc(collection(db, COLLECTION_NAME), {
       text,
@@ -42,7 +46,7 @@ export const subscribeToMessages = (
   userId: string,
   callback: (messages: ChatMessage[]) => void,
 ) => {
-  if (!userId) return () => { };
+  if (!userId) return () => {};
 
   const q = query(
     collection(db, COLLECTION_NAME),
