@@ -260,7 +260,7 @@ export const ForexView = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[400px]">
             {/* Active Sessions (Trades) Table */}
-            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col">
+            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col h-full">
               <div className="mb-4 px-2">
                 <h3 className="text-lg font-semibold">Daily Sessions</h3>
               </div>
@@ -270,13 +270,31 @@ export const ForexView = () => {
             </div>
 
             {/* Recent Deals Table */}
-            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col">
+            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col h-full">
               <div className="mb-4 px-2">
                 <h3 className="text-lg font-semibold">Recent Deals</h3>
               </div>
               <div className="flex-1 overflow-auto custom-scrollbar">
                 <DataTable columns={dealColumns} data={deals} perPage={5} />
               </div>
+            </div>
+          </div>
+
+          {/* Detailed Trade History */}
+          <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 shadow-xl space-y-4">
+            <h3 className="text-lg font-semibold mb-4 px-2 flex items-center gap-2">
+              <span className="w-2 h-6 bg-blue-500 rounded-full" />
+              Detailed Trade Log
+            </h3>
+            <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+              {trades.map((trade) => (
+                <TradeDetailCard
+                  key={trade.id}
+                  trade={trade}
+                  currencySymbol={currencySymbol}
+                  exchangeRate={exchangeRate}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -347,6 +365,212 @@ export const ForexView = () => {
             )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const TradeDetailCard = ({
+  trade,
+  currencySymbol,
+  exchangeRate,
+}: {
+  trade: Trade;
+  currencySymbol: string;
+  exchangeRate: number;
+}) => {
+  const payload = trade.last_event?.payload;
+  if (!payload) return null;
+
+  const formatDate = (date: string) => new Date(date).toLocaleString();
+  const formatMoney = (val: number) => {
+    const converted = val * exchangeRate;
+    return `${converted < 0 ? "-" : ""}${currencySymbol}${Math.abs(
+      converted,
+    ).toFixed(2)}`;
+  };
+
+  return (
+    <div className="bg-white/5 border border-white/5 rounded-xl p-4 hover:bg-white/10 transition-colors">
+      <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <h4 className="font-bold text-white text-lg">{trade.symbol}</h4>
+            <span
+              className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${
+                payload.decision === "WAIT"
+                  ? "bg-yellow-500/20 text-yellow-500"
+                  : payload.decision.includes("SKIP")
+                    ? "bg-purple-500/20 text-purple-400"
+                    : "bg-blue-500/20 text-blue-400"
+              }`}
+            >
+              {payload.decision}
+            </span>
+            <span className="text-[10px] text-white/40 font-mono">
+              {formatDate(trade.updated_at)}
+            </span>
+          </div>
+          <div className="text-xs text-white/50 flex items-center gap-2">
+            <span>Action: {payload.action}</span>
+            <span>•</span>
+            <span>Mode: {payload.mode}</span>
+          </div>
+        </div>
+
+        <div className="flex items-end flex-col gap-1">
+          <div className="text-2xl font-bold text-white">
+            {formatMoney(payload.realized_profit_usd)}
+          </div>
+          <div className="text-xs text-white/40 uppercase tracking-wider">
+            Realized PnL
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        {/* Metrics */}
+        <div className="space-y-2 bg-black/20 p-3 rounded-lg">
+          <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
+            Metrics
+          </h5>
+          <div className="flex justify-between">
+            <span className="text-white/40">Pips Moved</span>
+            <span className="text-white font-mono">
+              {payload.pips_moved?.toFixed(1) ?? "-"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Threshold X</span>
+            <span className="text-white font-mono">
+              {payload.threshold_x?.toFixed(4) ?? "-"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Start Price</span>
+            <span className="text-white font-mono">
+              {payload.start_price?.toFixed(2) ?? "-"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Current Bid</span>
+            <span className="text-white font-mono">
+              {payload.current_bid?.toFixed(2) ?? "-"}
+            </span>
+          </div>
+        </div>
+
+        {/* Risk */}
+        <div className="space-y-2 bg-black/20 p-3 rounded-lg">
+          <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
+            Risk
+          </h5>
+          <div className="flex justify-between">
+            <span className="text-white/40">Realized Today</span>
+            <span className="text-white font-mono">
+              {formatMoney(payload.risk?.realized_today ?? 0)}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Total PnL</span>
+            <span className="text-white font-mono">
+              {formatMoney(payload.risk?.total_pnl ?? 0)}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Profit Lock</span>
+            <span className="text-white font-mono">
+              {formatMoney(payload.risk?.profit_lock ?? 0)}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Loss Lock</span>
+            <span className="text-white font-mono">
+              {formatMoney(payload.risk?.loss_lock ?? 0)}
+            </span>
+          </div>
+        </div>
+
+        {/* Telemetry 1 */}
+        {payload.telemetry && (
+          <div className="space-y-2 bg-black/20 p-3 rounded-lg">
+            <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
+              Telemetry (Signal)
+            </h5>
+            <div className="flex justify-between">
+              <span className="text-white/40">Bias</span>
+              <span
+                className={`uppercase font-bold ${
+                  payload.telemetry.bias === "long"
+                    ? "text-green-400"
+                    : payload.telemetry.bias === "short"
+                      ? "text-red-400"
+                      : "text-white"
+                }`}
+              >
+                {payload.telemetry.bias ?? "-"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/40">Probe Up</span>
+              <span className="text-white font-mono">
+                {payload.telemetry.probe_up?.toFixed(2) ?? "-"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/40">Probe Dn</span>
+              <span className="text-white font-mono">
+                {payload.telemetry.probe_dn?.toFixed(2) ?? "-"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/40">Crossed 1x</span>
+              <span
+                className={
+                  payload.telemetry.crossed_1x
+                    ? "text-green-400"
+                    : "text-white/40"
+                }
+              >
+                {payload.telemetry.crossed_1x ? "YES" : "NO"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Telemetry 2 */}
+        {payload.telemetry && (
+          <div className="space-y-2 bg-black/20 p-3 rounded-lg">
+            <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
+              Telemetry (State)
+            </h5>
+            <div className="flex justify-between">
+              <span className="text-white/40">X Now</span>
+              <span className="text-white font-mono">
+                {payload.telemetry.x_now?.toFixed(2) ?? "-"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/40">Miss Reason</span>
+              <span className="text-white italic">
+                {payload.telemetry.miss_reason ?? "none"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/40">Win Hits (L/S)</span>
+              <span className="text-white font-mono">
+                {payload.telemetry.window_hit_count_long}/
+                {payload.telemetry.window_hit_count_short}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/40">Risk Reason</span>
+              <span className="text-white italic">
+                {payload.telemetry.risk_reason || payload.block_reason || "ok"}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
