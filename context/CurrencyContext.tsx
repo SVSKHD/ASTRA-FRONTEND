@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useUser } from "./UserContext";
 
 export type Currency = "USD" | "EUR" | "INR";
@@ -9,19 +15,14 @@ interface CurrencyContextType {
   currency: Currency;
   setCurrency: (currency: Currency) => void;
   currencySymbol: string;
-  exchangeRate: number;
+  exchangeRate: number; // 1 until loaded
   formatCurrency: (value: number) => string;
+  loadingRates: boolean;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(
   undefined,
 );
-
-export const RATES: Record<Currency, number> = {
-  USD: 1,
-  EUR: 0.92,
-  INR: 83.12,
-};
 
 export const SYMBOLS: Record<Currency, string> = {
   USD: "$",
@@ -29,61 +30,148 @@ export const SYMBOLS: Record<Currency, string> = {
   INR: "₹",
 };
 
+const STORAGE_KEY = "preferred_currency";
+
+/* -----------------------------
+   Browser currency detection
+-------------------------------- */
+function detectBrowserCurrency(): Currency {
+  if (typeof window === "undefined") return "USD";
+
+  const locale = (navigator.language || "").toLowerCase();
+  let tz = "";
+
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {}
+
+  if (tz === "Asia/Kolkata" || locale.startsWith("en-in")) return "INR";
+  if (tz.startsWith("Europe/")) return "EUR";
+
+  return "USD";
+}
+
 export const CurrencyProvider = ({
   children,
 }: {
   children: React.ReactNode;
 }) => {
   const { user } = useUser();
+
   const [currency, setCurrencyState] = useState<Currency>("USD");
+  const [rates, setRates] = useState<Record<string, number>>({});
+  const [loadingRates, setLoadingRates] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
+  /* -----------------------------
+     Init currency once
+  -------------------------------- */
   useEffect(() => {
-    if (user && !initialized) {
-      if (user.email === "rishivarma9090@gmail.com") {
-        setCurrencyState("EUR");
+    if (initialized) return;
+
+    let initial: Currency = "USD";
+
+    if (typeof window !== "undefined") {
+      const saved = window.localStorage.getItem(STORAGE_KEY) as Currency | null;
+      if (saved === "USD" || saved === "EUR" || saved === "INR") {
+        initial = saved;
+      } else {
+        initial = detectBrowserCurrency();
       }
-      setInitialized(true);
     }
-  }, [user, initialized]);
 
-  const currencySymbol = SYMBOLS[currency];
-  const exchangeRate = RATES[currency];
+    setCurrencyState(initial);
+    setInitialized(true);
+  }, [initialized]);
 
+  /* -----------------------------
+     Fetch exchange rates
+  -------------------------------- */
+  useEffect(() => {
+    let alive = true;
+
+    const fetchRates = async () => {
+      try {
+        const res = await fetch(
+          "https://api.exchangerate-api.com/v4/latest/USD",
+          { cache: "no-store" },
+        );
+        if (!res.ok) throw new Error("Rate fetch failed");
+
+        const data = await res.json();
+        if (!alive) return;
+
+        setRates(data?.rates ?? {});
+      } catch (err) {
+        console.error("Exchange rate fetch failed:", err);
+      } finally {
+        if (alive) setLoadingRates(false);
+      }
+    };
+
+    fetchRates();
+    const interval = setInterval(fetchRates, 3600000);
+    return () => {
+      alive = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  /* -----------------------------
+     Currency setter
+  -------------------------------- */
   const setCurrency = (c: Currency) => {
     setCurrencyState(c);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(STORAGE_KEY, c);
+    }
   };
+
+  /* -----------------------------
+     Derived values
+  -------------------------------- */
+  const currencySymbol = SYMBOLS[currency];
+
+  // 🔐 SAFETY: until rates load → 1
+  const exchangeRate = rates[currency] ?? 1;
 
   const formatCurrency = (value: number) => {
-    // Value is always assumed to be in USD base
     const converted = value * exchangeRate;
-    return `${currencySymbol}${converted.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(converted);
+    } catch {
+      return `${currencySymbol}${converted.toFixed(2)}`;
+    }
   };
 
+  const ctxValue = useMemo(
+    () => ({
+      currency,
+      setCurrency,
+      currencySymbol,
+      exchangeRate,
+      formatCurrency,
+      loadingRates,
+    }),
+    [currency, exchangeRate, loadingRates],
+  );
+
   return (
-    <CurrencyContext.Provider
-      value={{
-        currency,
-        setCurrency,
-        currencySymbol,
-        exchangeRate,
-        formatCurrency,
-      }}
-    >
+    <CurrencyContext.Provider value={ctxValue}>
       {children}
     </CurrencyContext.Provider>
   );
 };
 
 export const useCurrencyContext = () => {
-  const context = useContext(CurrencyContext);
-  if (!context) {
-    throw new Error(
-      "useCurrencyContext must be used within a CurrencyProvider",
-    );
-  }
-  return context;
+  const ctx = useContext(CurrencyContext);
+  if (!ctx)
+    throw new Error("useCurrencyContext must be used within CurrencyProvider");
+  return ctx;
 };
