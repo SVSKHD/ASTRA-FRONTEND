@@ -457,16 +457,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
         <div className="md:hidden fixed top-24 left-4 right-4 z-40 pb-6 pointer-events-none">
           <motion.div
             ref={containerRef}
-            className="flex items-center gap-1 overflow-x-auto bg-black/60 backdrop-blur-xl p-1.5 rounded-2xl border border-white/10 pointer-events-auto shadow-2xl no-scrollbar swipe-container touch-pan-x cursor-grab active:cursor-grabbing"
-            drag="x"
-            dragConstraints={{ left: -1000, right: 0 }} // Simplified constraints mostly relying on native scroll
-            style={{ x: 0 }}
-            onDrag={(event, info) => {
-              // Convert drag to scroll
-              if (containerRef.current) {
-                containerRef.current.scrollLeft -= info.delta.x;
-              }
-            }}
+            className="flex items-center gap-1 overflow-x-auto bg-black/60 backdrop-blur-xl p-1.5 rounded-2xl border border-white/10 pointer-events-auto shadow-2xl no-scrollbar touch-pan-x"
           >
             {visibleTabs.map((tab) => {
               const isActive = activeTabId === tab.id;
