@@ -1,4 +1,5 @@
 import { DataTable, Column } from "@/components/ui/data-table";
+import { useCurrency } from "@/hooks/useCurrency";
 import { Wallet, TrendingUp, Activity, ArrowUpRight } from "lucide-react";
 
 interface IndianStock {
@@ -134,77 +135,123 @@ const columns: Column<IndianStock>[] = [
   },
 ];
 
-export const IndianView = () => (
-  <div className="space-y-6 h-full flex flex-col">
-    {/* Stats Grid */}
-    <div className="flex-none grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* Balance Card */}
-      <div className="p-6 rounded-3xl bg-gradient-to-br from-indigo-900/20 to-indigo-600/10 backdrop-blur-xl border border-white/10 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-          <Wallet size={80} />
+export const IndianView = () => {
+  const { currencySymbol, formatCurrency } = useCurrency();
+  const INR_RATE = 83.12;
+
+  const getDisplayValue = (inrValue: number) => {
+    return formatCurrency(inrValue / INR_RATE);
+  };
+
+  const currentColumns: Column<IndianStock>[] = columns.map((col) => {
+    if (col.key === "price") {
+      return {
+        ...col,
+        header: `Price (${currencySymbol})`,
+        render: (item) => (
+          <span className="font-mono">{getDisplayValue(item.price)}</span>
+        ),
+      };
+    }
+    if (col.key === "high") {
+      return {
+        ...col,
+        header: "High",
+        render: (item) => (
+          <span className="text-white/60 font-mono">
+            {getDisplayValue(item.high)}
+          </span>
+        ),
+      };
+    }
+    if (col.key === "low") {
+      return {
+        ...col,
+        header: "Low",
+        render: (item) => (
+          <span className="text-white/60 font-mono">
+            {getDisplayValue(item.low)}
+          </span>
+        ),
+      };
+    }
+    return col;
+  });
+
+  return (
+    <div className="space-y-6 h-full flex flex-col">
+      {/* Stats Grid */}
+      <div className="flex-none grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Balance Card */}
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-indigo-900/20 to-indigo-600/10 backdrop-blur-xl border border-white/10 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Wallet size={80} />
+          </div>
+          <h3 className="text-white/60 font-medium text-sm mb-1">
+            Portfolio Value
+          </h3>
+          <div className="text-3xl font-bold text-white mb-2">
+            {getDisplayValue(1245000)}
+          </div>
+          <div className="flex items-center gap-1 text-emerald-400 text-xs font-medium bg-emerald-500/10 w-fit px-2 py-1 rounded-lg">
+            <ArrowUpRight size={12} />
+            <span>+1.8% today</span>
+          </div>
         </div>
-        <h3 className="text-white/60 font-medium text-sm mb-1">
-          Portfolio Value
-        </h3>
-        <div className="text-3xl font-bold text-white mb-2">₹12,45,000</div>
-        <div className="flex items-center gap-1 text-emerald-400 text-xs font-medium bg-emerald-500/10 w-fit px-2 py-1 rounded-lg">
-          <ArrowUpRight size={12} />
-          <span>+1.8% today</span>
+
+        {/* Trades Card */}
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-purple-900/20 to-purple-600/10 backdrop-blur-xl border border-white/10 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Activity size={80} />
+          </div>
+          <h3 className="text-white/60 font-medium text-sm mb-1">
+            Active Positions
+          </h3>
+          <div className="text-3xl font-bold text-white mb-2">4</div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 text-xs text-white/50">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span> 3
+              Profitable
+            </div>
+            <div className="flex items-center gap-1 text-xs text-white/50">
+              <span className="w-2 h-2 rounded-full bg-red-500"></span> 1 Loss
+            </div>
+          </div>
+        </div>
+
+        {/* Active Symbol Card */}
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-orange-900/20 to-orange-600/10 backdrop-blur-xl border border-white/10 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <TrendingUp size={80} />
+          </div>
+          <h3 className="text-white/60 font-medium text-sm mb-1">
+            Top Performer
+          </h3>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold border border-orange-500/20">
+              R
+            </div>
+            <div>
+              <div className="text-xl font-bold text-white">RELIANCE</div>
+              <div className="text-[10px] text-white/40">NSE Eq</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-orange-400 text-xs font-medium bg-orange-500/10 w-fit px-2 py-1 rounded-lg">
+            <span>+1.25%</span>
+          </div>
         </div>
       </div>
 
-      {/* Trades Card */}
-      <div className="p-6 rounded-3xl bg-gradient-to-br from-purple-900/20 to-purple-600/10 backdrop-blur-xl border border-white/10 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-          <Activity size={80} />
-        </div>
-        <h3 className="text-white/60 font-medium text-sm mb-1">
-          Active Positions
-        </h3>
-        <div className="text-3xl font-bold text-white mb-2">4</div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-xs text-white/50">
-            <span className="w-2 h-2 rounded-full bg-green-500"></span> 3
-            Profitable
-          </div>
-          <div className="flex items-center gap-1 text-xs text-white/50">
-            <span className="w-2 h-2 rounded-full bg-red-500"></span> 1 Loss
-          </div>
-        </div>
-      </div>
-
-      {/* Active Symbol Card */}
-      <div className="p-6 rounded-3xl bg-gradient-to-br from-orange-900/20 to-orange-600/10 backdrop-blur-xl border border-white/10 relative overflow-hidden group">
-        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-          <TrendingUp size={80} />
-        </div>
-        <h3 className="text-white/60 font-medium text-sm mb-1">
-          Top Performer
-        </h3>
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold border border-orange-500/20">
-            R
-          </div>
-          <div>
-            <div className="text-xl font-bold text-white">RELIANCE</div>
-            <div className="text-[10px] text-white/40">NSE Eq</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 text-orange-400 text-xs font-medium bg-orange-500/10 w-fit px-2 py-1 rounded-lg">
-          <span>+1.25%</span>
-        </div>
+      {/* Data Table */}
+      <div className="flex-1 min-h-0">
+        <DataTable
+          data={stockData}
+          columns={currentColumns}
+          searchKeys={["symbol"]}
+          perPage={5}
+          className="h-full"
+        />
       </div>
     </div>
-
-    {/* Data Table */}
-    <div className="flex-1 min-h-0">
-      <DataTable
-        data={stockData}
-        columns={columns}
-        searchKeys={["symbol"]}
-        perPage={5}
-        className="h-full"
-      />
-    </div>
-  </div>
-);
+  );
+};

@@ -5,6 +5,8 @@ import { ActiveSymbolCard } from "@/components/ui/cards/ActiveSymbolCard";
 import { MarketStatsCard } from "@/components/ui/cards/MarketStatsCard";
 import { GreetCard } from "@/components/GreetCard";
 import { DataTable, Column } from "@/components/ui/data-table";
+import { CryptoChart } from "@/components/market/CryptoChart";
+import GradientPicker from "@/components/GradientPicker";
 import {
   Wallet,
   TrendingUp,
@@ -23,7 +25,13 @@ import {
   Pencil,
   Plus,
   ArrowRight,
+  Bitcoin,
+  Layers,
+  Sparkles,
+  Bot,
+  Zap,
 } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 
 // Types for documentation
@@ -103,9 +111,9 @@ const Section = ({
 
   return (
     <div className="mb-20 border-b border-white/10 pb-20 last:border-0 last:pb-0">
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-12 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 md:gap-12 items-start">
         {/* Left Column: Interactive Component Card */}
-        <div className="h-full min-h-[420px] w-full perspective-parent">
+        <div className="h-full min-h-[350px] md:min-h-[420px] w-full perspective-parent">
           <div
             className="relative w-full h-full cursor-pointer group"
             style={{ perspective: "1000px" }}
@@ -120,7 +128,7 @@ const Section = ({
             >
               {/* Front Face: Component Visual */}
               <div
-                className="absolute inset-0 bg-white/5 p-8 rounded-3xl border border-white/10 shadow-2xl flex flex-col items-center justify-center overflow-hidden"
+                className="absolute inset-0 bg-white/5 p-4 md:p-8 rounded-3xl border border-white/10 shadow-2xl flex flex-col items-center justify-center overflow-hidden"
                 style={{ backfaceVisibility: "hidden" }}
               >
                 <div className="w-full h-full flex items-center justify-center overflow-y-auto custom-scrollbar p-2">
@@ -167,11 +175,11 @@ const Section = ({
         {/* Right Column: Documentation */}
         <div className="flex flex-col justify-center h-full">
           <div>
-            <h2 className="text-3xl font-bold mb-4 text-white font-mono">
+            <h2 className="text-2xl md:text-3xl font-bold mb-4 text-white font-mono">
               {title}
             </h2>
             {description && (
-              <p className="text-white/60 mb-8 font-light leading-relaxed text-lg">
+              <p className="text-white/60 mb-8 font-light leading-relaxed text-sm md:text-lg">
                 {description}
               </p>
             )}
@@ -197,6 +205,83 @@ const Section = ({
 };
 
 // --- Mocks Definitions ---
+
+const BotCardMock = ({
+  name,
+  status,
+  performance,
+  color,
+}: {
+  name: string;
+  status: "active" | "inactive" | "maintenance";
+  performance: string;
+  color: string;
+}) => {
+  return (
+    <div className="group relative overflow-hidden bg-white/5 border border-white/10 rounded-2xl p-5 w-full hover:bg-white/10 transition-all">
+      <div
+        className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-5 transition-opacity duration-500`}
+      />
+      <div className="relative z-10 flex flex-col gap-3">
+        <div className="flex items-start justify-between">
+          <div
+            className={`p-2 rounded-xl bg-gradient-to-br ${color} bg-opacity-20 text-white shadow-lg`}
+          >
+            <Bot size={20} />
+          </div>
+          <div
+            className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${
+              status === "active"
+                ? "bg-green-500/20 text-green-400 border-green-500/20"
+                : status === "inactive"
+                  ? "bg-white/10 text-white/40 border-white/10"
+                  : "bg-yellow-500/20 text-yellow-400 border-yellow-500/20"
+            }`}
+          >
+            {status.toUpperCase()}
+          </div>
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-white mb-1">{name}</h3>
+          <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-2">
+            <span className="text-xs text-white/40">Performance</span>
+            <span
+              className={`font-mono font-bold ${performance.startsWith("+") ? "text-green-400" : "text-red-400"}`}
+            >
+              {performance}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ChatMock = () => (
+  <div className="w-full bg-white/5 border border-white/10 rounded-xl overflow-hidden flex flex-col h-[200px]">
+    <div className="flex-1 p-4 space-y-3 overflow-y-auto custom-scrollbar">
+      <div className="flex gap-3">
+        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+          <User size={14} className="text-blue-400" />
+        </div>
+        <div className="bg-white/10 p-3 rounded-2xl rounded-tl-sm text-sm text-white/90">
+          Analyze the current Bitcoin trend.
+        </div>
+      </div>
+      <div className="flex gap-3 flex-row-reverse">
+        <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
+          <Sparkles size={14} className="text-purple-400" />
+        </div>
+        <div className="bg-purple-500/10 border border-purple-500/20 p-3 rounded-2xl rounded-tr-sm text-sm text-white/90">
+          Bitcoin is currently showing strong momentum...
+        </div>
+      </div>
+    </div>
+    <div className="p-3 border-t border-white/10 bg-white/5">
+      <div className="h-8 rounded-lg bg-black/20 border border-white/10 w-full animate-pulse"></div>
+    </div>
+  </div>
+);
 
 const TaskCardMock = ({
   title,
@@ -545,8 +630,6 @@ import { Wallet, Activity } from "lucide-react";
               },
             ]}
             code={`import { ActiveSymbolCard } from "@/components/ui/cards/ActiveSymbolCard";
-
-// Pass trade count explicitly to avoid hydration mismatch
 <ActiveSymbolCard
   data={{
     pair: "EURUSD",
@@ -751,6 +834,403 @@ const columns = [
                 text="Gold (XAU/USD) is currently trading at 2034.50, showing strong bullish momentum..."
                 isOwn={false}
               />
+            </div>
+          </Section>
+
+          <Section
+            title="Crypto Chart"
+            description="High-performance financial time-series chart optimized for live data. Supports varying timeframes and dynamic value coloring."
+            props={[
+              {
+                name: "data",
+                type: "ChartDataPoint[]",
+                required: true,
+                description: "{ time: number, value: number }",
+              },
+              {
+                name: "label",
+                type: "string",
+                required: false,
+                description: "Tooltip label (e.g. 'BTC/USD').",
+              },
+              {
+                name: "color",
+                type: "string",
+                required: false,
+                description: "Hex color code for the line/fill.",
+              },
+              {
+                name: "timeFrame",
+                type: "string",
+                required: false,
+                description: "Format specifier ('Live', '1D', etc.).",
+              },
+            ]}
+            code={`import { CryptoChart } from "@/components/market/CryptoChart";
+
+<CryptoChart 
+  data={historicalData} 
+  label="Pre-Market" 
+  color="#10B981" 
+  timeFrame="1D"
+/>`}
+          >
+            <div className="h-[300px] w-full bg-black/40 rounded-xl p-4 border border-white/5">
+              <CryptoChart
+                data={Array.from({ length: 50 }, (_, i) => ({
+                  time: 1672531200000 + i * 60000,
+                  value: 40000 + Math.sin(i / 5) * 500 + Math.random() * 200,
+                }))}
+                label="Demo Asset"
+                timeFrame="Live"
+              />
+            </div>
+          </Section>
+
+          <Section
+            title="Bitcoin Live Card"
+            description="Specialized card for displaying real-time cryptocurrency data with WebSocket connection status."
+            props={[
+              {
+                name: "price",
+                type: "number",
+                required: true,
+                description: "Current live price.",
+              },
+              {
+                name: "status",
+                type: "string",
+                required: false,
+                description: "Connection status.",
+              },
+            ]}
+            code={`// Note: This UI is typically embedded in CryptoView
+// but follows this structure:
+
+<div className="card">
+  <div className="icon">
+     <Bitcoin />
+  </div>
+  <h3 className="label">Bitcoin Live</h3>
+  <div className="price-container">
+     <span className="price">$43,205.50</span>
+  </div>
+</div>`}
+          >
+            <div className="p-6 rounded-3xl bg-gradient-to-br from-[#F7931A]/20 to-[#F7931A]/5 backdrop-blur-xl border border-white/10 relative overflow-hidden group w-full max-w-sm mx-auto">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Bitcoin size={80} />
+              </div>
+              <h3 className="text-white/60 font-medium text-sm mb-1">
+                Bitcoin Live
+              </h3>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-[#F7931A]/20 flex items-center justify-center text-[#F7931A] font-bold border border-[#F7931A]/20">
+                  <Bitcoin size={20} />
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-white">$43,250.50</div>
+                  <div className="text-[10px] text-white/40">BTC/USDT</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-emerald-400 text-xs font-medium bg-emerald-500/10 w-fit px-2 py-1 rounded-lg">
+                <span>Live Stream</span>
+              </div>
+            </div>
+          </Section>
+
+          <Section
+            title="Gradient Picker"
+            description="A complex UI for creating linear/solid gradients with multiple color stops and angle control."
+            props={[
+              {
+                name: "initialBackground",
+                type: "string",
+                required: true,
+                description: "Starting CSS background value.",
+              },
+              {
+                name: "onChange",
+                type: "(bg: string) => void",
+                required: true,
+                description: "Callback for background updates.",
+              },
+              {
+                name: "onClose",
+                type: "() => void",
+                required: true,
+                description: "Close handler.",
+              },
+            ]}
+            code={`<GradientPicker
+  initialBackground="linear-gradient(...)"
+  onChange={(newBg) => setBackground(newBg)}
+  onClose={() => setIsOpen(false)}
+/>`}
+          >
+            <div className="flex justify-center w-full py-8">
+              <div className="transform scale-90 origin-top">
+                <GradientPicker
+                  initialBackground="linear-gradient(135deg, #4a00e0, #8e2de2)"
+                  onChange={() => {}}
+                  onClose={() => {}}
+                />
+              </div>
+            </div>
+          </Section>
+
+          <Section
+            title="Top Navigation Header"
+            description="The primary application controller floating at the top of the interface. Integrates navigation, system settings, and profile management."
+            props={[
+              {
+                name: "activeTab",
+                type: "string",
+                required: true,
+                description: "Current view identifier.",
+              },
+              {
+                name: "currency",
+                type: "string",
+                required: true,
+                description: "Selected global currency.",
+              },
+            ]}
+            code={`// Application Navigation Bar Layout
+<header className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 p-2 pl-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl">
+  
+  {/* 1. Currency Selector */}
+  <CurrencyPicker />
+
+  {/* 2. Theme Editor */}
+  <ThemeToggle />
+
+  {/* 3. Navigation Tabs */}
+  <div className="flex items-center gap-1">
+     <NavTab label="Overview" active={true} />
+     <NavTab label="Forex" active={false} />
+     ...
+  </div>
+
+  {/* 4. User Actions */}
+  <UserProfileButton />
+  <LockScreenButton />
+</header>`}
+          >
+            <div className="w-full flex justify-center py-6">
+              <div className="flex items-center gap-4 p-2 pl-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl">
+                {/* Mock Currency */}
+                <button className="h-8 px-3 rounded-full border border-white/5 bg-white/5 text-white/70 flex items-center gap-2 text-xs">
+                  <span className="font-bold">USD</span>
+                </button>
+                {/* Mock Theme */}
+                <button className="w-8 h-8 rounded-full border border-white/5 bg-white/5 text-white/70 flex items-center justify-center">
+                  <Layers size={14} />
+                </button>
+                <div className="h-4 w-[1px] bg-white/10"></div>
+                {/* Mock Tabs */}
+                <div className="flex items-center gap-1">
+                  <div className="px-4 py-1.5 rounded-full bg-white/10 text-white text-xs font-medium border border-white/10">
+                    Overview
+                  </div>
+                  <div className="px-4 py-1.5 rounded-full text-white/50 text-xs font-medium">
+                    Forex
+                  </div>
+                  <div className="px-4 py-1.5 rounded-full text-white/50 text-xs font-medium">
+                    Crypto
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          <Section
+            title="Currency Converter"
+            description="Global currency context provider and selection UI. Updates all financial data across the application (Crypto, Forex, Indian Stocks) instantly."
+            props={[
+              {
+                name: "currency",
+                type: "USD | EUR | INR",
+                required: true,
+                description: "Active currency state.",
+              },
+              {
+                name: "setCurrency",
+                type: "function",
+                required: true,
+                description: "State updater.",
+              },
+              {
+                name: "exchangeRate",
+                type: "number",
+                required: true,
+                description: "Derived rate based on selection.",
+              },
+            ]}
+            code={`// 1. Context Usage
+const { currency, currencySymbol, formatCurrency } = useCurrency();
+
+// 2. Rendering Values
+<div>
+  Price: {formatCurrency(item.price)}
+  {/* Renders: $100.00 or ₹8,312.00 or €92.00 */}
+</div>
+
+// 3. Selector Implementation
+<button onClick={() => setCurrency("EUR")}>
+   <EuroIcon /> EUR
+</button>`}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full p-4">
+              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 flex flex-col items-center justify-center gap-2">
+                <span className="text-blue-400 font-bold text-xl">
+                  $1,000.00
+                </span>
+                <span className="text-xs text-white/40 uppercase tracking-wider">
+                  USD Base
+                </span>
+              </div>
+              <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20 flex flex-col items-center justify-center gap-2">
+                <span className="text-purple-400 font-bold text-xl">
+                  €920.00
+                </span>
+                <span className="text-xs text-white/40 uppercase tracking-wider">
+                  EUR (0.92x)
+                </span>
+              </div>
+              <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 flex flex-col items-center justify-center gap-2">
+                <span className="text-orange-400 font-bold text-xl">
+                  ₹83,120.00
+                </span>
+                <span className="text-xs text-white/40 uppercase tracking-wider">
+                  INR (83.12x)
+                </span>
+              </div>
+            </div>
+          </Section>
+
+          <Section
+            title="AI Chat Interface"
+            description="LLM-powered chat interface supporting Gemini/ChatGPT models, file attachments, and markdown rendering."
+            code={`// LLMChatView Component
+<LLMChatView />
+
+// Features:
+// - Markdown Rendering
+// - File Attachments
+// - Context Retention
+// - Model Switching`}
+            props={[
+              {
+                name: "model",
+                type: "'gemini' | 'chatgpt'",
+                required: true,
+                description: "Active LLM Model",
+                default: "gemini",
+              },
+              {
+                name: "onSend",
+                type: "function",
+                required: true,
+                description: "Handler for message submission",
+              },
+            ]}
+          >
+            <ChatMock />
+          </Section>
+
+          <Section
+            title="Trading Bots"
+            description="Algorithmic trading bot cards displaying operational status and performance metrics."
+            code={`// BotsView Cards
+{bots.map(bot => (
+  <BotCard 
+    key={bot.id}
+    data={bot}
+  />
+))}
+
+// Data Structure
+interface BotData {
+  id: string;
+  name: string;
+  status: 'active' | 'inactive';
+  performance: string;
+  color: string;
+}`}
+            props={[
+              {
+                name: "data",
+                type: "BotData",
+                required: true,
+                description: "Bot configuration and current stats",
+              },
+              {
+                name: "isActive",
+                type: "boolean",
+                required: false,
+                description: "Visual highlight state",
+              },
+            ]}
+          >
+            <div className="grid grid-cols-1 gap-4 w-full">
+              <BotCardMock
+                name="Alpha Scout"
+                status="active"
+                performance="+12.5%"
+                color="from-yellow-400 to-orange-500"
+              />
+              <BotCardMock
+                name="SafeGuard AI"
+                status="inactive"
+                performance="+3.1%"
+                color="from-green-400 to-emerald-500"
+              />
+            </div>
+          </Section>
+
+          <Section
+            title="Utility Components"
+            description="Other essential system components maintained in the project."
+            code={`// LockScreen
+<LockScreen isLocked={true} onUnlock={handleUnlock} />
+
+// ShareDialog
+<ShareDialog 
+  isOpen={true} 
+  title="Share Note" 
+  content="https://astra.app/notes/123" 
+/>
+
+// Delete Dialog
+<DeleteConfirmationDialog 
+  isOpen={true} 
+  title="Delete Item?" 
+  onConfirm={handleDelete} 
+  description="This action cannot be undone."
+/>`}
+          >
+            <div className="grid grid-cols-1 gap-4 text-sm text-white/60 p-4">
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <strong className="text-white block mb-1">LockScreen</strong>
+                <p>
+                  Full-screen security overlay requiring PIN entry. Connected to
+                  UserContext.
+                </p>
+              </div>
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <strong className="text-white block mb-1">ShareDialog</strong>
+                <p>
+                  Modal for copying content/links to clipboard with visual
+                  feedback.
+                </p>
+              </div>
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <strong className="text-white block mb-1">
+                  DeleteConfirmationDialog
+                </strong>
+                <p>Standardized destructive action confirmation modal.</p>
+              </div>
             </div>
           </Section>
         </div>

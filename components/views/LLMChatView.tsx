@@ -17,7 +17,7 @@ import { useNotes } from "@/hooks/useNotes";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-// import { dumps } from "@zenoaihq/tson";
+import { dumps } from "@zenoaihq/tson";
 
 type Model = "gemini" | "chatgpt";
 
@@ -252,7 +252,7 @@ export const LLMChatView = () => {
                     <Sparkles size={16} className="text-blue-400" />
                     <div className="flex flex-col">
                       <span className="text-sm font-medium text-white">
-                        Gemini 1.5 Flash
+                        Gemini 2.5 Flash
                       </span>
                       <span className="text-[10px] text-white/40">
                         Google DeepMind

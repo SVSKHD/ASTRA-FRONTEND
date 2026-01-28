@@ -19,6 +19,7 @@ import { auth } from "../utils/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { useUser } from "@/context/UserContext";
 import { useCurrency } from "../hooks/useCurrency";
+import useBreakpoints from "../hooks/useBreakpoints";
 import { Currency } from "@/context/CurrencyContext";
 
 interface DashboardProps {
@@ -39,6 +40,10 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
   const { currency, setCurrency } = useCurrency();
   const { user: appUser, loading } = useUser();
+  const { isMobile, isTablet, isDesktop } = useBreakpoints();
+
+  const showDesktopTabs = !isMobile;
+  const showCurrencyLabel = !isMobile;
 
   const visibleTabs = tabsConfig.filter((tab) => {
     if (!tab.allowedRoles) return true;
@@ -47,6 +52,21 @@ export default function Dashboard({ onLock }: DashboardProps) {
   });
 
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      const activeEl = tabRefs.current[`mobile-${activeTabId}`];
+      if (activeEl) {
+        const container = containerRef.current;
+        const scrollLeft =
+          activeEl.offsetLeft -
+          container.clientWidth / 2 +
+          activeEl.clientWidth / 2;
+        container.scrollTo({ left: scrollLeft, behavior: "smooth" });
+      }
+    }
+  }, [activeTabId]);
 
   const handleDragEnd = (
     event: MouseEvent | TouchEvent | PointerEvent,
@@ -62,7 +82,6 @@ export default function Dashboard({ onLock }: DashboardProps) {
         const element = tabRefs.current[key];
         if (element) {
           const rect = element.getBoundingClientRect();
-          // Skip hidden elements (0x0)
           if (rect.width === 0 || rect.height === 0) continue;
 
           if (
@@ -92,6 +111,18 @@ export default function Dashboard({ onLock }: DashboardProps) {
   const handleTabChange = (id: string) => {
     setActiveTabId(id);
     localStorage.setItem("astra-active-tab", id);
+
+    // Scroll active tab into view for mobile
+    setTimeout(() => {
+      const mobileEl = tabRefs.current[`mobile-${id}`];
+      if (mobileEl) {
+        mobileEl.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "center",
+        });
+      }
+    }, 100);
   };
 
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -209,12 +240,12 @@ export default function Dashboard({ onLock }: DashboardProps) {
           </div>
         </div>
 
-        <header className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 p-2 pl-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl">
+        <header className="fixed top-6 left-1/2 -translate-x-1/2 z-[120] flex items-center gap-2 md:gap-3 lg:gap-4 px-2 py-2 lg:pl-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl transition-all duration-300 max-w-[calc(100vw-32px)]">
           {/* Currency Picker */}
-          <div className="relative group z-50">
+          <div className="relative group z-[140] flex-shrink-0">
             <button
               onClick={() => setShowCurrencyPicker(!showCurrencyPicker)}
-              className={`h-8 px-3 rounded-full border transition-all flex items-center justify-center gap-2 ${
+              className={`h-8 ${showCurrencyLabel ? "px-3" : "px-2"} rounded-full border transition-all flex items-center justify-center gap-1.5 flex-shrink-0 ${
                 showCurrencyPicker
                   ? "bg-white/20 border-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.3)]"
                   : "bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:text-white"
@@ -224,9 +255,13 @@ export default function Dashboard({ onLock }: DashboardProps) {
                 size={14}
                 className={showCurrencyPicker ? "text-white" : ""}
               />
-              <span className="text-xs font-medium tracking-wide">
-                {currency}
-              </span>
+              {showCurrencyLabel ? (
+                <span className="text-xs font-medium tracking-wide">
+                  {currency}
+                </span>
+              ) : (
+                <span className="sr-only">{currency}</span>
+              )}
             </button>
             <AnimatePresence>
               {showCurrencyPicker && (
@@ -292,10 +327,10 @@ export default function Dashboard({ onLock }: DashboardProps) {
           </div>
 
           {/* Color Picker */}
-          <div className="relative group z-50">
+          <div className="relative group z-[140] flex-shrink-0">
             <button
               onClick={() => setShowColorPicker(!showColorPicker)}
-              className={`w-8 h-8 rounded-full border transition-all flex items-center justify-center ${showColorPicker ? "bg-white/20 border-white/20 text-white" : "bg-white/5 border-white/5 text-white/70 hover:bg-white/10"}`}
+              className={`w-8 h-8 rounded-full border transition-all flex items-center justify-center flex-shrink-0 ${showColorPicker ? "bg-white/20 border-white/20 text-white" : "bg-white/5 border-white/5 text-white/70 hover:bg-white/10"}`}
             >
               <Palette size={14} />
             </button>
@@ -314,53 +349,59 @@ export default function Dashboard({ onLock }: DashboardProps) {
           </div>
 
           {/* Separator */}
-          <div className="h-4 w-[1px] bg-white/10" />
+          {showDesktopTabs && (
+            <div className="h-4 w-[1px] bg-white/10 hidden md:block" />
+          )}
 
           {/* Tab Bar - Desktop */}
-          <div className="hidden md:flex items-center gap-1">
-            {visibleTabs.map((tab) => {
-              const isActive = activeTabId === tab.id;
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  ref={(el) => {
-                    tabRefs.current[`desktop-${tab.id}`] = el;
-                  }}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`relative px-4 py-1.5 rounded-full text-xs font-medium transition-colors duration-300 flex items-center gap-2 outline-none ${
-                    isActive
-                      ? "text-white"
-                      : "text-white/50 hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="active-tab-indicator"
-                      className="absolute inset-0 bg-white/15 rounded-full ring-1 ring-white/5 shadow-sm"
-                      drag="x"
-                      dragSnapToOrigin
-                      onDragEnd={handleDragEnd}
-                      whileDrag={{ cursor: "grabbing" }}
-                      style={{ cursor: "grab" }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center gap-2 pointer-events-none">
-                    <Icon size={14} />
-                    {tab.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {showDesktopTabs && (
+            <div className="hidden md:flex items-center gap-1 overflow-x-auto no-scrollbar min-w-0 overscroll-contain">
+              {visibleTabs.map((tab) => {
+                const isActive = activeTabId === tab.id;
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    ref={(el) => {
+                      tabRefs.current[`desktop-${tab.id}`] = el;
+                    }}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`relative px-4 py-1.5 rounded-full text-xs font-medium transition-colors duration-300 flex items-center gap-2 outline-none ${
+                      isActive
+                        ? "text-white"
+                        : "text-white/50 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="active-tab-indicator"
+                        className="absolute inset-0 bg-white/15 rounded-full ring-1 ring-white/5 shadow-sm"
+                        drag="x"
+                        dragSnapToOrigin
+                        onDragEnd={handleDragEnd}
+                        whileDrag={{ cursor: "grabbing" }}
+                        style={{ cursor: "grab" }}
+                      />
+                    )}
+                    <span className="relative z-10 flex items-center gap-2 pointer-events-none">
+                      <Icon size={14} />
+                      {tab.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Separator */}
-          <div className="h-4 w-[1px] bg-white/10 hidden md:block" />
+          {showDesktopTabs && (
+            <div className="h-4 w-[1px] bg-white/10 hidden lg:block" />
+          )}
 
           {/* User Login Button */}
           <button
             onClick={() => setIsLoginOpen(true)}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5 flex items-center justify-center transition-all overflow-hidden"
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5 flex items-center justify-center transition-all overflow-hidden flex-shrink-0"
             title={appUser ? "Account" : "Sign In"}
           >
             {appUser?.avatarUrl ? (
@@ -377,7 +418,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
           {/* Lock Button */}
           <button
             onClick={onLock}
-            className="w-8 h-8 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/10 flex items-center justify-center transition-colors group"
+            className="w-8 h-8 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/10 flex items-center justify-center transition-colors group flex-shrink-0"
             title="Lock Screen"
           >
             <Lock
@@ -388,7 +429,19 @@ export default function Dashboard({ onLock }: DashboardProps) {
         </header>
 
         <div className="md:hidden fixed top-24 left-4 right-4 z-40 pb-6 pointer-events-none">
-          <div className="flex items-center justify-between bg-black/60 backdrop-blur-xl p-1 rounded-2xl border border-white/10 pointer-events-auto shadow-2xl">
+          <motion.div
+            ref={containerRef}
+            className="flex items-center gap-1 overflow-x-auto bg-black/60 backdrop-blur-xl p-1.5 rounded-2xl border border-white/10 pointer-events-auto shadow-2xl no-scrollbar swipe-container touch-pan-x cursor-grab active:cursor-grabbing"
+            drag="x"
+            dragConstraints={{ left: -1000, right: 0 }} // Simplified constraints mostly relying on native scroll
+            style={{ x: 0 }}
+            onDrag={(event, info) => {
+              // Convert drag to scroll
+              if (containerRef.current) {
+                containerRef.current.scrollLeft -= info.delta.x;
+              }
+            }}
+          >
             {visibleTabs.map((tab) => {
               const isActive = activeTabId === tab.id;
               const Icon = tab.icon;
@@ -399,7 +452,9 @@ export default function Dashboard({ onLock }: DashboardProps) {
                     tabRefs.current[`mobile-${tab.id}`] = el;
                   }}
                   onClick={() => handleTabChange(tab.id)}
-                  className="flex-1 relative py-2 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-300 outline-none"
+                  className={`relative flex-shrink-0 h-10 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 outline-none ${
+                    isActive ? "px-4 bg-white/10" : "px-3 w-10"
+                  }`}
                 >
                   {isActive && (
                     <motion.div
@@ -410,26 +465,30 @@ export default function Dashboard({ onLock }: DashboardProps) {
                         bounce: 0.2,
                         duration: 0.6,
                       }}
-                      drag="x"
-                      dragSnapToOrigin
-                      onDragEnd={handleDragEnd}
-                      whileDrag={{ cursor: "grabbing" }}
-                      style={{ touchAction: "none" }}
                     />
                   )}
                   <Icon
                     size={18}
-                    className={`relative z-10 pointer-events-none ${isActive ? "text-white" : "text-white/50"}`}
+                    className={`relative z-10 pointer-events-none flex-shrink-0 ${
+                      isActive ? "text-white" : "text-white/50"
+                    }`}
                   />
-                  <span
-                    className={`relative z-10 text-[10px] font-medium pointer-events-none ${isActive ? "text-white" : "text-white/50"}`}
-                  >
-                    {tab.label}
-                  </span>
+                  <AnimatePresence mode="wait">
+                    {isActive && (
+                      <motion.span
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: "auto" }}
+                        exit={{ opacity: 0, width: 0 }}
+                        className="relative z-10 text-[12px] font-medium pointer-events-none text-white whitespace-nowrap overflow-hidden"
+                      >
+                        {tab.label}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </button>
               );
             })}
-          </div>
+          </motion.div>
         </div>
 
         {/* Scrollable Content Area */}
