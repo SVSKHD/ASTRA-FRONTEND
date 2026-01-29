@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { MarketStatsCard } from "@/components/ui/cards/MarketStatsCard";
 import { Wallet, Activity } from "lucide-react";
 import {
-  subscribeToUserBalances,
-  subscribeToDeals,
+  fetchUserBalances,
+  fetchDeals,
   UserBalance,
   Deal,
 } from "@/utils/forex-service";
@@ -19,16 +19,20 @@ export const OverviewView = () => {
   const { currencySymbol, exchangeRate, formatCurrency } = useCurrency();
 
   useEffect(() => {
-    const unsubscribeBalances = subscribeToUserBalances((data) => {
-      setUserBalances(data);
-    });
-    const unsubscribeDeals = subscribeToDeals((data) => {
-      setDeals(data);
-    });
-    return () => {
-      unsubscribeBalances();
-      unsubscribeDeals();
+    const fetchData = async () => {
+      const balanceData = await fetchUserBalances();
+      setUserBalances(balanceData);
+
+      const dealsData = await fetchDeals();
+      setDeals(dealsData);
     };
+
+    fetchData(); // Initial fetch
+
+    // Polling every 5 seconds
+    const intervalId = setInterval(fetchData, 5000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   useEffect(() => {

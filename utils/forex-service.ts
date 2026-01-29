@@ -1,11 +1,9 @@
-import { db } from "./firebase";
-import {
-  collection,
-  onSnapshot,
-  query,
-  orderBy,
-  limit,
-} from "firebase/firestore";
+"use server";
+
+import dbConnect from "@/lib/mongodb";
+import UserBalanceModel from "@/lib/models/UserBalance";
+import DealModel from "@/lib/models/Deal";
+import TradeModel from "@/lib/models/Trade";
 
 export interface UserBalance {
   id: string; // Document ID
@@ -35,32 +33,31 @@ export interface UserBalance {
   userEmail?: string;
 }
 
-const COLLECTION_NAME = "Astra-user-balance";
-
-export const subscribeToUserBalances = (
-  callback: (balances: UserBalance[]) => void,
-) => {
-  const q = query(collection(db, COLLECTION_NAME));
-  return onSnapshot(q, (snapshot) => {
-    const balances = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
+export const fetchUserBalances = async (): Promise<UserBalance[]> => {
+  try {
+    await dbConnect();
+    const balances = await UserBalanceModel.find({}).lean();
+    return balances.map((doc: any) => ({
+      ...doc,
+      id: doc._id.toString(),
+      _id: undefined,
     })) as UserBalance[];
-    console.log("balances collection", balances);
-    callback(balances);
-  });
+  } catch (error) {
+    console.error("Error fetching user balances:", error);
+    return [];
+  }
 };
 
 export interface Deal {
   id: string; // Document ID
   ticket: number;
-  login?: number; // Not in the provided object, but maybe useful? Keeping generic if needed or removing.
+  login?: number;
   time: string;
   type: number;
   symbol: string;
   volume: number;
   price: number;
-  profit_usd: number; // Changed from profit
+  profit_usd: number;
   swap: number;
   commission: number;
   comment: string;
@@ -79,22 +76,19 @@ export interface Deal {
   user_id: string;
 }
 
-const DEALS_COLLECTION_NAME = "Astra-symbol-account-deals";
-
-export const subscribeToDeals = (callback: (deals: Deal[]) => void) => {
-  const q = query(
-    collection(db, DEALS_COLLECTION_NAME),
-    orderBy("time", "desc"),
-    limit(50),
-  );
-  return onSnapshot(q, (snapshot) => {
-    const deals = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
+export const fetchDeals = async (): Promise<Deal[]> => {
+  try {
+    await dbConnect();
+    const deals = await DealModel.find({}).sort({ time: -1 }).limit(50).lean();
+    return deals.map((doc: any) => ({
+      ...doc,
+      id: doc._id.toString(),
+      _id: undefined,
     })) as Deal[];
-    console.log("deals collection", deals);
-    callback(deals);
-  });
+  } catch (error) {
+    console.error("Error fetching deals:", error);
+    return [];
+  }
 };
 
 export interface Trade {
@@ -177,20 +171,20 @@ export interface Trade {
   };
 }
 
-const TRADES_COLLECTION_NAME = "Astra-symbol-trades";
-
-export const subscribeToTrades = (callback: (trades: Trade[]) => void) => {
-  const q = query(
-    collection(db, TRADES_COLLECTION_NAME),
-    orderBy("updated_at", "desc"),
-    limit(50),
-  );
-  return onSnapshot(q, (snapshot) => {
-    const trades = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
+export const fetchTrades = async (): Promise<Trade[]> => {
+  try {
+    await dbConnect();
+    const trades = await TradeModel.find({})
+      .sort({ updated_at: -1 })
+      .limit(50)
+      .lean();
+    return trades.map((doc: any) => ({
+      ...doc,
+      id: doc._id.toString(),
+      _id: undefined,
     })) as Trade[];
-    console.log("trades collection", trades);
-    callback(trades);
-  });
+  } catch (error) {
+    console.error("Error fetching trades:", error);
+    return [];
+  }
 };

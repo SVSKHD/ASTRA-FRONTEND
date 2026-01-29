@@ -7,9 +7,9 @@ import { columns } from "@/components/market/data/columns";
 import { ForexStats } from "@/components/market/ForexStats";
 import { ActiveSymbolSelector } from "@/components/market/ActiveSymbolSelector";
 import {
-  subscribeToUserBalances,
-  subscribeToDeals,
-  subscribeToTrades,
+  fetchUserBalances,
+  fetchDeals,
+  fetchTrades,
   UserBalance,
   Deal,
   Trade,
@@ -30,20 +30,22 @@ export const ForexView = () => {
   const { currencySymbol, exchangeRate, formatCurrency } = useCurrency();
 
   useEffect(() => {
-    const unsubscribeBalances = subscribeToUserBalances((data) => {
-      setUserBalances(data);
-    });
-    const unsubscribeDeals = subscribeToDeals((data) => {
-      setDeals(data);
-    });
-    const unsubscribeTrades = subscribeToTrades((data) => {
-      setTrades(data);
-    });
-    return () => {
-      unsubscribeBalances();
-      unsubscribeDeals();
-      unsubscribeTrades();
+    const fetchData = async () => {
+      const balanceData = await fetchUserBalances();
+      setUserBalances(balanceData);
+
+      const dealsData = await fetchDeals();
+      setDeals(dealsData);
+
+      const tradesData = await fetchTrades();
+      setTrades(tradesData);
     };
+
+    fetchData(); // Initial fetch
+
+    const intervalId = setInterval(fetchData, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(intervalId);
   }, []);
 
   // Set first account as active if none selected
