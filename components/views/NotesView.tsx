@@ -24,7 +24,7 @@ const mapToDialogNote = (note: Note): DialogNote => ({
 export const NotesView = () => {
   const { notes, loading, createNote, updateNote, deleteNote } = useNotes();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [conditingNote, setEditingNote] = useState<DialogNote | null>(null);
+  const [editingNote, setEditingNote] = useState<DialogNote | null>(null);
   const [viewMode, setViewMode] = useState<"edit" | "view">("edit");
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
