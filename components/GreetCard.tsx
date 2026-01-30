@@ -111,7 +111,7 @@ export const GreetCard = ({ pageTitle, caption }: GreetCardProps) => {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="text-2xl font-semibold text-white/80 flex items-center"
+              className="text-2xl font-semibold text-white/80 flex items-center justify-center md:justify-start"
             >
               {user && getWeatherIcon()}
               {greeting}

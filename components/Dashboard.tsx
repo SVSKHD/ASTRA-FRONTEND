@@ -267,6 +267,26 @@ export default function Dashboard({ onLock }: DashboardProps) {
         </div>
 
         <header className="fixed top-6 left-1/2 -translate-x-1/2 z-[120] flex items-center gap-2 md:gap-3 lg:gap-4 px-2 py-2 lg:pl-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl transition-all duration-300 max-w-[calc(100vw-32px)]">
+          {/* User Login Button (Moved Left) */}
+          <button
+            onClick={() => setIsLoginOpen(true)}
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5 flex items-center justify-center transition-all overflow-hidden flex-shrink-0"
+            title={appUser ? "Account" : "Sign In"}
+          >
+            {appUser?.avatarUrl ? (
+              <img
+                src={appUser.avatarUrl}
+                alt={appUser.username || "User"}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <UserIcon size={14} />
+            )}
+          </button>
+
+          {/* Divider */}
+          <div className="h-4 w-[1px] bg-white/10" />
+
           {/* Currency Picker */}
           <div className="relative group z-[140] flex-shrink-0">
             <button
@@ -424,23 +444,6 @@ export default function Dashboard({ onLock }: DashboardProps) {
             <div className="h-4 w-[1px] bg-white/10 hidden lg:block" />
           )}
 
-          {/* User Login Button */}
-          <button
-            onClick={() => setIsLoginOpen(true)}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5 flex items-center justify-center transition-all overflow-hidden flex-shrink-0"
-            title={appUser ? "Account" : "Sign In"}
-          >
-            {appUser?.avatarUrl ? (
-              <img
-                src={appUser.avatarUrl}
-                alt={appUser.username || "User"}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <UserIcon size={14} />
-            )}
-          </button>
-
           {/* Lock Button */}
           <button
             onClick={onLock}
@@ -454,10 +457,10 @@ export default function Dashboard({ onLock }: DashboardProps) {
           </button>
         </header>
 
-        <div className="md:hidden fixed top-24 left-4 right-4 z-40 pb-6 pointer-events-none">
+        <div className="md:hidden fixed bottom-6 left-0 w-full z-40 pointer-events-none flex justify-center">
           <motion.div
             ref={containerRef}
-            className="flex items-center gap-1 overflow-x-auto bg-black/60 backdrop-blur-xl p-1.5 rounded-2xl border border-white/10 pointer-events-auto shadow-2xl no-scrollbar touch-pan-x"
+            className="flex items-center gap-2 overflow-x-auto bg-black/60 backdrop-blur-xl p-1.5 rounded-full border border-white/10 pointer-events-auto shadow-2xl no-scrollbar touch-pan-x max-w-[calc(100vw-32px)]"
           >
             {visibleTabs.map((tab) => {
               const isActive = activeTabId === tab.id;
@@ -469,14 +472,14 @@ export default function Dashboard({ onLock }: DashboardProps) {
                     tabRefs.current[`mobile-${tab.id}`] = el;
                   }}
                   onClick={() => handleTabChange(tab.id)}
-                  className={`relative flex-shrink-0 h-10 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 outline-none ${
+                  className={`relative flex-shrink-0 h-10 rounded-full flex items-center justify-center gap-2 transition-all duration-300 outline-none ${
                     isActive ? "px-4 bg-white/10" : "px-3 w-10"
                   }`}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="mobile-tab-highlight"
-                      className="absolute inset-0 bg-white/10 rounded-xl"
+                      className="absolute inset-0 bg-white/10 rounded-full"
                       transition={{
                         type: "spring",
                         bounce: 0.2,
