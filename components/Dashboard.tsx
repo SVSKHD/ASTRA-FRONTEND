@@ -546,7 +546,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
         {/* Scrollable Content Area */}
         <main
-          className="w-full h-full overflow-y-auto pt-48 md:pt-32 pb-6 px-4 md:px-8 no-scrollbar mask-gradient-top"
+          className="w-full h-full overflow-y-auto pt-24 md:pt-32 pb-6 px-4 md:px-8 no-scrollbar mask-gradient-top"
           style={{
             maskImage:
               "linear-gradient(to bottom, transparent 0%, black 15%, black 100%)",
