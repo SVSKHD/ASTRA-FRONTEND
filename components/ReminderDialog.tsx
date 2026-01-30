@@ -213,6 +213,61 @@ export const ReminderDialog = ({
                     <span className="text-xs text-white/50">days</span>
                   </div>
                 )}
+
+                {/* Recurrence Preview */}
+                {recurrence !== "None" && date && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3"
+                  >
+                    <Tag
+                      size={14}
+                      className="text-blue-400 mt-0.5 flex-shrink-0"
+                    />
+                    <div>
+                      <p className="text-xs text-blue-200 font-medium">
+                        {recurrence === "Daily" && "Repeats daily"}
+                        {recurrence === "Weekly" && "Repeats weekly"}
+                        {recurrence === "Monthly" && "Repeats monthly"}
+                        {recurrence === "Yearly" && "Repeats yearly"}
+                        {recurrence === "Custom" &&
+                          `Repeats every ${customInterval} days`}
+                      </p>
+                      <div className="text-[10px] text-blue-300/60 mt-1 space-y-0.5">
+                        <p>
+                          First:{" "}
+                          {new Date(date).toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </p>
+                        <p>
+                          Next:{" "}
+                          {(() => {
+                            const d = new Date(date);
+                            if (recurrence === "Daily")
+                              d.setDate(d.getDate() + 1);
+                            if (recurrence === "Weekly")
+                              d.setDate(d.getDate() + 7);
+                            if (recurrence === "Monthly")
+                              d.setMonth(d.getMonth() + 1);
+                            if (recurrence === "Yearly")
+                              d.setFullYear(d.getFullYear() + 1);
+                            if (recurrence === "Custom")
+                              d.setDate(d.getDate() + (customInterval || 1));
+                            return d.toLocaleDateString("en-US", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            });
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </div>
 
               <div className="pt-4 flex gap-3">

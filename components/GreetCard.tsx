@@ -5,12 +5,19 @@ import { motion } from "framer-motion";
 import { Cloud, Sun, Moon } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 
+import { Reminder } from "@/services/remindersService";
+
 interface GreetCardProps {
   pageTitle: string;
   caption?: string;
+  activeReminder?: Reminder | null;
 }
 
-export const GreetCard = ({ pageTitle, caption }: GreetCardProps) => {
+export const GreetCard = ({
+  pageTitle,
+  caption,
+  activeReminder,
+}: GreetCardProps) => {
   const { user } = useUser();
   const [greeting, setGreeting] = useState("");
   const [date, setDate] = useState("");
@@ -121,9 +128,18 @@ export const GreetCard = ({ pageTitle, caption }: GreetCardProps) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="text-white/40 text-sm font-medium"
+              className={`text-sm font-medium ${activeReminder ? "text-yellow-400 font-semibold" : "text-white/40"}`}
             >
-              {date} • {quote}
+              {activeReminder ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                  Reminder: {activeReminder.title}
+                </span>
+              ) : (
+                <>
+                  {date} • {quote}
+                </>
+              )}
             </motion.p>
           </div>
         </div>

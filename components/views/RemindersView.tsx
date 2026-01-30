@@ -18,7 +18,7 @@ import {
   updateReminder,
   deleteReminder,
   Reminder,
-} from "@/utils/reminders-service";
+} from "@/services/remindersService";
 import { useUser } from "@/context/UserContext";
 import { ReminderDialog } from "../ReminderDialog";
 
@@ -27,12 +27,14 @@ export const RemindersView = () => {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!user?.id) return;
 
     const unsubscribe = subscribeToReminders(user.id, (data) => {
       setReminders(data);
+      setIsLoading(false);
     });
     return () => unsubscribe();
   }, [user]);
@@ -104,38 +106,47 @@ export const RemindersView = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-8 pr-2 custom-scrollbar">
-        {/* Active Reminders */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider sticky top-0 bg-transparent backdrop-blur-md py-2 z-10">
-            Upcoming
-          </h3>
-          <AnimatePresence mode="popLayout">
-            {activeReminders.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="p-8 text-center border border-dashed border-white/10 rounded-2xl bg-white/5"
-              >
-                <Bell size={32} className="mx-auto text-white/20 mb-3" />
-                <p className="text-white/40">No active reminders.</p>
-              </motion.div>
-            ) : (
-              activeReminders.map((reminder) => (
-                <ReminderItem
-                  key={reminder.id}
-                  reminder={reminder}
-                  onToggle={() => toggleComplete(reminder)}
-                  onEdit={() => {
-                    setEditingReminder(reminder);
-                    setIsDialogOpen(true);
-                  }}
-                  onDelete={() => handleDelete(reminder.id)}
-                  formatDate={formatDate}
-                />
-              ))
-            )}
-          </AnimatePresence>
-        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center p-12">
+            <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          </div>
+        ) : (
+          <>
+            {/* Active Reminders */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider sticky top-0 bg-transparent backdrop-blur-md py-2 z-10">
+                Upcoming
+              </h3>
+              <AnimatePresence mode="popLayout">
+                {activeReminders.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="p-8 text-center border border-dashed border-white/10 rounded-2xl bg-white/5"
+                  >
+                    <Bell size={32} className="mx-auto text-white/20 mb-3" />
+                    <p className="text-white/40">No active reminders.</p>
+                  </motion.div>
+                ) : (
+                  activeReminders.map((reminder) => (
+                    <ReminderItem
+                      key={reminder.id}
+                      reminder={reminder}
+                      onToggle={() => toggleComplete(reminder)}
+                      onEdit={() => {
+                        setEditingReminder(reminder);
+                        setIsDialogOpen(true);
+                      }}
+                      onDelete={() => handleDelete(reminder.id)}
+                      formatDate={formatDate}
+                    />
+                  ))
+                )}
+              </AnimatePresence>
+            </div>
+            {/* Completed Reminders is handled separately below */}
+          </>
+        )}
 
         {/* Completed Reminders */}
         {completedReminders.length > 0 && (

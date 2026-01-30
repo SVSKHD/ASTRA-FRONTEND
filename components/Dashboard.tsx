@@ -22,9 +22,41 @@ import { useCurrency } from "../hooks/useCurrency";
 import useBreakpoints from "../hooks/useBreakpoints";
 import { Currency } from "@/context/CurrencyContext";
 
+import { subscribeToReminders, Reminder } from "@/services/remindersService";
+import { X, Bell } from "lucide-react";
+
 interface DashboardProps {
   onLock: () => void;
 }
+
+const Toast = ({
+  message,
+  onClose,
+}: {
+  message: string;
+  onClose: () => void;
+}) => (
+  <motion.div
+    initial={{ opacity: 0, y: -50, x: "-50%" }}
+    animate={{ opacity: 1, y: 0, x: "-50%" }}
+    exit={{ opacity: 0, y: -50, x: "-50%" }}
+    className="fixed top-6 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-3 px-4 py-3 bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl min-w-[300px]"
+  >
+    <div className="p-2 rounded-full bg-yellow-500/20 text-yellow-400">
+      <Bell size={18} />
+    </div>
+    <div className="flex-1">
+      <h4 className="text-sm font-semibold text-white">Reminder</h4>
+      <p className="text-xs text-white/70">{message}</p>
+    </div>
+    <button
+      onClick={onClose}
+      className="p-1 rounded-lg hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+    >
+      <X size={14} />
+    </button>
+  </motion.div>
+);
 
 export default function Dashboard({ onLock }: DashboardProps) {
   const [activeTabId, setActiveTabId] = useState(tabsConfig[0].id);
@@ -164,6 +196,56 @@ export default function Dashboard({ onLock }: DashboardProps) {
     });
     return () => unsubscribe();
   }, []);
+
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [activeReminder, setActiveReminder] = useState<Reminder | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const alertedReminders = useRef<Set<string>>(new Set());
+
+  // Subscribe to reminders
+  useEffect(() => {
+    if (!user?.uid) return;
+    const unsubscribe = subscribeToReminders(user.uid, (data) => {
+      setReminders(data);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  // Check for due reminders
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = new Date();
+      reminders.forEach((reminder) => {
+        if (reminder.isCompleted || alertedReminders.current.has(reminder.id))
+          return;
+
+        const reminderDate = reminder.dateTime.toDate
+          ? reminder.dateTime.toDate()
+          : new Date(reminder.dateTime);
+        const timeDiff = reminderDate.getTime() - now.getTime();
+
+        // If time matched (within last minute tolerance)
+        if (timeDiff <= 0 && timeDiff > -60000) {
+          setActiveReminder(reminder);
+          setToastMessage(reminder.title);
+          alertedReminders.current.add(reminder.id);
+
+          // Clear active status after 1 minute
+          setTimeout(() => {
+            setActiveReminder((prev) =>
+              prev?.id === reminder.id ? null : prev,
+            );
+          }, 60000);
+
+          // Auto hide toast
+          setTimeout(() => setToastMessage(null), 5000);
+        }
+      });
+    };
+
+    const interval = setInterval(checkReminders, 10000); // Check every 10 seconds
+    return () => clearInterval(interval);
+  }, [reminders]);
 
   useEffect(() => {
     const saved = localStorage.getItem("astra-active-mode");
@@ -552,7 +634,19 @@ export default function Dashboard({ onLock }: DashboardProps) {
               "linear-gradient(to bottom, transparent 0%, black 15%, black 100%)",
           }}
         >
-          <GreetCard pageTitle={activeTab.label} caption={activeTab.caption} />
+          <GreetCard
+            pageTitle={activeTab.label}
+            caption={activeTab.caption}
+            activeReminder={activeReminder}
+          />
+          <AnimatePresence>
+            {toastMessage && (
+              <Toast
+                message={toastMessage}
+                onClose={() => setToastMessage(null)}
+              />
+            )}
+          </AnimatePresence>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab.id}

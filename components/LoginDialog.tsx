@@ -22,10 +22,12 @@ export const LoginDialog = ({
   const { user, updateUser } = useUser();
   const [pin, setPin] = useState("");
   const [isEditingPin, setIsEditingPin] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Sync local pin state with user context when user loads
   useEffect(() => {
     if (user?.pin) setPin(user.pin);
+    if (user) setIsLoading(false);
   }, [user]);
 
   // Body scroll lock
@@ -42,10 +44,12 @@ export const LoginDialog = ({
 
   const handleGoogleLogin = async () => {
     try {
+      setIsLoading(true);
       await signInWithPopup(auth, googleProvider);
       // Don't close immediately, let user see profile
     } catch (error) {
       console.error("Login failed", error);
+      setIsLoading(false);
     }
   };
 
@@ -95,13 +99,18 @@ export const LoginDialog = ({
           >
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 text-white/50 hover:text-white transition-colors z-10"
             >
               <X size={20} />
             </button>
 
             <div className="flex flex-col items-center text-center mt-4">
-              {user ? (
+              {isLoading ? (
+                <div className="py-12 flex flex-col items-center">
+                  <div className="w-12 h-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+                  <p className="text-white/50 text-sm">Signing in...</p>
+                </div>
+              ) : user ? (
                 <>
                   <div className="w-20 h-20 rounded-full border-2 border-white/10 mb-4 overflow-hidden">
                     {user.avatarUrl ? (
