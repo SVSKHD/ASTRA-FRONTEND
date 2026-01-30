@@ -3,23 +3,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar, Clock, RotateCw, Tag } from "lucide-react";
 import { RecurrenceType } from "@/utils/reminders-service";
 
+export interface ReminderData {
+  title: string;
+  description: string;
+  dateTime: Date;
+  recurrence: RecurrenceType;
+  customInterval?: number;
+}
+
 interface ReminderDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: {
-    title: string;
-    description: string;
-    dateTime: Date;
-    recurrence: RecurrenceType;
-    customInterval?: number;
-  }) => void;
-  initialData?: {
-    title: string;
-    description: string;
-    dateTime: Date;
-    recurrence: RecurrenceType;
-    customInterval?: number;
-  } | null;
+  onSave: (data: ReminderData) => void;
+  initialData?: ReminderData | null;
 }
 
 const RECURRENCE_OPTIONS: RecurrenceType[] = [
@@ -49,24 +45,41 @@ export const ReminderDialog = ({
       if (initialData) {
         setTitle(initialData.title);
         setDescription(initialData.description);
-        const d = initialData.dateTime;
-        setDate(d.toISOString().split("T")[0]);
-        setTime(d.toTimeString().slice(0, 5));
+        // Ensure valid Date object even if passed as string
+        const d = new Date(initialData.dateTime);
+        // Check if date is valid
+        if (!isNaN(d.getTime())) {
+          setDate(d.toISOString().split("T")[0]);
+          setTime(d.toTimeString().slice(0, 5));
+        }
         setRecurrence(initialData.recurrence);
         setCustomInterval(initialData.customInterval || 1);
       } else {
         setTitle("");
         setDescription("");
         const now = new Date();
-        setDate(now.toISOString().split("T")[0]);
-        // Set time to next hour
+        // Set time to next hour, handling day rollover
         now.setHours(now.getHours() + 1, 0, 0, 0);
+
+        setDate(now.toISOString().split("T")[0]);
         setTime(now.toTimeString().slice(0, 5));
         setRecurrence("None");
         setCustomInterval(1);
       }
     }
   }, [isOpen, initialData]);
+
+  // Body scroll lock
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

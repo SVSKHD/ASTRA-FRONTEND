@@ -33,7 +33,13 @@ export const GoalDialog = ({ isOpen, onClose, goal }: GoalDialogProps) => {
         setPriority("medium");
         setNotes("");
       }
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
     }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
   }, [isOpen, goal]);
 
   const handleSubmit = async (e: React.FormEvent) => {

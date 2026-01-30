@@ -19,6 +19,17 @@ export const DeleteConfirmationDialog = ({
   description,
   loading = false,
 }: DeleteConfirmationDialogProps) => {
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen]);
+
   return (
     <AnimatePresence>
       {isOpen && (
