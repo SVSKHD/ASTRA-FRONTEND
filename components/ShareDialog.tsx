@@ -57,26 +57,27 @@ export const ShareDialog = ({
 
             <div className="p-6 space-y-4">
               <div className="relative">
-                <textarea
+                <input
+                  type="text"
                   readOnly
                   value={content}
-                  className="w-full h-32 bg-black/20 border border-white/10 rounded-xl p-3 text-sm text-white/70 font-mono resize-none focus:outline-none custom-scrollbar"
+                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-sm text-white/90 font-mono focus:outline-none focus:border-white/30 transition-colors pr-12 truncate"
                 />
                 <button
                   onClick={handleCopy}
-                  className="absolute bottom-3 right-3 p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/5 backdrop-blur-md"
-                  title="Copy to clipboard"
+                  className="absolute top-1/2 -translate-y-1/2 right-2 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/5"
+                  title="Copy link"
                 >
                   {copied ? (
-                    <Check size={16} className="text-green-400" />
+                    <Check size={14} className="text-green-400" />
                   ) : (
-                    <Copy size={16} />
+                    <Copy size={14} />
                   )}
                 </button>
               </div>
 
               <p className="text-xs text-center text-white/30">
-                Copy this text to share with others
+                Anyone with this link can view this item.
               </p>
             </div>
           </motion.div>

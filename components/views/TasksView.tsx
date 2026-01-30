@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Flag,
   Calendar,
+  Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -54,6 +55,7 @@ import {
   ColumnType,
 } from "@/utils/kanban-service";
 import { TaskDialog } from "../TaskDialog";
+import { ShareDialog } from "../ShareDialog";
 import { DeleteConfirmationDialog } from "../DeleteConfirmationDialog";
 
 const AVAILABLE_COLUMNS: ColumnType[] = [
@@ -88,6 +90,8 @@ const SortableTaskItem = ({
   onDelete: (id: string) => void;
   onEdit: (task: Task) => void;
   onComplete: (task: Task) => void;
+  onShare: (task: Task) => void;
+  isVerticalView?: boolean;
   isVerticalView?: boolean;
 }) => {
   const {
@@ -269,6 +273,25 @@ export const TasksView = () => {
     isOpen: false,
     taskId: null,
   });
+
+  const [shareDialog, setShareDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    content: string;
+  }>({
+    isOpen: false,
+    title: "",
+    content: "",
+  });
+
+  const handleShare = (task: Task) => {
+    const url = `${window.location.origin}/task/${task.id}`;
+    setShareDialog({
+      isOpen: true,
+      title: `Share "${task.content}"`,
+      content: url,
+    });
+  };
 
   // Layout preference (could be saved to local storage)
   const [isVerticalView, setIsVerticalView] = useState(false);

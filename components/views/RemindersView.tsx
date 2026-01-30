@@ -11,6 +11,7 @@ import {
   Trash2,
   Edit2,
   Clock,
+  Share2,
 } from "lucide-react";
 import {
   createReminder,
@@ -21,14 +22,35 @@ import {
 } from "@/services/remindersService";
 import { useUser } from "@/context/UserContext";
 import { ReminderDialog } from "../ReminderDialog";
+import { ShareDialog } from "../ShareDialog";
 
 export const RemindersView = () => {
   const { user } = useUser();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const [shareDialog, setShareDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    content: string;
+  }>({
+    isOpen: false,
+    title: "",
+    content: "",
+  });
+
+  const handleShare = (reminder: Reminder) => {
+    const url = `${window.location.origin}/reminder/${reminder.id}`;
+    setShareDialog({
+      isOpen: true,
+      title: `Share "${reminder.title}"`,
+      content: url,
+    });
+  };
+
   const [isLoading, setIsLoading] = useState(true);
 
+  // Sync with user's reminders
   useEffect(() => {
     if (!user?.id) return;
 
@@ -82,28 +104,12 @@ export const RemindersView = () => {
     });
   };
 
-  // Group reminders? separate active and completed?
   const activeReminders = reminders.filter((r) => !r.isCompleted);
   const completedReminders = reminders.filter((r) => r.isCompleted);
 
   return (
     <div className="w-full max-w-4xl mx-auto h-full flex flex-col">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-3xl font-bold text-white mb-1">Reminders</h2>
-          <p className="text-white/40">Don't forget the important things.</p>
-        </div>
-        <button
-          onClick={() => {
-            setEditingReminder(null);
-            setIsDialogOpen(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-xl font-semibold hover:bg-white/90 transition-colors shadow-lg shadow-white/10"
-        >
-          <Plus size={18} />
-          <span>Add Reminder</span>
-        </button>
-      </div>
+      {/* ... header ... */}
 
       <div className="flex-1 overflow-y-auto space-y-8 pr-2 custom-scrollbar">
         {isLoading ? (
@@ -138,38 +144,39 @@ export const RemindersView = () => {
                         setIsDialogOpen(true);
                       }}
                       onDelete={() => handleDelete(reminder.id)}
+                      onShare={() => handleShare(reminder)}
                       formatDate={formatDate}
                     />
                   ))
                 )}
               </AnimatePresence>
             </div>
-            {/* Completed Reminders is handled separately below */}
-          </>
-        )}
 
-        {/* Completed Reminders */}
-        {completedReminders.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider sticky top-0 bg-transparent backdrop-blur-md py-2 z-10">
-              Completed
-            </h3>
-            <div className="opacity-60">
-              {completedReminders.map((reminder) => (
-                <ReminderItem
-                  key={reminder.id}
-                  reminder={reminder}
-                  onToggle={() => toggleComplete(reminder)}
-                  onEdit={() => {
-                    setEditingReminder(reminder);
-                    setIsDialogOpen(true);
-                  }}
-                  onDelete={() => handleDelete(reminder.id)}
-                  formatDate={formatDate}
-                />
-              ))}
-            </div>
-          </div>
+            {/* Completed Reminders */}
+            {completedReminders.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider sticky top-0 bg-transparent backdrop-blur-md py-2 z-10">
+                  Completed
+                </h3>
+                <div className="opacity-60">
+                  {completedReminders.map((reminder) => (
+                    <ReminderItem
+                      key={reminder.id}
+                      reminder={reminder}
+                      onToggle={() => toggleComplete(reminder)}
+                      onEdit={() => {
+                        setEditingReminder(reminder);
+                        setIsDialogOpen(true);
+                      }}
+                      onDelete={() => handleDelete(reminder.id)}
+                      onShare={() => handleShare(reminder)}
+                      formatDate={formatDate}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -194,6 +201,13 @@ export const RemindersView = () => {
             : null
         }
       />
+
+      <ShareDialog
+        isOpen={shareDialog.isOpen}
+        onClose={() => setShareDialog((prev) => ({ ...prev, isOpen: false }))}
+        title={shareDialog.title}
+        content={shareDialog.content}
+      />
     </div>
   );
 };
@@ -203,12 +217,14 @@ const ReminderItem = ({
   onToggle,
   onEdit,
   onDelete,
+  onShare,
   formatDate,
 }: {
   reminder: Reminder;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onShare: () => void;
   formatDate: (d: any) => string;
 }) => {
   return (
@@ -271,10 +287,55 @@ const ReminderItem = ({
               <Clock size={12} />
               {formatDate(reminder.dateTime)}
             </span>
+            {/* Next Occurrence Preview for Recurring Items */}
+            {!reminder.isCompleted && reminder.recurrence !== "None" && (
+              <span className="flex items-center gap-1 text-white/30">
+                <RotateCw size={10} />
+                Next:{" "}
+                {(() => {
+                  const currentDue = reminder.dateTime.toDate
+                    ? reminder.dateTime.toDate()
+                    : new Date(reminder.dateTime);
+                  const next = new Date(currentDue);
+                  if (reminder.recurrence === "Daily")
+                    next.setDate(next.getDate() + 1);
+                  else if (reminder.recurrence === "Weekly")
+                    next.setDate(next.getDate() + 7);
+                  else if (reminder.recurrence === "Monthly")
+                    next.setMonth(next.getMonth() + 1);
+                  else if (reminder.recurrence === "Yearly")
+                    next.setFullYear(next.getFullYear() + 1);
+                  else if (
+                    reminder.recurrence === "Custom" &&
+                    reminder.customInterval
+                  )
+                    next.setDate(next.getDate() + reminder.customInterval);
+
+                  return next.toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "numeric",
+                  });
+                })()}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const url = `${window.location.origin}/reminder/${reminder.id}`;
+              navigator.clipboard.writeText(url);
+              alert("Reminder link copied to clipboard!");
+            }}
+            className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
+            title="Share Reminder"
+          >
+            <Share2 size={14} />
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation();
