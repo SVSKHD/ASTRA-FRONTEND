@@ -126,5 +126,6 @@ export const tabsConfig: TabConfig[] = [
     caption: "Never forget",
     icon: Bell,
     component: <RemindersView />,
+    allowedRoles: ["admin"],
   },
 ];
