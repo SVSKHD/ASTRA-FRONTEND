@@ -230,7 +230,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
       <div className="relative z-10 w-full max-w-7xl mx-auto h-screen block">
         {/* Auto-Lock Timer Widget */}
-        <div className="fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-2">
+        <div className="hidden md:flex fixed bottom-6 right-6 z-[60] flex-col items-end gap-2">
           <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 shadow-lg">
             <div
               className={`text-sm font-mono font-medium ${timeLeft < 60 ? "text-red-400 animate-pulse" : "text-white/80"}`}
@@ -508,6 +508,39 @@ export default function Dashboard({ onLock }: DashboardProps) {
                 </button>
               );
             })}
+
+            {/* Mobile Timer Integration */}
+            <div className="h-6 w-[1px] bg-white/10 mx-1 flex-shrink-0" />
+
+            <div className="flex items-center gap-2 px-2 flex-shrink-0">
+              <div
+                className={`text-xs font-mono font-medium ${timeLeft < 60 ? "text-red-400 animate-pulse" : "text-white/60"}`}
+              >
+                {formatTime(timeLeft)}
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none group">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={isActiveMode}
+                    onChange={(e) => handleActiveModeChange(e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <div className="w-3.5 h-3.5 rounded border border-white/30 peer-checked:bg-blue-500 peer-checked:border-blue-500 transition-all" />
+                  <svg
+                    className="absolute inset-0 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+              </label>
+            </div>
           </motion.div>
         </div>
 
