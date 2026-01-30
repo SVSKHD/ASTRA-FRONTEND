@@ -230,7 +230,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
       <div className="relative z-10 w-full max-w-7xl mx-auto h-screen block">
         {/* Auto-Lock Timer Widget */}
-        <div className="hidden md:flex fixed bottom-6 right-6 z-[60] flex-col items-end gap-2">
+        <div className="hidden md:flex fixed bottom-2 right-6 z-[60] flex-col items-end gap-2">
           <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 shadow-lg">
             <div
               className={`text-sm font-mono font-medium ${timeLeft < 60 ? "text-red-400 animate-pulse" : "text-white/80"}`}
@@ -266,7 +266,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
           </div>
         </div>
 
-        <header className="fixed top-6 left-1/2 -translate-x-1/2 z-[120] flex items-center gap-2 md:gap-3 lg:gap-4 px-2 py-2 lg:pl-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl transition-all duration-300 max-w-[calc(100vw-32px)]">
+        <header className="fixed top-6 left-1/2 -translate-x-1/2 z-[120] flex items-center gap-2 md:gap-3 lg:gap-4 px-2 py-1 md:py-2 lg:pl-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl transition-all duration-300 max-w-[calc(100vw-32px)]">
           {/* User Login Button (Moved Left) */}
           <button
             onClick={() => setIsLoginOpen(true)}
