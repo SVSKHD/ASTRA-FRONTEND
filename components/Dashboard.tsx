@@ -11,12 +11,13 @@ import {
   DollarSign,
   Euro,
   IndianRupee,
+  LogOut,
 } from "lucide-react";
 import GradientPicker from "./GradientPicker";
 import { GreetCard } from "./GreetCard";
 import { LoginDialog } from "./LoginDialog";
 import { auth } from "../utils/firebase";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { useUser } from "@/context/UserContext";
 import { useCurrency } from "../hooks/useCurrency";
 import useBreakpoints from "../hooks/useBreakpoints";
@@ -257,6 +258,14 @@ export default function Dashboard({ onLock }: DashboardProps) {
     localStorage.setItem("astra-active-mode", String(checked));
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
@@ -360,6 +369,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
                 src={appUser.avatarUrl}
                 alt={appUser.username || "User"}
                 className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
               />
             ) : (
               <UserIcon size={14} />
@@ -535,6 +545,18 @@ export default function Dashboard({ onLock }: DashboardProps) {
             <Lock
               size={14}
               className="group-hover:text-red-300 transition-colors"
+            />
+          </button>
+
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/5 flex items-center justify-center transition-colors group flex-shrink-0"
+            title="Sign Out"
+          >
+            <LogOut
+              size={14}
+              className="group-hover:text-white transition-colors"
             />
           </button>
         </header>

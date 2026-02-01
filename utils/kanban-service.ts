@@ -12,7 +12,10 @@ import {
   where,
   getDocs,
   writeBatch,
+  or,
+  arrayUnion,
 } from "firebase/firestore";
+import { UserProfile } from "../context/UserContext";
 
 export type ColumnType =
   | "Backlog"
@@ -39,6 +42,10 @@ export interface Task {
   column: ColumnType;
   userId: string;
   createdAt: any;
+  githubRepo?: string;
+  githubBranch?: string;
+  githubPath?: string;
+  assignedTo?: string; // UserId
 }
 
 export interface Board {
@@ -47,6 +54,8 @@ export interface Board {
   columns?: ColumnType[];
   userId: string;
   createdAt: any;
+  members?: UserProfile[]; // Shared members
+  memberIds?: string[]; // For querying
 }
 
 export const createBoard = async (
@@ -60,6 +69,8 @@ export const createBoard = async (
       columns,
       userId,
       createdAt: serverTimestamp(),
+      members: [],
+      memberIds: [],
     });
     return docRef.id;
   } catch (e) {
@@ -77,7 +88,10 @@ export const subscribeToBoards = (
 
   const q = query(
     collection(db, "astra-boards"),
-    where("userId", "==", userId),
+    or(
+      where("userId", "==", userId),
+      where("memberIds", "array-contains", userId),
+    ),
     orderBy("createdAt", "desc"),
   );
   return onSnapshot(
@@ -183,6 +197,9 @@ export const createTask = async (
     timeSpent: taskData.timeSpent ?? 0,
     column,
     userId,
+    githubRepo: taskData.githubRepo ?? null,
+    githubBranch: taskData.githubBranch ?? null,
+    githubPath: taskData.githubPath ?? null,
     createdAt: serverTimestamp(),
   });
 };
@@ -235,4 +252,20 @@ export const deleteBoard = async (boardId: string) => {
     console.error("Error deleting board:", e);
     throw e;
   }
+};
+
+export const addMemberToBoard = async (
+  boardId: string,
+  member: UserProfile,
+) => {
+  const boardRef = doc(db, "astra-boards", boardId);
+  await updateDoc(boardRef, {
+    members: arrayUnion(member),
+    memberIds: arrayUnion(member.id),
+  });
+};
+
+export const updateBoard = async (boardId: string, updates: Partial<Board>) => {
+  const boardRef = doc(db, "astra-boards", boardId);
+  await updateDoc(boardRef, updates);
 };

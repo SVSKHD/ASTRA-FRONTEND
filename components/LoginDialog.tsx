@@ -23,6 +23,7 @@ export const LoginDialog = ({
   const [pin, setPin] = useState("");
   const [isEditingPin, setIsEditingPin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Sync local pin state with user context when user loads
   useEffect(() => {
@@ -44,12 +45,18 @@ export const LoginDialog = ({
 
   const handleGoogleLogin = async () => {
     try {
-      setIsLoading(true);
+      setError(null);
       await signInWithPopup(auth, googleProvider);
-      // Don't close immediately, let user see profile
-    } catch (error) {
+      // Login successful, now we are fetching user data
+      setIsLoading(true);
+    } catch (error: any) {
       console.error("Login failed", error);
       setIsLoading(false);
+      if (error.code === "auth/popup-closed-by-user") {
+        setError("Login canceled by user");
+      } else {
+        setError("Failed to sign in. Please try again.");
+      }
     }
   };
 
@@ -191,6 +198,19 @@ export const LoginDialog = ({
                     Sign in to sync your dashboard settings and preferences
                     across devices.
                   </p>
+
+                  <AnimatePresence>
+                    {error && (
+                      <motion.span
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="text-red-400 text-xs text-center block mb-4 bg-red-500/10 py-2 px-3 rounded-lg border border-red-500/20"
+                      >
+                        {error}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
 
                   <button
                     onClick={handleGoogleLogin}

@@ -8,9 +8,24 @@ import {
   Trash2,
   Clock,
   Timer,
+  Github,
+  GitBranch,
+  FileCode,
+  Folder,
+  // ChevronRight, // Already used? No, checked file content, not there.
+  CornerLeftUp,
+  User,
 } from "lucide-react";
 import { Task, Priority } from "../utils/kanban-service";
 import { DatePicker } from "./ui/DatePicker";
+import {
+  fetchBranches,
+  fetchTree,
+  GithubBranch,
+  GithubTreeItem,
+} from "../services/githubService";
+
+import { UserProfile } from "../context/UserContext";
 
 interface TaskDialogProps {
   isOpen: boolean;
@@ -18,6 +33,7 @@ interface TaskDialogProps {
   onSave: (taskId: string | undefined, updates: Partial<Task>) => void;
   onDelete?: (taskId: string) => void;
   initialTask?: Task | null;
+  members?: UserProfile[];
 }
 
 export const TaskDialog = ({
@@ -26,6 +42,7 @@ export const TaskDialog = ({
   onSave,
   onDelete,
   initialTask,
+  members = [],
 }: TaskDialogProps) => {
   const [content, setContent] = useState("");
   const [description, setDescription] = useState("");
@@ -33,6 +50,18 @@ export const TaskDialog = ({
   const [deadline, setDeadline] = useState("");
   const [estimatedTime, setEstimatedTime] = useState("");
   const [timeSpent, setTimeSpent] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+
+  // GitHub State
+  const [githubRepo, setGithubRepo] = useState("");
+  const [githubBranch, setGithubBranch] = useState("");
+  const [githubPath, setGithubPath] = useState("");
+
+  const [branches, setBranches] = useState<GithubBranch[]>([]);
+  const [tree, setTree] = useState<GithubTreeItem[]>([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [loadingTree, setLoadingTree] = useState(false);
+  const [browserPath, setBrowserPath] = useState(""); // Current folder in browser
 
   useEffect(() => {
     if (isOpen) {
@@ -54,6 +83,10 @@ export const TaskDialog = ({
         } else {
           setDeadline("");
         }
+        setGithubRepo(initialTask.githubRepo || "");
+        setGithubBranch(initialTask.githubBranch || "");
+        setGithubPath(initialTask.githubPath || "");
+        setAssignedTo(initialTask.assignedTo || "");
       } else {
         // Create Mode - Reset
         setContent("");
@@ -62,6 +95,12 @@ export const TaskDialog = ({
         setDeadline("");
         setEstimatedTime("");
         setTimeSpent("");
+        setGithubRepo("");
+        setGithubBranch("");
+        setGithubPath("");
+        setBranches([]);
+        setTree([]);
+        setAssignedTo("");
       }
     }
   }, [isOpen, initialTask]);
@@ -87,6 +126,10 @@ export const TaskDialog = ({
         deadline: deadline ? new Date(deadline) : null,
         estimatedTime: estimatedTime ? parseFloat(estimatedTime) : undefined,
         timeSpent: timeSpent ? parseFloat(timeSpent) : undefined,
+        githubRepo: githubRepo || undefined,
+        githubBranch: githubBranch || undefined,
+        githubPath: githubPath || undefined,
+        assignedTo: assignedTo || undefined,
       };
       onSave(initialTask?.id, updates);
       onClose();
@@ -171,6 +214,25 @@ export const TaskDialog = ({
           <div className="grid grid-cols-2 gap-6">
             {/* Left Column */}
             <div className="space-y-4">
+              {/* Assigned To */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
+                  <User size={12} /> Assigned To
+                </label>
+                <select
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  className="w-full bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20 appearance-none"
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Priority */}
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
@@ -251,6 +313,178 @@ export const TaskDialog = ({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* GitHub Integration */}
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <label className="flex items-center gap-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
+              <Github size={12} /> GitHub Integration
+            </label>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Repo Input */}
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    value={githubRepo}
+                    onChange={(e) => setGithubRepo(e.target.value)}
+                    placeholder="owner/repo"
+                    className="flex-1 bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20"
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!githubRepo) return;
+                      setLoadingBranches(true);
+                      try {
+                        const data = await fetchBranches(githubRepo);
+                        setBranches(data);
+                        // If editing and we have a branch, try to fetch tree too if not loaded
+                        if (githubBranch && tree.length === 0) {
+                          const b = data.find((br) => br.name === githubBranch);
+                          if (b) {
+                            setLoadingTree(true);
+                            const t = await fetchTree(githubRepo, b.commit.sha);
+                            setTree(t);
+                            setLoadingTree(false);
+                          }
+                        }
+                      } catch (e) {
+                        alert("Failed to fetch repo. Check name/visibility.");
+                      }
+                      setLoadingBranches(false);
+                    }}
+                    className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white/70 hover:text-white transition-colors text-xs font-semibold"
+                    disabled={loadingBranches}
+                  >
+                    {loadingBranches ? "..." : "Load"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Branch Select */}
+              <div className="space-y-2">
+                <select
+                  value={githubBranch}
+                  onChange={async (e) => {
+                    const branchName = e.target.value;
+                    setGithubBranch(branchName);
+                    if (!branchName) return;
+
+                    const branch = branches.find((b) => b.name === branchName);
+                    if (branch) {
+                      setLoadingTree(true);
+                      try {
+                        const t = await fetchTree(
+                          githubRepo,
+                          branch.commit.sha,
+                        );
+                        setTree(t);
+                        setBrowserPath(""); // Reset browser to root
+                        setGithubPath("");
+                      } catch (e) {
+                        alert("Failed to fetch tree.");
+                      }
+                      setLoadingTree(false);
+                    }
+                  }}
+                  disabled={branches.length === 0}
+                  className="w-full bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20 disabled:opacity-50 appearance-none"
+                >
+                  <option value="">Select Branch</option>
+                  {branches.map((b) => (
+                    <option key={b.name} value={b.name}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* File Browser */}
+            {(tree.length > 0 || githubPath) && (
+              <div className="bg-black/20 rounded-xl border border-white/5 overflow-hidden">
+                {/* Breadcrumb / Header */}
+                <div className="flex items-center gap-2 p-3 border-b border-white/5 bg-white/5">
+                  <button
+                    onClick={() => setBrowserPath("")}
+                    className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white"
+                    disabled={!browserPath}
+                  >
+                    <CornerLeftUp size={14} />
+                  </button>
+                  <span className="text-xs text-white/50 font-mono">
+                    {browserPath || "/"}
+                  </span>
+                  {githubPath && (
+                    <div className="ml-auto flex items-center gap-2 text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded">
+                      <FileCode size={12} />
+                      <span className="truncate max-w-[150px]">
+                        {githubPath}
+                      </span>
+                      <button
+                        onClick={() => setGithubPath("")}
+                        className="hover:text-white"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* List */}
+                <div className="max-h-48 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                  {loadingTree ? (
+                    <p className="text-center text-xs text-white/30 py-4">
+                      Loading files...
+                    </p>
+                  ) : (
+                    tree
+                      .filter((item) => {
+                        // Simplistic client-side filter for browser path
+                        if (!item.path.startsWith(browserPath)) return false;
+                        const relative = item.path
+                          .slice(browserPath.length)
+                          .replace(/^\//, "");
+                        return !relative.includes("/");
+                      })
+                      .sort((a, b) =>
+                        a.type === "tree" && b.type === "blob" ? -1 : 1,
+                      )
+                      .map((item) => {
+                        const relative = item.path
+                          .slice(browserPath.length)
+                          .replace(/^\//, "");
+                        return (
+                          <button
+                            key={item.path}
+                            onClick={() => {
+                              if (item.type === "tree") {
+                                setBrowserPath(item.path + "/");
+                              } else {
+                                setGithubPath(item.path);
+                              }
+                            }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/5 transition-colors ${githubPath === item.path ? "bg-blue-500/20 text-blue-200" : "text-white/70"}`}
+                          >
+                            {item.type === "tree" ? (
+                              <Folder
+                                size={14}
+                                className="text-yellow-500/80"
+                              />
+                            ) : (
+                              <FileCode
+                                size={14}
+                                className="text-blue-400/80"
+                              />
+                            )}
+                            <span className="truncate flex-1">{relative}</span>
+                          </button>
+                        );
+                      })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Description */}

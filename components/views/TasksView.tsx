@@ -15,6 +15,9 @@ import {
   Flag,
   Calendar,
   Share2,
+  Github,
+  Settings,
+  Link,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -53,8 +56,13 @@ import {
   Board,
   Task,
   ColumnType,
+  addMemberToBoard,
+  updateBoard,
 } from "@/utils/kanban-service";
+import { searchUsers } from "@/services/userService";
+import { UserProfile } from "@/context/UserContext";
 import { TaskDialog } from "../TaskDialog";
+import { BoardDialog } from "../BoardDialog";
 import { ShareDialog } from "../ShareDialog";
 import { DeleteConfirmationDialog } from "../DeleteConfirmationDialog";
 
@@ -84,7 +92,9 @@ const SortableTaskItem = ({
   onDelete,
   onEdit,
   onComplete,
+  onShare,
   isVerticalView,
+  members,
 }: {
   task: Task;
   onDelete: (id: string) => void;
@@ -92,7 +102,7 @@ const SortableTaskItem = ({
   onComplete: (task: Task) => void;
   onShare: (task: Task) => void;
   isVerticalView?: boolean;
-  isVerticalView?: boolean;
+  members?: UserProfile[];
 }) => {
   const {
     attributes,
@@ -138,15 +148,40 @@ const SortableTaskItem = ({
         className={`flex justify-between items-start gap-2 ${isVerticalView ? "flex-1 items-center" : ""}`}
       >
         <p
-          className={`text-white/80 break-all ${isVerticalView ? "text-sm font-medium mb-0" : "text-sm mb-2"}`}
+          className={`text-white/80 break-words ${isVerticalView ? "text-sm font-medium mb-0" : "text-sm mb-2"}`}
         >
           {task.content}
         </p>
-        {!isVerticalView && (
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-            <GripVertical size={14} className="text-white/20" />
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {task.assignedTo &&
+            members &&
+            (() => {
+              const assignee = members.find((m) => m.id === task.assignedTo);
+              if (!assignee) return null;
+              return (
+                <div
+                  className="w-5 h-5 rounded-full bg-white/10 overflow-hidden border border-white/10"
+                  title={`Assigned to ${assignee.username}`}
+                >
+                  {assignee.avatarUrl ? (
+                    <img
+                      src={assignee.avatarUrl}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-[8px] flex items-center justify-center h-full text-white/50">
+                      {assignee.username[0]}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+          {!isVerticalView && (
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+              <GripVertical size={14} className="text-white/20" />
+            </div>
+          )}
+        </div>
       </div>
 
       <div
@@ -197,6 +232,35 @@ const SortableTaskItem = ({
           >
             <X size={12} />
           </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare(task);
+            }}
+            className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white"
+            title="Share"
+          >
+            <Share2 size={12} />
+          </button>
+
+          {task.githubRepo && (
+            <a
+              href={`https://github.com/${task.githubRepo}${
+                task.githubPath
+                  ? `/blob/${task.githubBranch || "main"}/${task.githubPath}`
+                  : task.githubBranch
+                    ? `/tree/${task.githubBranch}`
+                    : ""
+              }`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white"
+              title={`Open in GitHub: ${task.githubRepo}`}
+            >
+              <Github size={12} />
+            </a>
+          )}
         </div>
       </div>
     </div>
@@ -301,14 +365,24 @@ export const TasksView = () => {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   // Board Creation State
-  const [newBoardName, setNewBoardName] = useState("");
   const [isCreatingBoard, setIsCreatingBoard] = useState(false);
-  const [selectedColumns, setSelectedColumns] =
-    useState<ColumnType[]>(DEFAULT_SELECTION);
   const [boardToDelete, setBoardToDelete] = useState<Board | null>(null);
 
   const [activeTaskContent, setActiveTaskContent] = useState("");
   const [isAddingTask, setIsAddingTask] = useState<ColumnType | null>(null);
+
+  // Invite Member State
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Edit Board State
+  const [isEditingBoard, setIsEditingBoard] = useState(false);
+  const [editingBoardName, setEditingBoardName] = useState("");
+  const [editingBoardColumns, setEditingBoardColumns] = useState<ColumnType[]>(
+    [],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -396,22 +470,50 @@ export const TasksView = () => {
     }
   }, [selectedBoardId, activeId]);
 
-  const handleCreateBoard = async () => {
-    if (newBoardName.trim() && user?.id) {
+  const handleSearchUsers = async (query: string) => {
+    setSearchQuery(query);
+    if (query.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const results = await searchUsers(query);
+      // Filter out existing members
+      const currentMemberIds = activeBoard?.members?.map((m) => m.id) || [];
+      // Also filter out self
+      const filtered = results.filter(
+        (u) => u.id !== user?.id && !currentMemberIds.includes(u.id),
+      );
+      setSearchResults(filtered);
+    } catch (e) {
+      console.error("Search failed", e);
+    }
+    setIsSearching(false);
+  };
+
+  const handleAddMember = async (member: UserProfile) => {
+    if (!selectedBoardId) return;
+    try {
+      await addMemberToBoard(selectedBoardId, member);
+      setIsInviteOpen(false);
+      setSearchQuery("");
+      setSearchResults([]);
+    } catch (e) {
+      console.error("Failed to add member", e);
+      setError("Failed to add member.");
+    }
+  };
+
+  const handleCreateBoard = async (name: string, columns: ColumnType[]) => {
+    if (name.trim() && user?.id) {
       try {
         setError(null);
-        const columnsToSave =
-          selectedColumns.length > 0 ? selectedColumns : DEFAULT_SELECTION;
+        const columnsToSave = columns.length > 0 ? columns : DEFAULT_SELECTION;
 
         setIsCreatingBoard(false);
-        const boardId = await createBoard(
-          newBoardName.trim(),
-          user.id,
-          columnsToSave,
-        );
+        const boardId = await createBoard(name.trim(), user.id, columnsToSave);
 
-        setNewBoardName("");
-        setSelectedColumns(DEFAULT_SELECTION);
         setSelectedBoardId(boardId);
       } catch (error) {
         console.error("Failed to create board", error);
@@ -420,6 +522,53 @@ export const TasksView = () => {
       }
     }
   };
+
+  const handleUpdateBoard = async (name: string, columns: ColumnType[]) => {
+    if (name.trim() && selectedBoardId) {
+      try {
+        await updateBoard(selectedBoardId, {
+          name: name.trim(),
+          columns: columns,
+        });
+        setIsEditingBoard(false);
+      } catch (error) {
+        console.error("Failed to update board", error);
+        setError("Failed to update board.");
+      }
+    }
+  };
+
+  const handleShareBoard = () => {
+    if (selectedBoardId) {
+      // Assuming route is /dashboard?boardId=... or similar.
+      // Or maybe the user has a special route.
+      // Let's use window.location.origin + /dashboard?boardId=...
+      // But wait, the app might need to support query params for board selection.
+      // I'll assume I should just copy the current URL if it reflects state, or build one.
+      // Since it's likely a SPA state, I might need to ensure `useEffect` handles it.
+      // The user asked for "make the board shareable".
+      // Let's generate a link like: window.location.origin + "?boardId=" + selectedBoardId
+      const url = `${window.location.origin}?boardId=${selectedBoardId}`;
+      setShareDialog({
+        isOpen: true,
+        title: "Share Board",
+        content: url,
+      });
+    }
+  };
+
+  // Effect to load board from URL param if present
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const boardIdParam = params.get("boardId");
+    if (boardIdParam && boards.length > 0) {
+      // Only switch if we have the board (user has access)
+      const targetBoard = boards.find((b) => b.id === boardIdParam);
+      if (targetBoard) {
+        setSelectedBoardId(boardIdParam);
+      }
+    }
+  }, [boards]);
 
   const handleDeleteBoard = async () => {
     console.log("handleDeleteBoard called", boardToDelete);
@@ -433,14 +582,6 @@ export const TasksView = () => {
         setError("Failed to delete board. Please try again.");
       }
     }
-  };
-
-  const toggleColumnSelection = (column: ColumnType) => {
-    setSelectedColumns((prev) =>
-      prev.includes(column)
-        ? prev.filter((c) => c !== column)
-        : [...prev, column],
-    );
   };
 
   const handleSaveTask = async (
@@ -665,7 +806,6 @@ export const TasksView = () => {
               <button
                 onClick={() => {
                   setIsCreatingBoard(true);
-                  setSelectedColumns(DEFAULT_SELECTION);
                 }}
                 className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-xl font-semibold hover:bg-white/90 transition-colors"
               >
@@ -718,90 +858,12 @@ export const TasksView = () => {
           </motion.div>
         ) : (
           // --- CREATE BOARD DIALOG ---
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-lg p-8 rounded-3xl bg-neutral-900 border border-white/10 backdrop-blur-xl shadow-2xl"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500 to-blue-500 mb-6 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <Plus size={24} className="text-white" />
-            </div>
-
-            <h2 className="text-2xl font-bold text-white mb-2">
-              Create New Board
-            </h2>
-            <p className="text-white/40 mb-6 text-sm">
-              Customize your Kanban workflow.
-            </p>
-
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-white/70 uppercase tracking-wider">
-                  Board Name
-                </label>
-                <input
-                  type="text"
-                  value={newBoardName}
-                  onChange={(e) => setNewBoardName(e.target.value)}
-                  placeholder="e.g. Q1 Roadmap"
-                  autoFocus
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 transition-colors"
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateBoard()}
-                />
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-xs font-semibold text-white/70 uppercase tracking-wider">
-                  Statuses
-                </label>
-                <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                  {AVAILABLE_COLUMNS.map((col) => {
-                    const isSelected = selectedColumns.includes(col);
-                    return (
-                      <button
-                        key={col}
-                        onClick={() => toggleColumnSelection(col)}
-                        className={`flex items-center gap-3 p-3 rounded-lg border text-sm transition-all ${
-                          isSelected
-                            ? "bg-blue-500/10 border-blue-500/50 text-white"
-                            : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
-                        }`}
-                      >
-                        <div
-                          className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                            isSelected
-                              ? "border-blue-400 bg-blue-400"
-                              : "border-white/30"
-                          }`}
-                        >
-                          {isSelected && (
-                            <Check size={10} className="text-black" />
-                          )}
-                        </div>
-                        {col}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={() => setIsCreatingBoard(false)}
-                className="flex-1 py-3 rounded-xl bg-white/5 text-white/70 font-semibold hover:bg-white/10 transition-colors hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateBoard}
-                disabled={!newBoardName.trim() || selectedColumns.length === 0}
-                className="flex-1 py-3 rounded-xl bg-white text-black font-semibold hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                Create Board
-              </button>
-            </div>
-          </motion.div>
+          <BoardDialog
+            isOpen={isCreatingBoard}
+            onClose={() => setIsCreatingBoard(false)}
+            onSave={handleCreateBoard}
+            isCreation={true}
+          />
         )}
 
         {/* DELETE BOARD CONFIRMATION DIALOG */}
@@ -877,18 +939,96 @@ export const TasksView = () => {
             </button>
           </div>
 
-          <div className="flex -space-x-2">
-            {[1, 2, 3].map((i) => (
+          <div className="flex -space-x-2 relative">
+            {activeBoard?.members?.map((m) => (
               <div
-                key={i}
-                className="w-8 h-8 rounded-full bg-white/10 border border-black backdrop-blur-md flex items-center justify-center text-[10px] text-white/70"
+                key={m.id}
+                className="w-8 h-8 rounded-full bg-white/10 border border-black backdrop-blur-md flex items-center justify-center overflow-hidden"
+                title={m.username}
               >
-                U{i}
+                {m.avatarUrl ? (
+                  <img
+                    src={m.avatarUrl}
+                    alt={m.username}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[10px] text-white/70">
+                    {m.username.charAt(0)}
+                  </span>
+                )}
               </div>
             ))}
-            <button className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white/50">
-              <Plus size={14} />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setIsInviteOpen(!isInviteOpen)}
+                className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white/50"
+                title="Invite Member"
+              >
+                <Plus size={14} />
+              </button>
+
+              {isInviteOpen && (
+                <div className="absolute top-10 right-0 w-72 bg-[#111] border border-white/10 rounded-xl shadow-2xl p-4 z-50 backdrop-blur-xl">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-sm font-semibold text-white">
+                      Invite Member
+                    </h4>
+                    <button onClick={() => setIsInviteOpen(false)}>
+                      <X size={14} className="text-white/50 hover:text-white" />
+                    </button>
+                  </div>
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => handleSearchUsers(e.target.value)}
+                    placeholder="Search by email..."
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-2 focus:outline-none focus:border-white/30"
+                    autoFocus
+                  />
+                  <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar">
+                    {isSearching ? (
+                      <p className="text-xs text-white/30 text-center py-2">
+                        Searching...
+                      </p>
+                    ) : searchResults.length > 0 ? (
+                      searchResults.map((u) => (
+                        <button
+                          key={u.id}
+                          onClick={() => handleAddMember(u)}
+                          className="w-full flex items-center gap-2 p-2 hover:bg-white/5 rounded-lg text-left transition-colors"
+                        >
+                          <div className="w-6 h-6 rounded-full bg-white/10 overflow-hidden flex items-center justify-center">
+                            {u.avatarUrl ? (
+                              <img
+                                src={u.avatarUrl}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-[10px]">
+                                {u.username[0]}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white truncate">
+                              {u.username}
+                            </p>
+                            <p className="text-[10px] text-white/40 truncate">
+                              {u.email}
+                            </p>
+                          </div>
+                          <Plus size={14} className="text-blue-400" />
+                        </button>
+                      ))
+                    ) : searchQuery.length >= 3 ? (
+                      <p className="text-xs text-white/30 text-center py-2">
+                        No users found.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -959,7 +1099,9 @@ export const TasksView = () => {
                         onDelete={handleDeleteTask}
                         onEdit={setEditingTask}
                         onComplete={handleCompleteTask}
+                        onShare={handleShare}
                         isVerticalView={isVerticalView}
+                        members={activeBoard?.members}
                       />
                     ))}
 
@@ -1021,6 +1163,7 @@ export const TasksView = () => {
         onSave={handleSaveTask}
         onDelete={handleDeleteTask}
         initialTask={editingTask}
+        members={activeBoard?.members || []}
       />
 
       <DeleteConfirmationDialog
@@ -1029,6 +1172,25 @@ export const TasksView = () => {
         onConfirm={confirmDeleteTask}
         title="Delete Task"
         description="Are you sure you want to delete this task? This action cannot be undone."
+      />
+
+      <ShareDialog
+        isOpen={shareDialog.isOpen}
+        onClose={() => setShareDialog((prev) => ({ ...prev, isOpen: false }))}
+        title={shareDialog.title}
+        content={shareDialog.content}
+      />
+
+      {/* Edit Board Dialog */}
+      <BoardDialog
+        isOpen={isEditingBoard}
+        onClose={() => setIsEditingBoard(false)}
+        onSave={handleUpdateBoard}
+        initialName={editingBoardName}
+        initialColumns={editingBoardColumns}
+        title="Board Settings"
+        subtitle="Manage your board's name and workflow."
+        confirmLabel="Save Changes"
       />
     </div>
   );

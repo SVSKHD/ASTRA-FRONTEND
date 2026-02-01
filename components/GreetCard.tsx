@@ -19,6 +19,7 @@ export const GreetCard = ({
   activeReminder,
 }: GreetCardProps) => {
   const { user } = useUser();
+  const [imgError, setImgError] = useState(false);
   const [greeting, setGreeting] = useState("");
   const [date, setDate] = useState("");
   const [quote, setQuote] = useState("");
@@ -62,7 +63,6 @@ export const GreetCard = ({
   }, []);
 
   // Determine Icon based on greeting
-  // Determine Icon based on greeting
   const getWeatherIcon = () => {
     if (greeting === "Good Morning")
       return <Sun className="w-6 h-6 text-yellow-400 inline-block mr-2" />;
@@ -72,7 +72,7 @@ export const GreetCard = ({
   };
 
   const getIcon = () => {
-    if (user?.avatarUrl) {
+    if (user?.avatarUrl && !imgError) {
       return (
         <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20">
           <img
@@ -80,6 +80,7 @@ export const GreetCard = ({
             alt={user.username}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
+            onError={() => setImgError(true)}
           />
         </div>
       );
