@@ -25,12 +25,10 @@ export default function ReminderPage() {
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
-          const data = docSnap.data() as Reminder;
-          // Security check: only show if user owns it (optional, but good practice)
-          if (data.userId === user.id) {
+          const data = docSnap.data() as Omit<Reminder, "id">;
+          if (data.userId === user.id || user.role === "admin") {
             setReminder({ id: docSnap.id, ...data });
           } else {
-            // Handle unauthorized (or just show not found)
             console.error("Unauthorized access");
           }
         }
