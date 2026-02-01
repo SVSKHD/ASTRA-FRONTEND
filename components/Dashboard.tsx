@@ -12,10 +12,13 @@ import {
   Euro,
   IndianRupee,
   LogOut,
+  Settings2,
+  ArrowRightLeft,
 } from "lucide-react";
 import GradientPicker from "./GradientPicker";
 import { GreetCard } from "./GreetCard";
 import { LoginDialog } from "./LoginDialog";
+import { CurrencyConverterDialog } from "./CurrencyConverterDialog";
 import { auth } from "../utils/firebase";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { useUser } from "@/context/UserContext";
@@ -186,6 +189,8 @@ export default function Dashboard({ onLock }: DashboardProps) {
 
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const [showConverter, setShowConverter] = useState(false);
   const [timeLeft, setTimeLeft] = useState(3000);
   const [isActiveMode, setIsActiveMode] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -379,109 +384,143 @@ export default function Dashboard({ onLock }: DashboardProps) {
           {/* Divider */}
           <div className="h-4 w-[1px] bg-white/10" />
 
-          {/* Currency Picker */}
+          {/* Tools Menu */}
           <div className="relative group z-[140] flex-shrink-0">
             <button
-              onClick={() => setShowCurrencyPicker(!showCurrencyPicker)}
-              className={`h-8 ${showCurrencyLabel ? "px-3" : "px-2"} rounded-full border transition-all flex items-center justify-center gap-1.5 flex-shrink-0 ${
-                showCurrencyPicker
-                  ? "bg-white/20 border-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.3)]"
-                  : "bg-white/5 border-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+              onClick={() => setShowToolsMenu(!showToolsMenu)}
+              className={`w-8 h-8 rounded-full border transition-all flex items-center justify-center flex-shrink-0 ${
+                showToolsMenu
+                  ? "bg-white/20 border-white/20 text-white"
+                  : "bg-white/5 border-white/5 text-white/70 hover:bg-white/10"
               }`}
             >
-              <Coins
-                size={14}
-                className={showCurrencyPicker ? "text-white" : ""}
-              />
-              {showCurrencyLabel ? (
-                <span className="text-xs font-medium tracking-wide">
-                  {currency}
-                </span>
-              ) : (
-                <span className="sr-only">{currency}</span>
-              )}
+              <Settings2 size={14} />
             </button>
+
             <AnimatePresence>
-              {showCurrencyPicker && (
-                <motion.div
-                  initial={{
-                    opacity: 0,
-                    y: 10,
-                    scale: 0.95,
-                    filter: "blur(10px)",
-                  }}
-                  animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-                  exit={{
-                    opacity: 0,
-                    y: 10,
-                    scale: 0.95,
-                    filter: "blur(10px)",
-                  }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  className="absolute top-12 left-0 min-w-[140px] bg-black/80 backdrop-blur-3xl border border-white/10 rounded-2xl p-1.5 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-                  <div className="flex flex-col gap-1 relative z-10">
-                    {(["USD", "EUR", "INR"] as Currency[]).map((c) => {
-                      const Icon =
-                        c === "USD"
-                          ? DollarSign
-                          : c === "EUR"
-                            ? Euro
-                            : IndianRupee;
-                      const isActive = currency === c;
-                      return (
-                        <button
-                          key={c}
-                          onClick={() => {
-                            setCurrency(c);
-                            setShowCurrencyPicker(false);
-                          }}
-                          className={`px-3 py-2.5 rounded-xl text-xs font-medium text-left transition-all duration-300 flex items-center gap-3 group/item relative overflow-hidden ${
-                            isActive
-                              ? "bg-white/15 text-white border border-white/20"
-                              : "text-white/60 hover:bg-white/10 hover:text-white/90 border border-transparent"
-                          }`}
+              {showToolsMenu && (
+                <>
+                  {/* Currency Button */}
+                  <motion.div
+                    initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+                    animate={{ x: -45, y: 50, scale: 1, opacity: 1 }}
+                    exit={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 20,
+                      delay: 0.05,
+                    }}
+                    className="absolute top-0 left-0"
+                  >
+                    <button
+                      onClick={() => setShowCurrencyPicker(!showCurrencyPicker)}
+                      className="w-10 h-10 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white shadow-lg hover:bg-white/10 transition-colors"
+                    >
+                      {currency === "USD" ? (
+                        <DollarSign size={16} />
+                      ) : currency === "EUR" ? (
+                        <Euro size={16} />
+                      ) : (
+                        <IndianRupee size={16} />
+                      )}
+                    </button>
+                    <AnimatePresence>
+                      {showCurrencyPicker && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                          className="absolute top-12 left-1/2 -translate-x-1/2 bg-black/90 border border-white/10 rounded-xl p-1 z-[150] shadow-xl flex flex-col gap-1 min-w-[100px]"
                         >
-                          <div
-                            className={`p-1 rounded-full ${isActive ? "bg-white text-black" : "bg-white/10 text-white/50 group-hover/item:bg-white/20 group-hover/item:text-white"}`}
-                          >
-                            <Icon size={12} strokeWidth={3} />
-                          </div>
-                          <span className="flex-1">{c}</span>
-                          {isActive && (
-                            <motion.div
-                              layoutId="active-dot"
-                              className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                          {(["USD", "EUR", "INR"] as Currency[]).map((c) => {
+                            const Icon =
+                              c === "USD"
+                                ? DollarSign
+                                : c === "EUR"
+                                  ? Euro
+                                  : IndianRupee;
+                            const isActive = currency === c;
+                            return (
+                              <button
+                                key={c}
+                                onClick={() => {
+                                  setCurrency(c);
+                                  setShowCurrencyPicker(false);
+                                }}
+                                className={`px-3 py-2 rounded-lg text-xs font-medium text-left transition-all flex items-center gap-3 ${
+                                  isActive
+                                    ? "bg-white/15 text-white"
+                                    : "text-white/60 hover:bg-white/10 hover:text-white"
+                                }`}
+                              >
+                                <Icon size={12} />
+                                <span className="flex-1">{c}</span>
+                                {isActive && (
+                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
 
-          {/* Color Picker */}
-          <div className="relative group z-[140] flex-shrink-0">
-            <button
-              onClick={() => setShowColorPicker(!showColorPicker)}
-              className={`w-8 h-8 rounded-full border transition-all flex items-center justify-center flex-shrink-0 ${showColorPicker ? "bg-white/20 border-white/20 text-white" : "bg-white/5 border-white/5 text-white/70 hover:bg-white/10"}`}
-            >
-              <Palette size={14} />
-            </button>
+                  {/* Color Button */}
+                  <motion.div
+                    initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+                    animate={{ x: 0, y: 60, scale: 1, opacity: 1 }}
+                    exit={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 20,
+                      delay: 0.1,
+                    }}
+                    className="absolute top-0 left-0"
+                  >
+                    <button
+                      onClick={() => setShowColorPicker(!showColorPicker)}
+                      className="w-10 h-10 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white shadow-lg hover:bg-white/10 transition-colors"
+                    >
+                      <Palette size={16} />
+                    </button>
+                    {showColorPicker && (
+                      <div className="absolute top-12 left-1/2 -translate-x-1/2 z-[150]">
+                        <GradientPicker
+                          initialBackground={background}
+                          onChange={setBackground}
+                          onClose={() => setShowColorPicker(false)}
+                        />
+                      </div>
+                    )}
+                  </motion.div>
 
-            <AnimatePresence>
-              {showColorPicker && (
-                <div className="absolute top-12 left-0">
-                  <GradientPicker
-                    initialBackground={background}
-                    onChange={setBackground}
-                    onClose={() => setShowColorPicker(false)}
-                  />
-                </div>
+                  {/* Converter Button */}
+                  <motion.div
+                    initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+                    animate={{ x: 45, y: 50, scale: 1, opacity: 1 }}
+                    exit={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 20,
+                      delay: 0.15,
+                    }}
+                    className="absolute top-0 left-0"
+                  >
+                    <button
+                      onClick={() => {
+                        setShowConverter(true);
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-10 h-10 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white shadow-lg hover:bg-white/10 transition-colors"
+                    >
+                      <ArrowRightLeft size={16} />
+                    </button>
+                  </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>
@@ -686,6 +725,10 @@ export default function Dashboard({ onLock }: DashboardProps) {
           isOpen={isLoginOpen}
           onClose={() => setIsLoginOpen(false)}
           user={user}
+        />
+        <CurrencyConverterDialog
+          isOpen={showConverter}
+          onClose={() => setShowConverter(false)}
         />
       </div>
     </div>

@@ -7,6 +7,7 @@ export const useCurrency = () => {
     setCurrency,
     currencySymbol,
     exchangeRate,
+    rates,
     formatCurrency,
   } = useCurrencyContext();
 
@@ -22,6 +23,7 @@ export const useCurrency = () => {
     setCurrency,
     currencySymbol,
     exchangeRate,
+    rates,
     formatCurrency,
     convertPrice,
   };

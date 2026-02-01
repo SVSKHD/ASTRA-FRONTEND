@@ -16,6 +16,7 @@ interface CurrencyContextType {
   setCurrency: (currency: Currency) => void;
   currencySymbol: string;
   exchangeRate: number; // 1 until loaded
+  rates: Record<string, number>;
   formatCurrency: (value: number) => string;
   loadingRates: boolean;
 }
@@ -156,10 +157,11 @@ export const CurrencyProvider = ({
       setCurrency,
       currencySymbol,
       exchangeRate,
+      rates,
       formatCurrency,
       loadingRates,
     }),
-    [currency, exchangeRate, loadingRates],
+    [currency, exchangeRate, rates, loadingRates],
   );
 
   return (
