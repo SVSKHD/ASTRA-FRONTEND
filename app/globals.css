@@ -17,17 +17,25 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    @layer utilities {
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .no-scrollbar {
-        -ms-overflow-style: none; /* IE and Edge */
-        scrollbar-width: none; /* Firefox */
-      }
-    }
-
     --foreground: #ededed;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .custom-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
