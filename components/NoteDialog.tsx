@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { X, Share2 } from "lucide-react";
+import { X, Share2, Check } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const NoteEditor = dynamic(
@@ -38,6 +38,7 @@ export const NoteDialog = ({
 }: NoteDialogProps) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -77,9 +78,8 @@ export const NoteDialog = ({
     if (initialNote?.id) {
       const url = `${window.location.origin}/notes/${initialNote.id}`;
       navigator.clipboard.writeText(url);
-      alert(`Link copied to clipboard: ${url}`);
-    } else {
-      alert("Please save the note before sharing.");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -117,10 +117,15 @@ export const NoteDialog = ({
           <div className="flex items-center gap-3">
             <button
               onClick={handleShare}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
-              title="Share note"
+              disabled={!initialNote?.id}
+              className={`p-2 rounded-xl transition-colors ${
+                copied
+                  ? "bg-green-500/20 text-green-500"
+                  : "bg-white/5 hover:bg-white/10 text-white/70 hover:text-white"
+              } disabled:opacity-30 disabled:cursor-not-allowed`}
+              title={initialNote?.id ? "Share note" : "Save to share"}
             >
-              <Share2 size={20} />
+              {copied ? <Check size={20} /> : <Share2 size={20} />}
             </button>
             {!readOnly && (
               <button

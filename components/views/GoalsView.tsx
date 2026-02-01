@@ -21,7 +21,6 @@ import {
 } from "@/utils/goals-service";
 import { GoalDialog } from "../GoalDialog";
 import { DeleteConfirmationDialog } from "../DeleteConfirmationDialog";
-import { ShareDialog } from "../ShareDialog";
 import { motion, AnimatePresence } from "framer-motion";
 
 export const GoalsView = () => {
@@ -31,15 +30,7 @@ export const GoalsView = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [shareData, setShareData] = useState<{
-    isOpen: boolean;
-    title: string;
-    content: string;
-  }>({
-    isOpen: false,
-    title: "",
-    content: "",
-  });
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -82,12 +73,10 @@ export const GoalsView = () => {
 
   const handleShare = (e: React.MouseEvent, goal: Goal) => {
     e.stopPropagation();
-    const text = `🎯 Goal: ${goal.title}\n📅 Deadline: ${goal.deadline ? new Date(goal.deadline).toLocaleDateString() : "No deadline"}\n🚀 Priority: ${goal.priority}\n📝 Notes: ${goal.notes || "No notes"}`;
-    setShareData({
-      isOpen: true,
-      title: `Share Goal: ${goal.title}`,
-      content: text,
-    });
+    const url = `${window.location.origin}/goals/${goal.id}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(goal.id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   // Stats
@@ -222,9 +211,17 @@ export const GoalsView = () => {
                           </button>
                           <button
                             onClick={(e) => handleShare(e, goal)}
-                            className="p-1.5 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"
+                            className={`p-1.5 hover:bg-white/10 rounded-lg transition-colors ${
+                              copiedId === goal.id
+                                ? "text-green-400"
+                                : "text-white/50 hover:text-white"
+                            }`}
                           >
-                            <Share2 size={14} />
+                            {copiedId === goal.id ? (
+                              <CheckCircle size={14} />
+                            ) : (
+                              <Share2 size={14} />
+                            )}
                           </button>
                           <button
                             onClick={() => handleDelete(goal.id)}
@@ -281,13 +278,6 @@ export const GoalsView = () => {
             undone.
           </p>
         }
-      />
-
-      <ShareDialog
-        isOpen={shareData.isOpen}
-        onClose={() => setShareData({ ...shareData, isOpen: false })}
-        title={shareData.title}
-        content={shareData.content}
       />
     </div>
   );

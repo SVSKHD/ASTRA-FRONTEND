@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar, Clock, RotateCw, Tag } from "lucide-react";
-import { RecurrenceType } from "@/utils/reminders-service";
+import { RecurrenceType } from "@/services/remindersService";
 
 export interface ReminderData {
   title: string;
