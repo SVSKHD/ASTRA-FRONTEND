@@ -373,8 +373,8 @@ export const ForexView = () => {
             <ForexChart data={chartData} label="Balance" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[400px]">
-            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col h-full">
+          <div className="flex flex-col gap-6">
+            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col h-[400px]">
               <div className="mb-4 px-2">
                 <h3 className="text-lg font-semibold">Daily Sessions</h3>
               </div>
@@ -383,7 +383,7 @@ export const ForexView = () => {
               </div>
             </div>
 
-            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col h-full">
+            <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col h-[400px]">
               <div className="mb-4 px-2">
                 <h3 className="text-lg font-semibold">Recent Deals</h3>
               </div>
