@@ -6,49 +6,175 @@ import { marketData, MarketItem } from "@/components/market/data/marketData";
 import { columns } from "@/components/market/data/columns";
 import { ForexStats } from "@/components/market/ForexStats";
 import { ActiveSymbolSelector } from "@/components/market/ActiveSymbolSelector";
-import {
-  fetchUserBalances,
-  fetchDeals,
-  fetchTrades,
-  UserBalance,
-  Deal,
-  Trade,
-} from "@/utils/forex-service";
+import { UserBalance, Deal, Trade } from "@/utils/forex-service";
 import { Wallet, Search } from "lucide-react";
 import { useCurrency } from "../../hooks/useCurrency";
 import { ForexChart } from "@/components/market/ForexChart";
+import { generateHistory } from "@/utils/mock-market-data";
+
+import { useMarketData } from "@/hooks/useMarketData";
+
+const MOCK_TRADES: Trade[] = [
+  {
+    id: "static_1",
+    user_id: "demo",
+    symbol: "XAGUSD",
+    status: "closed",
+    pnl: 120.5,
+    date: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    last_event: {
+      payload: {
+        start_price: 24.5,
+        mode: "SCALP",
+        decision: "BUY",
+        action: "ENTER",
+        realized_profit_usd: 120.5,
+        risk: { total_pnl: 120.5 },
+      },
+    },
+  } as any,
+  {
+    id: "static_2",
+    user_id: "demo",
+    symbol: "XAUUSD",
+    status: "closed",
+    pnl: -45.2,
+    date: new Date(Date.now() - 3600000).toISOString(),
+    updated_at: new Date(Date.now() - 3600000).toISOString(),
+    last_event: {
+      payload: {
+        start_price: 2010.2,
+        mode: "SWING",
+        decision: "SKIP",
+        action: "WAIT",
+        realized_profit_usd: -45.2,
+        risk: { total_pnl: -45.2 },
+      },
+    },
+  } as any,
+];
+
+const MOCK_DEALS: Deal[] = [
+  {
+    id: "d1",
+    time: new Date().toISOString(),
+    ticket: 123456,
+    symbol: "XAGUSD",
+    type: 0,
+    volume: 1.0,
+    price: 24.5,
+    profit_usd: 50.0,
+    side: "BUY",
+    login: 1001,
+    swap: 0,
+    commission: 0,
+    comment: "",
+    date: new Date().toISOString(),
+    deal: 0,
+    deal_id: "d1",
+    entry: 0,
+    fee: 0,
+    magic: 0,
+    order: 0,
+    position_id: 0,
+    time_msc: Date.now(),
+    updated_at: new Date().toISOString(),
+    user_id: "demo",
+  },
+  {
+    id: "d2",
+    time: new Date(Date.now() - 7200000).toISOString(),
+    ticket: 123457,
+    symbol: "XAUUSD",
+    type: 1,
+    volume: 0.5,
+    price: 2005.1,
+    profit_usd: -10.0,
+    side: "SELL",
+    login: 1001,
+    swap: 0,
+    commission: 0,
+    comment: "",
+    date: new Date(Date.now() - 7200000).toISOString(),
+    deal: 0,
+    deal_id: "d2",
+    entry: 0,
+    fee: 0,
+    magic: 0,
+    order: 0,
+    position_id: 0,
+    time_msc: Date.now() - 7200000,
+    updated_at: new Date(Date.now() - 7200000).toISOString(),
+    user_id: "demo",
+  },
+];
+
+const MOCK_BALANCES: UserBalance[] = [
+  {
+    id: "u1",
+    user_id: "demo_user",
+    name: "Demo User",
+    balance: 10000,
+    equity: 10000,
+    currency: "USD",
+    login: 1001,
+    server: "Demo",
+    company: "Broker",
+    active: true,
+    connected: true,
+    credit: 0,
+    date: new Date().toISOString(),
+    leverage: 100,
+    limit_orders: 0,
+    margin: 0,
+    margin_free: 10000,
+    margin_level: 0,
+    ok: true,
+    profit: 0,
+    terminal_info: true,
+    trade_mode: 0,
+    ts_server: new Date().toISOString(),
+    ts_utc: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  } as any,
+];
 
 export const ForexView = () => {
-  const [selectedSymbol, setSelectedSymbol] = useState<MarketItem>(
-    marketData[7],
-  ); // Default to Gold
-  const [userBalances, setUserBalances] = useState<UserBalance[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+  const [userBalances] = useState<UserBalance[]>(MOCK_BALANCES);
+  const [deals] = useState<Deal[]>(MOCK_DEALS);
+  const [trades] = useState<Trade[]>(MOCK_TRADES);
+
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(
+    MOCK_BALANCES[0].id,
+  );
+
+  const [activeMarketItem, setActiveMarketItem] = useState<MarketItem>(
+    marketData.find((m) => m.pair === "XAG/USD") || marketData[8],
+  );
+
+  const activeSymbol = activeMarketItem.pair.replace("/", "");
+
   const [searchQuery, setSearchQuery] = useState("");
   const { currencySymbol, exchangeRate, formatCurrency } = useCurrency();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const balanceData = await fetchUserBalances();
-      setUserBalances(balanceData);
+  const { latestData: latestMarketData, historyData: historyMarketData } =
+    useMarketData(activeSymbol);
 
-      const dealsData = await fetchDeals();
-      setDeals(dealsData);
+  const activeAccount = userBalances.find((u: any) => u.id === activeAccountId);
 
-      const tradesData = await fetchTrades();
-      setTrades(tradesData);
-    };
+  const liveAccount = useMemo(() => {
+    if (latestMarketData && latestMarketData.balance_snapshot) {
+      return {
+        ...activeAccount,
+        balance: latestMarketData.balance_snapshot.balance,
+        equity: latestMarketData.balance_snapshot.equity,
+        profit: latestMarketData.balance_snapshot.profit,
+      } as UserBalance;
+    }
+    return activeAccount;
+  }, [activeAccount, latestMarketData]);
 
-    fetchData(); // Initial fetch
-
-    const intervalId = setInterval(fetchData, 5000); // Poll every 5 seconds
-
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // Set first account as active if none selected
   useEffect(() => {
     if (userBalances.length > 0 && !activeAccountId) {
       setActiveAccountId(userBalances[0].id);
@@ -61,35 +187,23 @@ export const ForexView = () => {
       user.name?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  const activeAccount = userBalances.find((u) => u.id === activeAccountId);
-
-  // Calculate Chart Data
   const chartData = useMemo(() => {
-    if (userBalances.length === 0) return [];
-
-    let targetBalances = userBalances;
-    // If we have an active account, filter to show only that user's history
-    if (activeAccount) {
-      targetBalances = userBalances.filter(
-        (u) =>
-          u.user_id === activeAccount.user_id &&
-          u.login === activeAccount.login,
-      );
+    if (historyMarketData.length > 0) {
+      return historyMarketData
+        .filter((item) => item && item.balance_snapshot)
+        .map((item) => ({
+          time: item.ts,
+          value: item.balance_snapshot.balance,
+          isReal: true,
+        }));
     }
 
-    // Map user balances to chart data
-    const history = targetBalances.map((user) => ({
-      // Use ts_utc if available for better sorting, otherwise date
-      time: user.ts_utc
-        ? new Date(user.ts_utc).getTime()
-        : new Date(user.date).getTime(),
-      value: user.balance,
+    const baseValue = liveAccount?.balance || 10000;
+    return generateHistory(baseValue, 24).map((point: any) => ({
+      ...point,
       isReal: true,
     }));
-
-    // Sort by time ascending
-    return history.sort((a, b) => a.time - b.time);
-  }, [userBalances, activeAccount]);
+  }, [liveAccount, historyMarketData]);
 
   const wins = deals.filter((d) => d.profit_usd > 0).length;
   const losses = deals.filter((d) => d.profit_usd <= 0).length;
@@ -178,7 +292,9 @@ export const ForexView = () => {
         key: "date",
         header: "Date",
         render: (trade) => (
-          <div className="text-xs text-white/60">{trade.date}</div>
+          <div className="text-xs text-white/60">
+            {new Date(trade.date).toLocaleString()}
+          </div>
         ),
         sortable: true,
       },
@@ -191,7 +307,7 @@ export const ForexView = () => {
         sortable: true,
       },
       {
-        key: "id", // Using ID for key, but rendering Start Price logic
+        key: "id",
         header: "Start Price",
         render: (trade) => (
           <div className="font-mono text-white/80">
@@ -209,7 +325,7 @@ export const ForexView = () => {
         ),
       },
       {
-        key: "user_id", // Using user_id as key for Profit column wrapper
+        key: "user_id",
         header: `Total PnL (${currencySymbol})`,
         render: (trade) => {
           const pnl =
@@ -229,7 +345,7 @@ export const ForexView = () => {
         },
       },
       {
-        key: "last_event", // Status column - using unique key
+        key: "last_event",
         header: "Status",
         render: (trade) => (
           <span className="px-2 py-1 rounded-md bg-white/5 text-[10px] uppercase text-white/50 border border-white/5">
@@ -243,25 +359,21 @@ export const ForexView = () => {
 
   return (
     <div className="space-y-6 h-full flex flex-col">
-      {/* Stats & Active Symbol Selector */}
-      <ForexStats activeAccount={activeAccount} wins={wins} losses={losses}>
+      <ForexStats activeAccount={liveAccount} wins={wins} losses={losses}>
         <ActiveSymbolSelector
-          selectedSymbol={selectedSymbol}
-          onSelect={setSelectedSymbol}
+          selectedSymbol={activeMarketItem}
+          onSelect={setActiveMarketItem}
         />
       </ForexStats>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-        {/* Market Data Table - Takes up 2 columns */}
         <div className="lg:col-span-2 space-y-6 flex flex-col">
-          {/* Chart Section */}
           <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 shadow-xl h-[300px] mb-6">
             <h3 className="text-lg font-semibold mb-4 px-2">Balance History</h3>
             <ForexChart data={chartData} label="Balance" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[400px]">
-            {/* Active Sessions (Trades) Table */}
             <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col h-full">
               <div className="mb-4 px-2">
                 <h3 className="text-lg font-semibold">Daily Sessions</h3>
@@ -271,7 +383,6 @@ export const ForexView = () => {
               </div>
             </div>
 
-            {/* Recent Deals Table */}
             <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-4 shadow-xl overflow-hidden flex flex-col h-full">
               <div className="mb-4 px-2">
                 <h3 className="text-lg font-semibold">Recent Deals</h3>
@@ -282,7 +393,6 @@ export const ForexView = () => {
             </div>
           </div>
 
-          {/* Detailed Trade History */}
           <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 shadow-xl space-y-4">
             <h3 className="text-lg font-semibold mb-4 px-2 flex items-center gap-2">
               <span className="w-2 h-6 bg-blue-500 rounded-full" />
@@ -301,7 +411,6 @@ export const ForexView = () => {
           </div>
         </div>
 
-        {/* User Balances Section - Takes up 1 column */}
         <div className="bg-black/20 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 shadow-xl overflow-hidden flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -431,7 +540,6 @@ const TradeDetailCard = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-        {/* Metrics */}
         <div className="space-y-2 bg-black/20 p-3 rounded-lg">
           <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
             Metrics
@@ -461,118 +569,6 @@ const TradeDetailCard = ({
             </span>
           </div>
         </div>
-
-        {/* Risk */}
-        <div className="space-y-2 bg-black/20 p-3 rounded-lg">
-          <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
-            Risk
-          </h5>
-          <div className="flex justify-between">
-            <span className="text-white/40">Realized Today</span>
-            <span className="text-white font-mono">
-              {formatMoney(payload.risk?.realized_today ?? 0)}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">Total PnL</span>
-            <span className="text-white font-mono">
-              {formatMoney(payload.risk?.total_pnl ?? 0)}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">Profit Lock</span>
-            <span className="text-white font-mono">
-              {formatMoney(payload.risk?.profit_lock ?? 0)}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">Loss Lock</span>
-            <span className="text-white font-mono">
-              {formatMoney(payload.risk?.loss_lock ?? 0)}
-            </span>
-          </div>
-        </div>
-
-        {/* Telemetry 1 */}
-        {payload.telemetry && (
-          <div className="space-y-2 bg-black/20 p-3 rounded-lg">
-            <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
-              Telemetry (Signal)
-            </h5>
-            <div className="flex justify-between">
-              <span className="text-white/40">Bias</span>
-              <span
-                className={`uppercase font-bold ${
-                  payload.telemetry.bias === "long"
-                    ? "text-green-400"
-                    : payload.telemetry.bias === "short"
-                      ? "text-red-400"
-                      : "text-white"
-                }`}
-              >
-                {payload.telemetry.bias ?? "-"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40">Probe Up</span>
-              <span className="text-white font-mono">
-                {payload.telemetry.probe_up?.toFixed(2) ?? "-"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40">Probe Dn</span>
-              <span className="text-white font-mono">
-                {payload.telemetry.probe_dn?.toFixed(2) ?? "-"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40">Crossed 1x</span>
-              <span
-                className={
-                  payload.telemetry.crossed_1x
-                    ? "text-green-400"
-                    : "text-white/40"
-                }
-              >
-                {payload.telemetry.crossed_1x ? "YES" : "NO"}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Telemetry 2 */}
-        {payload.telemetry && (
-          <div className="space-y-2 bg-black/20 p-3 rounded-lg">
-            <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
-              Telemetry (State)
-            </h5>
-            <div className="flex justify-between">
-              <span className="text-white/40">X Now</span>
-              <span className="text-white font-mono">
-                {payload.telemetry.x_now?.toFixed(2) ?? "-"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40">Miss Reason</span>
-              <span className="text-white italic">
-                {payload.telemetry.miss_reason ?? "none"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40">Win Hits (L/S)</span>
-              <span className="text-white font-mono">
-                {payload.telemetry.window_hit_count_long}/
-                {payload.telemetry.window_hit_count_short}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/40">Risk Reason</span>
-              <span className="text-white italic">
-                {payload.telemetry.risk_reason || payload.block_reason || "ok"}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

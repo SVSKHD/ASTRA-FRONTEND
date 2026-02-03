@@ -6,7 +6,7 @@ import DealModel from "@/lib/models/Deal";
 import TradeModel from "@/lib/models/Trade";
 
 export interface UserBalance {
-  id: string; // Document ID
+  id: string;
   balance: number;
   company: string;
   connected: boolean;
@@ -61,7 +61,6 @@ export interface Deal {
   swap: number;
   commission: number;
   comment: string;
-  // New fields
   date: string;
   deal: number;
   deal_id: string;
