@@ -1,46 +1,39 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.NEXT_PUBLIC_MONGO;
+const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  throw new Error(
-    "Please define the NEXT_PUBLIC_MONGO environment variable inside .env.local",
-  );
+  throw new Error("Missing env: MONGODB_URI");
 }
 
-/**
- * Global is used here to maintain a cached connection across hot reloads
- * in development. This prevents connections growing exponentially
- * during API Route usage.
- */
 interface GlobalMongoose {
-  conn: any;
-  promise: any;
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
 }
 
-let cached: GlobalMongoose = (global as any).mongoose;
+const globalForMongoose = global as unknown as { mongoose?: GlobalMongoose };
 
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
-}
+const cached = globalForMongoose.mongoose ?? {
+  conn: null,
+  promise: null,
+};
 
-async function dbConnect() {
-  if (cached.conn) {
-    return cached.conn;
-  }
+globalForMongoose.mongoose = cached;
+
+export default async function dbConnect() {
+  if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-      dbName: "astra",
-    };
-
-    cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
-      return mongoose;
-    });
+    cached.promise = mongoose
+      .connect(MONGODB_URI!, {
+        dbName: "astra",
+        bufferCommands: false,
+        // serverSelectionTimeoutMS: 5000, // optional safety
+        // maxPoolSize: 5,                // optional: keep small in serverless
+      })
+      .then((m) => m);
   }
+
   cached.conn = await cached.promise;
   return cached.conn;
 }
-
-export default dbConnect;
