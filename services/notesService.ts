@@ -17,6 +17,7 @@ export interface Note {
   title: string;
   content: string;
   userId: string;
+  isShared?: boolean;
   createdAt: number;
   updatedAt: number;
 }

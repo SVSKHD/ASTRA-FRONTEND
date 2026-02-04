@@ -109,7 +109,24 @@ export const RemindersView = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto h-full flex flex-col">
-      {/* ... header ... */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Reminders</h2>
+          <p className="text-white/40 text-sm">
+            Manage your tasks and notifications
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setEditingReminder(null);
+            setIsDialogOpen(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-xl font-semibold hover:bg-white/90 transition-colors"
+        >
+          <Plus size={18} />
+          New Reminder
+        </button>
+      </div>
 
       <div className="flex-1 overflow-y-auto space-y-8 pr-2 custom-scrollbar">
         {isLoading ? (

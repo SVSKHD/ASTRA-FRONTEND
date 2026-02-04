@@ -18,7 +18,12 @@ import { Note } from "../../services/notesService";
 
 // Helper to map Service Note to Dialog Note if needed, though they are compatible
 const mapToDialogNote = (note: Note): DialogNote => ({
-  ...note,
+  id: note.id,
+  title: note.title,
+  content: note.content,
+  isShared: note.isShared,
+  createdAt: note.createdAt,
+  updatedAt: note.updatedAt,
 });
 
 export const NotesView = () => {
@@ -49,6 +54,7 @@ export const NotesView = () => {
       await updateNote(noteData.id, {
         title: noteData.title,
         content: noteData.content,
+        isShared: noteData.isShared,
       });
     } else {
       // Create
@@ -56,6 +62,7 @@ export const NotesView = () => {
         await createNote({
           title: noteData.title,
           content: noteData.content,
+          isShared: noteData.isShared,
         });
       }
     }

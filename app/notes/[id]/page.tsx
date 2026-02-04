@@ -17,8 +17,7 @@ export default function NotePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
-
+    // We allow fetching even if !user, to check for public notes
     const fetchNote = async () => {
       try {
         if (typeof id !== "string") return;
@@ -27,7 +26,11 @@ export default function NotePage() {
 
         if (docSnap.exists()) {
           const data = docSnap.data() as Omit<Note, "id">;
-          if (data.userId === user.id || user.role === "admin") {
+          console.log("data", data);
+          const isOwner =
+            user && (data.userId === user.id || user.role === "admin");
+
+          if (data.isShared === true || isOwner) {
             setNote({ id: docSnap.id, ...data });
           } else {
             console.error("Unauthorized");
@@ -43,7 +46,7 @@ export default function NotePage() {
     fetchNote();
   }, [id, user]);
 
-  if (!user) return null;
+  // if (!user) return null; // Removed to allow public access
 
   if (loading) {
     return (

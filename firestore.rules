@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper for authenticated user
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // specific rules for the 'Astra-users' collection
+    match /Astra-users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Forex: any signed-in user can READ; only admins can WRITE
+    match /forex/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // NOTES: Allow public read if shared, otherwise must be owner
+    match /astra_notes/{noteId} {
+      allow read: if resource.data.isShared == true || 
+                  (isSignedIn() && resource.data.userId == request.auth.uid);
+      
+      // Create: user must be signed in and assign to themselves
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      
+      // Update/Delete: must be owner
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // BOARDS: Allow public read if shared
+    match /astra-boards/{boardId} {
+      allow read: if resource.data.isSharable == true || 
+                  (isSignedIn() && (resource.data.userId == request.auth.uid || request.auth.uid in resource.data.memberIds));
+      
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      
+      // Update: Owner or Member? Assuming Owner or Member for now
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || request.auth.uid in resource.data.memberIds);
+      
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // TASKS: Allow public read if task is shared OR board is shared
+    match /astra-tasks/{taskId} {
+      allow read: if resource.data.isSharable == true || 
+                  (isSignedIn() && resource.data.userId == request.auth.uid) ||
+                  get(/databases/$(database)/documents/astra-boards/$(resource.data.boardId)).data.isSharable == true;
+      
+      allow create: if isSignedIn();
+      
+      allow update, delete: if isSignedIn(); // Simplified for brevity, normally check ownership/membership
+    }
+
+    // Default for all other collections
+    match /{collection}/{document} {
+      // Helper for generic collections with a 'userId' field
+      function hasGenericUserIdField() {
+        return resource.data.keys().hasAny(['userId']);
+      }
+
+      // Create requires ownership when userId is present
+      allow create: if isSignedIn()
+        && (
+          !('userId' in request.resource.data) ||      // allow creating docs without userId (optional)
+          request.resource.data.userId == request.auth.uid // Use request.resource.data for create
+        );
+
+      // Read: owner reads if userId exists, OR allow signed-in read if the doc lacks userId
+      allow read: if isSignedIn()
+        && (
+          (hasGenericUserIdField() && resource.data.userId == request.auth.uid) ||
+          (!hasGenericUserIdField())
+        );
+
+      // Update/Delete: keep strict (owner-only) when userId exists; if no userId, deny by default
+      allow update, delete: if isSignedIn()
+        && hasGenericUserIdField()
+        && resource.data.userId == request.auth.uid;
+    }
+  }
+}

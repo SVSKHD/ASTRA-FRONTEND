@@ -46,6 +46,7 @@ export interface Task {
   githubBranch?: string;
   githubPath?: string;
   assignedTo?: string; // UserId
+  isSharable?: boolean;
 }
 
 export interface Board {
@@ -56,6 +57,7 @@ export interface Board {
   createdAt: any;
   members?: UserProfile[]; // Shared members
   memberIds?: string[]; // For querying
+  isSharable?: boolean;
 }
 
 export const createBoard = async (

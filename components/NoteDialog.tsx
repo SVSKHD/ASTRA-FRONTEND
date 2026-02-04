@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { X, Share2, Check } from "lucide-react";
+import { X, Share2, Check, Globe } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const NoteEditor = dynamic(
@@ -17,6 +17,7 @@ export interface Note {
   id: string;
   title: string;
   content: string;
+  isShared?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -38,6 +39,7 @@ export const NoteDialog = ({
 }: NoteDialogProps) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [isShared, setIsShared] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -45,9 +47,12 @@ export const NoteDialog = ({
       if (initialNote) {
         setTitle(initialNote.title);
         setContent(initialNote.content);
+        // Ensure isShared is boolean, defaulting to false
+        setIsShared(initialNote.isShared === true);
       } else {
         setTitle("");
         setContent("<p></p>");
+        setIsShared(false);
       }
     }
   }, [isOpen, initialNote]);
@@ -69,6 +74,7 @@ export const NoteDialog = ({
         id: initialNote?.id,
         title,
         content,
+        isShared,
       });
       onClose();
     }
@@ -80,6 +86,17 @@ export const NoteDialog = ({
       navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+
+      // Auto-enable sharing if not already enabled (optional UX choice, but requested "how to share")
+      if (!isShared) {
+        setIsShared(true);
+        // We might want to save immediately here, but `onSave` closes the dialog.
+        // For now, visual feedback relies on user clicking Save.
+        // OR, if we want immediate effect, we'd need a separate prop or async call.
+        // Let's stick to state change + user explicitly saving or we auto-save?
+        // The robust way: User clicks Share -> Link Copied -> They must click Update to persist 'isShared=true'.
+        // I will add a visual indicator that it's shared.
+      }
     }
   };
 
@@ -105,16 +122,34 @@ export const NoteDialog = ({
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/5">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Note Title"
-            className="bg-transparent text-2xl font-bold text-white placeholder:text-white/20 focus:outline-none w-full disabled:opacity-70 disabled:cursor-default"
-            autoFocus={!readOnly}
-            disabled={readOnly}
-          />
+          <div className="flex-1 flex items-center gap-3 mr-4 min-w-0">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Note Title"
+              className="bg-transparent text-2xl font-bold text-white placeholder:text-white/20 focus:outline-none w-full disabled:opacity-70 disabled:cursor-default"
+              autoFocus={!readOnly}
+              disabled={readOnly}
+            />
+            {isShared && (
+              <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider border border-blue-500/20">
+                Global
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsShared(!isShared)}
+              className={`p-2 rounded-xl transition-colors ${
+                isShared
+                  ? "bg-blue-500/20 text-blue-400"
+                  : "bg-white/5 hover:bg-white/10 text-white/30 hover:text-white/70"
+              }`}
+              title={isShared ? "Publicly accessible via link" : "Private note"}
+            >
+              <Globe size={20} />
+            </button>
             <button
               onClick={handleShare}
               disabled={!initialNote?.id}

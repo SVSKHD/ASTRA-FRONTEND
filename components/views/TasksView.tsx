@@ -342,18 +342,38 @@ export const TasksView = () => {
     isOpen: boolean;
     title: string;
     content: string;
+    isSharable?: boolean;
+    onToggle?: (status: boolean) => void;
   }>({
     isOpen: false,
     title: "",
     content: "",
+    isSharable: false,
   });
 
   const handleShare = (task: Task) => {
-    const url = `${window.location.origin}/task/${task.id}`;
+    const isSharable = task.isSharable || false;
+    const url = `${window.location.origin}/tasks/${task.id}`;
+
     setShareDialog({
       isOpen: true,
       title: `Share "${task.content}"`,
       content: url,
+      isSharable,
+      onToggle: async (newStatus: boolean) => {
+        setShareDialog((prev) => ({ ...prev, isSharable: newStatus }));
+        try {
+          await firebaseUpdateTask(task.id, { isSharable: newStatus });
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id ? { ...t, isSharable: newStatus } : t,
+            ),
+          );
+        } catch (e) {
+          console.error("Failed to update share status", e);
+          setShareDialog((prev) => ({ ...prev, isSharable: !newStatus }));
+        }
+      },
     });
   };
 
@@ -379,6 +399,7 @@ export const TasksView = () => {
 
   // Edit Board State
   const [isEditingBoard, setIsEditingBoard] = useState(false);
+  const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
   const [editingBoardName, setEditingBoardName] = useState("");
   const [editingBoardColumns, setEditingBoardColumns] = useState<ColumnType[]>(
     [],
@@ -524,13 +545,15 @@ export const TasksView = () => {
   };
 
   const handleUpdateBoard = async (name: string, columns: ColumnType[]) => {
-    if (name.trim() && selectedBoardId) {
+    const targetId = editingBoardId || selectedBoardId;
+    if (name.trim() && targetId) {
       try {
-        await updateBoard(selectedBoardId, {
+        await updateBoard(targetId, {
           name: name.trim(),
           columns: columns,
         });
         setIsEditingBoard(false);
+        setEditingBoardId(null);
       } catch (error) {
         console.error("Failed to update board", error);
         setError("Failed to update board.");
@@ -539,20 +562,29 @@ export const TasksView = () => {
   };
 
   const handleShareBoard = () => {
-    if (selectedBoardId) {
-      // Assuming route is /dashboard?boardId=... or similar.
-      // Or maybe the user has a special route.
-      // Let's use window.location.origin + /dashboard?boardId=...
-      // But wait, the app might need to support query params for board selection.
-      // I'll assume I should just copy the current URL if it reflects state, or build one.
-      // Since it's likely a SPA state, I might need to ensure `useEffect` handles it.
-      // The user asked for "make the board shareable".
-      // Let's generate a link like: window.location.origin + "?boardId=" + selectedBoardId
-      const url = `${window.location.origin}?boardId=${selectedBoardId}`;
+    if (selectedBoardId && activeBoard) {
+      const url = `${window.location.origin}/boards/${selectedBoardId}`;
+      const isSharable = activeBoard.isSharable || false;
+
       setShareDialog({
         isOpen: true,
         title: "Share Board",
         content: url,
+        isSharable,
+        onToggle: async (newStatus: boolean) => {
+          setShareDialog((prev) => ({ ...prev, isSharable: newStatus }));
+          try {
+            await updateBoard(selectedBoardId!, { isSharable: newStatus });
+            setBoards((prev) =>
+              prev.map((b) =>
+                b.id === selectedBoardId ? { ...b, isSharable: newStatus } : b,
+              ),
+            );
+          } catch (e) {
+            console.error("Failed to update board share status", e);
+            setShareDialog((prev) => ({ ...prev, isSharable: !newStatus }));
+          }
+        },
       });
     }
   };
@@ -850,6 +882,19 @@ export const TasksView = () => {
                       title="Delete Board"
                     >
                       <X size={16} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingBoardId(board.id);
+                        setEditingBoardName(board.name);
+                        setEditingBoardColumns(board.columns || []);
+                        setIsEditingBoard(true);
+                      }}
+                      className="absolute top-4 right-14 p-2 rounded-full bg-black/20 text-white/20 hover:text-blue-400 hover:bg-blue-500/20 opacity-0 group-hover:opacity-100 transition-all z-10"
+                      title="Edit Board"
+                    >
+                      <Settings size={16} />
                     </button>
                   </div>
                 ))}
@@ -1179,6 +1224,8 @@ export const TasksView = () => {
         onClose={() => setShareDialog((prev) => ({ ...prev, isOpen: false }))}
         title={shareDialog.title}
         content={shareDialog.content}
+        isSharable={shareDialog.isSharable}
+        onToggleShare={shareDialog.onToggle}
       />
 
       {/* Edit Board Dialog */}

@@ -28,7 +28,9 @@ export const useNotes = () => {
     }
   }, [user?.id]);
 
-  const createNote = async (note: Pick<Note, "title" | "content">) => {
+  const createNote = async (
+    note: Pick<Note, "title" | "content" | "isShared">,
+  ) => {
     if (!user?.id) return false;
 
     try {
