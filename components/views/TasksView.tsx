@@ -18,6 +18,8 @@ import {
   Github,
   Settings,
   Link,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -65,6 +67,7 @@ import { TaskDialog } from "../TaskDialog";
 import { BoardDialog } from "../BoardDialog";
 import { ShareDialog } from "../ShareDialog";
 import { DeleteConfirmationDialog } from "../DeleteConfirmationDialog";
+import { TaskBoardCard } from "../tasks/taskBoardCard";
 
 const AVAILABLE_COLUMNS: ColumnType[] = [
   "Backlog",
@@ -137,7 +140,7 @@ const SortableTaskItem = ({
       style={style}
       {...attributes}
       {...listeners}
-      onClick={() => onEdit(task)}
+      {...listeners}
       className={`group relative rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-white/10 touch-none flex flex-col justify-between ${
         isVerticalView
           ? "p-3 flex-row items-center gap-4 mb-2"
@@ -203,9 +206,9 @@ const SortableTaskItem = ({
               onEdit(task); // Quick View / Edit
             }}
             className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white"
-            title="Quick View"
+            title="Edit Task"
           >
-            <Layout size={12} />
+            <Edit2 size={12} />
           </button>
 
           {task.column !== "Done" && task.column !== "Finished" && (
@@ -228,9 +231,9 @@ const SortableTaskItem = ({
               onDelete(task.id);
             }}
             className="p-1 hover:bg-red-500/20 rounded text-white/50 hover:text-red-400"
-            title="Delete"
+            title="Delete Task"
           >
-            <X size={12} />
+            <Trash2 size={12} />
           </button>
           <button
             onClick={(e) => {
@@ -856,47 +859,20 @@ export const TasksView = () => {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {boards.map((board) => (
-                  <div key={board.id} className="relative group">
-                    <button
-                      onClick={() => setSelectedBoardId(board.id)}
-                      className="w-full p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-left"
-                    >
-                      <h3 className="font-semibold text-lg text-white mb-1 group-hover:text-blue-300 transition-colors">
-                        {board.name}
-                      </h3>
-                      <p className="text-xs text-white/40">
-                        Created{" "}
-                        {board.createdAt?.toDate
-                          ? board.createdAt.toDate().toLocaleDateString()
-                          : "Just now"}
-                      </p>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setBoardToDelete(board);
-                      }}
-                      className="absolute top-4 right-4 p-2 rounded-full bg-black/20 text-white/20 hover:text-red-400 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-all z-10"
-                      title="Delete Board"
-                    >
-                      <X size={16} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingBoardId(board.id);
-                        setEditingBoardName(board.name);
-                        setEditingBoardColumns(board.columns || []);
-                        setIsEditingBoard(true);
-                      }}
-                      className="absolute top-4 right-14 p-2 rounded-full bg-black/20 text-white/20 hover:text-blue-400 hover:bg-blue-500/20 opacity-0 group-hover:opacity-100 transition-all z-10"
-                      title="Edit Board"
-                    >
-                      <Settings size={16} />
-                    </button>
-                  </div>
+                  <TaskBoardCard
+                    key={board.id}
+                    board={board}
+                    onClick={() => setSelectedBoardId(board.id)}
+                    onEdit={(b) => {
+                      setEditingBoardId(b.id);
+                      setEditingBoardName(b.name);
+                      setEditingBoardColumns(b.columns || []);
+                      setIsEditingBoard(true);
+                    }}
+                    onDelete={(b) => setBoardToDelete(b)}
+                  />
                 ))}
               </div>
             )}
@@ -910,6 +886,18 @@ export const TasksView = () => {
             isCreation={true}
           />
         )}
+
+        {/* EDIT BOARD DIALOG - Added here for list view */}
+        <BoardDialog
+          isOpen={isEditingBoard}
+          onClose={() => setIsEditingBoard(false)}
+          onSave={handleUpdateBoard}
+          initialName={editingBoardName}
+          initialColumns={editingBoardColumns}
+          title="Board Settings"
+          subtitle="Manage your board's name and workflow."
+          confirmLabel="Save Changes"
+        />
 
         {/* DELETE BOARD CONFIRMATION DIALOG */}
         <DeleteConfirmationDialog
@@ -981,6 +969,34 @@ export const TasksView = () => {
               title="List View"
             >
               <Rows size={16} />
+            </button>
+
+            <div className="w-px h-6 bg-white/10 mx-1" />
+            <button
+              onClick={() => {
+                setEditingBoardId(activeBoard.id);
+                setEditingBoardName(activeBoard.name);
+                setEditingBoardColumns(activeBoard.columns || []);
+                setIsEditingBoard(true);
+              }}
+              className="p-1.5 rounded-md text-white/40 hover:text-white/80 hover:bg-white/10 transition-all"
+              title="Edit Board"
+            >
+              <Edit2 size={16} />
+            </button>
+            <button
+              onClick={handleShareBoard}
+              className={`p-1.5 rounded-md transition-all ${activeBoard.isSharable ? "text-green-400 bg-green-500/10" : "text-white/40 hover:text-white/80 hover:bg-white/10"}`}
+              title="Share Board"
+            >
+              <Share2 size={16} />
+            </button>
+            <button
+              onClick={() => setBoardToDelete(activeBoard)}
+              className="p-1.5 rounded-md text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-all"
+              title="Delete Board"
+            >
+              <Trash2 size={16} />
             </button>
           </div>
 

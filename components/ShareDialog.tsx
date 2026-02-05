@@ -94,8 +94,8 @@ export const ShareDialog = ({
                 </div>
               )}
 
-              {/* Only show link if sharable or if no toggle control (legacy behavior) */}
-              {(isSharable || !onToggleShare) && (
+              {/* Always show link */}
+              {true && (
                 <div className="relative">
                   <input
                     type="text"
