@@ -1,58 +1,97 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { marketData, MarketItem } from "@/components/market/data/marketData";
 import { columns } from "@/components/market/data/columns";
 import { ForexStats } from "@/components/market/ForexStats";
 import { ActiveSymbolSelector } from "@/components/market/ActiveSymbolSelector";
-import { UserBalance, Deal, Trade } from "@/utils/forex-service";
-import { Wallet, Search } from "lucide-react";
+import { UserBalance, Deal, ForexEvent } from "@/utils/forex-service";
+import { Wallet, Search, RefreshCw } from "lucide-react";
 import { useCurrency } from "../../hooks/useCurrency";
 import { ForexChart } from "@/components/market/ForexChart";
 import { generateHistory } from "@/utils/mock-market-data";
 
 import { useMarketData } from "@/hooks/useMarketData";
+import { getState } from "@/services/forex";
 
-const MOCK_TRADES: Trade[] = [
+// Removed local interface definitions in favor of imports
+
+const MOCK_EVENTS: ForexEvent[] = [
   {
-    id: "static_1",
-    user_id: "demo",
+    _id: "EVT|e0fd92f323424417bd6d9aa511f34429",
+    kind: "event",
+    id: "e0fd92f323424417bd6d9aa511f34429",
     symbol: "XAGUSD",
-    status: "closed",
-    pnl: 120.5,
-    date: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    last_event: {
-      payload: {
-        start_price: 24.5,
-        mode: "SCALP",
-        decision: "BUY",
-        action: "ENTER",
-        realized_profit_usd: 120.5,
-        risk: { total_pnl: 120.5 },
-      },
+    day: "2026-02-04",
+    ts: "2026-02-04T06:47:54.096485+03:00",
+    event: "DAY_START",
+    payload: {
+      anchor_day: "2026-02-04",
+      start_price: 83.951,
+      start_bar_time: "2026-02-04T00:00:00+03:00",
     },
-  } as any,
-  {
-    id: "static_2",
-    user_id: "demo",
-    symbol: "XAUUSD",
-    status: "closed",
-    pnl: -45.2,
-    date: new Date(Date.now() - 3600000).toISOString(),
-    updated_at: new Date(Date.now() - 3600000).toISOString(),
-    last_event: {
-      payload: {
-        start_price: 2010.2,
-        mode: "SWING",
-        decision: "SKIP",
-        action: "WAIT",
-        realized_profit_usd: -45.2,
-        risk: { total_pnl: -45.2 },
-      },
+    derived: {
+      positions: null,
+      pnl: null,
+      limits: null,
     },
-  } as any,
+    state_after: {
+      thr_state: {
+        symbol: "XAGUSD",
+        start_price: 83.951,
+        bias: "none",
+        in_trade: false,
+        side: "none",
+        // momentum_tp_price: null,
+        window_hit_count_long: 0,
+        window_hit_count_short: 115,
+        late_armed: false,
+        crossed_1x: true,
+        crossed_1x_bias: "long",
+        time_entered_first: "2026-02-04T00:11:48.438794+03:00",
+      },
+      exec_state: {
+        in_trade: false,
+        side: null,
+        entry_price: null,
+        entry_time: null,
+        realized_profit_usd: 264.75,
+        daily_done: true,
+        last_action: "exited_late",
+        order_in_flight: false,
+        daily_entry_taken: true,
+        executed_zone_ids: [202602041],
+      },
+    } as any, // casting as lazy fix for deep nested
+    balance_snapshot: {
+      ok: true,
+      login: 10009363425,
+      name: "Hithesh Svsk",
+      server: "MetaQuotes-Demo",
+      currency: "USD",
+      leverage: 100,
+      balance: 11244.7,
+      equity: 11244.7,
+      profit: 0,
+      margin: 0,
+      margin_free: 11244.7,
+      margin_level: 0,
+      credit: 0,
+      company: "MetaQuotes Ltd.",
+      trade_mode: 0,
+      limit_orders: 200,
+      connected: true,
+      terminal_info: true,
+      ts_utc: "2026-02-04T03:47:54",
+      ts_server: "2026-02-04T06:47:54+03:00",
+      id: "u1",
+      updated_at: "2026-02-04",
+      user_id: "demo_user",
+      date: "2026-02-04",
+    },
+    createdAt: "2026-02-04T03:47:54",
+  },
 ];
 
 const MOCK_DEALS: Deal[] = [
@@ -143,7 +182,9 @@ const MOCK_BALANCES: UserBalance[] = [
 export const ForexView = () => {
   const [userBalances] = useState<UserBalance[]>(MOCK_BALANCES);
   const [deals] = useState<Deal[]>(MOCK_DEALS);
-  const [trades] = useState<Trade[]>(MOCK_TRADES);
+  const [trades] = useState<ForexEvent[]>(MOCK_EVENTS);
+
+  const [forexState, setForexState] = useState<ForexEvent | null>(null);
 
   const [activeAccountId, setActiveAccountId] = useState<string | null>(
     MOCK_BALANCES[0].id,
@@ -158,52 +199,76 @@ export const ForexView = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const { currencySymbol, exchangeRate, formatCurrency } = useCurrency();
 
-  const { latestData: latestMarketData, historyData: historyMarketData } =
-    useMarketData(activeSymbol);
+  const chartData = useMemo(() => {
+    // Basic mapping from events
+    const realPoints = trades
+      .filter((t) => t.balance_snapshot?.balance)
+      .map((t) => ({
+        time: new Date(t.ts).getTime(),
+        value: t.balance_snapshot.balance,
+        isReal: true,
+      }))
+      .sort((a, b) => a.time - b.time);
+
+    // If we have very little data, prepend some mock history for visual continuity
+    if (realPoints.length > 0 && realPoints.length < 5) {
+      const lastPoint = realPoints[0];
+      const mockHistory = [];
+      for (let i = 5; i > 0; i--) {
+        mockHistory.push({
+          time: lastPoint.time - i * 3600000, // -1 hour per step
+          value: lastPoint.value * (1 - Math.random() * 0.005), // slightly fluctuating history
+          isReal: false,
+        });
+      }
+      return [...mockHistory, ...realPoints];
+    }
+
+    return realPoints.length > 0 ? realPoints : generateHistory(10000);
+  }, [trades]);
 
   const activeAccount = userBalances.find((u: any) => u.id === activeAccountId);
 
   const liveAccount = useMemo(() => {
-    if (latestMarketData && latestMarketData.balance_snapshot) {
+    // Prioritize new API data
+    if (forexState?.balance_snapshot) {
+      const snapshot = forexState.balance_snapshot;
       return {
         ...activeAccount,
-        balance: latestMarketData.balance_snapshot.balance,
-        equity: latestMarketData.balance_snapshot.equity,
-        profit: latestMarketData.balance_snapshot.profit,
+        balance: snapshot.balance,
+        equity: snapshot.equity,
+        profit: snapshot.profit,
+        margin: snapshot.margin,
+        margin_free: snapshot.margin_free,
+        margin_level: snapshot.margin_level,
       } as UserBalance;
     }
-    return activeAccount;
-  }, [activeAccount, latestMarketData]);
+  }, [activeAccount, forexState]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    if (!activeSymbol) return;
+
+    setIsRefreshing(true);
+    try {
+      const response = await getState(activeSymbol);
+      if (response?.ok) {
+        setForexState(response.data ?? null);
+      } else {
+        setForexState(null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch forex state:", error);
+      setForexState(null);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [activeSymbol]);
 
   useEffect(() => {
-    if (userBalances.length > 0 && !activeAccountId) {
-      setActiveAccountId(userBalances[0].id);
-    }
-  }, [userBalances, activeAccountId]);
-
-  const filteredBalances = userBalances.filter(
-    (user) =>
-      user.user_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.name?.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
-
-  const chartData = useMemo(() => {
-    if (historyMarketData.length > 0) {
-      return historyMarketData
-        .filter((item) => item && item.balance_snapshot)
-        .map((item) => ({
-          time: item.ts,
-          value: item.balance_snapshot.balance,
-          isReal: true,
-        }));
-    }
-
-    const baseValue = liveAccount?.balance || 10000;
-    return generateHistory(baseValue, 24).map((point: any) => ({
-      ...point,
-      isReal: true,
-    }));
-  }, [liveAccount, historyMarketData]);
+    fetchData();
+  }, [fetchData]);
 
   const wins = deals.filter((d) => d.profit_usd > 0).length;
   const losses = deals.filter((d) => d.profit_usd <= 0).length;
@@ -286,14 +351,14 @@ export const ForexView = () => {
     [currencySymbol, exchangeRate],
   );
 
-  const tradeColumns = useMemo<Column<Trade>[]>(
+  const tradeColumns = useMemo<Column<ForexEvent>[]>(
     () => [
       {
-        key: "date",
+        key: "day",
         header: "Date",
         render: (trade) => (
           <div className="text-xs text-white/60">
-            {new Date(trade.date).toLocaleString()}
+            {new Date(trade.createdAt).toLocaleString()}
           </div>
         ),
         sortable: true,
@@ -311,25 +376,63 @@ export const ForexView = () => {
         header: "Start Price",
         render: (trade) => (
           <div className="font-mono text-white/80">
-            {trade.last_event?.payload?.start_price?.toFixed(2) || "-"}
+            {trade.state_after?.thr_state?.start_price?.toFixed(2) || "-"}
           </div>
         ),
       },
       {
-        key: "updated_at",
+        key: "ts",
         header: "Last Update",
         render: (trade) => (
           <div className="text-xs text-white/40">
-            {new Date(trade.updated_at).toLocaleTimeString()}
+            {new Date(trade.ts).toLocaleTimeString()}
           </div>
         ),
       },
       {
-        key: "user_id",
+        // @ts-ignore
+        key: "pips",
+        header: "Pips",
+        render: (trade) => (
+          <div className="font-mono text-xs text-white/70">
+            {trade.state_after.thr_state.pips_moved?.toFixed(1) ?? "-"}
+          </div>
+        ),
+      },
+      {
+        // @ts-ignore
+        key: "threshold",
+        header: "Threshold",
+        render: (trade) => (
+          <div className="text-xs">
+            {trade.state_after.thr_state.crossed_1x ? (
+              <span className="text-green-400">Crossed</span>
+            ) : (
+              <span className="text-white/30">-</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        // @ts-ignore
+        key: "entry",
+        header: "Entry",
+        render: (trade) => {
+          const time = trade.state_after.thr_state.time_entered_first;
+          return (
+            <div className="text-xs text-white/40">
+              {time ? new Date(time).toLocaleTimeString() : "-"}
+            </div>
+          );
+        },
+      },
+      {
+        key: "state_after",
         header: `Total PnL (${currencySymbol})`,
         render: (trade) => {
           const pnl =
-            (trade.last_event?.payload?.risk?.total_pnl ?? 0) * exchangeRate;
+            (trade.state_after?.exec_state?.realized_profit_usd ?? 0) *
+            exchangeRate;
           return (
             <div
               className={`font-bold ${pnl > 0 ? "text-green-400" : pnl < 0 ? "text-red-400" : "text-white/60"}`}
@@ -345,12 +448,57 @@ export const ForexView = () => {
         },
       },
       {
-        key: "last_event",
+        key: "state_after",
         header: "Status",
         render: (trade) => (
           <span className="px-2 py-1 rounded-md bg-white/5 text-[10px] uppercase text-white/50 border border-white/5">
-            {trade.last_event?.payload?.mode || "Unknown"}
+            {trade.state_after?.thr_state?.bias || "Unknown"}
           </span>
+        ),
+      },
+      {
+        // @ts-ignore
+        key: "action",
+        header: "Action",
+        render: (trade) => (
+          <div className="text-xs uppercase text-blue-300">
+            {trade.state_after.exec_state?.last_action || "-"}
+          </div>
+        ),
+      },
+      {
+        // @ts-ignore
+        key: "done",
+        header: "Done",
+        render: (trade) => (
+          <div
+            className={`text-xs ${trade.state_after.exec_state?.daily_done ? "text-green-400" : "text-white/30"}`}
+          >
+            {trade.state_after.exec_state?.daily_done ? "YES" : "NO"}
+          </div>
+        ),
+      },
+      {
+        // @ts-ignore
+        key: "hits",
+        header: "Hits (L/S)",
+        render: (trade) => (
+          <div className="text-xs font-mono text-white/50">
+            {trade.state_after.thr_state?.window_hit_count_long || 0} /{" "}
+            {trade.state_after.thr_state?.window_hit_count_short || 0}
+          </div>
+        ),
+      },
+      {
+        // @ts-ignore
+        key: "armed",
+        header: "Armed",
+        render: (trade) => (
+          <div
+            className={`text-xs ${trade.state_after.thr_state?.late_armed ? "text-yellow-400" : "text-white/30"}`}
+          >
+            {trade.state_after.thr_state?.late_armed ? "YES" : "NO"}
+          </div>
         ),
       },
     ],
@@ -363,6 +511,8 @@ export const ForexView = () => {
         <ActiveSymbolSelector
           selectedSymbol={activeMarketItem}
           onSelect={setActiveMarketItem}
+          onRefresh={fetchData}
+          isRefreshing={isRefreshing}
         />
       </ForexStats>
 
@@ -399,9 +549,16 @@ export const ForexView = () => {
               Detailed Trade Log
             </h3>
             <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+              {forexState && forexState.state_after && (
+                <TradeDetailCard
+                  state={forexState}
+                  currencySymbol={currencySymbol}
+                  exchangeRate={exchangeRate}
+                />
+              )}
               {trades.map((trade) => (
                 <TradeDetailCard
-                  key={trade.id}
+                  key={trade._id}
                   trade={trade}
                   currencySymbol={currencySymbol}
                   exchangeRate={exchangeRate}
@@ -436,7 +593,7 @@ export const ForexView = () => {
             />
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+          {/* <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
             {filteredBalances.length === 0 ? (
               <div className="text-center py-8 text-white/30 text-sm">
                 No users found
@@ -446,11 +603,10 @@ export const ForexView = () => {
                 <div
                   key={user.id}
                   onClick={() => setActiveAccountId(user.id)}
-                  className={`p-3 rounded-2xl border transition-colors flex justify-between items-center group cursor-pointer ${
-                    activeAccount?.id === user.id
-                      ? "bg-white/10 border-blue-500/50"
-                      : "bg-white/5 border-white/5 hover:bg-white/10"
-                  }`}
+                  className={`p - 3 rounded - 2xl border transition - colors flex justify - between items - center group cursor - pointer ${ activeAccount?.id === user.id
+    ? "bg-white/10 border-blue-500/50"
+    : "bg-white/5 border-white/5 hover:bg-white/10"
+                    }`}
                 >
                   <div className="flex-1 min-w-0 pr-4">
                     <div
@@ -474,7 +630,7 @@ export const ForexView = () => {
                 </div>
               ))
             )}
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
@@ -483,14 +639,45 @@ export const ForexView = () => {
 
 const TradeDetailCard = ({
   trade,
+  state,
   currencySymbol,
   exchangeRate,
 }: {
-  trade: Trade;
+  trade?: ForexEvent;
+  state?: ForexEvent;
   currencySymbol: string;
   exchangeRate: number;
 }) => {
-  const payload = trade.last_event?.payload;
+  let payload: any = trade;
+  let isLive = false;
+
+  // If live state is passed, prioritise it
+  const source = state || trade;
+
+  if (source && source.state_after) {
+    const thr = source.state_after.thr_state;
+    const exec = source.state_after.exec_state;
+    payload = {
+      decision: thr.bias,
+      action: thr.side,
+      mode: thr.in_trade ? "IN TRADE" : "MONITORING",
+      realized_profit_usd: exec.realized_profit_usd,
+      pips_moved: thr.pips_moved || 0,
+      threshold_x: thr.threshold_x || 0,
+      start_price: thr.start_price,
+      current_bid: thr.current_bid || 0,
+      updated_at: source.ts,
+      // Exec details
+      last_action: exec.last_action,
+      daily_done: exec.daily_done,
+      daily_entry_taken: exec.daily_entry_taken,
+      // Thr details
+      window_hit_count_long: thr.window_hit_count_long,
+      window_hit_count_short: thr.window_hit_count_short,
+      late_armed: thr.late_armed,
+    };
+  }
+
   if (!payload) return null;
 
   const formatDate = (date: string) => new Date(date).toLocaleString();
@@ -498,7 +685,7 @@ const TradeDetailCard = ({
     const converted = val * exchangeRate;
     return `${converted < 0 ? "-" : ""}${currencySymbol}${Math.abs(
       converted,
-    ).toFixed(2)}`;
+    ).toFixed(2)} `;
   };
 
   return (
@@ -506,20 +693,24 @@ const TradeDetailCard = ({
       <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h4 className="font-bold text-white text-lg">{trade.symbol}</h4>
+            <h4 className="font-bold text-white text-lg">
+              {state?.state_after.thr_state.symbol || trade?.symbol}
+            </h4>
             <span
               className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${
-                payload.decision === "WAIT"
+                payload.decision === "WAIT" || payload.decision === "none"
                   ? "bg-yellow-500/20 text-yellow-500"
-                  : payload.decision.includes("SKIP")
+                  : payload.decision?.includes("SKIP")
                     ? "bg-purple-500/20 text-purple-400"
                     : "bg-blue-500/20 text-blue-400"
-              }`}
+              } `}
             >
-              {payload.decision}
+              {payload.decision || "WAIT"}
             </span>
             <span className="text-[10px] text-white/40 font-mono">
-              {formatDate(trade.updated_at)}
+              {formatDate(
+                payload.updated_at || trade?.ts || new Date().toISOString(),
+              )}
             </span>
           </div>
           <div className="text-xs text-white/50 flex items-center gap-2">
@@ -540,6 +731,7 @@ const TradeDetailCard = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        {/* Market State & Metrics */}
         <div className="space-y-2 bg-black/20 p-3 rounded-lg">
           <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
             Metrics
@@ -566,6 +758,62 @@ const TradeDetailCard = ({
             <span className="text-white/40">Current Bid</span>
             <span className="text-white font-mono">
               {payload.current_bid?.toFixed(2) ?? "-"}
+            </span>
+          </div>
+        </div>
+
+        {/* Execution Details */}
+        <div className="space-y-2 bg-black/20 p-3 rounded-lg">
+          <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
+            Execution
+          </h5>
+          <div className="flex justify-between">
+            <span className="text-white/40">Last Action</span>
+            <span className="text-white font-mono uppercase text-blue-300">
+              {payload.last_action || "-"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Daily Done</span>
+            <span
+              className={`font-mono ${payload.daily_done ? "text-green-400" : "text-white/50"}`}
+            >
+              {payload.daily_done ? "YES" : "NO"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Entry Taken</span>
+            <span
+              className={`font-mono ${payload.daily_entry_taken ? "text-green-400" : "text-white/50"}`}
+            >
+              {payload.daily_entry_taken ? "YES" : "NO"}
+            </span>
+          </div>
+        </div>
+
+        {/* Threshold Stats */}
+        <div className="space-y-2 bg-black/20 p-3 rounded-lg">
+          <h5 className="font-semibold text-white/70 mb-2 border-b border-white/10 pb-1">
+            Thresholds
+          </h5>
+          <div className="flex justify-between">
+            <span className="text-white/40">Long Hits</span>
+            <span className="text-white font-mono">
+              {payload.window_hit_count_long ?? 0}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Short Hits</span>
+            <span className="text-white font-mono">
+              {payload.window_hit_count_short ?? 0}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-white/40">Late Armed</span>
+            <span
+              className={`font-mono ${payload.late_armed ? "text-yellow-400" : "text-white/50"}`}
+            >
+              {payload.late_armed ? "YES" : "NO"}
             </span>
           </div>
         </div>

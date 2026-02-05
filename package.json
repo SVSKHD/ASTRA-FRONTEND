@@ -46,6 +46,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "husky": "^9.1.7",
+    "mini-css-extract-plugin": "^2.10.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

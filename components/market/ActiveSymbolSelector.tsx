@@ -9,11 +9,15 @@ import { MarketItem, marketData } from "./data/marketData";
 interface ActiveSymbolSelectorProps {
   selectedSymbol: MarketItem;
   onSelect: (item: MarketItem) => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export const ActiveSymbolSelector = ({
   selectedSymbol,
   onSelect,
+  onRefresh,
+  isRefreshing,
 }: ActiveSymbolSelectorProps) => {
   const [showOptions, setShowOptions] = useState(false);
 
@@ -22,6 +26,8 @@ export const ActiveSymbolSelector = ({
       <ActiveSymbolCard
         data={selectedSymbol}
         onClick={() => setShowOptions(!showOptions)}
+        onRefresh={onRefresh}
+        isRefreshing={isRefreshing}
       />
 
       <AnimatePresence>

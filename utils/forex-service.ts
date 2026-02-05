@@ -5,6 +5,58 @@ import UserBalanceModel from "@/lib/models/UserBalance";
 import DealModel from "@/lib/models/Deal";
 import TradeModel from "@/lib/models/Trade";
 
+export interface ThrState {
+  symbol: string;
+  bias: string;
+  in_trade: boolean;
+  side: string;
+  start_price: number;
+  time_entered_first?: string | null;
+  crossed_1x?: boolean;
+  // extras
+  pips_moved?: number;
+  threshold_x?: number;
+  current_bid?: number;
+  momentum_tp_price?: number;
+  window_hit_count_long?: number;
+  window_hit_count_short?: number;
+  late_armed?: boolean;
+}
+
+export interface ExecState {
+  in_trade: boolean;
+  side: string | null;
+  entry_price: number | null;
+  entry_time: string | null;
+  realized_profit_usd: number;
+  last_action?: string | null;
+  daily_done?: boolean;
+  daily_entry_taken?: boolean;
+  executed_zone_ids?: number[];
+}
+
+export interface ForexEvent {
+  _id: string;
+  kind: string;
+  id: string;
+  symbol: string;
+  day: string;
+  ts: string;
+  event: string;
+  payload: any;
+  derived: {
+    positions: any;
+    pnl: any;
+    limits: any;
+  };
+  state_after: {
+    thr_state: ThrState;
+    exec_state: ExecState;
+  };
+  balance_snapshot: UserBalance;
+  createdAt: string;
+}
+
 export interface UserBalance {
   id: string;
   balance: number;

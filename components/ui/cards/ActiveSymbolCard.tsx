@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 export interface ActiveSymbolCardProps {
@@ -10,6 +10,8 @@ export interface ActiveSymbolCardProps {
     trades?: number;
   };
   onClick?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 const getSymbolStyle = (pair: string) => {
@@ -46,7 +48,12 @@ const getSymbolStyle = (pair: string) => {
   };
 };
 
-export const ActiveSymbolCard = ({ data, onClick }: ActiveSymbolCardProps) => {
+export const ActiveSymbolCard = ({
+  data,
+  onClick,
+  onRefresh,
+  isRefreshing,
+}: ActiveSymbolCardProps) => {
   const style = getSymbolStyle(data.pair);
   const displayCode = data.code || style.code;
   const displayName = data.name || style.name;
@@ -63,6 +70,24 @@ export const ActiveSymbolCard = ({ data, onClick }: ActiveSymbolCardProps) => {
         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
           <TrendingUp size={80} className="text-white" />
         </div>
+
+        {onRefresh && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRefresh();
+            }}
+            disabled={isRefreshing}
+            className={`absolute top-4 right-4 p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all z-20 ${
+              isRefreshing ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
+            <RefreshCw
+              size={16}
+              className={isRefreshing ? "animate-spin" : ""}
+            />
+          </button>
+        )}
 
         <h3 className="text-white/60 font-medium text-sm mb-1 uppercase tracking-wider">
           Active Symbol
