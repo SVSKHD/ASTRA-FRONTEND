@@ -1,5 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useDialogTracking } from "@/hooks/useDialogTracking";
 import { AlertCircle } from "lucide-react";
 
 interface DeleteConfirmationDialogProps {
@@ -19,6 +20,7 @@ export const DeleteConfirmationDialog = ({
   description,
   loading = false,
 }: DeleteConfirmationDialogProps) => {
+  useDialogTracking(isOpen);
   React.useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";

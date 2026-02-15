@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Copy, Check, Globe, Lock } from "lucide-react";
+import { useDialogTracking } from "@/hooks/useDialogTracking";
 
 interface ShareDialogProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const ShareDialog = ({
   isSharable = false,
   onToggleShare,
 }: ShareDialogProps) => {
+  useDialogTracking(isOpen);
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {

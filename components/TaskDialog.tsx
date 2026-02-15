@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useDialogTracking } from "@/hooks/useDialogTracking";
 import {
   X,
   Calendar,
@@ -44,6 +45,7 @@ export const TaskDialog = ({
   initialTask,
   members = [],
 }: TaskDialogProps) => {
+  useDialogTracking(isOpen);
   const [content, setContent] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("Medium");

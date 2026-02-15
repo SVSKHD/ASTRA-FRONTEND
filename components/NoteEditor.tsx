@@ -1,7 +1,18 @@
 import React from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Bold, Italic, List, ListOrdered, Undo, Redo } from "lucide-react";
+import {
+  Bold,
+  Italic,
+  List as ListIcon,
+  ListOrdered,
+  Undo,
+  Redo,
+  Heading1,
+  Heading2,
+  Heading3,
+  Type,
+} from "lucide-react";
 
 interface NoteEditorProps {
   content: string;
@@ -65,7 +76,38 @@ export const NoteEditor = ({
   return (
     <div className="flex flex-col h-full bg-white/5 rounded-xl border border-white/5 overflow-hidden">
       {editable && (
-        <div className="flex items-center gap-1 p-2 border-b border-white/5 bg-white/5">
+        <div className="flex items-center gap-1 p-2 border-b border-white/5 bg-white/5 flex-wrap">
+          <ToolbarButton
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 1 }).run()
+            }
+            active={editor.isActive("heading", { level: 1 })}
+          >
+            <Heading1 size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 2 }).run()
+            }
+            active={editor.isActive("heading", { level: 2 })}
+          >
+            <Heading2 size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 3 }).run()
+            }
+            active={editor.isActive("heading", { level: 3 })}
+          >
+            <Heading3 size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => editor.chain().focus().setParagraph().run()}
+            active={editor.isActive("paragraph")}
+          >
+            <Type size={16} />
+          </ToolbarButton>
+          <div className="w-[1px] h-4 bg-white/10 mx-1" />
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleBold().run()}
             active={editor.isActive("bold")}
@@ -83,7 +125,7 @@ export const NoteEditor = ({
             onClick={() => editor.chain().focus().toggleBulletList().run()}
             active={editor.isActive("bulletList")}
           >
-            <List size={16} />
+            <ListIcon size={16} />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleOrderedList().run()}

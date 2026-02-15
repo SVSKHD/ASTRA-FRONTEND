@@ -681,7 +681,10 @@ export const TasksView = () => {
 
   const confirmDeleteTask = async () => {
     if (deleteConfirmation.taskId) {
-      await firebaseDeleteTask(deleteConfirmation.taskId);
+      await firebaseDeleteTask(
+        deleteConfirmation.taskId,
+        selectedBoardId || undefined,
+      );
       if (editingTask?.id === deleteConfirmation.taskId) {
         setEditingTask(null);
       }

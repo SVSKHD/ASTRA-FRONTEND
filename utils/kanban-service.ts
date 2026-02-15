@@ -14,6 +14,7 @@ import {
   writeBatch,
   or,
   arrayUnion,
+  increment,
 } from "firebase/firestore";
 import { UserProfile } from "../context/UserContext";
 
@@ -58,6 +59,7 @@ export interface Board {
   members?: UserProfile[]; // Shared members
   memberIds?: string[]; // For querying
   isSharable?: boolean;
+  taskCount?: number;
 }
 
 export const createBoard = async (
@@ -73,6 +75,7 @@ export const createBoard = async (
       createdAt: serverTimestamp(),
       members: [],
       memberIds: [],
+      taskCount: 0,
     });
     return docRef.id;
   } catch (e) {
@@ -168,6 +171,12 @@ export const addTask = async (
     priority: "Medium",
     createdAt: serverTimestamp(),
   });
+
+  // Increment board task count
+  const boardRef = doc(db, "astra-boards", boardId);
+  await updateDoc(boardRef, {
+    taskCount: increment(1),
+  });
 };
 
 // Helper to remove undefined keys
@@ -224,8 +233,15 @@ export const moveTask = async (taskId: string, newColumn: ColumnType) => {
   });
 };
 
-export const deleteTask = async (taskId: string) => {
+export const deleteTask = async (taskId: string, boardId?: string) => {
   await deleteDoc(doc(db, "astra-tasks", taskId));
+
+  if (boardId) {
+    const boardRef = doc(db, "astra-boards", boardId);
+    await updateDoc(boardRef, {
+      taskCount: increment(-1),
+    });
+  }
 };
 
 export const deleteBoard = async (boardId: string) => {

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, ArrowRightLeft, DollarSign, Euro, IndianRupee } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Currency } from "@/context/CurrencyContext";
+import { useDialogTracking } from "@/hooks/useDialogTracking";
 
 interface CurrencyConverterDialogProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const CurrencyConverterDialog = ({
   isOpen,
   onClose,
 }: CurrencyConverterDialogProps) => {
+  useDialogTracking(isOpen);
   const { rates, currency: contextCurrency } = useCurrency();
   const [amount, setAmount] = useState<number | "">("");
   const [fromCurrency, setFromCurrency] = useState<Currency>(contextCurrency);

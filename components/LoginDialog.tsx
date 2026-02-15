@@ -4,6 +4,7 @@ import { X, LogOut, User as UserIcon, Lock } from "lucide-react";
 import { signInWithPopup, signOut, User } from "firebase/auth";
 import { auth, googleProvider } from "../utils/firebase";
 import { useUser } from "@/context/UserContext";
+import { useDialogTracking } from "@/hooks/useDialogTracking";
 
 interface LoginDialogProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const LoginDialog = ({
   onClose: () => void;
   user: any;
 }) => {
+  useDialogTracking(isOpen);
   const { user, updateUser } = useUser();
   const [pin, setPin] = useState("");
   const [isEditingPin, setIsEditingPin] = useState(false);

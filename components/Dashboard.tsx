@@ -25,6 +25,7 @@ import { useUser } from "@/context/UserContext";
 import { useCurrency } from "../hooks/useCurrency";
 import useBreakpoints from "../hooks/useBreakpoints";
 import { Currency } from "@/context/CurrencyContext";
+import { useDialogContext } from "@/context/DialogContext";
 
 import { subscribeToReminders, Reminder } from "@/services/remindersService";
 import { X, Bell } from "lucide-react";
@@ -170,7 +171,12 @@ export default function Dashboard({ onLock }: DashboardProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeTabId, visibleTabs]);
 
+  // Check for open dialogs
+  const { isAnyDialogOpen } = useDialogContext();
+
   const handleTabChange = (id: string) => {
+    if (isAnyDialogOpen) return;
+
     setActiveTabId(id);
     localStorage.setItem("astra-active-tab", id);
 

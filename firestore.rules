@@ -12,6 +12,11 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
+    // specific rules for the 'astra-user-tokens' collection (Github Integration)
+    match /astra-user-tokens/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
     // Forex: any signed-in user can READ; only admins can WRITE
     match /forex/{docId} {
       allow read:  if isSignedIn();

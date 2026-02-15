@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar, Clock, RotateCw, Tag } from "lucide-react";
 import { RecurrenceType } from "@/services/remindersService";
+import { useDialogTracking } from "@/hooks/useDialogTracking";
 
 export interface ReminderData {
   title: string;
@@ -33,6 +34,7 @@ export const ReminderDialog = ({
   onSave,
   initialData,
 }: ReminderDialogProps) => {
+  useDialogTracking(isOpen);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");

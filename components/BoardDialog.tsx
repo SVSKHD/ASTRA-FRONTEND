@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Check } from "lucide-react";
 import { ColumnType } from "@/utils/kanban-service";
+import { useDialogTracking } from "@/hooks/useDialogTracking";
 
 const AVAILABLE_COLUMNS: ColumnType[] = [
   "Backlog",
@@ -46,6 +47,7 @@ export const BoardDialog = ({
   confirmLabel = "Create Board",
   isCreation = false,
 }: BoardDialogProps) => {
+  useDialogTracking(isOpen);
   const [name, setName] = useState(initialName);
   const [columns, setColumns] = useState<ColumnType[]>(
     initialColumns || (isCreation ? DEFAULT_SELECTION : []),

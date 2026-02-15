@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar, Flag, AlignLeft } from "lucide-react";
 import { Goal, GoalPriority, addGoal, updateGoal } from "@/utils/goals-service";
 import { useUser } from "@/context/UserContext";
+import { useDialogTracking } from "@/hooks/useDialogTracking";
 import { DatePicker } from "@/components/ui/DatePicker";
 
 interface GoalDialogProps {
@@ -12,6 +13,7 @@ interface GoalDialogProps {
 }
 
 export const GoalDialog = ({ isOpen, onClose, goal }: GoalDialogProps) => {
+  useDialogTracking(isOpen);
   const { user } = useUser();
   const [title, setTitle] = useState("");
   const [deadline, setDeadline] = useState("");

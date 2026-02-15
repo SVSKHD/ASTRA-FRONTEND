@@ -35,31 +35,8 @@ export const TaskBoardCard = ({
       onClick={onClick}
       className="group relative p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 transition-all cursor-pointer backdrop-blur-sm overflow-hidden"
     >
-      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-        {onEdit && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(board);
-            }}
-            className="p-2 rounded-lg bg-black/50 text-white/70 hover:text-white hover:bg-black/70 backdrop-blur-md transition-all"
-            title="Edit Board"
-          >
-            <Edit2 size={14} />
-          </button>
-        )}
-        {onDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(board);
-            }}
-            className="p-2 rounded-lg bg-black/50 text-white/70 hover:text-red-400 hover:bg-black/70 backdrop-blur-md transition-all"
-            title="Delete Board"
-          >
-            <Trash2 size={14} />
-          </button>
-        )}
+      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Actions moved to footer */}
       </div>
 
       <div className="flex flex-col h-full justify-between gap-4">
@@ -75,7 +52,8 @@ export const TaskBoardCard = ({
             )}
           </div>
           <p className="text-sm text-white/50 line-clamp-2">
-            {board.columns?.length || 0} Columns •{" "}
+            {board.columns?.length || 0} Columns • {board.taskCount || 0} Tasks
+            •{" "}
             {board.members?.length
               ? `${board.members.length} Members`
               : "Private"}
@@ -83,12 +61,41 @@ export const TaskBoardCard = ({
         </div>
 
         <div className="flex items-center gap-4 text-xs text-white/30 border-t border-white/5 pt-3 mt-1">
-          <div className="flex items-center gap-1.5">
-            <Calendar size={12} />
-            <span>{formatTimeAgo(board.createdAt)}</span>
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <Calendar size={12} className="shrink-0" />
+            <span className="truncate">{formatTimeAgo(board.createdAt)}</span>
+
+            {/* Actions beside time */}
+            <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              {onEdit && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(board);
+                  }}
+                  className="p-1 hover:text-white hover:bg-white/10 rounded transition-colors"
+                  title="Edit Board"
+                >
+                  <Edit2 size={12} />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(board);
+                  }}
+                  className="p-1 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                  title="Delete Board"
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
+            </div>
           </div>
+
           {board.members && board.members.length > 0 && (
-            <div className="flex items-center gap-1.5 ml-auto">
+            <div className="flex items-center gap-1.5 ml-auto shrink-0">
               <Users size={12} />
               <div className="flex -space-x-1.5">
                 {board.members.slice(0, 3).map((m) => (

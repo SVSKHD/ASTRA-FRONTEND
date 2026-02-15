@@ -17,6 +17,7 @@ import {
   Bot,
   Bitcoin,
   Bell,
+  Github,
 } from "lucide-react";
 import { IndianView } from "@/components/views/Indian";
 import { CryptoView } from "@/components/views/CryptoView";
@@ -25,6 +26,7 @@ import { NotesView } from "@/components/views/NotesView";
 import { TasksView } from "@/components/views/TasksView";
 import { RemindersView } from "@/components/views/RemindersView";
 import { RequestAccessView } from "@/components/views/RequestAccessView";
+import { GithubReposView } from "@/components/views/GithubReposView";
 
 export interface TabConfig {
   id: string;
@@ -119,6 +121,13 @@ export const tabsConfig: TabConfig[] = [
     caption: "Manage your bots",
     icon: Bot,
     component: <BotsView />,
+  },
+  {
+    id: "github",
+    label: "Github",
+    caption: "Code Repositories",
+    icon: Github,
+    component: <GithubReposView />,
   },
   {
     id: "reminders",
