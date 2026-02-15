@@ -40,32 +40,42 @@ const GITHUB_API_BASE = "https://api.github.com";
 
 // --- Authentication & Token Management ---
 
+// Replaced popup with redirect flow to match callback URL configuration
 export const connectGitHub = async (): Promise<User | null> => {
-  try {
-    const result = await signInWithPopup(auth, githubProvider);
-    const credential = GithubAuthProvider.credentialFromResult(result);
-    const token = credential?.accessToken;
-    const user = result.user;
+  // We need to redirect to GitHub OAuth
+  const GITHUB_CLIENT_ID = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
+  const REDIRECT_URI = `${window.location.origin}/api/auth/callback/github`;
 
-    // Check for username in providerData (usually the first one for GitHub)
-    // GitHub providerId is 'github.com'
-    const githubProfile = user.providerData.find(
-      (p) => p.providerId === "github.com",
-    );
-    // If displayName is available, or we might need to fetch user profile to get 'login' (username)
-    // But let's try to save what we have.
-    const username =
-      githubProfile?.displayName || user.displayName || "unknown";
-
-    if (user && token) {
-      await saveToken(user.uid, token, username);
-      return user;
-    }
+  if (!GITHUB_CLIENT_ID) {
+    console.error("Missing NEXT_PUBLIC_GITHUB_CLIENT_ID");
+    alert("GitHub Client ID is missing in environment variables.");
     return null;
-  } catch (error) {
-    console.error("GitHub Login Error:", error);
-    throw error;
   }
+
+  const scope = "repo user";
+  const state = Math.random().toString(36).substring(7);
+
+  // Store state for verification if needed
+  sessionStorage.setItem("github_oauth_state", state);
+
+  const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(
+    REDIRECT_URI,
+  )}&scope=${scope}&state=${state}`;
+
+  window.location.href = authUrl;
+  return null; // Function will not return as page redirects
+};
+
+// Helper to handle token return
+export const handleGitHubCallback = async (token: string, user: User) => {
+  if (user && token) {
+    // Need to get username from github API since we just have token
+    // Or we can just use the user's current display name or email prefix
+    const username = user.displayName || user.email?.split("@")[0] || "unknown";
+    await saveToken(user.uid, token, username);
+    return true;
+  }
+  return false;
 };
 
 const saveToken = async (userId: string, token: string, username: string) => {

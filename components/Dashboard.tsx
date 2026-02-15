@@ -28,6 +28,8 @@ import { Currency } from "@/context/CurrencyContext";
 import { useDialogContext } from "@/context/DialogContext";
 
 import { subscribeToReminders, Reminder } from "@/services/remindersService";
+import { handleGitHubCallback } from "@/services/githubService";
+import { useRouter, useSearchParams } from "next/navigation";
 import { X, Bell } from "lucide-react";
 
 interface DashboardProps {
@@ -78,6 +80,32 @@ export default function Dashboard({ onLock }: DashboardProps) {
   const { currency, setCurrency } = useCurrency();
   const { user: appUser, loading } = useUser();
   const { isMobile, isTablet, isDesktop } = useBreakpoints();
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [processingAuth, setProcessingAuth] = useState(false);
+
+  // Handle GitHub OAuth Callback
+  useEffect(() => {
+    const token = searchParams.get("github_token");
+    const error = searchParams.get("error");
+
+    if (token) {
+      setProcessingAuth(true);
+      if (appUser) {
+        handleGitHubCallback(token, appUser as any).then((success) => {
+          if (success) {
+            // Remove from URL
+            router.replace("/");
+          }
+          setProcessingAuth(false);
+        });
+      }
+    } else if (error) {
+      console.error("GitHub Auth Error:", error);
+      router.replace("/");
+    }
+  }, [searchParams, appUser, router]);
 
   const showDesktopTabs = !isMobile;
   const showCurrencyLabel = !isMobile;
@@ -306,12 +334,12 @@ export default function Dashboard({ onLock }: DashboardProps) {
   const activeTab =
     visibleTabs.find((tab) => tab.id === activeTabId) || visibleTabs[0];
 
-  if (loading) {
+  if (loading || processingAuth) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
         <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
         <span className="text-white/40 font-medium tracking-[0.2em] text-sm animate-pulse">
-          ASTRA TRADING
+          {processingAuth ? "CONNECTING TO GITHUB..." : "ASTRA TRADING"}
         </span>
       </div>
     );
