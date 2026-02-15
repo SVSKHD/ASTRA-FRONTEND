@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import { Lock, Unlock, Delete } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import useBreakpoints from "@/hooks/useBreakpoints";
@@ -69,7 +69,7 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
   };
 
   // Staggered children variants
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0, scale: 0.95 },
     visible: {
       opacity: 1,
@@ -77,7 +77,7 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
       transition: {
         staggerChildren: 0.05,
         delayChildren: 0.1,
-        type: "spring",
+        type: "spring" as const,
         stiffness: 300,
         damping: 30,
       },
@@ -85,12 +85,12 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
     exit: { opacity: 0, scale: 0.95 },
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { type: "spring", stiffness: 300, damping: 24 },
+      transition: { type: "spring" as const, stiffness: 300, damping: 24 },
     },
   };
 
@@ -106,8 +106,8 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
           {/* Optimized Background for Mobile */}
           <div className="absolute inset-0 z-0">
             {isMobile ? (
-              // Simple gradient for mobile performance
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-black to-purple-900/20" />
+              // Simple gradient for mobile performance - Clean & Fast
+              <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#000] to-[#111]" />
             ) : (
               // Heavy blur for desktop
               <>
@@ -116,7 +116,10 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
                 <div className="absolute inset-0 backdrop-blur-3xl bg-black/40" />
               </>
             )}
-            <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03]" />
+            {/* Noise only on desktop */}
+            {!isMobile && (
+              <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03]" />
+            )}
           </div>
 
           {/* Main Container */}
@@ -182,6 +185,7 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
                   value={num.toString()}
                   onClick={() => handleNumClick(num.toString())}
                   disabled={success}
+                  isMobile={isMobile}
                 />
               ))}
               <div /> {/* Spacer */}
@@ -189,6 +193,7 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
                 value="0"
                 onClick={() => handleNumClick("0")}
                 disabled={success}
+                isMobile={isMobile}
               />
               <div className="flex items-center justify-center">
                 {pin.length > 0 && (
@@ -224,10 +229,12 @@ const KeypadButton = ({
   value,
   onClick,
   disabled,
+  isMobile,
 }: {
   value: string;
   onClick: () => void;
   disabled: boolean;
+  isMobile: boolean;
 }) => {
   return (
     <motion.button
@@ -237,14 +244,17 @@ const KeypadButton = ({
       disabled={disabled}
       className={`
         w-[72px] h-[72px] rounded-full 
-        bg-white/10 backdrop-blur-md 
-        border border-white/5 
         flex items-center justify-center 
         text-3xl font-light text-white 
-        shadow-lg transition-colors
+        transition-colors
         active:backdrop-blur-none
         outline-none select-none
         ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}
+        ${
+          isMobile
+            ? "bg-white/10 border-0" // Fastest for mobile: no blur, no border, no shadow
+            : "bg-white/10 backdrop-blur-md border border-white/5 shadow-lg" // Desktop: Glass effect
+        }
       `}
     >
       {value}
