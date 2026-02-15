@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Dashboard from "../components/Dashboard";
 import LockScreen from "../components/LockScreen";
 
@@ -36,7 +36,9 @@ export default function Home() {
             : "transition-all duration-500 min-h-screen"
         }
       >
-        <Dashboard onLock={() => setIsLocked(true)} />
+        <Suspense fallback={<div className="min-h-screen bg-black" />}>
+          <Dashboard onLock={() => setIsLocked(true)} />
+        </Suspense>
       </div>
     </div>
   );
