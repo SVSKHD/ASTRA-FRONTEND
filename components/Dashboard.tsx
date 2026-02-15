@@ -521,7 +521,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
                       <Palette size={16} />
                     </button>
                     {showColorPicker && (
-                      <div className="absolute top-12 left-1/2 -translate-x-1/2 z-[150]">
+                      <div className="absolute top-12 left-[-60px] z-[150]">
                         <GradientPicker
                           initialBackground={background}
                           onChange={setBackground}

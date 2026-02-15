@@ -4,6 +4,7 @@ import { X, Share2, Check, Globe, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useDialogTracking } from "@/hooks/useDialogTracking";
 import { useFormDraft } from "@/hooks/useFormDraft";
+import { Portal } from "./ui/Portal";
 
 const NoteEditor = dynamic(
   () => import("./NoteEditor").then((mod) => mod.NoteEditor),

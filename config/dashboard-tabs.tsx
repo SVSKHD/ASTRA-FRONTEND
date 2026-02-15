@@ -18,6 +18,7 @@ import {
   Bitcoin,
   Bell,
   Github,
+  BookOpen,
 } from "lucide-react";
 import { IndianView } from "@/components/views/Indian";
 import { CryptoView } from "@/components/views/CryptoView";
@@ -27,6 +28,7 @@ import { TasksView } from "@/components/views/TasksView";
 import { RemindersView } from "@/components/views/RemindersView";
 import { RequestAccessView } from "@/components/views/RequestAccessView";
 import { GithubReposView } from "@/components/views/GithubReposView";
+import { JournalView } from "@/components/views/JournalView";
 
 export interface TabConfig {
   id: string;
@@ -68,6 +70,13 @@ export const tabsConfig: TabConfig[] = [
     icon: Bitcoin,
     component: <CryptoView />,
     allowedRoles: ["admin"],
+  },
+  {
+    id: "journal",
+    label: "Journal",
+    caption: "Track your journey",
+    icon: BookOpen,
+    component: <JournalView />,
   },
   {
     id: "notes",

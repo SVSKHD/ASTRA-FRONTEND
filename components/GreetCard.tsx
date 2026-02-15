@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Cloud, Sun, Moon } from "lucide-react";
+import { Cloud, Sun, Moon, MapPin } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 
 import { Reminder } from "@/services/remindersService";
@@ -23,6 +23,7 @@ export const GreetCard = ({
   const [greeting, setGreeting] = useState("");
   const [date, setDate] = useState("");
   const [quote, setQuote] = useState("");
+  const [location, setLocation] = useState<string>("");
 
   useEffect(() => {
     const updateTime = () => {
@@ -58,6 +59,16 @@ export const GreetCard = ({
       "Create your own sunshine.",
     ];
     setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+
+    // Fetch Location
+    fetch("https://ipapi.co/json/")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.city) {
+          setLocation(data.city);
+        }
+      })
+      .catch((err) => console.error("Failed to fetch location", err));
 
     return () => clearInterval(timer);
   }, []);
@@ -125,23 +136,40 @@ export const GreetCard = ({
               {greeting}
               {user ? `, ${user.username.split(" ")[0]}` : ""}
             </motion.h2>
-            <motion.p
+
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className={`text-sm font-medium ${activeReminder ? "text-yellow-400 font-semibold" : "text-white/40"}`}
+              className="flex flex-col gap-2"
             >
-              {activeReminder ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                  Reminder: {activeReminder.title}
-                </span>
-              ) : (
-                <>
-                  {date} • {quote}
-                </>
+              <p
+                className={`text-sm font-medium ${activeReminder ? "text-yellow-400 font-semibold" : "text-white/40"}`}
+              >
+                {activeReminder ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                    Reminder: {activeReminder.title}
+                  </span>
+                ) : (
+                  <>
+                    {date} • {quote}
+                  </>
+                )}
+              </p>
+
+              {location && !activeReminder && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="self-center md:self-start inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.1)] text-xs font-semibold text-white/90 hover:bg-white/20 transition-all hover:scale-105 hover:shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                >
+                  <MapPin size={10} className="text-blue-400" />
+                  {location}
+                </motion.div>
               )}
-            </motion.p>
+            </motion.div>
           </div>
         </div>
 

@@ -113,14 +113,50 @@ export const getStoredToken = async (
 
 // --- API Functions ---
 
-export const fetchRepos = async (userId: string) => {
+export interface GithubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  owner: {
+    login: string;
+    avatar_url: string;
+  };
+  html_url: string;
+  description: string | null;
+  language: string | null;
+  stargazers_count: number;
+  forks_count: number;
+  updated_at: string;
+  permissions?: {
+    admin: boolean;
+    push: boolean;
+    pull: boolean;
+  };
+}
+
+export interface GithubWorkflow {
+  id: number;
+  name: string;
+  state: string;
+  html_url: string;
+  badge_url: string;
+}
+
+// ... existing imports
+
+// ... existing auth functions
+
+// --- API Functions ---
+
+export const fetchRepos = async (userId: string): Promise<GithubRepo[]> => {
   try {
     const token = await getStoredToken(userId);
     if (!token)
       throw new Error("No GitHub token found. Please connect your account.");
 
     const response = await fetch(
-      `${GITHUB_API_BASE}/user/repos?sort=updated&per_page=100`,
+      `${GITHUB_API_BASE}/user/repos?sort=updated&per_page=100&type=all`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -141,6 +177,90 @@ export const fetchRepos = async (userId: string) => {
   }
 };
 
+export const deleteRepo = async (
+  owner: string,
+  repo: string,
+  userId: string,
+): Promise<void> => {
+  try {
+    const token = await getStoredToken(userId);
+    if (!token) throw new Error("No GitHub token found");
+
+    const response = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete repository: ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error("Delete Repo Error:", error);
+    throw error;
+  }
+};
+
+export const updateRepoVisibility = async (
+  owner: string,
+  repo: string,
+  isPrivate: boolean,
+  userId: string,
+): Promise<GithubRepo> => {
+  try {
+    const token = await getStoredToken(userId);
+    if (!token) throw new Error("No GitHub token found");
+
+    const response = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ private: isPrivate }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update visibility: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Update Visibility Error:", error);
+    throw error;
+  }
+};
+
+export const fetchWorkflows = async (
+  owner: string,
+  repo: string,
+  userId: string,
+): Promise<GithubWorkflow[]> => {
+  try {
+    const token = await getStoredToken(userId);
+    const headers: HeadersInit = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+
+    const response = await fetch(
+      `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/workflows`,
+      { headers },
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) return []; // No workflows or actions disabled
+      throw new Error("Failed to fetch workflows");
+    }
+    const data = await response.json();
+    return data.workflows || [];
+  } catch (error) {
+    console.error("GitHub API Error:", error);
+    return [];
+  }
+};
+
 export const fetchBranches = async (
   repo: string,
   userId: string,
@@ -150,6 +270,11 @@ export const fetchBranches = async (
     const headers: HeadersInit = token
       ? { Authorization: `Bearer ${token}` }
       : {};
+
+    // repo argument handles "owner/repo" structure if passed correctly,
+    // but typically fetchBranches might expect just repo name if owner is implied?
+    // Looking at previous implementation: `${GITHUB_API_BASE}/repos/${repo}/branches`
+    // It seems `repo` variable was expected to be "owner/repo_name".
 
     const response = await fetch(`${GITHUB_API_BASE}/repos/${repo}/branches`, {
       headers,
