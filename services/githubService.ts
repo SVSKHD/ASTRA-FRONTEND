@@ -40,30 +40,29 @@ const GITHUB_API_BASE = "https://api.github.com";
 
 // --- Authentication & Token Management ---
 
-// Replaced popup with redirect flow to match callback URL configuration
+// Popup flow for GitHub authentication
 export const connectGitHub = async (): Promise<User | null> => {
-  // We need to redirect to GitHub OAuth
-  const GITHUB_CLIENT_ID = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
-  const REDIRECT_URI = `https://spasta-personal-finance.firebaseapp.com/__/auth/handler`;
+  const provider = new GithubAuthProvider();
+  provider.addScope("repo");
+  provider.addScope("user");
 
-  if (!GITHUB_CLIENT_ID) {
-    console.error("Missing NEXT_PUBLIC_GITHUB_CLIENT_ID");
-    alert("GitHub Client ID is missing in environment variables.");
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const credential = GithubAuthProvider.credentialFromResult(result);
+    const token = credential?.accessToken;
+    const user = result.user;
+
+    if (token && user) {
+      const username =
+        user.displayName || user.email?.split("@")[0] || "unknown";
+      await saveToken(user.uid, token, username);
+      return user;
+    }
     return null;
+  } catch (error) {
+    console.error("GitHub Auth Error:", error);
+    throw error;
   }
-
-  const scope = "repo user";
-  const state = Math.random().toString(36).substring(7);
-
-  // Store state for verification if needed
-  sessionStorage.setItem("github_oauth_state", state);
-
-  const authUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(
-    REDIRECT_URI,
-  )}&scope=${scope}&state=${state}`;
-
-  window.location.href = authUrl;
-  return null; // Function will not return as page redirects
 };
 
 // Helper to handle token return
