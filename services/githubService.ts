@@ -16,7 +16,12 @@ export interface GithubTreeItem {
 }
 
 import { auth, db, githubProvider } from "@/utils/firebase";
-import { signInWithPopup, GithubAuthProvider, User } from "firebase/auth";
+import {
+  signInWithPopup,
+  GithubAuthProvider,
+  User,
+  linkWithPopup,
+} from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 
 export interface GithubBranch {
@@ -45,22 +50,42 @@ export const connectGitHub = async (): Promise<User | null> => {
   const provider = new GithubAuthProvider();
   provider.addScope("repo");
   provider.addScope("user");
+  provider.addScope("delete_repo");
 
   try {
-    const result = await signInWithPopup(auth, provider);
+    let result;
+    // If a user is already signed in, link the account
+    if (auth.currentUser) {
+      result = await linkWithPopup(auth.currentUser, provider);
+    } else {
+      // Otherwise, sign in
+      result = await signInWithPopup(auth, provider);
+    }
+
     const credential = GithubAuthProvider.credentialFromResult(result);
     const token = credential?.accessToken;
     const user = result.user;
 
     if (token && user) {
+      // If we linked, the user object is the existing user
+      // We need to fetch the GitHub username separately if not available in profile
+      // For now, we'll try to get it from the "additionalUserInfo" if available,
+      // or stick with the "unknown" fallback which we might fetch later.
       const username =
         user.displayName || user.email?.split("@")[0] || "unknown";
+
       await saveToken(user.uid, token, username);
       return user;
     }
     return null;
-  } catch (error) {
+  } catch (error: any) {
     console.error("GitHub Auth Error:", error);
+    // Handle "credential-already-in-use" error gracefully if needed
+    if (error.code === "auth/credential-already-in-use") {
+      throw new Error(
+        "This GitHub account is already connected to another user.",
+      );
+    }
     throw error;
   }
 };
@@ -128,6 +153,7 @@ export interface GithubRepo {
   stargazers_count: number;
   forks_count: number;
   updated_at: string;
+  default_branch: string;
   permissions?: {
     admin: boolean;
     push: boolean;
@@ -311,6 +337,34 @@ export const fetchTree = async (
     }
     const data = await response.json();
     return data.tree;
+  } catch (error) {
+    console.error("GitHub API Error:", error);
+    throw error;
+  }
+};
+
+export const getRepoSHA = async (
+  repo: string,
+  branch: string,
+  userId: string,
+): Promise<string> => {
+  try {
+    const token = await getStoredToken(userId);
+    const headers: HeadersInit = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+
+    const response = await fetch(
+      `${GITHUB_API_BASE}/repos/${repo}/commits/${branch}`,
+      { headers },
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch commit SHA");
+    }
+
+    const data = await response.json();
+    return data.sha;
   } catch (error) {
     console.error("GitHub API Error:", error);
     throw error;

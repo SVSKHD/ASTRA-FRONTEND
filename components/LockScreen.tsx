@@ -9,9 +9,14 @@ import useBreakpoints from "@/hooks/useBreakpoints";
 interface LockScreenProps {
   isLocked: boolean;
   onUnlock: () => void;
+  background?: string;
 }
 
-export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
+export default function LockScreen({
+  isLocked,
+  onUnlock,
+  background,
+}: LockScreenProps) {
   const { user } = useUser();
   const { isMobile } = useBreakpoints();
   const [pin, setPin] = useState("");
@@ -103,16 +108,20 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black overflow-hidden select-none"
         >
-          {/* Optimized Background for Mobile */}
+          {/* Background Layer */}
+          <div
+            className="absolute inset-0 z-0 transition-[background] duration-500"
+            style={{ background: background || "#000000" }}
+          />
+
+          {/* Optimized Background Overlay for Mobile */}
           <div className="absolute inset-0 z-0">
             {isMobile ? (
-              // Simple gradient for mobile performance - Clean & Fast
-              <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#000] to-[#111]" />
+              // Simple gradient overlay for mobile
+              <div className="absolute inset-0 bg-black/40" />
             ) : (
-              // Heavy blur for desktop
+              // Heavy blur/overlay for desktop
               <>
-                <div className="absolute top-[-20%] left-[-20%] w-[800px] h-[800px] bg-indigo-500/20 rounded-full blur-[150px] animate-pulse-slow" />
-                <div className="absolute bottom-[-20%] right-[-20%] w-[800px] h-[800px] bg-purple-500/20 rounded-full blur-[150px] animate-pulse-slow delay-1000" />
                 <div className="absolute inset-0 backdrop-blur-3xl bg-black/40" />
               </>
             )}

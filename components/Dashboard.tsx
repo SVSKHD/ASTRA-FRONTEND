@@ -34,6 +34,8 @@ import { X, Bell } from "lucide-react";
 
 interface DashboardProps {
   onLock: () => void;
+  background: string;
+  onThemeChange: (bg: string) => void;
 }
 
 const Toast = ({
@@ -65,7 +67,11 @@ const Toast = ({
   </motion.div>
 );
 
-export default function Dashboard({ onLock }: DashboardProps) {
+export default function Dashboard({
+  onLock,
+  background,
+  onThemeChange,
+}: DashboardProps) {
   const [activeTabId, setActiveTabId] = useState(tabsConfig[0].id);
 
   useEffect(() => {
@@ -74,8 +80,6 @@ export default function Dashboard({ onLock }: DashboardProps) {
       setActiveTabId(saved);
     }
   }, []);
-
-  const [background, setBackground] = useState("#000000"); // Default black background
 
   const { currency, setCurrency } = useCurrency();
   const { user: appUser, loading } = useUser();
@@ -524,7 +528,7 @@ export default function Dashboard({ onLock }: DashboardProps) {
                       <div className="absolute top-12 left-[-60px] z-[150]">
                         <GradientPicker
                           initialBackground={background}
-                          onChange={setBackground}
+                          onChange={onThemeChange}
                           onClose={() => setShowColorPicker(false)}
                         />
                       </div>

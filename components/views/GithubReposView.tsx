@@ -17,6 +17,10 @@ import {
   X,
   AlertTriangle,
   CheckCircle2,
+  RefreshCw,
+  FileText,
+  Folder,
+  Code,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
@@ -30,6 +34,9 @@ import {
   GithubRepo,
   GithubBranch,
   GithubWorkflow,
+  fetchTree,
+  GithubTreeItem,
+  getRepoSHA,
 } from "@/services/githubService";
 import { auth } from "@/utils/firebase";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
@@ -73,6 +80,14 @@ export function GithubReposView() {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false); // Bulk delete
   const [deleteInput, setDeleteInput] = useState("");
   const [processingAction, setProcessingAction] = useState(false);
+
+  // Tree View State
+  const [viewingTree, setViewingTree] = useState<{
+    repo: string;
+    branch: string;
+  } | null>(null);
+  const [treeItems, setTreeItems] = useState<GithubTreeItem[]>([]);
+  const [loadingTree, setLoadingTree] = useState(false);
 
   // Monitor Auth State
   useEffect(() => {
@@ -157,7 +172,9 @@ export function GithubReposView() {
     if (!user) return;
     setProcessingAction(true);
     try {
+      setError(""); // Clear previous errors
       if (repoToDelete) {
+        setError(""); // Clear previous errors
         await deleteRepo(repoToDelete.owner.login, repoToDelete.name, user.uid);
         setRepos((prev) => prev.filter((r) => r.id !== repoToDelete.id));
         setRepoToDelete(null);
@@ -220,6 +237,36 @@ export function GithubReposView() {
       console.error(err);
     } finally {
       setLoadingWorkflows(false);
+    }
+  };
+
+  const loadTree = async (
+    repoFullName: string,
+    ref: string,
+    branchName: string,
+  ) => {
+    if (!user) return;
+    setViewingTree({ repo: repoFullName, branch: branchName });
+    setLoadingTree(true);
+    setTreeItems([]);
+    try {
+      let sha = ref;
+      // If we don't have a SHA (e.g. default branch name), fetch it
+      if (!ref.match(/^[0-9a-f]{40}$/)) {
+        sha = await getRepoSHA(repoFullName, ref, user.uid);
+      }
+
+      const data = await fetchTree(repoFullName, sha, user.uid);
+      // Sort: Folders first, then files
+      const sorted = data.sort((a, b) => {
+        if (a.type === b.type) return a.path.localeCompare(b.path);
+        return a.type === "tree" ? -1 : 1;
+      });
+      setTreeItems(sorted);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingTree(false);
     }
   };
 
@@ -315,6 +362,16 @@ export function GithubReposView() {
           >
             <LogOut size={20} />
           </button>
+          <button
+            onClick={() => {
+              if (user) loadRepos(user.uid);
+            }}
+            className="p-2 hover:bg-white/10 rounded-xl transition-all text-white/50 hover:text-white"
+            title="Refresh Repositories"
+            disabled={loading}
+          >
+            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+          </button>
         </div>
       </div>
 
@@ -400,6 +457,21 @@ export function GithubReposView() {
                     <GitBranch size={16} className="text-purple-400 mb-1" />
                     <span className="text-[10px] text-white/60 group-hover/btn:text-white">
                       Branches
+                    </span>
+                  </button>
+                  <button
+                    onClick={() =>
+                      loadTree(
+                        repo.full_name,
+                        repo.default_branch,
+                        repo.default_branch,
+                      )
+                    }
+                    className="flex flex-col items-center justify-center p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition-all group/btn"
+                  >
+                    <Code size={16} className="text-blue-400 mb-1" />
+                    <span className="text-[10px] text-white/60 group-hover/btn:text-white">
+                      Code
                     </span>
                   </button>
                   <button
@@ -533,6 +605,19 @@ export function GithubReposView() {
                       >
                         View
                       </a>
+                      <button
+                        onClick={() =>
+                          loadTree(
+                            viewingBranches.full_name,
+                            branch.commit.sha,
+                            branch.name,
+                          )
+                        }
+                        className="text-white/40 hover:text-white transition-colors"
+                        title="View Files"
+                      >
+                        <FileText size={16} />
+                      </button>
                     </div>
                   ))
                 )}
@@ -683,7 +768,7 @@ export function GithubReposView() {
                 <button
                   onClick={handleDelete}
                   disabled={
-                    deleteInput !==
+                    deleteInput.trim() !==
                       (repoToDelete ? repoToDelete.name : "confirm delete") ||
                     processingAction
                   }
@@ -696,6 +781,81 @@ export function GithubReposView() {
                   )}
                   Delete
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* File Tree Modal */}
+        {viewingTree && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#111] border border-white/10 rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Code size={20} className="text-blue-400" />
+                    {viewingTree.repo.split("/")[1]}
+                  </h3>
+                  <div className="flex items-center gap-2 text-sm text-white/40 font-mono mt-1">
+                    <GitBranch size={12} />
+                    {viewingTree.branch}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setViewingTree(null)}
+                  className="text-white/40 hover:text-white"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-0 overflow-y-auto custom-scrollbar flex-1">
+                {loadingTree ? (
+                  <div className="flex justify-center py-20">
+                    <Loader2 className="animate-spin text-white/40" size={32} />
+                  </div>
+                ) : treeItems.length === 0 ? (
+                  <p className="text-white/40 text-center py-20">
+                    No files found.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-white/5">
+                    {treeItems.map((item) => (
+                      <div
+                        key={item.path}
+                        className="px-6 py-3 hover:bg-white/5 flex items-center gap-3 group transition-colors"
+                      >
+                        {item.type === "tree" ? (
+                          <Folder
+                            size={18}
+                            className="text-blue-400 flex-shrink-0"
+                          />
+                        ) : (
+                          <FileText
+                            size={18}
+                            className="text-white/30 flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span
+                            className={`font-mono text-sm ${item.type === "tree" ? "text-white font-medium" : "text-white/70"}`}
+                          >
+                            {item.path}
+                          </span>
+                        </div>
+                        {item.size !== undefined && (
+                          <span className="text-xs text-white/20 font-mono">
+                            {(item.size / 1024).toFixed(1)} KB
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

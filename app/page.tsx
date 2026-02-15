@@ -6,6 +6,7 @@ import LockScreen from "../components/LockScreen";
 
 export default function Home() {
   const [isLocked, setIsLocked] = useState(true);
+  const [background, setBackground] = useState("#000000"); // Default black background
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -23,12 +24,27 @@ export default function Home() {
       setIsLocked(false);
     }
 
+    // Check theme persistence
+    const savedTheme = localStorage.getItem("astra-theme");
+    if (savedTheme) {
+      setBackground(savedTheme);
+    }
+
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const handleThemeChange = (newTheme: string) => {
+    setBackground(newTheme);
+    localStorage.setItem("astra-theme", newTheme);
+  };
+
   return (
     <div className="relative w-full h-full min-h-screen bg-black overflow-hidden">
-      <LockScreen isLocked={isLocked} onUnlock={() => setIsLocked(false)} />
+      <LockScreen
+        isLocked={isLocked}
+        onUnlock={() => setIsLocked(false)}
+        background={background}
+      />
       <div
         className={
           isLocked
@@ -37,7 +53,11 @@ export default function Home() {
         }
       >
         <Suspense fallback={<div className="min-h-screen bg-black" />}>
-          <Dashboard onLock={() => setIsLocked(true)} />
+          <Dashboard
+            onLock={() => setIsLocked(true)}
+            background={background}
+            onThemeChange={handleThemeChange}
+          />
         </Suspense>
       </div>
     </div>
