@@ -27,13 +27,13 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
           onUnlock();
           setPin("");
           setSuccess(false);
-        }, 800);
+        }, 500);
       } else {
         setError(true);
         setTimeout(() => {
           setPin("");
           setError(false);
-        }, 500);
+        }, 400);
       }
     }
   }, [pin, onUnlock, user]);
@@ -70,15 +70,19 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
 
   // Staggered children variants
   const containerVariants = {
-    hidden: { opacity: 0 },
+    hidden: { opacity: 0, scale: 0.95 },
     visible: {
       opacity: 1,
+      scale: 1,
       transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
+        staggerChildren: 0.05,
+        delayChildren: 0.1,
+        type: "spring",
+        stiffness: 300,
+        damping: 30,
       },
     },
-    exit: { opacity: 0 },
+    exit: { opacity: 0, scale: 0.95 },
   };
 
   const itemVariants = {
@@ -86,7 +90,7 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
     visible: {
       opacity: 1,
       y: 0,
-      transition: { type: "spring" as const, stiffness: 300, damping: 24 },
+      transition: { type: "spring", stiffness: 300, damping: 24 },
     },
   };
 
@@ -96,169 +100,154 @@ export default function LockScreen({ isLocked, onUnlock }: LockScreenProps) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { delay: 0.2 } }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-3xl overflow-hidden"
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black overflow-hidden select-none"
         >
-          {/* Background Effects */}
+          {/* Optimized Background for Mobile */}
           <div className="absolute inset-0 z-0">
-            <div className="absolute top-[-20%] left-[-20%] w-[800px] h-[800px] bg-indigo-500/20 rounded-full blur-[150px] animate-pulse-slow" />
-            <div className="absolute bottom-[-20%] right-[-20%] w-[800px] h-[800px] bg-purple-500/20 rounded-full blur-[150px] animate-pulse-slow delay-1000" />
-            <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.05]" />
+            {isMobile ? (
+              // Simple gradient for mobile performance
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-black to-purple-900/20" />
+            ) : (
+              // Heavy blur for desktop
+              <>
+                <div className="absolute top-[-20%] left-[-20%] w-[800px] h-[800px] bg-indigo-500/20 rounded-full blur-[150px] animate-pulse-slow" />
+                <div className="absolute bottom-[-20%] right-[-20%] w-[800px] h-[800px] bg-purple-500/20 rounded-full blur-[150px] animate-pulse-slow delay-1000" />
+                <div className="absolute inset-0 backdrop-blur-3xl bg-black/40" />
+              </>
+            )}
+            <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03]" />
           </div>
 
-          {/* Dialog Container */}
+          {/* Main Container */}
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={`relative z-10 ${
-              isMobile
-                ? "border-0 shadow-none bg-transparent"
-                : "bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[0_0_80px_rgba(0,0,0,0.5)]"
-            } p-6 md:p-12 rounded-[3.5rem] flex flex-col items-center gap-6 md:gap-10 max-w-sm w-full mx-4 overflow-hidden`}
+            className="relative z-10 flex flex-col items-center w-full max-w-sm px-6"
           >
-            {/* Shine Effect */}
-            {!isMobile && (
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
-            )}
-
+            {/* Header / Status */}
             <motion.div
               variants={itemVariants}
-              animate={error ? { x: [-10, 10, -10, 10, 0] } : {}}
-              className="flex flex-col items-center gap-6 relative z-10"
+              className="flex flex-col items-center gap-2 mb-12"
             >
-              <h1 className="text-5xl font-extralight tracking-tight text-white mb-2 drop-shadow-xl font-sans">
-                Astra
-              </h1>
-              <motion.div
-                initial={{ background: "rgba(255,255,255,0.1)" }}
-                animate={
-                  success
-                    ? {
-                        background: "rgba(34, 197, 94, 0.2)",
-                        borderColor: "rgba(34, 197, 94, 0.4)",
-                      }
-                    : {
-                        background: "rgba(255,255,255,0.1)",
-                        borderColor: "rgba(255,255,255,0.1)",
-                      }
-                }
-                className="flex items-center gap-2 px-6 py-2 rounded-full backdrop-blur-3xl border shadow-lg transition-colors duration-500"
-              >
-                {success ? (
-                  <Unlock size={14} className="text-green-400" />
-                ) : (
-                  <Lock size={14} className="text-white/70" />
-                )}
-                <span
-                  className={`text-[10px] font-bold tracking-[0.2em] uppercase ${success ? "text-green-400" : "text-white/70"}`}
-                >
-                  {success ? "Welcome Back" : "System Locked"}
-                </span>
-              </motion.div>
-            </motion.div>
-
-            {/* Pins dots */}
-            <motion.div
-              variants={itemVariants}
-              className="flex gap-4 mb-2 relative z-10"
-            >
-              {[0, 1, 2, 3].map((i) => (
+              <div className="flex flex-col items-center">
                 <motion.div
-                  key={i}
-                  animate={
-                    success
-                      ? {
-                          scale: [1, 1.5, 1],
-                          backgroundColor: "#4ade80",
-                          borderColor: "#4ade80",
-                          boxShadow: "0 0 20px #4ade80",
-                        }
-                      : { scale: 1 }
-                  }
-                  transition={{ delay: i * 0.1 }}
-                  className={`w-4 h-4 rounded-full border border-white/20 transition-all duration-300 ${
-                    pin.length > i
-                      ? "bg-white border-white shadow-[0_0_15px_rgba(255,255,255,0.5)]"
-                      : "bg-transparent"
-                  }`}
-                />
-              ))}
-            </motion.div>
+                  animate={error ? { x: [-5, 5, -5, 5, 0] } : {}}
+                  transition={{ type: "spring", stiffness: 500, damping: 10 }}
+                >
+                  {success ? (
+                    <Unlock size={24} className="text-green-400 mb-2" />
+                  ) : (
+                    <Lock size={24} className="text-white mb-2" />
+                  )}
+                </motion.div>
+                <h2 className="text-xl font-medium text-white tracking-wide">
+                  {success ? "Unlocked" : "Enter Passcode"}
+                </h2>
+              </div>
 
-            {/* Keypad */}
-            <motion.div
-              variants={itemVariants}
-              className="grid grid-cols-3 gap-x-4 gap-y-4 md:gap-x-6 md:gap-y-6 relative z-10 transition-all"
-            >
-              {[
-                { num: "1" },
-                { num: "2" },
-                { num: "3" },
-                { num: "4" },
-                { num: "5" },
-                { num: "6" },
-                { num: "7" },
-                { num: "8" },
-                { num: "9" },
-              ].map(({ num }) => (
-                <motion.button
-                  whileHover={{
-                    scale: 1.1,
-                    backgroundColor: "rgba(255,255,255,0.15)",
-                  }}
-                  whileTap={{ scale: 0.9 }}
-                  key={num}
-                  onClick={() => handleNumClick(num)}
-                  disabled={success}
-                  className="w-16 h-16 rounded-full bg-white/5 backdrop-blur-md border border-white/5 shadow-lg flex flex-col items-center justify-center transition-colors group outline-none focus:ring-1 focus:ring-white/30"
-                >
-                  <span className="text-2xl font-light text-white/90 group-hover:text-white transition-colors">
-                    {num}
-                  </span>
-                </motion.button>
-              ))}
-              <div /> {/* Empty slot */}
-              <motion.button
-                whileHover={{
-                  scale: 1.1,
-                  backgroundColor: "rgba(255,255,255,0.15)",
-                }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => handleNumClick("0")}
-                disabled={success}
-                className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-white/5 backdrop-blur-md border border-white/5 shadow-lg flex flex-col items-center justify-center transition-colors group outline-none focus:ring-1 focus:ring-white/30"
-              >
-                <span className="text-xl md:text-2xl font-light text-white/90 group-hover:text-white transition-colors">
-                  0
-                </span>
-              </motion.button>
-              <div className="flex items-center justify-center">
-                <motion.button
-                  whileHover={{
-                    scale: 1.1,
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                  }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={handleBackspace}
-                  disabled={success}
-                  className="w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white/40 hover:text-white transition-colors hover:bg-white/5 outline-none focus:ring-1 focus:ring-white/20"
-                >
-                  <Delete size={22} strokeWidth={1.5} />
-                </motion.button>
+              {/* iOS Style Dots */}
+              <div className="flex gap-4 mt-6 h-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <motion.div
+                    key={i}
+                    initial={false}
+                    animate={
+                      pin.length > i
+                        ? {
+                            backgroundColor: success ? "#4ade80" : "#ffffff",
+                            borderColor: success ? "#4ade80" : "#ffffff",
+                          }
+                        : {
+                            backgroundColor: "transparent",
+                            borderColor: "#ffffff40",
+                          }
+                    }
+                    className="w-3.5 h-3.5 rounded-full border-[1.5px] transition-colors duration-200"
+                  />
+                ))}
               </div>
             </motion.div>
 
+            {/* iOS Style Keypad */}
             <motion.div
               variants={itemVariants}
-              className="text-white/20 text-[10px] mt-2 font-mono tracking-widest uppercase relative z-10"
+              className="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[280px]"
             >
-              Authorized Access Only
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <KeypadButton
+                  key={num}
+                  value={num.toString()}
+                  onClick={() => handleNumClick(num.toString())}
+                  disabled={success}
+                />
+              ))}
+              <div /> {/* Spacer */}
+              <KeypadButton
+                value="0"
+                onClick={() => handleNumClick("0")}
+                disabled={success}
+              />
+              <div className="flex items-center justify-center">
+                {pin.length > 0 && (
+                  <button
+                    onClick={handleBackspace}
+                    className="w-full h-full flex items-center justify-center text-white active:opacity-50 transition-opacity"
+                  >
+                    <span className="text-sm font-medium">Delete</span>
+                  </button>
+                )}
+              </div>
             </motion.div>
+
+            {/* Footer */}
+            <motion.button
+              variants={itemVariants}
+              onClick={() => {
+                // Should handle "Forgot Passcode" or "Emergency" logic here if needed
+              }}
+              className="mt-12 text-white/40 text-sm font-medium tracking-wide active:text-white/60 transition-colors"
+            >
+              Emergency
+            </motion.button>
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
+
+// Separate component for iOS-style button interaction
+const KeypadButton = ({
+  value,
+  onClick,
+  disabled,
+}: {
+  value: string;
+  onClick: () => void;
+  disabled: boolean;
+}) => {
+  return (
+    <motion.button
+      whileTap={{ backgroundColor: "rgba(255, 255, 255, 0.4)" }}
+      transition={{ duration: 0.1 }}
+      onClick={onClick}
+      disabled={disabled}
+      className={`
+        w-[72px] h-[72px] rounded-full 
+        bg-white/10 backdrop-blur-md 
+        border border-white/5 
+        flex items-center justify-center 
+        text-3xl font-light text-white 
+        shadow-lg transition-colors
+        active:backdrop-blur-none
+        outline-none select-none
+        ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}
+      `}
+    >
+      {value}
+    </motion.button>
+  );
+};

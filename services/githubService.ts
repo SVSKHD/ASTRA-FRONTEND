@@ -44,7 +44,7 @@ const GITHUB_API_BASE = "https://api.github.com";
 export const connectGitHub = async (): Promise<User | null> => {
   // We need to redirect to GitHub OAuth
   const GITHUB_CLIENT_ID = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
-  const REDIRECT_URI = `${window.location.origin}/api/auth/callback/github`;
+  const REDIRECT_URI = `https://spasta-personal-finance.firebaseapp.com/__/auth/handler`;
 
   if (!GITHUB_CLIENT_ID) {
     console.error("Missing NEXT_PUBLIC_GITHUB_CLIENT_ID");
