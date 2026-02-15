@@ -26,7 +26,7 @@ import {
   GithubTreeItem,
 } from "../services/githubService";
 
-import { UserProfile } from "../context/UserContext";
+import { UserProfile, useUser } from "../context/UserContext";
 
 interface TaskDialogProps {
   isOpen: boolean;
@@ -46,6 +46,8 @@ export const TaskDialog = ({
   members = [],
 }: TaskDialogProps) => {
   useDialogTracking(isOpen);
+  const { user } = useUser();
+
   const [content, setContent] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("Medium");
@@ -335,17 +337,21 @@ export const TaskDialog = ({
                   />
                   <button
                     onClick={async () => {
-                      if (!githubRepo) return;
+                      if (!githubRepo || !user) return;
                       setLoadingBranches(true);
                       try {
-                        const data = await fetchBranches(githubRepo);
+                        const data = await fetchBranches(githubRepo, user.id);
                         setBranches(data);
                         // If editing and we have a branch, try to fetch tree too if not loaded
                         if (githubBranch && tree.length === 0) {
                           const b = data.find((br) => br.name === githubBranch);
                           if (b) {
                             setLoadingTree(true);
-                            const t = await fetchTree(githubRepo, b.commit.sha);
+                            const t = await fetchTree(
+                              githubRepo,
+                              b.commit.sha,
+                              user.id,
+                            );
                             setTree(t);
                             setLoadingTree(false);
                           }
@@ -370,7 +376,7 @@ export const TaskDialog = ({
                   onChange={async (e) => {
                     const branchName = e.target.value;
                     setGithubBranch(branchName);
-                    if (!branchName) return;
+                    if (!branchName || !user) return;
 
                     const branch = branches.find((b) => b.name === branchName);
                     if (branch) {
@@ -379,6 +385,7 @@ export const TaskDialog = ({
                         const t = await fetchTree(
                           githubRepo,
                           branch.commit.sha,
+                          user.id,
                         );
                         setTree(t);
                         setBrowserPath(""); // Reset browser to root
