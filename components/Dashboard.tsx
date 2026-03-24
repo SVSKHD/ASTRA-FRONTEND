@@ -26,6 +26,7 @@ import { useCurrency } from "../hooks/useCurrency";
 import useBreakpoints from "../hooks/useBreakpoints";
 import { Currency } from "@/context/CurrencyContext";
 import { useDialogContext } from "@/context/DialogContext";
+import { QuickGlanceRibbon } from "./QuickGlanceRibbon";
 
 import { subscribeToReminders, Reminder } from "@/services/remindersService";
 import { handleGitHubCallback } from "@/services/githubService";
@@ -79,6 +80,17 @@ export default function Dashboard({
     if (saved && tabsConfig.find((t) => t.id === saved)) {
       setActiveTabId(saved);
     }
+
+    const handleNavigation = (e: any) => {
+      const id = e.detail;
+      if (tabsConfig.some((t) => t.id === id)) {
+        setActiveTabId(id);
+        localStorage.setItem("astra-active-tab", id);
+      }
+    };
+
+    window.addEventListener("navigate-tab", handleNavigation);
+    return () => window.removeEventListener("navigate-tab", handleNavigation);
   }, []);
 
   const { currency, setCurrency } = useCurrency();
@@ -738,6 +750,17 @@ export default function Dashboard({
             caption={activeTab.caption}
             activeReminder={activeReminder}
           />
+
+          <QuickGlanceRibbon
+            onTabSelect={(id) => {
+              if (visibleTabs.some((t) => t.id === id)) {
+                setActiveTabId(id);
+                localStorage.setItem("astra-active-tab", id);
+              }
+            }}
+            allowedRoles={appUser?.role ? [appUser.role] : []}
+          />
+
           <AnimatePresence>
             {toastMessage && (
               <Toast

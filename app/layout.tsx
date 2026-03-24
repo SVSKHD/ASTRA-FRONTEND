@@ -4,6 +4,7 @@ import "./globals.css";
 import { UserProvider } from "@/context/UserContext";
 import { CurrencyProvider } from "@/context/CurrencyContext";
 import { DialogProvider } from "@/context/DialogContext";
+import ThemeProvider from "@/components/ThemeProvider";
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
@@ -29,7 +30,10 @@ export default function RootLayout({
       <body className={`${jetbrainsMono.variable} antialiased font-mono`}>
         <UserProvider>
           <CurrencyProvider>
-            <DialogProvider>{children}</DialogProvider>
+            <DialogProvider>
+              <ThemeProvider />
+              {children}
+            </DialogProvider>
           </CurrencyProvider>
         </UserProvider>
       </body>

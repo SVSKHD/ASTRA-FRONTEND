@@ -15,6 +15,7 @@ export interface UserProfile {
   role: UserRole;
   email: string;
   pin: string;
+  theme?: string;
 }
 
 interface UserContextType {
@@ -66,6 +67,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
               role: isAdmin ? "admin" : "user",
               email: firebaseUser.email || "",
               pin: "",
+              theme: "#000000",
             };
 
             await setDoc(userDocRef, newUser);
@@ -81,6 +83,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             role: "user",
             email: firebaseUser.email || "",
             pin: "",
+            theme: "#000000",
           });
         }
       } else {

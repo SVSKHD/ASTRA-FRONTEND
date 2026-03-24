@@ -3,10 +3,11 @@
 import { useEffect, useState, Suspense } from "react";
 import Dashboard from "../components/Dashboard";
 import LockScreen from "../components/LockScreen";
+import { useUser } from "@/context/UserContext";
 
 export default function Home() {
   const [isLocked, setIsLocked] = useState(true);
-  const [background, setBackground] = useState("#000000"); // Default black background
+  const { user, updateUser, loading } = useUser();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -24,26 +25,27 @@ export default function Home() {
       setIsLocked(false);
     }
 
-    // Check theme persistence
-    const savedTheme = localStorage.getItem("astra-theme");
-    if (savedTheme) {
-      setBackground(savedTheme);
-    }
-
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const handleThemeChange = (newTheme: string) => {
-    setBackground(newTheme);
-    localStorage.setItem("astra-theme", newTheme);
+  const handleThemeChange = async (newTheme: string) => {
+    if (user) {
+      await updateUser({ theme: newTheme });
+    }
   };
 
+  if (loading) return null;
+  const currentTheme = user?.theme || "#000000";
+
   return (
-    <div className="relative w-full h-full min-h-screen bg-black overflow-hidden">
+    <div
+      className="relative w-full h-full min-h-screen overflow-hidden text-transparent"
+      style={{ color: "unset", background: "transparent" }}
+    >
       <LockScreen
         isLocked={isLocked}
         onUnlock={() => setIsLocked(false)}
-        background={background}
+        background={currentTheme}
       />
       <div
         className={
@@ -52,10 +54,10 @@ export default function Home() {
             : "transition-all duration-500 min-h-screen"
         }
       >
-        <Suspense fallback={<div className="min-h-screen bg-black" />}>
+        <Suspense fallback={<div className="min-h-screen" />}>
           <Dashboard
             onLock={() => setIsLocked(true)}
-            background={background}
+            background={currentTheme}
             onThemeChange={handleThemeChange}
           />
         </Suspense>
