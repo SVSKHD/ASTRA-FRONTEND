@@ -209,235 +209,249 @@ export const OverviewView = () => {
     .filter((t) => t.column !== "Done" && t.column !== "Finished")
     .slice(0, 3);
 
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MarketStatsCard
-          title="Total Balance"
-          value={
-            activeAccount
-              ? formatCurrency(activeAccount.balance ?? 0)
-              : `${currencySymbol}0.00`
-          }
-          icon={Wallet}
-          trend={{ value: "+0.0%", isPositive: true, label: "today" }}
-          gradient="from-emerald-900/40 to-emerald-600/10"
-        />
-        <MarketStatsCard
-          title="Equity"
-          value={
-            activeAccount
-              ? formatCurrency(activeAccount.equity ?? 0)
-              : `${currencySymbol}0.00`
-          }
-          icon={Activity}
-          gradient="from-blue-900/40 to-blue-600/10"
-          subContent={
-            <div className="flex items-center gap-2 mt-1">
-              <div className="flex items-center gap-1 text-xs text-white/50">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>{" "}
-                {wins}
-                Wins
+  // Widget renderer helper
+  const renderWidget = (id: string) => {
+    if (id === "notes")
+      return (
+        <Reorder.Item
+          key="notes"
+          value="notes"
+          className="rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 p-5 flex flex-col h-64 shadow-lg group hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-white/70 pointer-events-none">
+              <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
+                <Notebook size={16} />
               </div>
-              <div className="flex items-center gap-1 text-xs text-white/50">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>{" "}
-                {losses}
-                Loss
-              </div>
+              <span className="text-sm font-medium uppercase tracking-wider">
+                Latest Notes
+              </span>
             </div>
-          }
-        />
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => navigateTo("notes")}
+              className="p-2 -mr-2 rounded-lg hover:bg-white/10 transition-colors relative z-10 cursor-pointer"
+            >
+              <ArrowRight
+                size={16}
+                className="text-white/30 group-hover:text-white transition-colors"
+              />
+            </button>
+          </div>
+          <div
+            className="flex-1 overflow-y-auto space-y-3 no-scrollbar"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {recentNotes.length > 0 ? (
+              recentNotes.map((note) => (
+                <div
+                  key={note.id}
+                  className="p-3 rounded-xl bg-black/20 border border-white/5"
+                >
+                  <h4 className="text-sm font-medium text-white truncate">
+                    {note.title}
+                  </h4>
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-white/40">
+                    <Clock size={10} />
+                    <span>{new Date(note.updatedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-white/20 text-xs">
+                <span>No notes found</span>
+              </div>
+            )}
+          </div>
+        </Reorder.Item>
+      );
+
+    if (id === "goals")
+      return (
+        <Reorder.Item
+          key="goals"
+          value="goals"
+          className="rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 p-5 flex flex-col h-64 shadow-lg group hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-white/70 pointer-events-none">
+              <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400">
+                <Target size={16} />
+              </div>
+              <span className="text-sm font-medium uppercase tracking-wider">
+                Active Goals
+              </span>
+            </div>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => navigateTo("goals")}
+              className="p-2 -mr-2 rounded-lg hover:bg-white/10 transition-colors relative z-10 cursor-pointer"
+            >
+              <ArrowRight
+                size={16}
+                className="text-white/30 group-hover:text-white transition-colors"
+              />
+            </button>
+          </div>
+          <div
+            className="flex-1 overflow-y-auto space-y-3 no-scrollbar"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {activeGoals.length > 0 ? (
+              activeGoals.map((goal) => (
+                <div
+                  key={goal.id}
+                  className="p-3 rounded-xl bg-black/20 border border-white/5 flex items-center justify-between"
+                >
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-medium text-white truncate">
+                      {goal.title}
+                    </h4>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded uppercase mt-1 inline-block ${
+                        goal.priority === "high"
+                          ? "bg-red-500/20 text-red-300"
+                          : goal.priority === "medium"
+                            ? "bg-orange-500/20 text-orange-300"
+                            : "bg-green-500/20 text-green-300"
+                      }`}
+                    >
+                      {goal.priority}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-white/20 text-xs">
+                <span>No active goals</span>
+              </div>
+            )}
+          </div>
+        </Reorder.Item>
+      );
+
+    if (id === "tasks")
+      return (
+        <Reorder.Item
+          key="tasks"
+          value="tasks"
+          className="rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 p-5 flex flex-col h-64 shadow-lg group hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-white/70 pointer-events-none">
+              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                <CheckSquare size={16} />
+              </div>
+              <span className="text-sm font-medium uppercase tracking-wider">
+                My Tasks
+              </span>
+            </div>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => navigateTo("tasks")}
+              className="p-2 -mr-2 rounded-lg hover:bg-white/10 transition-colors relative z-10 cursor-pointer"
+            >
+              <ArrowRight
+                size={16}
+                className="text-white/30 group-hover:text-white transition-colors"
+              />
+            </button>
+          </div>
+          <div
+            className="flex-1 overflow-y-auto space-y-3 no-scrollbar"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {pendingTasks.length > 0 ? (
+              pendingTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="p-3 rounded-xl bg-black/20 border border-white/5"
+                >
+                  <h4 className="text-sm font-medium text-white truncate decoration-white/50">
+                    {task.content}
+                  </h4>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[10px] text-white/40 bg-white/5 px-2 py-0.5 rounded-full">
+                      {task.column}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-white/20 text-xs text-center px-4">
+                <span>No pending tasks in default board</span>
+              </div>
+            )}
+          </div>
+        </Reorder.Item>
+      );
+
+    return null;
+  };
+
+  return (
+    <div className="flex flex-col md:flex-row gap-6">
+      {/* Left column — scrolls naturally */}
+      <div className="flex-1 min-w-0 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MarketStatsCard
+            title="Total Balance"
+            value={
+              activeAccount
+                ? formatCurrency(activeAccount.balance ?? 0)
+                : `${currencySymbol}0.00`
+            }
+            icon={Wallet}
+            trend={{ value: "+0.0%", isPositive: true, label: "today" }}
+            gradient="from-emerald-900/40 to-emerald-600/10"
+          />
+          <MarketStatsCard
+            title="Equity"
+            value={
+              activeAccount
+                ? formatCurrency(activeAccount.equity ?? 0)
+                : `${currencySymbol}0.00`
+            }
+            icon={Activity}
+            gradient="from-blue-900/40 to-blue-600/10"
+            subContent={
+              <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-1 text-xs text-white/50">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>{" "}
+                  {wins}
+                  Wins
+                </div>
+                <div className="flex items-center gap-1 text-xs text-white/50">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>{" "}
+                  {losses}
+                  Loss
+                </div>
+              </div>
+            }
+          />
+        </div>
+
+        <div className="rounded-3xl bg-black/10 backdrop-blur-2xl border border-white/20 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
+          <div className="mb-4 px-2">
+            <h3 className="text-lg font-semibold">Activity</h3>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-white/5 bg-black/20">
+            <DataTable columns={dealColumns} data={deals} perPage={5} />
+          </div>
+        </div>
       </div>
 
-      {/* Quick Glance Widgets */}
-      <Reorder.Group
-        axis={isMobile ? "y" : "x"}
-        values={widgetOrder}
-        onReorder={handleReorder}
-        className="flex flex-col md:grid md:grid-cols-3 gap-4"
-      >
-        {widgetOrder.map((id) => {
-          if (id === "notes")
-            return (
-              <Reorder.Item
-                key="notes"
-                value="notes"
-                className="rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 p-5 flex flex-col h-64 shadow-lg group hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2 text-white/70 pointer-events-none">
-                    <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
-                      <Notebook size={16} />
-                    </div>
-                    <span className="text-sm font-medium uppercase tracking-wider">
-                      Latest Notes
-                    </span>
-                  </div>
-                  <button
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={() => navigateTo("notes")}
-                    className="p-2 -mr-2 rounded-lg hover:bg-white/10 transition-colors relative z-10 cursor-pointer"
-                  >
-                    <ArrowRight
-                      size={16}
-                      className="text-white/30 group-hover:text-white transition-colors"
-                    />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-hidden space-y-3 pointer-events-none">
-                  {recentNotes.length > 0 ? (
-                    recentNotes.map((note) => (
-                      <div
-                        key={note.id}
-                        className="p-3 rounded-xl bg-black/20 border border-white/5"
-                      >
-                        <h4 className="text-sm font-medium text-white truncate">
-                          {note.title}
-                        </h4>
-                        <div className="flex items-center gap-2 mt-1 text-[10px] text-white/40">
-                          <Clock size={10} />
-                          <span>
-                            {new Date(note.updatedAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-white/20 text-xs">
-                      <span>No notes found</span>
-                    </div>
-                  )}
-                </div>
-              </Reorder.Item>
-            );
-
-          if (id === "goals")
-            return (
-              <Reorder.Item
-                key="goals"
-                value="goals"
-                className="rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 p-5 flex flex-col h-64 shadow-lg group hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2 text-white/70 pointer-events-none">
-                    <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400">
-                      <Target size={16} />
-                    </div>
-                    <span className="text-sm font-medium uppercase tracking-wider">
-                      Active Goals
-                    </span>
-                  </div>
-                  <button
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={() => navigateTo("goals")}
-                    className="p-2 -mr-2 rounded-lg hover:bg-white/10 transition-colors relative z-10 cursor-pointer"
-                  >
-                    <ArrowRight
-                      size={16}
-                      className="text-white/30 group-hover:text-white transition-colors"
-                    />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-hidden space-y-3 pointer-events-none">
-                  {activeGoals.length > 0 ? (
-                    activeGoals.map((goal) => (
-                      <div
-                        key={goal.id}
-                        className="p-3 rounded-xl bg-black/20 border border-white/5 flex items-center justify-between"
-                      >
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-medium text-white truncate">
-                            {goal.title}
-                          </h4>
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded uppercase mt-1 inline-block ${
-                              goal.priority === "high"
-                                ? "bg-red-500/20 text-red-300"
-                                : goal.priority === "medium"
-                                  ? "bg-orange-500/20 text-orange-300"
-                                  : "bg-green-500/20 text-green-300"
-                            }`}
-                          >
-                            {goal.priority}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-white/20 text-xs">
-                      <span>No active goals</span>
-                    </div>
-                  )}
-                </div>
-              </Reorder.Item>
-            );
-
-          if (id === "tasks")
-            return (
-              <Reorder.Item
-                key="tasks"
-                value="tasks"
-                className="rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 p-5 flex flex-col h-64 shadow-lg group hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2 text-white/70 pointer-events-none">
-                    <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
-                      <CheckSquare size={16} />
-                    </div>
-                    <span className="text-sm font-medium uppercase tracking-wider">
-                      My Tasks
-                    </span>
-                  </div>
-                  <button
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={() => navigateTo("tasks")}
-                    className="p-2 -mr-2 rounded-lg hover:bg-white/10 transition-colors relative z-10 cursor-pointer"
-                  >
-                    <ArrowRight
-                      size={16}
-                      className="text-white/30 group-hover:text-white transition-colors"
-                    />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-hidden space-y-3 pointer-events-none">
-                  {pendingTasks.length > 0 ? (
-                    pendingTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className="p-3 rounded-xl bg-black/20 border border-white/5"
-                      >
-                        <h4 className="text-sm font-medium text-white truncate decoration-white/50">
-                          {task.content}
-                        </h4>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-[10px] text-white/40 bg-white/5 px-2 py-0.5 rounded-full">
-                            {task.column}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-white/20 text-xs text-center px-4">
-                      <span>No pending tasks in default board</span>
-                    </div>
-                  )}
-                </div>
-              </Reorder.Item>
-            );
-
-          return null;
-        })}
-      </Reorder.Group>
-
-      <div className="rounded-3xl bg-black/10 backdrop-blur-2xl border border-white/20 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
-        <div className="mb-4 px-2">
-          <h3 className="text-lg font-semibold">Activity</h3>
-        </div>
-        <div className="overflow-hidden rounded-2xl border border-white/5 bg-black/20">
-          <DataTable columns={dealColumns} data={deals} perPage={5} />
+      {/* Right column — sticky Quick Glance widgets, always visible on scroll */}
+      <div className="w-full md:w-[320px] shrink-0">
+        <div className="md:sticky md:top-28">
+          <Reorder.Group
+            axis="y"
+            values={widgetOrder}
+            onReorder={handleReorder}
+            className="flex flex-col gap-4"
+          >
+            {widgetOrder.map((id) => renderWidget(id))}
+          </Reorder.Group>
         </div>
       </div>
     </div>
