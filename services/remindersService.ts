@@ -29,6 +29,7 @@ export interface Reminder {
   recurrence: RecurrenceType;
   customInterval?: number; // In days
   isCompleted: boolean;
+  isShared?: boolean;
   createdAt: any;
 }
 

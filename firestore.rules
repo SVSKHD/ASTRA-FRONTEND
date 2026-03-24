@@ -35,6 +35,13 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
+    // IDEAS: Must be owner
+    match /astra_ideas/{ideaId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
     // BOARDS: Allow public read if shared
     match /astra-boards/{boardId} {
       allow read: if resource.data.isSharable == true || 

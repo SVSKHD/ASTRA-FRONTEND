@@ -40,9 +40,9 @@ export const useNotes = () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      await notesService.addNote(newNote);
+      const newNoteId = await notesService.addNote(newNote);
       await loadNotes(); // Refresh list
-      return true;
+      return newNoteId;
     } catch (err) {
       console.error(err);
       setError("Failed to create note");

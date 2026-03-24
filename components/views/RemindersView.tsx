@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -12,6 +13,7 @@ import {
   Edit2,
   Clock,
   Share2,
+  Globe,
 } from "lucide-react";
 import {
   createReminder,
@@ -23,6 +25,7 @@ import {
 import { useUser } from "@/context/UserContext";
 import { ReminderDialog } from "../ReminderDialog";
 import { ShareDialog } from "../ShareDialog";
+import { DeleteConfirmationDialog } from "../DeleteConfirmationDialog";
 
 export const RemindersView = () => {
   const { user } = useUser();
@@ -39,13 +42,50 @@ export const RemindersView = () => {
     content: "",
   });
 
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    reminderId: string | null;
+  }>({
+    isOpen: false,
+    reminderId: null,
+  });
+
+  const [sharePrompt, setSharePrompt] = useState<{
+    isOpen: boolean;
+    reminder: Reminder | null;
+  }>({
+    isOpen: false,
+    reminder: null,
+  });
+
   const handleShare = (reminder: Reminder) => {
-    const url = `${window.location.origin}/reminder/${reminder.id}`;
-    setShareDialog({
-      isOpen: true,
-      title: `Share "${reminder.title}"`,
-      content: url,
-    });
+    if (reminder.isShared) {
+      const url = `${window.location.origin}/reminder/${reminder.id}`;
+      setShareDialog({
+        isOpen: true,
+        title: `Share "${reminder.title}"`,
+        content: url,
+      });
+    } else {
+      setSharePrompt({ isOpen: true, reminder });
+    }
+  };
+
+  const confirmEnableShare = async () => {
+    if (sharePrompt.reminder) {
+      try {
+        await updateReminder(sharePrompt.reminder.id, { isShared: true });
+        const url = `${window.location.origin}/reminder/${sharePrompt.reminder.id}`;
+        setSharePrompt({ isOpen: false, reminder: null });
+        setShareDialog({
+          isOpen: true,
+          title: `Share "${sharePrompt.reminder.title}"`,
+          content: url,
+        });
+      } catch (err) {
+        console.error("Failed to enable sharing", err);
+      }
+    }
   };
 
   const [isLoading, setIsLoading] = useState(true);
@@ -86,10 +126,15 @@ export const RemindersView = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this reminder?")) {
-      await deleteReminder(id);
+  const handleDelete = (id: string) => {
+    setDeleteConfirmation({ isOpen: true, reminderId: id });
+  };
+
+  const confirmDeleteReminder = async () => {
+    if (deleteConfirmation.reminderId) {
+      await deleteReminder(deleteConfirmation.reminderId);
     }
+    setDeleteConfirmation({ isOpen: false, reminderId: null });
   };
 
   const formatDate = (timestamp: any) => {
@@ -225,6 +270,63 @@ export const RemindersView = () => {
         title={shareDialog.title}
         content={shareDialog.content}
       />
+
+      <DeleteConfirmationDialog
+        isOpen={deleteConfirmation.isOpen}
+        onClose={() =>
+          setDeleteConfirmation({ isOpen: false, reminderId: null })
+        }
+        onConfirm={confirmDeleteReminder}
+        title="Delete Reminder"
+        description={
+          <p>
+            Are you sure you want to delete this reminder? This action cannot be
+            undone.
+          </p>
+        }
+      />
+
+      <AnimatePresence>
+        {sharePrompt.isOpen && sharePrompt.reminder && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#1C1C1E] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-4 mx-auto border border-blue-500/20">
+                  <Globe className="text-blue-400" size={24} />
+                </div>
+                <h3 className="text-lg font-semibold text-white text-center mb-2">
+                  Enable Public Access?
+                </h3>
+                <div className="text-white/50 text-center text-sm mb-6">
+                  Anyone with the link will be able to view this reminder.
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() =>
+                      setSharePrompt({ isOpen: false, reminder: null })
+                    }
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmEnableShare}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium transition-colors"
+                  >
+                    Enable & Copy
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -314,19 +416,32 @@ const ReminderItem = ({
                     ? reminder.dateTime.toDate()
                     : new Date(reminder.dateTime);
                   const next = new Date(currentDue);
-                  if (reminder.recurrence === "Daily")
-                    next.setDate(next.getDate() + 1);
-                  else if (reminder.recurrence === "Weekly")
-                    next.setDate(next.getDate() + 7);
-                  else if (reminder.recurrence === "Monthly")
-                    next.setMonth(next.getMonth() + 1);
-                  else if (reminder.recurrence === "Yearly")
-                    next.setFullYear(next.getFullYear() + 1);
-                  else if (
-                    reminder.recurrence === "Custom" &&
-                    reminder.customInterval
-                  )
-                    next.setDate(next.getDate() + reminder.customInterval);
+
+                  const addInterval = (d: Date) => {
+                    if (reminder.recurrence === "Daily")
+                      d.setDate(d.getDate() + 1);
+                    else if (reminder.recurrence === "Weekly")
+                      d.setDate(d.getDate() + 7);
+                    else if (reminder.recurrence === "Monthly")
+                      d.setMonth(d.getMonth() + 1);
+                    else if (reminder.recurrence === "Yearly")
+                      d.setFullYear(d.getFullYear() + 1);
+                    else if (
+                      reminder.recurrence === "Custom" &&
+                      reminder.customInterval
+                    )
+                      d.setDate(d.getDate() + reminder.customInterval);
+                  };
+
+                  addInterval(next);
+
+                  const now = new Date();
+                  let iterations = 0;
+                  // Advance to the real upcoming date relative to now
+                  while (next <= now && iterations < 1000) {
+                    addInterval(next);
+                    iterations++;
+                  }
 
                   return next.toLocaleString("en-US", {
                     month: "short",
@@ -344,9 +459,7 @@ const ReminderItem = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              const url = `${window.location.origin}/reminder/${reminder.id}`;
-              navigator.clipboard.writeText(url);
-              alert("Reminder link copied to clipboard!");
+              onShare();
             }}
             className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
             title="Share Reminder"
