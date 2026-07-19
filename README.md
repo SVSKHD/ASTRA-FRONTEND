@@ -44,15 +44,14 @@ In the [Firebase console](https://console.firebase.google.com/):
 1. Enable **Authentication** → Google and GitHub providers.
 2. Create a **Cloud Firestore** database.
 3. Copy the web app config values into `.env.local`.
-4. Replace `VITE_ALLOWED_UIDS` or `VITE_ALLOWED_EMAILS` with the account(s) allowed to sign in.
-5. Replace `REPLACE_WITH_FIREBASE_AUTH_UID` in `firestore.rules` with the same owner UID.
+4. `VITE_ALLOWED_EMAILS` is set to `8svskhd@gmail.com`; add comma-separated owner emails only when needed.
 
 All tracker data is stored in the single collection path `aureon-notes/{uid}`
 and kept in sync through a realtime listener. There is no local fallback or seed
 data: a new/empty Firebase document displays empty views. The workspace is not
 rendered until authentication and the user's Firebase snapshot are ready.
 
-Deploy the owner-only rules after replacing the UID:
+Deploy the included rules, which require the verified owner email:
 
 ```bash
 firebase deploy --only firestore:rules
