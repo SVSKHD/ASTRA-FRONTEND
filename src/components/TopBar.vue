@@ -3,16 +3,20 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
+import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { THEMES, LIGHT_THEME_KEYS, DARK_THEME_KEYS, type ThemeKey } from '@/themes'
 
 const ui = useUiStore()
 const auth = useAuthStore()
+const app = useAppStore()
+const lock = useLockStore()
 const { c, s } = useStyles()
 const { themeSetting, themePanelOpen, isDayTime, now } = storeToRefs(ui)
-const { avatarMenuOpen, avatarColor, avatarInitial, avatarName, avatarSub, ghMenuLabel, isSignedIn } =
-  storeToRefs(auth)
+const { avatarMenuOpen, avatarColor, avatarInitial, avatarName, avatarSub, ghMenuLabel } = storeToRefs(auth)
+const { security, syncState } = storeToRefs(app)
 
 const greetingText = computed(() => {
   const h = new Date(now.value).getHours()
@@ -127,6 +131,15 @@ function moonStarStyle(i: number) {
 function onSignOut() {
   auth.signOut()
 }
+
+function onAutoLockChange(event: Event) {
+  lock.setAutoLock((event.target as HTMLInputElement).checked)
+}
+
+function onLockNow() {
+  auth.avatarMenuOpen = false
+  lock.lockNow()
+}
 </script>
 
 <template>
@@ -187,17 +200,22 @@ function onSignOut() {
         <div :style="s.menuHead">
           <span :style="s.drawerTitle">{{ avatarName }}</span>
           <span :style="s.finMeta">{{ avatarSub }}</span>
+          <span :style="s.finMeta">Firebase: {{ syncState }}</span>
         </div>
+        <label :style="s.menuToggle">
+          <input type="checkbox" :checked="security.autoLockEnabled" @change="onAutoLockChange" />
+          <span>Auto-lock after 50 min</span>
+        </label>
+        <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="onLockNow">Lock now</button>
         <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="auth.openGithubPanel()">
           {{ ghMenuLabel }}
         </button>
         <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="ui.toggleDrawer(); auth.toggleAvatarMenu()">
           Notes
         </button>
-        <button v-if="isSignedIn" :style="s.menuItem" v-hover-style="s.themeRowHover" @click="onSignOut">
+        <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="onSignOut">
           Sign out
         </button>
-        <button v-else :style="s.menuItem" v-hover-style="s.themeRowHover" @click="auth.openAuth()">Sign in</button>
       </div>
     </div>
   </div>

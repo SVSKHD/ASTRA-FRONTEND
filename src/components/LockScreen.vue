@@ -1,0 +1,121 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
+import { useLockStore } from '@/stores/lock'
+import { useStyles } from '@/composables/useStyles'
+import { pxify } from '@/styles'
+
+const auth = useAuthStore()
+const lock = useLockStore()
+const { c, s } = useStyles()
+const { locked, lockBusy, lockError, pinSetupRequired } = storeToRefs(lock)
+
+const pin = ref('')
+const confirmation = ref('')
+const neverLock = ref(false)
+
+const visible = computed(() => locked.value || pinSetupRequired.value)
+const title = computed(() => (pinSetupRequired.value ? 'Create your PIN' : 'Aureon is locked'))
+const subtitle = computed(() =>
+  pinSetupRequired.value
+    ? 'Set a private 4–8 digit PIN before using your workspace.'
+    : 'Enter your PIN to continue.',
+)
+
+const inputStyle = computed(() =>
+  pxify({
+    width: '100%',
+    padding: '13px 15px',
+    borderRadius: 14,
+    border: '1px solid ' + c.value.border,
+    background: c.value.input,
+    color: c.value.text,
+    fontSize: 18,
+    textAlign: 'center',
+    letterSpacing: '0.35em',
+  }),
+)
+const checkRow = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 9,
+    padding: '10px 12px',
+    borderRadius: 14,
+    background: c.value.input,
+    color: c.value.text,
+    fontSize: 11,
+    textAlign: 'left',
+  }),
+)
+const errorStyle = computed(() =>
+  pxify({ fontSize: 11, color: 'oklch(0.68 0.2 25)', lineHeight: 1.45 }),
+)
+
+watch(visible, () => {
+  pin.value = ''
+  confirmation.value = ''
+  lock.clearError()
+})
+
+async function submit() {
+  const success = pinSetupRequired.value
+    ? await lock.setPin(pin.value, confirmation.value, neverLock.value)
+    : await lock.unlock(pin.value)
+  if (success) {
+    pin.value = ''
+    confirmation.value = ''
+  }
+}
+</script>
+
+<template>
+  <template v-if="visible">
+    <div :style="s.dialogOverlay"></div>
+    <form :style="s.authCard" @submit.prevent="submit">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" :stroke="c.accent" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="align-self:center">
+        <rect x="4" y="10" width="16" height="11" rx="3" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </svg>
+      <span :style="s.authLogo">{{ title }}</span>
+      <span :style="s.finMeta">{{ subtitle }}</span>
+
+      <input
+        v-model="pin"
+        :style="inputStyle"
+        type="password"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        maxlength="8"
+        autocomplete="current-password"
+        aria-label="PIN"
+        placeholder="••••"
+        autofocus
+      />
+      <input
+        v-if="pinSetupRequired"
+        v-model="confirmation"
+        :style="inputStyle"
+        type="password"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        maxlength="8"
+        autocomplete="new-password"
+        aria-label="Confirm PIN"
+        placeholder="Confirm PIN"
+      />
+
+      <label v-if="pinSetupRequired" :style="checkRow">
+        <input v-model="neverLock" type="checkbox" />
+        <span>Do not auto-lock this app</span>
+      </label>
+
+      <span v-if="lockError" :style="errorStyle">{{ lockError }}</span>
+      <button :style="s.addBtn2" type="submit" :disabled="lockBusy">
+        {{ lockBusy ? 'Checking…' : pinSetupRequired ? 'Save PIN' : 'Unlock' }}
+      </button>
+      <button :style="s.authGuest" type="button" @click="auth.signOut()">Sign out</button>
+    </form>
+  </template>
+</template>

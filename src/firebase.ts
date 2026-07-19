@@ -1,9 +1,5 @@
-// Firebase initialisation with graceful degradation.
-//
-// If the VITE_FIREBASE_* env vars are present, real Firebase Auth + Firestore
-// are initialised. If they are missing (e.g. a fresh clone with no .env.local),
-// `firebaseEnabled` is false and the app runs in local-only mode — auth falls
-// back to a demo profile and data lives only in memory.
+// Firebase initialisation. Missing or invalid configuration keeps the workspace
+// inaccessible; there is intentionally no local data or guest fallback.
 
 import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { getAuth, type Auth } from 'firebase/auth'
@@ -20,6 +16,10 @@ const config = {
 
 export const AUREON_COLLECTION = 'aureon-notes'
 export const firebaseEnabled = Boolean(config.apiKey && config.projectId && config.appId)
+export const defaultLockMinutes = Math.max(
+  1,
+  Number.parseInt(import.meta.env.VITE_AUTO_LOCK_MINUTES || '50', 10) || 50,
+)
 
 let app: FirebaseApp | null = null
 let auth: Auth | null = null
@@ -31,8 +31,7 @@ if (firebaseEnabled) {
     auth = getAuth(app)
     db = getFirestore(app)
   } catch (err) {
-    // Bad config — degrade rather than crash the whole app.
-    console.error('[Aureon] Firebase init failed, falling back to local mode:', err)
+    console.error('[Aureon] Firebase initialisation failed:', err)
     app = null
     auth = null
     db = null
