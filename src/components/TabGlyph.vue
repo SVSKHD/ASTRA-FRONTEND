@@ -36,10 +36,15 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
           P('M10.3 20.2a2 2 0 0 0 3.4 0 Z', { fill: col }),
         ]
       : [P(bell, stroke(col)), P(clap, stroke(col))]
-  } else {
+  } else if (name === 'finances') {
     ch = filled
       ? [RC(3, 5, 18, 14, 3.5, { fill: col }), P('M3.4 9.6 H20.6', stroke(ko || col, 1.7)), P('M6.6 15 H11', stroke(ko || col, 1.7))]
       : [RC(3, 5, 18, 14, 3.5, stroke(col)), P('M3.4 9.6 H20.6', stroke(col, 1.9)), P('M6.6 15 H11', stroke(col, 1.9))]
+  } else {
+    const pin = 'M12 21s6-5.35 6-11a6 6 0 1 0-12 0c0 5.65 6 11 6 11Z'
+    ch = filled
+      ? [P(pin, { fill: col }), CI(12, 10, 2.15, { fill: ko || col })]
+      : [P(pin, stroke(col)), CI(12, 10, 2.15, stroke(col, 1.8))]
   }
   return h(
     'svg',

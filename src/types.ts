@@ -1,6 +1,6 @@
 // Domain types for Aureon.
 
-export type TabKey = 'todo' | 'tasks' | 'deadlines' | 'reminders' | 'finances'
+export type TabKey = 'todo' | 'tasks' | 'deadlines' | 'reminders' | 'finances' | 'trips'
 
 export interface Todo {
   id: number
@@ -68,8 +68,14 @@ export interface Note {
   ts: number
 }
 
-export type ListKey = 'todos' | 'tasks' | 'deadlines' | 'reminders' | 'finances' | 'notes'
-export type ItemType = 'todo' | 'task' | 'deadline' | 'reminder' | 'finance' | 'note'
+export interface Trip {
+  id: number
+  date: string // YYYY-MM-DD
+  location: string
+}
+
+export type ListKey = 'todos' | 'tasks' | 'deadlines' | 'reminders' | 'finances' | 'notes' | 'trips'
+export type ItemType = 'todo' | 'task' | 'deadline' | 'reminder' | 'finance' | 'note' | 'trip'
 
 export interface EditingState {
   type: ItemType | null

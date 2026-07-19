@@ -114,12 +114,16 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       padding: isMobile ? '56px 12px 100px' : '40px 16px',
     },
     stack: {
+      position: 'relative',
+      isolation: 'isolate',
       width: isMobile ? '96vw' : 'min(92vw, 720px)',
       display: 'flex',
       flexDirection: 'column',
       gap: 22,
     },
     topRow: {
+      position: 'relative',
+      zIndex: 12,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -169,6 +173,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     themeRowHover: { background: c.card },
     greetingRow: {
+      position: 'relative',
+      zIndex: 12,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -184,7 +190,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     greetingText: { fontSize: 14, color: c.text },
     greetingLeft: { display: 'flex', alignItems: 'center', gap: 10 },
-    userMenuWrap: { position: 'relative', flexShrink: 0 },
+    userMenuWrap: { position: 'relative', zIndex: 13, flexShrink: 0 },
     userPill: {
       display: 'flex',
       alignItems: 'center',
@@ -352,6 +358,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
         }
       : {
           position: 'relative',
+          zIndex: 4,
           alignSelf: 'center',
           maxWidth: '100%',
           background: c.glass,
@@ -398,6 +405,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
         'transform .45s cubic-bezier(.5,1.4,.35,1), width .45s cubic-bezier(.5,1.4,.35,1), opacity .3s ease',
     },
     container: {
+      position: 'relative',
+      zIndex: 1,
       width: '100%',
       maxWidth: isMobile ? '100%' : 720,
       minHeight: isMobile ? 280 : 440,
@@ -815,6 +824,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       position: 'absolute',
       top: 'calc(100% + 12px)',
       right: 0,
+      zIndex: 30,
       width: 222,
       background: c.glass,
       backdropFilter: 'blur(28px) saturate(1.6)',

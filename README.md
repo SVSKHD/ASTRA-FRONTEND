@@ -6,8 +6,8 @@ Implemented from the `Aureon.dc.html` Claude Design.
 
 ## Features
 
-- **Five tabs** — Todo, Tasks, Deadlines, Reminders, Finances, with a sliding
-  glass tab indicator, keyboard navigation (`←`/`→`, `1`–`5`, `N`, `⌘/Ctrl-K`)
+- **Six tabs** — Todo, Tasks, Deadlines, Reminders, Finances, Trips, with a sliding
+  glass tab indicator, keyboard navigation (`←`/`→`, `1`–`6`, `N`, `⌘/Ctrl-K`)
   and touch swipe.
 - **Seven themes + Auto** — Daylight Cosmos, Golden Dawn, Aurora Day, Deep Space,
   Nebula Rose, Solar Flare, Aurora Night. Auto follows the time of day. Each
@@ -18,6 +18,7 @@ Implemented from the `Aureon.dc.html` Claude Design.
   notifications, snooze, and one-click "Add to Google Calendar".
 - **Finances** — animated weekly/monthly totals and categorised expenses.
 - **Notes** — a side drawer with a rich-text editor.
+- **Trips** — locations grouped day by day, with quick add, edit and delete.
 - **Share links**, **delete-with-undo** toasts, an animated starfield and a
   cursor comet trail.
 - **Firebase auth** (Google / GitHub) with **Firestore** sync across devices.
@@ -46,8 +47,9 @@ In the [Firebase console](https://console.firebase.google.com/):
 2. Create a **Cloud Firestore** database.
 3. Copy the web app config values into `.env.local`.
 
-Data is stored per user at `users/{uid}` and kept in sync via a realtime
-listener.
+All tracker data is stored per user at `aureon-notes/{uid}` and kept in sync
+through a realtime listener. Deploy the included owner-only Firestore rules with
+`firebase deploy --only firestore:rules`.
 
 ## Scripts
 
