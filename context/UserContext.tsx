@@ -1,9 +1,10 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { User, onAuthStateChanged } from "firebase/auth";
+import { User, onAuthStateChanged, signOut } from "firebase/auth";
 import { getDoc, setDoc, doc } from "firebase/firestore";
 import { auth, db } from "@/utils/firebase";
+import { isEmailAllowed } from "@/config/auth";
 
 export type UserRole = "admin" | "user";
 
@@ -21,6 +22,7 @@ export interface UserProfile {
 interface UserContextType {
   user: UserProfile | null;
   loading: boolean;
+  accessError: string | null;
   updateUser: (data: Partial<UserProfile>) => Promise<void>;
 }
 
@@ -29,11 +31,22 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessError, setAccessError] = useState<string | null>(null);
 
   // Sync with Firebase Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Access control: only allow-listed emails may use the app. Anyone
+        // else is signed out immediately after authenticating.
+        if (!isEmailAllowed(firebaseUser.email)) {
+          setUser(null);
+          setAccessError("This account is not authorized to access this app.");
+          await signOut(auth);
+          setLoading(false);
+          return;
+        }
+        setAccessError(null);
         try {
           const userDocRef = doc(db, "Astra-users", firebaseUser.uid);
 
@@ -42,9 +55,10 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
             // User exists, load from Firestore
             const existingUser = userDoc.data() as UserProfile;
 
+            // Allow-listed users are the sole users of the app and get full
+            // (admin) access.
             if (
-              (existingUser.email === "rishivarma9090@gmail.com" ||
-                existingUser.email === "hitheshsvsk@gmail.com") &&
+              isEmailAllowed(existingUser.email) &&
               existingUser.role !== "admin"
             ) {
               existingUser.role = "admin";
@@ -53,11 +67,8 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
             setUser(existingUser);
           } else {
-            // New user, create in Firestore
-            const isAdmin =
-              firebaseUser.email?.includes("admin") ||
-              firebaseUser.email === "hitheshsvsk@gmail.com" ||
-              firebaseUser.email === "rishivarma9090@gmail.com";
+            // New user, create in Firestore. Allow-listed users get admin.
+            const isAdmin = isEmailAllowed(firebaseUser.email);
 
             const newUser: UserProfile = {
               id: firebaseUser.uid,
@@ -111,7 +122,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <UserContext.Provider value={{ user, loading, updateUser }}>
+    <UserContext.Provider value={{ user, loading, accessError, updateUser }}>
       {children}
     </UserContext.Provider>
   );
