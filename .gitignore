@@ -1,41 +1,39 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
 
-# testing
+# build output
+dist
+dist-ssr
+/build
 /coverage
 
-# next.js
-/.next/
-/out/
+# local env files (never commit real Firebase keys)
+.env
+.env.*
+!.env.example
 
-# production
-/build
-
-# misc
+# editor / os
 .DS_Store
 *.pem
+.vscode/*
+!.vscode/extensions.json
+.idea
 
-# debug
+# logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+logs
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
+# typescript build info
 *.tsbuildinfo
-next-env.d.ts
+
+# vercel / netlify
+.vercel
+.netlify

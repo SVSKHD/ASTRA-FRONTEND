@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aureon
 
-## Getting Started
+A liquid-glass, space-themed personal tracker — todos, tasks, deadlines,
+reminders and finances in one place — built with **Vue 3 + Vite + Firebase**.
+Implemented from the `Aureon.dc.html` Claude Design.
 
-First, run the development server:
+## Features
+
+- **Five tabs** — Todo, Tasks, Deadlines, Reminders, Finances, with a sliding
+  glass tab indicator, keyboard navigation (`←`/`→`, `1`–`5`, `N`, `⌘/Ctrl-K`)
+  and touch swipe.
+- **Seven themes + Auto** — Daylight Cosmos, Golden Dawn, Aurora Day, Deep Space,
+  Nebula Rose, Solar Flare, Aurora Night. Auto follows the time of day. Each
+  theme has its own animated celestial body (sun, orbiting moon, aurora, …).
+- **Tasks** — day grouping with drag-and-drop, inline detail dialog, full-page
+  task view, and a GitHub panel (repo metadata, CI status, PRs, issue import).
+- **Reminders** — flexible recurrence (interval or specific weekdays), browser
+  notifications, snooze, and one-click "Add to Google Calendar".
+- **Finances** — animated weekly/monthly totals and categorised expenses.
+- **Notes** — a side drawer with a rich-text editor.
+- **Share links**, **delete-with-undo** toasts, an animated starfield and a
+  cursor comet trail.
+- **Firebase auth** (Google / GitHub) with **Firestore** sync across devices.
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app runs immediately in **local-only mode** with seed data — no Firebase
+config required. Sign-in buttons fall back to a demo profile.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Firebase (optional, for cloud sync)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env.local` and fill in your Firebase web config:
 
-## Learn More
+```bash
+cp .env.example .env.local
+```
 
-To learn more about Next.js, take a look at the following resources:
+In the [Firebase console](https://console.firebase.google.com/):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Enable **Authentication** → Google and GitHub providers.
+2. Create a **Cloud Firestore** database.
+3. Copy the web app config values into `.env.local`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Data is stored per user at `users/{uid}` and kept in sync via a realtime
+listener.
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Script               | Description                         |
+| -------------------- | ----------------------------------- |
+| `npm run dev`        | Start the Vite dev server           |
+| `npm run build`      | Type-check and build for production |
+| `npm run preview`    | Preview the production build        |
+| `npm run type-check` | Run `vue-tsc` only                  |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Notes
+
+- GitHub repo/PR/issue data is currently mocked (deterministic per repo name);
+  the real GitHub API calls are marked with comments where they would slot in.
+- The previous Next.js/React app has been moved to [`legacy-next/`](./legacy-next).
