@@ -6,12 +6,17 @@ import { getAuth, type Auth } from 'firebase/auth'
 import { getFirestore, type Firestore } from 'firebase/firestore'
 
 const config = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAvTW0LWeAtzvaC_fAEJmd7akXmIc8Wwrw',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'spasta-personal-finance.firebaseapp.com',
+  databaseURL:
+    import.meta.env.VITE_FIREBASE_DATABASE_URL ||
+    'https://spasta-personal-finance-default-rtdb.firebaseio.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'spasta-personal-finance',
+  storageBucket:
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'spasta-personal-finance.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '616298926621',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:616298926621:web:fb000c48b4f7dac325ecf4',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-0MBNYMETF9',
 }
 
 export const AUREON_COLLECTION = 'aureon-notes'

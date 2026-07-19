@@ -21,7 +21,7 @@ const allowedUids = (import.meta.env.VITE_ALLOWED_UIDS || '')
   .map((value: string) => value.trim())
   .filter((value: string) => value && !value.startsWith('REPLACE_'))
 
-const allowedEmails = (import.meta.env.VITE_ALLOWED_EMAILS || '')
+const allowedEmails = (import.meta.env.VITE_ALLOWED_EMAILS || '8svskhd@gmail.com')
   .split(',')
   .map((value: string) => value.trim().toLowerCase())
   .filter((value: string) => value && !value.startsWith('replace_'))
