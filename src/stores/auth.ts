@@ -4,10 +4,13 @@ import {
   GoogleAuthProvider,
   GithubAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as fbSignOut,
   onAuthStateChanged,
   linkWithPopup,
   type User as FbUser,
+  type AuthProvider,
 } from 'firebase/auth'
 import { auth, firebaseEnabled } from '@/firebase'
 import { mockRepos } from '@/utils/github'
@@ -50,12 +53,19 @@ function fromFirebase(user: FbUser): AureonUser {
 }
 
 function authMessage(error: unknown): string {
+  const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : ''
   const message = error instanceof Error ? error.message : String(error)
-  if (message.includes('popup-closed-by-user')) return 'Sign-in was cancelled.'
-  if (message.includes('popup-blocked')) return 'Allow pop-ups for this site, then try again.'
-  if (message.includes('account-exists-with-different-credential'))
+  if (code.includes('unauthorized-domain')) return 'Add this website domain under Firebase Authentication → Settings → Authorized domains.'
+  if (code.includes('operation-not-allowed')) return 'Enable this sign-in provider in Firebase Authentication → Sign-in method.'
+  if (code.includes('popup-closed-by-user') || message.includes('popup-closed-by-user')) return 'Sign-in was cancelled.'
+  if (code.includes('account-exists-with-different-credential') || message.includes('account-exists-with-different-credential'))
     return 'This email already uses another sign-in provider.'
-  return 'Authentication failed. Check the Firebase configuration and provider settings.'
+  return `Authentication failed${code ? ` (${code})` : ''}. Check Firebase Authentication settings.`
+}
+
+function needsRedirect(error: unknown): boolean {
+  const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : ''
+  return ['auth/popup-blocked', 'auth/cancelled-popup-request', 'auth/operation-not-supported-in-this-environment'].includes(code)
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -87,6 +97,9 @@ export const useAuthStore = defineStore('auth', () => {
     authError.value = 'Firebase is not configured. Add the VITE_FIREBASE_* environment values.'
   } else {
     const configuredAuth = auth
+    getRedirectResult(configuredAuth).catch((error) => {
+      authError.value = authMessage(error)
+    })
     onAuthStateChanged(configuredAuth, async (firebaseUser) => {
       if (!firebaseUser) {
         user.value = null
@@ -122,7 +135,7 @@ export const useAuthStore = defineStore('auth', () => {
     }, 900)
   }
 
-  async function loginGoogle() {
+  async function loginWithProvider(provider: AuthProvider) {
     if (!firebaseEnabled || !auth) {
       authError.value = 'Firebase is not configured. Replace the environment placeholders first.'
       return
@@ -130,30 +143,30 @@ export const useAuthStore = defineStore('auth', () => {
     authBusy.value = true
     authError.value = ''
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider())
+      await signInWithPopup(auth, provider)
     } catch (error) {
+      if (needsRedirect(error)) {
+        authError.value = 'Popup unavailable. Continuing sign-in in this window…'
+        await signInWithRedirect(auth, provider)
+        return
+      }
       authError.value = authMessage(error)
     } finally {
       authBusy.value = false
     }
   }
 
+  async function loginGoogle() {
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({ prompt: 'select_account' })
+    await loginWithProvider(provider)
+  }
+
   async function loginGithub() {
-    if (!firebaseEnabled || !auth) {
-      authError.value = 'Firebase is not configured. Replace the environment placeholders first.'
-      return
-    }
-    authBusy.value = true
-    authError.value = ''
-    try {
-      const provider = new GithubAuthProvider()
-      provider.addScope('repo')
-      await signInWithPopup(auth, provider)
-    } catch (error) {
-      authError.value = authMessage(error)
-    } finally {
-      authBusy.value = false
-    }
+    const provider = new GithubAuthProvider()
+    provider.addScope('repo')
+    provider.setCustomParameters({ allow_signup: 'true' })
+    await loginWithProvider(provider)
   }
 
   function openAuth() {
