@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Aureon is a single-page app that uses client-side history paths
+# (share links like /todos/:slug and /tasks/:id/view). Serve index.html
+# for any unmatched route so deep links and refreshes resolve.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
