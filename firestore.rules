@@ -43,26 +43,26 @@ service cloud.firestore {
     }
 
     // BOARDS: Allow public read if shared
-    match /astra-boards/{boardId} {
-      allow read: if resource.data.isSharable == true || 
+    match /aureon-boards/{boardId} {
+      allow read: if resource.data.isSharable == true ||
                   (isSignedIn() && (resource.data.userId == request.auth.uid || request.auth.uid in resource.data.memberIds));
-      
+
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      
+
       // Update: Owner or Member? Assuming Owner or Member for now
       allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || request.auth.uid in resource.data.memberIds);
-      
+
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // TASKS: Allow public read if task is shared OR board is shared
-    match /astra-tasks/{taskId} {
-      allow read: if resource.data.isSharable == true || 
+    match /aureon-tasks/{taskId} {
+      allow read: if resource.data.isSharable == true ||
                   (isSignedIn() && resource.data.userId == request.auth.uid) ||
-                  get(/databases/$(database)/documents/astra-boards/$(resource.data.boardId)).data.isSharable == true;
-      
+                  get(/databases/$(database)/documents/aureon-boards/$(resource.data.boardId)).data.isSharable == true;
+
       allow create: if isSignedIn();
-      
+
       allow update, delete: if isSignedIn(); // Simplified for brevity, normally check ownership/membership
     }
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, LogOut, User as UserIcon, Lock } from "lucide-react";
 import { signInWithPopup, signOut, User } from "firebase/auth";
-import { auth, googleProvider } from "../utils/firebase";
+import { auth, googleProvider, githubProvider } from "../utils/firebase";
 import { useUser } from "@/context/UserContext";
 import { useDialogTracking } from "@/hooks/useDialogTracking";
 import { Portal } from "./ui/Portal";
@@ -22,7 +22,7 @@ export const LoginDialog = ({
   user: any;
 }) => {
   useDialogTracking(isOpen);
-  const { user, updateUser } = useUser();
+  const { user, updateUser, accessError } = useUser();
   const [pin, setPin] = useState("");
   const [isEditingPin, setIsEditingPin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,6 +33,15 @@ export const LoginDialog = ({
     if (user?.pin) setPin(user.pin);
     if (user) setIsLoading(false);
   }, [user]);
+
+  // If the context rejects an unauthorized account, stop the spinner and
+  // surface the reason.
+  useEffect(() => {
+    if (accessError) {
+      setIsLoading(false);
+      setError(accessError);
+    }
+  }, [accessError]);
 
   // Body scroll lock
   useEffect(() => {
@@ -57,6 +66,29 @@ export const LoginDialog = ({
       setIsLoading(false);
       if (error.code === "auth/popup-closed-by-user") {
         setError("Login canceled by user");
+      } else {
+        setError("Failed to sign in. Please try again.");
+      }
+    }
+  };
+
+  const handleGithubLogin = async () => {
+    try {
+      setError(null);
+      await signInWithPopup(auth, githubProvider);
+      // Login successful, now we are fetching user data
+      setIsLoading(true);
+    } catch (error: any) {
+      console.error("Login failed", error);
+      setIsLoading(false);
+      if (error.code === "auth/popup-closed-by-user") {
+        setError("Login canceled by user");
+      } else if (
+        error.code === "auth/account-exists-with-different-credential"
+      ) {
+        setError(
+          "An account already exists with the same email. Try Google sign-in.",
+        );
       } else {
         setError("Failed to sign in. Please try again.");
       }
@@ -241,6 +273,20 @@ export const LoginDialog = ({
                         />
                       </svg>
                       Continue with Google
+                    </button>
+
+                    <button
+                      onClick={handleGithubLogin}
+                      className="w-full mt-3 py-3 px-4 rounded-xl bg-[#1f2328] text-white font-bold hover:bg-[#2c333a] transition-all flex items-center justify-center gap-3 border border-white/10"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.05-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.05.14 3 .4 2.29-1.55 3.3-1.23 3.3-1.23.65 1.65.24 2.87.12 3.17.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.82 1.1.82 2.22 0 1.6-.02 2.9-.02 3.29 0 .32.22.7.83.58C20.56 22.29 24 17.79 24 12.5 24 5.87 18.63.5 12 .5z" />
+                      </svg>
+                      Continue with GitHub
                     </button>
                   </>
                 )}

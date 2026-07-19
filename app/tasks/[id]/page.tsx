@@ -6,7 +6,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/utils/firebase";
 import { useUser } from "@/context/UserContext";
 import { ArrowLeft, Calendar, Flag, Clock, Github } from "lucide-react";
-import { Task } from "@/utils/kanban-service";
+import { Task, TASKS_COLLECTION } from "@/utils/kanban-service";
 
 export default function SharedTaskPage() {
   const { id } = useParams();
@@ -19,7 +19,7 @@ export default function SharedTaskPage() {
     const fetchTask = async () => {
       try {
         if (typeof id !== "string") return;
-        const docRef = doc(db, "astra-tasks", id);
+        const docRef = doc(db, TASKS_COLLECTION, id);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {

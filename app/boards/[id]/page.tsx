@@ -14,7 +14,13 @@ import {
 import { db } from "@/utils/firebase";
 import { useUser } from "@/context/UserContext";
 import { ArrowLeft, Share2, Github, CheckCircle2 } from "lucide-react";
-import { Board, Task, ColumnType } from "@/utils/kanban-service";
+import {
+  Board,
+  Task,
+  ColumnType,
+  BOARDS_COLLECTION,
+  TASKS_COLLECTION,
+} from "@/utils/kanban-service";
 
 export default function SharedBoardPage() {
   const { id } = useParams();
@@ -30,7 +36,7 @@ export default function SharedBoardPage() {
         if (typeof id !== "string") return;
 
         // 1. Fetch Board
-        const boardRef = doc(db, "astra-boards", id);
+        const boardRef = doc(db, BOARDS_COLLECTION, id);
         const boardSnap = await getDoc(boardRef);
 
         if (!boardSnap.exists()) {
@@ -51,7 +57,7 @@ export default function SharedBoardPage() {
           // We can fetch tasks because we are "in" the board context now.
           // Note: Firestore rules need to allow this read.
           const tasksQ = query(
-            collection(db, "astra-tasks"),
+            collection(db, TASKS_COLLECTION),
             where("boardId", "==", id),
           );
           const tasksSnap = await getDocs(tasksQ);

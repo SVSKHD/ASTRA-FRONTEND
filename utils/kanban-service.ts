@@ -18,6 +18,10 @@ import {
 } from "firebase/firestore";
 import { UserProfile } from "../context/UserContext";
 
+// Firestore collections for the tasks feature, prefixed with "aureon".
+export const BOARDS_COLLECTION = "aureon-boards";
+export const TASKS_COLLECTION = "aureon-tasks";
+
 export type ColumnType =
   | "Backlog"
   | "To Do"
@@ -68,7 +72,7 @@ export const createBoard = async (
   columns: ColumnType[] = ["Dock", "In Progress", "Finished", "Parked"],
 ) => {
   try {
-    const docRef = await addDoc(collection(db, "astra-boards"), {
+    const docRef = await addDoc(collection(db, BOARDS_COLLECTION), {
       name,
       columns,
       userId,
@@ -92,7 +96,7 @@ export const subscribeToBoards = (
   if (!userId) return () => {};
 
   const q = query(
-    collection(db, "astra-boards"),
+    collection(db, BOARDS_COLLECTION),
     or(
       where("userId", "==", userId),
       where("memberIds", "array-contains", userId),
@@ -123,10 +127,10 @@ export const subscribeToTasks = (
   callback: (tasks: Task[]) => void,
   onError?: (error: any) => void,
 ) => {
-  // Query 'astra-tasks' collection where 'boardId' matches the current board
+  // Query 'aureon-tasks' collection where 'boardId' matches the current board
   // Note: Removed orderBy("createdAt") to avoid needing a composite index for now. Sorting client-side.
   const q = query(
-    collection(db, "astra-tasks"),
+    collection(db, TASKS_COLLECTION),
     where("boardId", "==", boardId),
   );
 
@@ -163,7 +167,7 @@ export const addTask = async (
   column: ColumnType,
   userId: string,
 ) => {
-  await addDoc(collection(db, "astra-tasks"), {
+  await addDoc(collection(db, TASKS_COLLECTION), {
     boardId,
     content,
     column,
@@ -173,7 +177,7 @@ export const addTask = async (
   });
 
   // Increment board task count
-  const boardRef = doc(db, "astra-boards", boardId);
+  const boardRef = doc(db, BOARDS_COLLECTION, boardId);
   await updateDoc(boardRef, {
     taskCount: increment(1),
   });
@@ -198,7 +202,7 @@ export const createTask = async (
 ) => {
   // Clean up undefined values from taskData if necessary, but Firestore handles them or we can just pass.
   // Ensure critical fields
-  await addDoc(collection(db, "astra-tasks"), {
+  await addDoc(collection(db, TASKS_COLLECTION), {
     boardId,
     content: taskData.content,
     description: taskData.description || "",
@@ -216,7 +220,7 @@ export const createTask = async (
 };
 
 export const updateTask = async (taskId: string, updates: Partial<Task>) => {
-  const taskRef = doc(db, "astra-tasks", taskId);
+  const taskRef = doc(db, TASKS_COLLECTION, taskId);
   // Remove id/boardId/createdAt from updates if present to avoid overwriting immutables if passed carelessly,
   // though Firestore ignores undefineds often, let's just pass updates directly for now as Partial<Task> is safe enough
   // if we control the input.
@@ -227,17 +231,17 @@ export const updateTask = async (taskId: string, updates: Partial<Task>) => {
 };
 
 export const moveTask = async (taskId: string, newColumn: ColumnType) => {
-  const taskRef = doc(db, "astra-tasks", taskId);
+  const taskRef = doc(db, TASKS_COLLECTION, taskId);
   await updateDoc(taskRef, {
     column: newColumn,
   });
 };
 
 export const deleteTask = async (taskId: string, boardId?: string) => {
-  await deleteDoc(doc(db, "astra-tasks", taskId));
+  await deleteDoc(doc(db, TASKS_COLLECTION, taskId));
 
   if (boardId) {
-    const boardRef = doc(db, "astra-boards", boardId);
+    const boardRef = doc(db, BOARDS_COLLECTION, boardId);
     await updateDoc(boardRef, {
       taskCount: increment(-1),
     });
@@ -249,7 +253,7 @@ export const deleteBoard = async (boardId: string) => {
     console.log("Starting deletion for board:", boardId);
     // 1. Get all tasks for this board
     const q = query(
-      collection(db, "astra-tasks"),
+      collection(db, TASKS_COLLECTION),
       where("boardId", "==", boardId),
     );
     const snapshot = await getDocs(q);
@@ -261,7 +265,7 @@ export const deleteBoard = async (boardId: string) => {
     });
 
     // 3. Delete the board itself
-    const boardRef = doc(db, "astra-boards", boardId);
+    const boardRef = doc(db, BOARDS_COLLECTION, boardId);
     batch.delete(boardRef);
 
     // 4. Commit batch
@@ -276,7 +280,7 @@ export const addMemberToBoard = async (
   boardId: string,
   member: UserProfile,
 ) => {
-  const boardRef = doc(db, "astra-boards", boardId);
+  const boardRef = doc(db, BOARDS_COLLECTION, boardId);
   await updateDoc(boardRef, {
     members: arrayUnion(member),
     memberIds: arrayUnion(member.id),
@@ -284,6 +288,6 @@ export const addMemberToBoard = async (
 };
 
 export const updateBoard = async (boardId: string, updates: Partial<Board>) => {
-  const boardRef = doc(db, "astra-boards", boardId);
+  const boardRef = doc(db, BOARDS_COLLECTION, boardId);
   await updateDoc(boardRef, updates);
 };
