@@ -7,8 +7,9 @@ import {
   onSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore'
-import { AUREON_COLLECTION, auth, db, firebaseEnabled } from '@/firebase'
+import { AUREON_COLLECTION, auth, db, defaultLockMinutes, firebaseEnabled } from '@/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
+import { isFirebaseUserAllowed } from '@/stores/auth'
 import { mockGithub } from '@/utils/github'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
 import { occurrences } from '@/utils/reminders'
@@ -24,6 +25,7 @@ import type {
   PullRequest,
   Reminder,
   Repeat,
+  SecuritySettings,
   SharedView,
   Task,
   Toast,
@@ -37,71 +39,27 @@ function rel(days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-function seedTodos(): Todo[] {
-  return [
-    { id: 1, text: 'Water the plants', done: false },
-    { id: 2, text: 'Read 10 pages', done: false },
-    { id: 3, text: 'Reply to Sam', done: true },
-  ]
-}
-function seedTasks(): Task[] {
-  return [
-    { id: 1, title: 'Draft launch email', tag: 'Marketing', done: false, deadline: '', notes: '', repo: '' },
-    { id: 2, title: 'Fix login redirect bug', tag: 'Eng', done: false, deadline: rel(3), notes: '', repo: 'vercel/next.js' },
-  ]
-}
-function seedDeadlines(): Deadline[] {
-  return [
-    { id: 1, title: 'Submit tax documents', due: rel(5) },
-    { id: 2, title: 'Portfolio review', due: rel(17) },
-    { id: 3, title: 'Renew passport', due: rel(2) },
-  ]
-}
-function seedFinances(): Finance[] {
-  return [
-    { id: 1, amount: 12.5, category: 'Food', note: 'Lunch', date: rel(0) },
-    { id: 2, amount: 40, category: 'Transport', note: 'Metro card', date: rel(-3) },
-    { id: 3, amount: 9.99, category: 'Fun', note: 'Album', date: rel(-10) },
-  ]
-}
-function seedNotes(): Note[] {
-  return [{ id: 1, text: '<div>Idea: batch groceries on <b>Sundays</b></div>', ts: Date.now() - 3600000 }]
-}
-function seedReminders(): Reminder[] {
-  return [
-    {
-      id: 1,
-      title: 'Stretch break',
-      note: 'Stand up and stretch',
-      start: new Date(Date.now() + 25 * 60000).toISOString().slice(0, 16),
-      repeat: { type: 'hours', n: 2 },
-      calSync: 'local',
-      lastFiredOcc: null,
-    },
-    {
-      id: 2,
-      title: 'Weekly review',
-      note: 'Plan next week',
-      start: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 16),
-      repeat: { type: 'weekdays', n: 1, weekdays: [1] },
-      calSync: 'local',
-      lastFiredOcc: null,
-    },
-  ]
-}
-
-function seedTrips(): Trip[] {
-  return []
+function emptySecurity(): SecuritySettings {
+  return {
+    pinHash: '',
+    pinSalt: '',
+    autoLockEnabled: true,
+    lockTimeoutMinutes: defaultLockMinutes,
+  }
 }
 
 export const useAppStore = defineStore('app', () => {
-  const todos = ref<Todo[]>(seedTodos())
-  const tasks = ref<Task[]>(seedTasks())
-  const deadlines = ref<Deadline[]>(seedDeadlines())
-  const finances = ref<Finance[]>(seedFinances())
-  const notes = ref<Note[]>(seedNotes())
-  const reminders = ref<Reminder[]>(seedReminders())
-  const trips = ref<Trip[]>(seedTrips())
+  const todos = ref<Todo[]>([])
+  const tasks = ref<Task[]>([])
+  const deadlines = ref<Deadline[]>([])
+  const finances = ref<Finance[]>([])
+  const notes = ref<Note[]>([])
+  const reminders = ref<Reminder[]>([])
+  const trips = ref<Trip[]>([])
+  const security = ref<SecuritySettings>(emptySecurity())
+  const cloudReady = ref(false)
+  const cloudError = ref('')
+  const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
 
   const editing = ref<EditingState>({ type: null, id: null })
   const draft = ref<Record<string, unknown>>({})
@@ -603,20 +561,45 @@ export const useAppStore = defineStore('app', () => {
       notes: notes.value,
       reminders: reminders.value,
       trips: trips.value,
+      security: security.value,
       approvedPRs: approvedPRs.value,
     }
   }
+  function resetData() {
+    hydrating = true
+    todos.value = []
+    tasks.value = []
+    deadlines.value = []
+    finances.value = []
+    notes.value = []
+    reminders.value = []
+    trips.value = []
+    approvedPRs.value = {}
+    security.value = emptySecurity()
+    editing.value = { type: null, id: null }
+    draft.value = {}
+    nid = 100
+    setTimeout(() => {
+      hydrating = false
+    }, 0)
+  }
   function applyData(data: Record<string, unknown>) {
     hydrating = true
-    if (Array.isArray(data.todos)) todos.value = data.todos as Todo[]
-    if (Array.isArray(data.tasks)) tasks.value = data.tasks as Task[]
-    if (Array.isArray(data.deadlines)) deadlines.value = data.deadlines as Deadline[]
-    if (Array.isArray(data.finances)) finances.value = data.finances as Finance[]
-    if (Array.isArray(data.notes)) notes.value = data.notes as Note[]
-    if (Array.isArray(data.reminders)) reminders.value = data.reminders as Reminder[]
-    if (Array.isArray(data.trips)) trips.value = data.trips as Trip[]
-    if (data.approvedPRs && typeof data.approvedPRs === 'object')
-      approvedPRs.value = data.approvedPRs as Record<string, boolean>
+    todos.value = Array.isArray(data.todos) ? (data.todos as Todo[]) : []
+    tasks.value = Array.isArray(data.tasks) ? (data.tasks as Task[]) : []
+    deadlines.value = Array.isArray(data.deadlines) ? (data.deadlines as Deadline[]) : []
+    finances.value = Array.isArray(data.finances) ? (data.finances as Finance[]) : []
+    notes.value = Array.isArray(data.notes) ? (data.notes as Note[]) : []
+    reminders.value = Array.isArray(data.reminders) ? (data.reminders as Reminder[]) : []
+    trips.value = Array.isArray(data.trips) ? (data.trips as Trip[]) : []
+    approvedPRs.value =
+      data.approvedPRs && typeof data.approvedPRs === 'object'
+        ? (data.approvedPRs as Record<string, boolean>)
+        : {}
+    security.value =
+      data.security && typeof data.security === 'object'
+        ? { ...emptySecurity(), ...(data.security as Partial<SecuritySettings>) }
+        : emptySecurity()
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -624,11 +607,18 @@ export const useAppStore = defineStore('app', () => {
     }, 0)
   }
   function saveCloud() {
-    if (!firebaseEnabled || !db || !uid || hydrating) return
+    if (!firebaseEnabled || !db || !uid || hydrating || !cloudReady.value) return
     const ref = doc(db, AUREON_COLLECTION, uid)
-    setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true }).catch((err) =>
-      console.error('[Aureon] Cloud save failed:', err),
-    )
+    syncState.value = 'saving'
+    setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
+      .then(() => {
+        syncState.value = 'synced'
+      })
+      .catch((error) => {
+        syncState.value = 'error'
+        cloudError.value = 'Could not save changes to Firebase.'
+        console.error('[Aureon] Cloud save failed:', error)
+      })
   }
   function scheduleSave() {
     // Snapshot hydration updates every reactive list. Do not turn those remote
@@ -644,29 +634,54 @@ export const useAppStore = defineStore('app', () => {
         cloudUnsub()
         cloudUnsub = null
       }
-      uid = u ? u.uid : null
+      clearTimeout(saveTimer)
+      cloudReady.value = false
+      cloudError.value = ''
+      syncState.value = 'idle'
+      uid = u && isFirebaseUserAllowed(u) ? u.uid : null
+      resetData()
       if (!uid || !db) return
       const ref = doc(db, AUREON_COLLECTION, uid)
       try {
         const snap = await getDoc(ref)
         if (snap.exists()) applyData(snap.data())
-        else await setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
-      } catch (err) {
-        console.error('[Aureon] Cloud load failed:', err)
+        else {
+          await setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() })
+        }
+        cloudReady.value = true
+        syncState.value = 'synced'
+      } catch (error) {
+        cloudError.value = 'Could not load your Firebase data.'
+        syncState.value = 'error'
+        console.error('[Aureon] Cloud load failed:', error)
+        return
       }
       // Live updates from other devices.
       cloudUnsub = onSnapshot(
         ref,
         (s) => {
-          if (s.exists() && s.metadata.hasPendingWrites === false) applyData(s.data())
+          if (s.exists() && s.metadata.hasPendingWrites === false) {
+            applyData(s.data())
+            cloudReady.value = true
+            syncState.value = 'synced'
+          }
         },
-        (err) => console.error('[Aureon] Cloud listener failed:', err),
+        (error) => {
+          cloudError.value = 'Firebase realtime sync was interrupted.'
+          syncState.value = 'error'
+          console.error('[Aureon] Cloud listener failed:', error)
+        },
       )
     })
 
-    watch([todos, tasks, deadlines, finances, notes, reminders, trips, approvedPRs], scheduleSave, {
+    watch([todos, tasks, deadlines, finances, notes, reminders, trips, security, approvedPRs], scheduleSave, {
       deep: true,
     })
+  }
+
+  function updateSecurity(patch: Partial<SecuritySettings>) {
+    if (!uid || !cloudReady.value) return
+    security.value = { ...security.value, ...patch }
   }
 
   bumpNid()
@@ -680,6 +695,10 @@ export const useAppStore = defineStore('app', () => {
     notes,
     reminders,
     trips,
+    security,
+    cloudReady,
+    cloudError,
+    syncState,
     editing,
     draft,
     toast,
@@ -703,6 +722,7 @@ export const useAppStore = defineStore('app', () => {
     addDeadline,
     addFinance,
     addTrip,
+    updateSecurity,
     startEdit,
     newNote,
     cancelEdit,

@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 
@@ -21,6 +22,8 @@ import AuthDialog from '@/components/AuthDialog.vue'
 import Toast from '@/components/Toast.vue'
 import NotifBanner from '@/components/NotifBanner.vue'
 import SharedBanner from '@/components/SharedBanner.vue'
+import LockScreen from '@/components/LockScreen.vue'
+import CloudLoading from '@/components/CloudLoading.vue'
 
 import TodoView from '@/components/views/TodoView.vue'
 import TasksView from '@/components/views/TasksView.vue'
@@ -32,8 +35,13 @@ import TripsView from '@/components/views/TripsView.vue'
 const ui = useUiStore()
 const app = useAppStore()
 const auth = useAuthStore()
+const lock = useLockStore()
 const { c, s } = useStyles()
 const { tab } = storeToRefs(ui)
+const { isSignedIn, authReady } = storeToRefs(auth)
+const { cloudReady } = storeToRefs(app)
+const { canUseApp } = storeToRefs(lock)
+const showWorkspace = computed(() => authReady.value && isSignedIn.value && cloudReady.value && canUseApp.value)
 
 const viewMap = {
   todo: TodoView,
@@ -54,6 +62,7 @@ const notesIconStyle = pxify({ display: 'block' })
 
 // --- global keyboard --------------------------------------------------------
 function onKey(e: KeyboardEvent) {
+  if (!showWorkspace.value) return
   if (e.key === 'Escape') {
     if (app.taskViewId != null) return app.closeTaskView()
     if (app.dialogTaskId != null) return app.closeDialog()
@@ -64,10 +73,6 @@ function onKey(e: KeyboardEvent) {
     }
     if (auth.avatarMenuOpen) {
       auth.toggleAvatarMenu()
-      return
-    }
-    if (auth.authOpen) {
-      auth.continueGuest()
       return
     }
     if (ui.drawerOpen) {
@@ -101,6 +106,7 @@ function onKey(e: KeyboardEvent) {
 // --- swipe between tabs (touch) --------------------------------------------
 let touchX: number | null = null
 function onTouchStart(e: TouchEvent) {
+  if (!showWorkspace.value) return
   touchX = e.touches[0].clientX
 }
 function onTouchEnd(e: TouchEvent) {
@@ -133,6 +139,7 @@ function onPop() {
 }
 
 onMounted(() => {
+  lock.start()
   clockTimer = setInterval(() => ui.tick(), 60000)
   remTimer = setInterval(() => app.checkReminders(), 15000)
   window.addEventListener('resize', onResize)
@@ -140,6 +147,7 @@ onMounted(() => {
   window.addEventListener('popstate', onPop)
 })
 onBeforeUnmount(() => {
+  lock.stop()
   clearInterval(clockTimer)
   clearInterval(remTimer)
   window.removeEventListener('resize', onResize)
@@ -152,7 +160,7 @@ onBeforeUnmount(() => {
   <Starfield />
   <CursorTail />
 
-  <div :style="s.page">
+  <div v-if="showWorkspace" :style="s.page">
     <div :style="s.stack">
       <TopBar />
       <TabBar />
@@ -162,9 +170,9 @@ onBeforeUnmount(() => {
     </div>
   </div>
 
-  <Ticker />
+  <Ticker v-if="showWorkspace" />
 
-  <button :style="s.fab" v-hover-style="s.fabHover" aria-label="Notes" @click="ui.toggleDrawer()">
+  <button v-if="showWorkspace" :style="s.fab" v-hover-style="s.fabHover" aria-label="Notes" @click="ui.toggleDrawer()">
     <svg :style="notesIconStyle" width="19" height="19" viewBox="0 0 24 24" fill="none" :stroke="c.accent" stroke-width="2" stroke-linecap="round">
       <rect x="4" y="3" width="16" height="18" rx="2" />
       <line x1="7.5" y1="8" x2="16.5" y2="8" />
@@ -173,7 +181,7 @@ onBeforeUnmount(() => {
     </svg>
   </button>
 
-  <button :style="s.ghFab" v-hover-style="s.fabHover" aria-label="GitHub" @click="auth.openGithubPanel()">
+  <button v-if="showWorkspace" :style="s.ghFab" v-hover-style="s.fabHover" aria-label="GitHub" @click="auth.openGithubPanel()">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="c.accent" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="6" cy="6" r="2.4" />
       <circle cx="6" cy="18" r="2.4" />
@@ -185,13 +193,17 @@ onBeforeUnmount(() => {
 
   <div :style="s.brandWrap"><span :style="s.brand">AUREON</span></div>
 
-  <NotesDrawer />
-  <TaskDialog />
-  <ReminderDialog />
-  <TaskView />
-  <GithubPanel />
+  <template v-if="showWorkspace">
+    <NotesDrawer />
+    <TaskDialog />
+    <ReminderDialog />
+    <TaskView />
+    <GithubPanel />
+    <NotifBanner />
+    <SharedBanner />
+    <Toast />
+  </template>
   <AuthDialog />
-  <NotifBanner />
-  <SharedBanner />
-  <Toast />
+  <CloudLoading v-if="authReady && isSignedIn && !cloudReady" />
+  <LockScreen v-if="authReady && isSignedIn && cloudReady && !canUseApp" />
 </template>

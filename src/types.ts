@@ -74,6 +74,13 @@ export interface Trip {
   location: string
 }
 
+export interface SecuritySettings {
+  pinHash: string
+  pinSalt: string
+  autoLockEnabled: boolean
+  lockTimeoutMinutes: number
+}
+
 export type ListKey = 'todos' | 'tasks' | 'deadlines' | 'reminders' | 'finances' | 'notes' | 'trips'
 export type ItemType = 'todo' | 'task' | 'deadline' | 'reminder' | 'finance' | 'note' | 'trip'
 
@@ -150,6 +157,7 @@ export interface Repo {
 }
 
 export interface AureonUser {
+  uid: string
   name: string
   email: string
   provider: 'google' | 'github'

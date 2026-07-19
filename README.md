@@ -21,7 +21,8 @@ Implemented from the `Aureon.dc.html` Claude Design.
 - **Trips** — locations grouped day by day, with quick add, edit and delete.
 - **Share links**, **delete-with-undo** toasts, an animated starfield and a
   cursor comet trail.
-- **Firebase auth** (Google / GitHub) with **Firestore** sync across devices.
+- **Owner-only Firebase auth** (Google / GitHub) with user-scoped Firestore sync.
+- **PIN lock** with a 50-minute inactivity timeout and a “do not auto-lock” option.
 
 ## Getting started
 
@@ -30,10 +31,7 @@ npm install
 npm run dev
 ```
 
-The app runs immediately in **local-only mode** with seed data — no Firebase
-config required. Sign-in buttons fall back to a demo profile.
-
-## Firebase (optional, for cloud sync)
+## Firebase setup (required)
 
 Copy `.env.example` to `.env.local` and fill in your Firebase web config:
 
@@ -46,10 +44,23 @@ In the [Firebase console](https://console.firebase.google.com/):
 1. Enable **Authentication** → Google and GitHub providers.
 2. Create a **Cloud Firestore** database.
 3. Copy the web app config values into `.env.local`.
+4. Replace `VITE_ALLOWED_UIDS` or `VITE_ALLOWED_EMAILS` with the account(s) allowed to sign in.
+5. Replace `REPLACE_WITH_FIREBASE_AUTH_UID` in `firestore.rules` with the same owner UID.
 
-All tracker data is stored per user at `aureon-notes/{uid}` and kept in sync
-through a realtime listener. Deploy the included owner-only Firestore rules with
-`firebase deploy --only firestore:rules`.
+All tracker data is stored in the single collection path `aureon-notes/{uid}`
+and kept in sync through a realtime listener. There is no local fallback or seed
+data: a new/empty Firebase document displays empty views. The workspace is not
+rendered until authentication and the user's Firebase snapshot are ready.
+
+Deploy the owner-only rules after replacing the UID:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+On first sign-in, the app asks for a 4–8 digit PIN. Only a salted PIN hash is
+saved in Firebase. Auto-lock defaults to 50 minutes and can be disabled from the
+account menu.
 
 ## Scripts
 
