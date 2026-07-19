@@ -1,19 +1,79 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isOwner() {
-      return request.auth != null
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function usesAllowedProvider() {
+      return isSignedIn()
+        && request.auth.token.firebase.sign_in_provider in ['google.com', 'github.com'];
+    }
+
+    function isAureonOwner() {
+      return usesAllowedProvider()
         && request.auth.token.email == '8svskhd@gmail.com'
         && request.auth.token.email_verified == true;
     }
 
+    // Aureon stores one complete, user-scoped workspace document here.
     match /aureon-notes/{userId} {
-      allow read, create, update, delete: if isOwner()
+      allow read, create, update, delete: if isAureonOwner()
         && request.auth.uid == userId;
     }
 
-    match /{document=**} {
-      allow read, write: if false;
+    match /Astra-users/{userId} {
+      allow read, write: if usesAllowedProvider()
+        && request.auth.uid == userId;
+    }
+
+    // Forex: authenticated Google/GitHub users read; admins write.
+    match /forex/{docId} {
+      allow read: if usesAllowedProvider();
+      allow write: if usesAllowedProvider()
+        && request.auth.token.admin == true;
+    }
+
+    match /astra_notes/{noteId} {
+      allow read: if resource.data.isShared == true
+        || (usesAllowedProvider() && resource.data.userId == request.auth.uid);
+
+      allow create: if usesAllowedProvider()
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update: if usesAllowedProvider()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+
+      allow delete: if usesAllowedProvider()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /{collection}/{document} {
+      function hasGenericUserIdField() {
+        return resource.data.keys().hasAny(['userId']);
+      }
+
+      allow create: if usesAllowedProvider()
+        && (
+          !('userId' in request.resource.data)
+          || request.resource.data.userId == request.auth.uid
+        );
+
+      allow read: if usesAllowedProvider()
+        && (
+          (hasGenericUserIdField() && resource.data.userId == request.auth.uid)
+          || !hasGenericUserIdField()
+        );
+
+      allow update: if usesAllowedProvider()
+        && hasGenericUserIdField()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+
+      allow delete: if usesAllowedProvider()
+        && hasGenericUserIdField()
+        && resource.data.userId == request.auth.uid;
     }
   }
 }
