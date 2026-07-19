@@ -27,6 +27,7 @@ import TasksView from '@/components/views/TasksView.vue'
 import DeadlinesView from '@/components/views/DeadlinesView.vue'
 import RemindersView from '@/components/views/RemindersView.vue'
 import FinancesView from '@/components/views/FinancesView.vue'
+import TripsView from '@/components/views/TripsView.vue'
 
 const ui = useUiStore()
 const app = useAppStore()
@@ -40,6 +41,7 @@ const viewMap = {
   deadlines: DeadlinesView,
   reminders: RemindersView,
   finances: FinancesView,
+  trips: TripsView,
 }
 const currentView = computed(() => viewMap[tab.value])
 const activeView = ref<{ focus: () => void } | null>(null)
@@ -89,7 +91,7 @@ function onKey(e: KeyboardEvent) {
   if (typing) return
   if (e.key === 'ArrowRight') ui.cycleTab(1)
   else if (e.key === 'ArrowLeft') ui.cycleTab(-1)
-  else if (['1', '2', '3', '4', '5'].indexOf(e.key) !== -1) ui.setTabByIndex(parseInt(e.key) - 1)
+  else if (['1', '2', '3', '4', '5', '6'].indexOf(e.key) !== -1) ui.setTabByIndex(parseInt(e.key) - 1)
   else if (e.key.toLowerCase() === 'n') {
     e.preventDefault()
     focusPrimaryInput()

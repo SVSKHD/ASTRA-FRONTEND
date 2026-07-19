@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { THEMES, computeAutoTheme, type ThemeKey, type Theme } from '@/themes'
 import type { TabKey } from '@/types'
 
-const TAB_ORDER: TabKey[] = ['todo', 'tasks', 'deadlines', 'reminders', 'finances']
+const TAB_ORDER: TabKey[] = ['todo', 'tasks', 'deadlines', 'reminders', 'finances', 'trips']
 
 export type ThemeSetting = 'auto' | ThemeKey
 

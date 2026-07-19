@@ -24,6 +24,7 @@ const PLURAL: Record<ItemType, string> = {
   reminder: 'reminders',
   finance: 'finances',
   note: 'notes',
+  trip: 'trips',
 }
 
 // Build a shareable URL of the form /<plural>/<slug>?d=<code>.
@@ -40,7 +41,7 @@ export function parseSharedFromLocation(): SharedView | null {
   try {
     if (typeof location === 'undefined') return null
     const m = location.pathname.match(
-      /^\/(todos|tasks|deadlines|reminders|finances|notes)\/([a-z0-9]+)$/i,
+      /^\/(todos|tasks|deadlines|reminders|finances|notes|trips)\/([a-z0-9]+)$/i,
     )
     if (!m) return null
     const d = new URLSearchParams(location.search).get('d')

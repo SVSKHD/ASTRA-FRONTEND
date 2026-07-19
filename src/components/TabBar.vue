@@ -17,6 +17,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'deadlines', label: 'Deadlines' },
   { key: 'reminders', label: 'Reminders' },
   { key: 'finances', label: 'Finances' },
+  { key: 'trips', label: 'Trips' },
 ]
 
 const scrollRef = ref<HTMLElement | null>(null)

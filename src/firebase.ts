@@ -18,6 +18,7 @@ const config = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
+export const AUREON_COLLECTION = 'aureon-notes'
 export const firebaseEnabled = Boolean(config.apiKey && config.projectId && config.appId)
 
 let app: FirebaseApp | null = null

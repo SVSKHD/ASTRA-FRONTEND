@@ -7,7 +7,7 @@ import {
   onSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore'
-import { auth, db, firebaseEnabled } from '@/firebase'
+import { AUREON_COLLECTION, auth, db, firebaseEnabled } from '@/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { mockGithub } from '@/utils/github'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
@@ -28,6 +28,7 @@ import type {
   Task,
   Toast,
   Todo,
+  Trip,
 } from '@/types'
 
 function rel(days: number): string {
@@ -89,6 +90,10 @@ function seedReminders(): Reminder[] {
   ]
 }
 
+function seedTrips(): Trip[] {
+  return []
+}
+
 export const useAppStore = defineStore('app', () => {
   const todos = ref<Todo[]>(seedTodos())
   const tasks = ref<Task[]>(seedTasks())
@@ -96,6 +101,7 @@ export const useAppStore = defineStore('app', () => {
   const finances = ref<Finance[]>(seedFinances())
   const notes = ref<Note[]>(seedNotes())
   const reminders = ref<Reminder[]>(seedReminders())
+  const trips = ref<Trip[]>(seedTrips())
 
   const editing = ref<EditingState>({ type: null, id: null })
   const draft = ref<Record<string, unknown>>({})
@@ -132,6 +138,7 @@ export const useAppStore = defineStore('app', () => {
       ...finances.value.map((t) => t.id),
       ...notes.value.map((t) => t.id),
       ...reminders.value.map((t) => t.id),
+      ...trips.value.map((t) => t.id),
     )
     if (maxId >= nid) nid = maxId + 1
   }
@@ -186,6 +193,13 @@ export const useAppStore = defineStore('app', () => {
     ]
   }
 
+  // ---- Trips --------------------------------------------------------------
+  function addTrip(location: string, date: string) {
+    const place = location.trim()
+    if (!place || !date) return
+    trips.value = [...trips.value, { id: id(), location: place, date }]
+  }
+
   // ---- Editing / drafts ---------------------------------------------------
   function startEdit<T extends { id: number | null }>(type: ItemType, item: T) {
     editing.value = { type, id: item.id }
@@ -227,6 +241,12 @@ export const useAppStore = defineStore('app', () => {
       } else {
         notes.value = notes.value.map((t) => (t.id === eid ? { ...t, text: d.text as string } : t))
       }
+    } else if (type === 'trip') {
+      const location = (d.location as string).trim()
+      const date = d.date as string
+      if (location && date) {
+        trips.value = trips.value.map((t) => (t.id === eid ? { ...t, location, date } : t))
+      }
     }
     editing.value = { type: null, id: null }
     draft.value = {}
@@ -240,6 +260,7 @@ export const useAppStore = defineStore('app', () => {
     finances: () => ({ get: () => finances.value, set: (v) => (finances.value = v as Finance[]) }),
     notes: () => ({ get: () => notes.value, set: (v) => (notes.value = v as Note[]) }),
     reminders: () => ({ get: () => reminders.value, set: (v) => (reminders.value = v as Reminder[]) }),
+    trips: () => ({ get: () => trips.value, set: (v) => (trips.value = v as Trip[]) }),
   }
 
   function deleteWithUndo(listKey: ListKey, type: ItemType, itemId: number) {
@@ -259,6 +280,8 @@ export const useAppStore = defineStore('app', () => {
               ? ((item.note as string) || (item.category as string))
               : type === 'reminder'
                 ? (item.title as string)
+                : type === 'trip'
+                  ? (item.location as string)
                 : (item.text as string)
     const short = label && label.length > 28 ? label.slice(0, 28) + '…' : label
     accessor.set(list.filter((x) => x.id !== itemId))
@@ -341,6 +364,15 @@ export const useAppStore = defineStore('app', () => {
       ]
     else if (sv.type === 'note')
       notes.value = [...notes.value, { id: nidNew, text: (it.text as string) || '', ts: Date.now() }]
+    else if (sv.type === 'trip')
+      trips.value = [
+        ...trips.value,
+        {
+          id: nidNew,
+          location: (it.location as string) || 'Shared location',
+          date: (it.date as string) || rel(0),
+        },
+      ]
     dismissShared()
   }
 
@@ -570,6 +602,7 @@ export const useAppStore = defineStore('app', () => {
       finances: finances.value,
       notes: notes.value,
       reminders: reminders.value,
+      trips: trips.value,
       approvedPRs: approvedPRs.value,
     }
   }
@@ -581,6 +614,7 @@ export const useAppStore = defineStore('app', () => {
     if (Array.isArray(data.finances)) finances.value = data.finances as Finance[]
     if (Array.isArray(data.notes)) notes.value = data.notes as Note[]
     if (Array.isArray(data.reminders)) reminders.value = data.reminders as Reminder[]
+    if (Array.isArray(data.trips)) trips.value = data.trips as Trip[]
     if (data.approvedPRs && typeof data.approvedPRs === 'object')
       approvedPRs.value = data.approvedPRs as Record<string, boolean>
     bumpNid()
@@ -591,12 +625,15 @@ export const useAppStore = defineStore('app', () => {
   }
   function saveCloud() {
     if (!firebaseEnabled || !db || !uid || hydrating) return
-    const ref = doc(db, 'users', uid)
-    setDoc(ref, snapshotData(), { merge: true }).catch((err) =>
+    const ref = doc(db, AUREON_COLLECTION, uid)
+    setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true }).catch((err) =>
       console.error('[Aureon] Cloud save failed:', err),
     )
   }
   function scheduleSave() {
+    // Snapshot hydration updates every reactive list. Do not turn those remote
+    // changes into another write, otherwise the realtime listener can loop.
+    if (hydrating) return
     clearTimeout(saveTimer)
     saveTimer = setTimeout(saveCloud, 600)
   }
@@ -609,21 +646,25 @@ export const useAppStore = defineStore('app', () => {
       }
       uid = u ? u.uid : null
       if (!uid || !db) return
-      const ref = doc(db, 'users', uid)
+      const ref = doc(db, AUREON_COLLECTION, uid)
       try {
         const snap = await getDoc(ref)
         if (snap.exists()) applyData(snap.data())
-        else await setDoc(ref, snapshotData(), { merge: true })
+        else await setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
       } catch (err) {
         console.error('[Aureon] Cloud load failed:', err)
       }
       // Live updates from other devices.
-      cloudUnsub = onSnapshot(ref, (s) => {
-        if (s.exists() && s.metadata.hasPendingWrites === false) applyData(s.data())
-      })
+      cloudUnsub = onSnapshot(
+        ref,
+        (s) => {
+          if (s.exists() && s.metadata.hasPendingWrites === false) applyData(s.data())
+        },
+        (err) => console.error('[Aureon] Cloud listener failed:', err),
+      )
     })
 
-    watch([todos, tasks, deadlines, finances, notes, reminders, approvedPRs], scheduleSave, {
+    watch([todos, tasks, deadlines, finances, notes, reminders, trips, approvedPRs], scheduleSave, {
       deep: true,
     })
   }
@@ -638,6 +679,7 @@ export const useAppStore = defineStore('app', () => {
     finances,
     notes,
     reminders,
+    trips,
     editing,
     draft,
     toast,
@@ -660,6 +702,7 @@ export const useAppStore = defineStore('app', () => {
     updateTask,
     addDeadline,
     addFinance,
+    addTrip,
     startEdit,
     newNote,
     cancelEdit,
