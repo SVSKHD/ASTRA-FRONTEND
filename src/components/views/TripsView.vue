@@ -120,12 +120,12 @@ const locationName = computed(() =>
     </div>
     <div :style="s.inputRow">
       <input v-model="date" :style="s.input" type="date" aria-label="Trip day" />
-      <button :style="s.addBtn" v-hover-style="s.addBtnHover" aria-label="Add trip" @click="add">+</button>
+      <button :style="s.addBtn" v-hover-style="s.addBtnHover" aria-label="Add trip" @click="add">
+        +
+      </button>
     </div>
 
-    <div v-if="trips.length === 0" :style="s.empty">
-      No trips planned — add a day and location.
-    </div>
+    <div v-if="trips.length === 0" :style="s.empty">No trips planned — add a day and location.</div>
 
     <div :style="s.dayGroups">
       <section v-for="group in groups" :key="group.date" :style="groupStyle">
@@ -134,24 +134,23 @@ const locationName = computed(() =>
           <span :style="s.dayCount">{{ group.locations.length }}</span>
         </div>
 
-        <div
-          v-for="trip in group.locations"
-          :key="trip.id"
-          :style="row"
-          v-hover-style="s.rowHover"
-        >
+        <div v-for="trip in group.locations" :key="trip.id" :style="row" v-hover-style="s.rowHover">
           <template v-if="isEditing(trip)">
-            <div :style="s.taskMain">
+            <div
+              :style="s.taskMain"
+              @keydown.enter="app.saveEdit()"
+              @keydown.esc="app.cancelEdit()"
+            >
               <input
                 :style="s.editInput"
-                :value="(draft.location as string)"
+                :value="draft.location as string"
                 autofocus
                 @input="app.setDraft('location', ($event.target as HTMLInputElement).value)"
               />
               <input
                 :style="s.editInputSmall"
                 type="date"
-                :value="(draft.date as string)"
+                :value="draft.date as string"
                 @input="app.setDraft('date', ($event.target as HTMLInputElement).value)"
               />
             </div>
@@ -161,18 +160,38 @@ const locationName = computed(() =>
 
           <template v-else>
             <span :style="pinWrap" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" :stroke="c.accent" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                :stroke="c.accent"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
                 <circle cx="12" cy="10" r="2.5" />
               </svg>
             </span>
             <div :style="s.taskMain">
-              <button :style="{ ...locationName, border: 'none', background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer' }" @click="app.startEdit('trip', trip)">
+              <button
+                :style="{
+                  ...locationName,
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }"
+                @click="app.startEdit('trip', trip)"
+              >
                 {{ trip.location }}
               </button>
               <span :style="s.finMeta">{{ group.label }}</span>
             </div>
             <button :style="s.editBtn" @click="app.startEdit('trip', trip)">Edit</button>
+            <button :style="s.shareBtn" @click="app.share('trip', trip)">↗</button>
             <button :style="s.del" @click="app.deleteWithUndo('trips', 'trip', trip.id)">×</button>
           </template>
         </div>

@@ -6,6 +6,10 @@ export interface Todo {
   id: number
   text: string
   done: boolean
+  // Added after the first release; todos stored before that lack both, so
+  // applyData() backfills them on read.
+  tag: string
+  description: string
 }
 
 export interface Task {
@@ -25,14 +29,7 @@ export interface Deadline {
 }
 
 export type RepeatType =
-  | 'none'
-  | 'minutes'
-  | 'hours'
-  | 'days'
-  | 'weeks'
-  | 'months'
-  | 'years'
-  | 'weekdays'
+  'none' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | 'years' | 'weekdays'
 
 export interface Repeat {
   type: RepeatType
@@ -40,7 +37,12 @@ export interface Repeat {
   weekdays?: number[] // 0=Sun..6=Sat
 }
 
-export type CalSync = 'local' | 'pending' | 'synced'
+export type CalSync = 'local' | 'pending' | 'synced' | 'error'
+
+export type Priority = 'low' | 'normal' | 'high'
+
+// Highest first, for sorting the reminders list.
+export const PRIORITY_ORDER: Record<Priority, number> = { high: 0, normal: 1, low: 2 }
 
 export interface Reminder {
   id: number
@@ -48,7 +50,11 @@ export interface Reminder {
   note: string
   start: string // datetime-local value (YYYY-MM-DDTHH:mm)
   repeat: Repeat
+  priority: Priority
   calSync: CalSync
+  // Google Calendar event id, set once the event is actually created. Required
+  // to delete the event later — a template URL never returns one.
+  calEventId: string | null
   lastFiredOcc: number | null
 }
 
@@ -130,9 +136,7 @@ export interface GithubMeta {
   prList: PullRequest[]
 }
 
-export type GithubCacheEntry =
-  | { status: 'loading' }
-  | { status: 'ready'; data: GithubMeta }
+export type GithubCacheEntry = { status: 'loading' } | { status: 'ready'; data: GithubMeta }
 
 export interface RepoIssue {
   id: string

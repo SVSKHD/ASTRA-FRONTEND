@@ -137,7 +137,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       color: c.text,
       textShadow: dark ? '0 0 16px rgba(255,255,255,0.15)' : 'none',
     },
-    themeWrap: { position: 'relative' },
+    themeWrap: { position: 'relative', zIndex: 13, flexShrink: 0 },
     themeTrigger: {
       width: 36,
       height: 36,
@@ -148,6 +148,19 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       cursor: 'pointer',
       ...bob(1.6, 7),
     },
+    // Header-mounted variant: no bob, because the header already bobs and the
+    // two animations compound into a visible wobble. Sized to the user pill.
+    themeTriggerInline: {
+      width: isMobile ? 28 : 30,
+      height: isMobile ? 28 : 30,
+      borderRadius: '50%',
+      background: c.pageBg,
+      border: '2px solid ' + c.accent,
+      boxShadow: '0 0 12px ' + c.accent,
+      cursor: 'pointer',
+      transition: 'transform .2s ease, box-shadow .25s ease',
+    },
+    themeTriggerInlineHover: { transform: 'translateY(-1px)', boxShadow: '0 0 18px ' + c.accent },
     themePanel: {
       position: 'absolute',
       top: 'calc(100% + 12px)',
@@ -191,6 +204,13 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     greetingText: { fontSize: isMobile ? 13 : 14, color: c.text, whiteSpace: 'nowrap' },
     greetingLeft: { display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 },
+    // Theme trigger + account pill share the right end of the header.
+    greetingRight: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: isMobile ? 7 : 10,
+      flexShrink: 0,
+    },
     userMenuWrap: { position: 'relative', zIndex: 13, flexShrink: 0 },
     userPill: {
       display: 'flex',
@@ -206,7 +226,14 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       maxWidth: isMobile ? '48vw' : 'none',
     },
     userPillHover: { transform: 'translateY(-1px)', background: c.card },
-    userPillName: { fontSize: 12, fontWeight: 600, color: c.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+    userPillName: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: c.text,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    },
     userPillChevron: { fontSize: 9, color: c.dim, marginLeft: -3 },
     dayGroups: {
       display: 'flex',
@@ -383,7 +410,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       scrollSnapType: 'x mandatory',
       scrollbarWidth: 'none',
       '-webkit-overflow-scrolling': 'touch',
-      maskImage: 'linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%)',
+      maskImage:
+        'linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%)',
       '-webkit-mask-image':
         'linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%)',
     },
@@ -689,7 +717,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     ghShimmer: {
       height: 70,
       borderRadius: 12,
-      background: 'linear-gradient(90deg,' + c.input + ' 25%, ' + c.card + ' 50%, ' + c.input + ' 75%)',
+      background:
+        'linear-gradient(90deg,' + c.input + ' 25%, ' + c.card + ' 50%, ' + c.input + ' 75%)',
       backgroundSize: '200% 100%',
       animation: 'shimmer 1.4s ease-in-out infinite',
     },

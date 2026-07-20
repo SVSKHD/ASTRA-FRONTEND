@@ -1,79 +1,97 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Aureon is a single-user personal workspace: every document is owned by
+    // exactly one auth uid, either via the document path or an owner field.
+    // There is no shared/team data, so the default posture is deny.
+
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function usesAllowedProvider() {
-      return isSignedIn()
-        && request.auth.token.firebase.sign_in_provider in ['google.com', 'github.com'];
+    // Owner uid on an existing doc, from whichever field the writer used.
+    // Aureon's workspace doc uses `ownerId`; the Astra collections use `userId`.
+    function ownerOf(data) {
+      return data.keys().hasAny(['userId']) ? data.userId
+           : data.keys().hasAny(['ownerId']) ? data.ownerId
+           : null;
     }
 
-    function isAureonOwner() {
-      return usesAllowedProvider()
-        && request.auth.token.email == '8svskhd@gmail.com'
-        && request.auth.token.email_verified == true;
+    function ownsExisting() {
+      return isSignedIn() && ownerOf(resource.data) == request.auth.uid;
     }
 
-    // Aureon stores one complete, user-scoped workspace document here.
+    function ownsIncoming() {
+      return isSignedIn() && ownerOf(request.resource.data) == request.auth.uid;
+    }
+
+    // AUREON: one complete workspace document per uid, keyed by the uid itself.
+    // No hardcoded email and no sign_in_provider gate — a hardcoded owner email
+    // here previously locked every other account out of its own workspace.
     match /aureon-notes/{userId} {
-      allow read, create, update, delete: if isAureonOwner()
-        && request.auth.uid == userId;
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /Astra-users/{userId} {
-      allow read, write: if usesAllowedProvider()
-        && request.auth.uid == userId;
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Forex: authenticated Google/GitHub users read; admins write.
+    // AUREON SHARES: one frozen snapshot per shared item.
+    // The workspace is a single document, so a rule cannot expose one todo out
+    // of an array — each share gets its own document and is gated here.
+    // A public share is readable by anyone, signed in or not; a private share
+    // is readable only by the uid that created it.
+    match /aureon-shares/{shareId} {
+      allow read: if resource.data.isPublic == true
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+      // Ownership is immutable: a share cannot be reassigned to another uid.
+      allow update: if isSignedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Forex: any signed-in user can READ; only admins can WRITE.
     match /forex/{docId} {
-      allow read: if usesAllowedProvider();
-      allow write: if usesAllowedProvider()
-        && request.auth.token.admin == true;
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn() && request.auth.token.admin == true;
     }
 
+    // `.get()` rather than a bare field read: the field is absent on most
+    // documents, and a bare read of a missing field errors out the rule.
+    function isPubliclyShared() {
+      return resource.data.get('isShared', false) == true;
+    }
+
+    // NOTES: public read when explicitly shared, otherwise owner-only.
     match /astra_notes/{noteId} {
-      allow read: if resource.data.isShared == true
-        || (usesAllowedProvider() && resource.data.userId == request.auth.uid);
-
-      allow create: if usesAllowedProvider()
-        && request.resource.data.userId == request.auth.uid;
-
-      allow update: if usesAllowedProvider()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == request.auth.uid;
-
-      allow delete: if usesAllowedProvider()
-        && resource.data.userId == request.auth.uid;
+      allow read: if isPubliclyShared() || ownsExisting();
+      allow create: if ownsIncoming();
+      allow update, delete: if ownsExisting() && ownsIncoming();
     }
 
+    // Trading journal: owner-only, except a bot flagged for public sharing.
+    // The share page resolves by slug for signed-out visitors, so the read
+    // rule must not require auth on shared docs.
+    match /astra-trading-journal/{botId} {
+      allow read: if isPubliclyShared() || ownsExisting();
+      allow create: if ownsIncoming();
+      allow update: if ownsExisting() && ownsIncoming();
+      allow delete: if ownsExisting();
+    }
+
+    // Everything else: owner-only, and an owner field is REQUIRED.
+    // Documents without one are unreachable by design — that is what keeps a
+    // signed-in stranger from reading another uid's data through this branch.
+    // Update requires ownership both before and after, so the owner field
+    // cannot be reassigned to someone else.
     match /{collection}/{document} {
-      function hasGenericUserIdField() {
-        return resource.data.keys().hasAny(['userId']);
-      }
-
-      allow create: if usesAllowedProvider()
-        && (
-          !('userId' in request.resource.data)
-          || request.resource.data.userId == request.auth.uid
-        );
-
-      allow read: if usesAllowedProvider()
-        && (
-          (hasGenericUserIdField() && resource.data.userId == request.auth.uid)
-          || !hasGenericUserIdField()
-        );
-
-      allow update: if usesAllowedProvider()
-        && hasGenericUserIdField()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == request.auth.uid;
-
-      allow delete: if usesAllowedProvider()
-        && hasGenericUserIdField()
-        && resource.data.userId == request.auth.uid;
+      allow create: if ownsIncoming();
+      allow read, delete: if ownsExisting();
+      allow update: if ownsExisting() && ownsIncoming();
     }
   }
 }

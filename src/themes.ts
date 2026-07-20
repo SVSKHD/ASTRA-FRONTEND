@@ -25,13 +25,7 @@ export interface Theme {
 }
 
 export type ThemeKey =
-  | 'daylight'
-  | 'dawn'
-  | 'auroraDay'
-  | 'deepSpace'
-  | 'nebulaRose'
-  | 'solarFlare'
-  | 'auroraNight'
+  'daylight' | 'dawn' | 'auroraDay' | 'deepSpace' | 'nebulaRose' | 'solarFlare' | 'auroraNight'
 
 const lightBase = {
   glass: 'rgba(255,255,255,0.55)',
@@ -129,6 +123,17 @@ export const THEMES: Record<ThemeKey, Theme> = {
 
 export const LIGHT_THEME_KEYS: ThemeKey[] = ['daylight', 'dawn', 'auroraDay']
 export const DARK_THEME_KEYS: ThemeKey[] = ['deepSpace', 'nebulaRose', 'solarFlare', 'auroraNight']
+
+// The user's stored choice: a fixed theme, or 'auto' to follow the clock.
+// Lives here rather than in the ui store so the app store can persist it
+// without importing the ui store back.
+export type ThemeSetting = 'auto' | ThemeKey
+
+export function isThemeSetting(value: unknown): value is ThemeSetting {
+  // hasOwn, not `in`: `in` walks the prototype chain, so 'toString' and
+  // 'constructor' would pass and then resolve to a non-Theme at lookup time.
+  return value === 'auto' || (typeof value === 'string' && Object.hasOwn(THEMES, value))
+}
 
 export function computeAutoTheme(hour: number): ThemeKey {
   if (hour >= 5 && hour < 8) return 'dawn'

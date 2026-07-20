@@ -84,7 +84,12 @@ const view = computed<FinView[]>(() =>
       id: f.id,
       label: f.note || f.category,
       meta:
-        f.category + ' · ' + new Date(f.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        f.category +
+        ' · ' +
+        new Date(f.date + 'T00:00:00').toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+        }),
       amountLabel: money(f.amount),
       color: CATEGORY_COLOR[f.category] || c.value.dim,
     })),
@@ -94,7 +99,14 @@ function isEditing(id: number) {
   return editing.value.type === 'finance' && editing.value.id === id
 }
 function dotStyle(color: string) {
-  return pxify({ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: color, boxShadow: '0 0 8px ' + color })
+  return pxify({
+    width: 9,
+    height: 9,
+    borderRadius: '50%',
+    flexShrink: 0,
+    background: color,
+    boxShadow: '0 0 8px ' + color,
+  })
 }
 function findFinance(id: number): Finance | undefined {
   return finances.value.find((f) => f.id === id)
@@ -105,11 +117,23 @@ const row = computed(() => pxify(rowBase(c.value)))
 <template>
   <div :style="panelStyle">
     <div :style="s.totalsRow">
-      <div :style="s.totalCard"><span :style="s.totalLabel">This Week</span><span :style="s.totalVal">{{ weekTotal }}</span></div>
-      <div :style="s.totalCard"><span :style="s.totalLabel">This Month</span><span :style="s.totalVal">{{ monthTotal }}</span></div>
+      <div :style="s.totalCard">
+        <span :style="s.totalLabel">This Week</span><span :style="s.totalVal">{{ weekTotal }}</span>
+      </div>
+      <div :style="s.totalCard">
+        <span :style="s.totalLabel">This Month</span
+        ><span :style="s.totalVal">{{ monthTotal }}</span>
+      </div>
     </div>
     <div :style="s.inputRow">
-      <input ref="finInputRef" :style="s.amountInput" inputmode="decimal" placeholder="0.00" v-model="amount" />
+      <input
+        ref="finInputRef"
+        :style="s.amountInput"
+        inputmode="decimal"
+        placeholder="0.00"
+        v-model="amount"
+        @keydown="onKey"
+      />
       <select :style="s.select" v-model="category">
         <option value="Food">Food</option>
         <option value="Transport">Transport</option>
@@ -126,16 +150,16 @@ const row = computed(() => pxify(rowBase(c.value)))
     <div :style="s.list">
       <div v-for="it in view" :key="it.id" :style="row" v-hover-style="s.rowHover">
         <template v-if="isEditing(it.id)">
-          <div :style="s.taskMain">
+          <div :style="s.taskMain" @keydown.enter="app.saveEdit()" @keydown.esc="app.cancelEdit()">
             <input
               :style="s.editInputSmall"
-              :value="(draft.amount as string)"
+              :value="draft.amount as string"
               @input="app.setDraft('amount', ($event.target as HTMLInputElement).value)"
               autofocus
             />
             <select
               :style="s.editInputSmall"
-              :value="(draft.category as string)"
+              :value="draft.category as string"
               @change="app.setDraft('category', ($event.target as HTMLSelectElement).value)"
             >
               <option value="Food">Food</option>
@@ -147,7 +171,7 @@ const row = computed(() => pxify(rowBase(c.value)))
             <input
               :style="s.editInput"
               placeholder="note"
-              :value="(draft.note as string)"
+              :value="draft.note as string"
               @input="app.setDraft('note', ($event.target as HTMLInputElement).value)"
             />
           </div>
@@ -157,12 +181,16 @@ const row = computed(() => pxify(rowBase(c.value)))
         <template v-else>
           <span :style="dotStyle(it.color)"></span>
           <div :style="s.taskMain">
-            <span :style="s.finNote" @click="app.startEdit('finance', findFinance(it.id)!)">{{ it.label }}</span>
+            <span :style="s.finNote" @click="app.startEdit('finance', findFinance(it.id)!)">{{
+              it.label
+            }}</span>
             <span :style="s.finMeta">{{ it.meta }}</span>
           </div>
           <span :style="s.amount">{{ it.amountLabel }}</span>
           <button :style="s.shareBtn" @click="app.share('finance', findFinance(it.id)!)">↗</button>
-          <button :style="s.del" @click="app.deleteWithUndo('finances', 'finance', it.id)">×</button>
+          <button :style="s.del" @click="app.deleteWithUndo('finances', 'finance', it.id)">
+            ×
+          </button>
         </template>
       </div>
     </div>

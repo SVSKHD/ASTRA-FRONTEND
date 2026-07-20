@@ -37,7 +37,12 @@ const repos = computed<RepoView[]>(() => {
       return {
         repo,
         expanded: expandedRepoId.value === repo.id,
-        ciColor: repo.ci === 'passing' ? (dark.value ? 'oklch(0.72 0.15 145)' : 'oklch(0.55 0.15 145)') : 'oklch(0.65 0.2 25)',
+        ciColor:
+          repo.ci === 'passing'
+            ? dark.value
+              ? 'oklch(0.72 0.15 145)'
+              : 'oklch(0.55 0.15 145)'
+            : 'oklch(0.65 0.2 25)',
         attached: attached.map((t) => ({ id: t.id, title: t.title, done: t.done })),
         doneCount,
         pct: attached.length ? Math.round((doneCount / attached.length) * 100) : 0,
@@ -99,12 +104,19 @@ function progressInner(pct: number) {
       <div v-else-if="linkedNoRepos" :style="s.ghShimmer"></div>
 
       <template v-else-if="showRepos">
-        <input :style="s.input" placeholder="Search repos…" :value="ghSearch" @input="auth.setGhSearch(($event.target as HTMLInputElement).value)" />
+        <input
+          :style="s.input"
+          placeholder="Search repos…"
+          :value="ghSearch"
+          @input="auth.setGhSearch(($event.target as HTMLInputElement).value)"
+        />
         <div :style="s.list">
           <div v-for="rv in repos" :key="rv.repo.id" :style="s.ghRepoCard">
             <div :style="headerStyle" @click="auth.toggleRepoExpand(rv.repo.id)">
               <div :style="s.taskMain">
-                <span :style="s.dlTitle"><span :style="langDotStyle(rv.repo.langColor)"></span>{{ rv.repo.name }}</span>
+                <span :style="s.dlTitle"
+                  ><span :style="langDotStyle(rv.repo.langColor)"></span>{{ rv.repo.name }}</span
+                >
                 <span :style="s.finMeta">{{ rv.repo.desc }}</span>
               </div>
               <span :style="ciBadgeStyle(rv)">CI {{ rv.repo.ci }}</span>
@@ -117,11 +129,15 @@ function progressInner(pct: number) {
             </div>
             <template v-if="rv.attached.length">
               <div :style="s.ghProgressOuter"><div :style="progressInner(rv.pct)"></div></div>
-              <span :style="s.finMeta">{{ rv.doneCount }}/{{ rv.attached.length }} attached tasks done</span>
+              <span :style="s.finMeta"
+                >{{ rv.doneCount }}/{{ rv.attached.length }} attached tasks done</span
+              >
             </template>
             <div v-if="rv.expanded" :style="s.ghSection">
               <span :style="s.ghLabel">Attached tasks</span>
-              <span v-if="rv.attached.length === 0" :style="s.finMeta">None yet — import an issue below.</span>
+              <span v-if="rv.attached.length === 0" :style="s.finMeta"
+                >None yet — import an issue below.</span
+              >
               <div v-for="at in rv.attached" :key="at.id" :style="s.ghIssueRow">
                 <span :style="s.ghIssueText">{{ at.title }}</span>
                 <span :style="s.finMeta">{{ at.done ? 'done' : 'open' }}</span>

@@ -20,9 +20,10 @@ const editorRef = ref<HTMLDivElement | null>(null)
 // When entering note-edit mode, seed the contentEditable with the draft HTML
 // once (binding v-html reactively would reset the caret on every keystroke).
 watch(isEditing, (v) => {
-  if (v) nextTick(() => {
-    if (editorRef.value) editorRef.value.innerHTML = (draft.value.text as string) || ''
-  })
+  if (v)
+    nextTick(() => {
+      if (editorRef.value) editorRef.value.innerHTML = (draft.value.text as string) || ''
+    })
 })
 
 function syncEditor() {
@@ -61,14 +62,17 @@ function cmdCode() {
   document.execCommand(
     'insertHTML',
     false,
-    '<code style="background:rgba(127,127,127,.25);padding:1px 5px;border-radius:4px;font-family:inherit">' + sel + '</code>',
+    '<code style="background:rgba(127,127,127,.25);padding:1px 5px;border-radius:4px;font-family:inherit">' +
+      sel +
+      '</code>',
   )
   syncEditor()
 }
 function cmdHighlight() {
   editorRef.value?.focus()
   const col = c.value.accent || '#ffd76a'
-  if (!document.execCommand('hiliteColor', false, col)) document.execCommand('backColor', false, col)
+  if (!document.execCommand('hiliteColor', false, col))
+    document.execCommand('backColor', false, col)
   syncEditor()
 }
 
@@ -130,7 +134,13 @@ const row = computed(() => merge(rowBase(c.value)))
 
     <template v-if="isEditing">
       <div :style="s.toolbar">
-        <button v-for="b in toolButtons" :key="b.label" :style="s.toolBtn" @click="b.fn()" v-html="b.label"></button>
+        <button
+          v-for="b in toolButtons"
+          :key="b.label"
+          :style="s.toolBtn"
+          @click="b.fn()"
+          v-html="b.label"
+        ></button>
       </div>
       <div ref="editorRef" contenteditable="true" :style="s.editorArea" @input="syncEditor"></div>
       <div :style="s.dialogActions">

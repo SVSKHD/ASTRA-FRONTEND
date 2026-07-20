@@ -43,9 +43,20 @@ function tabBtnStyle() {
     transition: 'transform .2s ease',
   })
 }
-const iconWrap = pxify({ position: 'relative', width: 22, height: 22, display: 'block', flexShrink: 0 })
+const iconWrap = pxify({
+  position: 'relative',
+  width: 22,
+  height: 22,
+  display: 'block',
+  flexShrink: 0,
+})
 function outlineStyle(active: boolean) {
-  return pxify({ position: 'absolute', inset: 0, opacity: active ? 0 : 1, transition: 'opacity .28s ease' })
+  return pxify({
+    position: 'absolute',
+    inset: 0,
+    opacity: active ? 0 : 1,
+    transition: 'opacity .28s ease',
+  })
 }
 function fillStyle(active: boolean) {
   return pxify({

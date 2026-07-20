@@ -1,6 +1,11 @@
 import type { ItemType, SharedView } from '@/types'
 
-// base64(JSON) encode/decode of a shared item, matching the design.
+// base64(JSON) encode/decode of a shared item.
+//
+// This is the LEGACY link format: the whole item travelled inside the URL as
+// `?d=<code>`. It is kept so links already handed out keep resolving, but new
+// shares go through utils/shares.ts, because a payload carried in the URL can
+// never be access-controlled — the data is the link.
 export function encodeShare(type: ItemType, item: unknown): string {
   try {
     return btoa(unescape(encodeURIComponent(JSON.stringify({ type, item }))))
@@ -17,7 +22,7 @@ export function decodeShare(code: string): SharedView | null {
   }
 }
 
-const PLURAL: Record<ItemType, string> = {
+export const PLURAL: Record<ItemType, string> = {
   todo: 'todos',
   task: 'tasks',
   deadline: 'deadlines',
@@ -27,16 +32,39 @@ const PLURAL: Record<ItemType, string> = {
   trip: 'trips',
 }
 
-// Build a shareable URL of the form /<plural>/<slug>?d=<code>.
-export function buildShareUrl(type: ItemType, item: { id: number }): string {
-  const plural = PLURAL[type]
-  const slug = item.id.toString(36)
-  const code = encodeShare(type, item)
-  const origin = typeof location !== 'undefined' ? location.origin : ''
-  return origin + '/' + plural + '/' + slug + '?d=' + encodeURIComponent(code)
+// Reverse of PLURAL, for turning a route segment back into an item type.
+export const TYPE_BY_PLURAL: Record<string, ItemType> = Object.fromEntries(
+  Object.entries(PLURAL).map(([type, plural]) => [plural, type as ItemType]),
+) as Record<string, ItemType>
+
+export function pathForShare(type: ItemType, shareId: string): string {
+  return '/' + PLURAL[type] + '/' + shareId
 }
 
-// Parse a shared-item URL out of the current location, if present.
+// Absolute URL for a Firestore-backed share.
+export function buildShareUrl(type: ItemType, shareId: string): string {
+  const origin = typeof location !== 'undefined' ? location.origin : ''
+  return origin + pathForShare(type, shareId)
+}
+
+// Legacy URL builder, retained so the old format stays testable and so a share
+// can still be produced when Firebase is unavailable.
+export function buildLegacyShareUrl(type: ItemType, item: { id: number }): string {
+  const origin = typeof location !== 'undefined' ? location.origin : ''
+  return (
+    origin +
+    '/' +
+    PLURAL[type] +
+    '/' +
+    item.id.toString(36) +
+    '?d=' +
+    encodeURIComponent(encodeShare(type, item))
+  )
+}
+
+// Parse a legacy share URL out of the current location, if present. Returns
+// null when the path is not a legacy share link at all, so the router can take
+// over for the new format.
 export function parseSharedFromLocation(): SharedView | null {
   try {
     if (typeof location === 'undefined') return null
@@ -45,8 +73,8 @@ export function parseSharedFromLocation(): SharedView | null {
     )
     if (!m) return null
     const d = new URLSearchParams(location.search).get('d')
-    const decoded = d ? decodeShare(d) : null
-    return decoded || { notFound: true }
+    if (!d) return null
+    return decodeShare(d) || { notFound: true }
   } catch {
     return null
   }

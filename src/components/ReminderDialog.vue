@@ -6,13 +6,24 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { occurrences, buildGCalUrl } from '@/utils/reminders'
+import ReminderTimeline from '@/components/ReminderTimeline.vue'
 import type { Reminder, RepeatType } from '@/types'
 
 const app = useAppStore()
 const ui = useUiStore()
 const { c, s } = useStyles()
-const { dialogReminderId, dialogClosing, reminders } = storeToRefs(app)
+const { dialogReminderId, dialogClosing, reminders, calendarNeedsAuth } = storeToRefs(app)
 const { now } = storeToRefs(ui)
+
+const CAL_STATUS: Record<string, string> = {
+  synced: 'in Google Calendar',
+  pending: 'syncing…',
+  error: 'sync failed',
+  local: 'local only',
+}
+const calStatusLabel = computed(
+  () => CAL_STATUS[reminder.value?.calSync || 'local'] || 'local only',
+)
 
 const reminder = computed<Reminder | undefined>(() =>
   reminders.value.find((r) => r.id === dialogReminderId.value),
@@ -65,31 +76,58 @@ const nextLabel = computed(() => {
   if (!reminder.value) return ''
   const occ = occurrences(reminder.value, now.value)
   return occ.next
-    ? new Date(occ.next).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    ? new Date(occ.next).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
     : 'elapsed'
 })
 
 function updTitle(e: Event) {
-  if (reminder.value) app.updateReminder(reminder.value.id, 'title', (e.target as HTMLInputElement).value)
+  if (reminder.value)
+    app.updateReminder(reminder.value.id, 'title', (e.target as HTMLInputElement).value)
 }
 function updNote(e: Event) {
-  if (reminder.value) app.updateReminder(reminder.value.id, 'note', (e.target as HTMLTextAreaElement).value)
+  if (reminder.value)
+    app.updateReminder(reminder.value.id, 'note', (e.target as HTMLTextAreaElement).value)
 }
 function updStart(e: Event) {
-  if (reminder.value) app.updateReminder(reminder.value.id, 'start', (e.target as HTMLInputElement).value)
+  if (reminder.value)
+    app.updateReminder(reminder.value.id, 'start', (e.target as HTMLInputElement).value)
 }
 function updRepeatType(e: Event) {
   if (!reminder.value) return
   const type = (e.target as HTMLSelectElement).value as RepeatType
-  app.updateReminder(reminder.value.id, 'repeat', { type, n: rep.value.n || 1, weekdays: rep.value.weekdays || [] })
+  app.updateReminder(reminder.value.id, 'repeat', {
+    type,
+    n: rep.value.n || 1,
+    weekdays: rep.value.weekdays || [],
+  })
 }
 function updRepeatN(e: Event) {
   if (!reminder.value) return
   const n = parseInt((e.target as HTMLInputElement).value) || 1
   app.updateReminder(reminder.value.id, 'repeat', { ...rep.value, n })
 }
+function updPriority(e: Event) {
+  if (reminder.value)
+    app.updateReminder(reminder.value.id, 'priority', (e.target as HTMLSelectElement).value)
+}
 function onCalLink() {
   if (reminder.value) window.open(buildGCalUrl(reminder.value), '_blank')
+}
+// Fields already write through on input, so Update confirms and dismisses
+// rather than committing — Enter is bound to the same action so the keyboard
+// path matches the button.
+function onEnter(e: KeyboardEvent) {
+  // Enter is a newline in the notes textarea, and activates a focused button
+  // (weekday toggles, calendar actions) — in neither case is it a confirmation.
+  const tag = (e.target as HTMLElement).tagName
+  if (tag === 'TEXTAREA' || tag === 'BUTTON') return
+  e.preventDefault()
+  app.closeReminderDialog()
 }
 function onDelete() {
   if (!reminder.value) return
@@ -101,13 +139,18 @@ function onDelete() {
 <template>
   <template v-if="dialogReminderId != null && reminder">
     <div :style="s.dialogOverlay" @click="app.closeReminderDialog()"></div>
-    <div :style="dialogCardStyle">
+    <div :style="dialogCardStyle" @keydown.enter="onEnter" @keydown.esc="app.closeReminderDialog()">
       <div :style="s.dialogHeader">
         <input :style="s.dialogTitleInput" :value="reminder.title" @input="updTitle" />
         <button :style="s.del" @click="app.closeReminderDialog()">×</button>
       </div>
       <div :style="s.dialogRow">
-        <input :style="s.editInputSmall" type="datetime-local" :value="reminder.start" @input="updStart" />
+        <input
+          :style="s.editInputSmall"
+          type="datetime-local"
+          :value="reminder.start"
+          @input="updStart"
+        />
         <select :style="s.select" :value="rep.type" @change="updRepeatType">
           <option value="none">One-off</option>
           <option value="minutes">Every N minutes</option>
@@ -120,7 +163,13 @@ function onDelete() {
         </select>
       </div>
       <div v-if="isInterval" :style="s.dialogRow">
-        <input :style="s.editInputSmall" type="number" min="1" :value="rep.n || 1" @input="updRepeatN" />
+        <input
+          :style="s.editInputSmall"
+          type="number"
+          min="1"
+          :value="rep.n || 1"
+          @input="updRepeatN"
+        />
       </div>
       <div v-if="isWeekdays" :style="s.weekdayRow">
         <button
@@ -132,15 +181,54 @@ function onDelete() {
           {{ nm }}
         </button>
       </div>
-      <textarea :style="s.dialogNotes" placeholder="Notes…" :value="reminder.note" @input="updNote"></textarea>
+      <textarea
+        :style="s.dialogNotes"
+        placeholder="Notes…"
+        :value="reminder.note"
+        @input="updNote"
+      ></textarea>
+      <div :style="s.dialogRow">
+        <select :style="s.select" :value="reminder.priority" @change="updPriority">
+          <option value="high">High priority</option>
+          <option value="normal">Normal priority</option>
+          <option value="low">Low priority</option>
+        </select>
+      </div>
       <div :style="s.dialogGithub">
-        <span :style="s.finMeta">Next: {{ nextLabel }} · {{ reminder.calSync }}</span>
+        <span :style="s.finMeta">Upcoming dates</span>
+        <ReminderTimeline :reminder="reminder" :now="now" />
+      </div>
+      <div :style="s.dialogGithub">
+        <span :style="s.finMeta">Next: {{ nextLabel }} · {{ calStatusLabel }}</span>
+        <span v-if="calendarNeedsAuth" :style="s.finMeta">
+          Google Calendar access expired — reconnect to sync again.
+        </span>
         <div :style="s.dialogActions">
-          <button :style="s.editBtn" @click="onCalLink">Add to Google Calendar</button>
-          <button :style="s.editBtn" @click="app.syncCalendar(reminder.id)">Sync</button>
+          <button v-if="calendarNeedsAuth" :style="s.saveBtn" @click="app.reconnectCalendar()">
+            Reconnect Calendar
+          </button>
+          <button
+            v-else-if="reminder.calEventId"
+            :style="s.editBtn"
+            @click="app.syncCalendar(reminder.id)"
+          >
+            Update event
+          </button>
+          <button v-else :style="s.editBtn" @click="app.syncCalendar(reminder.id)">
+            Add to Google Calendar
+          </button>
+          <button
+            v-if="reminder.calEventId"
+            :style="s.cancelBtn"
+            @click="app.unsyncCalendar(reminder.id)"
+          >
+            Remove from calendar
+          </button>
+          <button :style="s.editBtn" @click="onCalLink">Open in Google</button>
         </div>
       </div>
       <div :style="s.dialogActions">
+        <button :style="s.saveBtn" @click="app.closeReminderDialog()">Update</button>
         <button :style="s.editBtn" @click="app.share('reminder', reminder)">Share</button>
         <button :style="s.cancelBtn" @click="onDelete">Delete</button>
       </div>

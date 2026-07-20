@@ -1,15 +1,18 @@
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
-import { THEMES, computeAutoTheme, type ThemeKey, type Theme } from '@/themes'
+import { THEMES, computeAutoTheme, type ThemeKey, type Theme, type ThemeSetting } from '@/themes'
+import { useAppStore } from '@/stores/app'
 import type { TabKey } from '@/types'
 
 const TAB_ORDER: TabKey[] = ['todo', 'tasks', 'deadlines', 'reminders', 'finances', 'trips']
 
-export type ThemeSetting = 'auto' | ThemeKey
+export type { ThemeSetting }
 
 // Global UI state: theme selection, current tab, viewport width and a coarse clock.
 export const useUiStore = defineStore('ui', () => {
-  const themeSetting = ref<ThemeSetting>('auto')
+  // The choice itself lives in the app store so it persists to the user's
+  // Firestore document and comes back on refresh. This is a view onto it.
+  const { themeSetting } = storeToRefs(useAppStore())
   const tab = ref<TabKey>('todo')
   const tabDir = ref<1 | -1>(1)
   const vw = ref<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)

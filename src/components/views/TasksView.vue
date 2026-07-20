@@ -122,7 +122,15 @@ function statusStyle(t: Task) {
 }
 function repoDotStyle(t: Task) {
   const col = ciColor(t)
-  return pxify({ width: 7, height: 7, borderRadius: '50%', background: col, boxShadow: '0 0 6px ' + col, flexShrink: 0, marginRight: 5 })
+  return pxify({
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    background: col,
+    boxShadow: '0 0 6px ' + col,
+    flexShrink: 0,
+    marginRight: 5,
+  })
 }
 const repoChipStyle = computed(() =>
   pxify({
@@ -198,14 +206,26 @@ function onGroupDrop(e: DragEvent, g: Group) {
 <template>
   <div :style="panelStyle">
     <div :style="s.inputRow">
-      <input ref="taskInputRef" :style="s.input" placeholder="Task title…" v-model="title" @keydown="onKey" />
+      <input
+        ref="taskInputRef"
+        :style="s.input"
+        placeholder="Task title…"
+        v-model="title"
+        @keydown="onKey"
+      />
     </div>
     <div :style="s.inputRow">
       <input :style="s.input" placeholder="Project tag (optional)" v-model="tag" @keydown="onKey" />
       <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="add">+</button>
     </div>
     <div :style="s.dayGroups">
-      <div v-for="g in groups" :key="g.key" :style="groupStyle" @dragover="onGroupDragOver" @drop="onGroupDrop($event, g)">
+      <div
+        v-for="g in groups"
+        :key="g.key"
+        :style="groupStyle"
+        @dragover="onGroupDragOver"
+        @drop="onGroupDrop($event, g)"
+      >
         <div :style="s.dayGroupHead">
           <span :style="s.dayGroupLabelBase">{{ g.label }}</span>
           <span :style="s.dayCount">{{ g.tasks.length }}</span>
@@ -224,15 +244,21 @@ function onGroupDrop(e: DragEvent, g: Group) {
           @click="onRowClick(t)"
           @dblclick="onRowDblClick(t)"
         >
-          <span :style="s.grip"><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span></span>
+          <span :style="s.grip"
+            ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+          ></span>
           <div :style="s.taskMain">
             <span :style="textStyle(t)">{{ t.title }}</span>
             <div :style="s.chipRow">
               <span v-if="t.tag" :style="s.chip">{{ t.tag }}</span>
-              <span v-if="t.repo" :style="repoChipStyle"><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span>
+              <span v-if="t.repo" :style="repoChipStyle"
+                ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
+              >
             </div>
           </div>
-          <button :style="statusStyle(t)" @click.stop="app.toggleTask(t.id)">{{ t.done ? 'done' : 'open' }}</button>
+          <button :style="statusStyle(t)" @click.stop="app.toggleTask(t.id)">
+            {{ t.done ? 'done' : 'open' }}
+          </button>
           <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
           <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">×</button>
         </div>

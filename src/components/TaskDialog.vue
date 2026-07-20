@@ -66,7 +66,11 @@ const connChipStyle = computed(() =>
     borderRadius: 8,
     border: '1px solid ' + (githubLinked.value ? 'oklch(0.68 0.15 145)' : c.value.border),
     background: githubLinked.value ? 'rgba(90,200,140,0.14)' : 'transparent',
-    color: githubLinked.value ? (dark.value ? 'oklch(0.82 0.15 145)' : 'oklch(0.48 0.15 145)') : c.value.dim,
+    color: githubLinked.value
+      ? dark.value
+        ? 'oklch(0.82 0.15 145)'
+        : 'oklch(0.48 0.15 145)'
+      : c.value.dim,
     boxShadow: githubLinked.value ? '0 0 12px rgba(90,200,140,0.3)' : 'none',
     letterSpacing: '0.04em',
   }),
@@ -120,22 +124,50 @@ function onDelete() {
   app.deleteWithUndo('tasks', 'task', task.value.id)
   app.closeDialog()
 }
+// Fields already write through on input, so Update confirms and dismisses
+// rather than committing — Enter is bound to the same action so the keyboard
+// path matches the button.
+function onEnter(e: KeyboardEvent) {
+  // Enter is a newline in the notes textarea, and activates a focused button
+  // (status toggle, PR approve, Connect) — in neither case is it a confirmation.
+  const tag = (e.target as HTMLElement).tagName
+  if (tag === 'TEXTAREA' || tag === 'BUTTON') return
+  e.preventDefault()
+  app.closeDialog()
+}
 </script>
 
 <template>
   <template v-if="dialogTaskId != null && task">
     <div :style="s.dialogOverlay" @click="app.closeDialog()"></div>
-    <div :style="dialogCardStyle">
+    <div :style="dialogCardStyle" @keydown.enter="onEnter" @keydown.esc="app.closeDialog()">
       <div :style="s.dialogHeader">
         <input :style="s.dialogTitleInput" :value="task.title" @input="upd('title', $event)" />
         <button :style="s.del" @click="app.closeDialog()">×</button>
       </div>
       <div :style="s.dialogRow">
-        <input :style="s.editInputSmall" placeholder="tag" :value="task.tag" @input="upd('tag', $event)" />
-        <button :style="statusStyle(task.done)" @click="app.toggleTask(task.id)">{{ task.done ? 'done' : 'open' }}</button>
-        <input :style="s.editInputSmall" type="date" :value="task.deadline" @input="upd('deadline', $event)" />
+        <input
+          :style="s.editInputSmall"
+          placeholder="tag"
+          :value="task.tag"
+          @input="upd('tag', $event)"
+        />
+        <button :style="statusStyle(task.done)" @click="app.toggleTask(task.id)">
+          {{ task.done ? 'done' : 'open' }}
+        </button>
+        <input
+          :style="s.editInputSmall"
+          type="date"
+          :value="task.deadline"
+          @input="upd('deadline', $event)"
+        />
       </div>
-      <textarea :style="s.dialogNotes" placeholder="Notes…" :value="task.notes" @input="upd('notes', $event)"></textarea>
+      <textarea
+        :style="s.dialogNotes"
+        placeholder="Notes…"
+        :value="task.notes"
+        @input="upd('notes', $event)"
+      ></textarea>
 
       <div :style="s.dialogGithub">
         <div :style="s.ghConnRow">
@@ -143,17 +175,41 @@ function onDelete() {
           <button v-if="!githubLinked" :style="s.saveBtn" @click="auth.openAuth()">Connect</button>
         </div>
         <div :style="s.inputRow">
-          <input :style="s.input" placeholder="owner/repo" :value="task.repo" @input="upd('repo', $event)" />
-          <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="app.attachRepo(task.id, task.repo)">↻</button>
+          <input
+            :style="s.input"
+            placeholder="owner/repo"
+            :value="task.repo"
+            @input="upd('repo', $event)"
+          />
+          <button
+            :style="s.addBtn"
+            v-hover-style="s.addBtnHover"
+            @click="app.attachRepo(task.id, task.repo)"
+          >
+            ↻
+          </button>
         </div>
         <div v-if="gh && gh.status === 'loading'" :style="s.ghShimmer"></div>
         <template v-else-if="gh && gh.status === 'ready'">
           <div :style="s.ghGrid">
-            <div :style="s.ghItem"><span :style="s.ghLabel">Branch</span><span :style="s.ghVal">{{ gh.data.branch }}</span></div>
-            <div :style="s.ghItem"><span :style="s.ghLabel">Issues</span><span :style="s.ghVal">{{ gh.data.issues }}</span></div>
-            <div :style="s.ghItem"><span :style="s.ghLabel">PRs</span><span :style="s.ghVal">{{ gh.data.prs }}</span></div>
-            <div :style="s.ghItem"><span :style="s.ghLabel">Stars</span><span :style="s.ghVal">{{ gh.data.stars }}</span></div>
-            <div :style="s.ghItem"><span :style="s.ghLabel">CI</span><span :style="ciStyle(gh.data.ci)">{{ gh.data.ci }}</span></div>
+            <div :style="s.ghItem">
+              <span :style="s.ghLabel">Branch</span
+              ><span :style="s.ghVal">{{ gh.data.branch }}</span>
+            </div>
+            <div :style="s.ghItem">
+              <span :style="s.ghLabel">Issues</span
+              ><span :style="s.ghVal">{{ gh.data.issues }}</span>
+            </div>
+            <div :style="s.ghItem">
+              <span :style="s.ghLabel">PRs</span><span :style="s.ghVal">{{ gh.data.prs }}</span>
+            </div>
+            <div :style="s.ghItem">
+              <span :style="s.ghLabel">Stars</span><span :style="s.ghVal">{{ gh.data.stars }}</span>
+            </div>
+            <div :style="s.ghItem">
+              <span :style="s.ghLabel">CI</span
+              ><span :style="ciStyle(gh.data.ci)">{{ gh.data.ci }}</span>
+            </div>
             <div :style="s.ghItem">
               <span :style="s.ghLabel">Last commit</span>
               <span :style="s.ghVal">{{ gh.data.commitMsg }} · {{ gh.data.commitTime }}</span>
@@ -162,7 +218,9 @@ function onDelete() {
           <div v-if="prList.length" :style="s.ghSection">
             <span :style="s.ghLabel">Open pull requests</span>
             <div v-for="pr in prList" :key="pr.id" :style="s.ghIssueRow">
-              <a :href="pr.url" target="_blank" rel="noopener" :style="s.prLink">#{{ pr.num }} · {{ pr.title }}</a>
+              <a :href="pr.url" target="_blank" rel="noopener" :style="s.prLink"
+                >#{{ pr.num }} · {{ pr.title }}</a
+              >
               <span v-if="pr.approved" :style="approvedChip">Approved</span>
               <button v-else :style="s.importBtn" @click="app.approvePR(pr)">Approve</button>
             </div>
@@ -171,6 +229,7 @@ function onDelete() {
       </div>
 
       <div :style="s.dialogActions">
+        <button :style="s.saveBtn" @click="app.closeDialog()">Update</button>
         <button :style="s.editBtn" @click="app.share('task', task)">Share</button>
         <button :style="s.cancelBtn" @click="onDelete">Delete</button>
       </div>

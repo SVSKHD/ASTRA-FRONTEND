@@ -1,0 +1,6 @@
+dist
+node_modules
+legacy-next
+package-lock.json
+pnpm-lock.yaml
+tsconfig.tsbuildinfo

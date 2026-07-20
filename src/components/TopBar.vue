@@ -15,7 +15,8 @@ const app = useAppStore()
 const lock = useLockStore()
 const { c, s } = useStyles()
 const { themeSetting, themePanelOpen, isDayTime, now } = storeToRefs(ui)
-const { avatarMenuOpen, avatarColor, avatarInitial, avatarName, avatarSub, ghMenuLabel } = storeToRefs(auth)
+const { avatarMenuOpen, avatarColor, avatarInitial, avatarName, avatarSub, ghMenuLabel } =
+  storeToRefs(auth)
 const { security, syncState } = storeToRefs(app)
 
 const greetingText = computed(() => {
@@ -140,43 +141,17 @@ function onLockNow() {
   auth.avatarMenuOpen = false
   lock.lockNow()
 }
+
+// Named rather than two statements inline: Prettier reformats a multi-statement
+// template handler onto separate lines and drops the semicolon, which Vue's
+// expression parser then rejects at build time.
+function onOpenNotes() {
+  ui.toggleDrawer()
+  auth.toggleAvatarMenu()
+}
 </script>
 
 <template>
-  <div :style="s.topRow">
-    <div :style="s.themeWrap">
-      <button :style="s.themeTrigger" aria-label="Theme" @click="ui.toggleThemePanel()"></button>
-      <div v-if="themePanelOpen" :style="s.themePanel">
-        <button :style="rowStyle(autoActive)" v-hover-style="s.themeRowHover" @click="ui.setTheme('auto')">
-          <span :style="autoDotStyle"></span>
-          <span :style="autoLabelStyle">Auto (follows time)</span>
-        </button>
-        <span :style="s.themeGroupLabel">Light</span>
-        <button
-          v-for="key in lightThemes"
-          :key="key"
-          :style="rowStyle(isThemeActive(key))"
-          v-hover-style="s.themeRowHover"
-          @click="ui.setTheme(key)"
-        >
-          <span :style="themeDotStyle(key, isThemeActive(key))"></span>
-          <span :style="themeLabelStyle">{{ THEMES[key].label }}</span>
-        </button>
-        <span :style="s.themeGroupLabel">Dark</span>
-        <button
-          v-for="key in darkThemes"
-          :key="key"
-          :style="rowStyle(isThemeActive(key))"
-          v-hover-style="s.themeRowHover"
-          @click="ui.setTheme(key)"
-        >
-          <span :style="themeDotStyle(key, isThemeActive(key))"></span>
-          <span :style="themeLabelStyle">{{ THEMES[key].label }}</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
   <div :style="s.greetingRow">
     <div :style="s.greetingLeft">
       <div :style="greetingIconWrap">
@@ -190,32 +165,86 @@ function onLockNow() {
       </div>
       <span :style="s.greetingText">{{ greetingText }}</span>
     </div>
-    <div :style="s.userMenuWrap">
-      <button :style="s.userPill" v-hover-style="s.userPillHover" aria-label="Account" @click="auth.toggleAvatarMenu()">
-        <span :style="userPillPhoto">{{ avatarInitial }}</span>
-        <span :style="s.userPillName">{{ avatarName }}</span>
-        <span :style="s.userPillChevron">▾</span>
-      </button>
-      <div v-if="avatarMenuOpen" :style="s.avatarMenu">
-        <div :style="s.menuHead">
-          <span :style="s.drawerTitle">{{ avatarName }}</span>
-          <span :style="s.finMeta">{{ avatarSub }}</span>
-          <span :style="s.finMeta">Firebase: {{ syncState }}</span>
+    <div :style="s.greetingRight">
+      <div :style="s.themeWrap">
+        <button
+          :style="s.themeTriggerInline"
+          v-hover-style="s.themeTriggerInlineHover"
+          aria-label="Theme"
+          :aria-expanded="themePanelOpen"
+          @click="ui.toggleThemePanel()"
+        ></button>
+        <div v-if="themePanelOpen" :style="s.themePanel">
+          <button
+            :style="rowStyle(autoActive)"
+            v-hover-style="s.themeRowHover"
+            @click="ui.setTheme('auto')"
+          >
+            <span :style="autoDotStyle"></span>
+            <span :style="autoLabelStyle">Auto (follows time)</span>
+          </button>
+          <span :style="s.themeGroupLabel">Light</span>
+          <button
+            v-for="key in lightThemes"
+            :key="key"
+            :style="rowStyle(isThemeActive(key))"
+            v-hover-style="s.themeRowHover"
+            @click="ui.setTheme(key)"
+          >
+            <span :style="themeDotStyle(key, isThemeActive(key))"></span>
+            <span :style="themeLabelStyle">{{ THEMES[key].label }}</span>
+          </button>
+          <span :style="s.themeGroupLabel">Dark</span>
+          <button
+            v-for="key in darkThemes"
+            :key="key"
+            :style="rowStyle(isThemeActive(key))"
+            v-hover-style="s.themeRowHover"
+            @click="ui.setTheme(key)"
+          >
+            <span :style="themeDotStyle(key, isThemeActive(key))"></span>
+            <span :style="themeLabelStyle">{{ THEMES[key].label }}</span>
+          </button>
         </div>
-        <label :style="s.menuToggle">
-          <input type="checkbox" :checked="security.autoLockEnabled" @change="onAutoLockChange" />
-          <span>Auto-lock after 50 min</span>
-        </label>
-        <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="onLockNow">Lock now</button>
-        <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="auth.openGithubPanel()">
-          {{ ghMenuLabel }}
+      </div>
+      <div :style="s.userMenuWrap">
+        <button
+          :style="s.userPill"
+          v-hover-style="s.userPillHover"
+          aria-label="Account"
+          @click="auth.toggleAvatarMenu()"
+        >
+          <span :style="userPillPhoto">{{ avatarInitial }}</span>
+          <span :style="s.userPillName">{{ avatarName }}</span>
+          <span :style="s.userPillChevron">▾</span>
         </button>
-        <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="ui.toggleDrawer(); auth.toggleAvatarMenu()">
-          Notes
-        </button>
-        <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="onSignOut">
-          Sign out
-        </button>
+        <div v-if="avatarMenuOpen" :style="s.avatarMenu">
+          <div :style="s.menuHead">
+            <span :style="s.drawerTitle">{{ avatarName }}</span>
+            <span :style="s.finMeta">{{ avatarSub }}</span>
+            <span :style="s.finMeta">Firebase: {{ syncState }}</span>
+          </div>
+          <label :style="s.menuToggle">
+            <input type="checkbox" :checked="security.autoLockEnabled" @change="onAutoLockChange" />
+            <span>Auto-lock after 50 min</span>
+          </label>
+          <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="onLockNow">
+            Lock now
+          </button>
+          <button
+            :style="s.menuItem"
+            v-hover-style="s.themeRowHover"
+            @click="auth.openGithubPanel()"
+          >
+            {{ ghMenuLabel }}
+          </button>
+          <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="onOpenNotes">
+            Notes
+          </button>
+          <button :style="s.menuItem" v-hover-style="s.themeRowHover" @click="onSignOut">
+            Sign out
+          </button>
+        </div>
       </div>
     </div>
   </div>

@@ -1,17 +1,21 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import {
-  doc,
-  getDoc,
-  setDoc,
-  onSnapshot,
-  type Unsubscribe,
-} from 'firebase/firestore'
+import { doc, getDoc, setDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { AUREON_COLLECTION, auth, db, defaultLockMinutes, firebaseEnabled } from '@/firebase'
-import { onAuthStateChanged } from 'firebase/auth'
+import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
+import { isThemeSetting, type ThemeSetting } from '@/themes'
 import { isFirebaseUserAllowed } from '@/stores/auth'
 import { mockGithub } from '@/utils/github'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
+import { createShare } from '@/utils/shares'
+import {
+  CalendarAuthError,
+  createEvent,
+  deleteEvent,
+  hasCalendarToken,
+  updateEvent,
+} from '@/utils/gcal'
+import { useAuthStore } from '@/stores/auth'
 import { occurrences } from '@/utils/reminders'
 import type {
   ActiveNotif,
@@ -22,6 +26,7 @@ import type {
   ItemType,
   ListKey,
   Note,
+  Priority,
   PullRequest,
   Reminder,
   Repeat,
@@ -37,6 +42,10 @@ function rel(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
+}
+
+function isPriority(value: unknown): value is Priority {
+  return value === 'low' || value === 'normal' || value === 'high'
 }
 
 function emptySecurity(): SecuritySettings {
@@ -57,6 +66,9 @@ export const useAppStore = defineStore('app', () => {
   const reminders = ref<Reminder[]>([])
   const trips = ref<Trip[]>([])
   const security = ref<SecuritySettings>(emptySecurity())
+  // Theme is a per-user preference, so it rides along in the workspace doc and
+  // is restored on refresh once the document lands. The ui store reads it.
+  const themeSetting = ref<ThemeSetting>('auto')
   const cloudReady = ref(false)
   const cloudError = ref('')
   const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
@@ -80,6 +92,12 @@ export const useAppStore = defineStore('app', () => {
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported',
   )
   const sharedView = ref<SharedView | null>(parseSharedFromLocation())
+  // The item awaiting a public/private choice in the share dialog.
+  const pendingShare = ref<{ type: ItemType; item: { id: number } } | null>(null)
+  const shareBusy = ref(false)
+  // Set when a calendar call comes back 401 — the access token is ~1h and
+  // Firebase issues no browser refresh token, so re-consent is the only fix.
+  const calendarNeedsAuth = ref(false)
 
   let nid = 100
   const id = () => ++nid
@@ -102,10 +120,13 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Todos --------------------------------------------------------------
-  function addTodo(text: string) {
+  function addTodo(text: string, tag = '', description = '') {
     const t = text.trim()
     if (!t) return
-    todos.value = [...todos.value, { id: id(), text: t, done: false }]
+    todos.value = [
+      ...todos.value,
+      { id: id(), text: t, done: false, tag: tag.trim(), description: description.trim() },
+    ]
   }
   function toggleTodo(tid: number) {
     const wasDone = todos.value.find((t) => t.id === tid)?.done
@@ -177,7 +198,16 @@ export const useAppStore = defineStore('app', () => {
     const { type, id: eid } = editing.value
     const d = draft.value
     if (type === 'todo') {
-      todos.value = todos.value.map((t) => (t.id === eid ? { ...t, text: d.text as string } : t))
+      todos.value = todos.value.map((t) =>
+        t.id === eid
+          ? {
+              ...t,
+              text: d.text as string,
+              tag: ((d.tag as string) || '').trim(),
+              description: ((d.description as string) || '').trim(),
+            }
+          : t,
+      )
     } else if (type === 'deadline') {
       deadlines.value = deadlines.value.map((t) =>
         t.id === eid ? { ...t, title: d.title as string, due: d.due as string } : t,
@@ -214,10 +244,16 @@ export const useAppStore = defineStore('app', () => {
   const LIST_MAP: Record<ListKey, () => { get: () => unknown[]; set: (v: unknown[]) => void }> = {
     todos: () => ({ get: () => todos.value, set: (v) => (todos.value = v as Todo[]) }),
     tasks: () => ({ get: () => tasks.value, set: (v) => (tasks.value = v as Task[]) }),
-    deadlines: () => ({ get: () => deadlines.value, set: (v) => (deadlines.value = v as Deadline[]) }),
+    deadlines: () => ({
+      get: () => deadlines.value,
+      set: (v) => (deadlines.value = v as Deadline[]),
+    }),
     finances: () => ({ get: () => finances.value, set: (v) => (finances.value = v as Finance[]) }),
     notes: () => ({ get: () => notes.value, set: (v) => (notes.value = v as Note[]) }),
-    reminders: () => ({ get: () => reminders.value, set: (v) => (reminders.value = v as Reminder[]) }),
+    reminders: () => ({
+      get: () => reminders.value,
+      set: (v) => (reminders.value = v as Reminder[]),
+    }),
     trips: () => ({ get: () => trips.value, set: (v) => (trips.value = v as Trip[]) }),
   }
 
@@ -235,14 +271,27 @@ export const useAppStore = defineStore('app', () => {
           : type === 'deadline'
             ? (item.title as string)
             : type === 'finance'
-              ? ((item.note as string) || (item.category as string))
+              ? (item.note as string) || (item.category as string)
               : type === 'reminder'
                 ? (item.title as string)
                 : type === 'trip'
                   ? (item.location as string)
-                : (item.text as string)
+                  : (item.text as string)
     const short = label && label.length > 28 ? label.slice(0, 28) + '…' : label
     accessor.set(list.filter((x) => x.id !== itemId))
+    // Deleting a reminder must also remove its Google Calendar event, otherwise
+    // the event outlives the reminder with nothing left pointing at it. Undo
+    // re-creates the event and stores the new id (Google does not resurrect the
+    // old one), which is why the id is cleared from the retained copy.
+    if (type === 'reminder') {
+      const eventId = (item as unknown as Reminder).calEventId
+      if (eventId) {
+        void deleteEvent(eventId).catch((error) => {
+          if (error instanceof CalendarAuthError) calendarNeedsAuth.value = true
+          console.error('[Aureon] Calendar delete on reminder delete failed:', error)
+        })
+      }
+    }
     toast.value = { message: 'Deleted "' + short + '"', undo: true, listKey, item, idx }
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => {
@@ -254,10 +303,18 @@ export const useAppStore = defineStore('app', () => {
     if (!t || t.listKey == null || t.item == null || t.idx == null) return
     const accessor = LIST_MAP[t.listKey]()
     const list = [...accessor.get()]
-    list.splice(Math.min(t.idx, list.length), 0, t.item)
+    // The calendar event was already deleted; Google will not restore it under
+    // the old id, so the restored reminder starts unsynced and re-creates the
+    // event, picking up a fresh id.
+    const wasSynced = t.listKey === 'reminders' && !!(t.item as Reminder).calEventId
+    const restored = wasSynced
+      ? { ...(t.item as Reminder), calEventId: null, calSync: 'local' as const }
+      : t.item
+    list.splice(Math.min(t.idx, list.length), 0, restored)
     accessor.set(list)
     toast.value = null
     clearTimeout(toastTimer)
+    if (wasSynced) void syncCalendar((restored as Reminder).id)
   }
   function showToastMsg(message: string) {
     toast.value = { message, undo: false }
@@ -272,9 +329,42 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Sharing ------------------------------------------------------------
+  // share() only opens the chooser; the document is written by createShareLink
+  // once the visibility is picked. Keeping the entry point synchronous means
+  // every ↗ button in the views stays a plain `app.share(type, item)` call.
   function share(type: ItemType, item: { id: number }) {
-    const url = buildShareUrl(type, item)
-    copyToClipboard(url).finally(() => showToastMsg('Link copied to clipboard'))
+    if (!uid) {
+      showToastMsg('Sign in to share')
+      return
+    }
+    pendingShare.value = { type, item }
+  }
+  function cancelShare() {
+    pendingShare.value = null
+    shareBusy.value = false
+  }
+  // Writes a frozen snapshot and copies its page URL. `isPublic` is what the
+  // Firestore rule on aureon-shares reads — visibility is enforced there, not
+  // here, so a private link cannot be opened by guessing the URL.
+  async function createShareLink(isPublic: boolean) {
+    const pending = pendingShare.value
+    if (!pending || !uid || shareBusy.value) return
+    shareBusy.value = true
+    try {
+      const shareId = await createShare(uid, pending.type, pending.item, isPublic)
+      if (!shareId) {
+        showToastMsg('Sharing needs Firebase configured')
+        return
+      }
+      await copyToClipboard(buildShareUrl(pending.type, shareId))
+      showToastMsg(isPublic ? 'Public link copied' : 'Private link copied')
+    } catch (error) {
+      console.error('[Aureon] Share failed:', error)
+      showToastMsg('Could not create the share link')
+    } finally {
+      shareBusy.value = false
+      pendingShare.value = null
+    }
   }
   function dismissShared() {
     sharedView.value = null
@@ -290,7 +380,16 @@ export const useAppStore = defineStore('app', () => {
     const it = sv.item || {}
     const nidNew = id()
     if (sv.type === 'todo')
-      todos.value = [...todos.value, { id: nidNew, text: (it.text as string) || 'Shared todo', done: false }]
+      todos.value = [
+        ...todos.value,
+        {
+          id: nidNew,
+          text: (it.text as string) || 'Shared todo',
+          done: false,
+          tag: (it.tag as string) || '',
+          description: (it.description as string) || '',
+        },
+      ]
     else if (sv.type === 'task')
       tasks.value = [
         ...tasks.value,
@@ -307,7 +406,11 @@ export const useAppStore = defineStore('app', () => {
     else if (sv.type === 'deadline')
       deadlines.value = [
         ...deadlines.value,
-        { id: nidNew, title: (it.title as string) || 'Shared deadline', due: (it.due as string) || rel(3) },
+        {
+          id: nidNew,
+          title: (it.title as string) || 'Shared deadline',
+          due: (it.due as string) || rel(3),
+        },
       ]
     else if (sv.type === 'finance')
       finances.value = [
@@ -321,7 +424,10 @@ export const useAppStore = defineStore('app', () => {
         },
       ]
     else if (sv.type === 'note')
-      notes.value = [...notes.value, { id: nidNew, text: (it.text as string) || '', ts: Date.now() }]
+      notes.value = [
+        ...notes.value,
+        { id: nidNew, text: (it.text as string) || '', ts: Date.now() },
+      ]
     else if (sv.type === 'trip')
       trips.value = [
         ...trips.value,
@@ -354,7 +460,10 @@ export const useAppStore = defineStore('app', () => {
     showToastMsg('Approved PR #' + pr.num)
     // GitHub review API: POST /repos/{owner}/{repo}/pulls/{num}/reviews { event: 'APPROVE' }
   }
-  function importIssue(repo: { name: string; full: string }, issue: { num: number; title: string }) {
+  function importIssue(
+    repo: { name: string; full: string },
+    issue: { num: number; title: string },
+  ) {
     tasks.value = [
       ...tasks.value,
       {
@@ -367,7 +476,9 @@ export const useAppStore = defineStore('app', () => {
         repo: repo.full,
       },
     ]
-    showToastMsg('Imported "' + (issue.title.length > 24 ? issue.title.slice(0, 24) + '…' : issue.title) + '"')
+    showToastMsg(
+      'Imported "' + (issue.title.length > 24 ? issue.title.slice(0, 24) + '…' : issue.title) + '"',
+    )
   }
 
   // ---- Drag & drop (tasks) ------------------------------------------------
@@ -469,14 +580,30 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Reminders ----------------------------------------------------------
-  function addReminder(payload: { title: string; note: string; start: string; repeat: Repeat }) {
+  function addReminder(payload: {
+    title: string
+    note: string
+    start: string
+    repeat: Repeat
+    priority?: Priority
+    addToCalendar?: boolean
+  }) {
     const t = payload.title.trim()
     if (!t || !payload.start) return
-    reminders.value = [
-      ...reminders.value,
-      { id: id(), title: t, note: payload.note.trim(), start: payload.start, repeat: payload.repeat, calSync: 'local', lastFiredOcc: null },
-    ]
+    const created: Reminder = {
+      id: id(),
+      title: t,
+      note: payload.note.trim(),
+      start: payload.start,
+      repeat: payload.repeat,
+      priority: payload.priority || 'normal',
+      calSync: 'local',
+      calEventId: null,
+      lastFiredOcc: null,
+    }
+    reminders.value = [...reminders.value, created]
     requestNotifPermission()
+    if (payload.addToCalendar) void syncCalendar(created.id)
   }
   function updateReminder(rid: number, field: keyof Reminder, value: unknown) {
     reminders.value = reminders.value.map((r) => (r.id === rid ? { ...r, [field]: value } : r))
@@ -491,15 +618,64 @@ export const useAppStore = defineStore('app', () => {
       return { ...r, repeat: { ...r.repeat, weekdays: wd } }
     })
   }
-  function syncCalendar(rid: number) {
-    reminders.value = reminders.value.map((r) => (r.id === rid ? { ...r, calSync: 'pending' } : r))
-    // Real Google Calendar API would go here (needs Google auth / gapi).
-    setTimeout(() => {
-      reminders.value = reminders.value.map((r) => (r.id === rid ? { ...r, calSync: 'synced' } : r))
-    }, 1200)
+  function patchReminder(rid: number, patch: Partial<Reminder>) {
+    reminders.value = reminders.value.map((r) => (r.id === rid ? { ...r, ...patch } : r))
   }
-  function syncAllCalendar() {
-    reminders.value.forEach((r) => syncCalendar(r.id))
+
+  // Creates the event if the reminder has none, otherwise patches the existing
+  // one — so pressing Sync twice does not litter the calendar with duplicates.
+  async function syncCalendar(rid: number) {
+    const target = reminders.value.find((r) => r.id === rid)
+    if (!target) return
+    if (!hasCalendarToken()) {
+      calendarNeedsAuth.value = true
+      patchReminder(rid, { calSync: 'error' })
+      showToastMsg('Connect Google Calendar to sync')
+      return
+    }
+    patchReminder(rid, { calSync: 'pending' })
+    try {
+      if (target.calEventId) {
+        await updateEvent(target.calEventId, target)
+        patchReminder(rid, { calSync: 'synced' })
+      } else {
+        const eventId = await createEvent(target)
+        patchReminder(rid, { calSync: 'synced', calEventId: eventId })
+      }
+    } catch (error) {
+      patchReminder(rid, { calSync: 'error' })
+      if (error instanceof CalendarAuthError) {
+        calendarNeedsAuth.value = true
+        showToastMsg('Google Calendar access expired')
+      } else {
+        console.error('[Aureon] Calendar sync failed:', error)
+        showToastMsg('Could not sync to Google Calendar')
+      }
+    }
+  }
+  async function syncAllCalendar() {
+    for (const r of [...reminders.value]) await syncCalendar(r.id)
+  }
+  // Removes the Google Calendar event and forgets its id, leaving the reminder
+  // itself in place.
+  async function unsyncCalendar(rid: number) {
+    const target = reminders.value.find((r) => r.id === rid)
+    if (!target?.calEventId) return
+    try {
+      await deleteEvent(target.calEventId)
+      patchReminder(rid, { calSync: 'local', calEventId: null })
+      showToastMsg('Removed from Google Calendar')
+    } catch (error) {
+      if (error instanceof CalendarAuthError) calendarNeedsAuth.value = true
+      console.error('[Aureon] Calendar remove failed:', error)
+      showToastMsg('Could not remove the calendar event')
+    }
+  }
+  async function reconnectCalendar(): Promise<boolean> {
+    const authStore = useAuthStore()
+    const ok = await authStore.reconnectCalendar()
+    calendarNeedsAuth.value = !ok
+    return ok
   }
   function requestNotifPermission() {
     if (typeof Notification !== 'undefined' && Notification.requestPermission) {
@@ -538,7 +714,15 @@ export const useAppStore = defineStore('app', () => {
     const when = new Date(Date.now() + mins * 60000).toISOString().slice(0, 16)
     reminders.value = [
       ...reminders.value,
-      { id: id(), title: n.title, note: n.note, start: when, repeat: { type: 'none' }, calSync: 'local', lastFiredOcc: null },
+      {
+        id: id(),
+        title: n.title,
+        note: n.note,
+        start: when,
+        repeat: { type: 'none' },
+        calSync: 'local',
+        lastFiredOcc: null,
+      },
     ]
     activeNotif.value = null
   }
@@ -562,6 +746,7 @@ export const useAppStore = defineStore('app', () => {
       reminders: reminders.value,
       trips: trips.value,
       security: security.value,
+      themeSetting: themeSetting.value,
       approvedPRs: approvedPRs.value,
     }
   }
@@ -576,6 +761,7 @@ export const useAppStore = defineStore('app', () => {
     trips.value = []
     approvedPRs.value = {}
     security.value = emptySecurity()
+    themeSetting.value = 'auto'
     editing.value = { type: null, id: null }
     draft.value = {}
     nid = 100
@@ -585,12 +771,28 @@ export const useAppStore = defineStore('app', () => {
   }
   function applyData(data: Record<string, unknown>) {
     hydrating = true
-    todos.value = Array.isArray(data.todos) ? (data.todos as Todo[]) : []
+    // Todos written before tag/description existed lack those fields; fill them
+    // in on read so the rest of the app can treat them as required.
+    todos.value = Array.isArray(data.todos)
+      ? (data.todos as Todo[]).map((t) => ({
+          ...t,
+          tag: typeof t.tag === 'string' ? t.tag : '',
+          description: typeof t.description === 'string' ? t.description : '',
+        }))
+      : []
     tasks.value = Array.isArray(data.tasks) ? (data.tasks as Task[]) : []
     deadlines.value = Array.isArray(data.deadlines) ? (data.deadlines as Deadline[]) : []
     finances.value = Array.isArray(data.finances) ? (data.finances as Finance[]) : []
     notes.value = Array.isArray(data.notes) ? (data.notes as Note[]) : []
-    reminders.value = Array.isArray(data.reminders) ? (data.reminders as Reminder[]) : []
+    // Reminders written before priority/calEventId existed lack those fields;
+    // fill them in on read so the rest of the app can treat them as required.
+    reminders.value = Array.isArray(data.reminders)
+      ? (data.reminders as Reminder[]).map((r) => ({
+          ...r,
+          priority: isPriority(r.priority) ? r.priority : 'normal',
+          calEventId: typeof r.calEventId === 'string' ? r.calEventId : null,
+        }))
+      : []
     trips.value = Array.isArray(data.trips) ? (data.trips as Trip[]) : []
     approvedPRs.value =
       data.approvedPRs && typeof data.approvedPRs === 'object'
@@ -600,6 +802,9 @@ export const useAppStore = defineStore('app', () => {
       data.security && typeof data.security === 'object'
         ? { ...emptySecurity(), ...(data.security as Partial<SecuritySettings>) }
         : emptySecurity()
+    // Guard the stored value: a theme key removed in a later release must not
+    // leave the ui store indexing THEMES with a key that no longer exists.
+    themeSetting.value = isThemeSetting(data.themeSetting) ? data.themeSetting : 'auto'
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -628,55 +833,76 @@ export const useAppStore = defineStore('app', () => {
     saveTimer = setTimeout(saveCloud, 600)
   }
 
-  if (firebaseEnabled && auth && db) {
-    onAuthStateChanged(auth, async (u) => {
-      if (cloudUnsub) {
-        cloudUnsub()
-        cloudUnsub = null
+  async function connectCloud(u: FbUser | null) {
+    if (cloudUnsub) {
+      cloudUnsub()
+      cloudUnsub = null
+    }
+    clearTimeout(saveTimer)
+    cloudReady.value = false
+    cloudError.value = ''
+    syncState.value = 'idle'
+    uid = u && isFirebaseUserAllowed(u) ? u.uid : null
+    resetData()
+    if (!uid || !db) return
+    const ref = doc(db, AUREON_COLLECTION, uid)
+    try {
+      const snap = await getDoc(ref)
+      if (snap.exists()) applyData(snap.data())
+      else {
+        await setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() })
       }
-      clearTimeout(saveTimer)
-      cloudReady.value = false
-      cloudError.value = ''
-      syncState.value = 'idle'
-      uid = u && isFirebaseUserAllowed(u) ? u.uid : null
-      resetData()
-      if (!uid || !db) return
-      const ref = doc(db, AUREON_COLLECTION, uid)
-      try {
-        const snap = await getDoc(ref)
-        if (snap.exists()) applyData(snap.data())
-        else {
-          await setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() })
+      cloudReady.value = true
+      syncState.value = 'synced'
+    } catch (error) {
+      cloudError.value = 'Could not load your Firebase data.'
+      syncState.value = 'error'
+      console.error('[Aureon] Cloud load failed:', error)
+      return
+    }
+    // Live updates from other devices.
+    cloudUnsub = onSnapshot(
+      ref,
+      (s) => {
+        if (s.exists() && s.metadata.hasPendingWrites === false) {
+          applyData(s.data())
+          cloudReady.value = true
+          syncState.value = 'synced'
         }
-        cloudReady.value = true
-        syncState.value = 'synced'
-      } catch (error) {
-        cloudError.value = 'Could not load your Firebase data.'
+      },
+      (error) => {
+        cloudError.value = 'Firebase realtime sync was interrupted.'
         syncState.value = 'error'
-        console.error('[Aureon] Cloud load failed:', error)
-        return
-      }
-      // Live updates from other devices.
-      cloudUnsub = onSnapshot(
-        ref,
-        (s) => {
-          if (s.exists() && s.metadata.hasPendingWrites === false) {
-            applyData(s.data())
-            cloudReady.value = true
-            syncState.value = 'synced'
-          }
-        },
-        (error) => {
-          cloudError.value = 'Firebase realtime sync was interrupted.'
-          syncState.value = 'error'
-          console.error('[Aureon] Cloud listener failed:', error)
-        },
-      )
-    })
+        console.error('[Aureon] Cloud listener failed:', error)
+      },
+    )
+  }
 
-    watch([todos, tasks, deadlines, finances, notes, reminders, trips, security, approvedPRs], scheduleSave, {
-      deep: true,
-    })
+  // Re-run the connect for whoever is currently signed in, so a transient
+  // Firestore failure does not strand the user on the error card.
+  async function retryCloud() {
+    await connectCloud(auth?.currentUser ?? null)
+  }
+
+  if (firebaseEnabled && auth && db) {
+    onAuthStateChanged(auth, connectCloud)
+
+    watch(
+      [
+        todos,
+        tasks,
+        deadlines,
+        finances,
+        notes,
+        reminders,
+        trips,
+        security,
+        themeSetting,
+        approvedPRs,
+      ],
+      scheduleSave,
+      { deep: true },
+    )
   }
 
   function updateSecurity(patch: Partial<SecuritySettings>) {
@@ -696,6 +922,7 @@ export const useAppStore = defineStore('app', () => {
     reminders,
     trips,
     security,
+    themeSetting,
     cloudReady,
     cloudError,
     syncState,
@@ -733,6 +960,10 @@ export const useAppStore = defineStore('app', () => {
     showToastMsg,
     closeToast,
     share,
+    pendingShare,
+    shareBusy,
+    cancelShare,
+    createShareLink,
     dismissShared,
     addSharedItem,
     attachRepo,
@@ -752,6 +983,10 @@ export const useAppStore = defineStore('app', () => {
     toggleWeekday,
     syncCalendar,
     syncAllCalendar,
+    unsyncCalendar,
+    reconnectCalendar,
+    calendarNeedsAuth,
+    retryCloud,
     requestNotifPermission,
     checkReminders,
     snoozeNotif,

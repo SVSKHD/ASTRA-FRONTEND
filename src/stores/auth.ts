@@ -11,9 +11,11 @@ import {
   linkWithPopup,
   type User as FbUser,
   type AuthProvider,
+  type UserCredential,
 } from 'firebase/auth'
 import { auth, firebaseEnabled } from '@/firebase'
 import { mockRepos } from '@/utils/github'
+import { CALENDAR_SCOPE, hasCalendarToken, setCalendarToken } from '@/utils/gcal'
 import type { AureonUser, Repo } from '@/types'
 
 const GOOGLE_COLOR = 'oklch(0.62 0.15 255)'
@@ -55,17 +57,35 @@ function fromFirebase(user: FbUser): AureonUser {
 function authMessage(error: unknown): string {
   const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : ''
   const message = error instanceof Error ? error.message : String(error)
-  if (code.includes('unauthorized-domain')) return 'Add this website domain under Firebase Authentication → Settings → Authorized domains.'
-  if (code.includes('operation-not-allowed')) return 'Enable this sign-in provider in Firebase Authentication → Sign-in method.'
-  if (code.includes('popup-closed-by-user') || message.includes('popup-closed-by-user')) return 'Sign-in was cancelled.'
-  if (code.includes('account-exists-with-different-credential') || message.includes('account-exists-with-different-credential'))
+  if (code.includes('unauthorized-domain'))
+    return 'Add this website domain under Firebase Authentication → Settings → Authorized domains.'
+  if (code.includes('operation-not-allowed'))
+    return 'Enable this sign-in provider in Firebase Authentication → Sign-in method.'
+  if (code.includes('popup-closed-by-user') || message.includes('popup-closed-by-user'))
+    return 'Sign-in was cancelled.'
+  if (
+    code.includes('account-exists-with-different-credential') ||
+    message.includes('account-exists-with-different-credential')
+  )
     return 'This email already uses another sign-in provider.'
   return `Authentication failed${code ? ` (${code})` : ''}. Check Firebase Authentication settings.`
 }
 
+// Firebase surfaces the Google OAuth access token exactly once, on the result
+// of the sign-in call. There is no refresh token in the browser, so this is
+// held in memory and expires after roughly an hour.
+function captureCalendarToken(result: UserCredential) {
+  const credential = GoogleAuthProvider.credentialFromResult(result)
+  if (credential?.accessToken) setCalendarToken(credential.accessToken)
+}
+
 function needsRedirect(error: unknown): boolean {
   const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : ''
-  return ['auth/popup-blocked', 'auth/cancelled-popup-request', 'auth/operation-not-supported-in-this-environment'].includes(code)
+  return [
+    'auth/popup-blocked',
+    'auth/cancelled-popup-request',
+    'auth/operation-not-supported-in-this-environment',
+  ].includes(code)
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -97,9 +117,13 @@ export const useAuthStore = defineStore('auth', () => {
     authError.value = 'Firebase is not configured. Add the VITE_FIREBASE_* environment values.'
   } else {
     const configuredAuth = auth
-    getRedirectResult(configuredAuth).catch((error) => {
-      authError.value = authMessage(error)
-    })
+    getRedirectResult(configuredAuth)
+      .then((result) => {
+        if (result) captureCalendarToken(result)
+      })
+      .catch((error) => {
+        authError.value = authMessage(error)
+      })
     onAuthStateChanged(configuredAuth, async (firebaseUser) => {
       if (!firebaseUser) {
         user.value = null
@@ -120,7 +144,9 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       user.value = fromFirebase(firebaseUser)
-      githubLinked.value = firebaseUser.providerData.some((provider) => provider.providerId.includes('github'))
+      githubLinked.value = firebaseUser.providerData.some((provider) =>
+        provider.providerId.includes('github'),
+      )
       authError.value = ''
       authOpen.value = false
       authReady.value = true
@@ -143,14 +169,19 @@ export const useAuthStore = defineStore('auth', () => {
     authBusy.value = true
     authError.value = ''
     try {
-      await signInWithPopup(auth, provider)
+      captureCalendarToken(await signInWithPopup(auth, provider))
     } catch (error) {
       if (needsRedirect(error)) {
         authError.value = 'Popup unavailable. Continuing sign-in in this window…'
-        await signInWithRedirect(auth, provider)
-        return
+        try {
+          await signInWithRedirect(auth, provider)
+          return
+        } catch (redirectError) {
+          authError.value = authMessage(redirectError)
+        }
+      } else {
+        authError.value = authMessage(error)
       }
-      authError.value = authMessage(error)
     } finally {
       authBusy.value = false
     }
@@ -158,8 +189,26 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loginGoogle() {
     const provider = new GoogleAuthProvider()
+    provider.addScope(CALENDAR_SCOPE)
     provider.setCustomParameters({ prompt: 'select_account' })
     await loginWithProvider(provider)
+  }
+
+  // Re-consent for calendar access only. The access token lives about an hour
+  // and Firebase issues no browser refresh token, so this is the recovery path
+  // when a calendar call comes back 401.
+  async function reconnectCalendar(): Promise<boolean> {
+    if (!auth) return false
+    const provider = new GoogleAuthProvider()
+    provider.addScope(CALENDAR_SCOPE)
+    provider.setCustomParameters({ prompt: 'consent' })
+    try {
+      captureCalendarToken(await signInWithPopup(auth, provider))
+      return hasCalendarToken()
+    } catch (error) {
+      console.error('[Aureon] Calendar reconnect failed:', error)
+      return false
+    }
   }
 
   async function loginGithub() {
@@ -184,6 +233,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     user.value = null
     githubLinked.value = false
+    setCalendarToken(null)
     ghRepos.value = null
     avatarMenuOpen.value = false
     githubPanelOpen.value = false
@@ -245,6 +295,7 @@ export const useAuthStore = defineStore('auth', () => {
     ghMenuLabel,
     loginGoogle,
     loginGithub,
+    reconnectCalendar,
     openAuth,
     signOut,
     toggleAvatarMenu,

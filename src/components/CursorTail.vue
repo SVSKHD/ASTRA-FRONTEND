@@ -66,6 +66,11 @@ function dotStyle(i: number) {
 
 <template>
   <template v-if="enabled">
-    <span v-for="i in dots" :key="i" :ref="(el) => (refs[i].value = el as HTMLElement)" :style="dotStyle(i)"></span>
+    <span
+      v-for="i in dots"
+      :key="i"
+      :ref="(el) => (refs[i].value = el as HTMLElement)"
+      :style="dotStyle(i)"
+    ></span>
   </template>
 </template>

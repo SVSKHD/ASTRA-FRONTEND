@@ -45,9 +45,18 @@ const statusChip = computed(() =>
         <span :style="statusChip">{{ task.done ? 'Done' : 'Open' }}</span>
         <span :style="s.taskViewTitle">{{ task.title }}</span>
         <div :style="s.taskViewMeta">
-          <div :style="s.taskViewMetaItem"><span :style="s.taskViewMetaLabel">Due</span><span :style="s.taskViewMetaVal">{{ dueLabel }}</span></div>
-          <div v-if="task.tag" :style="s.taskViewMetaItem"><span :style="s.taskViewMetaLabel">Project</span><span :style="s.taskViewMetaVal">{{ task.tag }}</span></div>
-          <div v-if="task.repo" :style="s.taskViewMetaItem"><span :style="s.taskViewMetaLabel">Repo</span><span :style="s.taskViewMetaVal">{{ task.repo }}</span></div>
+          <div :style="s.taskViewMetaItem">
+            <span :style="s.taskViewMetaLabel">Due</span
+            ><span :style="s.taskViewMetaVal">{{ dueLabel }}</span>
+          </div>
+          <div v-if="task.tag" :style="s.taskViewMetaItem">
+            <span :style="s.taskViewMetaLabel">Project</span
+            ><span :style="s.taskViewMetaVal">{{ task.tag }}</span>
+          </div>
+          <div v-if="task.repo" :style="s.taskViewMetaItem">
+            <span :style="s.taskViewMetaLabel">Repo</span
+            ><span :style="s.taskViewMetaVal">{{ task.repo }}</span>
+          </div>
         </div>
         <div v-if="task.notes && task.notes.trim()" :style="s.taskViewNotes">{{ task.notes }}</div>
       </div>

@@ -76,27 +76,33 @@ const row = computed(() => pxify(rowBase(c.value)))
 <template>
   <div :style="panelStyle">
     <div :style="s.inputRow">
-      <input ref="dlInputRef" :style="s.input" placeholder="What's due…" v-model="title" />
+      <input
+        ref="dlInputRef"
+        :style="s.input"
+        placeholder="What's due…"
+        v-model="title"
+        @keydown.enter="add"
+      />
     </div>
     <div :style="s.inputRow">
-      <input :style="s.input" type="date" v-model="date" />
+      <input :style="s.input" type="date" v-model="date" @keydown.enter="add" />
       <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="add">+</button>
     </div>
     <div v-if="deadlines.length === 0" :style="s.empty">No deadlines set.</div>
     <div :style="s.list">
       <div v-for="t in view" :key="t.id" :style="row" v-hover-style="s.rowHover">
         <template v-if="isEditing(t)">
-          <div :style="s.taskMain">
+          <div :style="s.taskMain" @keydown.enter="app.saveEdit()" @keydown.esc="app.cancelEdit()">
             <input
               :style="s.editInput"
-              :value="(draft.title as string)"
+              :value="draft.title as string"
               @input="app.setDraft('title', ($event.target as HTMLInputElement).value)"
               autofocus
             />
             <input
               :style="s.editInputSmall"
               type="date"
-              :value="(draft.due as string)"
+              :value="draft.due as string"
               @input="app.setDraft('due', ($event.target as HTMLInputElement).value)"
             />
           </div>
@@ -110,7 +116,9 @@ const row = computed(() => pxify(rowBase(c.value)))
             <span :style="s.dlDate">{{ t.dateLabel }}</span>
           </div>
           <button :style="s.shareBtn" @click="app.share('deadline', t)">↗</button>
-          <button :style="s.del" @click="app.deleteWithUndo('deadlines', 'deadline', t.id)">×</button>
+          <button :style="s.del" @click="app.deleteWithUndo('deadlines', 'deadline', t.id)">
+            ×
+          </button>
         </template>
       </div>
     </div>

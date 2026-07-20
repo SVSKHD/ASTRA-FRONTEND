@@ -37,7 +37,11 @@ const bgStyle = computed(() =>
     transition: 'background 1s ease',
   }),
 )
-const driftStyle = pxify({ position: 'absolute', inset: '-8%', animation: 'drift 34s linear infinite alternate' })
+const driftStyle = pxify({
+  position: 'absolute',
+  inset: '-8%',
+  animation: 'drift 34s linear infinite alternate',
+})
 
 function starStyle(st: Star) {
   return pxify({

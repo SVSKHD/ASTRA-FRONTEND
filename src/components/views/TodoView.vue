@@ -11,14 +11,18 @@ const { c, s, panelStyle } = useStyles()
 const { todos, burst, editing, draft } = storeToRefs(app)
 
 const input = ref('')
+const tag = ref('')
+const description = ref('')
 const todoInputRef = ref<HTMLInputElement | null>(null)
 defineExpose({ focus: () => todoInputRef.value?.focus() })
 
 const sorted = computed(() => [...todos.value].sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0)))
 
 function add() {
-  app.addTodo(input.value)
+  app.addTodo(input.value, tag.value, description.value)
   input.value = ''
+  tag.value = ''
+  description.value = ''
 }
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Enter') add()
@@ -41,12 +45,14 @@ function boxStyle(t: Todo) {
     placeItems: 'center',
     cursor: 'pointer',
     boxShadow: t.done ? 'inset 0 1px 0 rgba(255,255,255,0.35)' : 'none',
-    transition: 'background .3s cubic-bezier(.5,1.5,.5,1), border-color .3s ease, box-shadow .3s ease',
+    transition:
+      'background .3s cubic-bezier(.5,1.5,.5,1), border-color .3s ease, box-shadow .3s ease',
   })
 }
+// The row's text block is now a taskMain column (text / description / tag), so
+// the flex-grow that used to live here belongs to that wrapper instead.
 function textStyle(t: Todo) {
   return pxify({
-    flex: 1,
     fontSize: 14,
     lineHeight: 1.4,
     color: c.value.text,
@@ -55,6 +61,9 @@ function textStyle(t: Todo) {
     textDecorationColor: c.value.dim,
   })
 }
+const descStyle = computed(() =>
+  pxify({ fontSize: 12, lineHeight: 1.4, color: c.value.dim, cursor: 'pointer' }),
+)
 function rowStyle(t: Todo) {
   return merge(rowBase(c.value), { opacity: t.done ? 0.5 : 1 })
 }
@@ -89,18 +98,43 @@ function particleStyle(i: number) {
         v-model="input"
         @keydown="onKey"
       />
+    </div>
+    <div :style="s.inputRow">
+      <input
+        :style="s.input"
+        placeholder="Description (optional)"
+        v-model="description"
+        @keydown="onKey"
+      />
+    </div>
+    <div :style="s.inputRow">
+      <input :style="s.input" placeholder="Tag (optional)" v-model="tag" @keydown="onKey" />
       <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="add">+</button>
     </div>
     <div v-if="todos.length === 0" :style="s.empty">Nothing yet — add your first todo.</div>
     <div :style="s.list">
       <div v-for="t in sorted" :key="t.id" :style="rowStyle(t)" v-hover-style="s.rowHover">
         <template v-if="isEditing(t)">
-          <input
-            :style="s.editInput"
-            :value="(draft.text as string)"
-            @input="app.setDraft('text', ($event.target as HTMLInputElement).value)"
-            autofocus
-          />
+          <div :style="s.taskMain" @keydown.enter="app.saveEdit()" @keydown.esc="app.cancelEdit()">
+            <input
+              :style="s.editInput"
+              :value="draft.text as string"
+              @input="app.setDraft('text', ($event.target as HTMLInputElement).value)"
+              autofocus
+            />
+            <input
+              :style="s.editInput"
+              placeholder="description"
+              :value="draft.description as string"
+              @input="app.setDraft('description', ($event.target as HTMLInputElement).value)"
+            />
+            <input
+              :style="s.editInputSmall"
+              placeholder="tag"
+              :value="draft.tag as string"
+              @input="app.setDraft('tag', ($event.target as HTMLInputElement).value)"
+            />
+          </div>
           <button :style="s.saveBtn" @click="app.saveEdit()">Save</button>
           <button :style="s.cancelBtn" @click="app.cancelEdit()">Cancel</button>
         </template>
@@ -118,13 +152,22 @@ function particleStyle(i: number) {
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <polyline points="20 6 9 17 4 12" style="animation: popIn .35s cubic-bezier(.3,1.6,.5,1)" />
+              <polyline
+                points="20 6 9 17 4 12"
+                style="animation: popIn 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)"
+              />
             </svg>
             <template v-if="burst === t.id">
               <span v-for="i in particles" :key="i" :style="particleStyle(i)"></span>
             </template>
           </button>
-          <span :style="textStyle(t)" @click="app.startEdit('todo', t)">{{ t.text }}</span>
+          <div :style="s.taskMain" @click="app.startEdit('todo', t)">
+            <span :style="textStyle(t)">{{ t.text }}</span>
+            <span v-if="t.description" :style="descStyle">{{ t.description }}</span>
+            <div v-if="t.tag" :style="s.chipRow">
+              <span :style="s.chip">{{ t.tag }}</span>
+            </div>
+          </div>
           <button :style="s.shareBtn" @click="app.share('todo', t)">↗</button>
           <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
         </template>

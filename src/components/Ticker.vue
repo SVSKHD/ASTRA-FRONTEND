@@ -35,7 +35,9 @@ const nextD = computed<Next | null>(() => {
   const remNexts = reminders.value
     .map((r) => {
       const occ = occurrences(r, now.value)
-      return occ.next ? { title: r.title, ms: occ.next - now.value, kind: 'reminder' as const } : null
+      return occ.next
+        ? { title: r.title, ms: occ.next - now.value, kind: 'reminder' as const }
+        : null
     })
     .filter((x): x is { title: string; ms: number; kind: 'reminder' } => x !== null)
     .sort((a, b) => a.ms - b.ms)
@@ -70,7 +72,9 @@ const dotColor = computed(() => {
   today.setHours(0, 0, 0, 0)
   if (n.ms < 0) return dark.value ? 'oklch(0.68 0.2 25)' : 'oklch(0.58 0.2 25)'
   if (n.kind === 'reminder') return 'oklch(0.75 0.14 145)'
-  const d = n.due ? Math.round((new Date(n.due + 'T00:00:00').getTime() - today.getTime()) / 86400000) : 0
+  const d = n.due
+    ? Math.round((new Date(n.due + 'T00:00:00').getTime() - today.getTime()) / 86400000)
+    : 0
   return urg(d, dark.value)
 })
 const tickerStyle = computed(() => {
@@ -83,7 +87,14 @@ const tickerStyle = computed(() => {
   return base
 })
 const dotStyle = computed(() =>
-  pxify({ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: dotColor.value, boxShadow: '0 0 8px ' + dotColor.value }),
+  pxify({
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    flexShrink: 0,
+    background: dotColor.value,
+    boxShadow: '0 0 8px ' + dotColor.value,
+  }),
 )
 
 function jump() {
