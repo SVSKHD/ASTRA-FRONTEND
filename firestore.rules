@@ -5,47 +5,36 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function usesAllowedProvider() {
-      return isSignedIn()
-        && request.auth.token.firebase.sign_in_provider in ['google.com', 'github.com'];
-    }
-
-    function isAureonOwner() {
-      return usesAllowedProvider()
-        && request.auth.token.email == '8svskhd@gmail.com'
-        && request.auth.token.email_verified == true;
-    }
-
-    // Aureon stores one complete, user-scoped workspace document here.
+    // Aureon: one complete workspace document per authenticated Firebase user.
+    // Google OR GitHub authentication is sufficient because both provide auth.uid.
     match /aureon-notes/{userId} {
-      allow read, create, update, delete: if isAureonOwner()
+      allow read, create, update, delete: if isSignedIn()
         && request.auth.uid == userId;
     }
 
     match /Astra-users/{userId} {
-      allow read, write: if usesAllowedProvider()
+      allow read, write: if isSignedIn()
         && request.auth.uid == userId;
     }
 
-    // Forex: authenticated Google/GitHub users read; admins write.
     match /forex/{docId} {
-      allow read: if usesAllowedProvider();
-      allow write: if usesAllowedProvider()
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
         && request.auth.token.admin == true;
     }
 
     match /astra_notes/{noteId} {
       allow read: if resource.data.isShared == true
-        || (usesAllowedProvider() && resource.data.userId == request.auth.uid);
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
 
-      allow create: if usesAllowedProvider()
+      allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid;
 
-      allow update: if usesAllowedProvider()
+      allow update: if isSignedIn()
         && resource.data.userId == request.auth.uid
         && request.resource.data.userId == request.auth.uid;
 
-      allow delete: if usesAllowedProvider()
+      allow delete: if isSignedIn()
         && resource.data.userId == request.auth.uid;
     }
 
@@ -54,24 +43,24 @@ service cloud.firestore {
         return resource.data.keys().hasAny(['userId']);
       }
 
-      allow create: if usesAllowedProvider()
+      allow create: if isSignedIn()
         && (
           !('userId' in request.resource.data)
           || request.resource.data.userId == request.auth.uid
         );
 
-      allow read: if usesAllowedProvider()
+      allow read: if isSignedIn()
         && (
           (hasGenericUserIdField() && resource.data.userId == request.auth.uid)
           || !hasGenericUserIdField()
         );
 
-      allow update: if usesAllowedProvider()
+      allow update: if isSignedIn()
         && hasGenericUserIdField()
         && resource.data.userId == request.auth.uid
         && request.resource.data.userId == request.auth.uid;
 
-      allow delete: if usesAllowedProvider()
+      allow delete: if isSignedIn()
         && hasGenericUserIdField()
         && resource.data.userId == request.auth.uid;
     }
