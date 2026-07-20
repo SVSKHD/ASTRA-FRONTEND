@@ -2,6 +2,7 @@ import { computed, ref, watch } from 'vue'
 import { defineStore, storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { defaultLockMinutes } from '@/firebase'
 
 const encoder = new TextEncoder()
 
@@ -104,7 +105,7 @@ export const useLockStore = defineStore('lock', () => {
         pinHash: hash,
         pinSalt: salt,
         autoLockEnabled: !neverLock,
-        lockTimeoutMinutes: 50,
+        lockTimeoutMinutes: defaultLockMinutes,
       })
       locked.value = false
       lastActivity.value = Date.now()
@@ -147,7 +148,7 @@ export const useLockStore = defineStore('lock', () => {
   }
 
   function setAutoLock(enabled: boolean) {
-    app.updateSecurity({ autoLockEnabled: enabled, lockTimeoutMinutes: 50 })
+    app.updateSecurity({ autoLockEnabled: enabled, lockTimeoutMinutes: defaultLockMinutes })
     lastActivity.value = Date.now()
   }
 
