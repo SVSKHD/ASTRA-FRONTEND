@@ -8,12 +8,13 @@ import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { THEMES, LIGHT_THEME_KEYS, DARK_THEME_KEYS, type ThemeKey } from '@/themes'
+import TabBar from '@/components/TabBar.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
 const app = useAppStore()
 const lock = useLockStore()
-const { c, s } = useStyles()
+const { c, s, isMobile } = useStyles()
 const { themeSetting, themePanelOpen, isDayTime, now } = storeToRefs(ui)
 const { avatarMenuOpen, avatarColor, avatarInitial, avatarName, avatarSub, ghMenuLabel } =
   storeToRefs(auth)
@@ -92,26 +93,29 @@ const userPillPhoto = computed(() =>
   }),
 )
 
-const greetingIconWrap = pxify({ position: 'relative', width: 32, height: 32 })
+const greetingIconWrap = pxify({ position: 'relative', width: 32, height: 32, flexShrink: 0 })
+// Sun, moon and the theme dot at the other end of the header are all the same
+// object — a lit ball — so they share one glow: same radius, no spread. The sun
+// used to carry a 22px/6px halo, which read as a different, much larger light
+// than the dot it sits opposite, and squared off against the header edge.
+const ORB_GLOW = 14
 const sunIcon = computed(() =>
   pxify({
     position: 'absolute',
     inset: 2,
     borderRadius: '50%',
     background: 'radial-gradient(circle at 35% 35%,' + c.value.accent + ' 0%, transparent 75%)',
-    boxShadow: '0 0 22px 6px ' + c.value.accent,
+    boxShadow: '0 0 ' + ORB_GLOW + 'px ' + c.value.accent,
     animation: 'breathe 5s ease-in-out infinite',
   }),
 )
+// Same box as the sun, so day and night are the same size in the same place.
 const moonIcon = pxify({
   position: 'absolute',
-  top: 3,
-  left: 3,
-  width: 24,
-  height: 24,
+  inset: 2,
   borderRadius: '50%',
   background: 'radial-gradient(circle at 35% 35%,#f0f0f8 0%,#c7c7d6 70%)',
-  boxShadow: '0 0 14px rgba(230,230,245,0.5)',
+  boxShadow: '0 0 ' + ORB_GLOW + 'px rgba(230,230,245,0.55)',
 })
 const moonStars = [0, 1, 2]
 function moonStarStyle(i: number) {
@@ -165,6 +169,10 @@ function onOpenNotes() {
       </div>
       <span :style="s.greetingText">{{ greetingText }}</span>
     </div>
+    <!-- The tab carousel is the middle column of the header on desktop. On
+         mobile the header has no room for it, so it stays in its own bar at the
+         bottom of the screen, where the thumbs are. -->
+    <TabBar v-if="!isMobile" />
     <div :style="s.greetingRight">
       <div :style="s.themeWrap">
         <button

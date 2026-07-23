@@ -2,27 +2,60 @@
 
 export type TabKey = 'todo' | 'tasks' | 'deadlines' | 'reminders' | 'finances' | 'trips'
 
-export interface Todo {
+// Every stored item carries these. Items written before timestamps existed have
+// neither, so applyData() backfills them to 0 — which the formatter renders as
+// "Unknown" rather than pretending everything was created at the epoch.
+export interface Timestamped {
+  createdAt: number
+  updatedAt: number
+}
+
+// Todos and tasks share one three-state lifecycle so both lists can be read the
+// same way. `done` is kept alongside it — shares, the GitHub panel and the
+// public share page all still speak the boolean — and is always
+// `status === 'done'`; the store is the only place allowed to set them apart.
+export type ItemStatus = 'pending' | 'progress' | 'done'
+
+export const STATUS_CYCLE: ItemStatus[] = ['pending', 'progress', 'done']
+
+export const STATUS_LABEL: Record<ItemStatus, string> = {
+  pending: 'Pending',
+  progress: 'In progress',
+  done: 'Done',
+}
+
+export function isStatus(v: unknown): v is ItemStatus {
+  return v === 'pending' || v === 'progress' || v === 'done'
+}
+
+// Items written before status existed only carry `done`.
+export function statusFromDone(done: unknown): ItemStatus {
+  return done === true ? 'done' : 'pending'
+}
+
+export interface Todo extends Timestamped {
   id: number
   text: string
   done: boolean
+  status: ItemStatus
   // Added after the first release; todos stored before that lack both, so
   // applyData() backfills them on read.
   tag: string
   description: string
 }
 
-export interface Task {
+export interface Task extends Timestamped {
   id: number
   title: string
   tag: string
   done: boolean
+  status: ItemStatus
   deadline: string // YYYY-MM-DD, '' = no date
   notes: string
   repo: string // owner/repo, '' = none
 }
 
-export interface Deadline {
+export interface Deadline extends Timestamped {
   id: number
   title: string
   due: string // YYYY-MM-DD
@@ -44,7 +77,7 @@ export type Priority = 'low' | 'normal' | 'high'
 // Highest first, for sorting the reminders list.
 export const PRIORITY_ORDER: Record<Priority, number> = { high: 0, normal: 1, low: 2 }
 
-export interface Reminder {
+export interface Reminder extends Timestamped {
   id: number
   title: string
   note: string
@@ -60,7 +93,7 @@ export interface Reminder {
 
 export type FinanceCategory = 'Food' | 'Transport' | 'Bills' | 'Fun' | 'Other'
 
-export interface Finance {
+export interface Finance extends Timestamped {
   id: number
   amount: number
   category: FinanceCategory | string
@@ -68,13 +101,13 @@ export interface Finance {
   date: string // YYYY-MM-DD
 }
 
-export interface Note {
+export interface Note extends Timestamped {
   id: number
   text: string // HTML
   ts: number
 }
 
-export interface Trip {
+export interface Trip extends Timestamped {
   id: number
   date: string // YYYY-MM-DD
   location: string
@@ -92,6 +125,16 @@ export type ItemType = 'todo' | 'task' | 'deadline' | 'reminder' | 'finance' | '
 
 export interface EditingState {
   type: ItemType | null
+  id: number | null
+}
+
+export type DialogMode = 'create' | 'edit'
+
+// The single open item dialog. `id` is null in create mode, where the form
+// lives in the store's dialogDraft until it is committed.
+export interface ItemDialogState {
+  type: ItemType
+  mode: DialogMode
   id: number | null
 }
 

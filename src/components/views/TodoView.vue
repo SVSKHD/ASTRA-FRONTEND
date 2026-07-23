@@ -3,32 +3,73 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, merge, rowBase } from '@/styles'
+import { useDayList } from '@/composables/useDayList'
+import { pxify, merge, rowBase, dayBody, dayGroupCard, tagChip } from '@/styles'
+import { buildDayGroups, ymd } from '@/utils/dayGroups'
+import DayGroupHead from '@/components/DayGroupHead.vue'
+import DayToolbar from '@/components/DayToolbar.vue'
+import StatusPill from '@/components/StatusPill.vue'
+import TagPicker from '@/components/TagPicker.vue'
 import type { Todo } from '@/types'
 
 const app = useAppStore()
-const { c, s, panelStyle } = useStyles()
-const { todos, burst, editing, draft } = storeToRefs(app)
+const { c, dark, s, panelStyle } = useStyles()
+const { todos, burst, editing, draft, draggingTodoId } = storeToRefs(app)
 
-const input = ref('')
-const tag = ref('')
-const description = ref('')
-const todoInputRef = ref<HTMLInputElement | null>(null)
-defineExpose({ focus: () => todoInputRef.value?.focus() })
+// Creating and editing both happen in ItemDialog now, so N / ⌘K opens that
+// instead of focusing a form the tab no longer carries.
+defineExpose({ focus: () => app.openCreate('todo') })
 
-const sorted = computed(() => [...todos.value].sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0)))
-
-function add() {
-  app.addTodo(input.value, tag.value, description.value)
-  input.value = ''
-  tag.value = ''
-  description.value = ''
+// Todos have no deadline, so the day they belong to is the day they were
+// written. Legacy todos carry createdAt 0 and fall into the undated bucket.
+function dayOf(t: Todo) {
+  return t.createdAt > 0 ? ymd(new Date(t.createdAt)) : ''
 }
-function onKey(e: KeyboardEvent) {
-  if (e.key === 'Enter') add()
+const groups = computed(() =>
+  buildDayGroups(todos.value, dayOf, { direction: 'past', undatedLabel: 'Undated' }),
+)
+const day = useDayList('todo', groups)
+
+// A folded day animates from 0fr to 1fr rather than being removed, which is
+// what gives the accordion a real height transition instead of a jump.
+function bodyStyle(open: boolean) {
+  return pxify(dayBody(open))
 }
-function isEditing(t: Todo) {
-  return editing.value.type === 'todo' && editing.value.id === t.id
+
+// --- drag between days ------------------------------------------------------
+// Dropping a todo on another day rewrites its createdAt to that day, which is
+// what actually moves it between cards.
+const dragging = computed(() => draggingTodoId.value != null)
+const groupStyle = computed(() => pxify(dayGroupCard(c.value, dragging.value)))
+
+function onDragStart(e: DragEvent, t: Todo) {
+  app.setTodoDragId(t.id)
+  try {
+    e.dataTransfer!.effectAllowed = 'move'
+    e.dataTransfer!.setData('text/plain', String(t.id))
+  } catch {
+    /* ignore */
+  }
+}
+function onDragEnd() {
+  app.endTodoDrag()
+}
+function allowDrop(e: DragEvent) {
+  e.preventDefault()
+  try {
+    e.dataTransfer!.dropEffect = 'move'
+  } catch {
+    /* ignore */
+  }
+}
+function onRowDragOver(e: DragEvent) {
+  e.stopPropagation()
+  allowDrop(e)
+}
+function onRowDrop(e: DragEvent, t: Todo) {
+  e.preventDefault()
+  e.stopPropagation()
+  app.dropTodoOnTodo(t.id)
 }
 
 const checkIcon = pxify({ display: 'block' })
@@ -65,7 +106,18 @@ const descStyle = computed(() =>
   pxify({ fontSize: 12, lineHeight: 1.4, color: c.value.dim, cursor: 'pointer' }),
 )
 function rowStyle(t: Todo) {
-  return merge(rowBase(c.value), { opacity: t.done ? 0.5 : 1 })
+  const isDrag = draggingTodoId.value === t.id
+  return merge(rowBase(c.value), {
+    opacity: t.done ? 0.5 : 1,
+    position: 'relative',
+    transform: isDrag ? 'scale(1.03)' : 'none',
+    boxShadow: isDrag ? '0 18px 40px rgba(0,0,0,0.45)' : undefined,
+    zIndex: isDrag ? 5 : 'auto',
+  })
+}
+const gripDots = [0, 1, 2, 3, 4, 5]
+function chipStyle(tag: string) {
+  return pxify(tagChip(c.value, tag, dark.value))
 }
 
 const particles = [0, 1, 2, 3, 4, 5]
@@ -90,87 +142,85 @@ function particleStyle(i: number) {
 
 <template>
   <div :style="panelStyle">
-    <div :style="s.inputRow">
-      <input
-        ref="todoInputRef"
-        :style="s.input"
-        placeholder="Add a todo… (N)"
-        v-model="input"
-        @keydown="onKey"
-      />
-    </div>
-    <div :style="s.inputRow">
-      <input
-        :style="s.input"
-        placeholder="Description (optional)"
-        v-model="description"
-        @keydown="onKey"
-      />
-    </div>
-    <div :style="s.inputRow">
-      <input :style="s.input" placeholder="Tag (optional)" v-model="tag" @keydown="onKey" />
-      <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="add">+</button>
-    </div>
+    <DayToolbar
+      :filter="day.filter.value"
+      :all-open="day.allOpen.value"
+      new-label="New todo"
+      @filter="day.setFilter"
+      @fold="day.foldAll"
+      @new="app.openCreate('todo')"
+    />
     <div v-if="todos.length === 0" :style="s.empty">Nothing yet — add your first todo.</div>
-    <div :style="s.list">
-      <div v-for="t in sorted" :key="t.id" :style="rowStyle(t)" v-hover-style="s.rowHover">
-        <template v-if="isEditing(t)">
-          <div :style="s.taskMain" @keydown.enter="app.saveEdit()" @keydown.esc="app.cancelEdit()">
-            <input
-              :style="s.editInput"
-              :value="draft.text as string"
-              @input="app.setDraft('text', ($event.target as HTMLInputElement).value)"
-              autofocus
-            />
-            <input
-              :style="s.editInput"
-              placeholder="description"
-              :value="draft.description as string"
-              @input="app.setDraft('description', ($event.target as HTMLInputElement).value)"
-            />
-            <input
-              :style="s.editInputSmall"
-              placeholder="tag"
-              :value="draft.tag as string"
-              @input="app.setDraft('tag', ($event.target as HTMLInputElement).value)"
-            />
-          </div>
-          <button :style="s.saveBtn" @click="app.saveEdit()">Save</button>
-          <button :style="s.cancelBtn" @click="app.cancelEdit()">Cancel</button>
-        </template>
-        <template v-else>
-          <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">
-            <svg
-              v-if="t.done"
-              :style="checkIcon"
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              :stroke="c.onAccent"
-              stroke-width="3.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+    <div :style="s.dayGroups">
+      <div
+        v-for="g in groups"
+        :key="g.key"
+        :style="groupStyle"
+        @dragover="(allowDrop($event), day.openForDrop(g))"
+        @drop.prevent="app.dropTodoOnDay(g.date)"
+      >
+        <DayGroupHead
+          :label="g.label"
+          :counts="g.counts"
+          :total="g.total"
+          :open="day.isOpen(g)"
+          @toggle="day.toggle(g)"
+        />
+        <div :style="bodyStyle(day.isOpen(g))">
+          <div :style="s.dayBodyInner">
+            <div v-if="g.total === 0" :style="s.dayDropHint">Drop a todo here</div>
+            <div v-else-if="day.visible(g).length === 0" :style="s.dayDropHint">
+              {{ day.hiddenBy(g) }} hidden by the filter
+            </div>
+            <div
+              v-for="t in day.visible(g)"
+              :key="t.id"
+              :style="rowStyle(t)"
+              v-hover-style="s.rowHover"
+              draggable="true"
+              @dragstart="onDragStart($event, t)"
+              @dragend="onDragEnd"
+              @dragover="onRowDragOver"
+              @drop="onRowDrop($event, t)"
             >
-              <polyline
-                points="20 6 9 17 4 12"
-                style="animation: popIn 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)"
-              />
-            </svg>
-            <template v-if="burst === t.id">
-              <span v-for="i in particles" :key="i" :style="particleStyle(i)"></span>
-            </template>
-          </button>
-          <div :style="s.taskMain" @click="app.startEdit('todo', t)">
-            <span :style="textStyle(t)">{{ t.text }}</span>
-            <span v-if="t.description" :style="descStyle">{{ t.description }}</span>
-            <div v-if="t.tag" :style="s.chipRow">
-              <span :style="s.chip">{{ t.tag }}</span>
+              <span :style="s.grip"
+                ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+              ></span>
+              <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">
+                <svg
+                  v-if="t.done"
+                  :style="checkIcon"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  :stroke="c.onAccent"
+                  stroke-width="3.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline
+                    points="20 6 9 17 4 12"
+                    style="animation: popIn 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)"
+                  />
+                </svg>
+                <template v-if="burst === t.id">
+                  <span v-for="i in particles" :key="i" :style="particleStyle(i)"></span>
+                </template>
+              </button>
+              <div :style="s.taskMain" @click="app.openEdit('todo', t.id)">
+                <span :style="textStyle(t)">{{ t.text }}</span>
+                <span v-if="t.description" :style="descStyle">{{ t.description }}</span>
+                <div v-if="t.tag" :style="s.chipRow">
+                  <span :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                </div>
+              </div>
+              <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
+              <button :style="s.shareBtn" @click="app.share('todo', t)">↗</button>
+              <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
             </div>
           </div>
-          <button :style="s.shareBtn" @click="app.share('todo', t)">↗</button>
-          <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
-        </template>
+        </div>
       </div>
     </div>
   </div>

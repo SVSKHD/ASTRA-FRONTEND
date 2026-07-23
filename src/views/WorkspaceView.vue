@@ -13,7 +13,9 @@ import TopBar from '@/components/TopBar.vue'
 import TabBar from '@/components/TabBar.vue'
 import Ticker from '@/components/Ticker.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
+import NoteView from '@/components/NoteView.vue'
 import TaskDialog from '@/components/TaskDialog.vue'
+import ItemDialog from '@/components/ItemDialog.vue'
 import ReminderDialog from '@/components/ReminderDialog.vue'
 import TaskView from '@/components/TaskView.vue'
 import GithubPanel from '@/components/GithubPanel.vue'
@@ -36,7 +38,7 @@ const ui = useUiStore()
 const app = useAppStore()
 const auth = useAuthStore()
 const lock = useLockStore()
-const { c, s } = useStyles()
+const { c, s, isMobile } = useStyles()
 const { tab } = storeToRefs(ui)
 const { isSignedIn, authReady } = storeToRefs(auth)
 const { cloudReady } = storeToRefs(app)
@@ -67,9 +69,16 @@ function onKey(e: KeyboardEvent) {
   if (!showWorkspace.value) return
   if (e.key === 'Escape') {
     if (app.pendingShare) return app.cancelShare()
+    // The note reader sits above everything else, so it unwinds first: an open
+    // editor steps back to reading, and reading closes.
+    if (app.noteView) {
+      if (app.noteView.mode === 'edit' && app.noteView.id != null) app.openNoteView(app.noteView.id)
+      else app.closeNoteView()
+      return
+    }
     if (app.taskViewId != null) return app.closeTaskView()
-    if (app.dialogTaskId != null) return app.closeDialog()
-    if (app.dialogReminderId != null) return app.closeReminderDialog()
+    // One slot now backs every dialog, so one check closes whichever is open.
+    if (app.itemDialog) return app.closeItemDialog()
     if (auth.githubPanelOpen) {
       auth.closeGithubPanel()
       return
@@ -166,7 +175,9 @@ onBeforeUnmount(() => {
   <div v-if="showWorkspace" :style="s.page">
     <div :style="s.stack">
       <TopBar />
-      <TabBar />
+      <!-- Desktop renders the carousel inside the header; only the fixed bottom
+           bar is still a sibling of the card. -->
+      <TabBar v-if="isMobile" />
       <div :style="s.container" @touchstart="onTouchStart" @touchend="onTouchEnd">
         <component :is="currentView" ref="activeView" />
       </div>
@@ -226,6 +237,8 @@ onBeforeUnmount(() => {
 
   <template v-if="showWorkspace">
     <NotesDrawer />
+    <NoteView />
+    <ItemDialog />
     <TaskDialog />
     <ReminderDialog />
     <TaskView />

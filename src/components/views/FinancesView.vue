@@ -5,26 +5,16 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, rowBase } from '@/styles'
 import { CATEGORY_COLOR } from '@/utils/colors'
+import ListToolbar from '@/components/ListToolbar.vue'
 import type { Finance } from '@/types'
 
 const app = useAppStore()
 const { c, s, panelStyle } = useStyles()
-const { finances, editing, draft } = storeToRefs(app)
+const { finances } = storeToRefs(app)
 
-const amount = ref('')
-const category = ref('Food')
-const note = ref('')
-const finInputRef = ref<HTMLInputElement | null>(null)
-defineExpose({ focus: () => finInputRef.value?.focus() })
-
-function add() {
-  app.addFinance(amount.value, category.value, note.value)
-  amount.value = ''
-  note.value = ''
-}
-function onKey(e: KeyboardEvent) {
-  if (e.key === 'Enter') add()
-}
+// Create and edit both live in ItemDialog now, so N / ⌘K opens that rather
+// than focusing a form this tab no longer carries.
+defineExpose({ focus: () => app.openCreate('finance') })
 
 const money = (n: number) => '$' + n.toFixed(2)
 
@@ -95,9 +85,6 @@ const view = computed<FinView[]>(() =>
     })),
 )
 
-function isEditing(id: number) {
-  return editing.value.type === 'finance' && editing.value.id === id
-}
 function dotStyle(color: string) {
   return pxify({
     width: 9,
@@ -125,73 +112,18 @@ const row = computed(() => pxify(rowBase(c.value)))
         ><span :style="s.totalVal">{{ monthTotal }}</span>
       </div>
     </div>
-    <div :style="s.inputRow">
-      <input
-        ref="finInputRef"
-        :style="s.amountInput"
-        inputmode="decimal"
-        placeholder="0.00"
-        v-model="amount"
-        @keydown="onKey"
-      />
-      <select :style="s.select" v-model="category">
-        <option value="Food">Food</option>
-        <option value="Transport">Transport</option>
-        <option value="Bills">Bills</option>
-        <option value="Fun">Fun</option>
-        <option value="Other">Other</option>
-      </select>
-    </div>
-    <div :style="s.inputRow">
-      <input :style="s.input" placeholder="Note (optional)" v-model="note" @keydown="onKey" />
-      <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="add">+</button>
-    </div>
+    <ListToolbar title="Spending" new-label="New entry" @new="app.openCreate('finance')" />
     <div v-if="finances.length === 0" :style="s.empty">No expenses logged.</div>
     <div :style="s.list">
       <div v-for="it in view" :key="it.id" :style="row" v-hover-style="s.rowHover">
-        <template v-if="isEditing(it.id)">
-          <div :style="s.taskMain" @keydown.enter="app.saveEdit()" @keydown.esc="app.cancelEdit()">
-            <input
-              :style="s.editInputSmall"
-              :value="draft.amount as string"
-              @input="app.setDraft('amount', ($event.target as HTMLInputElement).value)"
-              autofocus
-            />
-            <select
-              :style="s.editInputSmall"
-              :value="draft.category as string"
-              @change="app.setDraft('category', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="Food">Food</option>
-              <option value="Transport">Transport</option>
-              <option value="Bills">Bills</option>
-              <option value="Fun">Fun</option>
-              <option value="Other">Other</option>
-            </select>
-            <input
-              :style="s.editInput"
-              placeholder="note"
-              :value="draft.note as string"
-              @input="app.setDraft('note', ($event.target as HTMLInputElement).value)"
-            />
-          </div>
-          <button :style="s.saveBtn" @click="app.saveEdit()">Save</button>
-          <button :style="s.cancelBtn" @click="app.cancelEdit()">Cancel</button>
-        </template>
-        <template v-else>
-          <span :style="dotStyle(it.color)"></span>
-          <div :style="s.taskMain">
-            <span :style="s.finNote" @click="app.startEdit('finance', findFinance(it.id)!)">{{
-              it.label
-            }}</span>
-            <span :style="s.finMeta">{{ it.meta }}</span>
-          </div>
-          <span :style="s.amount">{{ it.amountLabel }}</span>
-          <button :style="s.shareBtn" @click="app.share('finance', findFinance(it.id)!)">↗</button>
-          <button :style="s.del" @click="app.deleteWithUndo('finances', 'finance', it.id)">
-            ×
-          </button>
-        </template>
+        <span :style="dotStyle(it.color)"></span>
+        <div :style="s.taskMain" @click="app.openEdit('finance', it.id)">
+          <span :style="s.finNote">{{ it.label }}</span>
+          <span :style="s.finMeta">{{ it.meta }}</span>
+        </div>
+        <span :style="s.amount">{{ it.amountLabel }}</span>
+        <button :style="s.shareBtn" @click="app.share('finance', findFinance(it.id)!)">↗</button>
+        <button :style="s.del" @click="app.deleteWithUndo('finances', 'finance', it.id)">×</button>
       </div>
     </div>
   </div>

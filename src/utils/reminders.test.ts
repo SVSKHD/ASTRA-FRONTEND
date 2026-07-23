@@ -10,7 +10,11 @@ function reminder(start: string, repeat: Repeat = { type: 'none' }): Reminder {
     start,
     repeat,
     calSync: 'none' as Reminder['calSync'],
+    priority: 'normal',
+    calEventId: null,
     lastFiredOcc: null,
+    createdAt: 0,
+    updatedAt: 0,
   }
 }
 

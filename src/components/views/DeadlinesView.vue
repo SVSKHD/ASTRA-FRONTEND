@@ -5,22 +5,16 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, rowBase } from '@/styles'
 import { urg } from '@/utils/colors'
+import ListToolbar from '@/components/ListToolbar.vue'
 import type { Deadline } from '@/types'
 
 const app = useAppStore()
 const { c, dark, s, panelStyle } = useStyles()
-const { deadlines, editing, draft } = storeToRefs(app)
+const { deadlines } = storeToRefs(app)
 
-const title = ref('')
-const date = ref('')
-const dlInputRef = ref<HTMLInputElement | null>(null)
-defineExpose({ focus: () => dlInputRef.value?.focus() })
-
-function add() {
-  app.addDeadline(title.value, date.value)
-  title.value = ''
-  date.value = ''
-}
+// Create and edit both live in ItemDialog now, so N / ⌘K opens that rather
+// than focusing a form this tab no longer carries.
+defineExpose({ focus: () => app.openCreate('deadline') })
 
 const today = computed(() => {
   const d = new Date()
@@ -51,9 +45,6 @@ const view = computed<DlView[]>(() =>
     }),
 )
 
-function isEditing(t: Deadline) {
-  return editing.value.type === 'deadline' && editing.value.id === t.id
-}
 function badgeStyle(col: string) {
   return pxify({
     flexShrink: 0,
@@ -75,51 +66,19 @@ const row = computed(() => pxify(rowBase(c.value)))
 
 <template>
   <div :style="panelStyle">
-    <div :style="s.inputRow">
-      <input
-        ref="dlInputRef"
-        :style="s.input"
-        placeholder="What's due…"
-        v-model="title"
-        @keydown.enter="add"
-      />
-    </div>
-    <div :style="s.inputRow">
-      <input :style="s.input" type="date" v-model="date" @keydown.enter="add" />
-      <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="add">+</button>
-    </div>
+    <ListToolbar title="Deadlines" new-label="New deadline" @new="app.openCreate('deadline')" />
     <div v-if="deadlines.length === 0" :style="s.empty">No deadlines set.</div>
     <div :style="s.list">
       <div v-for="t in view" :key="t.id" :style="row" v-hover-style="s.rowHover">
-        <template v-if="isEditing(t)">
-          <div :style="s.taskMain" @keydown.enter="app.saveEdit()" @keydown.esc="app.cancelEdit()">
-            <input
-              :style="s.editInput"
-              :value="draft.title as string"
-              @input="app.setDraft('title', ($event.target as HTMLInputElement).value)"
-              autofocus
-            />
-            <input
-              :style="s.editInputSmall"
-              type="date"
-              :value="draft.due as string"
-              @input="app.setDraft('due', ($event.target as HTMLInputElement).value)"
-            />
-          </div>
-          <button :style="s.saveBtn" @click="app.saveEdit()">Save</button>
-          <button :style="s.cancelBtn" @click="app.cancelEdit()">Cancel</button>
-        </template>
-        <template v-else>
-          <span :style="badgeStyle(t.col)">{{ t.badge }}</span>
-          <div :style="s.taskMain">
-            <span :style="s.dlTitle" @click="app.startEdit('deadline', t)">{{ t.title }}</span>
-            <span :style="s.dlDate">{{ t.dateLabel }}</span>
-          </div>
-          <button :style="s.shareBtn" @click="app.share('deadline', t)">↗</button>
-          <button :style="s.del" @click="app.deleteWithUndo('deadlines', 'deadline', t.id)">
-            ×
-          </button>
-        </template>
+        <span :style="badgeStyle(t.col)">{{ t.badge }}</span>
+        <div :style="s.taskMain" @click="app.openEdit('deadline', t.id)">
+          <span :style="s.dlTitle">{{ t.title }}</span>
+          <span :style="s.dlDate">{{ t.dateLabel }}</span>
+        </div>
+        <button :style="s.shareBtn" @click="app.share('deadline', t)">↗</button>
+        <button :style="s.del" @click="app.deleteWithUndo('deadlines', 'deadline', t.id)">
+          ×
+        </button>
       </div>
     </div>
   </div>

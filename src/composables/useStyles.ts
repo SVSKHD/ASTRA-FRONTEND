@@ -27,6 +27,10 @@ export function useStyles() {
       display: 'flex',
       flexDirection: 'column',
       gap: 14,
+      // The card has a fixed height; the panel fills it and lets its own list
+      // do the scrolling, so no tab is taller or shorter than any other.
+      flex: 1,
+      minHeight: 0,
     }),
   )
 

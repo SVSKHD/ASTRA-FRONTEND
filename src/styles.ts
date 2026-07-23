@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'vue'
 import type { Theme } from '@/themes'
+import type { ItemStatus } from '@/types'
+import { tagColor } from '@/utils/tags'
 
 // ---------------------------------------------------------------------------
 // pxify: the design's style objects use raw numbers for pixel values (React
@@ -156,7 +158,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       borderRadius: '50%',
       background: c.pageBg,
       border: '2px solid ' + c.accent,
-      boxShadow: '0 0 12px ' + c.accent,
+      // Same 14px glow as the greeting orb at the other end of the header.
+      boxShadow: '0 0 14px ' + c.accent,
       cursor: 'pointer',
       transition: 'transform .2s ease, box-shadow .25s ease',
     },
@@ -202,8 +205,25 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       boxShadow: c.shadow + ', inset 0 1px 0 rgba(255,255,255,0.14)',
       ...bob(1.2, 6.4),
     },
-    greetingText: { fontSize: isMobile ? 13 : 14, color: c.text, whiteSpace: 'nowrap' },
-    greetingLeft: { display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 },
+    greetingText: {
+      fontSize: isMobile ? 13 : 14,
+      color: c.text,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    },
+    // The greeting yields first: the carousel in the middle of the header is
+    // navigation, and it keeps its width before "Good afternoon" keeps its.
+    greetingLeft: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      minWidth: 0,
+      flexShrink: 1,
+      // No overflow clip here: the greeting orb's glow spills outside its box by
+      // design, and hiding the overflow squared it off against the header edge.
+      // The text does its own ellipsis, which is all the shrinking needed.
+    },
     // Theme trigger + account pill share the right end of the header.
     greetingRight: {
       display: 'flex',
@@ -235,16 +255,77 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       textOverflow: 'ellipsis',
     },
     userPillChevron: { fontSize: 9, color: c.dim, marginLeft: -3 },
+    // Fills whatever the fixed-height card has left and scrolls inside it, so
+    // the card's size is set by the card, never by how much is in the list.
     dayGroups: {
       display: 'flex',
       flexDirection: 'column',
       gap: 12,
-      maxHeight: isMobile ? 300 : 400,
+      flex: 1,
+      minHeight: 0,
       overflowY: 'auto',
       margin: '0 -2px',
       padding: 2,
     },
-    dayGroupHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+    dayBodyInner: { overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 9 },
+    // The accordion handle. A button, so it is reachable by keyboard, but
+    // styled as the plain header row it replaced.
+    dayGroupHead: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      flexWrap: 'wrap',
+      width: '100%',
+      padding: 0,
+      border: 'none',
+      background: 'transparent',
+      color: 'inherit',
+      cursor: 'pointer',
+      textAlign: 'left',
+    },
+    dayGroupLabel: { display: 'flex', alignItems: 'center', gap: 7 },
+    // The per-day tally: one chip per status, so a group reads at a glance.
+    dayStats: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+    // The all/none control and the status filter that sit above the day cards.
+    dayToolbar: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      flexWrap: 'wrap',
+    },
+    filterRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+    tagPicker: { display: 'flex', flexDirection: 'column', gap: 7, flex: 1, minWidth: 0 },
+    tagRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+    // The one control that opens a create dialog, in place of the add-form each
+    // tab used to carry.
+    newBtn: {
+      fontSize: 11,
+      fontWeight: 700,
+      padding: '6px 13px',
+      borderRadius: 999,
+      border: '1px solid ' + c.border,
+      background: c.card,
+      color: c.accent,
+      cursor: 'pointer',
+      whiteSpace: 'nowrap',
+      boxShadow: dark ? '0 0 14px ' + c.accent : 'none',
+      transition: 'transform .25s ease, box-shadow .25s ease',
+    },
+    foldBtn: {
+      fontSize: 10,
+      fontWeight: 600,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      padding: '5px 10px',
+      borderRadius: 999,
+      border: '1px solid ' + c.border,
+      background: 'transparent',
+      color: c.dim,
+      cursor: 'pointer',
+      whiteSpace: 'nowrap',
+    },
     dayGroupLabelBase: {
       fontSize: 10,
       fontWeight: 700,
@@ -385,26 +466,78 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
           boxShadow: c.shadow + ', inset 0 1px 0 rgba(255,255,255,0.14)',
           overflow: 'hidden',
         }
-      : {
+      : // On desktop the carousel lives inside the header, so it drops the glass
+        // shell it used to float in — a second pane of glass inside the first
+        // read as a box on a box. It is the middle column of that row, taking
+        // whatever the greeting and the account pill leave and centring in it.
+        {
           position: 'relative',
           zIndex: 4,
-          alignSelf: 'center',
-          maxWidth: '100%',
-          background: c.glass,
-          backdropFilter: 'blur(24px) saturate(1.5)',
-          '-webkit-backdrop-filter': 'blur(24px) saturate(1.5)',
-          borderRadius: 26,
-          padding: 6,
-          border: '1.5px solid ' + c.border,
-          boxShadow: c.shadow + ', inset 0 1px 0 rgba(255,255,255,0.14)',
-          overflow: 'hidden',
-          ...bob(0, 6),
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
         },
+    // The carousel shell: arrows pinned either side, the strip centred between
+    // them. On mobile the strip is one tab wide, so the arrows are the only way
+    // to step through it besides swiping the card.
+    tabCarousel: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: isMobile ? 2 : 2,
+      width: isMobile ? '100%' : 'auto',
+      maxWidth: '100%',
+    },
+    tabArrow: {
+      flexShrink: 0,
+      width: isMobile ? 38 : 24,
+      height: isMobile ? 40 : 32,
+      display: 'grid',
+      placeItems: 'center',
+      borderRadius: 14,
+      border: 'none',
+      background: 'transparent',
+      color: c.dim,
+      fontSize: isMobile ? 17 : 15,
+      lineHeight: 1,
+      cursor: 'pointer',
+      transition: 'background .25s ease, color .25s ease, transform .2s ease',
+    },
+    tabArrowHover: { background: c.card, color: c.accent, transform: 'scale(1.08)' },
+    // Mobile only: the active tab rendered large in the middle of the carousel.
+    tabStage: {
+      flex: 1,
+      minWidth: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: 3,
+      padding: '5px 0 4px',
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      overflow: 'hidden',
+    },
+    tabStageRow: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
+    tabStageLabel: {
+      fontSize: 13,
+      fontWeight: 600,
+      letterSpacing: '0.02em',
+      color: c.text,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    },
+    tabDots: { display: 'flex', alignItems: 'center', gap: 5 },
     tabScroll: {
       position: 'relative',
       display: 'flex',
-      gap: isMobile ? 4 : 6,
+      gap: isMobile ? 4 : 3,
       width: isMobile ? '100%' : 'auto',
+      maxWidth: '100%',
       overflowX: 'auto',
       overflowY: 'hidden',
       scrollSnapType: 'x mandatory',
@@ -439,7 +572,12 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       zIndex: 1,
       width: '100%',
       maxWidth: isMobile ? '100%' : 720,
-      minHeight: isMobile ? 280 : 440,
+      // A fixed height, not a minimum: every tab is the same size whatever it
+      // holds, so switching tabs never resizes the card under the pointer. The
+      // list inside scrolls; the card does not grow.
+      height: isMobile ? 'min(560px, calc(100vh - 210px))' : 660,
+      display: 'flex',
+      flexDirection: 'column',
       background: c.glass,
       backdropFilter: 'blur(30px) saturate(1.6)',
       '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
@@ -515,7 +653,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       display: 'flex',
       flexDirection: 'column',
       gap: 9,
-      maxHeight: isMobile ? 280 : 360,
+      flex: 1,
+      minHeight: 0,
       overflowY: 'auto',
       margin: '0 -2px',
       padding: '2px 2px',
@@ -685,25 +824,35 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     toolbar: {
       display: 'flex',
       flexWrap: 'wrap',
-      gap: 6,
-      padding: 8,
+      gap: 5,
+      padding: 7,
       borderRadius: 14,
       background: c.card,
       border: B,
     },
+    toolGroup: {
+      display: 'flex',
+      gap: 3,
+      paddingRight: 6,
+      marginRight: 3,
+      borderRight: '1px solid ' + c.border,
+    },
     toolBtn: {
+      minWidth: 28,
       fontSize: 11,
-      padding: '6px 9px',
-      borderRadius: 10,
+      padding: '6px 8px',
+      borderRadius: 9,
       border: B,
       background: 'transparent',
       color: c.text,
       cursor: 'pointer',
       fontWeight: 600,
+      transition: 'background .2s ease, color .2s ease, border-color .2s ease',
     },
+    toolBtnHover: { background: c.input, borderColor: c.accent },
     editorArea: {
-      minHeight: 120,
-      maxHeight: 220,
+      flex: 1,
+      minHeight: 160,
       overflowY: 'auto',
       padding: '12px 14px',
       borderRadius: 14,
@@ -711,9 +860,87 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       background: c.input,
       color: c.text,
       fontSize: 13,
-      lineHeight: 1.5,
+      lineHeight: 1.6,
+      outline: 'none',
     },
     noteRendered: { fontSize: 13, lineHeight: 1.5, color: c.text },
+    // --- note list cards + full view ----------------------------------------
+    noteCard: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 6,
+      padding: '12px 13px',
+      borderRadius: 16,
+      background: c.card,
+      border: B,
+      cursor: 'pointer',
+      textAlign: 'left',
+      width: '100%',
+      transition: 'transform .2s ease, box-shadow .25s ease, border-color .25s ease',
+    },
+    noteCardHover: {
+      transform: 'translateY(-2px)',
+      borderColor: c.accent,
+      boxShadow: '0 12px 22px rgba(0,0,0,0.22)',
+    },
+    noteCardTitle: {
+      fontSize: 13.5,
+      fontWeight: 600,
+      color: c.text,
+      lineHeight: 1.35,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    // Two lines of body text, then a fade-free clamp — enough to recognise the
+    // note without the row growing with its content.
+    noteCardPreview: {
+      fontSize: 11.5,
+      lineHeight: 1.45,
+      color: c.dim,
+      display: '-webkit-box',
+      '-webkit-line-clamp': '2',
+      '-webkit-box-orient': 'vertical',
+      overflow: 'hidden',
+    },
+    noteCardFoot: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+    noteCardActions: { display: 'flex', gap: 4, marginLeft: 'auto' },
+    noteViewOverlay: {
+      position: 'fixed',
+      inset: 0,
+      zIndex: 17,
+      background: 'rgba(5,5,15,0.5)',
+      backdropFilter: 'blur(3px)',
+      '-webkit-backdrop-filter': 'blur(3px)',
+    },
+    noteViewBody: {
+      flex: 1,
+      minHeight: 0,
+      overflowY: 'auto',
+      fontSize: 14,
+      lineHeight: 1.7,
+      color: c.text,
+      padding: '4px 2px',
+      wordBreak: 'break-word',
+    },
+    noteViewTitle: {
+      fontSize: 16,
+      fontWeight: 700,
+      color: c.text,
+      flex: 1,
+      minWidth: 0,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    noteViewFoot: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+      paddingTop: 12,
+      borderTop: B,
+    },
     ghShimmer: {
       height: 70,
       borderRadius: 12,
@@ -741,6 +968,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       backdropFilter: 'blur(4px)',
     },
     dialogHeader: { display: 'flex', alignItems: 'center', gap: 10 },
+    dialogHeading: { flex: 1, fontSize: 15, fontWeight: 700, color: c.text },
     dialogTitleInput: {
       flex: 1,
       fontSize: 16,
@@ -1046,6 +1274,184 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
 }
 
 // The shared row base used by list items across views.
+// The floating card every dialog sits in. Was copy-pasted per dialog; now one
+// definition, so a new dialog cannot drift from the others.
+export function dialogCard(c: Theme, closing: boolean): Style {
+  return {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    zIndex: 16,
+    width: 'min(92vw,460px)',
+    maxHeight: '86vh',
+    overflowY: 'auto',
+    background: c.glass,
+    backdropFilter: 'blur(30px) saturate(1.6)',
+    '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
+    border: '1px solid ' + c.border,
+    borderRadius: 26,
+    padding: 22,
+    boxShadow: c.shadow,
+    color: c.text,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+    animation: closing
+      ? 'springOut .22s ease forwards'
+      : 'springIn .4s cubic-bezier(.34,1.56,.64,1) both',
+  }
+}
+
+// The folding part of a day card. Animating grid-template-rows from 0fr to 1fr
+// is what gives the accordion a real height transition without anyone having to
+// measure the content — the row stays in the DOM, so there is nothing to jump.
+// Slow and eased on purpose: this is the motion you watch on every toggle.
+export function dayBody(open: boolean): Style {
+  return {
+    display: 'grid',
+    gridTemplateRows: open ? '1fr' : '0fr',
+    opacity: open ? 1 : 0,
+    // Cancels the card's gap while folded, so a closed day is exactly its header.
+    marginTop: open ? 0 : -9,
+    transition:
+      'grid-template-rows .55s cubic-bezier(.22,1,.36,1), opacity .45s ease, margin-top .55s cubic-bezier(.22,1,.36,1)',
+  }
+}
+
+// One position dot under the mobile tab carousel. The current tab's dot
+// stretches into a pill so the position reads without counting.
+export function tabDot(c: Theme, active: boolean): Style {
+  return {
+    width: active ? 14 : 5,
+    height: 5,
+    borderRadius: 3,
+    background: active ? c.accent : c.border,
+    transition: 'width .3s cubic-bezier(.5,1.4,.35,1), background .3s ease',
+  }
+}
+
+// The note reader/editor. Deliberately bigger than dialogCard — a note is the
+// content, not a form, and it stays up until it is closed.
+export function noteViewCard(c: Theme, isMobile: boolean, closing: boolean): Style {
+  return {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    zIndex: 18,
+    width: isMobile ? 'calc(100vw - 24px)' : 'min(92vw,640px)',
+    height: isMobile ? 'calc(100vh - 24px)' : 'min(80vh,720px)',
+    background: c.glass,
+    backdropFilter: 'blur(30px) saturate(1.6)',
+    '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
+    border: '1px solid ' + c.border,
+    borderRadius: isMobile ? 24 : 28,
+    padding: isMobile ? 18 : 24,
+    boxShadow: c.shadow,
+    color: c.text,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
+    animation: closing
+      ? 'springOut .22s ease forwards'
+      : 'springIn .4s cubic-bezier(.34,1.56,.64,1) both',
+  }
+}
+
+// A day card. `active` lights the dashed border up while a drag is in flight
+// (tasks only — todo days are not drop targets, they just share the shell).
+export function dayGroupCard(c: Theme, active: boolean): Style {
+  return {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 9,
+    padding: '10px 12px 12px',
+    borderRadius: 18,
+    border: '1.5px dashed ' + (active ? c.accent : c.border),
+    background: active ? c.input : 'transparent',
+    transition: 'border-color .25s ease, background .25s ease',
+  }
+}
+
+// One colour per lifecycle state, shared by the row pills and the per-day
+// tallies so "in progress" looks the same wherever it is counted or set.
+// Done borrows the theme accent; the other two are fixed hues that read on
+// every theme, like the CI dot does.
+export function statusColor(c: Theme, status: ItemStatus): string {
+  if (status === 'done') return c.accent
+  if (status === 'progress') return 'oklch(0.75 0.16 75)'
+  return c.dim
+}
+
+// The status pill on a todo/task row. Filled once the item is done, outlined
+// while it is still moving.
+export function statusPill(c: Theme, status: ItemStatus): Style {
+  const col = statusColor(c, status)
+  return {
+    flexShrink: 0,
+    fontSize: 10,
+    padding: '5px 10px',
+    borderRadius: 8,
+    border: '1px solid ' + (status === 'pending' ? c.border : col),
+    cursor: 'pointer',
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
+    background: status === 'done' ? col : 'transparent',
+    color: status === 'done' ? c.onAccent : col,
+    transition: 'background .3s ease, color .3s ease, border-color .3s ease',
+  }
+}
+
+// The tag chip on a todo/task row, tinted with the tag's own colour so the
+// lists can be read by tag at a glance.
+export function tagChip(c: Theme, tag: string, dark: boolean): Style {
+  const col = tagColor(tag, dark)
+  return {
+    alignSelf: 'flex-start',
+    fontSize: 10,
+    padding: '2px 8px',
+    borderRadius: 10,
+    background: c.input,
+    border: '1px solid ' + col,
+    color: col,
+    letterSpacing: '0.03em',
+  }
+}
+
+// A tab in the status filter above the day cards. Selected tabs take their
+// state's colour so the filter and the tallies below it agree.
+export function filterTab(c: Theme, status: ItemStatus | 'all', selected: boolean): Style {
+  const col = status === 'all' ? c.accent : statusColor(c, status)
+  return {
+    fontSize: 11,
+    fontWeight: 600,
+    padding: '6px 12px',
+    borderRadius: 999,
+    border: '1px solid ' + (selected ? col : c.border),
+    background: selected ? c.input : 'transparent',
+    color: selected ? col : c.dim,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'color .25s ease, border-color .25s ease, background .25s ease',
+  }
+}
+
+// The compact "3 pending" chip in a day-group header.
+export function statusStat(c: Theme, status: ItemStatus, active: boolean): Style {
+  const col = statusColor(c, status)
+  return {
+    fontSize: 10,
+    fontWeight: 600,
+    padding: '3px 8px',
+    borderRadius: 999,
+    border: '1px solid ' + (active ? col : c.border),
+    color: active ? col : c.dim,
+    background: active ? c.input : 'transparent',
+    opacity: active ? 1 : 0.55,
+    whiteSpace: 'nowrap',
+  }
+}
+
 export function rowBase(c: Theme): Style {
   return {
     display: 'flex',

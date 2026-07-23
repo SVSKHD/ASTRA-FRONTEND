@@ -4,36 +4,16 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, rowBase } from '@/styles'
+import ListToolbar from '@/components/ListToolbar.vue'
 import type { Trip } from '@/types'
 
 const app = useAppStore()
 const { c, s, panelStyle } = useStyles()
-const { trips, editing, draft } = storeToRefs(app)
+const { trips } = storeToRefs(app)
 
-function localDateValue(date = new Date()) {
-  const offset = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10)
-}
-
-const location = ref('')
-const date = ref(localDateValue())
-const locationInputRef = ref<HTMLInputElement | null>(null)
-defineExpose({ focus: () => locationInputRef.value?.focus() })
-
-function add() {
-  const place = location.value.trim()
-  if (!place || !date.value) {
-    app.showToastMsg('Add both a day and location')
-    return
-  }
-  app.addTrip(place, date.value)
-  location.value = ''
-  locationInputRef.value?.focus()
-}
-
-function onKey(e: KeyboardEvent) {
-  if (e.key === 'Enter') add()
-}
+// Create and edit both live in ItemDialog now, so N / ⌘K opens that rather
+// than focusing a form this tab no longer carries.
+defineExpose({ focus: () => app.openCreate('trip') })
 
 interface TripGroup {
   date: string
@@ -73,10 +53,6 @@ const groups = computed<TripGroup[]>(() => {
   }))
 })
 
-function isEditing(trip: Trip) {
-  return editing.value.type === 'trip' && editing.value.id === trip.id
-}
-
 const groupStyle = computed(() =>
   pxify({
     display: 'flex',
@@ -109,21 +85,7 @@ const locationName = computed(() =>
 
 <template>
   <div :style="panelStyle">
-    <div :style="s.inputRow">
-      <input
-        ref="locationInputRef"
-        v-model="location"
-        :style="s.input"
-        placeholder="Add a location…"
-        @keydown="onKey"
-      />
-    </div>
-    <div :style="s.inputRow">
-      <input v-model="date" :style="s.input" type="date" aria-label="Trip day" />
-      <button :style="s.addBtn" v-hover-style="s.addBtnHover" aria-label="Add trip" @click="add">
-        +
-      </button>
-    </div>
+    <ListToolbar title="Trips" new-label="New trip" @new="app.openCreate('trip')" />
 
     <div v-if="trips.length === 0" :style="s.empty">No trips planned — add a day and location.</div>
 
@@ -135,65 +97,28 @@ const locationName = computed(() =>
         </div>
 
         <div v-for="trip in group.locations" :key="trip.id" :style="row" v-hover-style="s.rowHover">
-          <template v-if="isEditing(trip)">
-            <div
-              :style="s.taskMain"
-              @keydown.enter="app.saveEdit()"
-              @keydown.esc="app.cancelEdit()"
+          <span :style="pinWrap" aria-hidden="true">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              :stroke="c.accent"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
             >
-              <input
-                :style="s.editInput"
-                :value="draft.location as string"
-                autofocus
-                @input="app.setDraft('location', ($event.target as HTMLInputElement).value)"
-              />
-              <input
-                :style="s.editInputSmall"
-                type="date"
-                :value="draft.date as string"
-                @input="app.setDraft('date', ($event.target as HTMLInputElement).value)"
-              />
-            </div>
-            <button :style="s.saveBtn" @click="app.saveEdit()">Save</button>
-            <button :style="s.cancelBtn" @click="app.cancelEdit()">Cancel</button>
-          </template>
-
-          <template v-else>
-            <span :style="pinWrap" aria-hidden="true">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                :stroke="c.accent"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
-                <circle cx="12" cy="10" r="2.5" />
-              </svg>
-            </span>
-            <div :style="s.taskMain">
-              <button
-                :style="{
-                  ...locationName,
-                  border: 'none',
-                  background: 'transparent',
-                  padding: 0,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }"
-                @click="app.startEdit('trip', trip)"
-              >
-                {{ trip.location }}
-              </button>
-              <span :style="s.finMeta">{{ group.label }}</span>
-            </div>
-            <button :style="s.editBtn" @click="app.startEdit('trip', trip)">Edit</button>
-            <button :style="s.shareBtn" @click="app.share('trip', trip)">↗</button>
-            <button :style="s.del" @click="app.deleteWithUndo('trips', 'trip', trip.id)">×</button>
-          </template>
+              <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
+              <circle cx="12" cy="10" r="2.5" />
+            </svg>
+          </span>
+          <div :style="s.taskMain" @click="app.openEdit('trip', trip.id)">
+            <span :style="locationName">{{ trip.location }}</span>
+            <span :style="s.finMeta">{{ group.label }}</span>
+          </div>
+          <button :style="s.editBtn" @click="app.openEdit('trip', trip.id)">Edit</button>
+          <button :style="s.shareBtn" @click="app.share('trip', trip)">↗</button>
+          <button :style="s.del" @click="app.deleteWithUndo('trips', 'trip', trip.id)">×</button>
         </div>
       </section>
     </div>

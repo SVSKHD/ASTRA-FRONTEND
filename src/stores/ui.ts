@@ -2,7 +2,10 @@ import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import { THEMES, computeAutoTheme, type ThemeKey, type Theme, type ThemeSetting } from '@/themes'
 import { useAppStore } from '@/stores/app'
-import type { TabKey } from '@/types'
+import type { ItemStatus, TabKey } from '@/types'
+
+// 'all' plus the three lifecycle states — what the day-list filter can be set to.
+export type StatusFilter = ItemStatus | 'all'
 
 const TAB_ORDER: TabKey[] = ['todo', 'tasks', 'deadlines', 'reminders', 'finances', 'trips']
 
@@ -19,6 +22,37 @@ export const useUiStore = defineStore('ui', () => {
   const now = ref<number>(Date.now())
   const themePanelOpen = ref(false)
   const drawerOpen = ref(false)
+
+  // --- day accordion + status filter, shared by the todo and task tabs ------
+  // Only days the user has actually toggled are stored; everything else falls
+  // back to the caller's default (Today open, the rest closed), so a new day
+  // card behaves sensibly without anyone having to seed it. Keyed by tab so the
+  // two lists remember their own shape.
+  const openDays = ref<Record<string, boolean>>({})
+  const dayFilter = ref<Record<string, StatusFilter>>({})
+
+  function isDayOpen(tabKey: TabKey, groupKey: string, fallback: boolean) {
+    const v = openDays.value[tabKey + ':' + groupKey]
+    return v === undefined ? fallback : v
+  }
+  function setDayOpen(tabKey: TabKey, groupKey: string, open: boolean) {
+    openDays.value = { ...openDays.value, [tabKey + ':' + groupKey]: open }
+  }
+  function toggleDay(tabKey: TabKey, groupKey: string, fallback: boolean) {
+    setDayOpen(tabKey, groupKey, !isDayOpen(tabKey, groupKey, fallback))
+  }
+  // Expand/collapse everything at once, for the header's all/none control.
+  function setAllDays(tabKey: TabKey, groupKeys: string[], open: boolean) {
+    const next = { ...openDays.value }
+    for (const k of groupKeys) next[tabKey + ':' + k] = open
+    openDays.value = next
+  }
+  function getFilter(tabKey: TabKey): StatusFilter {
+    return dayFilter.value[tabKey] ?? 'all'
+  }
+  function setFilter(tabKey: TabKey, v: StatusFilter) {
+    dayFilter.value = { ...dayFilter.value, [tabKey]: v }
+  }
 
   const effectiveThemeKey = computed<ThemeKey>(() =>
     themeSetting.value === 'auto'
@@ -69,6 +103,8 @@ export const useUiStore = defineStore('ui', () => {
     now,
     themePanelOpen,
     drawerOpen,
+    openDays,
+    dayFilter,
     effectiveThemeKey,
     theme,
     dark,
@@ -83,5 +119,11 @@ export const useUiStore = defineStore('ui', () => {
     setTabByIndex,
     setVw,
     tick,
+    isDayOpen,
+    setDayOpen,
+    toggleDay,
+    setAllDays,
+    getFilter,
+    setFilter,
   }
 })

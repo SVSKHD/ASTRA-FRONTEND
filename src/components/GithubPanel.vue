@@ -5,7 +5,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
-import type { Repo } from '@/types'
+import { STATUS_LABEL, type ItemStatus, type Repo } from '@/types'
 
 const app = useAppStore()
 const auth = useAuthStore()
@@ -21,7 +21,7 @@ interface RepoView {
   repo: Repo
   expanded: boolean
   ciColor: string
-  attached: { id: number; title: string; done: boolean }[]
+  attached: { id: number; title: string; status: ItemStatus }[]
   doneCount: number
   pct: number
 }
@@ -43,7 +43,7 @@ const repos = computed<RepoView[]>(() => {
               ? 'oklch(0.72 0.15 145)'
               : 'oklch(0.55 0.15 145)'
             : 'oklch(0.65 0.2 25)',
-        attached: attached.map((t) => ({ id: t.id, title: t.title, done: t.done })),
+        attached: attached.map((t) => ({ id: t.id, title: t.title, status: t.status })),
         doneCount,
         pct: attached.length ? Math.round((doneCount / attached.length) * 100) : 0,
       }
@@ -140,7 +140,7 @@ function progressInner(pct: number) {
               >
               <div v-for="at in rv.attached" :key="at.id" :style="s.ghIssueRow">
                 <span :style="s.ghIssueText">{{ at.title }}</span>
-                <span :style="s.finMeta">{{ at.done ? 'done' : 'open' }}</span>
+                <span :style="s.finMeta">{{ STATUS_LABEL[at.status].toLowerCase() }}</span>
               </div>
               <span :style="s.ghLabel">Open issues</span>
               <div v-for="iss in rv.repo.openIssues" :key="iss.id" :style="s.ghIssueRow">

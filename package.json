@@ -10,7 +10,7 @@
     "test:watch": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "type-check": "vue-tsc --noEmit",
+    "type-check": "vue-tsc -b --force",
     "verify": "npm run format:check && npm run type-check && npm run test",
     "build": "npm run verify && vite build",
     "build:only": "vue-tsc -b && vite build",

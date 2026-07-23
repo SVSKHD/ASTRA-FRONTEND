@@ -5,6 +5,8 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import StatusPill from '@/components/StatusPill.vue'
+import TagPicker from '@/components/TagPicker.vue'
 import type { PullRequest, Task } from '@/types'
 
 const app = useAppStore()
@@ -41,20 +43,6 @@ const dialogCardStyle = computed(() =>
   }),
 )
 
-function statusStyle(done: boolean) {
-  return pxify({
-    flexShrink: 0,
-    fontSize: 10,
-    padding: '5px 10px',
-    borderRadius: 8,
-    border: '1px solid ' + c.value.border,
-    cursor: 'pointer',
-    letterSpacing: '0.05em',
-    textTransform: 'uppercase',
-    background: done ? c.value.accent : 'transparent',
-    color: done ? c.value.onAccent : c.value.dim,
-  })
-}
 const connChipStyle = computed(() =>
   pxify({
     display: 'inline-flex',
@@ -146,15 +134,7 @@ function onEnter(e: KeyboardEvent) {
         <button :style="s.del" @click="app.closeDialog()">×</button>
       </div>
       <div :style="s.dialogRow">
-        <input
-          :style="s.editInputSmall"
-          placeholder="tag"
-          :value="task.tag"
-          @input="upd('tag', $event)"
-        />
-        <button :style="statusStyle(task.done)" @click="app.toggleTask(task.id)">
-          {{ task.done ? 'done' : 'open' }}
-        </button>
+        <StatusPill :status="task.status" @cycle="app.cycleTaskStatus(task.id)" />
         <input
           :style="s.editInputSmall"
           type="date"
@@ -162,6 +142,11 @@ function onEnter(e: KeyboardEvent) {
           @input="upd('deadline', $event)"
         />
       </div>
+      <TagPicker
+        :model-value="task.tag"
+        label="Project tag"
+        @update:model-value="app.updateTask(task.id, 'tag', $event)"
+      />
       <textarea
         :style="s.dialogNotes"
         placeholder="Notes…"

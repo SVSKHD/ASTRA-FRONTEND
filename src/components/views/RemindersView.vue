@@ -7,7 +7,8 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, merge, rowBase } from '@/styles'
 import { occurrences, repFreqLabel } from '@/utils/reminders'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
-import { PRIORITY_ORDER, type Priority, type Reminder, type RepeatType } from '@/types'
+import ListToolbar from '@/components/ListToolbar.vue'
+import { PRIORITY_ORDER, type Priority, type Reminder } from '@/types'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -15,67 +16,10 @@ const { c, dark, s, panelStyle } = useStyles()
 const { reminders } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
-const remInputRef = ref<HTMLInputElement | null>(null)
-defineExpose({ focus: () => remInputRef.value?.focus() })
-
-const title = ref('')
-const note = ref('')
-const start = ref('')
-const repeatType = ref<RepeatType>('none')
-const repeatN = ref(1)
-const weekdays = ref<number[]>([])
-const priority = ref<Priority>('normal')
-const addToCalendar = ref(false)
-
-const isInterval = computed(() => repeatType.value !== 'none' && repeatType.value !== 'weekdays')
-const isWeekdays = computed(() => repeatType.value === 'weekdays')
-
-function add() {
-  const repeat =
-    repeatType.value === 'weekdays'
-      ? { type: 'weekdays' as const, weekdays: weekdays.value.slice() }
-      : { type: repeatType.value, n: repeatN.value || 1 }
-  app.addReminder({
-    title: title.value,
-    note: note.value,
-    start: start.value,
-    repeat,
-    priority: priority.value,
-    addToCalendar: addToCalendar.value,
-  })
-  if (title.value.trim() && start.value) {
-    title.value = ''
-    note.value = ''
-    start.value = ''
-    repeatType.value = 'none'
-    repeatN.value = 1
-    weekdays.value = []
-    priority.value = 'normal'
-    addToCalendar.value = false
-  }
-}
-
-const weekdayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-function toggleWeekday(i: number) {
-  const wd = weekdays.value.slice()
-  const idx = wd.indexOf(i)
-  if (idx === -1) wd.push(i)
-  else wd.splice(idx, 1)
-  weekdays.value = wd
-}
-function weekdayBtnStyle(i: number) {
-  const active = weekdays.value.indexOf(i) !== -1
-  return pxify({
-    width: 26,
-    height: 26,
-    borderRadius: '50%',
-    border: '1px solid ' + c.value.border,
-    fontSize: 10,
-    cursor: 'pointer',
-    background: active ? c.value.accent : 'transparent',
-    color: active ? c.value.onAccent : c.value.dim,
-  })
-}
+// Creating happens in ItemDialog and editing in ReminderDialog, so N / ⌘K
+// opens the create dialog rather than focusing a form this tab no longer
+// carries — that whole eight-row form was the bulk of the tab's height.
+defineExpose({ focus: () => app.openCreate('reminder') })
 
 const PRIORITY_LABEL: Record<Priority, string> = { high: 'High', normal: 'Normal', low: 'Low' }
 function priorityColor(p: Priority): string {
@@ -185,17 +129,6 @@ function toggleExpanded(id: number) {
   expandedId.value = expandedId.value === id ? null : id
 }
 const rowWrapStyle = pxify({ display: 'flex', flexDirection: 'column' })
-const calAskStyle = computed(() =>
-  pxify({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    fontSize: 11,
-    color: c.value.dim,
-    padding: '2px 4px 6px',
-    cursor: 'pointer',
-  }),
-)
 function chevronStyle(open: boolean) {
   return pxify({
     background: 'transparent',
@@ -212,62 +145,7 @@ function chevronStyle(open: boolean) {
 
 <template>
   <div :style="panelStyle">
-    <div :style="s.inputRow">
-      <input
-        ref="remInputRef"
-        :style="s.input"
-        placeholder="Reminder title…"
-        v-model="title"
-        @keydown.enter="add"
-      />
-    </div>
-    <div :style="s.inputRow">
-      <input :style="s.input" placeholder="Note (optional)" v-model="note" @keydown.enter="add" />
-    </div>
-    <div :style="s.inputRow">
-      <input :style="s.input" type="datetime-local" v-model="start" @keydown.enter="add" />
-      <select :style="s.select" v-model="repeatType">
-        <option value="none">One-off</option>
-        <option value="minutes">Every N minutes</option>
-        <option value="hours">Every N hours</option>
-        <option value="days">Every N days</option>
-        <option value="weeks">Every N weeks</option>
-        <option value="months">Every N months</option>
-        <option value="years">Every N years</option>
-        <option value="weekdays">Specific weekdays</option>
-      </select>
-    </div>
-    <div v-if="isInterval" :style="s.inputRow">
-      <input
-        :style="s.editInputSmall"
-        type="number"
-        min="1"
-        v-model.number="repeatN"
-        @keydown.enter="add"
-      />
-    </div>
-    <div v-if="isWeekdays" :style="s.weekdayRow">
-      <button
-        v-for="(nm, i) in weekdayNames"
-        :key="i"
-        :style="weekdayBtnStyle(i)"
-        @click="toggleWeekday(i)"
-      >
-        {{ nm }}
-      </button>
-    </div>
-    <div :style="s.inputRow">
-      <select :style="s.select" v-model="priority">
-        <option value="high">High priority</option>
-        <option value="normal">Normal priority</option>
-        <option value="low">Low priority</option>
-      </select>
-      <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="add">+</button>
-    </div>
-    <label :style="calAskStyle">
-      <input type="checkbox" v-model="addToCalendar" />
-      <span>Add to Google Calendar</span>
-    </label>
+    <ListToolbar title="Reminders" new-label="New reminder" @new="app.openCreate('reminder')" />
     <div v-if="reminders.length === 0" :style="s.empty">No reminders set.</div>
     <div :style="s.list">
       <div v-for="it in view" :key="it.id" :style="rowWrapStyle">

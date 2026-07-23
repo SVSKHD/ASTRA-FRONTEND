@@ -3,82 +3,42 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, merge, rowBase } from '@/styles'
+import { useDayList } from '@/composables/useDayList'
+import { pxify, merge, rowBase, dayBody, dayGroupCard, tagChip } from '@/styles'
+import { buildDayGroups } from '@/utils/dayGroups'
+import DayGroupHead from '@/components/DayGroupHead.vue'
+import DayToolbar from '@/components/DayToolbar.vue'
+import StatusPill from '@/components/StatusPill.vue'
 import type { Task } from '@/types'
 
 const app = useAppStore()
-const { c, s, panelStyle } = useStyles()
+const { c, dark, s, panelStyle } = useStyles()
 const { tasks, githubCache, draggingId } = storeToRefs(app)
 
-const title = ref('')
-const tag = ref('')
-const taskInputRef = ref<HTMLInputElement | null>(null)
-defineExpose({ focus: () => taskInputRef.value?.focus() })
+// Creating and editing both happen in a dialog now, so N / ⌘K opens that
+// instead of focusing a form the tab no longer carries.
+defineExpose({ focus: () => app.openCreate('task') })
 
-function add() {
-  app.addTask(title.value, tag.value)
-  title.value = ''
-  tag.value = ''
-}
-function onKey(e: KeyboardEvent) {
-  if (e.key === 'Enter') add()
+// A folded day animates from 0fr to 1fr rather than being removed, which is
+// what gives the accordion a real height transition instead of a jump.
+function bodyStyle(open: boolean) {
+  return pxify(dayBody(open))
 }
 
-function rel(days: number) {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
-}
-
-interface Group {
-  key: string
-  label: string
-  date: string
-  tasks: Task[]
-}
-const groups = computed<Group[]>(() => {
-  const todayStr = rel(0)
-  const tomorrowStr = rel(1)
-  const byDate: Record<string, Task[]> = {}
-  tasks.value.forEach((t) => {
-    const d = t.deadline || ''
-    ;(byDate[d] = byDate[d] || []).push(t)
-  })
-  const otherDates = Object.keys(byDate)
-    .filter((d) => d && d !== todayStr && d !== tomorrowStr)
-    .sort()
-  const defs: { key: string; label: string; date: string }[] = [
-    { key: 'today', label: 'Today', date: todayStr },
-  ]
-  if (byDate[tomorrowStr]) defs.push({ key: 'tomorrow', label: 'Tomorrow', date: tomorrowStr })
-  otherDates.forEach((d) =>
-    defs.push({
-      key: d,
-      label: new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-      }),
-      date: d,
-    }),
-  )
-  defs.push({ key: 'nodate', label: 'No date', date: '' })
-  return defs.map((g) => ({ ...g, tasks: byDate[g.date] || [] }))
-})
-
-const dragging = computed(() => draggingId.value != null)
-const groupStyle = computed(() =>
-  pxify({
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 9,
-    padding: '10px 12px 12px',
-    borderRadius: 18,
-    border: '1.5px dashed ' + (dragging.value ? c.value.accent : c.value.border),
-    background: dragging.value ? c.value.input : 'transparent',
-    transition: 'border-color .25s ease, background .25s ease',
+// Same day-wise shape as the todo list, keyed off the deadline instead of the
+// creation day — hence 'future', which pins Today then Tomorrow.
+const groups = computed(() =>
+  buildDayGroups(tasks.value, (t) => t.deadline || '', {
+    direction: 'future',
+    undatedLabel: 'No date',
+    keepEmptyUndated: true,
   }),
 )
+type Group = (typeof groups.value)[number] // the drop handlers need the shape
+const day = useDayList('tasks', groups)
+
+const dragging = computed(() => draggingId.value != null)
+const groupStyle = computed(() => pxify(dayGroupCard(c.value, dragging.value)))
 
 function ciColor(t: Task) {
   const gh = githubCache.value[t.id]
@@ -103,21 +63,6 @@ function textStyle(t: Task) {
     lineHeight: 1.3,
     textDecoration: t.done ? 'line-through' : 'none',
     textDecorationColor: c.value.dim,
-  })
-}
-function statusStyle(t: Task) {
-  return pxify({
-    flexShrink: 0,
-    fontSize: 10,
-    padding: '5px 10px',
-    borderRadius: 8,
-    border: '1px solid ' + c.value.border,
-    cursor: 'pointer',
-    letterSpacing: '0.05em',
-    textTransform: 'uppercase',
-    background: t.done ? c.value.accent : 'transparent',
-    color: t.done ? c.value.onAccent : c.value.dim,
-    transition: 'background .3s ease, color .3s ease',
   })
 }
 function repoDotStyle(t: Task) {
@@ -145,6 +90,9 @@ const repoChipStyle = computed(() =>
   }),
 )
 const gripDots = [0, 1, 2, 3, 4, 5]
+function chipStyle(tag: string) {
+  return pxify(tagChip(c.value, tag, dark.value))
+}
 
 // Click vs. double-click discrimination (single → dialog, double → task view).
 let clickTimer: ReturnType<typeof setTimeout> | null = null
@@ -189,8 +137,10 @@ function onRowDrop(e: DragEvent, t: Task) {
   e.stopPropagation()
   app.dropOnTask(t.id)
 }
-function onGroupDragOver(e: DragEvent) {
+function onGroupDragOver(e: DragEvent, g: Group) {
   e.preventDefault()
+  // A drag heading for a folded day should not have to be aborted to open it.
+  day.openForDrop(g)
   try {
     e.dataTransfer!.dropEffect = 'move'
   } catch {
@@ -205,62 +155,67 @@ function onGroupDrop(e: DragEvent, g: Group) {
 
 <template>
   <div :style="panelStyle">
-    <div :style="s.inputRow">
-      <input
-        ref="taskInputRef"
-        :style="s.input"
-        placeholder="Task title…"
-        v-model="title"
-        @keydown="onKey"
-      />
-    </div>
-    <div :style="s.inputRow">
-      <input :style="s.input" placeholder="Project tag (optional)" v-model="tag" @keydown="onKey" />
-      <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="add">+</button>
-    </div>
+    <DayToolbar
+      :filter="day.filter.value"
+      :all-open="day.allOpen.value"
+      new-label="New task"
+      @filter="day.setFilter"
+      @fold="day.foldAll"
+      @new="app.openCreate('task')"
+    />
     <div :style="s.dayGroups">
       <div
         v-for="g in groups"
         :key="g.key"
         :style="groupStyle"
-        @dragover="onGroupDragOver"
+        @dragover="onGroupDragOver($event, g)"
         @drop="onGroupDrop($event, g)"
       >
-        <div :style="s.dayGroupHead">
-          <span :style="s.dayGroupLabelBase">{{ g.label }}</span>
-          <span :style="s.dayCount">{{ g.tasks.length }}</span>
-        </div>
-        <div v-if="g.tasks.length === 0" :style="s.dayDropHint">Drop tasks here</div>
-        <div
-          v-for="t in g.tasks"
-          :key="t.id"
-          :style="rowStyle(t)"
-          v-hover-style="s.rowHover"
-          draggable="true"
-          @dragstart="onDragStart($event, t)"
-          @dragend="onDragEnd"
-          @dragover="onRowDragOver"
-          @drop="onRowDrop($event, t)"
-          @click="onRowClick(t)"
-          @dblclick="onRowDblClick(t)"
-        >
-          <span :style="s.grip"
-            ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-          ></span>
-          <div :style="s.taskMain">
-            <span :style="textStyle(t)">{{ t.title }}</span>
-            <div :style="s.chipRow">
-              <span v-if="t.tag" :style="s.chip">{{ t.tag }}</span>
-              <span v-if="t.repo" :style="repoChipStyle"
-                ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
-              >
+        <DayGroupHead
+          :label="g.label"
+          :counts="g.counts"
+          :total="g.total"
+          :open="day.isOpen(g)"
+          @toggle="day.toggle(g)"
+        />
+        <div :style="bodyStyle(day.isOpen(g))">
+          <div :style="s.dayBodyInner">
+            <div v-if="g.total === 0" :style="s.dayDropHint">Drop tasks here</div>
+            <div v-else-if="day.visible(g).length === 0" :style="s.dayDropHint">
+              {{ day.hiddenBy(g) }} hidden by the filter
+            </div>
+          <div
+            v-for="t in day.visible(g)"
+            :key="t.id"
+            :style="rowStyle(t)"
+            v-hover-style="s.rowHover"
+            draggable="true"
+            @dragstart="onDragStart($event, t)"
+            @dragend="onDragEnd"
+            @dragover="onRowDragOver"
+            @drop="onRowDrop($event, t)"
+            @click="onRowClick(t)"
+            @dblclick="onRowDblClick(t)"
+          >
+            <span :style="s.grip"
+              ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+            ></span>
+            <div :style="s.taskMain">
+              <span :style="textStyle(t)">{{ t.title }}</span>
+              <div :style="s.chipRow">
+                <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                <span v-if="t.repo" :style="repoChipStyle"
+                  ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
+                >
+              </div>
+            </div>
+            <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+            <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
+            <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
+              ×
+            </button>
             </div>
           </div>
-          <button :style="statusStyle(t)" @click.stop="app.toggleTask(t.id)">
-            {{ t.done ? 'done' : 'open' }}
-          </button>
-          <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
-          <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">×</button>
         </div>
       </div>
     </div>

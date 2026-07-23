@@ -1,80 +1,33 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+// The notes index. Each note is a card — title, two lines of preview, its
+// checklist progress — and opening one hands off to NoteView, which owns both
+// reading and the rich-text editing. The drawer no longer turns into an editor
+// itself: a note deserves the full screen, not a 340px column.
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, merge, rowBase } from '@/styles'
+import { pxify } from '@/styles'
+import { noteChecks, notePreview, noteText, noteTitle } from '@/utils/notes'
 import type { Note } from '@/types'
 
 const ui = useUiStore()
 const app = useAppStore()
 const { c, s } = useStyles()
 const { drawerOpen } = storeToRefs(ui)
-const { notes, editing, draft } = storeToRefs(app)
+const { notes } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
-const isEditing = computed(() => editing.value.type === 'note')
-const editorRef = ref<HTMLDivElement | null>(null)
-
-// When entering note-edit mode, seed the contentEditable with the draft HTML
-// once (binding v-html reactively would reset the caret on every keystroke).
-watch(isEditing, (v) => {
-  if (v)
-    nextTick(() => {
-      if (editorRef.value) editorRef.value.innerHTML = (draft.value.text as string) || ''
-    })
+const query = ref('')
+// Newest first, and searchable by the plain text behind the markup — the list
+// grows faster than any other, and scrolling it was the only way to find one.
+const shown = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  const list = [...notes.value].sort((a, b) => (b.updatedAt ?? b.ts) - (a.updatedAt ?? a.ts))
+  if (!q) return list
+  return list.filter((n) => noteText(n.text).toLowerCase().indexOf(q) !== -1)
 })
-
-function syncEditor() {
-  if (editorRef.value) app.setDraft('text', editorRef.value.innerHTML)
-}
-function exec(cmd: string, val?: string) {
-  editorRef.value?.focus()
-  document.execCommand(cmd, false, val)
-  syncEditor()
-}
-const cmdBold = () => exec('bold')
-const cmdItalic = () => exec('italic')
-const cmdUnderline = () => exec('underline')
-const cmdStrike = () => exec('strikeThrough')
-const cmdH1 = () => exec('formatBlock', 'H1')
-const cmdH2 = () => exec('formatBlock', 'H2')
-const cmdUL = () => exec('insertUnorderedList')
-const cmdOL = () => exec('insertOrderedList')
-function cmdChecklist() {
-  editorRef.value?.focus()
-  document.execCommand(
-    'insertHTML',
-    false,
-    '<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><input type="checkbox">&nbsp;<span>list item</span></div>',
-  )
-  syncEditor()
-}
-function cmdLink() {
-  const url = window.prompt('Link URL:', 'https://')
-  if (!url) return
-  exec('createLink', url)
-}
-function cmdCode() {
-  editorRef.value?.focus()
-  const sel = (window.getSelection && window.getSelection()?.toString()) || 'code'
-  document.execCommand(
-    'insertHTML',
-    false,
-    '<code style="background:rgba(127,127,127,.25);padding:1px 5px;border-radius:4px;font-family:inherit">' +
-      sel +
-      '</code>',
-  )
-  syncEditor()
-}
-function cmdHighlight() {
-  editorRef.value?.focus()
-  const col = c.value.accent || '#ffd76a'
-  if (!document.execCommand('hiliteColor', false, col))
-    document.execCommand('backColor', false, col)
-  syncEditor()
-}
 
 const drawerStyle = computed(() =>
   pxify({
@@ -97,31 +50,28 @@ const drawerStyle = computed(() =>
     opacity: drawerOpen.value ? 1 : 0,
     pointerEvents: drawerOpen.value ? 'auto' : 'none',
     transition: 'transform .45s cubic-bezier(.5,1.3,.4,1), opacity .3s ease',
-    overflowY: 'auto',
+    overflow: 'hidden',
     color: c.value.text,
   }),
 )
-
-const toolButtons: { label: string; fn: () => void }[] = [
-  { label: 'B', fn: cmdBold },
-  { label: 'I', fn: cmdItalic },
-  { label: 'U', fn: cmdUnderline },
-  { label: 'S', fn: cmdStrike },
-  { label: 'H1', fn: cmdH1 },
-  { label: 'H2', fn: cmdH2 },
-  { label: '•', fn: cmdUL },
-  { label: '1.', fn: cmdOL },
-  { label: '[x]', fn: cmdChecklist },
-  { label: 'Link', fn: cmdLink },
-  { label: '</>', fn: cmdCode },
-  { label: 'HL', fn: cmdHighlight },
-]
+const listStyle = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 9,
+  overflowY: 'auto',
+  flex: 1,
+  minHeight: 0,
+  paddingRight: 2,
+})
 
 function timeLabel(n: Note) {
-  const mins = Math.round((now.value - n.ts) / 60000)
+  const mins = Math.round((now.value - (n.updatedAt ?? n.ts)) / 60000)
   return mins < 1 ? 'just now' : mins < 60 ? mins + 'm ago' : Math.round(mins / 60) + 'h ago'
 }
-const row = computed(() => merge(rowBase(c.value)))
+function checkLabel(n: Note) {
+  const { done, total } = noteChecks(n.text)
+  return total ? done + '/' + total : ''
+}
 </script>
 
 <template>
@@ -129,40 +79,38 @@ const row = computed(() => merge(rowBase(c.value)))
   <div :style="drawerStyle">
     <div :style="s.drawerHeader">
       <span :style="s.drawerTitle">Notes</span>
-      <button :style="s.del" @click="ui.toggleDrawer()">×</button>
+      <button :style="s.del" aria-label="Close notes" @click="ui.toggleDrawer()">×</button>
     </div>
 
-    <template v-if="isEditing">
-      <div :style="s.toolbar">
-        <button
-          v-for="b in toolButtons"
-          :key="b.label"
-          :style="s.toolBtn"
-          @click="b.fn()"
-          v-html="b.label"
-        ></button>
-      </div>
-      <div ref="editorRef" contenteditable="true" :style="s.editorArea" @input="syncEditor"></div>
-      <div :style="s.dialogActions">
-        <button :style="s.saveBtn" @click="app.saveEdit()">Save</button>
-        <button :style="s.cancelBtn" @click="app.cancelEdit()">Cancel</button>
-      </div>
-    </template>
+    <button :style="s.addBtn2" v-hover-style="s.addBtnHover" @click="app.newNote()">
+      + New Note
+    </button>
+    <input
+      v-if="notes.length > 3"
+      :style="s.input"
+      type="search"
+      placeholder="Search notes…"
+      v-model="query"
+    />
 
-    <template v-else>
-      <button :style="s.addBtn2" @click="app.newNote()">+ New Note</button>
-      <div v-if="notes.length === 0" :style="s.empty">No notes yet.</div>
-      <div :style="s.list">
-        <div v-for="n in notes" :key="n.id" :style="row" v-hover-style="s.rowHover">
-          <div :style="s.taskMain">
-            <div :style="s.noteRendered" v-html="n.text"></div>
-            <span :style="s.finMeta">{{ timeLabel(n) }}</span>
-          </div>
-          <button :style="s.shareBtn" @click="app.share('note', n)">↗</button>
-          <button :style="s.editBtn" @click="app.startEdit('note', n)">Edit</button>
-          <button :style="s.del" @click="app.deleteWithUndo('notes', 'note', n.id)">×</button>
-        </div>
-      </div>
-    </template>
+    <div v-if="shown.length === 0" :style="s.empty">
+      {{ notes.length === 0 ? 'No notes yet.' : 'No note matches that.' }}
+    </div>
+    <div :style="listStyle">
+      <button
+        v-for="n in shown"
+        :key="n.id"
+        :style="s.noteCard"
+        v-hover-style="s.noteCardHover"
+        @click="app.openNoteView(n.id)"
+      >
+        <span :style="s.noteCardTitle">{{ noteTitle(n.text) }}</span>
+        <span v-if="notePreview(n.text)" :style="s.noteCardPreview">{{ notePreview(n.text) }}</span>
+        <span :style="s.noteCardFoot">
+          <span :style="s.finMeta">{{ timeLabel(n) }}</span>
+          <span v-if="checkLabel(n)" :style="s.finMeta">☑ {{ checkLabel(n) }}</span>
+        </span>
+      </button>
+    </div>
   </div>
 </template>

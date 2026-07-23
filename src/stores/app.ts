@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { doc, getDoc, setDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { AUREON_COLLECTION, auth, db, defaultLockMinutes, firebaseEnabled } from '@/firebase'
 import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
@@ -17,12 +17,25 @@ import {
 } from '@/utils/gcal'
 import { useAuthStore } from '@/stores/auth'
 import { occurrences } from '@/utils/reminders'
+import { stampOnDay, ymd } from '@/utils/dayGroups'
+import { isBlankNote } from '@/utils/notes'
+import {
+  DEFAULT_TAGS,
+  normalizeTag,
+  sameTag,
+  sanitizeTags,
+  withTag,
+  withoutTag,
+} from '@/utils/tags'
+import { STATUS_CYCLE, isStatus, statusFromDone } from '@/types'
 import type {
   ActiveNotif,
   Deadline,
   EditingState,
   Finance,
   GithubCacheEntry,
+  ItemDialogState,
+  ItemStatus,
   ItemType,
   ListKey,
   Note,
@@ -30,9 +43,11 @@ import type {
   PullRequest,
   Reminder,
   Repeat,
+  RepeatType,
   SecuritySettings,
   SharedView,
   Task,
+  Timestamped,
   Toast,
   Todo,
   Trip,
@@ -65,6 +80,9 @@ export const useAppStore = defineStore('app', () => {
   const notes = ref<Note[]>([])
   const reminders = ref<Reminder[]>([])
   const trips = ref<Trip[]>([])
+  // The shared tag vocabulary behind both pickers. Seeded for a new workspace;
+  // a hydrate replaces it, and any tag typed anywhere joins it.
+  const tags = ref<string[]>(DEFAULT_TAGS.slice())
   const security = ref<SecuritySettings>(emptySecurity())
   // Theme is a per-user preference, so it rides along in the workspace doc and
   // is restored on refresh once the document lands. The ui store reads it.
@@ -78,14 +96,26 @@ export const useAppStore = defineStore('app', () => {
   const toast = ref<Toast | null>(null)
   const burst = ref<number | null>(null)
 
-  const dialogTaskId = ref<number | null>(null)
-  const dialogReminderId = ref<number | null>(null)
+  // Which item dialog is open. One slot rather than a ref per type: only one
+  // dialog is ever on screen, and per-type refs drifted out of sync (opening a
+  // reminder used to leave a stale task id behind).
+  //
+  // `create` edits `dialogDraft` and commits on save; `edit` writes through to
+  // the stored item on every keystroke, so its save button only dismisses.
+  const itemDialog = ref<ItemDialogState | null>(null)
+  const dialogDraft = ref<Record<string, unknown>>({})
   const dialogClosing = ref(false)
   const taskViewId = ref<number | null>(null)
+  // The note open in the full-screen reader/editor. It stays up until it is
+  // closed, so it is a slot of its own rather than a mode of the drawer. A null
+  // id in edit mode is a note that has not been saved yet.
+  const noteView = ref<{ id: number | null; mode: 'read' | 'edit' } | null>(null)
+  const noteViewClosing = ref(false)
 
   const githubCache = ref<Record<number, GithubCacheEntry>>({})
   const approvedPRs = ref<Record<string, boolean>>({})
   const draggingId = ref<number | null>(null)
+  const draggingTodoId = ref<number | null>(null)
 
   const activeNotif = ref<ActiveNotif | null>(null)
   const notifPermission = ref<string>(
@@ -102,6 +132,7 @@ export const useAppStore = defineStore('app', () => {
   let nid = 100
   const id = () => ++nid
   let dragId: number | null = null
+  let todoDragId: number | null = null
   let toastTimer: ReturnType<typeof setTimeout> | undefined
 
   // --- id counter bootstrap: keep above any existing ids ------------------
@@ -119,64 +150,163 @@ export const useAppStore = defineStore('app', () => {
     if (maxId >= nid) nid = maxId + 1
   }
 
+  // ---- Timestamps ---------------------------------------------------------
+  // Every create stamps both fields; every mutation bumps updatedAt. Kept in
+  // one place so a new action cannot quietly forget to age its item.
+  function stamps(): { createdAt: number; updatedAt: number } {
+    const ts = Date.now()
+    return { createdAt: ts, updatedAt: ts }
+  }
+  function touched<T>(item: T): T {
+    return { ...item, updatedAt: Date.now() }
+  }
+
+  // ---- Tags ---------------------------------------------------------------
+  // Every path that writes a tag funnels through here, so a tag typed into a
+  // row's edit field joins the vocabulary exactly like one created in a picker.
+  function registerTag(raw: string): string {
+    const tag = normalizeTag(raw)
+    if (!tag) return ''
+    const next = withTag(tags.value, tag)
+    if (next !== tags.value) tags.value = next
+    // Reuse the stored spelling so "office" does not shadow "Office".
+    return tags.value.find((t) => sameTag(t, tag)) ?? tag
+  }
+  function addTag(raw: string) {
+    return registerTag(raw)
+  }
+  // Removing a tag from the vocabulary leaves items that use it alone — their
+  // tag is still their tag, it is just no longer offered in the pickers.
+  function removeTag(raw: string) {
+    tags.value = withoutTag(tags.value, raw)
+  }
+
+  // ---- Status -------------------------------------------------------------
+  // One lifecycle for todos and tasks. `done` is written from `status` here and
+  // nowhere else, so the two can never drift apart.
+  function withStatus<T extends { status: ItemStatus; done: boolean }>(
+    item: T,
+    next: ItemStatus,
+  ): T {
+    return touched({ ...item, status: next, done: next === 'done' })
+  }
+  function nextStatus(cur: ItemStatus): ItemStatus {
+    const i = STATUS_CYCLE.indexOf(cur)
+    return STATUS_CYCLE[(i + 1) % STATUS_CYCLE.length]
+  }
+  // The done-burst is a todo-only flourish; fire it whenever a todo lands on
+  // done, whichever control moved it there.
+  function fireBurst(tid: number) {
+    burst.value = tid
+    setTimeout(() => {
+      if (burst.value === tid) burst.value = null
+    }, 650)
+  }
+
   // ---- Todos --------------------------------------------------------------
   function addTodo(text: string, tag = '', description = '') {
     const t = text.trim()
     if (!t) return
     todos.value = [
       ...todos.value,
-      { id: id(), text: t, done: false, tag: tag.trim(), description: description.trim() },
+      {
+        id: id(),
+        text: t,
+        done: false,
+        status: 'pending',
+        tag: registerTag(tag),
+        description: description.trim(),
+        ...stamps(),
+      },
     ]
   }
+  function updateTodo(tid: number, fields: Partial<Todo>) {
+    const next =
+      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
+    todos.value = todos.value.map((t) => (t.id === tid ? touched({ ...t, ...next }) : t))
+  }
+  function setTodoStatus(tid: number, next: ItemStatus) {
+    const cur = todos.value.find((t) => t.id === tid)
+    if (!cur || cur.status === next) return
+    todos.value = todos.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
+    if (next === 'done') fireBurst(tid)
+  }
+  function cycleTodoStatus(tid: number) {
+    const cur = todos.value.find((t) => t.id === tid)
+    if (cur) setTodoStatus(tid, nextStatus(cur.status))
+  }
   function toggleTodo(tid: number) {
-    const wasDone = todos.value.find((t) => t.id === tid)?.done
-    todos.value = todos.value.map((t) => (t.id === tid ? { ...t, done: !t.done } : t))
-    if (!wasDone) {
-      burst.value = tid
-      setTimeout(() => {
-        if (burst.value === tid) burst.value = null
-      }, 650)
-    }
+    const cur = todos.value.find((t) => t.id === tid)
+    if (cur) setTodoStatus(tid, cur.done ? 'pending' : 'done')
   }
 
   // ---- Tasks --------------------------------------------------------------
-  function addTask(title: string, tag: string) {
+  function addTask(title: string, tag: string, fields: Partial<Task> = {}) {
     const t = title.trim()
     if (!t) return
     tasks.value = [
       ...tasks.value,
-      { id: id(), title: t, tag: tag.trim(), done: false, deadline: '', notes: '', repo: '' },
+      {
+        id: id(),
+        title: t,
+        tag: registerTag(tag),
+        done: false,
+        status: 'pending',
+        deadline: '',
+        notes: '',
+        repo: '',
+        ...fields,
+        ...stamps(),
+      },
     ]
   }
+  function setTaskStatus(tid: number, next: ItemStatus) {
+    tasks.value = tasks.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
+  }
+  function cycleTaskStatus(tid: number) {
+    const cur = tasks.value.find((t) => t.id === tid)
+    if (cur) setTaskStatus(tid, nextStatus(cur.status))
+  }
   function toggleTask(tid: number) {
-    tasks.value = tasks.value.map((t) => (t.id === tid ? { ...t, done: !t.done } : t))
+    const cur = tasks.value.find((t) => t.id === tid)
+    if (cur) setTaskStatus(tid, cur.done ? 'pending' : 'done')
   }
   function updateTask(tid: number, field: keyof Task, value: string) {
-    tasks.value = tasks.value.map((t) => (t.id === tid ? { ...t, [field]: value } : t))
+    const v = field === 'tag' ? registerTag(value) : value
+    tasks.value = tasks.value.map((t) => (t.id === tid ? touched({ ...t, [field]: v }) : t))
   }
 
   // ---- Deadlines ----------------------------------------------------------
   function addDeadline(title: string, due: string) {
     const t = title.trim()
     if (!t || !due) return
-    deadlines.value = [...deadlines.value, { id: id(), title: t, due }]
+    deadlines.value = [...deadlines.value, { id: id(), title: t, due, ...stamps() }]
+  }
+  function updateDeadline(did: number, fields: Partial<Deadline>) {
+    deadlines.value = deadlines.value.map((d) => (d.id === did ? touched({ ...d, ...fields }) : d))
   }
 
   // ---- Finances -----------------------------------------------------------
-  function addFinance(amountStr: string, category: string, note: string) {
+  function addFinance(amountStr: string, category: string, note: string, date = rel(0)) {
     const a = parseFloat(amountStr)
     if (!a || a <= 0) return
     finances.value = [
       ...finances.value,
-      { id: id(), amount: a, category, note: note.trim(), date: rel(0) },
+      { id: id(), amount: a, category, note: note.trim(), date: date || rel(0), ...stamps() },
     ]
+  }
+  function updateFinance(fid: number, fields: Partial<Finance>) {
+    finances.value = finances.value.map((f) => (f.id === fid ? touched({ ...f, ...fields }) : f))
   }
 
   // ---- Trips --------------------------------------------------------------
   function addTrip(location: string, date: string) {
     const place = location.trim()
     if (!place || !date) return
-    trips.value = [...trips.value, { id: id(), location: place, date }]
+    trips.value = [...trips.value, { id: id(), location: place, date, ...stamps() }]
+  }
+  function updateTrip(tid: number, fields: Partial<Trip>) {
+    trips.value = trips.value.map((t) => (t.id === tid ? touched({ ...t, ...fields }) : t))
   }
 
   // ---- Editing / drafts ---------------------------------------------------
@@ -184,8 +314,66 @@ export const useAppStore = defineStore('app', () => {
     editing.value = { type, id: item.id }
     draft.value = { ...item } as Record<string, unknown>
   }
+  // ---- Notes: the full-screen reader / rich-text editor -------------------
+  // Every note now opens in its own dialog — reading it, then editing it in
+  // place — instead of the drawer swapping itself out for an editor. The drawer
+  // is the index; this is the document.
+  const openNote = computed<Note | null>(() => {
+    const v = noteView.value
+    if (!v || v.id == null) return null
+    return notes.value.find((n) => n.id === v.id) ?? null
+  })
+
   function newNote() {
-    startEdit('note', { id: null, text: '' })
+    noteView.value = { id: null, mode: 'edit' }
+    noteViewClosing.value = false
+    draft.value = { text: '' }
+  }
+  function openNoteView(noteId: number) {
+    noteView.value = { id: noteId, mode: 'read' }
+    noteViewClosing.value = false
+  }
+  function editNoteView(noteId?: number) {
+    const target = noteId ?? noteView.value?.id ?? null
+    noteView.value = { id: target, mode: 'edit' }
+    noteViewClosing.value = false
+    draft.value = { text: target == null ? '' : (openNote.value?.text ?? '') }
+  }
+  // Commit the editor's HTML. A note whose markup carries no text at all is
+  // dropped rather than saved — an empty <div> would be an unreadable row.
+  function saveNoteView(html: string) {
+    const v = noteView.value
+    if (!v) return
+    const text = html
+    if (isBlankNote(text)) {
+      if (v.id == null) return closeNoteView()
+      deleteWithUndo('notes', 'note', v.id)
+      return closeNoteView()
+    }
+    if (v.id == null) {
+      const newId = id()
+      notes.value = [...notes.value, { id: newId, text, ts: Date.now(), ...stamps() }]
+      noteView.value = { id: newId, mode: 'read' }
+    } else {
+      const target = v.id
+      notes.value = notes.value.map((n) => (n.id === target ? touched({ ...n, text }) : n))
+      noteView.value = { id: target, mode: 'read' }
+    }
+    draft.value = {}
+  }
+  function closeNoteView() {
+    if (!noteView.value) return
+    noteViewClosing.value = true
+    setTimeout(() => {
+      noteView.value = null
+      noteViewClosing.value = false
+      draft.value = {}
+    }, 220)
+  }
+  // A checkbox ticked in the reader writes straight back, so the note is the
+  // checklist rather than a picture of one.
+  function setNoteText(noteId: number, html: string) {
+    notes.value = notes.value.map((n) => (n.id === noteId ? touched({ ...n, text: html }) : n))
   }
   function cancelEdit() {
     editing.value = { type: null, id: null }
@@ -194,46 +382,21 @@ export const useAppStore = defineStore('app', () => {
   function setDraft(field: string, value: unknown) {
     draft.value = { ...draft.value, [field]: value }
   }
+  // Notes are the only inline-edited item left — every other type creates and
+  // updates through its own dialog, so those branches went with the inline rows.
   function saveEdit() {
     const { type, id: eid } = editing.value
     const d = draft.value
-    if (type === 'todo') {
-      todos.value = todos.value.map((t) =>
-        t.id === eid
-          ? {
-              ...t,
-              text: d.text as string,
-              tag: ((d.tag as string) || '').trim(),
-              description: ((d.description as string) || '').trim(),
-            }
-          : t,
-      )
-    } else if (type === 'deadline') {
-      deadlines.value = deadlines.value.map((t) =>
-        t.id === eid ? { ...t, title: d.title as string, due: d.due as string } : t,
-      )
-    } else if (type === 'finance') {
-      finances.value = finances.value.map((t) =>
-        t.id === eid
-          ? {
-              ...t,
-              amount: parseFloat(d.amount as string) || t.amount,
-              category: d.category as string,
-              note: d.note as string,
-            }
-          : t,
-      )
-    } else if (type === 'note') {
+    if (type === 'note') {
       if (eid == null) {
-        notes.value = [...notes.value, { id: id(), text: (d.text as string) || '', ts: Date.now() }]
+        notes.value = [
+          ...notes.value,
+          { id: id(), text: (d.text as string) || '', ts: Date.now(), ...stamps() },
+        ]
       } else {
-        notes.value = notes.value.map((t) => (t.id === eid ? { ...t, text: d.text as string } : t))
-      }
-    } else if (type === 'trip') {
-      const location = (d.location as string).trim()
-      const date = d.date as string
-      if (location && date) {
-        trips.value = trips.value.map((t) => (t.id === eid ? { ...t, location, date } : t))
+        notes.value = notes.value.map((t) =>
+          t.id === eid ? touched({ ...t, text: d.text as string }) : t,
+        )
       }
     }
     editing.value = { type: null, id: null }
@@ -386,8 +549,10 @@ export const useAppStore = defineStore('app', () => {
           id: nidNew,
           text: (it.text as string) || 'Shared todo',
           done: false,
+          status: 'pending',
           tag: (it.tag as string) || '',
           description: (it.description as string) || '',
+          ...stamps(),
         },
       ]
     else if (sv.type === 'task')
@@ -398,9 +563,11 @@ export const useAppStore = defineStore('app', () => {
           title: (it.title as string) || 'Shared task',
           tag: (it.tag as string) || '',
           done: false,
+          status: 'pending',
           deadline: (it.deadline as string) || '',
           notes: (it.notes as string) || '',
           repo: (it.repo as string) || '',
+          ...stamps(),
         },
       ]
     else if (sv.type === 'deadline')
@@ -410,6 +577,7 @@ export const useAppStore = defineStore('app', () => {
           id: nidNew,
           title: (it.title as string) || 'Shared deadline',
           due: (it.due as string) || rel(3),
+          ...stamps(),
         },
       ]
     else if (sv.type === 'finance')
@@ -421,12 +589,13 @@ export const useAppStore = defineStore('app', () => {
           category: (it.category as string) || 'Other',
           note: (it.note as string) || '',
           date: rel(0),
+          ...stamps(),
         },
       ]
     else if (sv.type === 'note')
       notes.value = [
         ...notes.value,
-        { id: nidNew, text: (it.text as string) || '', ts: Date.now() },
+        { id: nidNew, text: (it.text as string) || '', ts: Date.now(), ...stamps() },
       ]
     else if (sv.type === 'trip')
       trips.value = [
@@ -435,6 +604,7 @@ export const useAppStore = defineStore('app', () => {
           id: nidNew,
           location: (it.location as string) || 'Shared location',
           date: (it.date as string) || rel(0),
+          ...stamps(),
         },
       ]
     dismissShared()
@@ -471,9 +641,11 @@ export const useAppStore = defineStore('app', () => {
         title: issue.title,
         tag: repo.name,
         done: false,
+        status: 'pending',
         deadline: '',
         notes: 'Imported from ' + repo.full + ' #' + issue.num,
         repo: repo.full,
+        ...stamps(),
       },
     ]
     showToastMsg(
@@ -485,6 +657,10 @@ export const useAppStore = defineStore('app', () => {
   function setDragId(v: number | null) {
     dragId = v
     draggingId.value = v
+  }
+  // A task that lands on a different day has been re-planned, so it ages.
+  function reday(t: Task, dateStr: string): Task {
+    return (t.deadline || '') === dateStr ? t : touched({ ...t, deadline: dateStr })
   }
   function dropOnTask(targetId: number) {
     if (dragId == null || dragId === targetId) {
@@ -498,13 +674,13 @@ export const useAppStore = defineStore('app', () => {
       dragId = null
       return
     }
-    const drag = { ...arr[di] }
+    let drag = { ...arr[di] }
     arr.splice(di, 1)
     const ti = arr.findIndex((t) => t.id === targetId)
     if (ti < 0) {
       arr.push(drag)
     } else {
-      drag.deadline = arr[ti].deadline || ''
+      drag = reday(drag, arr[ti].deadline || '')
       arr.splice(ti, 0, drag)
     }
     tasks.value = arr
@@ -523,7 +699,7 @@ export const useAppStore = defineStore('app', () => {
       dragId = null
       return
     }
-    const drag = { ...arr[di], deadline: dateStr }
+    const drag = reday(arr[di], dateStr)
     arr.splice(di, 1)
     let lastIdx = -1
     arr.forEach((t, i) => {
@@ -536,28 +712,199 @@ export const useAppStore = defineStore('app', () => {
     dragId = null
   }
 
-  // ---- Dialogs / task view ------------------------------------------------
-  function openTaskDialog(tid: number) {
-    dialogTaskId.value = tid
+  // ---- Drag & drop (todos) ------------------------------------------------
+  // Todos have no deadline: their day *is* their createdAt stamp. Dropping one
+  // on another day therefore rewrites that stamp — keeping the time of day —
+  // which is what moves the row between the accordion's day cards.
+  function setTodoDragId(v: number | null) {
+    todoDragId = v
+    draggingTodoId.value = v
   }
-  function closeDialog() {
-    if (dialogTaskId.value == null) return
-    dialogClosing.value = true
-    setTimeout(() => {
-      dialogTaskId.value = null
-      dialogClosing.value = false
-    }, 220)
+  function endTodoDrag() {
+    draggingTodoId.value = null
+    todoDragId = null
+  }
+  function moveTodoToDay(arr: Todo[], idx: number, dateStr: string): Todo {
+    const cur = arr[idx]
+    const next = stampOnDay(dateStr, cur.createdAt)
+    return next === cur.createdAt ? cur : touched({ ...cur, createdAt: next })
+  }
+  function dropTodoOnDay(dateStr: string) {
+    if (todoDragId == null) return endTodoDrag()
+    const arr = todos.value.slice()
+    const di = arr.findIndex((t) => t.id === todoDragId)
+    if (di < 0) return endTodoDrag()
+    const drag = moveTodoToDay(arr, di, dateStr)
+    arr.splice(di, 1)
+    arr.push(drag)
+    todos.value = arr
+    endTodoDrag()
+  }
+  // Dropping onto a row adopts that row's day and slots in above it, so a drag
+  // reorders within a day as well as moving between days.
+  function dropTodoOnTodo(targetId: number) {
+    if (todoDragId == null || todoDragId === targetId) return endTodoDrag()
+    const arr = todos.value.slice()
+    const di = arr.findIndex((t) => t.id === todoDragId)
+    const target = arr.find((t) => t.id === targetId)
+    if (di < 0 || !target) return endTodoDrag()
+    const drag = moveTodoToDay(arr, di, target.createdAt > 0 ? ymd(new Date(target.createdAt)) : '')
+    arr.splice(di, 1)
+    const ti = arr.findIndex((t) => t.id === targetId)
+    if (ti < 0) arr.push(drag)
+    else arr.splice(ti, 0, drag)
+    todos.value = arr
+    endTodoDrag()
+  }
+
+  // ---- Dialogs / task view ------------------------------------------------
+  // Fields a create form starts from. Dates default to today so the common case
+  // is one field away from valid.
+  function blankDraft(type: ItemType): Record<string, unknown> {
+    if (type === 'todo') return { text: '', description: '', tag: '' }
+    if (type === 'task') return { title: '', tag: '', deadline: '', notes: '', repo: '' }
+    if (type === 'deadline') return { title: '', due: rel(0) }
+    if (type === 'finance') return { amount: '', category: 'Food', note: '', date: rel(0) }
+    if (type === 'trip') return { location: '', date: rel(0) }
+    if (type === 'reminder')
+      return {
+        title: '',
+        note: '',
+        start: '',
+        repeatType: 'none',
+        repeatN: 1,
+        weekdays: [],
+        priority: 'normal',
+        addToCalendar: false,
+      }
+    return {}
+  }
+  // The task and reminder dialogs predate the generic one and address it by
+  // type-specific name. They are views onto the same single dialog slot rather
+  // than state of their own, so only one dialog can ever be open.
+  const dialogTaskId = computed(() =>
+    itemDialog.value?.type === 'task' && itemDialog.value.mode === 'edit'
+      ? itemDialog.value.id
+      : null,
+  )
+  const dialogReminderId = computed(() =>
+    itemDialog.value?.type === 'reminder' && itemDialog.value.mode === 'edit'
+      ? itemDialog.value.id
+      : null,
+  )
+  function openCreate(type: ItemType) {
+    itemDialog.value = { type, mode: 'create', id: null }
+    dialogDraft.value = blankDraft(type)
+    dialogClosing.value = false
+  }
+  function openEdit(type: ItemType, itemId: number) {
+    itemDialog.value = { type, mode: 'edit', id: itemId }
+    dialogDraft.value = {}
+    dialogClosing.value = false
+  }
+  // Generic read/write for the one dialog that edits every type. Edit mode
+  // writes through on each keystroke, so there is no draft to reconcile — these
+  // two are all it needs from a type it does not know the shape of.
+  function itemById(type: ItemType, itemId: number): Record<string, unknown> | undefined {
+    const lists: Partial<Record<ItemType, { id: number }[]>> = {
+      todo: todos.value,
+      task: tasks.value,
+      deadline: deadlines.value,
+      finance: finances.value,
+      trip: trips.value,
+      reminder: reminders.value,
+      note: notes.value,
+    }
+    return lists[type]?.find((i) => i.id === itemId) as Record<string, unknown> | undefined
+  }
+  function updateItem(type: ItemType, itemId: number, field: string, value: unknown) {
+    if (type === 'todo') updateTodo(itemId, { [field]: value } as Partial<Todo>)
+    else if (type === 'task') updateTask(itemId, field as keyof Task, String(value))
+    else if (type === 'deadline') updateDeadline(itemId, { [field]: value } as Partial<Deadline>)
+    else if (type === 'finance')
+      updateFinance(itemId, {
+        [field]: field === 'amount' ? Number(value) || 0 : value,
+      } as Partial<Finance>)
+    else if (type === 'trip') updateTrip(itemId, { [field]: value } as Partial<Trip>)
+    else if (type === 'reminder') updateReminder(itemId, field as keyof Reminder, value)
+  }
+
+  function openTaskDialog(tid: number) {
+    openEdit('task', tid)
   }
   function openReminderDialog(rid: number) {
-    dialogReminderId.value = rid
+    openEdit('reminder', rid)
   }
-  function closeReminderDialog() {
-    if (dialogReminderId.value == null) return
+  function closeItemDialog() {
+    if (!itemDialog.value) return
     dialogClosing.value = true
     setTimeout(() => {
-      dialogReminderId.value = null
+      itemDialog.value = null
+      dialogDraft.value = {}
       dialogClosing.value = false
     }, 220)
+  }
+  function setDialogDraft(field: string, value: unknown) {
+    dialogDraft.value = { ...dialogDraft.value, [field]: value }
+  }
+  // Commits a create-mode dialog. Returns false and leaves the dialog open when
+  // the draft is incomplete, so a mistyped entry is not silently discarded.
+  function commitCreate(): boolean {
+    const state = itemDialog.value
+    if (!state || state.mode !== 'create') return false
+    const d = dialogDraft.value
+    const str = (k: string) => String(d[k] ?? '').trim()
+    const fail = (msg: string) => {
+      showToastMsg(msg)
+      return false
+    }
+
+    if (state.type === 'todo') {
+      if (!str('text')) return fail('Give the todo a title')
+      addTodo(str('text'), str('tag'), str('description'))
+    } else if (state.type === 'task') {
+      if (!str('title')) return fail('Give the task a title')
+      addTask(str('title'), str('tag'), {
+        deadline: str('deadline'),
+        notes: str('notes'),
+        repo: str('repo'),
+      })
+    } else if (state.type === 'deadline') {
+      if (!str('title')) return fail('Give the deadline a title')
+      if (!str('due')) return fail('Pick a due date')
+      addDeadline(str('title'), str('due'))
+    } else if (state.type === 'finance') {
+      const amount = parseFloat(str('amount'))
+      if (!amount || amount <= 0) return fail('Enter an amount above zero')
+      addFinance(str('amount'), str('category') || 'Other', str('note'), str('date'))
+    } else if (state.type === 'trip') {
+      if (!str('location')) return fail('Where is the trip to?')
+      if (!str('date')) return fail('Pick a trip date')
+      addTrip(str('location'), str('date'))
+    } else if (state.type === 'reminder') {
+      if (!str('title')) return fail('Give the reminder a title')
+      if (!str('start')) return fail('Pick a start date and time')
+      const repeatType = (str('repeatType') || 'none') as RepeatType
+      const repeat: Repeat =
+        repeatType === 'weekdays'
+          ? { type: 'weekdays', weekdays: ((d.weekdays as number[]) || []).slice() }
+          : { type: repeatType, n: Number(d.repeatN) || 1 }
+      if (repeat.type === 'weekdays' && !(repeat.weekdays || []).length)
+        return fail('Pick at least one weekday')
+      addReminder({
+        title: str('title'),
+        note: str('note'),
+        start: str('start'),
+        repeat,
+        priority: (str('priority') || 'normal') as Priority,
+        addToCalendar: d.addToCalendar === true,
+      })
+    } else {
+      return false
+    }
+
+    closeItemDialog()
+    return true
   }
   function openTaskView(tid: number) {
     try {
@@ -566,7 +913,7 @@ export const useAppStore = defineStore('app', () => {
       /* ignore */
     }
     taskViewId.value = tid
-    dialogTaskId.value = null
+    itemDialog.value = null
     dialogClosing.value = false
   }
   function closeTaskView() {
@@ -600,13 +947,17 @@ export const useAppStore = defineStore('app', () => {
       calSync: 'local',
       calEventId: null,
       lastFiredOcc: null,
+      ...stamps(),
     }
     reminders.value = [...reminders.value, created]
     requestNotifPermission()
     if (payload.addToCalendar) void syncCalendar(created.id)
+    return created.id
   }
   function updateReminder(rid: number, field: keyof Reminder, value: unknown) {
-    reminders.value = reminders.value.map((r) => (r.id === rid ? { ...r, [field]: value } : r))
+    reminders.value = reminders.value.map((r) =>
+      r.id === rid ? touched({ ...r, [field]: value }) : r,
+    )
   }
   function toggleWeekday(rid: number, day: number) {
     reminders.value = reminders.value.map((r) => {
@@ -720,8 +1071,11 @@ export const useAppStore = defineStore('app', () => {
         note: n.note,
         start: when,
         repeat: { type: 'none' },
+        priority: 'normal',
         calSync: 'local',
+        calEventId: null,
         lastFiredOcc: null,
+        ...stamps(),
       },
     ]
     activeNotif.value = null
@@ -745,6 +1099,7 @@ export const useAppStore = defineStore('app', () => {
       notes: notes.value,
       reminders: reminders.value,
       trips: trips.value,
+      tags: tags.value,
       security: security.value,
       themeSetting: themeSetting.value,
       approvedPRs: approvedPRs.value,
@@ -759,11 +1114,14 @@ export const useAppStore = defineStore('app', () => {
     notes.value = []
     reminders.value = []
     trips.value = []
+    tags.value = DEFAULT_TAGS.slice()
     approvedPRs.value = {}
     security.value = emptySecurity()
     themeSetting.value = 'auto'
     editing.value = { type: null, id: null }
     draft.value = {}
+    noteView.value = null
+    noteViewClosing.value = false
     nid = 100
     setTimeout(() => {
       hydrating = false
@@ -771,29 +1129,52 @@ export const useAppStore = defineStore('app', () => {
   }
   function applyData(data: Record<string, unknown>) {
     hydrating = true
+    // Items written before timestamps existed carry neither stamp. They are
+    // backfilled to 0 rather than Date.now(), so the UI reports them as
+    // "Unknown" instead of claiming every legacy item changed at hydrate time.
+    const stamped = <T extends Partial<Timestamped>>(list: unknown): T[] =>
+      Array.isArray(list)
+        ? (list as T[]).map((it) => ({
+            ...it,
+            createdAt: typeof it.createdAt === 'number' ? it.createdAt : 0,
+            updatedAt: typeof it.updatedAt === 'number' ? it.updatedAt : 0,
+          }))
+        : []
+
+    // Items written before status existed only carry `done`; derive the status
+    // from it so nothing loads as an unknown state.
+    const statused = <T extends { done?: boolean; status?: ItemStatus }>(it: T): T => ({
+      ...it,
+      status: isStatus(it.status) ? it.status : statusFromDone(it.done),
+      done: isStatus(it.status) ? it.status === 'done' : it.done === true,
+    })
+
     // Todos written before tag/description existed lack those fields; fill them
     // in on read so the rest of the app can treat them as required.
-    todos.value = Array.isArray(data.todos)
-      ? (data.todos as Todo[]).map((t) => ({
-          ...t,
-          tag: typeof t.tag === 'string' ? t.tag : '',
-          description: typeof t.description === 'string' ? t.description : '',
-        }))
-      : []
-    tasks.value = Array.isArray(data.tasks) ? (data.tasks as Task[]) : []
-    deadlines.value = Array.isArray(data.deadlines) ? (data.deadlines as Deadline[]) : []
-    finances.value = Array.isArray(data.finances) ? (data.finances as Finance[]) : []
-    notes.value = Array.isArray(data.notes) ? (data.notes as Note[]) : []
+    todos.value = stamped<Todo>(data.todos).map((t) => ({
+      ...statused(t),
+      tag: typeof t.tag === 'string' ? t.tag : '',
+      description: typeof t.description === 'string' ? t.description : '',
+    }))
+    tasks.value = stamped<Task>(data.tasks).map(statused)
+    deadlines.value = stamped<Deadline>(data.deadlines)
+    finances.value = stamped<Finance>(data.finances)
+    notes.value = stamped<Note>(data.notes)
     // Reminders written before priority/calEventId existed lack those fields;
     // fill them in on read so the rest of the app can treat them as required.
-    reminders.value = Array.isArray(data.reminders)
-      ? (data.reminders as Reminder[]).map((r) => ({
-          ...r,
-          priority: isPriority(r.priority) ? r.priority : 'normal',
-          calEventId: typeof r.calEventId === 'string' ? r.calEventId : null,
-        }))
-      : []
-    trips.value = Array.isArray(data.trips) ? (data.trips as Trip[]) : []
+    reminders.value = stamped<Reminder>(data.reminders).map((r) => ({
+      ...r,
+      priority: isPriority(r.priority) ? r.priority : 'normal',
+      calEventId: typeof r.calEventId === 'string' ? r.calEventId : null,
+    }))
+    trips.value = stamped<Trip>(data.trips)
+    // Workspaces written before tags existed have none stored. Rather than
+    // leaving the pickers empty, seed them from the tags already in use and
+    // fall back to the defaults for a workspace that has none of those either.
+    const stored = sanitizeTags(data.tags)
+    let vocab = stored.length ? stored : DEFAULT_TAGS.slice()
+    for (const item of [...todos.value, ...tasks.value]) vocab = withTag(vocab, item.tag || '')
+    tags.value = vocab
     approvedPRs.value =
       data.approvedPRs && typeof data.approvedPRs === 'object'
         ? (data.approvedPRs as Record<string, boolean>)
@@ -921,6 +1302,7 @@ export const useAppStore = defineStore('app', () => {
     notes,
     reminders,
     trips,
+    tags,
     security,
     themeSetting,
     cloudReady,
@@ -930,28 +1312,48 @@ export const useAppStore = defineStore('app', () => {
     draft,
     toast,
     burst,
-    dialogTaskId,
-    dialogReminderId,
+    itemDialog,
+    dialogDraft,
     dialogClosing,
     taskViewId,
+    noteView,
+    noteViewClosing,
+    openNote,
     githubCache,
     approvedPRs,
     draggingId,
+    draggingTodoId,
     activeNotif,
     notifPermission,
     sharedView,
     // actions
+    addTag,
+    removeTag,
+    registerTag,
     addTodo,
+    updateTodo,
     toggleTodo,
+    setTodoStatus,
+    cycleTodoStatus,
     addTask,
     toggleTask,
+    setTaskStatus,
+    cycleTaskStatus,
     updateTask,
     addDeadline,
+    updateDeadline,
     addFinance,
+    updateFinance,
     addTrip,
+    updateTrip,
     updateSecurity,
     startEdit,
     newNote,
+    openNoteView,
+    editNoteView,
+    saveNoteView,
+    closeNoteView,
+    setNoteText,
     cancelEdit,
     setDraft,
     saveEdit,
@@ -972,10 +1374,24 @@ export const useAppStore = defineStore('app', () => {
     setDragId,
     dropOnTask,
     dropOnGroup,
+    setTodoDragId,
+    endTodoDrag,
+    dropTodoOnDay,
+    dropTodoOnTodo,
+    openCreate,
+    openEdit,
+    closeItemDialog,
+    setDialogDraft,
+    commitCreate,
+    itemById,
+    updateItem,
+    dialogTaskId,
+    dialogReminderId,
     openTaskDialog,
-    closeDialog,
     openReminderDialog,
-    closeReminderDialog,
+    // The two named dialogs close the one shared slot.
+    closeDialog: closeItemDialog,
+    closeReminderDialog: closeItemDialog,
     openTaskView,
     closeTaskView,
     addReminder,

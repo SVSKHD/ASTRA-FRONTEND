@@ -3,8 +3,8 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
-import type { Task } from '@/types'
+import { pxify, statusColor } from '@/styles'
+import { STATUS_LABEL, type ItemStatus, type Task } from '@/types'
 
 const app = useAppStore()
 const { c, s } = useStyles()
@@ -20,8 +20,10 @@ const dueLabel = computed(() =>
       })
     : 'No due date',
 )
-const statusChip = computed(() =>
-  pxify({
+const status = computed<ItemStatus>(() => task.value?.status ?? 'pending')
+const statusChip = computed(() => {
+  const col = statusColor(c.value, status.value)
+  return pxify({
     alignSelf: 'flex-start',
     fontSize: 11,
     fontWeight: 700,
@@ -29,11 +31,11 @@ const statusChip = computed(() =>
     borderRadius: 999,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
-    background: task.value?.done ? c.value.accent : 'transparent',
-    color: task.value?.done ? c.value.onAccent : c.value.dim,
-    border: '1px solid ' + (task.value?.done ? c.value.accent : c.value.border),
-  }),
-)
+    background: status.value === 'done' ? col : 'transparent',
+    color: status.value === 'done' ? c.value.onAccent : col,
+    border: '1px solid ' + (status.value === 'pending' ? c.value.border : col),
+  })
+})
 </script>
 
 <template>
@@ -42,7 +44,7 @@ const statusChip = computed(() =>
     <div :style="s.taskViewPage">
       <button :style="s.taskViewBack" @click="app.closeTaskView()">← Back</button>
       <div v-if="task" :style="s.taskViewCard">
-        <span :style="statusChip">{{ task.done ? 'Done' : 'Open' }}</span>
+        <span :style="statusChip">{{ STATUS_LABEL[status] }}</span>
         <span :style="s.taskViewTitle">{{ task.title }}</span>
         <div :style="s.taskViewMeta">
           <div :style="s.taskViewMetaItem">

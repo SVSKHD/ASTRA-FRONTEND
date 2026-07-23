@@ -12,6 +12,7 @@ import { fetchShare, type ShareDoc, type ShareLoad } from '@/utils/shares'
 import { TYPE_BY_PLURAL } from '@/utils/share'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
 import { repFreqLabel } from '@/utils/reminders'
+import { STATUS_LABEL, isStatus, statusFromDone } from '@/types'
 import type { ItemType, Reminder } from '@/types'
 
 const props = defineProps<{ plural: string; shareId: string }>()
@@ -54,6 +55,12 @@ const heading = computed(() => {
   return 'Shared ' + share.value.type
 })
 
+// Shares captured before the three-state lifecycle only carry `done`.
+function sharedStatus(it: Record<string, unknown>): string {
+  const s = it.status
+  return STATUS_LABEL[isStatus(s) ? s : statusFromDone(it.done)]
+}
+
 // Per-type summary lines. Notes render their stored HTML instead.
 const lines = computed<string[]>(() => {
   const sv = share.value
@@ -64,11 +71,12 @@ const lines = computed<string[]>(() => {
     out.push(String(it.text ?? ''))
     if (it.description) out.push(String(it.description))
     if (it.tag) out.push('Tag: ' + it.tag)
-    out.push(it.done ? 'Done' : 'Not done')
+    out.push('Status: ' + sharedStatus(it))
   }
   if (sv.type === 'task') {
     out.push(String(it.title ?? ''))
     if (it.tag) out.push('Tag: ' + it.tag)
+    out.push('Status: ' + sharedStatus(it))
     if (it.deadline) out.push('Due: ' + it.deadline)
     if (it.repo) out.push('Repo: ' + it.repo)
     if (it.notes) out.push(String(it.notes))
@@ -116,6 +124,10 @@ const sharedReminder = computed<Reminder | null>(() => {
     calSync: 'local',
     calEventId: null,
     lastFiredOcc: null,
+    // A share is a frozen snapshot; it carries no stamps of its own, and the
+    // timeline does not read them. 0 is the "unknown" sentinel.
+    createdAt: Number(raw.createdAt ?? 0),
+    updatedAt: Number(raw.updatedAt ?? 0),
   }
 })
 const nowMs = Date.now()
