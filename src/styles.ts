@@ -75,6 +75,9 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     gap: 8,
     background: c.glass,
     backdropFilter: 'blur(24px) saturate(1.5)',
+    // iOS WebView (and older Safari) only honour the prefixed property, so a
+    // fixed bar without it renders as a clear pane the content shows through.
+    '-webkit-backdrop-filter': 'blur(24px) saturate(1.5)',
     border: B,
     color: c.text,
     cursor: 'pointer',
@@ -84,6 +87,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     ? {
         ...tickerBase,
         position: 'fixed',
+        // Sit below the notch: the frosted strip fills the status-bar area and
+        // its content is padded down past the inset so nothing hides under it.
         top: 0,
         left: 0,
         right: 0,
@@ -91,7 +96,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
         borderRadius: 0,
         justifyContent: 'flex-start',
         minHeight: 40,
-        padding: '8px 12px',
+        padding: 'calc(8px + env(safe-area-inset-top, 0px)) 12px 8px',
       }
     : {
         ...tickerBase,
@@ -114,7 +119,11 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       display: 'flex',
       alignItems: isMobile ? 'flex-start' : 'center',
       justifyContent: 'center',
-      padding: isMobile ? '106px 12px 116px' : '40px 16px',
+      // Reserve the fixed top bar + notch and the bottom nav + home indicator,
+      // so no content ever starts under the notch or hides behind the nav.
+      padding: isMobile
+        ? 'calc(106px + env(safe-area-inset-top, 0px)) 12px calc(116px + env(safe-area-inset-bottom, 0px))'
+        : '40px 16px',
     },
     stack: {
       position: 'relative',
@@ -190,7 +199,11 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     themeRowHover: { background: c.card },
     greetingRow: {
-      position: 'relative',
+      // On mobile the page scrolls, so the header sticks to the top (just below
+      // the notch) and frosts whatever scrolls under it, rather than sliding
+      // away and letting content collide with the status bar.
+      position: isMobile ? 'sticky' : 'relative',
+      top: isMobile ? 'env(safe-area-inset-top, 0px)' : 'auto',
       zIndex: 12,
       display: 'flex',
       alignItems: 'center',
@@ -203,7 +216,9 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       '-webkit-backdrop-filter': 'blur(20px) saturate(1.5)',
       border: B,
       boxShadow: c.shadow + ', inset 0 1px 0 rgba(255,255,255,0.14)',
-      ...bob(1.2, 6.4),
+      // The bob's transform would fight the sticky offset on mobile, so it only
+      // floats on desktop where the header is in normal flow.
+      ...(isMobile ? {} : bob(1.2, 6.4)),
     },
     greetingText: {
       fontSize: isMobile ? 13 : 14,
@@ -455,7 +470,9 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
           position: 'fixed',
           left: 12,
           right: 12,
-          bottom: 12,
+          // Lift the pill clear of the home indicator; on devices without one
+          // the inset is 0 and it stays at 12px as before.
+          bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
           zIndex: 8,
           background: c.glass,
           backdropFilter: 'blur(24px) saturate(1.5)',
@@ -463,6 +480,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
           borderRadius: 26,
           padding: 5,
           border: '1.5px solid ' + c.border,
+          // Same translucent frost as the header, with a hairline top edge.
           boxShadow: c.shadow + ', inset 0 1px 0 rgba(255,255,255,0.14)',
           overflow: 'hidden',
         }
@@ -574,8 +592,11 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       maxWidth: isMobile ? '100%' : 720,
       // A fixed height, not a minimum: every tab is the same size whatever it
       // holds, so switching tabs never resizes the card under the pointer. The
-      // list inside scrolls; the card does not grow.
-      height: isMobile ? 'min(560px, calc(100vh - 210px))' : 660,
+      // list inside scrolls; the card does not grow. The safe-area insets are
+      // subtracted so the card stays clear of the notch and the home indicator.
+      height: isMobile
+        ? 'min(560px, calc(100vh - 210px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)))'
+        : 660,
       display: 'flex',
       flexDirection: 'column',
       background: c.glass,
