@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -184,36 +184,36 @@ function onGroupDrop(e: DragEvent, g: Group) {
             <div v-else-if="day.visible(g).length === 0" :style="s.dayDropHint">
               {{ day.hiddenBy(g) }} hidden by the filter
             </div>
-          <div
-            v-for="t in day.visible(g)"
-            :key="t.id"
-            :style="rowStyle(t)"
-            v-hover-style="s.rowHover"
-            draggable="true"
-            @dragstart="onDragStart($event, t)"
-            @dragend="onDragEnd"
-            @dragover="onRowDragOver"
-            @drop="onRowDrop($event, t)"
-            @click="onRowClick(t)"
-            @dblclick="onRowDblClick(t)"
-          >
-            <span :style="s.grip"
-              ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-            ></span>
-            <div :style="s.taskMain">
-              <span :style="textStyle(t)">{{ t.title }}</span>
-              <div :style="s.chipRow">
-                <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-                <span v-if="t.repo" :style="repoChipStyle"
-                  ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
-                >
+            <div
+              v-for="t in day.visible(g)"
+              :key="t.id"
+              :style="rowStyle(t)"
+              v-hover-style="s.rowHover"
+              draggable="true"
+              @dragstart="onDragStart($event, t)"
+              @dragend="onDragEnd"
+              @dragover="onRowDragOver"
+              @drop="onRowDrop($event, t)"
+              @click="onRowClick(t)"
+              @dblclick="onRowDblClick(t)"
+            >
+              <span :style="s.grip"
+                ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+              ></span>
+              <div :style="s.taskMain">
+                <span :style="textStyle(t)">{{ t.title }}</span>
+                <div :style="s.chipRow">
+                  <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                  <span v-if="t.repo" :style="repoChipStyle"
+                    ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
+                  >
+                </div>
               </div>
-            </div>
-            <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-            <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
-            <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
-              ×
-            </button>
+              <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+              <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
+              <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
+                ×
+              </button>
             </div>
           </div>
         </div>

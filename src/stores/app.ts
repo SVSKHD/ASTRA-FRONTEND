@@ -34,11 +34,13 @@ import type {
   EditingState,
   Finance,
   GithubCacheEntry,
+  Idea,
   ItemDialogState,
   ItemStatus,
   ItemType,
   ListKey,
   Note,
+  Stock,
   Priority,
   PullRequest,
   Reminder,
@@ -80,6 +82,8 @@ export const useAppStore = defineStore('app', () => {
   const notes = ref<Note[]>([])
   const reminders = ref<Reminder[]>([])
   const trips = ref<Trip[]>([])
+  const ideas = ref<Idea[]>([])
+  const stocks = ref<Stock[]>([])
   // The shared tag vocabulary behind both pickers. Seeded for a new workspace;
   // a hydrate replaces it, and any tag typed anywhere joins it.
   const tags = ref<string[]>(DEFAULT_TAGS.slice())
@@ -146,6 +150,8 @@ export const useAppStore = defineStore('app', () => {
       ...notes.value.map((t) => t.id),
       ...reminders.value.map((t) => t.id),
       ...trips.value.map((t) => t.id),
+      ...ideas.value.map((t) => t.id),
+      ...stocks.value.map((t) => t.id),
     )
     if (maxId >= nid) nid = maxId + 1
   }
@@ -309,6 +315,78 @@ export const useAppStore = defineStore('app', () => {
     trips.value = trips.value.map((t) => (t.id === tid ? touched({ ...t, ...fields }) : t))
   }
 
+  // ---- Ideas --------------------------------------------------------------
+  function addIdea(title: string, tag: string, fields: Partial<Idea> = {}) {
+    const t = title.trim()
+    if (!t) return
+    ideas.value = [
+      ...ideas.value,
+      {
+        id: id(),
+        title: t,
+        description: '',
+        deadline: '',
+        ideaType: 'feature',
+        tag: registerTag(tag),
+        noteIds: [],
+        ...fields,
+        ...stamps(),
+      },
+    ]
+  }
+  function updateIdea(iid: number, fields: Partial<Idea>) {
+    const next =
+      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
+    ideas.value = ideas.value.map((i) => (i.id === iid ? touched({ ...i, ...next }) : i))
+  }
+
+  // ---- Stocks -------------------------------------------------------------
+  function addStock(symbol: string, tag: string, fields: Partial<Stock> = {}) {
+    const s = symbol.trim().toUpperCase()
+    if (!s) return
+    stocks.value = [
+      ...stocks.value,
+      {
+        id: id(),
+        symbol: s,
+        name: '',
+        why: '',
+        targetPrice: 0,
+        watchPrice: 0,
+        tag: registerTag(tag),
+        noteIds: [],
+        ...fields,
+        ...stamps(),
+      },
+    ]
+  }
+  function updateStock(sid: number, fields: Partial<Stock>) {
+    const next =
+      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
+    stocks.value = stocks.value.map((st) => (st.id === sid ? touched({ ...st, ...next }) : st))
+  }
+
+  // ---- Note attachment (ideas + stocks) -----------------------------------
+  // Notes are referenced by id, never copied. One note can hang off many items;
+  // detaching only drops the reference, the note itself lives on in the drawer.
+  function currentNoteIds(type: ItemType, itemId: number): number[] {
+    const list = type === 'idea' ? ideas.value : stocks.value
+    const found = list.find((i) => i.id === itemId)
+    return found ? found.noteIds.slice() : []
+  }
+  function attachNote(type: 'idea' | 'stock', itemId: number, noteId: number) {
+    const ids = currentNoteIds(type, itemId)
+    if (ids.includes(noteId)) return
+    const noteIds = [...ids, noteId]
+    if (type === 'idea') updateIdea(itemId, { noteIds })
+    else updateStock(itemId, { noteIds })
+  }
+  function detachNote(type: 'idea' | 'stock', itemId: number, noteId: number) {
+    const noteIds = currentNoteIds(type, itemId).filter((n) => n !== noteId)
+    if (type === 'idea') updateIdea(itemId, { noteIds })
+    else updateStock(itemId, { noteIds })
+  }
+
   // ---- Editing / drafts ---------------------------------------------------
   function startEdit<T extends { id: number | null }>(type: ItemType, item: T) {
     editing.value = { type, id: item.id }
@@ -418,6 +496,8 @@ export const useAppStore = defineStore('app', () => {
       set: (v) => (reminders.value = v as Reminder[]),
     }),
     trips: () => ({ get: () => trips.value, set: (v) => (trips.value = v as Trip[]) }),
+    ideas: () => ({ get: () => ideas.value, set: (v) => (ideas.value = v as Idea[]) }),
+    stocks: () => ({ get: () => stocks.value, set: (v) => (stocks.value = v as Stock[]) }),
   }
 
   function deleteWithUndo(listKey: ListKey, type: ItemType, itemId: number) {
@@ -439,7 +519,11 @@ export const useAppStore = defineStore('app', () => {
                 ? (item.title as string)
                 : type === 'trip'
                   ? (item.location as string)
-                  : (item.text as string)
+                  : type === 'idea'
+                    ? (item.title as string)
+                    : type === 'stock'
+                      ? (item.symbol as string)
+                      : (item.text as string)
     const short = label && label.length > 28 ? label.slice(0, 28) + '…' : label
     accessor.set(list.filter((x) => x.id !== itemId))
     // Deleting a reminder must also remove its Google Calendar event, otherwise
@@ -589,6 +673,36 @@ export const useAppStore = defineStore('app', () => {
           category: (it.category as string) || 'Other',
           note: (it.note as string) || '',
           date: rel(0),
+          ...stamps(),
+        },
+      ]
+    else if (sv.type === 'idea')
+      ideas.value = [
+        ...ideas.value,
+        {
+          id: nidNew,
+          title: (it.title as string) || 'Shared idea',
+          description: (it.description as string) || '',
+          deadline: (it.deadline as string) || '',
+          ideaType: (it.ideaType as string) || 'feature',
+          tag: (it.tag as string) || '',
+          // A shared snapshot cannot bring the owner's private notes with it.
+          noteIds: [],
+          ...stamps(),
+        },
+      ]
+    else if (sv.type === 'stock')
+      stocks.value = [
+        ...stocks.value,
+        {
+          id: nidNew,
+          symbol: (it.symbol as string) || 'SHARED',
+          name: (it.name as string) || '',
+          why: (it.why as string) || '',
+          targetPrice: (it.targetPrice as number) || 0,
+          watchPrice: (it.watchPrice as number) || 0,
+          tag: (it.tag as string) || '',
+          noteIds: [],
           ...stamps(),
         },
       ]
@@ -766,6 +880,18 @@ export const useAppStore = defineStore('app', () => {
     if (type === 'deadline') return { title: '', due: rel(0) }
     if (type === 'finance') return { amount: '', category: 'Food', note: '', date: rel(0) }
     if (type === 'trip') return { location: '', date: rel(0) }
+    if (type === 'idea')
+      return { title: '', description: '', deadline: '', ideaType: 'feature', tag: '', noteIds: [] }
+    if (type === 'stock')
+      return {
+        symbol: '',
+        name: '',
+        why: '',
+        targetPrice: '',
+        watchPrice: '',
+        tag: '',
+        noteIds: [],
+      }
     if (type === 'reminder')
       return {
         title: '',
@@ -814,6 +940,8 @@ export const useAppStore = defineStore('app', () => {
       trip: trips.value,
       reminder: reminders.value,
       note: notes.value,
+      idea: ideas.value,
+      stock: stocks.value,
     }
     return lists[type]?.find((i) => i.id === itemId) as Record<string, unknown> | undefined
   }
@@ -826,6 +954,11 @@ export const useAppStore = defineStore('app', () => {
         [field]: field === 'amount' ? Number(value) || 0 : value,
       } as Partial<Finance>)
     else if (type === 'trip') updateTrip(itemId, { [field]: value } as Partial<Trip>)
+    else if (type === 'idea') updateIdea(itemId, { [field]: value } as Partial<Idea>)
+    else if (type === 'stock')
+      updateStock(itemId, {
+        [field]: field === 'targetPrice' || field === 'watchPrice' ? Number(value) || 0 : value,
+      } as Partial<Stock>)
     else if (type === 'reminder') updateReminder(itemId, field as keyof Reminder, value)
   }
 
@@ -881,6 +1014,23 @@ export const useAppStore = defineStore('app', () => {
       if (!str('location')) return fail('Where is the trip to?')
       if (!str('date')) return fail('Pick a trip date')
       addTrip(str('location'), str('date'))
+    } else if (state.type === 'idea') {
+      if (!str('title')) return fail('Give the idea a title')
+      addIdea(str('title'), str('tag'), {
+        description: str('description'),
+        deadline: str('deadline'),
+        ideaType: str('ideaType') || 'feature',
+        noteIds: Array.isArray(d.noteIds) ? (d.noteIds as number[]) : [],
+      })
+    } else if (state.type === 'stock') {
+      if (!str('symbol')) return fail('Give the stock a symbol')
+      addStock(str('symbol'), str('tag'), {
+        name: str('name'),
+        why: str('why'),
+        targetPrice: parseFloat(str('targetPrice')) || 0,
+        watchPrice: parseFloat(str('watchPrice')) || 0,
+        noteIds: Array.isArray(d.noteIds) ? (d.noteIds as number[]) : [],
+      })
     } else if (state.type === 'reminder') {
       if (!str('title')) return fail('Give the reminder a title')
       if (!str('start')) return fail('Pick a start date and time')
@@ -1099,6 +1249,8 @@ export const useAppStore = defineStore('app', () => {
       notes: notes.value,
       reminders: reminders.value,
       trips: trips.value,
+      ideas: ideas.value,
+      stocks: stocks.value,
       tags: tags.value,
       security: security.value,
       themeSetting: themeSetting.value,
@@ -1114,6 +1266,8 @@ export const useAppStore = defineStore('app', () => {
     notes.value = []
     reminders.value = []
     trips.value = []
+    ideas.value = []
+    stocks.value = []
     tags.value = DEFAULT_TAGS.slice()
     approvedPRs.value = {}
     security.value = emptySecurity()
@@ -1168,12 +1322,32 @@ export const useAppStore = defineStore('app', () => {
       calEventId: typeof r.calEventId === 'string' ? r.calEventId : null,
     }))
     trips.value = stamped<Trip>(data.trips)
+    // Ideas/stocks are newer than the first release, so every legacy field is
+    // backfilled on read — including noteIds, which older items never had.
+    ideas.value = stamped<Idea>(data.ideas).map((i) => ({
+      ...i,
+      description: typeof i.description === 'string' ? i.description : '',
+      deadline: typeof i.deadline === 'string' ? i.deadline : '',
+      ideaType: typeof i.ideaType === 'string' && i.ideaType ? i.ideaType : 'feature',
+      tag: typeof i.tag === 'string' ? i.tag : '',
+      noteIds: Array.isArray(i.noteIds) ? i.noteIds.filter((n) => typeof n === 'number') : [],
+    }))
+    stocks.value = stamped<Stock>(data.stocks).map((st) => ({
+      ...st,
+      name: typeof st.name === 'string' ? st.name : '',
+      why: typeof st.why === 'string' ? st.why : '',
+      targetPrice: typeof st.targetPrice === 'number' ? st.targetPrice : 0,
+      watchPrice: typeof st.watchPrice === 'number' ? st.watchPrice : 0,
+      tag: typeof st.tag === 'string' ? st.tag : '',
+      noteIds: Array.isArray(st.noteIds) ? st.noteIds.filter((n) => typeof n === 'number') : [],
+    }))
     // Workspaces written before tags existed have none stored. Rather than
     // leaving the pickers empty, seed them from the tags already in use and
     // fall back to the defaults for a workspace that has none of those either.
     const stored = sanitizeTags(data.tags)
     let vocab = stored.length ? stored : DEFAULT_TAGS.slice()
-    for (const item of [...todos.value, ...tasks.value]) vocab = withTag(vocab, item.tag || '')
+    for (const item of [...todos.value, ...tasks.value, ...ideas.value, ...stocks.value])
+      vocab = withTag(vocab, item.tag || '')
     tags.value = vocab
     approvedPRs.value =
       data.approvedPRs && typeof data.approvedPRs === 'object'
@@ -1277,6 +1451,8 @@ export const useAppStore = defineStore('app', () => {
         notes,
         reminders,
         trips,
+        ideas,
+        stocks,
         security,
         themeSetting,
         approvedPRs,
@@ -1302,6 +1478,8 @@ export const useAppStore = defineStore('app', () => {
     notes,
     reminders,
     trips,
+    ideas,
+    stocks,
     tags,
     security,
     themeSetting,
@@ -1346,6 +1524,12 @@ export const useAppStore = defineStore('app', () => {
     updateFinance,
     addTrip,
     updateTrip,
+    addIdea,
+    updateIdea,
+    addStock,
+    updateStock,
+    attachNote,
+    detachNote,
     updateSecurity,
     startEdit,
     newNote,

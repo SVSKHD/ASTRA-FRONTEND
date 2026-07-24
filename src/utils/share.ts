@@ -30,6 +30,8 @@ export const PLURAL: Record<ItemType, string> = {
   finance: 'finances',
   note: 'notes',
   trip: 'trips',
+  idea: 'ideas',
+  stock: 'stocks',
 }
 
 // Reverse of PLURAL, for turning a route segment back into an item type.
@@ -69,7 +71,7 @@ export function parseSharedFromLocation(): SharedView | null {
   try {
     if (typeof location === 'undefined') return null
     const m = location.pathname.match(
-      /^\/(todos|tasks|deadlines|reminders|finances|notes|trips)\/([a-z0-9]+)$/i,
+      /^\/(todos|tasks|deadlines|reminders|finances|notes|trips|ideas|stocks)\/([a-z0-9]+)$/i,
     )
     if (!m) return null
     const d = new URLSearchParams(location.search).get('d')

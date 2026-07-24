@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, rowBase } from '@/styles'
+import { ymd } from '@/utils/dayGroups'
 import ListToolbar from '@/components/ListToolbar.vue'
 import type { Trip } from '@/types'
 
@@ -22,10 +23,10 @@ interface TripGroup {
 }
 
 function dayLabel(value: string) {
-  const today = localDateValue()
+  const today = ymd(new Date())
   const tomorrowDate = new Date()
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
-  const tomorrow = localDateValue(tomorrowDate)
+  const tomorrow = ymd(tomorrowDate)
   if (value === today) return 'Today'
   if (value === tomorrow) return 'Tomorrow'
   return new Date(value + 'T00:00:00').toLocaleDateString(undefined, {

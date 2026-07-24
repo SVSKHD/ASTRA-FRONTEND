@@ -3,6 +3,7 @@
 // and the tab views no longer have to carry an add-form at all.
 
 import type { ItemType } from '@/types'
+import { IDEA_TYPE_OPTIONS } from '@/types'
 
 export type FieldKind =
   | 'text'
@@ -14,6 +15,8 @@ export type FieldKind =
   | 'tag'
   | 'weekdays'
   | 'checkbox'
+  // A picker over existing notes; the value is a number[] of attached note ids.
+  | 'notes'
 
 export interface FieldDef {
   key: string
@@ -56,7 +59,12 @@ export const ITEM_FORMS: Record<ItemType, FormDef> = {
     editTitle: 'Edit todo',
     fields: [
       { key: 'text', label: 'Todo', kind: 'text', placeholder: 'What needs doing?' },
-      { key: 'description', label: 'Description', kind: 'textarea', placeholder: 'Optional detail' },
+      {
+        key: 'description',
+        label: 'Description',
+        kind: 'textarea',
+        placeholder: 'Optional detail',
+      },
       { key: 'tag', label: 'Tag', kind: 'tag' },
     ],
   },
@@ -133,6 +141,31 @@ export const ITEM_FORMS: Record<ItemType, FormDef> = {
       { key: 'addToCalendar', label: 'Add to Google Calendar', kind: 'checkbox' },
     ],
   },
+  idea: {
+    newTitle: 'New idea',
+    editTitle: 'Edit idea',
+    fields: [
+      { key: 'title', label: 'Idea', kind: 'text', placeholder: 'The idea in a line' },
+      { key: 'description', label: 'Description', kind: 'textarea', placeholder: 'Flesh it out' },
+      { key: 'deadline', label: 'Deadline', kind: 'date' },
+      { key: 'ideaType', label: 'Type', kind: 'select', options: IDEA_TYPE_OPTIONS },
+      { key: 'tag', label: 'Tag', kind: 'tag' },
+      { key: 'noteIds', label: 'Notes', kind: 'notes' },
+    ],
+  },
+  stock: {
+    newTitle: 'New stock',
+    editTitle: 'Edit stock',
+    fields: [
+      { key: 'symbol', label: 'Symbol', kind: 'text', placeholder: 'AAPL' },
+      { key: 'name', label: 'Name', kind: 'text', placeholder: 'Apple Inc.' },
+      { key: 'why', label: 'Why tracking', kind: 'textarea', placeholder: 'Thesis / catalysts' },
+      { key: 'targetPrice', label: 'Target price', kind: 'number', placeholder: '0.00', min: 0 },
+      { key: 'watchPrice', label: 'Watch price', kind: 'number', placeholder: '0.00', min: 0 },
+      { key: 'tag', label: 'Tag', kind: 'tag' },
+      { key: 'noteIds', label: 'Notes', kind: 'notes' },
+    ],
+  },
   // Notes are written in the drawer's rich-text editor, not a field form.
   note: { newTitle: 'New note', editTitle: 'Edit note', fields: [] },
 }
@@ -140,4 +173,4 @@ export const ITEM_FORMS: Record<ItemType, FormDef> = {
 // Which types the generic dialog owns end to end. Tasks and reminders have
 // their own edit dialogs (repo/CI panel, calendar sync), so the generic one
 // only creates those.
-export const GENERIC_EDIT: ItemType[] = ['todo', 'deadline', 'finance', 'trip']
+export const GENERIC_EDIT: ItemType[] = ['todo', 'deadline', 'finance', 'trip', 'idea', 'stock']

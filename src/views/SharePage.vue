@@ -102,6 +102,20 @@ const lines = computed<string[]>(() => {
     out.push(String(it.location ?? ''))
     if (it.date) out.push('On: ' + it.date)
   }
+  if (sv.type === 'idea') {
+    out.push(String(it.title ?? ''))
+    if (it.description) out.push(String(it.description))
+    if (it.ideaType) out.push('Type: ' + it.ideaType)
+    if (it.tag) out.push('Tag: ' + it.tag)
+    if (it.deadline) out.push('Deadline: ' + it.deadline)
+  }
+  if (sv.type === 'stock') {
+    out.push(String(it.symbol ?? '') + (it.name ? ' · ' + it.name : ''))
+    if (it.why) out.push(String(it.why))
+    if (it.targetPrice) out.push('Target: ' + it.targetPrice)
+    if (it.watchPrice) out.push('Watch: ' + it.watchPrice)
+    if (it.tag) out.push('Tag: ' + it.tag)
+  }
   return out.filter((line) => line !== '')
 })
 

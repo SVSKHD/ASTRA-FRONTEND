@@ -11,7 +11,17 @@ import {
 } from '@/utils/share'
 import type { ItemType } from '@/types'
 
-const ALL_TYPES: ItemType[] = ['todo', 'task', 'deadline', 'reminder', 'finance', 'note', 'trip']
+const ALL_TYPES: ItemType[] = [
+  'todo',
+  'task',
+  'deadline',
+  'reminder',
+  'finance',
+  'note',
+  'trip',
+  'idea',
+  'stock',
+]
 
 describe('encodeShare / decodeShare', () => {
   it('round-trips an item', () => {

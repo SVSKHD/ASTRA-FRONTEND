@@ -1,6 +1,7 @@
 // Domain types for Aureon.
 
-export type TabKey = 'todo' | 'tasks' | 'deadlines' | 'reminders' | 'finances' | 'trips'
+export type TabKey =
+  'todo' | 'tasks' | 'deadlines' | 'reminders' | 'finances' | 'trips' | 'ideas' | 'stocks'
 
 // Every stored item carries these. Items written before timestamps existed have
 // neither, so applyData() backfills them to 0 — which the formatter renders as
@@ -91,6 +92,40 @@ export interface Reminder extends Timestamped {
   lastFiredOcc: number | null
 }
 
+// Ideas carry an editable type. These are the suggested values; the store keeps
+// it a plain string so a typed-in type is preserved rather than dropped.
+export type IdeaType = 'app' | 'business' | 'content' | 'feature' | 'experiment'
+
+export const IDEA_TYPE_OPTIONS: { value: IdeaType; label: string }[] = [
+  { value: 'app', label: 'App' },
+  { value: 'business', label: 'Business' },
+  { value: 'content', label: 'Content' },
+  { value: 'feature', label: 'Feature' },
+  { value: 'experiment', label: 'Experiment' },
+]
+
+export interface Idea extends Timestamped {
+  id: number
+  title: string
+  description: string
+  deadline: string // YYYY-MM-DD, '' = none
+  ideaType: string // one of IdeaType, or a user-typed value
+  tag: string
+  // References into notes[] — a note is attached by id, never copied.
+  noteIds: number[]
+}
+
+export interface Stock extends Timestamped {
+  id: number
+  symbol: string
+  name: string
+  why: string // why-tracking notes
+  targetPrice: number
+  watchPrice: number
+  tag: string
+  noteIds: number[]
+}
+
 export type FinanceCategory = 'Food' | 'Transport' | 'Bills' | 'Fun' | 'Other'
 
 export interface Finance extends Timestamped {
@@ -120,8 +155,18 @@ export interface SecuritySettings {
   lockTimeoutMinutes: number
 }
 
-export type ListKey = 'todos' | 'tasks' | 'deadlines' | 'reminders' | 'finances' | 'notes' | 'trips'
-export type ItemType = 'todo' | 'task' | 'deadline' | 'reminder' | 'finance' | 'note' | 'trip'
+export type ListKey =
+  | 'todos'
+  | 'tasks'
+  | 'deadlines'
+  | 'reminders'
+  | 'finances'
+  | 'notes'
+  | 'trips'
+  | 'ideas'
+  | 'stocks'
+export type ItemType =
+  'todo' | 'task' | 'deadline' | 'reminder' | 'finance' | 'note' | 'trip' | 'idea' | 'stock'
 
 export interface EditingState {
   type: ItemType | null

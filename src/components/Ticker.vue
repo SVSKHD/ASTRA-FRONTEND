@@ -12,7 +12,7 @@ const ui = useUiStore()
 const app = useAppStore()
 const { dark, s } = useStyles()
 const { now } = storeToRefs(ui)
-const { deadlines, reminders } = storeToRefs(app)
+const { deadlines, reminders, ideas } = storeToRefs(app)
 
 interface Next {
   title: string
@@ -22,7 +22,14 @@ interface Next {
 }
 
 const nextD = computed<Next | null>(() => {
-  const withMs = deadlines.value.map((t) => ({
+  // Idea deadlines share the deadline ticker so a dated idea also surfaces here.
+  const ideaDeadlines = ideas.value
+    .filter((i) => i.deadline)
+    .map((i) => ({ title: i.title, due: i.deadline }))
+  const withMs = [
+    ...deadlines.value.map((t) => ({ title: t.title, due: t.due })),
+    ...ideaDeadlines,
+  ].map((t) => ({
     title: t.title,
     due: t.due,
     ms: new Date(t.due + 'T23:59:59').getTime() - now.value,
