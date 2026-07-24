@@ -35,8 +35,24 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // IDEAS: Must be owner
+    // IDEAS: Allow public read if shared, otherwise must be owner
     match /astra_ideas/{ideaId} {
+      allow read: if resource.data.isShared == true ||
+                  (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // STOCKS: Allow public read if shared, otherwise must be owner
+    match /astra_stocks/{stockId} {
+      allow read: if resource.data.isShared == true ||
+                  (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // TODOS: Must be owner
+    match /astra_todos/{todoId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
