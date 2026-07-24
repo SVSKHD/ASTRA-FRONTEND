@@ -164,6 +164,33 @@ export const subscribeToTasks = (
   );
 };
 
+// Subscribe to every task owned by a user (across all boards). Used by the
+// top bar for global pending counts and the next-deadline ticker.
+export const subscribeToUserTasks = (
+  userId: string,
+  callback: (tasks: Task[]) => void,
+  onError?: (error: any) => void,
+) => {
+  if (!userId) return () => {};
+  const q = query(
+    collection(db, TASKS_COLLECTION),
+    where("userId", "==", userId),
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const tasks = snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() }) as Task,
+      );
+      callback(tasks);
+    },
+    (error) => {
+      console.error("Error subscribing to user tasks:", error);
+      if (onError) onError(error);
+    },
+  );
+};
+
 export const addTask = async (
   boardId: string,
   content: string,

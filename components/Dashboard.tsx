@@ -1,37 +1,23 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence, PanInfo } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { tabsConfig } from "../config/dashboard-tabs";
-import {
-  Palette,
-  Lock,
-  User as UserIcon,
-  Coins,
-  DollarSign,
-  Euro,
-  IndianRupee,
-  LogOut,
-  Settings2,
-  ArrowRightLeft,
-} from "lucide-react";
-import GradientPicker from "./GradientPicker";
+import { X, Bell } from "lucide-react";
 import { GreetCard } from "./GreetCard";
 import { LoginDialog } from "./LoginDialog";
 import { CurrencyConverterDialog } from "./CurrencyConverterDialog";
+import { TopBar } from "./TopBar";
 import { auth } from "../utils/firebase";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { useUser } from "@/context/UserContext";
 import { useCurrency } from "../hooks/useCurrency";
-import useBreakpoints from "../hooks/useBreakpoints";
-import { Currency } from "@/context/CurrencyContext";
+import { useTabCounts } from "../hooks/useTabCounts";
 import { useDialogContext } from "@/context/DialogContext";
 import { QuickGlanceRibbon } from "./QuickGlanceRibbon";
-
 import { subscribeToReminders, Reminder } from "@/services/remindersService";
 import { handleGitHubCallback } from "@/services/githubService";
 import { useRouter, useSearchParams } from "next/navigation";
-import { X, Bell } from "lucide-react";
 
 interface DashboardProps {
   onLock: () => void;
@@ -50,7 +36,7 @@ const Toast = ({
     initial={{ opacity: 0, y: -50, x: "-50%" }}
     animate={{ opacity: 1, y: 0, x: "-50%" }}
     exit={{ opacity: 0, y: -50, x: "-50%" }}
-    className="fixed top-6 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-3 px-4 py-3 bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl min-w-[300px]"
+    className="fixed top-20 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-3 px-4 py-3 bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl min-w-[300px]"
   >
     <div className="p-2 rounded-full bg-yellow-500/20 text-yellow-400">
       <Bell size={18} />
@@ -75,12 +61,33 @@ export default function Dashboard({
 }: DashboardProps) {
   const [activeTabId, setActiveTabId] = useState(tabsConfig[0].id);
 
+  const { currency, setCurrency } = useCurrency();
+  const { user: appUser, loading } = useUser();
+  const { counts, nextDeadline } = useTabCounts();
+  const { isAnyDialogOpen } = useDialogContext();
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [processingAuth, setProcessingAuth] = useState(false);
+
+  const visibleTabs = tabsConfig.filter((tab) => {
+    if (!tab.allowedRoles) return true;
+    if (!appUser) return false;
+    return tab.allowedRoles.includes(appUser.role);
+  });
+
+  const handleTabChange = (id: string) => {
+    if (isAnyDialogOpen) return;
+    setActiveTabId(id);
+    localStorage.setItem("astra-active-tab", id);
+  };
+
+  // Restore last tab, and honour a ?tab= deep link, plus custom nav events.
   useEffect(() => {
     const saved = localStorage.getItem("astra-active-tab");
     if (saved && tabsConfig.find((t) => t.id === saved)) {
       setActiveTabId(saved);
     }
-
     const handleNavigation = (e: any) => {
       const id = e.detail;
       if (tabsConfig.some((t) => t.id === id)) {
@@ -88,32 +95,28 @@ export default function Dashboard({
         localStorage.setItem("astra-active-tab", id);
       }
     };
-
     window.addEventListener("navigate-tab", handleNavigation);
     return () => window.removeEventListener("navigate-tab", handleNavigation);
   }, []);
 
-  const { currency, setCurrency } = useCurrency();
-  const { user: appUser, loading } = useUser();
-  const { isMobile, isTablet, isDesktop } = useBreakpoints();
+  // Deep link: ?tab=<id> highlights the correct tab in the bar.
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && tabsConfig.some((t) => t.id === tabParam)) {
+      setActiveTabId(tabParam);
+      localStorage.setItem("astra-active-tab", tabParam);
+    }
+  }, [searchParams]);
 
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [processingAuth, setProcessingAuth] = useState(false);
-
-  // Handle GitHub OAuth Callback
+  // Handle GitHub OAuth callback.
   useEffect(() => {
     const token = searchParams.get("github_token");
     const error = searchParams.get("error");
-
     if (token) {
       setProcessingAuth(true);
       if (appUser) {
         handleGitHubCallback(token, appUser as any).then((success) => {
-          if (success) {
-            // Remove from URL
-            router.replace("/");
-          }
+          if (success) router.replace("/");
           setProcessingAuth(false);
         });
       }
@@ -123,64 +126,7 @@ export default function Dashboard({
     }
   }, [searchParams, appUser, router]);
 
-  const showDesktopTabs = !isMobile;
-  const showCurrencyLabel = !isMobile;
-
-  const visibleTabs = tabsConfig.filter((tab) => {
-    if (!tab.allowedRoles) return true;
-    if (!appUser) return false;
-    return tab.allowedRoles.includes(appUser.role);
-  });
-
-  const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (containerRef.current) {
-      const activeEl = tabRefs.current[`mobile-${activeTabId}`];
-      if (activeEl) {
-        const container = containerRef.current;
-        const scrollLeft =
-          activeEl.offsetLeft -
-          container.clientWidth / 2 +
-          activeEl.clientWidth / 2;
-        container.scrollTo({ left: scrollLeft, behavior: "smooth" });
-      }
-    }
-  }, [activeTabId]);
-
-  const handleDragEnd = (
-    event: MouseEvent | TouchEvent | PointerEvent,
-    info: PanInfo,
-  ) => {
-    const { point } = info;
-
-    for (const tab of visibleTabs) {
-      // Check both desktop and mobile refs
-      const keys = [`desktop-${tab.id}`, `mobile-${tab.id}`];
-
-      for (const key of keys) {
-        const element = tabRefs.current[key];
-        if (element) {
-          const rect = element.getBoundingClientRect();
-          if (rect.width === 0 || rect.height === 0) continue;
-
-          if (
-            point.x >= rect.left &&
-            point.x <= rect.right &&
-            point.y >= rect.top &&
-            point.y <= rect.bottom
-          ) {
-            if (tab.id !== activeTabId) {
-              handleTabChange(tab.id);
-            }
-            return; // Found a match, exit
-          }
-        }
-      }
-    }
-  };
-
+  // Fall back to a visible tab if the active one is no longer permitted.
   useEffect(() => {
     if (loading) return;
     const isVisible = visibleTabs.find((t) => t.id === activeTabId);
@@ -189,119 +135,45 @@ export default function Dashboard({
     }
   }, [appUser, activeTabId, visibleTabs, loading]);
 
+  // Keyboard navigation: arrows + number keys.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't interfere if user is typing in an input
-      if (
-        document.activeElement?.tagName === "INPUT" ||
-        document.activeElement?.tagName === "TEXTAREA"
-      ) {
-        return;
-      }
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (isAnyDialogOpen) return;
 
+      const currentIndex = visibleTabs.findIndex((t) => t.id === activeTabId);
       if (e.key === "ArrowRight") {
-        const currentIndex = visibleTabs.findIndex((t) => t.id === activeTabId);
-        const nextIndex = (currentIndex + 1) % visibleTabs.length;
-        handleTabChange(visibleTabs[nextIndex].id);
+        const next = (currentIndex + 1) % visibleTabs.length;
+        handleTabChange(visibleTabs[next].id);
       } else if (e.key === "ArrowLeft") {
-        const currentIndex = visibleTabs.findIndex((t) => t.id === activeTabId);
-        const prevIndex =
+        const prev =
           (currentIndex - 1 + visibleTabs.length) % visibleTabs.length;
-        handleTabChange(visibleTabs[prevIndex].id);
+        handleTabChange(visibleTabs[prev].id);
+      } else if (/^[1-9]$/.test(e.key)) {
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx < visibleTabs.length) handleTabChange(visibleTabs[idx].id);
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeTabId, visibleTabs]);
+  }, [activeTabId, visibleTabs, isAnyDialogOpen]);
 
-  // Check for open dialogs
-  const { isAnyDialogOpen } = useDialogContext();
-
-  const handleTabChange = (id: string) => {
-    if (isAnyDialogOpen) return;
-
-    setActiveTabId(id);
-    localStorage.setItem("astra-active-tab", id);
-
-    // Scroll active tab into view for mobile
-    setTimeout(() => {
-      const mobileEl = tabRefs.current[`mobile-${id}`];
-      if (mobileEl) {
-        mobileEl.scrollIntoView({
-          behavior: "smooth",
-          block: "nearest",
-          inline: "center",
-        });
-      }
-    }, 100);
-  };
-
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
-  const [showToolsMenu, setShowToolsMenu] = useState(false);
-  const [showConverter, setShowConverter] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(3000);
-  const [isActiveMode, setIsActiveMode] = useState(false);
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  // Firebase auth user (for reminders + login dialog).
   const [user, setUser] = useState<User | null>(null);
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) =>
+      setUser(currentUser),
+    );
     return () => unsubscribe();
   }, []);
 
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [activeReminder, setActiveReminder] = useState<Reminder | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const alertedReminders = useRef<Set<string>>(new Set());
-
-  // Subscribe to reminders
-  useEffect(() => {
-    if (!user?.uid) return;
-    const unsubscribe = subscribeToReminders(user.uid, (data) => {
-      setReminders(data);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  // Check for due reminders
-  useEffect(() => {
-    const checkReminders = () => {
-      const now = new Date();
-      reminders.forEach((reminder) => {
-        if (reminder.isCompleted || alertedReminders.current.has(reminder.id))
-          return;
-
-        const reminderDate = reminder.dateTime.toDate
-          ? reminder.dateTime.toDate()
-          : new Date(reminder.dateTime);
-        const timeDiff = reminderDate.getTime() - now.getTime();
-
-        // If time matched (within last minute tolerance)
-        if (timeDiff <= 0 && timeDiff > -60000) {
-          setActiveReminder(reminder);
-          setToastMessage(reminder.title);
-          alertedReminders.current.add(reminder.id);
-
-          // Clear active status after 1 minute
-          setTimeout(() => {
-            setActiveReminder((prev) =>
-              prev?.id === reminder.id ? null : prev,
-            );
-          }, 60000);
-
-          // Auto hide toast
-          setTimeout(() => setToastMessage(null), 5000);
-        }
-      });
-    };
-
-    const interval = setInterval(checkReminders, 10000); // Check every 10 seconds
-    return () => clearInterval(interval);
-  }, [reminders]);
+  // Auto-lock timer + focus mode.
+  const [timeLeft, setTimeLeft] = useState(3000);
+  const [isActiveMode, setIsActiveMode] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [showConverter, setShowConverter] = useState(false);
+  const [elevated, setElevated] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("astra-active-mode");
@@ -323,7 +195,6 @@ export default function Dashboard({
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-
     if (!isActiveMode && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft((prev) => {
@@ -337,15 +208,49 @@ export default function Dashboard({
     } else if (isActiveMode) {
       setTimeLeft(3000);
     }
-
     return () => clearInterval(interval);
   }, [isActiveMode, timeLeft, onLock]);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  // Reminders subscription + due-time toast.
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [activeReminder, setActiveReminder] = useState<Reminder | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const alertedReminders = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const unsubscribe = subscribeToReminders(user.uid, (data) =>
+      setReminders(data),
+    );
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = new Date();
+      reminders.forEach((reminder) => {
+        if (reminder.isCompleted || alertedReminders.current.has(reminder.id))
+          return;
+        const reminderDate = reminder.dateTime.toDate
+          ? reminder.dateTime.toDate()
+          : new Date(reminder.dateTime);
+        const timeDiff = reminderDate.getTime() - now.getTime();
+        if (timeDiff <= 0 && timeDiff > -60000) {
+          setActiveReminder(reminder);
+          setToastMessage(reminder.title);
+          alertedReminders.current.add(reminder.id);
+          setTimeout(() => {
+            setActiveReminder((prev) =>
+              prev?.id === reminder.id ? null : prev,
+            );
+          }, 60000);
+          setTimeout(() => setToastMessage(null), 5000);
+        }
+      });
+    };
+    const interval = setInterval(checkReminders, 10000);
+    return () => clearInterval(interval);
+  }, [reminders]);
 
   const activeTab =
     visibleTabs.find((tab) => tab.id === activeTabId) || visibleTabs[0];
@@ -355,13 +260,13 @@ export default function Dashboard({
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
         <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
         <span className="text-white/40 font-medium tracking-[0.2em] text-sm animate-pulse">
-          {processingAuth ? "CONNECTING TO GITHUB..." : "ASTRA TRADING"}
+          {processingAuth ? "CONNECTING TO GITHUB..." : "AUREON"}
         </span>
       </div>
     );
   }
 
-  if (!activeTab) return null; // Or loading state
+  if (!activeTab) return null;
 
   return (
     <div className="min-h-screen text-white relative overflow-hidden font-sans">
@@ -374,376 +279,32 @@ export default function Dashboard({
         <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-orange-600/10 rounded-full blur-[100px]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-7xl mx-auto h-screen block">
-        {/* Auto-Lock Timer Widget */}
-        <div className="hidden md:flex fixed bottom-2 right-6 z-[60] flex-col items-end gap-2">
-          <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 shadow-lg">
-            <div
-              className={`text-sm font-mono font-medium ${timeLeft < 60 ? "text-red-400 animate-pulse" : "text-white/80"}`}
-            >
-              {formatTime(timeLeft)}
-            </div>
-            <div className="h-4 w-[1px] bg-white/10" />
-            <label className="flex items-center gap-2 cursor-pointer select-none group">
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={isActiveMode}
-                  onChange={(e) => handleActiveModeChange(e.target.checked)}
-                  className="peer sr-only"
-                />
-                <div className="w-4 h-4 rounded border border-white/30 peer-checked:bg-blue-500 peer-checked:border-blue-500 transition-all" />
-                <svg
-                  className="absolute inset-0 w-4 h-4 text-white opacity-0 peer-checked:opacity-100 pointer-events-none"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span className="text-xs text-white/60 group-hover:text-white/90 transition-colors">
-                I am using it now
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <header className="fixed top-6 left-1/2 -translate-x-1/2 z-[120] flex items-center gap-2 md:gap-3 lg:gap-4 px-2 py-1 md:py-2 lg:pl-3 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl transition-all duration-300 max-w-[calc(100vw-32px)]">
-          {/* User Login Button (Moved Left) */}
-          <button
-            onClick={() => setIsLoginOpen(true)}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5 flex items-center justify-center transition-all overflow-hidden flex-shrink-0"
-            title={appUser ? "Account" : "Sign In"}
-          >
-            {appUser?.avatarUrl ? (
-              <img
-                src={appUser.avatarUrl}
-                alt={appUser.username || "User"}
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <UserIcon size={14} />
-            )}
-          </button>
-
-          {/* Divider */}
-          <div className="h-4 w-[1px] bg-white/10" />
-
-          {/* Tools Menu */}
-          <div className="relative group z-[140] flex-shrink-0">
-            <button
-              onClick={() => setShowToolsMenu(!showToolsMenu)}
-              className={`w-8 h-8 rounded-full border transition-all flex items-center justify-center flex-shrink-0 ${
-                showToolsMenu
-                  ? "bg-white/20 border-white/20 text-white"
-                  : "bg-white/5 border-white/5 text-white/70 hover:bg-white/10"
-              }`}
-            >
-              <Settings2 size={14} />
-            </button>
-
-            <AnimatePresence>
-              {showToolsMenu && (
-                <>
-                  {/* Currency Button */}
-                  <motion.div
-                    initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
-                    animate={{ x: -45, y: 50, scale: 1, opacity: 1 }}
-                    exit={{ x: 0, y: 0, scale: 0, opacity: 0 }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 300,
-                      damping: 20,
-                      delay: 0.05,
-                    }}
-                    className="absolute top-0 left-0"
-                  >
-                    <button
-                      onClick={() => setShowCurrencyPicker(!showCurrencyPicker)}
-                      className="w-10 h-10 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white shadow-lg hover:bg-white/10 transition-colors"
-                    >
-                      {currency === "USD" ? (
-                        <DollarSign size={16} />
-                      ) : currency === "EUR" ? (
-                        <Euro size={16} />
-                      ) : (
-                        <IndianRupee size={16} />
-                      )}
-                    </button>
-                    <AnimatePresence>
-                      {showCurrencyPicker && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 10, scale: 0.9 }}
-                          className="absolute top-12 left-1/2 -translate-x-1/2 bg-black/90 border border-white/10 rounded-xl p-1 z-[150] shadow-xl flex flex-col gap-1 min-w-[100px]"
-                        >
-                          {(["USD", "EUR", "INR"] as Currency[]).map((c) => {
-                            const Icon =
-                              c === "USD"
-                                ? DollarSign
-                                : c === "EUR"
-                                  ? Euro
-                                  : IndianRupee;
-                            const isActive = currency === c;
-                            return (
-                              <button
-                                key={c}
-                                onClick={() => {
-                                  setCurrency(c);
-                                  setShowCurrencyPicker(false);
-                                }}
-                                className={`px-3 py-2 rounded-lg text-xs font-medium text-left transition-all flex items-center gap-3 ${
-                                  isActive
-                                    ? "bg-white/15 text-white"
-                                    : "text-white/60 hover:bg-white/10 hover:text-white"
-                                }`}
-                              >
-                                <Icon size={12} />
-                                <span className="flex-1">{c}</span>
-                                {isActive && (
-                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                )}
-                              </button>
-                            );
-                          })}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-
-                  {/* Color Button */}
-                  <motion.div
-                    initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
-                    animate={{ x: 0, y: 60, scale: 1, opacity: 1 }}
-                    exit={{ x: 0, y: 0, scale: 0, opacity: 0 }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 300,
-                      damping: 20,
-                      delay: 0.1,
-                    }}
-                    className="absolute top-0 left-0"
-                  >
-                    <button
-                      onClick={() => setShowColorPicker(!showColorPicker)}
-                      className="w-10 h-10 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white shadow-lg hover:bg-white/10 transition-colors"
-                    >
-                      <Palette size={16} />
-                    </button>
-                    {showColorPicker && (
-                      <div className="absolute top-12 left-[-60px] z-[150]">
-                        <GradientPicker
-                          initialBackground={background}
-                          onChange={onThemeChange}
-                          onClose={() => setShowColorPicker(false)}
-                        />
-                      </div>
-                    )}
-                  </motion.div>
-
-                  {/* Converter Button */}
-                  <motion.div
-                    initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
-                    animate={{ x: 45, y: 50, scale: 1, opacity: 1 }}
-                    exit={{ x: 0, y: 0, scale: 0, opacity: 0 }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 300,
-                      damping: 20,
-                      delay: 0.15,
-                    }}
-                    className="absolute top-0 left-0"
-                  >
-                    <button
-                      onClick={() => {
-                        setShowConverter(true);
-                        setShowToolsMenu(false);
-                      }}
-                      className="w-10 h-10 rounded-full bg-black/80 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white shadow-lg hover:bg-white/10 transition-colors"
-                    >
-                      <ArrowRightLeft size={16} />
-                    </button>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Separator */}
-          {showDesktopTabs && (
-            <div className="h-4 w-[1px] bg-white/10 hidden md:block" />
-          )}
-
-          {/* Tab Bar - Desktop */}
-          {showDesktopTabs && (
-            <div className="hidden md:flex items-center gap-1 overflow-x-auto no-scrollbar min-w-0 overscroll-contain">
-              {visibleTabs.map((tab) => {
-                const isActive = activeTabId === tab.id;
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    ref={(el) => {
-                      tabRefs.current[`desktop-${tab.id}`] = el;
-                    }}
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`relative px-4 py-1.5 rounded-full text-xs font-medium transition-colors duration-300 flex items-center gap-2 outline-none ${
-                      isActive
-                        ? "text-white"
-                        : "text-white/50 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="active-tab-indicator"
-                        className="absolute inset-0 bg-white/15 rounded-full ring-1 ring-white/5 shadow-sm"
-                        drag="x"
-                        dragSnapToOrigin
-                        onDragEnd={handleDragEnd}
-                        whileDrag={{ cursor: "grabbing" }}
-                        style={{ cursor: "grab" }}
-                      />
-                    )}
-                    <span className="relative z-10 flex items-center gap-2 pointer-events-none">
-                      <Icon size={14} />
-                      {tab.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Separator */}
-          {showDesktopTabs && (
-            <div className="h-4 w-[1px] bg-white/10 hidden lg:block" />
-          )}
-
-          {/* Lock Button */}
-          <button
-            onClick={onLock}
-            className="w-8 h-8 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/10 flex items-center justify-center transition-colors group flex-shrink-0"
-            title="Lock Screen"
-          >
-            <Lock
-              size={14}
-              className="group-hover:text-red-300 transition-colors"
-            />
-          </button>
-
-          {/* Logout Button */}
-          <button
-            onClick={handleLogout}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/40 hover:text-white border border-white/5 flex items-center justify-center transition-colors group flex-shrink-0"
-            title="Sign Out"
-          >
-            <LogOut
-              size={14}
-              className="group-hover:text-white transition-colors"
-            />
-          </button>
-        </header>
-
-        <div className="md:hidden fixed bottom-6 left-0 w-full z-40 pointer-events-none flex justify-center">
-          <motion.div
-            ref={containerRef}
-            className="flex items-center gap-2 overflow-x-auto bg-black/60 backdrop-blur-xl p-1.5 rounded-full border border-white/10 pointer-events-auto shadow-2xl no-scrollbar touch-pan-x max-w-[calc(100vw-32px)]"
-          >
-            {visibleTabs.map((tab) => {
-              const isActive = activeTabId === tab.id;
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  ref={(el) => {
-                    tabRefs.current[`mobile-${tab.id}`] = el;
-                  }}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`relative flex-shrink-0 h-10 rounded-full flex items-center justify-center gap-2 transition-all duration-300 outline-none ${
-                    isActive ? "px-4 bg-white/10" : "px-3 w-10"
-                  }`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="mobile-tab-highlight"
-                      className="absolute inset-0 bg-white/10 rounded-full"
-                      transition={{
-                        type: "spring",
-                        bounce: 0.2,
-                        duration: 0.6,
-                      }}
-                    />
-                  )}
-                  <Icon
-                    size={18}
-                    className={`relative z-10 pointer-events-none flex-shrink-0 ${
-                      isActive ? "text-white" : "text-white/50"
-                    }`}
-                  />
-                  <AnimatePresence mode="wait">
-                    {isActive && (
-                      <motion.span
-                        initial={{ opacity: 0, width: 0 }}
-                        animate={{ opacity: 1, width: "auto" }}
-                        exit={{ opacity: 0, width: 0 }}
-                        className="relative z-10 text-[12px] font-medium pointer-events-none text-white whitespace-nowrap overflow-hidden"
-                      >
-                        {tab.label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </button>
-              );
-            })}
-
-            {/* Mobile Timer Integration */}
-            <div className="h-6 w-[1px] bg-white/10 mx-1 flex-shrink-0" />
-
-            <div className="flex items-center gap-2 px-2 flex-shrink-0">
-              <div
-                className={`text-xs font-mono font-medium ${timeLeft < 60 ? "text-red-400 animate-pulse" : "text-white/60"}`}
-              >
-                {formatTime(timeLeft)}
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer select-none group">
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={isActiveMode}
-                    onChange={(e) => handleActiveModeChange(e.target.checked)}
-                    className="peer sr-only"
-                  />
-                  <div className="w-3.5 h-3.5 rounded border border-white/30 peer-checked:bg-blue-500 peer-checked:border-blue-500 transition-all" />
-                  <svg
-                    className="absolute inset-0 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-              </label>
-            </div>
-          </motion.div>
-        </div>
+      <div className="relative z-10 h-screen">
+        <TopBar
+          tabs={visibleTabs}
+          activeTabId={activeTabId}
+          onTabChange={handleTabChange}
+          counts={counts}
+          nextDeadline={nextDeadline}
+          background={background}
+          onThemeChange={onThemeChange}
+          appUser={appUser}
+          currency={currency}
+          setCurrency={setCurrency}
+          onOpenLogin={() => setIsLoginOpen(true)}
+          onOpenConverter={() => setShowConverter(true)}
+          onLock={onLock}
+          onLogout={handleLogout}
+          isActiveMode={isActiveMode}
+          onActiveModeChange={handleActiveModeChange}
+          timeLeft={timeLeft}
+          elevated={elevated}
+        />
 
         {/* Scrollable Content Area */}
         <main
-          className="w-full h-full overflow-y-auto pt-24 md:pt-32 pb-6 px-4 md:px-8 no-scrollbar mask-gradient-top"
-          style={{
-            maskImage:
-              "linear-gradient(to bottom, transparent 0%, black 15%, black 100%)",
-          }}
+          onScroll={(e) => setElevated(e.currentTarget.scrollTop > 8)}
+          className="w-full h-full overflow-y-auto pt-20 md:pt-24 pb-10 px-4 md:px-8 max-w-7xl mx-auto no-scrollbar"
         >
           <GreetCard
             pageTitle={activeTab.label}
@@ -753,10 +314,7 @@ export default function Dashboard({
 
           <QuickGlanceRibbon
             onTabSelect={(id) => {
-              if (visibleTabs.some((t) => t.id === id)) {
-                setActiveTabId(id);
-                localStorage.setItem("astra-active-tab", id);
-              }
+              if (visibleTabs.some((t) => t.id === id)) handleTabChange(id);
             }}
             allowedRoles={appUser?.role ? [appUser.role] : []}
           />
@@ -769,12 +327,13 @@ export default function Dashboard({
               />
             )}
           </AnimatePresence>
+
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab.id}
-              initial={{ opacity: 0, y: 10, scale: 0.99 }}
+              initial={{ opacity: 0, y: 12, scale: 0.99 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.99 }}
+              exit={{ opacity: 0, y: -12, scale: 0.99 }}
               transition={{ duration: 0.3 }}
             >
               {activeTab.component}
