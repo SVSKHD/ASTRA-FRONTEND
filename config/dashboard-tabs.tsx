@@ -20,6 +20,8 @@ import {
   Github,
   BookOpen,
   Lightbulb,
+  TrendingUp,
+  ListTodo,
 } from "lucide-react";
 import { IndianView } from "@/components/views/Indian";
 import { CryptoView } from "@/components/views/CryptoView";
@@ -31,6 +33,8 @@ import { RequestAccessView } from "@/components/views/RequestAccessView";
 import { GithubReposView } from "@/components/views/GithubReposView";
 import { JournalView } from "@/components/views/JournalView";
 import { IdeaView } from "@/components/views/IdeaView";
+import { StocksView } from "@/components/views/StocksView";
+import { TodosView } from "@/components/views/TodosView";
 
 export interface TabConfig {
   id: string;
@@ -87,6 +91,13 @@ export const tabsConfig: TabConfig[] = [
     icon: Notebook,
     component: <NotesView />,
     allowedRoles: ["admin"],
+  },
+  {
+    id: "todos",
+    label: "Todos",
+    caption: "Date-wise, drag to reschedule",
+    icon: ListTodo,
+    component: <TodosView />,
   },
   {
     id: "tasks",
@@ -154,5 +165,12 @@ export const tabsConfig: TabConfig[] = [
     caption: "Brainstorming and timeline",
     icon: Lightbulb,
     component: <IdeaView />,
+  },
+  {
+    id: "stocks",
+    label: "Stocks",
+    caption: "Your watchlist and theses",
+    icon: TrendingUp,
+    component: <StocksView />,
   },
 ];

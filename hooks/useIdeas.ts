@@ -28,15 +28,22 @@ export const useIdeas = () => {
     }
   }, [user?.id]);
 
-  const createIdea = async (idea: Pick<Idea, "title" | "description">) => {
+  const createIdea = async (
+    idea: Pick<Idea, "title" | "description"> &
+      Partial<Pick<Idea, "deadline" | "ideaType" | "tags">>,
+  ) => {
     if (!user?.id) return false;
 
     try {
       const newIdea = {
-        ...idea,
         userId: user.id,
         noteIds: [],
         timeline: [],
+        deadline: idea.deadline ?? null,
+        ideaType: idea.ideaType ?? "",
+        tags: idea.tags ?? [],
+        title: idea.title,
+        description: idea.description,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };

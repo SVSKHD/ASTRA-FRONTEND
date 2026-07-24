@@ -47,6 +47,9 @@ export interface Task {
   column: ColumnType;
   userId: string;
   createdAt: any;
+  updatedAt?: any;
+  completedAt?: any | null;
+  order?: number;
   githubRepo?: string;
   githubBranch?: string;
   githubPath?: string;
@@ -215,7 +218,10 @@ export const createTask = async (
     githubRepo: taskData.githubRepo ?? null,
     githubBranch: taskData.githubBranch ?? null,
     githubPath: taskData.githubPath ?? null,
+    order: taskData.order ?? -Date.now(),
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    completedAt: null,
   });
 };
 
@@ -227,14 +233,45 @@ export const updateTask = async (taskId: string, updates: Partial<Task>) => {
   // Actually, we should probably exclude id from the payload.
   const { id, ...data } = updates as any;
   const sanitizedData = cleanData(data);
+  sanitizedData.updatedAt = serverTimestamp();
+  // Stamp/clear completion time when the column transitions.
+  if (data.column === "Done" || data.column === "Finished") {
+    sanitizedData.completedAt = serverTimestamp();
+  } else if (data.column !== undefined) {
+    sanitizedData.completedAt = null;
+  }
   await updateDoc(taskRef, sanitizedData);
 };
 
 export const moveTask = async (taskId: string, newColumn: ColumnType) => {
   const taskRef = doc(db, TASKS_COLLECTION, taskId);
+  const isDone = newColumn === "Done" || newColumn === "Finished";
   await updateDoc(taskRef, {
     column: newColumn,
+    updatedAt: serverTimestamp(),
+    completedAt: isDone ? serverTimestamp() : null,
   });
+};
+
+// Persist a new ordering across a set of task ids (batched).
+export const reorderTasks = async (orderedIds: string[]) => {
+  const batch = writeBatch(db);
+  orderedIds.forEach((id, index) => {
+    batch.update(doc(db, TASKS_COLLECTION, id), {
+      order: index,
+      updatedAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+};
+
+// Update a task's deadline (used by the date-accordion view).
+export const setTaskDeadline = async (
+  taskId: string,
+  deadline: number | null,
+) => {
+  const taskRef = doc(db, TASKS_COLLECTION, taskId);
+  await updateDoc(taskRef, { deadline, updatedAt: serverTimestamp() });
 };
 
 export const deleteTask = async (taskId: string, boardId?: string) => {

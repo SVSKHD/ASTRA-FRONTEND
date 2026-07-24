@@ -17,6 +17,15 @@ export interface TimelineEvent {
   date: number;
 }
 
+// Suggested idea types; the dropdown is editable so any string is valid.
+export const IDEA_TYPES = [
+  "App",
+  "Business",
+  "Content",
+  "Feature",
+  "Experiment",
+] as const;
+
 export interface Idea {
   id: string;
   userId: string;
@@ -24,6 +33,9 @@ export interface Idea {
   description: string;
   noteIds: string[];
   timeline: TimelineEvent[];
+  deadline?: number | null;
+  ideaType?: string;
+  tags?: string[];
   createdAt: number;
   updatedAt: number;
   isShared?: boolean;

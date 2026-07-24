@@ -55,12 +55,17 @@ import {
   deleteTask as firebaseDeleteTask,
   deleteBoard,
   subscribeToTasks,
+  reorderTasks as firebaseReorderTasks,
+  setTaskDeadline as firebaseSetTaskDeadline,
   Board,
   Task,
   ColumnType,
   addMemberToBoard,
   updateBoard,
 } from "@/utils/kanban-service";
+import { DateAccordionBoard, AccordionItem } from "../todos/DateAccordionBoard";
+import useBreakpoints from "@/hooks/useBreakpoints";
+import { CalendarClock } from "lucide-react";
 import { searchUsers } from "@/services/userService";
 import { UserProfile } from "@/context/UserContext";
 import { TaskDialog } from "../TaskDialog";
@@ -382,6 +387,9 @@ export const TasksView = () => {
 
   // Layout preference (could be saved to local storage)
   const [isVerticalView, setIsVerticalView] = useState(false);
+  // Date-wise accordion view (identical behaviour to the Todos tab).
+  const [timelineView, setTimelineView] = useState(false);
+  const { isMobile } = useBreakpoints();
 
   // DND State
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -799,6 +807,62 @@ export const TasksView = () => {
     }),
   };
 
+  // --- DATE-WISE ACCORDION (TIMELINE) VIEW ---
+  const firstOpenColumn = useMemo(
+    () =>
+      (boardColumns.find((c) => c !== "Done" && c !== "Finished") ||
+        boardColumns[0]) as ColumnType,
+    [boardColumns],
+  );
+
+  const timelineItems: AccordionItem[] = useMemo(
+    () =>
+      tasks.map((t) => {
+        const completed = t.column === "Done" || t.column === "Finished";
+        const priorityColor =
+          t.priority === "High"
+            ? "bg-red-500"
+            : t.priority === "Low"
+              ? "bg-blue-500"
+              : "bg-yellow-500";
+        return {
+          id: t.id,
+          title: t.content,
+          dueDate: t.deadline,
+          completed,
+          order: t.order,
+          createdAt: t.createdAt,
+          badge: (
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${priorityColor}`}
+              title={`${t.priority || "Medium"} priority`}
+            />
+          ),
+        } as AccordionItem;
+      }),
+    [tasks],
+  );
+
+  const handleTimelineMove = (
+    id: string,
+    dueDate: number | null,
+    completed: boolean,
+  ) => {
+    const t = tasks.find((x) => x.id === id);
+    if (completed) {
+      firebaseMoveTask(id, "Done");
+    } else {
+      firebaseSetTaskDeadline(id, dueDate);
+      if (t && (t.column === "Done" || t.column === "Finished")) {
+        firebaseMoveTask(id, firstOpenColumn);
+      }
+    }
+  };
+
+  const handleTimelineToggle = (id: string, completed: boolean) => {
+    firebaseMoveTask(id, completed ? "Done" : firstOpenColumn);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full text-white/50">
@@ -960,18 +1024,31 @@ export const TasksView = () => {
         <div className="flex items-center gap-3">
           <div className="bg-white/5 p-1 rounded-lg flex border border-white/10">
             <button
-              onClick={() => setIsVerticalView(false)}
-              className={`p-1.5 rounded-md transition-all ${!isVerticalView ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/80"}`}
+              onClick={() => {
+                setIsVerticalView(false);
+                setTimelineView(false);
+              }}
+              className={`p-1.5 rounded-md transition-all ${!isVerticalView && !timelineView ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/80"}`}
               title="Board View"
             >
               <Columns size={16} />
             </button>
             <button
-              onClick={() => setIsVerticalView(true)}
-              className={`p-1.5 rounded-md transition-all ${isVerticalView ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/80"}`}
+              onClick={() => {
+                setIsVerticalView(true);
+                setTimelineView(false);
+              }}
+              className={`p-1.5 rounded-md transition-all ${isVerticalView && !timelineView ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/80"}`}
               title="List View"
             >
               <Rows size={16} />
+            </button>
+            <button
+              onClick={() => setTimelineView(true)}
+              className={`p-1.5 rounded-md transition-all ${timelineView ? "bg-white/10 text-white shadow-sm" : "text-white/40 hover:text-white/80"}`}
+              title="Date View"
+            >
+              <CalendarClock size={16} />
             </button>
 
             <div className="w-px h-6 bg-white/10 mx-1" />
@@ -1097,126 +1174,147 @@ export const TasksView = () => {
         </div>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <div
-          className={`flex-1 ${isVerticalView ? "overflow-y-auto px-4" : "overflow-x-auto overflow-y-hidden"}`}
+      {timelineView ? (
+        <div className="flex-1 overflow-y-auto pb-24 md:pb-6 pr-1 custom-scrollbar">
+          <DateAccordionBoard
+            items={timelineItems}
+            isMobile={isMobile}
+            onMove={handleTimelineMove}
+            onPersistOrder={(ids) => firebaseReorderTasks(ids)}
+            onToggleComplete={handleTimelineToggle}
+            onOpen={(id) => {
+              const t = tasks.find((x) => x.id === id);
+              if (t) setEditingTask(t);
+            }}
+            onDelete={handleDeleteTask}
+          />
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
         >
           <div
-            className={`${isVerticalView ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20 w-full" : "flex h-full gap-4 min-w-full pb-4"}`}
+            className={`flex-1 ${isVerticalView ? "overflow-y-auto px-4" : "overflow-x-auto overflow-y-hidden"}`}
           >
-            {boardColumns.map((column) => (
-              <KanbanColumn
-                key={column}
-                column={column}
-                isVerticalView={isVerticalView}
-              >
-                {/* Column Header */}
-                <div
-                  className={`flex items-center justify-between ${isVerticalView ? "p-2 mb-2 bg-transparent text-white/50 border-b border-white/10" : "p-4 border-b border-white/5 bg-white/5"}`}
-                >
-                  <h3
-                    className={`font-semibold text-sm flex items-center gap-2 ${isVerticalView ? "text-white/80" : "text-white/90"}`}
-                  >
-                    {/* Status Dot */}
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        column === "To Do" ||
-                        column === "Backlog" ||
-                        column === "Dock"
-                          ? "bg-blue-400"
-                          : column === "In Progress"
-                            ? "bg-yellow-400"
-                            : column === "In Review" || column === "Testing"
-                              ? "bg-purple-400"
-                              : column === "Done" || column === "Finished"
-                                ? "bg-green-400"
-                                : "bg-gray-400"
-                      }`}
-                    />
-                    {column}
-                  </h3>
-                  <span
-                    className={`bg-white/10 text-white/50 px-2 py-0.5 rounded text-[10px] ${isVerticalView ? "bg-white/5" : ""}`}
-                  >
-                    {tasksByColumn[column]?.length || 0}
-                  </span>
-                </div>
-
-                {/* Tasks List */}
-                <SortableContext
-                  items={(tasksByColumn[column] || []).map((t) => t.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div
-                    className={`custom-scrollbar ${isVerticalView ? "space-y-1" : "flex-1 overflow-y-auto p-3 space-y-0"}`}
-                  >
-                    {(tasksByColumn[column] || []).map((task) => (
-                      <SortableTaskItem
-                        key={task.id}
-                        task={task}
-                        onDelete={handleDeleteTask}
-                        onEdit={setEditingTask}
-                        onComplete={handleCompleteTask}
-                        onShare={handleShare}
-                        isVerticalView={isVerticalView}
-                        members={activeBoard?.members}
-                      />
-                    ))}
-
-                    {/* Drop placeholder for empty columns */}
-                    {(tasksByColumn[column] || []).length === 0 &&
-                      !isVerticalView && (
-                        <div className="h-20 flex items-center justify-center border-2 border-dashed border-white/5 rounded-xl m-2 bg-white/5">
-                          <p className="text-[10px] text-white/20">Drop here</p>
-                        </div>
-                      )}
-                    {(tasksByColumn[column] || []).length === 0 &&
-                      isVerticalView && (
-                        <div className="py-2 px-4 border border-dashed border-white/5 rounded-lg text-center">
-                          <p className="text-[10px] text-white/20">Empty</p>
-                        </div>
-                      )}
-                  </div>
-                </SortableContext>
-
-                {/* Add Task Button */}
-                <div
-                  className={`${isVerticalView ? "mt-3 mb-2" : "p-3 border-t border-white/5"}`}
-                >
-                  <button
-                    onClick={() => {
-                      setIsAddingTask(column);
-                      setActiveTaskContent("");
-                    }}
-                    className={`text-xs hover:bg-white/5 transition-all flex items-center gap-2 ${isVerticalView ? "w-auto px-4 py-2 rounded-lg text-white/30 hover:text-white border border-transparent hover:border-white/10" : "w-full py-2 rounded-lg border border-dashed border-white/10 text-white/40 hover:text-white hover:border-white/20 justify-center"}`}
-                  >
-                    <Plus size={12} />
-                    Add Task
-                  </button>
-                </div>
-              </KanbanColumn>
-            ))}
-          </div>
-        </div>
-
-        <DragOverlay dropAnimation={dropAnimation}>
-          {activeTask ? (
             <div
-              className={`p-3 rounded-xl bg-white/10 border border-white/20 shadow-2xl backdrop-blur-md cursor-grabbing ${isVerticalView ? "w-full" : "w-72 md:w-80 rotate-2"}`}
+              className={`${isVerticalView ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20 w-full" : "flex h-full gap-4 min-w-full pb-4"}`}
             >
-              <div className="flex justify-between items-start gap-2">
-                <p className="text-sm text-white mb-2">{activeTask.content}</p>
-              </div>
+              {boardColumns.map((column) => (
+                <KanbanColumn
+                  key={column}
+                  column={column}
+                  isVerticalView={isVerticalView}
+                >
+                  {/* Column Header */}
+                  <div
+                    className={`flex items-center justify-between ${isVerticalView ? "p-2 mb-2 bg-transparent text-white/50 border-b border-white/10" : "p-4 border-b border-white/5 bg-white/5"}`}
+                  >
+                    <h3
+                      className={`font-semibold text-sm flex items-center gap-2 ${isVerticalView ? "text-white/80" : "text-white/90"}`}
+                    >
+                      {/* Status Dot */}
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          column === "To Do" ||
+                          column === "Backlog" ||
+                          column === "Dock"
+                            ? "bg-blue-400"
+                            : column === "In Progress"
+                              ? "bg-yellow-400"
+                              : column === "In Review" || column === "Testing"
+                                ? "bg-purple-400"
+                                : column === "Done" || column === "Finished"
+                                  ? "bg-green-400"
+                                  : "bg-gray-400"
+                        }`}
+                      />
+                      {column}
+                    </h3>
+                    <span
+                      className={`bg-white/10 text-white/50 px-2 py-0.5 rounded text-[10px] ${isVerticalView ? "bg-white/5" : ""}`}
+                    >
+                      {tasksByColumn[column]?.length || 0}
+                    </span>
+                  </div>
+
+                  {/* Tasks List */}
+                  <SortableContext
+                    items={(tasksByColumn[column] || []).map((t) => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div
+                      className={`custom-scrollbar ${isVerticalView ? "space-y-1" : "flex-1 overflow-y-auto p-3 space-y-0"}`}
+                    >
+                      {(tasksByColumn[column] || []).map((task) => (
+                        <SortableTaskItem
+                          key={task.id}
+                          task={task}
+                          onDelete={handleDeleteTask}
+                          onEdit={setEditingTask}
+                          onComplete={handleCompleteTask}
+                          onShare={handleShare}
+                          isVerticalView={isVerticalView}
+                          members={activeBoard?.members}
+                        />
+                      ))}
+
+                      {/* Drop placeholder for empty columns */}
+                      {(tasksByColumn[column] || []).length === 0 &&
+                        !isVerticalView && (
+                          <div className="h-20 flex items-center justify-center border-2 border-dashed border-white/5 rounded-xl m-2 bg-white/5">
+                            <p className="text-[10px] text-white/20">
+                              Drop here
+                            </p>
+                          </div>
+                        )}
+                      {(tasksByColumn[column] || []).length === 0 &&
+                        isVerticalView && (
+                          <div className="py-2 px-4 border border-dashed border-white/5 rounded-lg text-center">
+                            <p className="text-[10px] text-white/20">Empty</p>
+                          </div>
+                        )}
+                    </div>
+                  </SortableContext>
+
+                  {/* Add Task Button */}
+                  <div
+                    className={`${isVerticalView ? "mt-3 mb-2" : "p-3 border-t border-white/5"}`}
+                  >
+                    <button
+                      onClick={() => {
+                        setIsAddingTask(column);
+                        setActiveTaskContent("");
+                      }}
+                      className={`text-xs hover:bg-white/5 transition-all flex items-center gap-2 ${isVerticalView ? "w-auto px-4 py-2 rounded-lg text-white/30 hover:text-white border border-transparent hover:border-white/10" : "w-full py-2 rounded-lg border border-dashed border-white/10 text-white/40 hover:text-white hover:border-white/20 justify-center"}`}
+                    >
+                      <Plus size={12} />
+                      Add Task
+                    </button>
+                  </div>
+                </KanbanColumn>
+              ))}
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+          </div>
+
+          <DragOverlay dropAnimation={dropAnimation}>
+            {activeTask ? (
+              <div
+                className={`p-3 rounded-xl bg-white/10 border border-white/20 shadow-2xl backdrop-blur-md cursor-grabbing ${isVerticalView ? "w-full" : "w-72 md:w-80 rotate-2"}`}
+              >
+                <div className="flex justify-between items-start gap-2">
+                  <p className="text-sm text-white mb-2">
+                    {activeTask.content}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       <TaskDialog
         isOpen={!!editingTask || !!isAddingTask}
