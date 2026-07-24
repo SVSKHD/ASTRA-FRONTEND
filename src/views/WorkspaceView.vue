@@ -33,6 +33,8 @@ import DeadlinesView from '@/components/views/DeadlinesView.vue'
 import RemindersView from '@/components/views/RemindersView.vue'
 import FinancesView from '@/components/views/FinancesView.vue'
 import TripsView from '@/components/views/TripsView.vue'
+import IdeasView from '@/components/views/IdeasView.vue'
+import StocksView from '@/components/views/StocksView.vue'
 
 const ui = useUiStore()
 const app = useAppStore()
@@ -54,6 +56,8 @@ const viewMap = {
   reminders: RemindersView,
   finances: FinancesView,
   trips: TripsView,
+  ideas: IdeasView,
+  stocks: StocksView,
 }
 const currentView = computed(() => viewMap[tab.value])
 const activeView = ref<{ focus: () => void } | null>(null)
@@ -111,7 +115,7 @@ function onKey(e: KeyboardEvent) {
   if (typing) return
   if (e.key === 'ArrowRight') ui.cycleTab(1)
   else if (e.key === 'ArrowLeft') ui.cycleTab(-1)
-  else if (['1', '2', '3', '4', '5', '6'].indexOf(e.key) !== -1)
+  else if (['1', '2', '3', '4', '5', '6', '7', '8'].indexOf(e.key) !== -1)
     ui.setTabByIndex(parseInt(e.key) - 1)
   else if (e.key.toLowerCase() === 'n') {
     e.preventDefault()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -9,12 +9,11 @@ import { buildDayGroups, ymd } from '@/utils/dayGroups'
 import DayGroupHead from '@/components/DayGroupHead.vue'
 import DayToolbar from '@/components/DayToolbar.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import TagPicker from '@/components/TagPicker.vue'
 import type { Todo } from '@/types'
 
 const app = useAppStore()
 const { c, dark, s, panelStyle } = useStyles()
-const { todos, burst, editing, draft, draggingTodoId } = storeToRefs(app)
+const { todos, burst, draggingTodoId } = storeToRefs(app)
 
 // Creating and editing both happen in ItemDialog now, so N / ⌘K opens that
 // instead of focusing a form the tab no longer carries.

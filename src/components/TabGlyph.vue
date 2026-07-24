@@ -61,6 +61,33 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
           P('M3.4 9.6 H20.6', stroke(col, 1.9)),
           P('M6.6 15 H11', stroke(col, 1.9)),
         ]
+  } else if (name === 'ideas') {
+    // A lightbulb: bulb glass + base filament lines.
+    const bulb =
+      'M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1 1.1 1.9v.3h5v-.3c0-.9.4-1.4 1.1-1.9A6 6 0 0 0 12 3Z'
+    ch = filled
+      ? [
+          P(bulb, { fill: col }),
+          P('M9.5 19 H14.5', stroke(ko || col, 1.8)),
+          P('M10.2 21 H13.8', stroke(ko || col, 1.8)),
+        ]
+      : [
+          P(bulb, stroke(col)),
+          P('M9.5 19 H14.5', stroke(col, 1.8)),
+          P('M10.2 21 H13.8', stroke(col, 1.8)),
+        ]
+  } else if (name === 'stocks') {
+    // A rising trend line with an arrow head over a baseline.
+    const line = 'M4 15 L9.5 10.5 L13 13 L20 6'
+    const arrow = 'M15.5 6 H20 V10.5'
+    ch = filled
+      ? [
+          P(line, stroke(col, 2.4)),
+          P(arrow, stroke(col, 2.4)),
+          CI(9.5, 10.5, 1.4, { fill: col }),
+          CI(13, 13, 1.4, { fill: col }),
+        ]
+      : [P(line, stroke(col)), P(arrow, stroke(col))]
   } else {
     const pin = 'M12 21s6-5.35 6-11a6 6 0 1 0-12 0c0 5.65 6 11 6 11Z'
     ch = filled

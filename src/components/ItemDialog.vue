@@ -13,7 +13,9 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, dialogCard } from '@/styles'
 import { ITEM_FORMS, type FieldDef } from '@/utils/itemForms'
+import { noteTitle } from '@/utils/notes'
 import TagPicker from '@/components/TagPicker.vue'
+import type { Note } from '@/types'
 
 const app = useAppStore()
 const { c, s } = useStyles()
@@ -90,6 +92,38 @@ function weekdayBtnStyle(f: FieldDef, i: number) {
   })
 }
 
+// --- attached-notes field (ideas / stocks) ---------------------------------
+// The value is a number[] of note ids; notes are referenced, never copied.
+function attachedIds(f: FieldDef): number[] {
+  const v = values.value[f.key]
+  return Array.isArray(v) ? (v as number[]) : []
+}
+function attachedNotes(f: FieldDef): Note[] {
+  const ids = attachedIds(f)
+  return app.notes.filter((n) => ids.includes(n.id))
+}
+function unattachedNotes(f: FieldDef): Note[] {
+  const ids = attachedIds(f)
+  return app.notes.filter((n) => !ids.includes(n.id))
+}
+function noteLabel(n: Note): string {
+  return noteTitle(n.text)
+}
+function attachNote(f: FieldDef, e: Event) {
+  const el = e.target as HTMLSelectElement
+  const nid = Number(el.value)
+  el.value = ''
+  if (!nid) return
+  const ids = attachedIds(f)
+  if (!ids.includes(nid)) set(f, [...ids, nid])
+}
+function detachNote(f: FieldDef, nid: number) {
+  set(
+    f,
+    attachedIds(f).filter((x) => x !== nid),
+  )
+}
+
 function save() {
   if (isCreate.value) app.commitCreate()
   else app.closeItemDialog()
@@ -114,6 +148,24 @@ const labelStyle = computed(() =>
   }),
 )
 const fieldStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6 })
+const chipsRow = pxify({ display: 'flex', flexWrap: 'wrap', gap: 6 })
+const noteChip = computed(() =>
+  pxify({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 11,
+    padding: '4px 8px',
+    borderRadius: 8,
+    background: c.value.input,
+    border: '1px solid ' + c.value.border,
+    color: c.value.text,
+    cursor: 'pointer',
+  }),
+)
+const noteChipX = computed(() =>
+  pxify({ cursor: 'pointer', color: c.value.dim, fontSize: 13, lineHeight: 1 }),
+)
 const checkRow = computed(() =>
   pxify({ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: c.value.dim }),
 )
@@ -139,6 +191,29 @@ const checkRow = computed(() =>
           <input type="checkbox" :checked="values[f.key] === true" @change="onCheck(f, $event)" />
           <span>{{ f.label }}</span>
         </label>
+        <template v-else-if="f.kind === 'notes'">
+          <span :style="labelStyle">{{ f.label }}</span>
+          <div v-if="attachedNotes(f).length" :style="chipsRow">
+            <span
+              v-for="n in attachedNotes(f)"
+              :key="n.id"
+              :style="noteChip"
+              :title="'Open note'"
+              @click="app.openNoteView(n.id)"
+            >
+              {{ noteLabel(n) }}
+              <span :style="noteChipX" title="Detach" @click.stop="detachNote(f, n.id)">×</span>
+            </span>
+          </div>
+          <select :style="s.select" @change="attachNote(f, $event)">
+            <option value="">
+              {{ unattachedNotes(f).length ? 'Attach a note…' : 'No more notes to attach' }}
+            </option>
+            <option v-for="n in unattachedNotes(f)" :key="n.id" :value="n.id">
+              {{ noteLabel(n) }}
+            </option>
+          </select>
+        </template>
         <template v-else>
           <span :style="labelStyle">{{ f.label }}</span>
           <textarea

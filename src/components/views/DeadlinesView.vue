@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -76,9 +76,7 @@ const row = computed(() => pxify(rowBase(c.value)))
           <span :style="s.dlDate">{{ t.dateLabel }}</span>
         </div>
         <button :style="s.shareBtn" @click="app.share('deadline', t)">↗</button>
-        <button :style="s.del" @click="app.deleteWithUndo('deadlines', 'deadline', t.id)">
-          ×
-        </button>
+        <button :style="s.del" @click="app.deleteWithUndo('deadlines', 'deadline', t.id)">×</button>
       </div>
     </div>
   </div>

@@ -7,7 +7,16 @@ import type { ItemStatus, TabKey } from '@/types'
 // 'all' plus the three lifecycle states — what the day-list filter can be set to.
 export type StatusFilter = ItemStatus | 'all'
 
-const TAB_ORDER: TabKey[] = ['todo', 'tasks', 'deadlines', 'reminders', 'finances', 'trips']
+const TAB_ORDER: TabKey[] = [
+  'todo',
+  'tasks',
+  'deadlines',
+  'reminders',
+  'finances',
+  'trips',
+  'ideas',
+  'stocks',
+]
 
 export type { ThemeSetting }
 

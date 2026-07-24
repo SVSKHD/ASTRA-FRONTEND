@@ -19,7 +19,17 @@ async function makeRouter() {
   return test
 }
 
-const ALL_TYPES: ItemType[] = ['todo', 'task', 'deadline', 'reminder', 'finance', 'note', 'trip']
+const ALL_TYPES: ItemType[] = [
+  'todo',
+  'task',
+  'deadline',
+  'reminder',
+  'finance',
+  'note',
+  'trip',
+  'idea',
+  'stock',
+]
 
 describe('routes', () => {
   it('resolves the workspace at /', async () => {
