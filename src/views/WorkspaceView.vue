@@ -8,10 +8,9 @@ import { useAuthStore } from '@/stores/auth'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import type { TabKey } from '@/types'
 
 import TopBar from '@/components/TopBar.vue'
-import TabBar from '@/components/TabBar.vue'
-import Ticker from '@/components/Ticker.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
 import NoteView from '@/components/NoteView.vue'
 import TaskDialog from '@/components/TaskDialog.vue'
@@ -40,7 +39,7 @@ const ui = useUiStore()
 const app = useAppStore()
 const auth = useAuthStore()
 const lock = useLockStore()
-const { c, s, isMobile } = useStyles()
+const { c, s } = useStyles()
 const { tab } = storeToRefs(ui)
 const { isSignedIn, authReady } = storeToRefs(auth)
 const { cloudReady } = storeToRefs(app)
@@ -159,6 +158,23 @@ watch(
   { immediate: true },
 )
 
+// Deep links carry the active tab in a ?tab= query, so a shared link opens on
+// the right tab and switching tabs keeps the URL shareable. Kept on history
+// (replaceState) rather than router.replace so it never pushes a back-stack
+// entry or disturbs the /tasks/:id/view route above.
+function isTabKey(v: unknown): v is TabKey {
+  return typeof v === 'string' && (ui.tabOrder as string[]).includes(v)
+}
+const initialTab = route.query.tab
+if (isTabKey(initialTab)) ui.setTab(initialTab)
+watch(tab, (t) => {
+  if (route.name !== 'workspace' || typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('tab') === t) return
+  url.searchParams.set('tab', t)
+  window.history.replaceState(window.history.state, '', url)
+})
+
 onMounted(() => {
   lock.start()
   clockTimer = setInterval(() => ui.tick(), 60000)
@@ -178,17 +194,14 @@ onBeforeUnmount(() => {
 <template>
   <div v-if="showWorkspace" :style="s.page">
     <div :style="s.stack">
+      <!-- The single top bar carries the tabs, clock and ticker on every
+           viewport; there is no separate bottom bar. -->
       <TopBar />
-      <!-- Desktop renders the carousel inside the header; only the fixed bottom
-           bar is still a sibling of the card. -->
-      <TabBar v-if="isMobile" />
       <div :style="s.container" @touchstart="onTouchStart" @touchend="onTouchEnd">
         <component :is="currentView" ref="activeView" />
       </div>
     </div>
   </div>
-
-  <Ticker v-if="showWorkspace" />
 
   <button
     v-if="showWorkspace"

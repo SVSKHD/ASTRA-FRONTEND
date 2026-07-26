@@ -7,6 +7,7 @@ import { useAppStore } from '@/stores/app'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import { useNextDeadline } from '@/composables/useNextDeadline'
 import { THEMES, LIGHT_THEME_KEYS, DARK_THEME_KEYS, type ThemeKey } from '@/themes'
 import TabBar from '@/components/TabBar.vue'
 
@@ -20,13 +21,79 @@ const { avatarMenuOpen, avatarColor, avatarInitial, avatarName, avatarSub, ghMen
   storeToRefs(auth)
 const { security, syncState } = storeToRefs(app)
 
-const greetingText = computed(() => {
-  const h = new Date(now.value).getHours()
-  if (h >= 5 && h < 12) return 'Good morning'
-  if (h >= 12 && h < 17) return 'Good afternoon'
-  if (h >= 17 && h < 21) return 'Good evening'
-  return 'Late night'
-})
+// --- live clock + next-deadline ticker (right cluster, desktop) -------------
+const clockLabel = computed(() =>
+  new Date(now.value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+)
+const nd = useNextDeadline()
+function jumpTicker() {
+  if (nd.next.value) ui.setTab(nd.next.value.tab)
+}
+
+const brandStyle = computed(() =>
+  pxify({
+    fontSize: 15,
+    letterSpacing: '0.34em',
+    fontWeight: 600,
+    color: c.value.text,
+    textShadow: '0 0 16px rgba(255,255,255,0.12)',
+    whiteSpace: 'nowrap',
+  }),
+)
+const clockChip = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '6px 10px',
+    borderRadius: 12,
+    background: c.value.card,
+    border: '1px solid ' + c.value.border,
+    fontSize: 12,
+    fontWeight: 600,
+    color: c.value.text,
+    fontVariantNumeric: 'tabular-nums',
+    flexShrink: 0,
+  }),
+)
+const tickerChip = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 7,
+    maxWidth: 220,
+    padding: '6px 11px',
+    borderRadius: 12,
+    background: c.value.card,
+    border: '1px solid ' + c.value.border,
+    cursor: 'pointer',
+    flexShrink: 0,
+    ...(nd.soon.value ? { animation: 'pulse 1.6s ease-in-out infinite' } : {}),
+  }),
+)
+const tickerDot = computed(() =>
+  pxify({
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    flexShrink: 0,
+    background: nd.dotColor.value,
+    boxShadow: '0 0 8px ' + nd.dotColor.value,
+  }),
+)
+const tickerTitleStyle = computed(() =>
+  pxify({
+    fontSize: 12,
+    color: c.value.text,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: 130,
+  }),
+)
+const tickerTimeStyle = computed(() =>
+  pxify({ fontSize: 11, fontWeight: 600, color: c.value.dim, flexShrink: 0 }),
+)
 
 const autoActive = computed(() => themeSetting.value === 'auto')
 
@@ -157,6 +224,8 @@ function onOpenNotes() {
 
 <template>
   <div :style="s.greetingRow">
+    <!-- Logo: the time-of-day orb doubles as the mark; the wordmark rides
+         alongside it on desktop and collapses to just the orb on mobile. -->
     <div :style="s.greetingLeft">
       <div :style="greetingIconWrap">
         <template v-if="isDayTime">
@@ -167,13 +236,20 @@ function onOpenNotes() {
           <span v-for="i in moonStars" :key="i" :style="moonStarStyle(i)"></span>
         </template>
       </div>
-      <span :style="s.greetingText">{{ greetingText }}</span>
+      <span v-if="!isMobile" :style="brandStyle">Aureon</span>
     </div>
-    <!-- The tab carousel is the middle column of the header on desktop. On
-         mobile the header has no room for it, so it stays in its own bar at the
-         bottom of the screen, where the thumbs are. -->
-    <TabBar v-if="!isMobile" />
+    <!-- The tab strip is the middle column of the single top bar on every
+         viewport — there is no separate bottom bar. -->
+    <TabBar />
     <div :style="s.greetingRight">
+      <!-- Clock + next-deadline ticker live in the bar on desktop; on mobile
+           the space goes to the tabs, so they collapse away. -->
+      <div v-if="!isMobile" :style="clockChip">{{ clockLabel }}</div>
+      <div v-if="!isMobile && nd.has.value" :style="tickerChip" @click="jumpTicker" title="Next up">
+        <span :style="tickerDot"></span>
+        <span :style="tickerTitleStyle">{{ nd.title.value }}</span>
+        <span :style="tickerTimeStyle">{{ nd.timeLabel.value }}</span>
+      </div>
       <div :style="s.themeWrap">
         <button
           :style="s.themeTriggerInline"
@@ -223,8 +299,8 @@ function onOpenNotes() {
           @click="auth.toggleAvatarMenu()"
         >
           <span :style="userPillPhoto">{{ avatarInitial }}</span>
-          <span :style="s.userPillName">{{ avatarName }}</span>
-          <span :style="s.userPillChevron">▾</span>
+          <span v-if="!isMobile" :style="s.userPillName">{{ avatarName }}</span>
+          <span v-if="!isMobile" :style="s.userPillChevron">▾</span>
         </button>
         <div v-if="avatarMenuOpen" :style="s.avatarMenu">
           <div :style="s.menuHead">

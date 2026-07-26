@@ -8,12 +8,14 @@ import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, tabDot } from '@/styles'
+import { useTabCounts } from '@/composables/useTabCounts'
 import TabGlyph from './TabGlyph.vue'
 import type { TabKey } from '@/types'
 
 const ui = useUiStore()
 const { c, isMobile, s, B } = useStyles()
 const { tab, tabDir } = storeToRefs(ui)
+const counts = useTabCounts()
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'todo', label: 'Todo' },
@@ -110,6 +112,49 @@ const tipStyle = computed(() =>
 function dotStyle(i: number) {
   return pxify(tabDot(c.value, i === activeIndex.value))
 }
+// A count badge pinned to a tab's corner (desktop) or beside the stage label
+// (mobile). Rendered only when the tab has something pending.
+function countOf(key: TabKey): number {
+  return counts.value[key] || 0
+}
+function badgeLabel(n: number): string {
+  return n > 99 ? '99+' : String(n)
+}
+const badgeStyle = computed(() =>
+  pxify({
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    minWidth: 15,
+    height: 15,
+    padding: '0 3px',
+    borderRadius: 8,
+    fontSize: 9,
+    fontWeight: 700,
+    lineHeight: '15px',
+    textAlign: 'center',
+    color: c.value.onAccent,
+    background: c.value.accent,
+    boxShadow: '0 0 6px ' + c.value.accent,
+    pointerEvents: 'none',
+  }),
+)
+const stageBadgeStyle = computed(() =>
+  pxify({
+    minWidth: 16,
+    height: 16,
+    padding: '0 4px',
+    borderRadius: 8,
+    fontSize: 10,
+    fontWeight: 700,
+    lineHeight: '16px',
+    textAlign: 'center',
+    color: c.value.onAccent,
+    background: c.value.accent,
+    boxShadow: '0 0 6px ' + c.value.accent,
+    flexShrink: 0,
+  }),
+)
 // The mobile stage slides in from whichever side the new tab came from, so the
 // arrows read as movement along a strip rather than a swap.
 const stageInner = computed(() =>
@@ -185,6 +230,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
             <TabGlyph :name="activeTab.key" :filled="true" :col="c.accent" :ko="c.card" />
           </span>
           <span :style="s.tabStageLabel">{{ activeTab.label }}</span>
+          <span v-if="countOf(activeTab.key)" :style="stageBadgeStyle">
+            {{ badgeLabel(countOf(activeTab.key)) }}
+          </span>
         </span>
         <span :style="s.tabDots">
           <span v-for="(t, i) in TABS" :key="t.key" :style="dotStyle(i)"></span>
@@ -212,6 +260,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
               <TabGlyph :name="t.key" :filled="true" :col="c.accent" :ko="c.card" />
             </span>
           </span>
+          <span v-if="countOf(t.key)" :style="badgeStyle">{{ badgeLabel(countOf(t.key)) }}</span>
           <span class="tab-tip" :style="tipStyle">{{ t.label }}</span>
         </button>
       </div>

@@ -119,10 +119,11 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       display: 'flex',
       alignItems: isMobile ? 'flex-start' : 'center',
       justifyContent: 'center',
-      // Reserve the fixed top bar + notch and the bottom nav + home indicator,
-      // so no content ever starts under the notch or hides behind the nav.
+      // The single top bar is the first thing in the stack (sticky), so the
+      // page only reserves the notch at the top and the home indicator at the
+      // bottom — there is no separate bottom nav to clear anymore.
       padding: isMobile
-        ? 'calc(106px + env(safe-area-inset-top, 0px)) 12px calc(116px + env(safe-area-inset-bottom, 0px))'
+        ? 'calc(14px + env(safe-area-inset-top, 0px)) 12px calc(18px + env(safe-area-inset-bottom, 0px))'
         : '40px 16px',
     },
     stack: {
@@ -465,40 +466,21 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: B,
       whiteSpace: 'pre-wrap',
     },
-    tabBar: isMobile
-      ? {
-          position: 'fixed',
-          left: 12,
-          right: 12,
-          // Lift the pill clear of the home indicator; on devices without one
-          // the inset is 0 and it stays at 12px as before.
-          bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
-          zIndex: 8,
-          background: c.glass,
-          backdropFilter: 'blur(24px) saturate(1.5)',
-          '-webkit-backdrop-filter': 'blur(24px) saturate(1.5)',
-          borderRadius: 26,
-          padding: 5,
-          border: '1.5px solid ' + c.border,
-          // Same translucent frost as the header, with a hairline top edge.
-          boxShadow: c.shadow + ', inset 0 1px 0 rgba(255,255,255,0.14)',
-          overflow: 'hidden',
-        }
-      : // On desktop the carousel lives inside the header, so it drops the glass
-        // shell it used to float in — a second pane of glass inside the first
-        // read as a box on a box. It is the middle column of that row, taking
-        // whatever the greeting and the account pill leave and centring in it.
-        {
-          position: 'relative',
-          zIndex: 4,
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          background: 'transparent',
-          border: 'none',
-          padding: 0,
-        },
+    // The tabs are the middle column of the single top bar on every viewport —
+    // there is no separate bottom bar. It drops any glass shell of its own (a
+    // second pane inside the header read as a box on a box) and just takes the
+    // width the logo and the right cluster leave, centring in it.
+    tabBar: {
+      position: 'relative',
+      zIndex: 4,
+      flex: 1,
+      minWidth: 0,
+      display: 'flex',
+      justifyContent: 'center',
+      background: 'transparent',
+      border: 'none',
+      padding: 0,
+    },
     // The carousel shell: arrows pinned either side, the strip centred between
     // them. On mobile the strip is one tab wide, so the arrows are the only way
     // to step through it besides swiping the card.
@@ -595,7 +577,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       // list inside scrolls; the card does not grow. The safe-area insets are
       // subtracted so the card stays clear of the notch and the home indicator.
       height: isMobile
-        ? 'min(560px, calc(100vh - 210px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)))'
+        ? 'min(600px, calc(100vh - 150px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)))'
         : 660,
       display: 'flex',
       flexDirection: 'column',
