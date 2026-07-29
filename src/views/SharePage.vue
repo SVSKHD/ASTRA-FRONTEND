@@ -13,6 +13,7 @@ import { TYPE_BY_PLURAL } from '@/utils/share'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
 import TripDetail from '@/components/trips/TripDetail.vue'
 import { repFreqLabel } from '@/utils/reminders'
+import { formatAbsolute, isStamped } from '@/utils/timestamps'
 import { STATUS_LABEL, isStatus, statusFromDone } from '@/types'
 import type { ItemType, Reminder, Trip, TripPlace } from '@/types'
 
@@ -71,8 +72,12 @@ const lines = computed<string[]>(() => {
   if (sv.type === 'todo') {
     out.push(String(it.text ?? ''))
     if (it.description) out.push(String(it.description))
-    if (it.tag) out.push('Tag: ' + it.tag)
+    if (it.tag) out.push('Category: ' + it.tag)
     out.push('Status: ' + sharedStatus(it))
+    if (isStamped(Number(it.createdAt)))
+      out.push('Created: ' + formatAbsolute(Number(it.createdAt)))
+    if (isStamped(Number(it.updatedAt)))
+      out.push('Updated: ' + formatAbsolute(Number(it.updatedAt)))
   }
   if (sv.type === 'task') {
     out.push(String(it.title ?? ''))

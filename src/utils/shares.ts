@@ -53,6 +53,52 @@ export async function createShare(
   return ref.id
 }
 
+// Write the mirror doc for the per-item share toggle under a caller-supplied
+// id (a nanoid, so the id is the reusable share handle rather than a random
+// Firestore id). `refPath` records where the private item lives; a public
+// reader never follows it (the frozen `item` snapshot is what they render) but
+// it keeps the mirror traceable back to its source. This is a full write, used
+// on enable — a fresh mint after "Stop sharing" is a create, a reused id that
+// still exists is fully rewritten, both allowed by the aureon-shares rule since
+// ownerId is always the caller's uid.
+export async function writeShareDoc(
+  shareId: string,
+  ownerId: string,
+  type: ItemType,
+  item: unknown,
+  isPublic: boolean,
+  refPath: string,
+): Promise<void> {
+  if (!db) throw new Error('Firebase is not configured')
+  const now = Date.now()
+  await setDoc(doc(db, SHARES_COLLECTION, shareId), {
+    ownerId,
+    type,
+    refPath,
+    item: plain(item),
+    isPublic,
+    createdAt: now,
+    sharedAt: now,
+  })
+}
+
+// Refresh only the frozen snapshot on an already-published share, so edits made
+// to a shared item while it is public flow through to what a recipient sees.
+// Merges rather than overwrites, so createdAt/sharedAt survive; ownerId rides
+// along because the update rule reads it off the incoming write.
+export async function updateShareItem(
+  shareId: string,
+  ownerId: string,
+  item: unknown,
+): Promise<void> {
+  if (!db) return
+  await setDoc(
+    doc(db, SHARES_COLLECTION, shareId),
+    { ownerId, item: plain(item), isPublic: true },
+    { merge: true },
+  )
+}
+
 // A denied read is indistinguishable from a missing document at the client, so
 // permission-denied is reported as needs-auth rather than not-found: for a
 // private share the honest prompt is "sign in", not "this doesn't exist".

@@ -34,7 +34,21 @@ export function statusFromDone(done: unknown): ItemStatus {
   return done === true ? 'done' : 'pending'
 }
 
-export interface Todo extends Timestamped {
+// Public-share fields carried by any item that can be made shareable. They live
+// on the item itself so the toggle survives a refresh; a signed-out reader never
+// sees them (they only read the frozen mirror doc, not the workspace). Added
+// after the first release, so applyData() backfills them on read.
+//
+// `shareId` is a nanoid minted once on first enable and reused afterwards, so a
+// link handed out stays valid across toggles — it is nulled only by "Stop
+// sharing", after which the next enable mints a fresh one.
+export interface Shareable {
+  isPublic: boolean
+  shareId: string | null
+  sharedAt: number | null
+}
+
+export interface Todo extends Timestamped, Shareable {
   id: number
   text: string
   done: boolean
