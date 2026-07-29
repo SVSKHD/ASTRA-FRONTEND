@@ -16,8 +16,14 @@ const props = withDefaults(
     interactive?: boolean
     height?: number | string
     active?: number | null
+    // Optional per-place pin colour (by place id) — the trip page tints pins by
+    // day. Falls back to the theme accent.
+    colorById?: Record<number, string>
+    // Optional per-place visit number (by place id) so a day-filtered map keeps
+    // each pin's global order. Falls back to the index within `places`.
+    numberById?: Record<number, number>
   }>(),
-  { interactive: true, height: 320, active: null },
+  { interactive: true, height: 320, active: null, colorById: undefined, numberById: undefined },
 )
 const emit = defineEmits<{ (e: 'select', placeId: number): void }>()
 
@@ -35,8 +41,8 @@ function pinned(): TripPlace[] {
   return props.places.filter((p) => p.lat != null && p.lng != null)
 }
 
-function numberedIcon(n: number, activeState: boolean): L.DivIcon {
-  const bg = activeState ? c.value.accent : c.value.card
+function numberedIcon(n: number, activeState: boolean, tint: string): L.DivIcon {
+  const bg = activeState ? tint : c.value.card
   const fg = activeState ? c.value.onAccent : c.value.text
   const size = activeState ? 30 : 26
   return L.divIcon({
@@ -52,7 +58,7 @@ function numberedIcon(n: number, activeState: boolean): L.DivIcon {
       ';color:' +
       fg +
       ';border:2px solid ' +
-      c.value.accent +
+      tint +
       ';box-shadow:0 3px 8px rgba(0,0,0,0.4);font-weight:700;font-size:12px">' +
       '<span style="transform:rotate(45deg)">' +
       n +
@@ -60,6 +66,9 @@ function numberedIcon(n: number, activeState: boolean): L.DivIcon {
     iconSize: [size, size],
     iconAnchor: [size / 2, size],
   })
+}
+function tintOf(placeId: number): string {
+  return props.colorById?.[placeId] ?? c.value.accent
 }
 
 function render() {
@@ -77,7 +86,7 @@ function render() {
     const pos: L.LatLngExpression = [p.lat as number, p.lng as number]
     latlngs.push(pos)
     const marker = L.marker(pos, {
-      icon: numberedIcon(i + 1, p.id === props.active),
+      icon: numberedIcon(props.numberById?.[p.id] ?? i + 1, p.id === props.active, tintOf(p.id)),
       title: p.name || 'Place ' + (i + 1),
       interactive: true,
     })
@@ -86,8 +95,10 @@ function render() {
     markerById.set(p.id, marker)
   })
   if (latlngs.length > 1) {
+    // Colour the route by the visible pins' tint when they share one (a
+    // day-filtered map), else the theme accent.
     routeLine = L.polyline(latlngs, {
-      color: c.value.accent,
+      color: pins.length ? tintOf(pins[0].id) : c.value.accent,
       weight: 3,
       opacity: 0.7,
       dashArray: '6 8',

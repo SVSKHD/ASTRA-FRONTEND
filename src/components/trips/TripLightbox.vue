@@ -7,7 +7,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 
-const props = defineProps<{ photos: string[]; index: number }>()
+const props = withDefaults(
+  defineProps<{ photos: string[]; index: number; captions?: string[] }>(),
+  { captions: () => [] },
+)
 const emit = defineEmits<{ (e: 'close'): void; (e: 'update:index', v: number): void }>()
 
 const { c } = useStyles()
@@ -105,6 +108,7 @@ function onTouchEnd(e: TouchEvent) {
 }
 
 const src = computed(() => props.photos[current.value] || '')
+const caption = computed(() => props.captions[current.value] || '')
 
 // --- styles -----------------------------------------------------------------
 const overlay = pxify({
@@ -165,6 +169,21 @@ const closeBtn = computed(() =>
     zIndex: 41,
   }),
 )
+const captionBar = pxify({
+  position: 'fixed',
+  bottom: 54,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  zIndex: 41,
+  maxWidth: '90vw',
+  textAlign: 'center',
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#fff',
+  background: 'rgba(0,0,0,0.5)',
+  padding: '6px 14px',
+  borderRadius: 12,
+})
 const counter = pxify({
   position: 'fixed',
   bottom: 20,
@@ -194,6 +213,7 @@ const counter = pxify({
       <img :src="src" :style="imgStyle" alt="Trip photo" draggable="false" @dblclick="go(0)" />
 
       <button :style="closeBtn" aria-label="Close" @click="emit('close')">×</button>
+      <span v-if="caption" :style="captionBar">{{ caption }}</span>
       <template v-if="photos.length > 1">
         <button :style="navBtn('left')" aria-label="Previous" @click.stop="go(-1)">‹</button>
         <button :style="navBtn('right')" aria-label="Next" @click.stop="go(1)">›</button>

@@ -69,8 +69,33 @@ function insertHtml(html: string) {
 }
 
 // --- block actions the slash menu / markdown share --------------------------
+// Convert the whole block the caret sits in (paragraph → heading/quote/…),
+// carrying its existing text with it. execCommand('formatBlock') is the block
+// transform for a contentEditable, but its argument form matters: Firefox only
+// accepts the angle-bracket spelling ('<h1>'), while Chromium takes either — so
+// try the bracketed form first and fall back. This is what makes `/heading` on
+// a line that already has text re-render that text at the heading's size,
+// rather than leaving it untouched.
 function applyBlock(tag: string) {
-  exec('formatBlock', tag)
+  editorRef.value?.focus()
+  const ok = document.execCommand('formatBlock', false, '<' + tag.toLowerCase() + '>')
+  if (!ok) document.execCommand('formatBlock', false, tag)
+  caretToBlockEnd()
+}
+// Put the caret at the end of the block it currently sits in, so typing
+// continues after a just-converted line.
+function caretToBlockEnd() {
+  const editor = editorRef.value
+  const sel = window.getSelection()
+  if (!editor || !sel || sel.rangeCount === 0) return
+  let node: Node | null = sel.getRangeAt(0).startContainer
+  while (node && node.parentNode && node.parentNode !== editor) node = node.parentNode
+  if (!node) return
+  const range = document.createRange()
+  range.selectNodeContents(node)
+  range.collapse(false)
+  sel.removeAllRanges()
+  sel.addRange(range)
 }
 function insertChecklist() {
   insertHtml(
@@ -251,6 +276,9 @@ function codeOpen() {
 // --- selection bubble (bold / italic / link) --------------------------------
 const bubbleOpen = ref(false)
 const bubblePos = ref({ x: 0, y: 0 })
+// When the selection is near the top of the viewport the bubble would clip off
+// screen, so it flips to sit below the selection instead of above it.
+const bubbleFlip = ref(false)
 function onSelectionChange() {
   const el = editorRef.value
   const sel = window.getSelection()
@@ -268,11 +296,23 @@ function onSelectionChange() {
     bubbleOpen.value = false
     return
   }
-  bubblePos.value = { x: rect.left + rect.width / 2, y: rect.top - 8 }
+  // ~64px is roughly the bubble's height; flip below if there isn't room above.
+  bubbleFlip.value = rect.top < 72
+  bubblePos.value = {
+    x: rect.left + rect.width / 2,
+    y: bubbleFlip.value ? rect.bottom + 8 : rect.top - 8,
+  }
   bubbleOpen.value = true
 }
 function bubbleExec(cmd: 'bold' | 'italic') {
   exec(cmd)
+  sync()
+}
+function bubbleCode() {
+  // Wrap the selection in inline code; if nothing useful is selected, no-op.
+  const selected = window.getSelection()?.toString()
+  if (!selected) return
+  insertHtml(codeOpen() + escapeHtml(selected) + '</code>')
   sync()
 }
 function bubbleLink() {
@@ -280,6 +320,14 @@ function bubbleLink() {
   if (!url) return
   exec('createLink', url)
   sync()
+}
+// "Turn into" — convert the whole block containing the selection. Headings,
+// paragraph and quote go through formatBlock; lists toggle. The selection can
+// be a caret inside the line or a span across it; either way the block changes.
+function bubbleTurnInto(id: BlockKind) {
+  BLOCK_ACTIONS[id]()
+  sync()
+  bubbleOpen.value = false
 }
 
 // --- input plumbing ---------------------------------------------------------
@@ -420,11 +468,15 @@ const bubbleStyle = computed(() =>
     position: 'fixed',
     left: bubblePos.value.x,
     top: bubblePos.value.y,
-    transform: 'translate(-50%, -100%)',
+    transform: bubbleFlip.value ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
     zIndex: 41,
     display: 'flex',
+    alignItems: 'center',
     gap: 2,
     padding: 4,
+    maxWidth: '92vw',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     background: c.value.glass,
     backdropFilter: 'blur(24px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(24px) saturate(1.6)',
@@ -447,6 +499,34 @@ const bubbleBtn = computed(() =>
     fontWeight: 700,
   }),
 )
+// A smaller, mono-ish chip for the "Turn into" block options.
+const turnBtn = computed(() =>
+  pxify({
+    minWidth: 26,
+    height: 26,
+    padding: '0 7px',
+    borderRadius: 7,
+    border: '1px solid ' + c.value.border,
+    background: 'transparent',
+    color: c.value.dim,
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: 'pointer',
+  }),
+)
+const bubbleDivider = computed(() =>
+  pxify({ width: 1, height: 20, background: c.value.border, margin: '0 3px', flexShrink: 0 }),
+)
+// The block options offered in the bubble's "Turn into" group.
+const TURN_INTO: { id: BlockKind; label: string; title: string }[] = [
+  { id: 'heading1', label: 'H1', title: 'Heading 1' },
+  { id: 'heading2', label: 'H2', title: 'Heading 2' },
+  { id: 'heading3', label: 'H3', title: 'Heading 3' },
+  { id: 'paragraph', label: '¶', title: 'Paragraph' },
+  { id: 'bullet', label: '•', title: 'Bulleted list' },
+  { id: 'numbered', label: '1.', title: 'Numbered list' },
+  { id: 'quote', label: '❝', title: 'Quote' },
+]
 
 defineExpose({ focus: placeCaretAtEnd })
 </script>
@@ -491,11 +571,22 @@ defineExpose({ focus: placeCaretAtEnd })
       </button>
     </div>
 
-    <!-- Minimal selection bubble: bold / italic / link only. -->
+    <!-- Selection bubble: text styles left, a divider, then "Turn into" blocks. -->
     <div v-if="bubbleOpen" :style="bubbleStyle" @mousedown.prevent>
       <button :style="bubbleBtn" title="Bold" @click="bubbleExec('bold')"><b>B</b></button>
       <button :style="bubbleBtn" title="Italic" @click="bubbleExec('italic')"><i>I</i></button>
+      <button :style="bubbleBtn" title="Inline code" @click="bubbleCode">&lt;/&gt;</button>
       <button :style="bubbleBtn" title="Link" @click="bubbleLink">🔗</button>
+      <span :style="bubbleDivider" aria-hidden="true"></span>
+      <button
+        v-for="t in TURN_INTO"
+        :key="t.id"
+        :style="turnBtn"
+        :title="'Turn into ' + t.title"
+        @click="bubbleTurnInto(t.id)"
+      >
+        {{ t.label }}
+      </button>
     </div>
   </Teleport>
 </template>
