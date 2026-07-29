@@ -1,9 +1,14 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { PLURAL } from '@/utils/share'
+import type { ItemType } from '@/types'
 
 // Share routes are declared per item type rather than as one wildcard so an
 // unknown plural 404s instead of silently rendering an empty share page.
 const sharePlurals = Object.values(PLURAL)
+// Singular item types for the newer /share/<type>/<id> links minted by the
+// per-item globe toggle. Enumerated (not a wildcard) for the same reason: an
+// unknown type 404s rather than rendering a blank share.
+const shareTypes = Object.keys(PLURAL) as ItemType[]
 
 const routes: RouteRecordRaw[] = [
   {
@@ -32,6 +37,15 @@ const routes: RouteRecordRaw[] = [
     name: `share-${plural}`,
     component: () => import('@/views/SharePage.vue'),
     props: (route) => ({ plural, shareId: String(route.params.shareId) }),
+  })),
+  // Public, singular, namespaced under /share — e.g. /share/todo/<shareId>.
+  // SharePage renders read-only from the frozen mirror doc and is not behind any
+  // auth guard, so a signed-out visitor resolves it directly.
+  ...shareTypes.map((type): RouteRecordRaw => ({
+    path: `/share/${type}/:shareId`,
+    name: `share-public-${type}`,
+    component: () => import('@/views/SharePage.vue'),
+    props: (route) => ({ plural: PLURAL[type], shareId: String(route.params.shareId) }),
   })),
   {
     path: '/:pathMatch(.*)*',

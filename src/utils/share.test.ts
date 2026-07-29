@@ -3,10 +3,12 @@ import {
   PLURAL,
   TYPE_BY_PLURAL,
   buildLegacyShareUrl,
+  buildPublicShareUrl,
   buildShareUrl,
   decodeShare,
   encodeShare,
   parseSharedFromLocation,
+  pathForPublicShare,
   pathForShare,
 } from '@/utils/share'
 import type { ItemType } from '@/types'
@@ -89,6 +91,28 @@ describe('buildShareUrl (Firestore-backed)', () => {
   it('pathForShare matches the path buildShareUrl produces', () => {
     for (const type of ALL_TYPES) {
       expect(new URL(buildShareUrl(type, 'x')).pathname).toBe(pathForShare(type, 'x'))
+    }
+  })
+})
+
+describe('buildPublicShareUrl (per-item globe toggle)', () => {
+  it('builds /share/<type>/<shareId> with no payload in the URL', () => {
+    const url = new URL(buildPublicShareUrl('todo', 'Ab12_-cd34EF'))
+    expect(url.pathname).toBe('/share/todo/Ab12_-cd34EF')
+    expect(url.search).toBe('')
+  })
+
+  it('is singular and namespaced under /share for every type', () => {
+    for (const type of ALL_TYPES) {
+      const url = new URL(buildPublicShareUrl(type, 'sid'))
+      expect(url.pathname, type).toBe(`/share/${type}/sid`)
+      expect(url.pathname).not.toContain('undefined')
+    }
+  })
+
+  it('pathForPublicShare matches the path buildPublicShareUrl produces', () => {
+    for (const type of ALL_TYPES) {
+      expect(new URL(buildPublicShareUrl(type, 'x')).pathname).toBe(pathForPublicShare(type, 'x'))
     }
   })
 })

@@ -10,6 +10,7 @@ import { buildDayGroups, ymd } from '@/utils/dayGroups'
 import DayGroupHead from '@/components/DayGroupHead.vue'
 import DayToolbar from '@/components/DayToolbar.vue'
 import StatusPill from '@/components/StatusPill.vue'
+import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import type { Todo } from '@/types'
 
 const app = useAppStore()
@@ -236,7 +237,7 @@ function particleStyle(i: number) {
                   </div>
                 </div>
                 <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
-                <button :style="s.shareBtn" @click="app.share('todo', t)">↗</button>
+                <ShareGlobeButton entity-type="todo" :item="t" variant="row" />
                 <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
               </div>
             </TransitionGroup>

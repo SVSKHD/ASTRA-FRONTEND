@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { doc, getDoc, setDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { AUREON_COLLECTION, auth, db, defaultLockMinutes, firebaseEnabled } from '@/firebase'
 import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
@@ -7,7 +7,7 @@ import { isThemeSetting, type ThemeSetting } from '@/themes'
 import { isFirebaseUserAllowed } from '@/stores/auth'
 import { mockGithub } from '@/utils/github'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
-import { createShare } from '@/utils/shares'
+import { createShare, deleteShare, updateShareItem, writeShareDoc } from '@/utils/shares'
 import {
   CalendarAuthError,
   createEvent,
@@ -224,6 +224,9 @@ export const useAppStore = defineStore('app', () => {
         status: 'pending',
         tag: registerTag(tag),
         description: description.trim(),
+        isPublic: false,
+        shareId: null,
+        sharedAt: null,
         ...stamps(),
       },
     ]
@@ -232,12 +235,16 @@ export const useAppStore = defineStore('app', () => {
     const next =
       'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
     todos.value = todos.value.map((t) => (t.id === tid ? touched({ ...t, ...next }) : t))
+    // Keep a public share's frozen snapshot in step with the edit just made.
+    syncShareIfPublic('todo', tid)
   }
   function setTodoStatus(tid: number, next: ItemStatus) {
     const cur = todos.value.find((t) => t.id === tid)
     if (!cur || cur.status === next) return
     todos.value = todos.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
     if (next === 'done') fireBurst(tid)
+    // A shared todo's status is part of its public page; keep it in sync.
+    syncShareIfPublic('todo', tid)
   }
   function cycleTodoStatus(tid: number) {
     const cur = todos.value.find((t) => t.id === tid)
@@ -741,6 +748,11 @@ export const useAppStore = defineStore('app', () => {
           status: 'pending',
           tag: (it.tag as string) || '',
           description: (it.description as string) || '',
+          // A copied-in shared todo starts un-shared: it is the recipient's own
+          // item now, not a re-publication of the original's link.
+          isPublic: false,
+          shareId: null,
+          sharedAt: null,
           ...stamps(),
         },
       ]
@@ -1079,6 +1091,66 @@ export const useAppStore = defineStore('app', () => {
         [field]: field === 'targetPrice' || field === 'watchPrice' ? Number(value) || 0 : value,
       } as Partial<Stock>)
     else if (type === 'reminder') updateReminder(itemId, field as keyof Reminder, value)
+  }
+
+  // ---- Per-item public sharing (globe toggle) -----------------------------
+  // These are the generic primitives behind useShareLink, so notes/ideas/trips
+  // can adopt the toggle without new store code. patchItem merges arbitrary
+  // fields into an item in place; the write functions push and tear down the
+  // aureon-shares mirror doc that a signed-out visitor actually reads.
+  const shareLists: Partial<Record<ItemType, Ref<{ id: number }[]>>> = {
+    todo: todos,
+    task: tasks,
+    deadline: deadlines,
+    finance: finances,
+    trip: trips,
+    reminder: reminders,
+    note: notes,
+    idea: ideas,
+    stock: stocks,
+  }
+  // A share toggle is not a content edit, so it deliberately does NOT bump
+  // updatedAt — the read-only page reports when the item last changed, not when
+  // it was last shared.
+  function patchItem(type: ItemType, itemId: number, patch: Record<string, unknown>) {
+    const listRef = shareLists[type]
+    if (!listRef) return
+    listRef.value = listRef.value.map((it) =>
+      it.id === itemId ? { ...it, ...patch } : it,
+    ) as never
+  }
+
+  // Where the private item lives. A public reader never follows it — they render
+  // the frozen snapshot — but it keeps the mirror doc traceable to its source.
+  function shareRefPath(itemId: number): string {
+    return `${AUREON_COLLECTION}/${uid}#todo-${itemId}`
+  }
+
+  // Publish (or fully rewrite) the mirror doc from the item's current state.
+  // Throws so the optimistic toggle can roll back if the write is rejected.
+  async function publishShare(type: ItemType, itemId: number): Promise<void> {
+    if (!uid) throw new Error('Not signed in')
+    const item = itemById(type, itemId)
+    const shareId = item?.shareId
+    if (!item || typeof shareId !== 'string' || !shareId) throw new Error('Missing share id')
+    await writeShareDoc(shareId, uid, type, item, true, shareRefPath(itemId))
+  }
+
+  async function unpublishShare(shareId: string): Promise<void> {
+    await deleteShare(shareId)
+  }
+
+  // Fire-and-forget snapshot refresh: called after a content edit so a shared
+  // item's public page keeps up. A failure here is logged, never surfaced — the
+  // owner's edit still succeeded locally and will re-sync on the next change.
+  function syncShareIfPublic(type: ItemType, itemId: number) {
+    if (!uid) return
+    const item = itemById(type, itemId)
+    const shareId = item?.shareId
+    if (!item || item.isPublic !== true || typeof shareId !== 'string' || !shareId) return
+    updateShareItem(shareId, uid, item).catch((error) => {
+      console.error('[Aureon] Share snapshot sync failed:', error)
+    })
   }
 
   function openTaskDialog(tid: number) {
@@ -1439,6 +1511,11 @@ export const useAppStore = defineStore('app', () => {
       ...statused(t),
       tag: typeof t.tag === 'string' ? t.tag : '',
       description: typeof t.description === 'string' ? t.description : '',
+      // Share fields arrived after the first release; todos stored before then
+      // read as "never shared".
+      isPublic: t.isPublic === true,
+      shareId: typeof t.shareId === 'string' ? t.shareId : null,
+      sharedAt: typeof t.sharedAt === 'number' ? t.sharedAt : null,
     }))
     tasks.value = stamped<Task>(data.tasks).map(statused)
     deadlines.value = stamped<Deadline>(data.deadlines)
@@ -1738,6 +1815,10 @@ export const useAppStore = defineStore('app', () => {
     commitCreate,
     itemById,
     updateItem,
+    patchItem,
+    publishShare,
+    unpublishShare,
+    syncShareIfPublic,
     dialogTaskId,
     dialogReminderId,
     openTaskDialog,

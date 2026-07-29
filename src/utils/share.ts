@@ -49,6 +49,19 @@ export function buildShareUrl(type: ItemType, shareId: string): string {
   return origin + pathForShare(type, shareId)
 }
 
+// Path for the public-share route used by the per-item globe toggle:
+// /share/<type>/<shareId>. Singular and namespaced under /share so a public
+// link reads as one, and so the composable/component reuse for notes, ideas and
+// trips later needs no per-type wiring — only the type segment changes.
+export function pathForPublicShare(type: ItemType, shareId: string): string {
+  return '/share/' + type + '/' + shareId
+}
+
+export function buildPublicShareUrl(type: ItemType, shareId: string): string {
+  const origin = typeof location !== 'undefined' ? location.origin : ''
+  return origin + pathForPublicShare(type, shareId)
+}
+
 // Legacy URL builder, retained so the old format stays testable and so a share
 // can still be produced when Firebase is unavailable.
 export function buildLegacyShareUrl(type: ItemType, item: { id: number }): string {

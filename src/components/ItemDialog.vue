@@ -15,7 +15,8 @@ import { pxify, dialogCard } from '@/styles'
 import { ITEM_FORMS, type FieldDef } from '@/utils/itemForms'
 import { noteTitle } from '@/utils/notes'
 import TagPicker from '@/components/TagPicker.vue'
-import type { Note } from '@/types'
+import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
+import type { Note, Todo } from '@/types'
 
 const app = useAppStore()
 const { c, s } = useStyles()
@@ -50,6 +51,14 @@ const values = computed<Record<string, unknown>>(() => {
 const fields = computed<FieldDef[]>(() =>
   (form.value?.fields ?? []).filter((f) => !f.when || f.when(values.value)),
 )
+
+// The share globe belongs to a saved item, so it only appears when editing an
+// existing todo — never in create mode, where there is nothing to share yet.
+const shareTarget = computed<Todo | null>(() => {
+  const d = active.value
+  if (!d || d.type !== 'todo' || d.mode !== 'edit' || d.id == null) return null
+  return (app.itemById('todo', d.id) as unknown as Todo) ?? null
+})
 
 function val(f: FieldDef): string {
   const v = values.value[f.key]
@@ -180,6 +189,12 @@ const checkRow = computed(() =>
     <div :style="cardStyle" @keydown.enter="onEnter" @keydown.esc="app.closeItemDialog()">
       <div :style="s.dialogHeader">
         <span :style="s.dialogHeading">{{ heading }}</span>
+        <ShareGlobeButton
+          v-if="shareTarget"
+          entity-type="todo"
+          :item="shareTarget"
+          variant="dialog"
+        />
         <button :style="s.del" aria-label="Close" @click="app.closeItemDialog()">×</button>
       </div>
 

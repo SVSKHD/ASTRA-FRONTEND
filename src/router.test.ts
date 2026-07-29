@@ -64,6 +64,20 @@ describe('routes', () => {
     expect(r.resolve('/trips/abc123').name).toBe('share-trips')
   })
 
+  it('resolves the public /share/<type>/<id> route for every item type', async () => {
+    const r = await makeRouter()
+    for (const type of ALL_TYPES) {
+      const resolved = r.resolve(`/share/${type}/Ab12_-cd34EF`)
+      expect(resolved.name, type).toBe(`share-public-${type}`)
+      expect(resolved.params.shareId).toBe('Ab12_-cd34EF')
+    }
+  })
+
+  it('404s an unknown /share/<type> rather than rendering an empty share', async () => {
+    const r = await makeRouter()
+    expect(r.resolve('/share/widget/abc123').name).toBe('not-found')
+  })
+
   it('404s an unknown plural rather than rendering an empty share', async () => {
     const r = await makeRouter()
     expect(r.resolve('/widgets/abc123').name).toBe('not-found')
