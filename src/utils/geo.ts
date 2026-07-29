@@ -83,3 +83,37 @@ export function formatWhen(value: string): string {
     minute: '2-digit',
   })
 }
+
+// Great-circle distance between two points in kilometres (haversine).
+export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)))
+}
+
+// Total distance covered along a route: the sum of the legs between each
+// consecutive point (points already ordered by visit). Points without
+// coordinates are skipped, so a gap does not break the sum.
+export function routeDistanceKm(points: { lat: number | null; lng: number | null }[]): number {
+  const pts = points.filter(
+    (p): p is { lat: number; lng: number } => p.lat != null && p.lng != null,
+  )
+  let total = 0
+  for (let i = 1; i < pts.length; i++) {
+    total += haversineKm(pts[i - 1].lat, pts[i - 1].lng, pts[i].lat, pts[i].lng)
+  }
+  return total
+}
+
+// A compact distance label: "820 m", "3.4 km", "128 km".
+export function formatDistance(km: number): string {
+  if (km <= 0) return '0 km'
+  if (km < 1) return Math.round(km * 1000) + ' m'
+  if (km < 10) return km.toFixed(1) + ' km'
+  return Math.round(km) + ' km'
+}

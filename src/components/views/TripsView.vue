@@ -11,7 +11,7 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, tagChip } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
-import TripMap from '@/components/trips/TripMap.vue'
+import SmartImage from '@/components/trips/SmartImage.vue'
 import type { Trip, TripStatus } from '@/types'
 
 const app = useAppStore()
@@ -77,8 +77,12 @@ function dateLabel(t: Trip): string {
   })
   return (t.status === 'done' ? 'Visited ' : '') + label
 }
-function pinned(t: Trip) {
-  return t.places.filter((p) => p.lat != null && p.lng != null)
+// The card's lead image is the trip's cover photo — the trip's first photo, or
+// the first photo of any place. SmartImage shows a placeholder if there is none.
+function coverOf(t: Trip): string {
+  if (t.photos[0]) return t.photos[0]
+  for (const p of t.places) if (p.photos[0]) return p.photos[0]
+  return ''
 }
 
 function startVisited(t: Trip) {
@@ -177,19 +181,6 @@ const cardStyle = computed(() =>
   }),
 )
 const thumbWrap = pxify({ position: 'relative', width: '100%' })
-const noMap = computed(() =>
-  pxify({
-    width: '100%',
-    height: 110,
-    borderRadius: 14,
-    border: '1px dashed ' + c.value.border,
-    display: 'grid',
-    placeItems: 'center',
-    color: c.value.dim,
-    fontSize: 11.5,
-    background: c.value.input,
-  }),
-)
 const titleStyle = computed(() =>
   pxify({ fontSize: 15, fontWeight: 700, color: c.value.text, lineHeight: 1.3 }),
 )
@@ -311,13 +302,7 @@ const promptInput = computed(() =>
       <TransitionGroup name="rowflip" tag="div" :style="cardsWrap">
         <div v-for="t in list" :key="t.id" :style="cardStyle" @click="app.openEdit('trip', t.id)">
           <div :style="thumbWrap" @click.stop="app.openEdit('trip', t.id)">
-            <TripMap
-              v-if="pinned(t).length"
-              :places="t.places"
-              :interactive="false"
-              :height="110"
-            />
-            <div v-else :style="noMap">No map yet — add a place</div>
+            <SmartImage :src="coverOf(t)" :height="110" :radius="14" />
           </div>
 
           <span :style="titleStyle">{{ t.title || 'Untitled trip' }}</span>

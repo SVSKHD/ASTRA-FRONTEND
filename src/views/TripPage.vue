@@ -1,23 +1,26 @@
 <script setup lang="ts">
-// The full, deep-linkable page for one trip (/trips/:id). Unlike the quick-view
-// dialog this is a whole scrollable page: a hero header, a full-width
-// interactive map, the complete timeline with per-place photo galleries (each
-// opening a lightbox), and the trip's attached notes. It reads the owner's
-// workspace straight from the store, which hydrates from Firestore on load, so
-// while that is in flight the page shows glass skeletons rather than empty
-// sections. Back returns to the Trips tab with its scroll intact.
-import { computed, ref } from 'vue'
+// The full, deep-linkable page for one trip (/trips/:id). A whole scrollable
+// page rather than the quick-view dialog: a full-bleed hero, a trip-level stats
+// row (days · places · photos · distance), a toggle between the day-filtered
+// map and the day-by-day itinerary/timeline, per-place photo galleries, and the
+// trip's attached notes rendered in full. Everything is real data from the
+// owner's workspace, which hydrates from Firestore on load; glass skeletons
+// stand in while that is in flight so no section is ever empty. Back returns to
+// the Trips tab with its scroll intact.
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, tagChip } from '@/styles'
+import { pxify, tagChip, type Style } from '@/styles'
+import { formatWhen, routeDistanceKm, formatDistance } from '@/utils/geo'
+import { groupPlacesByDay, dayColor } from '@/utils/tripDays'
 import TripMap from '@/components/trips/TripMap.vue'
-import TripTimeline from '@/components/trips/TripTimeline.vue'
+import TripItinerary from '@/components/trips/TripItinerary.vue'
 import TripLightbox from '@/components/trips/TripLightbox.vue'
-import type { Note, Trip } from '@/types'
+import type { Note, Trip, TripPlace } from '@/types'
 
 const props = defineProps<{ id: number }>()
 
@@ -36,29 +39,89 @@ const loading = computed(() => !authReady.value || (isSignedIn.value && !cloudRe
 const needsAuth = computed(() => authReady.value && !isSignedIn.value)
 const notFound = computed(() => cloudReady.value && !trip.value)
 
+const view = ref<'map' | 'itinerary'>('itinerary')
 const activePlace = ref<number | null>(null)
+const selectedDay = ref<number | null>(null) // null = all days
 const mapSection = ref<HTMLElement | null>(null)
 function focusPlace(placeId: number) {
   activePlace.value = placeId
+  view.value = 'map'
   mapSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-// --- lightbox ---------------------------------------------------------------
-const lightboxPhotos = ref<string[]>([])
+// --- day grouping + global ordering ----------------------------------------
+const days = computed(() => (trip.value ? groupPlacesByDay(trip.value.places) : []))
+// Places in day-then-time order — the single order that numbers pins, sequences
+// the lightbox, and measures the route.
+const orderedPlaces = computed<TripPlace[]>(() => days.value.flatMap((d) => d.places))
+const placeMeta = computed(() => {
+  const number: Record<number, number> = {}
+  const color: Record<number, string> = {}
+  let n = 0
+  for (const d of days.value) {
+    const tint = d.unscheduled ? c.value.dim : dayColor(d.dayNumber - 1)
+    for (const p of d.places) {
+      n += 1
+      number[p.id] = n
+      color[p.id] = tint
+    }
+  }
+  return { number, color }
+})
+
+// Which places the map shows: the selected day only, else everything.
+const mapPlaces = computed<TripPlace[]>(() => {
+  if (selectedDay.value == null) return trip.value?.places ?? []
+  const d = days.value.find((g) => g.dayNumber === selectedDay.value)
+  return d ? d.places : (trip.value?.places ?? [])
+})
+const hasPins = computed(() =>
+  (trip.value?.places ?? []).some((p) => p.lat != null && p.lng != null),
+)
+
+// --- lightbox: every trip photo, ordered by day + time, with captions -------
+const photoModel = computed(() => {
+  const urls: string[] = []
+  const captions: string[] = []
+  const startByPlace = new Map<number, number>()
+  for (const p of orderedPlaces.value) {
+    startByPlace.set(p.id, urls.length)
+    const when = formatWhen(p.visitedAt)
+    for (const url of p.photos) {
+      urls.push(url)
+      captions.push((p.name || 'Untitled place') + (when ? ' · ' + when : ''))
+    }
+  }
+  return { urls, captions, startByPlace }
+})
 const lightboxIndex = ref(-1)
-const lightboxOpen = computed(() => lightboxIndex.value >= 0 && lightboxPhotos.value.length > 0)
+const lightboxOpen = computed(() => lightboxIndex.value >= 0 && photoModel.value.urls.length > 0)
 function openPhoto(placeId: number, index: number) {
-  const place = trip.value?.places.find((p) => p.id === placeId)
-  if (!place || !place.photos.length) return
-  lightboxPhotos.value = place.photos
-  lightboxIndex.value = index
+  const start = photoModel.value.startByPlace.get(placeId)
+  if (start == null) return
+  lightboxIndex.value = start + index
 }
 function closeLightbox() {
   lightboxIndex.value = -1
-  lightboxPhotos.value = []
 }
 
-// --- derived meta -----------------------------------------------------------
+// --- stats ------------------------------------------------------------------
+const stats = computed(() => {
+  const t = trip.value
+  const totalDays = days.value.filter((d) => !d.unscheduled).length
+  const totalPlaces = t?.places.length ?? 0
+  const totalPhotos =
+    (t?.photos.length ?? 0) + (t?.places.reduce((sum, p) => sum + p.photos.length, 0) ?? 0)
+  const distance = formatDistance(routeDistanceKm(orderedPlaces.value))
+  return [
+    { label: 'Days', value: String(totalDays || (totalPlaces ? 1 : 0)) },
+    { label: 'Places', value: String(totalPlaces) },
+    { label: 'Photos', value: String(totalPhotos) },
+    { label: 'Distance', value: distance },
+  ]
+})
+
+// --- meta -------------------------------------------------------------------
 const cover = computed(() => {
   const t = trip.value
   if (!t) return ''
@@ -66,8 +129,26 @@ const cover = computed(() => {
   for (const p of t.places) if (p.photos[0]) return p.photos[0]
   return ''
 })
-// First -> last place date, from the per-place visited times where present,
-// falling back to the trip's own planned/visited date.
+// The hero only uses a photo once it has actually loaded — a missing or broken
+// cover URL falls back to a themed gradient with the layout unchanged. Detected
+// by preloading, since a CSS background can't report a load error.
+const coverOk = ref(false)
+watch(
+  cover,
+  (url) => {
+    coverOk.value = false
+    if (!url) return
+    const img = new Image()
+    img.onload = () => {
+      if (cover.value === url) coverOk.value = true
+    }
+    img.onerror = () => {
+      if (cover.value === url) coverOk.value = false
+    }
+    img.src = url
+  },
+  { immediate: true },
+)
 const dateRange = computed(() => {
   const t = trip.value
   if (!t) return ''
@@ -137,7 +218,7 @@ const backBtn = computed(() =>
     backdropFilter: 'blur(18px) saturate(1.5)',
   }),
 )
-const glass = (extra: Record<string, string | number> = {}) =>
+const glass = (extra: Style = {}) =>
   pxify({
     background: c.value.glass,
     backdropFilter: 'blur(30px) saturate(1.6)',
@@ -147,31 +228,40 @@ const glass = (extra: Record<string, string | number> = {}) =>
     boxShadow: c.value.shadow,
     ...extra,
   })
+// Same box either way — only the background differs, so there is never a layout
+// shift between a photo hero and a photoless one.
 const heroStyle = computed(() =>
-  cover.value
-    ? pxify({
-        position: 'relative',
-        minHeight: isMobile.value ? 180 : 240,
-        borderRadius: 24,
-        overflow: 'hidden',
-        border: '1px solid ' + c.value.border,
-        display: 'flex',
-        alignItems: 'flex-end',
-        backgroundImage:
-          'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.72)), url(' + cover.value + ')',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      })
-    : glass({ padding: isMobile.value ? '20px' : '28px' }),
+  pxify({
+    position: 'relative',
+    minHeight: isMobile.value ? 200 : 280,
+    borderRadius: 24,
+    overflow: 'hidden',
+    border: '1px solid ' + c.value.border,
+    display: 'flex',
+    alignItems: 'flex-end',
+    boxShadow: c.value.shadow,
+    backgroundImage: coverOk.value
+      ? 'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.78)), url(' + cover.value + ')'
+      : // A bottom scrim over the themed gradient keeps the white title legible
+        // whatever the theme.
+        'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.45)), ' +
+        'linear-gradient(135deg, ' +
+        c.value.accent +
+        ' 0%, ' +
+        c.value.card +
+        ' 70%)',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  }),
 )
 const heroInner = computed(() =>
   pxify({
-    padding: cover.value ? (isMobile.value ? '18px' : '24px') : 0,
+    padding: isMobile.value ? '18px' : '24px',
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
     width: '100%',
-    color: cover.value ? '#fff' : c.value.text,
+    color: '#fff',
   }),
 )
 const titleStyle = computed(() =>
@@ -195,6 +285,63 @@ const rangeStyle = computed(() => pxify({ fontSize: 13, fontWeight: 600, opacity
 function chip(tag: string) {
   return pxify(tagChip(c.value, tag, false))
 }
+// Stats row
+const statsRow = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: 8,
+})
+const statCard = computed(() =>
+  glass({ padding: '12px 10px', borderRadius: 16, textAlign: 'center' }),
+)
+const statValue = computed(() => pxify({ fontSize: 18, fontWeight: 800, color: c.value.text }))
+const statLabel = computed(() =>
+  pxify({
+    fontSize: 9.5,
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+    marginTop: 2,
+  }),
+)
+// View toggle + day filter
+const toolbar = pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' })
+const segTrack = computed(() =>
+  pxify({
+    display: 'inline-flex',
+    padding: 4,
+    borderRadius: 12,
+    border: '1px solid ' + c.value.border,
+    background: c.value.input,
+    gap: 2,
+  }),
+)
+function segBtn(activeState: boolean) {
+  return pxify({
+    padding: '6px 14px',
+    borderRadius: 9,
+    border: 'none',
+    background: activeState ? c.value.card : 'transparent',
+    color: activeState ? c.value.accent : c.value.dim,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  })
+}
+const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap' })
+function dayChip(selected: boolean, tint: string) {
+  return pxify({
+    fontSize: 11,
+    fontWeight: 700,
+    padding: '5px 10px',
+    borderRadius: 999,
+    border: '1px solid ' + (selected ? tint : c.value.border),
+    background: selected ? c.value.input : 'transparent',
+    color: selected ? tint : c.value.dim,
+    cursor: 'pointer',
+  })
+}
 const sectionTitle = computed(() =>
   pxify({
     fontSize: 11,
@@ -205,7 +352,6 @@ const sectionTitle = computed(() =>
     padding: '2px 2px',
   }),
 )
-const sectionCard = computed(() => glass({ padding: isMobile.value ? '14px' : '18px' }))
 const skeleton = (h: number) =>
   pxify({
     height: h,
@@ -235,8 +381,9 @@ const centered = pxify({
   <div v-if="loading" :style="page">
     <div :style="shell">
       <div :style="skeleton(40)"></div>
-      <div :style="skeleton(isMobile ? 180 : 240)"></div>
-      <div :style="skeleton(isMobile ? 240 : 300)"></div>
+      <div :style="skeleton(isMobile ? 200 : 280)"></div>
+      <div :style="skeleton(64)"></div>
+      <div :style="skeleton(isMobile ? 260 : 320)"></div>
       <div :style="skeleton(280)"></div>
     </div>
   </div>
@@ -285,14 +432,46 @@ const centered = pxify({
         </div>
       </div>
 
+      <!-- Stats -->
+      <div :style="statsRow">
+        <div v-for="stat in stats" :key="stat.label" :style="statCard">
+          <div :style="statValue">{{ stat.value }}</div>
+          <div :style="statLabel">{{ stat.label }}</div>
+        </div>
+      </div>
+
+      <!-- View toggle + day filter -->
+      <div :style="toolbar">
+        <div :style="segTrack">
+          <button :style="segBtn(view === 'itinerary')" @click="view = 'itinerary'">
+            Itinerary
+          </button>
+          <button :style="segBtn(view === 'map')" @click="view = 'map'">Map</button>
+        </div>
+        <div v-if="view === 'map' && days.length" :style="chipRow">
+          <button :style="dayChip(selectedDay === null, c.accent)" @click="selectedDay = null">
+            All
+          </button>
+          <button
+            v-for="d in days.filter((g) => !g.unscheduled)"
+            :key="d.key"
+            :style="dayChip(selectedDay === d.dayNumber, dayColor(d.dayNumber - 1))"
+            @click="selectedDay = d.dayNumber"
+          >
+            Day {{ d.dayNumber }}
+          </button>
+        </div>
+      </div>
+
       <!-- Map -->
-      <span :style="sectionTitle">Map</span>
-      <div ref="mapSection">
+      <div v-show="view === 'map'" ref="mapSection">
         <TripMap
-          v-if="trip.places.some((p) => p.lat != null && p.lng != null)"
-          :places="trip.places"
+          v-if="hasPins"
+          :places="mapPlaces"
           :active="activePlace"
-          :height="isMobile ? 260 : 380"
+          :color-by-id="placeMeta.color"
+          :number-by-id="placeMeta.number"
+          :height="isMobile ? 300 : 420"
         />
         <div
           v-else
@@ -302,15 +481,9 @@ const centered = pxify({
         </div>
       </div>
 
-      <!-- Timeline with per-place galleries -->
-      <span :style="sectionTitle">Timeline</span>
-      <div :style="sectionCard">
-        <TripTimeline
-          :places="trip.places"
-          :active="activePlace"
-          @select="focusPlace"
-          @photo="openPhoto"
-        />
+      <!-- Itinerary / segmented timeline -->
+      <div v-show="view === 'itinerary'">
+        <TripItinerary :days="days" :active="activePlace" @select="focusPlace" @photo="openPhoto" />
       </div>
 
       <!-- Attached notes -->
@@ -338,7 +511,8 @@ const centered = pxify({
 
   <TripLightbox
     v-if="lightboxOpen"
-    :photos="lightboxPhotos"
+    :photos="photoModel.urls"
+    :captions="photoModel.captions"
     :index="lightboxIndex"
     @update:index="lightboxIndex = $event"
     @close="closeLightbox"
