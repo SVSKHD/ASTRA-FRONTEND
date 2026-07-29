@@ -18,6 +18,15 @@ const routes: RouteRecordRaw[] = [
     name: 'task-view',
     component: () => import('@/views/WorkspaceView.vue'),
   },
+  // The owner's full trip page. Constrained to a numeric id so it is matched
+  // before the share route below (share ids are 20-char Firestore ids, never
+  // all-digits) — /trips/123 is the owner's trip, /trips/<shareId> is a share.
+  {
+    path: '/trips/:id(\\d+)',
+    name: 'trip-page',
+    component: () => import('@/views/TripPage.vue'),
+    props: (route) => ({ id: Number(route.params.id) }),
+  },
   ...sharePlurals.map((plural): RouteRecordRaw => ({
     path: `/${plural}/:shareId`,
     name: `share-${plural}`,

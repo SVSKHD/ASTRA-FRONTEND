@@ -13,7 +13,11 @@ import type { TripPlace } from '@/types'
 const props = withDefaults(defineProps<{ places: TripPlace[]; active?: number | null }>(), {
   active: null,
 })
-const emit = defineEmits<{ (e: 'select', placeId: number): void }>()
+const emit = defineEmits<{
+  (e: 'select', placeId: number): void
+  // Fired when a photo thumbnail is clicked; the trip page opens its lightbox.
+  (e: 'photo', placeId: number, index: number): void
+}>()
 
 const { c } = useStyles()
 
@@ -106,6 +110,7 @@ const notesStyle = computed(() =>
   }),
 )
 const photoRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 })
+const photoBtn = pxify({ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in' })
 const photoStyle = computed(() =>
   pxify({
     width: 54,
@@ -113,6 +118,7 @@ const photoStyle = computed(() =>
     borderRadius: 10,
     objectFit: 'cover',
     border: '1px solid ' + c.value.border,
+    display: 'block',
   }),
 )
 const emptyStyle = computed(() =>
@@ -153,14 +159,15 @@ const emptyStyle = computed(() =>
           v-html="node.place.notes"
         ></div>
         <div v-if="node.place.photos.length" :style="photoRow">
-          <img
+          <button
             v-for="(url, pi) in node.place.photos"
             :key="pi"
-            :src="url"
-            :style="photoStyle"
-            alt="Trip photo"
-            loading="lazy"
-          />
+            :style="photoBtn"
+            :aria-label="'Open photo ' + (pi + 1)"
+            @click="emit('photo', node.place.id, pi)"
+          >
+            <img :src="url" :style="photoStyle" alt="Trip photo" loading="lazy" />
+          </button>
         </div>
       </div>
     </div>
