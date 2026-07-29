@@ -8,6 +8,7 @@ import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { formatGap, formatWhen } from '@/utils/geo'
+import SmartImage from '@/components/trips/SmartImage.vue'
 import type { TripPlace } from '@/types'
 
 const props = withDefaults(defineProps<{ places: TripPlace[]; active?: number | null }>(), {
@@ -110,17 +111,13 @@ const notesStyle = computed(() =>
   }),
 )
 const photoRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 })
-const photoBtn = pxify({ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in' })
-const photoStyle = computed(() =>
-  pxify({
-    width: 54,
-    height: 54,
-    borderRadius: 10,
-    objectFit: 'cover',
-    border: '1px solid ' + c.value.border,
-    display: 'block',
-  }),
-)
+const photoCell = pxify({
+  width: 54,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  cursor: 'zoom-in',
+})
 const emptyStyle = computed(() =>
   pxify({ textAlign: 'center', color: c.value.dim, fontSize: 12.5, padding: '24px 0' }),
 )
@@ -158,16 +155,19 @@ const emptyStyle = computed(() =>
           :style="notesStyle"
           v-html="node.place.notes"
         ></div>
-        <div v-if="node.place.photos.length" :style="photoRow">
+        <div :style="photoRow">
           <button
             v-for="(url, pi) in node.place.photos"
             :key="pi"
-            :style="photoBtn"
+            :style="photoCell"
             :aria-label="'Open photo ' + (pi + 1)"
             @click="emit('photo', node.place.id, pi)"
           >
-            <img :src="url" :style="photoStyle" alt="Trip photo" loading="lazy" />
+            <SmartImage :src="url" alt="Trip photo" :height="54" :radius="10" />
           </button>
+          <span v-if="!node.place.photos.length" :style="photoCell">
+            <SmartImage :height="54" :radius="10" :icon-size="18" />
+          </span>
         </div>
       </div>
     </div>

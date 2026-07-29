@@ -7,7 +7,7 @@
 // owner's workspace, which hydrates from Firestore on load; glass skeletons
 // stand in while that is in flight so no section is ever empty. Back returns to
 // the Trips tab with its scroll intact.
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -129,6 +129,26 @@ const cover = computed(() => {
   for (const p of t.places) if (p.photos[0]) return p.photos[0]
   return ''
 })
+// The hero only uses a photo once it has actually loaded — a missing or broken
+// cover URL falls back to a themed gradient with the layout unchanged. Detected
+// by preloading, since a CSS background can't report a load error.
+const coverOk = ref(false)
+watch(
+  cover,
+  (url) => {
+    coverOk.value = false
+    if (!url) return
+    const img = new Image()
+    img.onload = () => {
+      if (cover.value === url) coverOk.value = true
+    }
+    img.onerror = () => {
+      if (cover.value === url) coverOk.value = false
+    }
+    img.src = url
+  },
+  { immediate: true },
+)
 const dateRange = computed(() => {
   const t = trip.value
   if (!t) return ''
@@ -208,31 +228,40 @@ const glass = (extra: Style = {}) =>
     boxShadow: c.value.shadow,
     ...extra,
   })
+// Same box either way — only the background differs, so there is never a layout
+// shift between a photo hero and a photoless one.
 const heroStyle = computed(() =>
-  cover.value
-    ? pxify({
-        position: 'relative',
-        minHeight: isMobile.value ? 200 : 280,
-        borderRadius: 24,
-        overflow: 'hidden',
-        border: '1px solid ' + c.value.border,
-        display: 'flex',
-        alignItems: 'flex-end',
-        backgroundImage:
-          'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.78)), url(' + cover.value + ')',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      })
-    : glass({ padding: isMobile.value ? '20px' : '28px' }),
+  pxify({
+    position: 'relative',
+    minHeight: isMobile.value ? 200 : 280,
+    borderRadius: 24,
+    overflow: 'hidden',
+    border: '1px solid ' + c.value.border,
+    display: 'flex',
+    alignItems: 'flex-end',
+    boxShadow: c.value.shadow,
+    backgroundImage: coverOk.value
+      ? 'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.78)), url(' + cover.value + ')'
+      : // A bottom scrim over the themed gradient keeps the white title legible
+        // whatever the theme.
+        'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.45)), ' +
+        'linear-gradient(135deg, ' +
+        c.value.accent +
+        ' 0%, ' +
+        c.value.card +
+        ' 70%)',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  }),
 )
 const heroInner = computed(() =>
   pxify({
-    padding: cover.value ? (isMobile.value ? '18px' : '24px') : 0,
+    padding: isMobile.value ? '18px' : '24px',
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
     width: '100%',
-    color: cover.value ? '#fff' : c.value.text,
+    color: '#fff',
   }),
 )
 const titleStyle = computed(() =>

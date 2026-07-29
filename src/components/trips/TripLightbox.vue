@@ -15,10 +15,13 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'update:index', v: number): v
 
 const { c } = useStyles()
 const current = ref(props.index)
+// A broken/404 photo shows the same placeholder as everywhere else.
+const imgError = ref(false)
 watch(
   () => props.index,
   (v) => {
     current.value = v
+    imgError.value = false
     resetZoom()
   },
 )
@@ -109,6 +112,19 @@ function onTouchEnd(e: TouchEvent) {
 
 const src = computed(() => props.photos[current.value] || '')
 const caption = computed(() => props.captions[current.value] || '')
+const placeholderStyle = pxify({
+  width: 'min(80vw, 360px)',
+  height: 'min(60vh, 300px)',
+  borderRadius: 16,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 10,
+  color: 'rgba(255,255,255,0.7)',
+  border: '1px solid rgba(255,255,255,0.18)',
+  background: 'rgba(255,255,255,0.06)',
+})
 
 // --- styles -----------------------------------------------------------------
 const overlay = pxify({
@@ -210,7 +226,33 @@ const counter = pxify({
       @touchmove="onTouchMove"
       @touchend="onTouchEnd"
     >
-      <img :src="src" :style="imgStyle" alt="Trip photo" draggable="false" @dblclick="go(0)" />
+      <img
+        v-if="!imgError"
+        :src="src"
+        :style="imgStyle"
+        alt="Trip photo"
+        draggable="false"
+        @error="imgError = true"
+        @dblclick="go(0)"
+      />
+      <div v-else :style="placeholderStyle">
+        <svg
+          width="34"
+          height="34"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="rgba(255,255,255,0.6)"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="3" />
+          <circle cx="8.5" cy="8.5" r="1.6" />
+          <path d="M21 15l-5-5L5 21" />
+        </svg>
+        <span style="font-size: 13px; font-weight: 600">No image yet</span>
+      </div>
 
       <button :style="closeBtn" aria-label="Close" @click="emit('close')">×</button>
       <span v-if="caption" :style="captionBar">{{ caption }}</span>

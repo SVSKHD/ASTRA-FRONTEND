@@ -13,6 +13,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { formatGap } from '@/utils/geo'
 import { dayColor, type DayGroup } from '@/utils/tripDays'
+import SmartImage from '@/components/trips/SmartImage.vue'
 import type { TripPlace } from '@/types'
 
 defineProps<{ days: DayGroup[]; active?: number | null }>()
@@ -32,17 +33,6 @@ function toggle(key: string) {
   collapsed.value = next
 }
 const isOpen = (key: string) => !collapsed.value.has(key)
-
-// Loaded photo keys, so each thumb can show a shimmer until its image arrives.
-const loaded = ref<Set<string>>(new Set())
-function photoKey(placeId: number, i: number) {
-  return placeId + ':' + i
-}
-function onImgLoad(placeId: number, i: number) {
-  const next = new Set(loaded.value)
-  next.add(photoKey(placeId, i))
-  loaded.value = next
-}
 
 function timeOf(value: string): string {
   const ms = Date.parse(value)
@@ -192,40 +182,7 @@ const photoGrid = pxify({
   gap: 6,
   marginTop: 9,
 })
-function thumb(placeId: number, i: number) {
-  return pxify({
-    position: 'relative',
-    aspectRatio: '1 / 1',
-    borderRadius: 10,
-    overflow: 'hidden',
-    border: 'none',
-    padding: 0,
-    cursor: 'zoom-in',
-    background: loaded.value.has(photoKey(placeId, i))
-      ? 'transparent'
-      : 'linear-gradient(90deg,' +
-        c.value.input +
-        ' 25%,' +
-        c.value.card +
-        ' 50%,' +
-        c.value.input +
-        ' 75%)',
-    backgroundSize: '200% 100%',
-    animation: loaded.value.has(photoKey(placeId, i))
-      ? 'none'
-      : 'shimmer 1.4s ease-in-out infinite',
-  })
-}
-function thumbImg(placeId: number, i: number) {
-  return pxify({
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    display: 'block',
-    opacity: loaded.value.has(photoKey(placeId, i)) ? 1 : 0,
-    transition: 'opacity .3s ease',
-  })
-}
+const photoBtn = pxify({ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in' })
 const emptyStyle = () =>
   pxify({ textAlign: 'center', color: c.value.dim, fontSize: 12.5, padding: '24px 0' })
 
@@ -281,22 +238,18 @@ function placeTime(p: TripPlace): string {
             </div>
             <div v-if="p.address" :style="addr()">📍 {{ p.address }}</div>
             <div v-if="p.notes" class="rich" :style="notes()" v-html="p.notes"></div>
-            <div v-if="p.photos.length" :style="photoGrid">
+            <div :style="photoGrid">
               <button
                 v-for="(url, pi) in p.photos"
                 :key="pi"
-                :style="thumb(p.id, pi)"
+                :style="photoBtn"
                 :aria-label="'Open photo ' + (pi + 1)"
                 @click="emit('photo', p.id, pi)"
               >
-                <img
-                  :src="url"
-                  :style="thumbImg(p.id, pi)"
-                  alt="Trip photo"
-                  loading="lazy"
-                  @load="onImgLoad(p.id, pi)"
-                />
+                <SmartImage :src="url" alt="Trip photo" :radius="10" />
               </button>
+              <!-- No photos: keep the slot at the same size with a placeholder. -->
+              <SmartImage v-if="!p.photos.length" :radius="10" />
             </div>
           </div>
         </div>
