@@ -453,6 +453,23 @@ export const useAppStore = defineStore('app', () => {
   function setNoteText(noteId: number, html: string) {
     notes.value = notes.value.map((n) => (n.id === noteId ? touched({ ...n, text: html }) : n))
   }
+  // Autosave while editing: persist the draft in place without leaving edit
+  // mode. A new note is created on its first non-blank keystroke and the view
+  // rebinds to it, so subsequent autosaves update rather than duplicate. Blank
+  // markup is ignored — an empty note is not worth a row until it has content.
+  function autosaveNoteDraft(html: string) {
+    const v = noteView.value
+    if (!v || v.mode !== 'edit') return
+    if (isBlankNote(html)) return
+    if (v.id == null) {
+      const newId = id()
+      notes.value = [...notes.value, { id: newId, text: html, ts: Date.now(), ...stamps() }]
+      noteView.value = { id: newId, mode: 'edit' }
+    } else {
+      const target = v.id
+      notes.value = notes.value.map((n) => (n.id === target ? touched({ ...n, text: html }) : n))
+    }
+  }
   function cancelEdit() {
     editing.value = { type: null, id: null }
     draft.value = {}
@@ -1538,6 +1555,7 @@ export const useAppStore = defineStore('app', () => {
     saveNoteView,
     closeNoteView,
     setNoteText,
+    autosaveNoteDraft,
     cancelEdit,
     setDraft,
     saveEdit,

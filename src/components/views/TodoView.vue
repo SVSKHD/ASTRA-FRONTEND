@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDayList } from '@/composables/useDayList'
 import { pxify, merge, rowBase, dayBody, dayGroupCard, tagChip } from '@/styles'
@@ -12,8 +13,13 @@ import StatusPill from '@/components/StatusPill.vue'
 import type { Todo } from '@/types'
 
 const app = useAppStore()
+const ui = useUiStore()
 const { c, dark, s, panelStyle } = useStyles()
 const { todos, burst, draggingTodoId } = storeToRefs(app)
+// The reactive clock (ticks every 60s + on focus/resume). Reading it in the
+// grouping computed is what makes the day buckets recompute at midnight, so a
+// todo written "yesterday" migrates into Today on its own — no refresh.
+const { now } = storeToRefs(ui)
 
 // Creating and editing both happen in ItemDialog now, so N / ⌘K opens that
 // instead of focusing a form the tab no longer carries.
@@ -25,7 +31,11 @@ function dayOf(t: Todo) {
   return t.createdAt > 0 ? ymd(new Date(t.createdAt)) : ''
 }
 const groups = computed(() =>
-  buildDayGroups(todos.value, dayOf, { direction: 'past', undatedLabel: 'Undated' }),
+  buildDayGroups(todos.value, dayOf, {
+    direction: 'past',
+    undatedLabel: 'Undated',
+    now: new Date(now.value),
+  }),
 )
 const day = useDayList('todo', groups)
 
@@ -109,11 +119,21 @@ function rowStyle(t: Todo) {
   return merge(rowBase(c.value), {
     opacity: t.done ? 0.5 : 1,
     position: 'relative',
-    transform: isDrag ? 'scale(1.03)' : 'none',
+    // Leave transform unset when idle so TransitionGroup's FLIP `move` (a
+    // class-injected transform) is not overridden by an inline one.
+    transform: isDrag ? 'scale(1.03)' : undefined,
     boxShadow: isDrag ? '0 18px 40px rgba(0,0,0,0.45)' : undefined,
     zIndex: isDrag ? 5 : 'auto',
   })
 }
+// The rows wrapper is positioned so a leaving row (position:absolute) collapses
+// the day's height under it instead of jumping the siblings.
+const rowsWrap = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 9,
+  position: 'relative',
+})
 const gripDots = [0, 1, 2, 3, 4, 5]
 function chipStyle(tag: string) {
   return pxify(tagChip(c.value, tag, dark.value))
@@ -171,53 +191,55 @@ function particleStyle(i: number) {
             <div v-else-if="day.visible(g).length === 0" :style="s.dayDropHint">
               {{ day.hiddenBy(g) }} hidden by the filter
             </div>
-            <div
-              v-for="t in day.visible(g)"
-              :key="t.id"
-              :style="rowStyle(t)"
-              v-hover-style="s.rowHover"
-              draggable="true"
-              @dragstart="onDragStart($event, t)"
-              @dragend="onDragEnd"
-              @dragover="onRowDragOver"
-              @drop="onRowDrop($event, t)"
-            >
-              <span :style="s.grip"
-                ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-              ></span>
-              <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">
-                <svg
-                  v-if="t.done"
-                  :style="checkIcon"
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  :stroke="c.onAccent"
-                  stroke-width="3.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <polyline
-                    points="20 6 9 17 4 12"
-                    style="animation: popIn 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)"
-                  />
-                </svg>
-                <template v-if="burst === t.id">
-                  <span v-for="i in particles" :key="i" :style="particleStyle(i)"></span>
-                </template>
-              </button>
-              <div :style="s.taskMain" @click="app.openEdit('todo', t.id)">
-                <span :style="textStyle(t)">{{ t.text }}</span>
-                <span v-if="t.description" :style="descStyle">{{ t.description }}</span>
-                <div v-if="t.tag" :style="s.chipRow">
-                  <span :style="chipStyle(t.tag)">{{ t.tag }}</span>
+            <TransitionGroup v-else name="rowflip" tag="div" :style="rowsWrap">
+              <div
+                v-for="t in day.visible(g)"
+                :key="t.id"
+                :style="rowStyle(t)"
+                v-hover-style="s.rowHover"
+                draggable="true"
+                @dragstart="onDragStart($event, t)"
+                @dragend="onDragEnd"
+                @dragover="onRowDragOver"
+                @drop="onRowDrop($event, t)"
+              >
+                <span :style="s.grip"
+                  ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+                ></span>
+                <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">
+                  <svg
+                    v-if="t.done"
+                    :style="checkIcon"
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    :stroke="c.onAccent"
+                    stroke-width="3.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline
+                      points="20 6 9 17 4 12"
+                      style="animation: popIn 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)"
+                    />
+                  </svg>
+                  <template v-if="burst === t.id">
+                    <span v-for="i in particles" :key="i" :style="particleStyle(i)"></span>
+                  </template>
+                </button>
+                <div :style="s.taskMain" @click="app.openEdit('todo', t.id)">
+                  <span :style="textStyle(t)">{{ t.text }}</span>
+                  <span v-if="t.description" :style="descStyle">{{ t.description }}</span>
+                  <div v-if="t.tag" :style="s.chipRow">
+                    <span :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                  </div>
                 </div>
+                <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
+                <button :style="s.shareBtn" @click="app.share('todo', t)">↗</button>
+                <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
               </div>
-              <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
-              <button :style="s.shareBtn" @click="app.share('todo', t)">↗</button>
-              <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
-            </div>
+            </TransitionGroup>
           </div>
         </div>
       </div>

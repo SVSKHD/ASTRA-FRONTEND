@@ -222,6 +222,34 @@ textarea:focus,
   }
 }
 
+/* Day-accordion row migration (task #1). A <TransitionGroup name="rowflip">
+   wraps each day's rows: `move` FLIPs siblings when the list reorders, enter
+   slides a row in and settles it, leave lifts it out. Leaving rows are taken
+   out of flow (position:absolute) so the old day's height collapses smoothly
+   under them with no jump. ~300ms, matched easing. */
+.rowflip-move,
+.rowflip-enter-active,
+.rowflip-leave-active {
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.3s ease;
+  will-change: transform, opacity;
+}
+.rowflip-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.97);
+}
+.rowflip-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.94);
+}
+.rowflip-leave-active {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+}
+
 /* Tab tooltip (hover reveal), ported from the design's .tab-slot / .tab-tip rules. */
 .tab-slot {
   position: relative;

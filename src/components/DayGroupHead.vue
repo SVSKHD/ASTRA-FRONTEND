@@ -10,6 +10,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, statusStat } from '@/styles'
 import { STATUS_CYCLE, STATUS_LABEL, type ItemStatus } from '@/types'
 import type { StatusCounts } from '@/utils/dayGroups'
+import AnimatedNumber from '@/components/AnimatedNumber.vue'
 
 const props = defineProps<{
   label: string
@@ -53,8 +54,10 @@ const chevron = computed(() =>
       <span :style="s.dayGroupLabelBase">{{ label }}</span>
     </span>
     <span :style="s.dayStats">
-      <span v-for="st in stats" :key="st.status" :style="st.style">{{ st.n }} {{ st.label }}</span>
-      <span :style="s.dayCount">{{ total }} total</span>
+      <span v-for="st in stats" :key="st.status" :style="st.style"
+        ><AnimatedNumber :value="st.n" /> {{ st.label }}</span
+      >
+      <span :style="s.dayCount"><AnimatedNumber :value="total" /> total</span>
     </span>
   </button>
 </template>
