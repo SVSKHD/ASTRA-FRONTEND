@@ -3,7 +3,7 @@
 // it here — clicking the backdrop does nothing on purpose, so a note you are
 // reading or writing cannot be dismissed by a stray click. Only ×, Close, or
 // Escape puts it away.
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
@@ -46,10 +46,29 @@ const savedLabel = computed(() => {
 function draftText(): string {
   return String(draft.value.text ?? '')
 }
+
+// Autosave: while editing, the draft is persisted in place a short beat after
+// you stop typing, so a note is never lost to a stray close. Manual Save / Esc
+// still finalise to read mode; the store's own debounce flushes to Firestore.
+const saveState = ref<'idle' | 'saving' | 'saved'>('idle')
+let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 function onDraft(v: string) {
   app.setDraft('text', v)
+  if (!isEdit.value) return
+  saveState.value = 'saving'
+  clearTimeout(autosaveTimer)
+  autosaveTimer = setTimeout(() => {
+    app.autosaveNoteDraft(draftText())
+    saveState.value = 'saved'
+  }, 700)
 }
+onBeforeUnmount(() => clearTimeout(autosaveTimer))
+const autosaveLabel = computed(() =>
+  saveState.value === 'saving' ? 'Saving…' : saveState.value === 'saved' ? 'Saved' : '',
+)
+
 function save() {
+  clearTimeout(autosaveTimer)
   app.saveNoteView(draftText())
 }
 function cancel() {
@@ -110,15 +129,17 @@ const spacer = pxify({ flex: 1 })
         <RichEditor
           ref="editorRef"
           :model-value="draftText()"
-          placeholder="Start typing… use the toolbar for headings, lists and checkboxes."
+          placeholder="Type / for commands…"
           @update:model-value="onDraft"
           @save="save"
         />
         <div :style="s.noteViewFoot">
-          <span :style="metaStyle">Ctrl/⌘ + Enter saves</span>
+          <span :style="metaStyle">{{
+            autosaveLabel || 'Type / for commands · ⌘↵ to finish'
+          }}</span>
           <span :style="spacer"></span>
           <button :style="s.cancelBtn" @click="cancel">Cancel</button>
-          <button :style="s.saveBtn" @click="save">Save</button>
+          <button :style="s.saveBtn" @click="save">Done</button>
         </div>
       </template>
 

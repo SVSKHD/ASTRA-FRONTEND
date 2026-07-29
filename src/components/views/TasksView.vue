@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDayList } from '@/composables/useDayList'
 import { pxify, merge, rowBase, dayBody, dayGroupCard, tagChip } from '@/styles'
@@ -12,8 +13,11 @@ import StatusPill from '@/components/StatusPill.vue'
 import type { Task } from '@/types'
 
 const app = useAppStore()
+const ui = useUiStore()
 const { c, dark, s, panelStyle } = useStyles()
 const { tasks, githubCache, draggingId } = storeToRefs(app)
+// Reactive clock so the deadline buckets re-file at midnight without a refresh.
+const { now } = storeToRefs(ui)
 
 // Creating and editing both happen in a dialog now, so N / ⌘K opens that
 // instead of focusing a form the tab no longer carries.
@@ -32,6 +36,7 @@ const groups = computed(() =>
     direction: 'future',
     undatedLabel: 'No date',
     keepEmptyUndated: true,
+    now: new Date(now.value),
   }),
 )
 type Group = (typeof groups.value)[number] // the drop handlers need the shape
@@ -51,11 +56,18 @@ function rowStyle(t: Task) {
     opacity: t.done ? 0.5 : 1,
     cursor: 'pointer',
     position: 'relative',
-    transform: isDrag ? 'scale(1.03)' : 'none',
+    // Idle transform stays unset so the FLIP `move` transform is not blocked.
+    transform: isDrag ? 'scale(1.03)' : undefined,
     boxShadow: isDrag ? '0 18px 40px rgba(0,0,0,0.45)' : undefined,
     zIndex: isDrag ? 5 : 'auto',
   })
 }
+const rowsWrap = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 9,
+  position: 'relative',
+})
 function textStyle(t: Task) {
   return pxify({
     fontSize: 14,
@@ -184,37 +196,39 @@ function onGroupDrop(e: DragEvent, g: Group) {
             <div v-else-if="day.visible(g).length === 0" :style="s.dayDropHint">
               {{ day.hiddenBy(g) }} hidden by the filter
             </div>
-            <div
-              v-for="t in day.visible(g)"
-              :key="t.id"
-              :style="rowStyle(t)"
-              v-hover-style="s.rowHover"
-              draggable="true"
-              @dragstart="onDragStart($event, t)"
-              @dragend="onDragEnd"
-              @dragover="onRowDragOver"
-              @drop="onRowDrop($event, t)"
-              @click="onRowClick(t)"
-              @dblclick="onRowDblClick(t)"
-            >
-              <span :style="s.grip"
-                ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-              ></span>
-              <div :style="s.taskMain">
-                <span :style="textStyle(t)">{{ t.title }}</span>
-                <div :style="s.chipRow">
-                  <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-                  <span v-if="t.repo" :style="repoChipStyle"
-                    ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
-                  >
+            <TransitionGroup v-else name="rowflip" tag="div" :style="rowsWrap">
+              <div
+                v-for="t in day.visible(g)"
+                :key="t.id"
+                :style="rowStyle(t)"
+                v-hover-style="s.rowHover"
+                draggable="true"
+                @dragstart="onDragStart($event, t)"
+                @dragend="onDragEnd"
+                @dragover="onRowDragOver"
+                @drop="onRowDrop($event, t)"
+                @click="onRowClick(t)"
+                @dblclick="onRowDblClick(t)"
+              >
+                <span :style="s.grip"
+                  ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+                ></span>
+                <div :style="s.taskMain">
+                  <span :style="textStyle(t)">{{ t.title }}</span>
+                  <div :style="s.chipRow">
+                    <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                    <span v-if="t.repo" :style="repoChipStyle"
+                      ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
+                    >
+                  </div>
                 </div>
+                <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+                <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
+                <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
+                  ×
+                </button>
               </div>
-              <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-              <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
-              <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
-                ×
-              </button>
-            </div>
+            </TransitionGroup>
           </div>
         </div>
       </div>

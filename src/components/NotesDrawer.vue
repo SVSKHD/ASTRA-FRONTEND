@@ -10,6 +10,7 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { noteChecks, notePreview, noteText, noteTitle } from '@/utils/notes'
+import CommandHelp from '@/components/CommandHelp.vue'
 import type { Note } from '@/types'
 
 const ui = useUiStore()
@@ -20,6 +21,24 @@ const { notes } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
 const query = ref('')
+// The Commands help overlay, opened from the header's ? button.
+const helpOpen = ref(false)
+const helpBtn = computed(() =>
+  pxify({
+    width: 27,
+    height: 27,
+    flexShrink: 0,
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: 9,
+    border: '1px solid ' + c.value.border,
+    background: helpOpen.value ? c.value.input : 'transparent',
+    color: helpOpen.value ? c.value.accent : c.value.dim,
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 700,
+  }),
+)
 // Newest first, and searchable by the plain text behind the markup — the list
 // grows faster than any other, and scrolling it was the only way to find one.
 const shown = computed(() => {
@@ -79,8 +98,20 @@ function checkLabel(n: Note) {
   <div :style="drawerStyle">
     <div :style="s.drawerHeader">
       <span :style="s.drawerTitle">Notes</span>
-      <button :style="s.del" aria-label="Close notes" @click="ui.toggleDrawer()">×</button>
+      <span style="display: flex; align-items: center; gap: 8px">
+        <button
+          :style="helpBtn"
+          aria-label="Command help"
+          title="Command help"
+          @click="helpOpen = !helpOpen"
+        >
+          ?
+        </button>
+        <button :style="s.del" aria-label="Close notes" @click="ui.toggleDrawer()">×</button>
+      </span>
     </div>
+
+    <CommandHelp v-if="helpOpen" @close="helpOpen = false" />
 
     <button :style="s.addBtn2" v-hover-style="s.addBtnHover" @click="app.newNote()">
       + New Note

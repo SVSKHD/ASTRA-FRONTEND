@@ -16,6 +16,7 @@ import NotesDrawer from '@/components/NotesDrawer.vue'
 import NoteView from '@/components/NoteView.vue'
 import TaskDialog from '@/components/TaskDialog.vue'
 import ItemDialog from '@/components/ItemDialog.vue'
+import TripDialog from '@/components/TripDialog.vue'
 import ReminderDialog from '@/components/ReminderDialog.vue'
 import TaskView from '@/components/TaskView.vue'
 import GithubPanel from '@/components/GithubPanel.vue'
@@ -143,6 +144,12 @@ let remTimer: ReturnType<typeof setInterval>
 function onResize() {
   ui.setVw(window.innerWidth)
 }
+// Re-read the clock the moment the app is focused or brought back to the
+// foreground, so a session left open across midnight re-files the day
+// accordions on resume rather than waiting out the next 60s tick.
+function onResume() {
+  if (document.visibilityState !== 'hidden') ui.tick()
+}
 // /tasks/:id/view is a real route now, so the open task follows route params
 // rather than a hand-parsed popstate handler.
 const route = useRoute()
@@ -164,6 +171,8 @@ onMounted(() => {
   clockTimer = setInterval(() => ui.tick(), 60000)
   remTimer = setInterval(() => app.checkReminders(), 15000)
   window.addEventListener('resize', onResize)
+  window.addEventListener('focus', onResume)
+  document.addEventListener('visibilitychange', onResume)
   document.addEventListener('keydown', onKey)
 })
 onBeforeUnmount(() => {
@@ -171,6 +180,8 @@ onBeforeUnmount(() => {
   clearInterval(clockTimer)
   clearInterval(remTimer)
   window.removeEventListener('resize', onResize)
+  window.removeEventListener('focus', onResume)
+  document.removeEventListener('visibilitychange', onResume)
   document.removeEventListener('keydown', onKey)
 })
 </script>
@@ -243,6 +254,7 @@ onBeforeUnmount(() => {
     <NotesDrawer />
     <NoteView />
     <ItemDialog />
+    <TripDialog />
     <TaskDialog />
     <ReminderDialog />
     <TaskView />
