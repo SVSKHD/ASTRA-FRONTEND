@@ -11,9 +11,10 @@ import { pxify } from '@/styles'
 import { fetchShare, type ShareDoc, type ShareLoad } from '@/utils/shares'
 import { TYPE_BY_PLURAL } from '@/utils/share'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
+import TripDetail from '@/components/trips/TripDetail.vue'
 import { repFreqLabel } from '@/utils/reminders'
 import { STATUS_LABEL, isStatus, statusFromDone } from '@/types'
-import type { ItemType, Reminder } from '@/types'
+import type { ItemType, Reminder, Trip, TripPlace } from '@/types'
 
 const props = defineProps<{ plural: string; shareId: string }>()
 
@@ -98,19 +99,7 @@ const lines = computed<string[]>(() => {
     out.push('$' + Number(it.amount || 0).toFixed(2) + ' · ' + String(it.category ?? ''))
     if (it.date) out.push('On: ' + it.date)
   }
-  if (sv.type === 'trip') {
-    out.push(String(it.title || it.location || ''))
-    const done = it.status === 'done'
-    out.push('Status: ' + (done ? 'Done' : 'To visit'))
-    if (done && it.visitedDate) out.push('Visited: ' + it.visitedDate)
-    else if (it.date) out.push('Planned: ' + it.date)
-    if (it.description) out.push(String(it.description))
-    const rawPlaces = (share.value?.item as { places?: { name?: string }[] }).places
-    const names = Array.isArray(rawPlaces)
-      ? rawPlaces.map((p) => p.name).filter((n): n is string => !!n)
-      : []
-    if (names.length) out.push('Places: ' + names.join(' → '))
-  }
+  // Trips render as the full TripDetail page (see sharedTrip), not text lines.
   if (sv.type === 'idea') {
     out.push(String(it.title ?? ''))
     if (it.description) out.push(String(it.description))
@@ -130,6 +119,50 @@ const lines = computed<string[]>(() => {
 
 const isNote = computed(() => share.value?.type === 'note')
 const noteHtml = computed(() => String(item.value.text ?? ''))
+
+// A shared trip renders the exact same full detail page as /trips/:id, in a
+// read-only public variant, rebuilt from the frozen snapshot — every place
+// (lat/lng, dates, notes) and photo URL travels in the share doc, so nothing is
+// summarised away. Attached workspace notes are the owner's private notes and
+// are not part of the snapshot, so the notes section is simply empty.
+function num(v: unknown): number {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+const sharedTrip = computed<Trip | null>(() => {
+  if (share.value?.type !== 'trip' || typeMismatch.value) return null
+  const it = share.value.item as Record<string, unknown>
+  const rawPlaces = Array.isArray(it.places) ? (it.places as Record<string, unknown>[]) : []
+  const places: TripPlace[] = rawPlaces.map((p, i) => ({
+    id: typeof p.id === 'number' ? p.id : i + 1,
+    name: typeof p.name === 'string' ? p.name : '',
+    address: typeof p.address === 'string' ? p.address : '',
+    lat: typeof p.lat === 'number' ? p.lat : null,
+    lng: typeof p.lng === 'number' ? p.lng : null,
+    visitedAt: typeof p.visitedAt === 'string' ? p.visitedAt : '',
+    notes: typeof p.notes === 'string' ? p.notes : '',
+    photos: Array.isArray(p.photos)
+      ? p.photos.filter((x): x is string => typeof x === 'string')
+      : [],
+  }))
+  return {
+    id: typeof it.id === 'number' ? it.id : 0,
+    title: (it.title as string) || (it.location as string) || 'Shared trip',
+    status: it.status === 'done' ? 'done' : 'tovisit',
+    date: typeof it.date === 'string' ? it.date : '',
+    visitedDate: typeof it.visitedDate === 'string' ? it.visitedDate : '',
+    description: typeof it.description === 'string' ? it.description : '',
+    tag: typeof it.tag === 'string' ? it.tag : '',
+    photos: Array.isArray(it.photos)
+      ? it.photos.filter((x): x is string => typeof x === 'string')
+      : [],
+    places,
+    noteIds: [],
+    location: (it.location as string) || '',
+    createdAt: num(it.createdAt),
+    updatedAt: num(it.updatedAt),
+  }
+})
 
 // A shared reminder is worth little without its schedule, so the same timeline
 // the workspace uses is rendered here from the frozen snapshot.
@@ -187,7 +220,16 @@ function goHome() {
 </script>
 
 <template>
-  <div :style="centeredPage">
+  <!-- A shared trip is the full read-only detail page, not a summary card. -->
+  <TripDetail
+    v-if="sharedTrip"
+    :trip="sharedTrip"
+    variant="public"
+    :badge-label="share?.isPublic ? 'Public' : 'Private'"
+    @open-app="goHome"
+  />
+
+  <div v-else :style="centeredPage">
     <div :style="s.shareCard">
       <!-- Loading -->
       <template v-if="!load">
