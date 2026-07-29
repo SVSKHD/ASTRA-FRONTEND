@@ -53,6 +53,8 @@ import type {
   Toast,
   Todo,
   Trip,
+  TripPlace,
+  TripStatus,
 } from '@/types'
 
 function rel(days: number): string {
@@ -306,13 +308,94 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Trips --------------------------------------------------------------
-  function addTrip(location: string, date: string) {
-    const place = location.trim()
-    if (!place || !date) return
-    trips.value = [...trips.value, { id: id(), location: place, date, ...stamps() }]
+  // A trip is a titled plan with an ordered list of places (each with its own
+  // map pin, visited date/time, notes and photos). Create takes the essentials;
+  // places, photos and the map are filled in from the detail dialog afterwards.
+  function addTrip(fields: {
+    title: string
+    date?: string
+    status?: TripStatus
+    description?: string
+    tag?: string
+  }): number | undefined {
+    const title = fields.title.trim()
+    if (!title) return undefined
+    const newId = id()
+    trips.value = [
+      ...trips.value,
+      {
+        id: newId,
+        title,
+        status: fields.status ?? 'tovisit',
+        date: fields.date || rel(0),
+        visitedDate: '',
+        description: (fields.description ?? '').trim(),
+        tag: registerTag(fields.tag ?? ''),
+        photos: [],
+        places: [],
+        noteIds: [],
+        // Legacy mirror so old share/render paths still find a location string.
+        location: title,
+        ...stamps(),
+      },
+    ]
+    return newId
   }
   function updateTrip(tid: number, fields: Partial<Trip>) {
-    trips.value = trips.value.map((t) => (t.id === tid ? touched({ ...t, ...fields }) : t))
+    const next =
+      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
+    trips.value = trips.value.map((t) => (t.id === tid ? touched({ ...t, ...next }) : t))
+  }
+  function tripById(tid: number): Trip | undefined {
+    return trips.value.find((t) => t.id === tid)
+  }
+  function blankPlace(): TripPlace {
+    return {
+      id: id(),
+      name: '',
+      address: '',
+      lat: null,
+      lng: null,
+      visitedAt: '',
+      notes: '',
+      photos: [],
+    }
+  }
+  function addTripPlace(tid: number, place?: Partial<TripPlace>): number | undefined {
+    const trip = tripById(tid)
+    if (!trip) return undefined
+    const created = { ...blankPlace(), ...place }
+    updateTrip(tid, { places: [...trip.places, created] })
+    return created.id
+  }
+  function updateTripPlace(tid: number, placeId: number, fields: Partial<TripPlace>) {
+    const trip = tripById(tid)
+    if (!trip) return
+    updateTrip(tid, {
+      places: trip.places.map((p) => (p.id === placeId ? { ...p, ...fields } : p)),
+    })
+  }
+  function removeTripPlace(tid: number, placeId: number) {
+    const trip = tripById(tid)
+    if (!trip) return
+    updateTrip(tid, { places: trip.places.filter((p) => p.id !== placeId) })
+  }
+  // Reorder places to an explicit id order — drag-to-reorder in the dialog.
+  function reorderTripPlaces(tid: number, orderedIds: number[]) {
+    const trip = tripById(tid)
+    if (!trip) return
+    const byId = new Map(trip.places.map((p) => [p.id, p]))
+    const next = orderedIds.map((pid) => byId.get(pid)).filter((p): p is TripPlace => !!p)
+    // Keep any place the caller forgot to mention, appended in its old order.
+    for (const p of trip.places) if (!orderedIds.includes(p.id)) next.push(p)
+    updateTrip(tid, { places: next })
+  }
+  // One-tap To Visit -> Done, recording when it happened.
+  function moveTripToDone(tid: number, visitedDate: string) {
+    updateTrip(tid, { status: 'done', visitedDate: visitedDate || rel(0) })
+  }
+  function moveTripToVisit(tid: number) {
+    updateTrip(tid, { status: 'tovisit' })
   }
 
   // ---- Ideas --------------------------------------------------------------
@@ -370,21 +453,26 @@ export const useAppStore = defineStore('app', () => {
   // Notes are referenced by id, never copied. One note can hang off many items;
   // detaching only drops the reference, the note itself lives on in the drawer.
   function currentNoteIds(type: ItemType, itemId: number): number[] {
-    const list = type === 'idea' ? ideas.value : stocks.value
+    const list = type === 'idea' ? ideas.value : type === 'trip' ? trips.value : stocks.value
     const found = list.find((i) => i.id === itemId)
-    return found ? found.noteIds.slice() : []
+    return found ? ((found as { noteIds?: number[] }).noteIds?.slice() ?? []) : []
   }
-  function attachNote(type: 'idea' | 'stock', itemId: number, noteId: number) {
+  function writeNoteIds(type: 'idea' | 'stock' | 'trip', itemId: number, noteIds: number[]) {
+    if (type === 'idea') updateIdea(itemId, { noteIds })
+    else if (type === 'trip') updateTrip(itemId, { noteIds })
+    else updateStock(itemId, { noteIds })
+  }
+  function attachNote(type: 'idea' | 'stock' | 'trip', itemId: number, noteId: number) {
     const ids = currentNoteIds(type, itemId)
     if (ids.includes(noteId)) return
-    const noteIds = [...ids, noteId]
-    if (type === 'idea') updateIdea(itemId, { noteIds })
-    else updateStock(itemId, { noteIds })
+    writeNoteIds(type, itemId, [...ids, noteId])
   }
-  function detachNote(type: 'idea' | 'stock', itemId: number, noteId: number) {
-    const noteIds = currentNoteIds(type, itemId).filter((n) => n !== noteId)
-    if (type === 'idea') updateIdea(itemId, { noteIds })
-    else updateStock(itemId, { noteIds })
+  function detachNote(type: 'idea' | 'stock' | 'trip', itemId: number, noteId: number) {
+    writeNoteIds(
+      type,
+      itemId,
+      currentNoteIds(type, itemId).filter((n) => n !== noteId),
+    )
   }
 
   // ---- Editing / drafts ---------------------------------------------------
@@ -535,7 +623,7 @@ export const useAppStore = defineStore('app', () => {
               : type === 'reminder'
                 ? (item.title as string)
                 : type === 'trip'
-                  ? (item.location as string)
+                  ? (item.title as string) || (item.location as string)
                   : type === 'idea'
                     ? (item.title as string)
                     : type === 'stock'
@@ -728,16 +816,29 @@ export const useAppStore = defineStore('app', () => {
         ...notes.value,
         { id: nidNew, text: (it.text as string) || '', ts: Date.now(), ...stamps() },
       ]
-    else if (sv.type === 'trip')
+    else if (sv.type === 'trip') {
+      const sharedPlaces = Array.isArray(it.places) ? (it.places as TripPlace[]) : []
+      const title = (it.title as string) || (it.location as string) || 'Shared trip'
       trips.value = [
         ...trips.value,
         {
           id: nidNew,
-          location: (it.location as string) || 'Shared location',
+          title,
+          status: it.status === 'done' ? 'done' : 'tovisit',
           date: (it.date as string) || rel(0),
+          visitedDate: (it.visitedDate as string) || '',
+          description: (it.description as string) || '',
+          tag: (it.tag as string) || '',
+          photos: Array.isArray(it.photos) ? (it.photos as string[]) : [],
+          // Give each imported place a fresh id in this workspace's id space.
+          places: sharedPlaces.map((p) => ({ ...p, id: id() })),
+          // A shared snapshot cannot bring the owner's private notes with it.
+          noteIds: [],
+          location: (it.location as string) || title,
           ...stamps(),
         },
       ]
+    }
     dismissShared()
   }
 
@@ -896,7 +997,8 @@ export const useAppStore = defineStore('app', () => {
     if (type === 'task') return { title: '', tag: '', deadline: '', notes: '', repo: '' }
     if (type === 'deadline') return { title: '', due: rel(0) }
     if (type === 'finance') return { amount: '', category: 'Food', note: '', date: rel(0) }
-    if (type === 'trip') return { location: '', date: rel(0) }
+    if (type === 'trip')
+      return { title: '', date: rel(0), description: '', tag: '', status: 'tovisit' }
     if (type === 'idea')
       return { title: '', description: '', deadline: '', ideaType: 'feature', tag: '', noteIds: [] }
     if (type === 'stock')
@@ -1028,9 +1130,20 @@ export const useAppStore = defineStore('app', () => {
       if (!amount || amount <= 0) return fail('Enter an amount above zero')
       addFinance(str('amount'), str('category') || 'Other', str('note'), str('date'))
     } else if (state.type === 'trip') {
-      if (!str('location')) return fail('Where is the trip to?')
-      if (!str('date')) return fail('Pick a trip date')
-      addTrip(str('location'), str('date'))
+      if (!str('title')) return fail('Give the trip a name')
+      const newId = addTrip({
+        title: str('title'),
+        date: str('date'),
+        description: str('description'),
+        tag: str('tag'),
+        status: (str('status') || 'tovisit') as TripStatus,
+      })
+      // Switch straight to the fresh trip's detail dialog so places and the map
+      // can be added at once. openEdit resets the shared dialog slot in place —
+      // no closeItemDialog first, whose timer would later null the new dialog.
+      if (newId != null) openEdit('trip', newId)
+      else closeItemDialog()
+      return true
     } else if (state.type === 'idea') {
       if (!str('title')) return fail('Give the idea a title')
       addIdea(str('title'), str('tag'), {
@@ -1338,7 +1451,38 @@ export const useAppStore = defineStore('app', () => {
       priority: isPriority(r.priority) ? r.priority : 'normal',
       calEventId: typeof r.calEventId === 'string' ? r.calEventId : null,
     }))
-    trips.value = stamped<Trip>(data.trips)
+    // Trips gained a title, status, places, photos and attached notes after the
+    // first release; older trips carry only { date, location }. Backfill each
+    // field so the rest of the app can treat them as required, seeding the
+    // title from the old location and wrapping that location as a first place.
+    trips.value = stamped<Trip>(data.trips).map((t) => {
+      const legacyLoc = typeof t.location === 'string' ? t.location : ''
+      const places: TripPlace[] = Array.isArray(t.places)
+        ? (t.places as TripPlace[]).map((p) => ({
+            id: typeof p.id === 'number' ? p.id : id(),
+            name: typeof p.name === 'string' ? p.name : '',
+            address: typeof p.address === 'string' ? p.address : '',
+            lat: typeof p.lat === 'number' ? p.lat : null,
+            lng: typeof p.lng === 'number' ? p.lng : null,
+            visitedAt: typeof p.visitedAt === 'string' ? p.visitedAt : '',
+            notes: typeof p.notes === 'string' ? p.notes : '',
+            photos: Array.isArray(p.photos) ? p.photos.filter((x) => typeof x === 'string') : [],
+          }))
+        : []
+      return {
+        ...t,
+        title: typeof t.title === 'string' && t.title ? t.title : legacyLoc,
+        status: t.status === 'done' ? 'done' : 'tovisit',
+        date: typeof t.date === 'string' ? t.date : '',
+        visitedDate: typeof t.visitedDate === 'string' ? t.visitedDate : '',
+        description: typeof t.description === 'string' ? t.description : '',
+        tag: typeof t.tag === 'string' ? t.tag : '',
+        photos: Array.isArray(t.photos) ? t.photos.filter((x) => typeof x === 'string') : [],
+        places,
+        noteIds: Array.isArray(t.noteIds) ? t.noteIds.filter((n) => typeof n === 'number') : [],
+        location: legacyLoc,
+      }
+    })
     // Ideas/stocks are newer than the first release, so every legacy field is
     // backfilled on read — including noteIds, which older items never had.
     ideas.value = stamped<Idea>(data.ideas).map((i) => ({
@@ -1541,6 +1685,13 @@ export const useAppStore = defineStore('app', () => {
     updateFinance,
     addTrip,
     updateTrip,
+    tripById,
+    addTripPlace,
+    updateTripPlace,
+    removeTripPlace,
+    reorderTripPlaces,
+    moveTripToDone,
+    moveTripToVisit,
     addIdea,
     updateIdea,
     addStock,

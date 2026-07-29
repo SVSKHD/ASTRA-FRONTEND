@@ -99,8 +99,17 @@ const lines = computed<string[]>(() => {
     if (it.date) out.push('On: ' + it.date)
   }
   if (sv.type === 'trip') {
-    out.push(String(it.location ?? ''))
-    if (it.date) out.push('On: ' + it.date)
+    out.push(String(it.title || it.location || ''))
+    const done = it.status === 'done'
+    out.push('Status: ' + (done ? 'Done' : 'To visit'))
+    if (done && it.visitedDate) out.push('Visited: ' + it.visitedDate)
+    else if (it.date) out.push('Planned: ' + it.date)
+    if (it.description) out.push(String(it.description))
+    const rawPlaces = (share.value?.item as { places?: { name?: string }[] }).places
+    const names = Array.isArray(rawPlaces)
+      ? rawPlaces.map((p) => p.name).filter((n): n is string => !!n)
+      : []
+    if (names.length) out.push('Places: ' + names.join(' → '))
   }
   if (sv.type === 'idea') {
     out.push(String(it.title ?? ''))

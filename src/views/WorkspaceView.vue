@@ -16,6 +16,7 @@ import NotesDrawer from '@/components/NotesDrawer.vue'
 import NoteView from '@/components/NoteView.vue'
 import TaskDialog from '@/components/TaskDialog.vue'
 import ItemDialog from '@/components/ItemDialog.vue'
+import TripDialog from '@/components/TripDialog.vue'
 import ReminderDialog from '@/components/ReminderDialog.vue'
 import TaskView from '@/components/TaskView.vue'
 import GithubPanel from '@/components/GithubPanel.vue'
@@ -253,6 +254,7 @@ onBeforeUnmount(() => {
     <NotesDrawer />
     <NoteView />
     <ItemDialog />
+    <TripDialog />
     <TaskDialog />
     <ReminderDialog />
     <TaskView />

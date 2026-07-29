@@ -142,9 +142,34 @@ export interface Note extends Timestamped {
   ts: number
 }
 
+export type TripStatus = 'tovisit' | 'done'
+
+// One stop on a trip. A trip is an ordered list of these; each carries its own
+// map pin, its own visited date & time, notes and photos.
+export interface TripPlace {
+  id: number
+  name: string // place / destination name
+  address: string // formatted address from the location search
+  lat: number | null
+  lng: number | null
+  visitedAt: string // datetime-local 'YYYY-MM-DDTHH:mm', '' = none/planned
+  notes: string // HTML from the slash editor
+  photos: string[] // image URLs
+}
+
 export interface Trip extends Timestamped {
   id: number
-  date: string // YYYY-MM-DD
+  title: string // trip name
+  status: TripStatus // 'tovisit' | 'done'
+  date: string // planned date (To Visit), YYYY-MM-DD
+  visitedDate: string // visited date (Done), YYYY-MM-DD, '' = none
+  description: string
+  tag: string
+  photos: string[] // trip-level image URLs
+  places: TripPlace[] // ordered list of stops
+  noteIds: number[] // attached notes, referenced never copied
+  // Legacy single-location field, kept so trips written before places existed
+  // still read; mirrors the trip title / first place for older share links.
   location: string
 }
 
