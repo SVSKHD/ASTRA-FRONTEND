@@ -55,6 +55,15 @@ describe('routes', () => {
     expect(r.resolve('/tasks/xyz789').name).toBe('share-tasks')
   })
 
+  it('routes a numeric /trips/:id to the owner trip page, letters to the share', async () => {
+    const r = await makeRouter()
+    // A numeric id is the owner's full trip page…
+    expect(r.resolve('/trips/123').name).toBe('trip-page')
+    expect(r.resolve('/trips/123').params.id).toBe('123')
+    // …while a Firestore share id (has letters) still resolves to the share.
+    expect(r.resolve('/trips/abc123').name).toBe('share-trips')
+  })
+
   it('404s an unknown plural rather than rendering an empty share', async () => {
     const r = await makeRouter()
     expect(r.resolve('/widgets/abc123').name).toBe('not-found')

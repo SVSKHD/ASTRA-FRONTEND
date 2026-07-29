@@ -5,6 +5,7 @@
 // notes all live. A sticky Map ↔ Timeline toggle sits at the top of the body so
 // it stays reachable while the content scrolls, on mobile and desktop alike.
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -18,8 +19,18 @@ import { noteTitle } from '@/utils/notes'
 import type { Note, Trip } from '@/types'
 
 const app = useAppStore()
+const router = useRouter()
 const { c, s, isMobile } = useStyles()
 const { itemDialog, dialogDraft, dialogClosing, trips } = storeToRefs(app)
+
+// The dialog is a quick view; the full page is the whole trip. Opening it closes
+// the dialog and deep-links to /trips/:id.
+function openFullPage() {
+  const t = trip.value
+  if (!t) return
+  app.closeItemDialog()
+  router.push('/trips/' + t.id)
+}
 
 const isTrip = computed(() => itemDialog.value?.type === 'trip')
 const isCreate = computed(() => itemDialog.value?.mode === 'create')
@@ -394,6 +405,7 @@ const dangerBtn = computed(() =>
         <span :style="statusBadge(trip.status === 'done')">
           {{ trip.status === 'done' ? 'Done' : 'To visit' }}
         </span>
+        <button :style="iconBtn" title="Open full page" @click="openFullPage">⤢</button>
         <button :style="iconBtn" title="Share trip" @click="shareTrip">↗</button>
         <button :style="del" aria-label="Close" @click="app.closeItemDialog()">×</button>
       </div>

@@ -5,7 +5,7 @@
 // timeline). A one-tap "Visited" moves a To-Visit trip to Done (prompting for
 // the date); the card then leaves its list with the same FLIP migration the
 // day accordions use. Filter by tag and sort by date or name in both sub-tabs.
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -17,6 +17,19 @@ import type { Trip, TripStatus } from '@/types'
 const app = useAppStore()
 const { c, dark, s, panelStyle } = useStyles()
 const { trips } = storeToRefs(app)
+
+// Module-scoped so it survives this view unmounting when you open a trip's full
+// page — coming back restores where the list was scrolled.
+let savedScroll = 0
+const scroller = ref<HTMLElement | null>(null)
+function onScroll() {
+  if (scroller.value) savedScroll = scroller.value.scrollTop
+}
+onMounted(() => {
+  nextTick(() => {
+    if (scroller.value) scroller.value.scrollTop = savedScroll
+  })
+})
 
 // N / ⌘K opens the create dialog for this tab.
 defineExpose({ focus: () => app.openCreate('trip') })
@@ -144,15 +157,12 @@ const selectStyle = computed(() =>
     cursor: 'pointer',
   }),
 )
+const scrollerStyle = pxify({ flex: 1, minHeight: 0, overflowY: 'auto', padding: 2 })
 const cardsWrap = pxify({
   display: 'flex',
   flexDirection: 'column',
   gap: 12,
   position: 'relative',
-  flex: 1,
-  minHeight: 0,
-  overflowY: 'auto',
-  padding: 2,
 })
 const cardStyle = computed(() =>
   pxify({
@@ -291,53 +301,60 @@ const promptInput = computed(() =>
     </div>
 
     <!-- Cards -->
-    <TransitionGroup
-      name="rowflip"
-      tag="div"
-      :style="cardsWrap"
+    <div
+      ref="scroller"
+      :style="scrollerStyle"
+      @scroll="onScroll"
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
     >
-      <div v-for="t in list" :key="t.id" :style="cardStyle" @click="app.openEdit('trip', t.id)">
-        <div :style="thumbWrap" @click.stop="app.openEdit('trip', t.id)">
-          <TripMap v-if="pinned(t).length" :places="t.places" :interactive="false" :height="110" />
-          <div v-else :style="noMap">No map yet — add a place</div>
-        </div>
+      <TransitionGroup name="rowflip" tag="div" :style="cardsWrap">
+        <div v-for="t in list" :key="t.id" :style="cardStyle" @click="app.openEdit('trip', t.id)">
+          <div :style="thumbWrap" @click.stop="app.openEdit('trip', t.id)">
+            <TripMap
+              v-if="pinned(t).length"
+              :places="t.places"
+              :interactive="false"
+              :height="110"
+            />
+            <div v-else :style="noMap">No map yet — add a place</div>
+          </div>
 
-        <span :style="titleStyle">{{ t.title || 'Untitled trip' }}</span>
-        <div :style="metaRow">
-          <span :style="dateStyle">{{ dateLabel(t) }}</span>
-          <span :style="placeCount"
-            >📍 {{ t.places.length }} place{{ t.places.length === 1 ? '' : 's' }}</span
-          >
-          <span v-if="t.tag" :style="chip(t.tag)">{{ t.tag }}</span>
-        </div>
+          <span :style="titleStyle">{{ t.title || 'Untitled trip' }}</span>
+          <div :style="metaRow">
+            <span :style="dateStyle">{{ dateLabel(t) }}</span>
+            <span :style="placeCount"
+              >📍 {{ t.places.length }} place{{ t.places.length === 1 ? '' : 's' }}</span
+            >
+            <span v-if="t.tag" :style="chip(t.tag)">{{ t.tag }}</span>
+          </div>
 
-        <!-- Inline visited-date prompt -->
-        <div v-if="promptId === t.id" :style="promptRow" @click.stop>
-          <span :style="dateStyle">Visited on</span>
-          <input :style="promptInput" type="date" v-model="promptDate" />
-          <button :style="visitBtn" @click="confirmVisited(t)">Confirm</button>
-          <button :style="ghostBtn" @click="promptId = null">Cancel</button>
-        </div>
+          <!-- Inline visited-date prompt -->
+          <div v-if="promptId === t.id" :style="promptRow" @click.stop>
+            <span :style="dateStyle">Visited on</span>
+            <input :style="promptInput" type="date" v-model="promptDate" />
+            <button :style="visitBtn" @click="confirmVisited(t)">Confirm</button>
+            <button :style="ghostBtn" @click="promptId = null">Cancel</button>
+          </div>
 
-        <div v-else :style="actionsRow" @click.stop>
-          <button v-if="t.status === 'tovisit'" :style="visitBtn" @click="startVisited(t)">
-            ✓ Visited
-          </button>
-          <button v-else :style="ghostBtn" @click="reopen(t)">Move to To-visit</button>
-          <button :style="ghostBtn" @click="app.openEdit('trip', t.id)">Open</button>
-          <button :style="ghostBtn" @click="app.share('trip', t)">Share ↗</button>
-          <span :style="pxify({ flex: 1 })"></span>
-          <button
-            :style="del"
-            title="Delete trip"
-            @click="app.deleteWithUndo('trips', 'trip', t.id)"
-          >
-            ×
-          </button>
+          <div v-else :style="actionsRow" @click.stop>
+            <button v-if="t.status === 'tovisit'" :style="visitBtn" @click="startVisited(t)">
+              ✓ Visited
+            </button>
+            <button v-else :style="ghostBtn" @click="reopen(t)">Move to To-visit</button>
+            <button :style="ghostBtn" @click="app.openEdit('trip', t.id)">Open</button>
+            <button :style="ghostBtn" @click="app.share('trip', t)">Share ↗</button>
+            <span :style="pxify({ flex: 1 })"></span>
+            <button
+              :style="del"
+              title="Delete trip"
+              @click="app.deleteWithUndo('trips', 'trip', t.id)"
+            >
+              ×
+            </button>
+          </div>
         </div>
-      </div>
-    </TransitionGroup>
+      </TransitionGroup>
+    </div>
   </div>
 </template>
