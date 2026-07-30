@@ -36,6 +36,8 @@ const tabs = computed(() =>
       </button>
     </div>
     <div :style="s.filterRow">
+      <!-- Trailing action, e.g. Move-pending-to-today; empty by default. -->
+      <slot name="action" />
       <button :style="s.foldBtn" @click="$emit('fold')">
         {{ allOpen ? 'Collapse all' : 'Expand all' }}
       </button>

@@ -57,6 +57,12 @@ export interface Todo extends Timestamped, Shareable {
   // applyData() backfills them on read.
   tag: string
   description: string
+  // "Move pending to today" carries an overdue todo forward. Todos have no due
+  // date — their day is their createdAt — so a move re-stamps createdAt to
+  // today; rolledOverAt/rolloverCount record that, mirroring Task. Backfilled
+  // on read for todos written before these existed.
+  rolledOverAt: number | null
+  rolloverCount: number
 }
 
 export interface Task extends Timestamped {
@@ -247,6 +253,8 @@ export interface ItemDialogState {
 export interface Toast {
   message: string
   undo: boolean
+  // Label for the action button; defaults to "Undo" when unset (e.g. "Retry").
+  actionLabel?: string
   listKey?: ListKey
   item?: unknown
   idx?: number

@@ -11,7 +11,9 @@ const { toast } = storeToRefs(app)
 <template>
   <div v-if="toast" :style="s.toast">
     <span :style="s.toastText">{{ toast.message }}</span>
-    <button v-if="toast.undo" :style="s.saveBtn" @click="app.performUndo()">Undo</button>
+    <button v-if="toast.undo" :style="s.saveBtn" @click="app.performUndo()">
+      {{ toast.actionLabel || 'Undo' }}
+    </button>
     <button :style="s.del" @click="app.closeToast()">×</button>
   </div>
 </template>

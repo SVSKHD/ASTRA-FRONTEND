@@ -28,7 +28,7 @@ import {
   withoutTag,
 } from '@/utils/tags'
 import { STATUS_CYCLE, emptyFinanceSettings, isStatus, statusFromDone } from '@/types'
-import { chunk, eligibleTasks, todayKey } from '@/utils/rollover'
+import { chunk, eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
 import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
 import type {
   ActiveNotif,
@@ -248,6 +248,8 @@ export const useAppStore = defineStore('app', () => {
         isPublic: false,
         shareId: null,
         sharedAt: null,
+        rolledOverAt: null,
+        rolloverCount: 0,
         ...stamps(),
       },
     ]
@@ -350,39 +352,114 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  // ---- "Move pending to today" (task rollover) ----------------------------
-  // Firestore's writeBatch caps at 500 ops; 400 leaves headroom. In this app the
-  // whole workspace is one document, so a "chunk" is persisted as a single
-  // workspace write — but the cap still bounds how much a very large rollover
-  // touches per step, and progress is reported only after each write resolves.
+  // ---- "Move pending to today" (generalized over todos + tasks) -----------
+  // One code path rolls overdue items in either collection forward to today:
+  //   tasks — set `deadline` to today.
+  //   todos — todos have no due date; their day is `createdAt`, so re-stamp it
+  //           to today keeping the time of day (same move as a drag-to-day).
+  // Both bump `rolledOverAt`/`rolloverCount`. Idempotent: a second run finds an
+  // empty eligible set. Firestore's writeBatch caps at 500 ops; the whole
+  // workspace is one document here, so a "chunk" persists as one workspace
+  // write, and 400 still bounds how much a huge run touches per step.
   const ROLLOVER_CHUNK = 400
 
-  interface RolloverRestore {
+  type CollectionKey = 'todos' | 'tasks'
+  interface MoveRestore {
     id: number
-    deadline: string
-    rolledOverAt: number | null
-    rolloverCount: number
+    prev: Record<string, string | number | null>
   }
-  interface RolloverResult {
+  interface MoveResult {
     moved: number
     failed: number
-    restore: RolloverRestore[]
+    restore: MoveRestore[]
   }
 
-  // Roll every overdue, not-done task's deadline forward to today. Idempotent:
-  // a second run finds nothing eligible. onProgress fires after each chunk's
-  // write resolves, so the caller's bar tracks real writes, never a timer.
-  async function rolloverPendingTasks(
-    onProgress?: (done: number, total: number) => void,
-  ): Promise<RolloverResult> {
+  // The exact eligible list, shared by the badge count and the action so they
+  // can never disagree. Uses the real local clock (today).
+  function pendingOverdue(collectionKey: CollectionKey): Array<Todo | Task> {
     const today = todayKey()
-    const eligible = eligibleTasks(tasks.value, today)
+    return collectionKey === 'tasks'
+      ? eligibleTasks(tasks.value, today)
+      : eligibleTodos(todos.value, today)
+  }
+
+  // Yield a frame so the progress bar can paint between chunks (used only on the
+  // offline path, where there is no server ack to await).
+  function nextFrame(): Promise<void> {
+    return new Promise((resolve) => {
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve())
+      else setTimeout(resolve, 16)
+    })
+  }
+
+  async function movePendingToToday(
+    collectionKey: CollectionKey,
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<MoveResult> {
+    const today = todayKey()
+    const eligible = pendingOverdue(collectionKey)
     const total = eligible.length
-    const restore: RolloverRestore[] = []
+    const restore: MoveRestore[] = []
     if (total === 0) return { moved: 0, failed: 0, restore }
 
-    // Bound the number of awaited writes: a small list ticks per task, a huge
-    // one still finishes in a handful of writes rather than one per task.
+    // Offline, the workspace write never acknowledges until reconnect, so we
+    // must not await it (that would hang the bar forever). Online we await the
+    // real write for genuine per-chunk progress; offline we commit the chunk
+    // locally (durable via persistence) and let the offline layer replay it.
+    const online =
+      (typeof navigator === 'undefined' || navigator.onLine !== false) && !syncFromCache.value
+
+    const priorOf = (item: Todo | Task): Record<string, string | number | null> =>
+      collectionKey === 'tasks'
+        ? {
+            deadline: (item as Task).deadline,
+            rolledOverAt: item.rolledOverAt,
+            rolloverCount: item.rolloverCount,
+          }
+        : {
+            createdAt: item.createdAt,
+            rolledOverAt: item.rolledOverAt,
+            rolloverCount: item.rolloverCount,
+          }
+    const applyChunk = (ids: Set<number>, at: number) => {
+      if (collectionKey === 'tasks') {
+        tasks.value = tasks.value.map((t) =>
+          ids.has(t.id)
+            ? {
+                ...t,
+                deadline: today,
+                rolledOverAt: at,
+                rolloverCount: (t.rolloverCount || 0) + 1,
+                updatedAt: at,
+              }
+            : t,
+        )
+      } else {
+        todos.value = todos.value.map((t) =>
+          ids.has(t.id)
+            ? {
+                ...t,
+                createdAt: stampOnDay(today, t.createdAt),
+                rolledOverAt: at,
+                rolloverCount: (t.rolloverCount || 0) + 1,
+                updatedAt: at,
+              }
+            : t,
+        )
+      }
+    }
+    const revertChunk = (prior: Map<number, Record<string, string | number | null>>) => {
+      if (collectionKey === 'tasks') {
+        tasks.value = tasks.value.map((t) =>
+          prior.has(t.id) ? ({ ...t, ...prior.get(t.id) } as Task) : t,
+        )
+      } else {
+        todos.value = todos.value.map((t) =>
+          prior.has(t.id) ? ({ ...t, ...prior.get(t.id) } as Todo) : t,
+        )
+      }
+    }
+
     const maxSteps = 20
     const chunkSize = Math.min(ROLLOVER_CHUNK, Math.max(1, Math.ceil(total / maxSteps)))
     const groups = chunk(eligible, chunkSize)
@@ -390,66 +467,44 @@ export const useAppStore = defineStore('app', () => {
     let moved = 0
     let failed = 0
     for (const group of groups) {
-      const ids = new Set(group.map((t) => t.id))
-      const prior = new Map(
-        group.map((t) => [
-          t.id,
-          { deadline: t.deadline, rolledOverAt: t.rolledOverAt, rolloverCount: t.rolloverCount },
-        ]),
-      )
-      const at = Date.now()
-      tasks.value = tasks.value.map((t) =>
-        ids.has(t.id)
-          ? {
-              ...t,
-              deadline: today,
-              rolledOverAt: at,
-              rolloverCount: (t.rolloverCount || 0) + 1,
-              updatedAt: at,
-            }
-          : t,
-      )
-      try {
-        await saveCloudNow()
-        for (const t of group) {
-          const p = prior.get(t.id)!
-          restore.push({
-            id: t.id,
-            deadline: p.deadline,
-            rolledOverAt: p.rolledOverAt,
-            rolloverCount: p.rolloverCount,
-          })
+      const ids = new Set(group.map((i) => i.id))
+      const prior = new Map(group.map((i) => [i.id, priorOf(i)]))
+      applyChunk(ids, Date.now())
+      if (online) {
+        try {
+          await saveCloudNow()
+          for (const i of group) restore.push({ id: i.id, prev: prior.get(i.id)! })
+          moved += group.length
+        } catch {
+          revertChunk(prior)
+          failed += group.length
         }
+      } else {
+        // Queue locally without blocking, then yield a frame so the bar moves.
+        void saveCloudNow().catch(() => {})
+        await nextFrame()
+        for (const i of group) restore.push({ id: i.id, prev: prior.get(i.id)! })
         moved += group.length
-      } catch {
-        // The write failed, so this chunk did not land — put it back exactly.
-        tasks.value = tasks.value.map((t) => (ids.has(t.id) ? { ...t, ...prior.get(t.id)! } : t))
-        failed += group.length
       }
       onProgress?.(moved + failed, total)
     }
     return { moved, failed, restore }
   }
 
-  // Restore each rolled task to the deadline (and rollover bookkeeping) it had
-  // before the rollover. Best-effort persistence; a failed save leaves the
-  // in-memory restore in place to re-sync on the next change.
-  function undoRollover(restore: RolloverRestore[]) {
+  // Restore each moved item to the day (and rollover bookkeeping) it had before.
+  function undoMovePending(collectionKey: CollectionKey, restore: MoveRestore[]) {
     if (!restore.length) return
-    const map = new Map(restore.map((r) => [r.id, r]))
+    const map = new Map(restore.map((r) => [r.id, r.prev]))
     const at = Date.now()
-    tasks.value = tasks.value.map((t) => {
-      const r = map.get(t.id)
-      return r
-        ? {
-            ...t,
-            deadline: r.deadline,
-            rolledOverAt: r.rolledOverAt,
-            rolloverCount: r.rolloverCount,
-            updatedAt: at,
-          }
-        : t
-    })
+    if (collectionKey === 'tasks') {
+      tasks.value = tasks.value.map((t) =>
+        map.has(t.id) ? ({ ...t, ...map.get(t.id), updatedAt: at } as Task) : t,
+      )
+    } else {
+      todos.value = todos.value.map((t) =>
+        map.has(t.id) ? ({ ...t, ...map.get(t.id), updatedAt: at } as Todo) : t,
+      )
+    }
     void saveCloudNow().catch(() => {})
   }
 
@@ -508,7 +563,7 @@ export const useAppStore = defineStore('app', () => {
     const today = todayKey()
     if (!autoRollover.value || lastAutoRolloverDay.value === today) return
     lastAutoRolloverDay.value = today
-    const res = await rolloverPendingTasks()
+    const res = await movePendingToToday('tasks')
     if (res.moved > 0) {
       showToastMsg(`${res.moved} task${res.moved === 1 ? '' : 's'} moved to today`)
     }
@@ -894,8 +949,13 @@ export const useAppStore = defineStore('app', () => {
   // A generic Undo for toasts that are not deletions (the rollover uses it). The
   // delete flow keeps its own undoDelete; performUndo dispatches to whichever is
   // active so the single Undo button in Toast.vue serves both.
-  function showToastWithUndo(message: string, onUndo: () => void, ms = 10000) {
-    toast.value = { message, undo: true }
+  function showToastWithUndo(
+    message: string,
+    onUndo: () => void,
+    ms = 10000,
+    actionLabel?: string,
+  ) {
+    toast.value = { message, undo: true, actionLabel }
     toastUndoHandler = onUndo
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => {
@@ -981,6 +1041,8 @@ export const useAppStore = defineStore('app', () => {
           isPublic: false,
           shareId: null,
           sharedAt: null,
+          rolledOverAt: null,
+          rolloverCount: 0,
           ...stamps(),
         },
       ]
@@ -1758,6 +1820,9 @@ export const useAppStore = defineStore('app', () => {
       isPublic: t.isPublic === true,
       shareId: typeof t.shareId === 'string' ? t.shareId : null,
       sharedAt: typeof t.sharedAt === 'number' ? t.sharedAt : null,
+      // Rollover fields, backfilled for todos written before "move to today".
+      rolledOverAt: typeof t.rolledOverAt === 'number' ? t.rolledOverAt : null,
+      rolloverCount: typeof t.rolloverCount === 'number' ? t.rolloverCount : 0,
     }))
     // Rollover fields arrived after tasks did; tasks stored before then read as
     // "never rolled over".
@@ -2080,8 +2145,9 @@ export const useAppStore = defineStore('app', () => {
     addFinance,
     updateFinance,
     setMonthlyIncome,
-    rolloverPendingTasks,
-    undoRollover,
+    pendingOverdue,
+    movePendingToToday,
+    undoMovePending,
     setAutoRollover,
     runAutoRolloverIfDue,
     addTrip,

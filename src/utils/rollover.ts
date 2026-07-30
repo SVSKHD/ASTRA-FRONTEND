@@ -10,7 +10,7 @@
 // zone must still count "today" as today, not tomorrow.
 
 import { ymd } from '@/utils/dayGroups'
-import type { Task } from '@/types'
+import type { Task, Todo } from '@/types'
 
 // Local start-of-today as a YYYY-MM-DD key.
 export function todayKey(now: Date = new Date()): string {
@@ -26,6 +26,18 @@ export function isOverdueTask(task: Task, today: string = todayKey()): boolean {
 // finds nothing.
 export function eligibleTasks(tasks: Task[], today: string = todayKey()): Task[] {
   return tasks.filter((t) => isOverdueTask(t, today))
+}
+
+// Todos have no due date; their "due day" is the day they were written
+// (createdAt). Overdue = a not-done todo whose day is before today. Legacy
+// todos with createdAt 0 (unknown day) are left alone, mirroring how the day
+// list already treats them as undated.
+export function isOverdueTodo(todo: Todo, today: string = todayKey()): boolean {
+  return todo.status !== 'done' && todo.createdAt > 0 && ymd(new Date(todo.createdAt)) < today
+}
+
+export function eligibleTodos(todos: Todo[], today: string = todayKey()): Todo[] {
+  return todos.filter((t) => isOverdueTodo(t, today))
 }
 
 // Split a list into fixed-size chunks. Mirrors the Firestore writeBatch cap so
