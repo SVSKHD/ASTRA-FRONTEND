@@ -13,6 +13,7 @@ import { TYPE_BY_PLURAL } from '@/utils/share'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
 import TripDetail from '@/components/trips/TripDetail.vue'
 import { repFreqLabel } from '@/utils/reminders'
+import { formatINR } from '@/utils/currency'
 import { formatAbsolute, isStamped } from '@/utils/timestamps'
 import { STATUS_LABEL, isStatus, statusFromDone } from '@/types'
 import type { ItemType, Reminder, Trip, TripPlace } from '@/types'
@@ -101,7 +102,7 @@ const lines = computed<string[]>(() => {
   }
   if (sv.type === 'finance') {
     out.push(String(it.note || it.category || ''))
-    out.push('$' + Number(it.amount || 0).toFixed(2) + ' · ' + String(it.category ?? ''))
+    out.push(formatINR(Number(it.amount || 0)) + ' · ' + String(it.category ?? ''))
     if (it.date) out.push('On: ' + it.date)
   }
   // Trips render as the full TripDetail page (see sharedTrip), not text lines.

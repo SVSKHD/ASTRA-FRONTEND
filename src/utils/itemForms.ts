@@ -25,6 +25,8 @@ export interface FieldDef {
   placeholder?: string
   options?: { value: string; label: string }[]
   min?: number
+  // A leading adornment for text/number inputs, e.g. a ₹ on a money field.
+  prefix?: string
   // Shown only when this returns true — the reminder repeat fields depend on
   // which kind of repeat is selected.
   when?: (draft: Record<string, unknown>) => boolean
@@ -91,7 +93,7 @@ export const ITEM_FORMS: Record<ItemType, FormDef> = {
     newTitle: 'New entry',
     editTitle: 'Edit entry',
     fields: [
-      { key: 'amount', label: 'Amount', kind: 'number', placeholder: '0.00', min: 0 },
+      { key: 'amount', label: 'Amount', kind: 'number', placeholder: '0', min: 0, prefix: '₹' },
       {
         key: 'category',
         label: 'Category',

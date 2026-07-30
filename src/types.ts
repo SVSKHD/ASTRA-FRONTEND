@@ -68,6 +68,12 @@ export interface Task extends Timestamped {
   deadline: string // YYYY-MM-DD, '' = no date
   notes: string
   repo: string // owner/repo, '' = none
+  // Set by "Move pending to today" when an overdue task's deadline is rolled
+  // forward. rolloverCount records how many times it has been carried over —
+  // a gentle signal that a task keeps slipping. Both are absent on tasks that
+  // have never been rolled, so applyData() backfills them.
+  rolledOverAt: number | null
+  rolloverCount: number
 }
 
 export interface Deadline extends Timestamped {
@@ -148,6 +154,22 @@ export interface Finance extends Timestamped {
   category: FinanceCategory | string
   note: string
   date: string // YYYY-MM-DD
+}
+
+// Monthly-income settings for the expenses view. Income is tracked per month
+// (keyed 'YYYY-MM') so a raise mid-year does not retroactively rewrite older
+// months; `monthlyIncome` is the most recent value set and is the fallback for
+// any month that has no explicit entry (see useMonthlyBudget). Amounts are in
+// whole/decimal rupees — the app is INR-only for now.
+export interface FinanceSettings {
+  currency: 'INR'
+  monthlyIncome: number
+  incomeByMonth: Record<string, number>
+  incomeUpdatedAt: number
+}
+
+export function emptyFinanceSettings(): FinanceSettings {
+  return { currency: 'INR', monthlyIncome: 0, incomeByMonth: {}, incomeUpdatedAt: 0 }
 }
 
 export interface Note extends Timestamped {

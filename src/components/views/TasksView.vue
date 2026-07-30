@@ -10,6 +10,7 @@ import { buildDayGroups } from '@/utils/dayGroups'
 import DayGroupHead from '@/components/DayGroupHead.vue'
 import DayToolbar from '@/components/DayToolbar.vue'
 import StatusPill from '@/components/StatusPill.vue'
+import RolloverButton from '@/components/RolloverButton.vue'
 import type { Task } from '@/types'
 
 const app = useAppStore()
@@ -167,6 +168,7 @@ function onGroupDrop(e: DragEvent, g: Group) {
 
 <template>
   <div :style="panelStyle">
+    <RolloverButton />
     <DayToolbar
       :filter="day.filter.value"
       :all-open="day.allOpen.value"
