@@ -22,7 +22,14 @@ const config = {
 }
 
 export const AUREON_COLLECTION = 'aureon-notes'
-export const firebaseEnabled = Boolean(config.apiKey && config.projectId && config.appId)
+// Under the test runner Firebase stays OFF even when VITE_FIREBASE_* are set in
+// the environment (they are on the deploy host). Otherwise a unit test that
+// instantiates the store would attach a real auth listener and reset/persist
+// through it — which is exactly what broke the build's `verify` step on the
+// deploy host while passing locally, where those vars are absent.
+const isTestRunner = import.meta.env.MODE === 'test'
+export const firebaseEnabled =
+  Boolean(config.apiKey && config.projectId && config.appId) && !isTestRunner
 export const defaultLockMinutes = Math.max(
   1,
   Number.parseInt(import.meta.env.VITE_AUTO_LOCK_MINUTES || '50', 10) || 50,
