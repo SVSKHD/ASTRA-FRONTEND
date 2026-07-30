@@ -27,7 +27,9 @@ import {
   withTag,
   withoutTag,
 } from '@/utils/tags'
-import { STATUS_CYCLE, isStatus, statusFromDone } from '@/types'
+import { STATUS_CYCLE, emptyFinanceSettings, isStatus, statusFromDone } from '@/types'
+import { chunk, eligibleTasks, todayKey } from '@/utils/rollover'
+import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
 import type {
   ActiveNotif,
   Deadline,
@@ -43,6 +45,7 @@ import type {
   Stock,
   Priority,
   PullRequest,
+  FinanceSettings,
   Reminder,
   Repeat,
   RepeatType,
@@ -93,9 +96,24 @@ export const useAppStore = defineStore('app', () => {
   // Theme is a per-user preference, so it rides along in the workspace doc and
   // is restored on refresh once the document lands. The ui store reads it.
   const themeSetting = ref<ThemeSetting>('auto')
+  // "Move pending to today" preferences. autoRollover runs the rollover once on
+  // the first load of a new day; lastAutoRolloverDay (a YYYY-MM-DD key) records
+  // the last day it did, so it fires at most once per day per device-sync.
+  const autoRollover = ref(false)
+  const lastAutoRolloverDay = ref('')
+  // Monthly-income settings for the expenses view (INR).
+  const financeSettings = ref<FinanceSettings>(emptyFinanceSettings())
   const cloudReady = ref(false)
   const cloudError = ref('')
   const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
+  // Offline sync signals, fed from the workspace snapshot's metadata. Because
+  // the whole workspace is one document, `fromCache`/`hasPendingWrites` describe
+  // the doc as a whole; per-item pending is recovered by diffing against
+  // syncedSig, the signature of the last server-acknowledged snapshot.
+  const syncFromCache = ref(false)
+  const syncHasPending = ref(false)
+  const lastSyncedAt = ref<number | null>(null)
+  const syncedSig = ref<Map<string, string>>(new Map())
 
   const editing = ref<EditingState>({ type: null, id: null })
   const draft = ref<Record<string, unknown>>({})
@@ -140,6 +158,9 @@ export const useAppStore = defineStore('app', () => {
   let dragId: number | null = null
   let todoDragId: number | null = null
   let toastTimer: ReturnType<typeof setTimeout> | undefined
+  // Set while a non-delete toast (e.g. the rollover) offers Undo; performUndo
+  // dispatches here first, falling back to undoDelete for deletions.
+  let toastUndoHandler: (() => void) | null = null
 
   // --- id counter bootstrap: keep above any existing ids ------------------
   function bumpNid() {
@@ -270,6 +291,8 @@ export const useAppStore = defineStore('app', () => {
         deadline: '',
         notes: '',
         repo: '',
+        rolledOverAt: null,
+        rolloverCount: 0,
         ...fields,
         ...stamps(),
       },
@@ -312,6 +335,183 @@ export const useAppStore = defineStore('app', () => {
   }
   function updateFinance(fid: number, fields: Partial<Finance>) {
     finances.value = finances.value.map((f) => (f.id === fid ? touched({ ...f, ...fields }) : f))
+  }
+
+  // ---- Monthly income (INR) ----------------------------------------------
+  // Income is set per month; writing a month also updates monthlyIncome so it
+  // becomes the fallback for later months that have no explicit value.
+  function setMonthlyIncome(monthKey: string, amount: number) {
+    const val = Number.isFinite(amount) && amount > 0 ? amount : 0
+    financeSettings.value = {
+      ...financeSettings.value,
+      monthlyIncome: val,
+      incomeByMonth: { ...financeSettings.value.incomeByMonth, [monthKey]: val },
+      incomeUpdatedAt: Date.now(),
+    }
+  }
+
+  // ---- "Move pending to today" (task rollover) ----------------------------
+  // Firestore's writeBatch caps at 500 ops; 400 leaves headroom. In this app the
+  // whole workspace is one document, so a "chunk" is persisted as a single
+  // workspace write — but the cap still bounds how much a very large rollover
+  // touches per step, and progress is reported only after each write resolves.
+  const ROLLOVER_CHUNK = 400
+
+  interface RolloverRestore {
+    id: number
+    deadline: string
+    rolledOverAt: number | null
+    rolloverCount: number
+  }
+  interface RolloverResult {
+    moved: number
+    failed: number
+    restore: RolloverRestore[]
+  }
+
+  // Roll every overdue, not-done task's deadline forward to today. Idempotent:
+  // a second run finds nothing eligible. onProgress fires after each chunk's
+  // write resolves, so the caller's bar tracks real writes, never a timer.
+  async function rolloverPendingTasks(
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<RolloverResult> {
+    const today = todayKey()
+    const eligible = eligibleTasks(tasks.value, today)
+    const total = eligible.length
+    const restore: RolloverRestore[] = []
+    if (total === 0) return { moved: 0, failed: 0, restore }
+
+    // Bound the number of awaited writes: a small list ticks per task, a huge
+    // one still finishes in a handful of writes rather than one per task.
+    const maxSteps = 20
+    const chunkSize = Math.min(ROLLOVER_CHUNK, Math.max(1, Math.ceil(total / maxSteps)))
+    const groups = chunk(eligible, chunkSize)
+
+    let moved = 0
+    let failed = 0
+    for (const group of groups) {
+      const ids = new Set(group.map((t) => t.id))
+      const prior = new Map(
+        group.map((t) => [
+          t.id,
+          { deadline: t.deadline, rolledOverAt: t.rolledOverAt, rolloverCount: t.rolloverCount },
+        ]),
+      )
+      const at = Date.now()
+      tasks.value = tasks.value.map((t) =>
+        ids.has(t.id)
+          ? {
+              ...t,
+              deadline: today,
+              rolledOverAt: at,
+              rolloverCount: (t.rolloverCount || 0) + 1,
+              updatedAt: at,
+            }
+          : t,
+      )
+      try {
+        await saveCloudNow()
+        for (const t of group) {
+          const p = prior.get(t.id)!
+          restore.push({
+            id: t.id,
+            deadline: p.deadline,
+            rolledOverAt: p.rolledOverAt,
+            rolloverCount: p.rolloverCount,
+          })
+        }
+        moved += group.length
+      } catch {
+        // The write failed, so this chunk did not land — put it back exactly.
+        tasks.value = tasks.value.map((t) => (ids.has(t.id) ? { ...t, ...prior.get(t.id)! } : t))
+        failed += group.length
+      }
+      onProgress?.(moved + failed, total)
+    }
+    return { moved, failed, restore }
+  }
+
+  // Restore each rolled task to the deadline (and rollover bookkeeping) it had
+  // before the rollover. Best-effort persistence; a failed save leaves the
+  // in-memory restore in place to re-sync on the next change.
+  function undoRollover(restore: RolloverRestore[]) {
+    if (!restore.length) return
+    const map = new Map(restore.map((r) => [r.id, r]))
+    const at = Date.now()
+    tasks.value = tasks.value.map((t) => {
+      const r = map.get(t.id)
+      return r
+        ? {
+            ...t,
+            deadline: r.deadline,
+            rolledOverAt: r.rolledOverAt,
+            rolloverCount: r.rolloverCount,
+            updatedAt: at,
+          }
+        : t
+    })
+    void saveCloudNow().catch(() => {})
+  }
+
+  function setAutoRollover(v: boolean) {
+    autoRollover.value = v === true
+  }
+
+  // ---- Offline sync signals ----------------------------------------------
+  // The syncable collections, keyed by the same type prefixes the chip lookups
+  // use.
+  function syncCollections(): Record<string, Identified[]> {
+    return {
+      todo: todos.value,
+      task: tasks.value,
+      deadline: deadlines.value,
+      finance: finances.value,
+      note: notes.value,
+      reminder: reminders.value,
+      trip: trips.value,
+      idea: ideas.value,
+      stock: stocks.value,
+    }
+  }
+  // Snapshot the current collections as the "last acknowledged" baseline. Called
+  // whenever a server-acked (non-pending) snapshot lands, so a subsequent local
+  // edit shows up as a diff against it.
+  function captureSyncedBaseline() {
+    syncedSig.value = signatureOf(syncCollections())
+  }
+  // Keys (`type:id`) with unsynced local changes — the source of truth for both
+  // the per-item chip and the pending count.
+  const pendingKeys = computed(() =>
+    pendingKeysBetween(signatureOf(syncCollections()), syncedSig.value),
+  )
+  const pendingCount = computed(() => pendingKeys.value.size)
+  function isItemPending(type: ItemType, itemId: number): boolean {
+    return pendingKeys.value.has(type + ':' + itemId)
+  }
+  // Manual retry for a stuck write: re-issue the workspace write so the SDK
+  // re-attempts delivery. A no-op when there is nothing pending or no connection
+  // target.
+  function retrySync() {
+    void saveCloudNow().catch(() => {})
+  }
+  // Stamp the last-synced time when pending drains to zero (not on the initial
+  // already-empty state, so a fresh load doesn't flash "All changes saved").
+  watch(pendingCount, (count, prev) => {
+    if (count === 0 && prev > 0) lastSyncedAt.value = Date.now()
+  })
+
+  // Runs the rollover once on the first load of a new day when autoRollover is
+  // on. lastAutoRolloverDay is advanced first so a slow write cannot cause a
+  // second run on a quick reload, and it is stored so the once-a-day promise
+  // holds across devices/sessions.
+  async function runAutoRolloverIfDue() {
+    const today = todayKey()
+    if (!autoRollover.value || lastAutoRolloverDay.value === today) return
+    lastAutoRolloverDay.value = today
+    const res = await rolloverPendingTasks()
+    if (res.moved > 0) {
+      showToastMsg(`${res.moved} task${res.moved === 1 ? '' : 's'} moved to today`)
+    }
   }
 
   // ---- Trips --------------------------------------------------------------
@@ -651,6 +851,9 @@ export const useAppStore = defineStore('app', () => {
         })
       }
     }
+    // A delete undo runs through undoDelete, not a stored handler; clear any
+    // handler a prior rollover toast left set.
+    toastUndoHandler = null
     toast.value = { message: 'Deleted "' + short + '"', undo: true, listKey, item, idx }
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => {
@@ -676,6 +879,7 @@ export const useAppStore = defineStore('app', () => {
     if (wasSynced) void syncCalendar((restored as Reminder).id)
   }
   function showToastMsg(message: string) {
+    toastUndoHandler = null
     toast.value = { message, undo: false }
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => {
@@ -685,6 +889,30 @@ export const useAppStore = defineStore('app', () => {
   function closeToast() {
     clearTimeout(toastTimer)
     toast.value = null
+    toastUndoHandler = null
+  }
+  // A generic Undo for toasts that are not deletions (the rollover uses it). The
+  // delete flow keeps its own undoDelete; performUndo dispatches to whichever is
+  // active so the single Undo button in Toast.vue serves both.
+  function showToastWithUndo(message: string, onUndo: () => void, ms = 10000) {
+    toast.value = { message, undo: true }
+    toastUndoHandler = onUndo
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => {
+      if (toast.value) toast.value = null
+      toastUndoHandler = null
+    }, ms)
+  }
+  function performUndo() {
+    if (toastUndoHandler) {
+      const run = toastUndoHandler
+      toastUndoHandler = null
+      toast.value = null
+      clearTimeout(toastTimer)
+      run()
+      return
+    }
+    undoDelete()
   }
 
   // ---- Sharing ------------------------------------------------------------
@@ -768,6 +996,8 @@ export const useAppStore = defineStore('app', () => {
           deadline: (it.deadline as string) || '',
           notes: (it.notes as string) || '',
           repo: (it.repo as string) || '',
+          rolledOverAt: null,
+          rolloverCount: 0,
           ...stamps(),
         },
       ]
@@ -889,6 +1119,8 @@ export const useAppStore = defineStore('app', () => {
         deadline: '',
         notes: 'Imported from ' + repo.full + ' #' + issue.num,
         repo: repo.full,
+        rolledOverAt: null,
+        rolloverCount: 0,
         ...stamps(),
       },
     ]
@@ -1457,6 +1689,9 @@ export const useAppStore = defineStore('app', () => {
       security: security.value,
       themeSetting: themeSetting.value,
       approvedPRs: approvedPRs.value,
+      autoRollover: autoRollover.value,
+      lastAutoRolloverDay: lastAutoRolloverDay.value,
+      financeSettings: financeSettings.value,
     }
   }
   function resetData() {
@@ -1474,6 +1709,13 @@ export const useAppStore = defineStore('app', () => {
     approvedPRs.value = {}
     security.value = emptySecurity()
     themeSetting.value = 'auto'
+    autoRollover.value = false
+    lastAutoRolloverDay.value = ''
+    financeSettings.value = emptyFinanceSettings()
+    syncedSig.value = new Map()
+    syncFromCache.value = false
+    syncHasPending.value = false
+    lastSyncedAt.value = null
     editing.value = { type: null, id: null }
     draft.value = {}
     noteView.value = null
@@ -1517,7 +1759,15 @@ export const useAppStore = defineStore('app', () => {
       shareId: typeof t.shareId === 'string' ? t.shareId : null,
       sharedAt: typeof t.sharedAt === 'number' ? t.sharedAt : null,
     }))
-    tasks.value = stamped<Task>(data.tasks).map(statused)
+    // Rollover fields arrived after tasks did; tasks stored before then read as
+    // "never rolled over".
+    tasks.value = stamped<Task>(data.tasks)
+      .map(statused)
+      .map((t) => ({
+        ...t,
+        rolledOverAt: typeof t.rolledOverAt === 'number' ? t.rolledOverAt : null,
+        rolloverCount: typeof t.rolloverCount === 'number' ? t.rolloverCount : 0,
+      }))
     deadlines.value = stamped<Deadline>(data.deadlines)
     finances.value = stamped<Finance>(data.finances)
     notes.value = stamped<Note>(data.notes)
@@ -1598,6 +1848,30 @@ export const useAppStore = defineStore('app', () => {
     // Guard the stored value: a theme key removed in a later release must not
     // leave the ui store indexing THEMES with a key that no longer exists.
     themeSetting.value = isThemeSetting(data.themeSetting) ? data.themeSetting : 'auto'
+    autoRollover.value = data.autoRollover === true
+    lastAutoRolloverDay.value =
+      typeof data.lastAutoRolloverDay === 'string' ? data.lastAutoRolloverDay : ''
+    // Finance settings: merge onto the empty shape so a partial or legacy doc
+    // still yields a well-formed object, and coerce the income map's values to
+    // numbers.
+    const fs = data.financeSettings
+    if (fs && typeof fs === 'object') {
+      const raw = fs as Partial<FinanceSettings>
+      const byMonth: Record<string, number> = {}
+      if (raw.incomeByMonth && typeof raw.incomeByMonth === 'object') {
+        for (const [k, v] of Object.entries(raw.incomeByMonth)) {
+          if (typeof v === 'number' && Number.isFinite(v)) byMonth[k] = v
+        }
+      }
+      financeSettings.value = {
+        currency: 'INR',
+        monthlyIncome: typeof raw.monthlyIncome === 'number' ? raw.monthlyIncome : 0,
+        incomeByMonth: byMonth,
+        incomeUpdatedAt: typeof raw.incomeUpdatedAt === 'number' ? raw.incomeUpdatedAt : 0,
+      }
+    } else {
+      financeSettings.value = emptyFinanceSettings()
+    }
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -1625,6 +1899,26 @@ export const useAppStore = defineStore('app', () => {
     clearTimeout(saveTimer)
     saveTimer = setTimeout(saveCloud, 600)
   }
+  // Persist immediately and await the write. The rollover uses this to report
+  // real per-chunk progress: a chunk is "done" only once its write resolves,
+  // not on a timer. Resolves (a no-op) when there is nothing to persist to, so
+  // callers do not have to special-case an offline/unconfigured workspace.
+  function saveCloudNow(): Promise<void> {
+    if (!firebaseEnabled || !db || !uid || hydrating || !cloudReady.value) return Promise.resolve()
+    const ref = doc(db, AUREON_COLLECTION, uid)
+    clearTimeout(saveTimer)
+    syncState.value = 'saving'
+    return setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
+      .then(() => {
+        syncState.value = 'synced'
+      })
+      .catch((error) => {
+        syncState.value = 'error'
+        cloudError.value = 'Could not save changes to Firebase.'
+        console.error('[Aureon] Cloud save failed:', error)
+        throw error
+      })
+  }
 
   async function connectCloud(u: FbUser | null) {
     if (cloudUnsub) {
@@ -1645,20 +1939,33 @@ export const useAppStore = defineStore('app', () => {
       else {
         await setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() })
       }
+      // Baseline the acknowledged signature so nothing reads as pending on load.
+      captureSyncedBaseline()
       cloudReady.value = true
       syncState.value = 'synced'
+      // Once hydration settles (applyData releases the guard on the next tick),
+      // run the auto-rollover if it is enabled and hasn't run today.
+      setTimeout(() => void runAutoRolloverIfDue(), 0)
     } catch (error) {
       cloudError.value = 'Could not load your Firebase data.'
       syncState.value = 'error'
       console.error('[Aureon] Cloud load failed:', error)
       return
     }
-    // Live updates from other devices.
+    // Live updates from other devices. includeMetadataChanges so the pending /
+    // fromCache transitions (which carry no data change) still wake the pill.
     cloudUnsub = onSnapshot(
       ref,
+      { includeMetadataChanges: true },
       (s) => {
+        syncFromCache.value = s.metadata.fromCache
+        syncHasPending.value = s.metadata.hasPendingWrites
+        // Only a server-acknowledged snapshot (no pending local writes) is a new
+        // baseline: apply its data and re-capture the signature so local pending
+        // clears. A pending snapshot is our own optimistic echo — skip it.
         if (s.exists() && s.metadata.hasPendingWrites === false) {
           applyData(s.data())
+          captureSyncedBaseline()
           cloudReady.value = true
           syncState.value = 'synced'
         }
@@ -1694,6 +2001,9 @@ export const useAppStore = defineStore('app', () => {
         security,
         themeSetting,
         approvedPRs,
+        autoRollover,
+        lastAutoRolloverDay,
+        financeSettings,
       ],
       scheduleSave,
       { deep: true },
@@ -1721,9 +2031,18 @@ export const useAppStore = defineStore('app', () => {
     tags,
     security,
     themeSetting,
+    autoRollover,
+    financeSettings,
     cloudReady,
     cloudError,
     syncState,
+    syncFromCache,
+    syncHasPending,
+    lastSyncedAt,
+    pendingKeys,
+    pendingCount,
+    isItemPending,
+    retrySync,
     editing,
     draft,
     toast,
@@ -1760,6 +2079,11 @@ export const useAppStore = defineStore('app', () => {
     updateDeadline,
     addFinance,
     updateFinance,
+    setMonthlyIncome,
+    rolloverPendingTasks,
+    undoRollover,
+    setAutoRollover,
+    runAutoRolloverIfDue,
     addTrip,
     updateTrip,
     tripById,
@@ -1790,6 +2114,8 @@ export const useAppStore = defineStore('app', () => {
     deleteWithUndo,
     undoDelete,
     showToastMsg,
+    showToastWithUndo,
+    performUndo,
     closeToast,
     share,
     pendingShare,

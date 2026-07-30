@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import { formatINR } from '@/utils/currency'
 
 const app = useAppStore()
 const { c, s } = useStyles()
@@ -34,7 +35,7 @@ const summaryLines = computed<string[]>(() => {
   }
   if (sv.type === 'finance') {
     lines.push(String(it.note || it.category || ''))
-    lines.push('$' + Number(it.amount || 0).toFixed(2) + ' · ' + it.category)
+    lines.push(formatINR(Number(it.amount || 0)) + ' · ' + it.category)
   }
   return lines
 })

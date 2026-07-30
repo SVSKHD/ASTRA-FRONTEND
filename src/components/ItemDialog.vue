@@ -160,6 +160,36 @@ const labelStyle = computed(() =>
   }),
 )
 const fieldStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6 })
+const prefixWrap = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    borderRadius: 14,
+    border: '1px solid ' + c.value.border,
+    background: c.value.input,
+    overflow: 'hidden',
+  }),
+)
+const prefixAdornment = computed(() =>
+  pxify({
+    padding: '9px 4px 9px 12px',
+    color: c.value.dim,
+    fontSize: 14,
+    flexShrink: 0,
+  }),
+)
+const prefixInput = computed(() =>
+  pxify({
+    flex: 1,
+    minWidth: 0,
+    padding: '9px 12px 9px 4px',
+    border: 'none',
+    background: 'transparent',
+    color: c.value.text,
+    fontSize: 14,
+    outline: 'none',
+  }),
+)
 const chipsRow = pxify({ display: 'flex', flexWrap: 'wrap', gap: 6 })
 const noteChip = computed(() =>
   pxify({
@@ -258,6 +288,19 @@ const checkRow = computed(() =>
             >
               {{ nm }}
             </button>
+          </div>
+          <!-- Prefixed input (e.g. a ₹ money field): the adornment sits inside
+               the same bordered box as the input for one seamless control. -->
+          <div v-else-if="f.prefix" :style="prefixWrap">
+            <span :style="prefixAdornment">{{ f.prefix }}</span>
+            <input
+              :style="prefixInput"
+              :type="f.kind === 'number' ? 'number' : 'text'"
+              :min="f.min"
+              :placeholder="f.placeholder"
+              :value="val(f)"
+              @input="onInput(f, $event)"
+            />
           </div>
           <input
             v-else
