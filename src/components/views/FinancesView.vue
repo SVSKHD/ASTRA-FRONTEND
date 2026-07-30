@@ -16,6 +16,7 @@ import { CATEGORY_COLOR } from '@/utils/colors'
 import { formatINR, parseINR } from '@/utils/currency'
 import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
 import ListToolbar from '@/components/ListToolbar.vue'
+import OfflineChip from '@/components/OfflineChip.vue'
 import type { Finance } from '@/types'
 
 const app = useAppStore()
@@ -357,6 +358,7 @@ const incInput = computed(() =>
         <div :style="s.taskMain" @click="app.openEdit('finance', it.id)">
           <span :style="s.finNote">{{ it.label }}</span>
           <span :style="s.finMeta">{{ it.meta }}</span>
+          <OfflineChip :pending="app.isItemPending('finance', it.id)" />
         </div>
         <span :style="s.amount">{{ it.amountLabel }}</span>
         <button :style="s.shareBtn" @click="app.share('finance', findFinance(it.id)!)">↗</button>

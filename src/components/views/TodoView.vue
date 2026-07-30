@@ -11,6 +11,7 @@ import DayGroupHead from '@/components/DayGroupHead.vue'
 import DayToolbar from '@/components/DayToolbar.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
+import OfflineChip from '@/components/OfflineChip.vue'
 import type { Todo } from '@/types'
 
 const app = useAppStore()
@@ -235,6 +236,7 @@ function particleStyle(i: number) {
                   <div v-if="t.tag" :style="s.chipRow">
                     <span :style="chipStyle(t.tag)">{{ t.tag }}</span>
                   </div>
+                  <OfflineChip :pending="app.isItemPending('todo', t.id)" />
                 </div>
                 <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
                 <ShareGlobeButton entity-type="todo" :item="t" variant="row" />

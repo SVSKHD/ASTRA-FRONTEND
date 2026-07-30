@@ -12,6 +12,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useShareLink } from '@/composables/useShareLink'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { pxify } from '@/styles'
 import type { ItemType, Shareable } from '@/types'
 
@@ -23,6 +24,7 @@ const props = defineProps<{
 }>()
 
 const { c, isMobile } = useStyles()
+const { isOnline } = useConnectivity()
 
 // A ref onto the live item so the composable tracks it reactively.
 const itemRef = computed(() => props.item ?? null)
@@ -41,11 +43,22 @@ watch(isShared, (on, was) => {
   if (on && !was) popKey.value++
 })
 
-const tooltip = computed(() => (isShared.value ? 'Shared — click to copy link' : 'Make shareable'))
+// Sharing needs the network — a public link can't be created, revoked or
+// opened offline. The button greys out (never hides) with an explanatory tip.
+const offline = computed(() => !isOnline.value)
+const tooltip = computed(() =>
+  offline.value
+    ? 'Needs internet'
+    : isShared.value
+      ? 'Shared — click to copy link'
+      : 'Make shareable',
+)
 const ariaLabel = computed(() =>
-  isShared.value
-    ? 'Sharing on. Click to copy the public link, or open the menu to stop sharing.'
-    : 'Make this shareable with a public link',
+  offline.value
+    ? 'Sharing needs an internet connection'
+    : isShared.value
+      ? 'Sharing on. Click to copy the public link, or open the menu to stop sharing.'
+      : 'Make this shareable with a public link',
 )
 
 const hit = computed(() => (isMobile.value ? 40 : props.variant === 'dialog' ? 34 : 30))
@@ -53,7 +66,7 @@ const iconSize = computed(() => (props.variant === 'dialog' ? 19 : 17))
 
 // --- menu (popover on desktop, bottom sheet on mobile) ----------------------
 function openMenu() {
-  if (!isShared.value) return
+  if (!isShared.value || offline.value) return
   if (!isMobile.value) {
     const rect = wrapEl.value?.getBoundingClientRect()
     if (rect) {
@@ -96,11 +109,13 @@ function onGlobeClick() {
     longPressed = false
     return
   }
+  if (offline.value) return
   activate()
 }
 function onGlobeKey(e: KeyboardEvent) {
   if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
     e.preventDefault()
+    if (offline.value) return
     activate()
   }
 }
@@ -128,14 +143,15 @@ const globeStyle = computed(() =>
     borderRadius: 11,
     border: 'none',
     background: 'transparent',
-    color: isShared.value ? c.value.accent : c.value.dim,
-    opacity: isShared.value ? 1 : busy.value ? 0.6 : 0.55,
-    cursor: busy.value ? 'progress' : 'pointer',
+    color: offline.value ? c.value.dim : isShared.value ? c.value.accent : c.value.dim,
+    opacity: offline.value ? 0.4 : isShared.value ? 1 : busy.value ? 0.6 : 0.55,
+    cursor: offline.value ? 'not-allowed' : busy.value ? 'progress' : 'pointer',
     display: 'grid',
     placeItems: 'center',
     transition: 'color .25s ease, opacity .25s ease',
-    // The soft glow that reads as "lit" in the glass theme.
-    filter: isShared.value ? 'drop-shadow(0 0 6px ' + c.value.accent + ')' : 'none',
+    // The soft glow that reads as "lit" in the glass theme — dropped offline.
+    filter:
+      !offline.value && isShared.value ? 'drop-shadow(0 0 6px ' + c.value.accent + ')' : 'none',
   }),
 )
 const iconWrapStyle = computed(() =>
@@ -230,7 +246,7 @@ const dangerColor = 'oklch(0.66 0.17 25)'
       :title="tooltip"
       :aria-label="ariaLabel"
       :aria-pressed="isShared"
-      :disabled="busy"
+      :disabled="busy || offline"
       @click="onGlobeClick"
       @keydown="onGlobeKey"
       @contextmenu="onContext"

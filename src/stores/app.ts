@@ -29,6 +29,7 @@ import {
 } from '@/utils/tags'
 import { STATUS_CYCLE, emptyFinanceSettings, isStatus, statusFromDone } from '@/types'
 import { chunk, eligibleTasks, todayKey } from '@/utils/rollover'
+import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
 import type {
   ActiveNotif,
   Deadline,
@@ -105,6 +106,14 @@ export const useAppStore = defineStore('app', () => {
   const cloudReady = ref(false)
   const cloudError = ref('')
   const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
+  // Offline sync signals, fed from the workspace snapshot's metadata. Because
+  // the whole workspace is one document, `fromCache`/`hasPendingWrites` describe
+  // the doc as a whole; per-item pending is recovered by diffing against
+  // syncedSig, the signature of the last server-acknowledged snapshot.
+  const syncFromCache = ref(false)
+  const syncHasPending = ref(false)
+  const lastSyncedAt = ref<number | null>(null)
+  const syncedSig = ref<Map<string, string>>(new Map())
 
   const editing = ref<EditingState>({ type: null, id: null })
   const draft = ref<Record<string, unknown>>({})
@@ -447,6 +456,49 @@ export const useAppStore = defineStore('app', () => {
   function setAutoRollover(v: boolean) {
     autoRollover.value = v === true
   }
+
+  // ---- Offline sync signals ----------------------------------------------
+  // The syncable collections, keyed by the same type prefixes the chip lookups
+  // use.
+  function syncCollections(): Record<string, Identified[]> {
+    return {
+      todo: todos.value,
+      task: tasks.value,
+      deadline: deadlines.value,
+      finance: finances.value,
+      note: notes.value,
+      reminder: reminders.value,
+      trip: trips.value,
+      idea: ideas.value,
+      stock: stocks.value,
+    }
+  }
+  // Snapshot the current collections as the "last acknowledged" baseline. Called
+  // whenever a server-acked (non-pending) snapshot lands, so a subsequent local
+  // edit shows up as a diff against it.
+  function captureSyncedBaseline() {
+    syncedSig.value = signatureOf(syncCollections())
+  }
+  // Keys (`type:id`) with unsynced local changes — the source of truth for both
+  // the per-item chip and the pending count.
+  const pendingKeys = computed(() =>
+    pendingKeysBetween(signatureOf(syncCollections()), syncedSig.value),
+  )
+  const pendingCount = computed(() => pendingKeys.value.size)
+  function isItemPending(type: ItemType, itemId: number): boolean {
+    return pendingKeys.value.has(type + ':' + itemId)
+  }
+  // Manual retry for a stuck write: re-issue the workspace write so the SDK
+  // re-attempts delivery. A no-op when there is nothing pending or no connection
+  // target.
+  function retrySync() {
+    void saveCloudNow().catch(() => {})
+  }
+  // Stamp the last-synced time when pending drains to zero (not on the initial
+  // already-empty state, so a fresh load doesn't flash "All changes saved").
+  watch(pendingCount, (count, prev) => {
+    if (count === 0 && prev > 0) lastSyncedAt.value = Date.now()
+  })
 
   // Runs the rollover once on the first load of a new day when autoRollover is
   // on. lastAutoRolloverDay is advanced first so a slow write cannot cause a
@@ -1660,6 +1712,10 @@ export const useAppStore = defineStore('app', () => {
     autoRollover.value = false
     lastAutoRolloverDay.value = ''
     financeSettings.value = emptyFinanceSettings()
+    syncedSig.value = new Map()
+    syncFromCache.value = false
+    syncHasPending.value = false
+    lastSyncedAt.value = null
     editing.value = { type: null, id: null }
     draft.value = {}
     noteView.value = null
@@ -1883,6 +1939,8 @@ export const useAppStore = defineStore('app', () => {
       else {
         await setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() })
       }
+      // Baseline the acknowledged signature so nothing reads as pending on load.
+      captureSyncedBaseline()
       cloudReady.value = true
       syncState.value = 'synced'
       // Once hydration settles (applyData releases the guard on the next tick),
@@ -1894,12 +1952,20 @@ export const useAppStore = defineStore('app', () => {
       console.error('[Aureon] Cloud load failed:', error)
       return
     }
-    // Live updates from other devices.
+    // Live updates from other devices. includeMetadataChanges so the pending /
+    // fromCache transitions (which carry no data change) still wake the pill.
     cloudUnsub = onSnapshot(
       ref,
+      { includeMetadataChanges: true },
       (s) => {
+        syncFromCache.value = s.metadata.fromCache
+        syncHasPending.value = s.metadata.hasPendingWrites
+        // Only a server-acknowledged snapshot (no pending local writes) is a new
+        // baseline: apply its data and re-capture the signature so local pending
+        // clears. A pending snapshot is our own optimistic echo — skip it.
         if (s.exists() && s.metadata.hasPendingWrites === false) {
           applyData(s.data())
+          captureSyncedBaseline()
           cloudReady.value = true
           syncState.value = 'synced'
         }
@@ -1970,6 +2036,13 @@ export const useAppStore = defineStore('app', () => {
     cloudReady,
     cloudError,
     syncState,
+    syncFromCache,
+    syncHasPending,
+    lastSyncedAt,
+    pendingKeys,
+    pendingCount,
+    isItemPending,
+    retrySync,
     editing,
     draft,
     toast,

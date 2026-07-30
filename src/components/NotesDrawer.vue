@@ -11,6 +11,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { noteChecks, notePreview, noteText, noteTitle } from '@/utils/notes'
 import CommandHelp from '@/components/CommandHelp.vue'
+import OfflineChip from '@/components/OfflineChip.vue'
 import type { Note } from '@/types'
 
 const ui = useUiStore()
@@ -141,6 +142,7 @@ function checkLabel(n: Note) {
           <span :style="s.finMeta">{{ timeLabel(n) }}</span>
           <span v-if="checkLabel(n)" :style="s.finMeta">☑ {{ checkLabel(n) }}</span>
         </span>
+        <OfflineChip :pending="app.isItemPending('note', n.id)" />
       </button>
     </div>
   </div>
