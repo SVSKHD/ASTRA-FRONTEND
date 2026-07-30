@@ -30,6 +30,7 @@ import {
 import { STATUS_CYCLE, emptyFinanceSettings, isStatus, statusFromDone } from '@/types'
 import { chunk, eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
 import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
+import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
 import type {
   ActiveNotif,
   Deadline,
@@ -40,6 +41,8 @@ import type {
   ItemDialogState,
   ItemStatus,
   ItemType,
+  LinkRef,
+  LinkCollection,
   ListKey,
   Note,
   Stock,
@@ -217,7 +220,15 @@ export const useAppStore = defineStore('app', () => {
     item: T,
     next: ItemStatus,
   ): T {
-    return touched({ ...item, status: next, done: next === 'done' })
+    // Stamp completedAt when entering done, clear it when leaving — the monthly
+    // overview counts fulfilment by the month completedAt falls in. (Items
+    // without the field, if any, just carry an ignored extra property.)
+    return touched({
+      ...item,
+      status: next,
+      done: next === 'done',
+      completedAt: next === 'done' ? Date.now() : null,
+    })
   }
   function nextStatus(cur: ItemStatus): ItemStatus {
     const i = STATUS_CYCLE.indexOf(cur)
@@ -250,6 +261,9 @@ export const useAppStore = defineStore('app', () => {
         sharedAt: null,
         rolledOverAt: null,
         rolloverCount: 0,
+        completedAt: null,
+        linked: [],
+        parents: [],
         ...stamps(),
       },
     ]
@@ -295,6 +309,9 @@ export const useAppStore = defineStore('app', () => {
         repo: '',
         rolledOverAt: null,
         rolloverCount: 0,
+        completedAt: null,
+        linked: [],
+        parents: [],
         ...fields,
         ...stamps(),
       },
@@ -510,6 +527,77 @@ export const useAppStore = defineStore('app', () => {
 
   function setAutoRollover(v: boolean) {
     autoRollover.value = v === true
+  }
+
+  // ---- Interlinked todos/tasks -------------------------------------------
+  // Links are {id, collection} refs stored on both endpoints: a child sits in
+  // the parent's `linked`, the parent sits in the child's `parents`. Both sides
+  // are written together (one reactive update each, coalesced into a single
+  // debounced save — the single-doc equivalent of a writeBatch).
+  function linkableList(collection: LinkCollection): typeof todos | typeof tasks {
+    return collection === 'todos' ? todos : tasks
+  }
+  function linkableById(ref: LinkRef): Todo | Task | undefined {
+    return linkableList(ref.collection).value.find((i) => i.id === ref.id)
+  }
+  function linkGraph(): Graph {
+    return {
+      children: (r) => linkableById(r)?.linked ?? [],
+      parents: (r) => linkableById(r)?.parents ?? [],
+    }
+  }
+  function applyLinkPatch(ref: LinkRef, next: { linked?: LinkRef[]; parents?: LinkRef[] }) {
+    if (ref.collection === 'todos') {
+      todos.value = todos.value.map((t) => (t.id === ref.id ? { ...t, ...next } : t))
+    } else {
+      tasks.value = tasks.value.map((t) => (t.id === ref.id ? { ...t, ...next } : t))
+    }
+  }
+
+  // Validation only — used by the picker to filter candidates and disable rows.
+  function canLinkItems(parent: LinkRef, child: LinkRef): LinkCheck {
+    const p = linkableById(parent)
+    if (!p) return { ok: false, reason: 'self' }
+    return checkLink(linkGraph(), parent, p.linked, child)
+  }
+  // Link child under parent, writing both directions. Returns the check so the
+  // caller can toast the specific rejection reason.
+  function linkItems(parent: LinkRef, child: LinkRef): LinkCheck {
+    const p = linkableById(parent)
+    const c = linkableById(child)
+    if (!p || !c) return { ok: false, reason: 'self' }
+    const check = checkLink(linkGraph(), parent, p.linked, child)
+    if (!check.ok) return check
+    applyLinkPatch(parent, { linked: [...p.linked, child] })
+    applyLinkPatch(child, { parents: [...c.parents, parent] })
+    return { ok: true }
+  }
+  function unlinkItems(parent: LinkRef, child: LinkRef) {
+    const p = linkableById(parent)
+    const c = linkableById(child)
+    if (p) applyLinkPatch(parent, { linked: p.linked.filter((r) => !sameRef(r, child)) })
+    if (c) applyLinkPatch(child, { parents: c.parents.filter((r) => !sameRef(r, parent)) })
+  }
+  // On delete: strip the item from every counterpart's linked/parents so no
+  // dangling pointers remain.
+  function cleanupLinksForDelete(ref: LinkRef) {
+    const strip = (arr: LinkRef[]) => arr.filter((r) => !sameRef(r, ref))
+    const touchList = <T extends { linked: LinkRef[]; parents: LinkRef[] }>(list: T[]): T[] =>
+      list.map((it) =>
+        hasRef(it.linked, ref) || hasRef(it.parents, ref)
+          ? { ...it, linked: strip(it.linked), parents: strip(it.parents) }
+          : it,
+      )
+    todos.value = touchList(todos.value)
+    tasks.value = touchList(tasks.value)
+  }
+  // Direct-children progress (not a rolled-up subtree): done = status 'done'.
+  function linkProgressOf(ref: LinkRef): { done: number; total: number; pct: number } {
+    const links = linkableById(ref)?.linked ?? []
+    let done = 0
+    for (const l of links) if (linkableById(l)?.status === 'done') done++
+    const total = links.length
+    return { done, total, pct: total ? Math.round((done / total) * 100) : 0 }
   }
 
   // ---- Offline sync signals ----------------------------------------------
@@ -893,6 +981,12 @@ export const useAppStore = defineStore('app', () => {
                       : (item.text as string)
     const short = label && label.length > 28 ? label.slice(0, 28) + '…' : label
     accessor.set(list.filter((x) => x.id !== itemId))
+    // Linked todos/tasks: strip this item from every counterpart's links so no
+    // dangling refs remain. (Undo restores the item's own arrays but not the
+    // counterpart pointers — link resolution already ignores missing refs.)
+    if (type === 'todo' || type === 'task') {
+      cleanupLinksForDelete({ id: itemId, collection: type === 'todo' ? 'todos' : 'tasks' })
+    }
     // Deleting a reminder must also remove its Google Calendar event, otherwise
     // the event outlives the reminder with nothing left pointing at it. Undo
     // re-creates the event and stores the new id (Google does not resurrect the
@@ -1043,6 +1137,9 @@ export const useAppStore = defineStore('app', () => {
           sharedAt: null,
           rolledOverAt: null,
           rolloverCount: 0,
+          completedAt: null,
+          linked: [],
+          parents: [],
           ...stamps(),
         },
       ]
@@ -1060,6 +1157,9 @@ export const useAppStore = defineStore('app', () => {
           repo: (it.repo as string) || '',
           rolledOverAt: null,
           rolloverCount: 0,
+          completedAt: null,
+          linked: [],
+          parents: [],
           ...stamps(),
         },
       ]
@@ -1183,6 +1283,9 @@ export const useAppStore = defineStore('app', () => {
         repo: repo.full,
         rolledOverAt: null,
         rolloverCount: 0,
+        completedAt: null,
+        linked: [],
+        parents: [],
         ...stamps(),
       },
     ]
@@ -1593,6 +1696,7 @@ export const useAppStore = defineStore('app', () => {
       calSync: 'local',
       calEventId: null,
       lastFiredOcc: null,
+      acknowledgedAt: null,
       ...stamps(),
     }
     reminders.value = [...reminders.value, created]
@@ -1721,12 +1825,21 @@ export const useAppStore = defineStore('app', () => {
         calSync: 'local',
         calEventId: null,
         lastFiredOcc: null,
+        acknowledgedAt: null,
         ...stamps(),
       },
     ]
     activeNotif.value = null
   }
   function dismissNotif() {
+    // Dismissing is the "acknowledged" signal the monthly overview counts.
+    const n = activeNotif.value
+    if (n) {
+      const at = Date.now()
+      reminders.value = reminders.value.map((r) =>
+        r.id === n.id ? { ...r, acknowledgedAt: at } : r,
+      )
+    }
     activeNotif.value = null
   }
 
@@ -1809,6 +1922,19 @@ export const useAppStore = defineStore('app', () => {
       done: isStatus(it.status) ? it.status === 'done' : it.done === true,
     })
 
+    // Sanitise a stored link array to well-formed {id, collection} refs, so a
+    // malformed or legacy value never crashes the graph logic.
+    const linkList = (v: unknown): LinkRef[] =>
+      Array.isArray(v)
+        ? v.filter(
+            (x): x is LinkRef =>
+              !!x &&
+              typeof x === 'object' &&
+              typeof (x as LinkRef).id === 'number' &&
+              ((x as LinkRef).collection === 'todos' || (x as LinkRef).collection === 'tasks'),
+          )
+        : []
+
     // Todos written before tag/description existed lack those fields; fill them
     // in on read so the rest of the app can treat them as required.
     todos.value = stamped<Todo>(data.todos).map((t) => ({
@@ -1823,6 +1949,10 @@ export const useAppStore = defineStore('app', () => {
       // Rollover fields, backfilled for todos written before "move to today".
       rolledOverAt: typeof t.rolledOverAt === 'number' ? t.rolledOverAt : null,
       rolloverCount: typeof t.rolloverCount === 'number' ? t.rolloverCount : 0,
+      // Completion stamp + links, backfilled for todos written before them.
+      completedAt: typeof t.completedAt === 'number' ? t.completedAt : null,
+      linked: linkList(t.linked),
+      parents: linkList(t.parents),
     }))
     // Rollover fields arrived after tasks did; tasks stored before then read as
     // "never rolled over".
@@ -1832,6 +1962,9 @@ export const useAppStore = defineStore('app', () => {
         ...t,
         rolledOverAt: typeof t.rolledOverAt === 'number' ? t.rolledOverAt : null,
         rolloverCount: typeof t.rolloverCount === 'number' ? t.rolloverCount : 0,
+        completedAt: typeof t.completedAt === 'number' ? t.completedAt : null,
+        linked: linkList(t.linked),
+        parents: linkList(t.parents),
       }))
     deadlines.value = stamped<Deadline>(data.deadlines)
     finances.value = stamped<Finance>(data.finances)
@@ -1841,6 +1974,7 @@ export const useAppStore = defineStore('app', () => {
     reminders.value = stamped<Reminder>(data.reminders).map((r) => ({
       ...r,
       priority: isPriority(r.priority) ? r.priority : 'normal',
+      acknowledgedAt: typeof r.acknowledgedAt === 'number' ? r.acknowledgedAt : null,
       calEventId: typeof r.calEventId === 'string' ? r.calEventId : null,
     }))
     // Trips gained a title, status, places, photos and attached notes after the
@@ -2150,6 +2284,11 @@ export const useAppStore = defineStore('app', () => {
     undoMovePending,
     setAutoRollover,
     runAutoRolloverIfDue,
+    linkableById,
+    canLinkItems,
+    linkItems,
+    unlinkItems,
+    linkProgressOf,
     addTrip,
     updateTrip,
     tripById,

@@ -22,6 +22,7 @@ function reminder(start = '2026-03-10T09:00', repeat: Repeat = { type: 'none' })
     calSync: 'local',
     calEventId: null,
     lastFiredOcc: null,
+    acknowledgedAt: null,
     createdAt: 0,
     updatedAt: 0,
   }

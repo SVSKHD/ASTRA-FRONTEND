@@ -11,6 +11,7 @@ import DayGroupHead from '@/components/DayGroupHead.vue'
 import DayToolbar from '@/components/DayToolbar.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import MovePendingButton from '@/components/MovePendingButton.vue'
+import LinkProgressBar from '@/components/LinkProgressBar.vue'
 import type { Task } from '@/types'
 
 const app = useAppStore()
@@ -106,6 +107,25 @@ const gripDots = [0, 1, 2, 3, 4, 5]
 function chipStyle(tag: string) {
   return pxify(tagChip(c.value, tag, dark.value))
 }
+
+// Direct-link progress for a task's list-card chain badge + bottom line.
+function linkOf(t: Task) {
+  return app.linkProgressOf({ id: t.id, collection: 'tasks' })
+}
+const linkChip = computed(() =>
+  pxify({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 11,
+    color: c.value.dim,
+    padding: '2px 7px',
+    borderRadius: 999,
+    background: c.value.input,
+    border: '1px solid ' + c.value.border,
+  }),
+)
+const linkLineWrap = pxify({ position: 'absolute', left: 12, right: 12, bottom: 3 })
 
 // Click vs. double-click discrimination (single → dialog, double → task view).
 let clickTimer: ReturnType<typeof setTimeout> | null = null
@@ -222,6 +242,23 @@ function onGroupDrop(e: DragEvent, g: Group) {
                     <span v-if="t.repo" :style="repoChipStyle"
                       ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
                     >
+                    <span v-if="t.linked.length" :style="linkChip" title="Linked items">
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        :stroke="c.dim"
+                        stroke-width="1.9"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M9 12h6" />
+                        <path d="M10 8H8a4 4 0 0 0 0 8h2" />
+                        <path d="M14 8h2a4 4 0 0 1 0 8h-2" />
+                      </svg>
+                      {{ linkOf(t).done }}/{{ linkOf(t).total }}
+                    </span>
                   </div>
                 </div>
                 <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
@@ -229,6 +266,9 @@ function onGroupDrop(e: DragEvent, g: Group) {
                 <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
                   ×
                 </button>
+                <div v-if="t.linked.length" :style="linkLineWrap">
+                  <LinkProgressBar :done="linkOf(t).done" :total="linkOf(t).total" compact />
+                </div>
               </div>
             </TransitionGroup>
           </div>

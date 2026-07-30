@@ -15,6 +15,7 @@ import StatusPill from '@/components/StatusPill.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import MovePendingButton from '@/components/MovePendingButton.vue'
+import LinkProgressBar from '@/components/LinkProgressBar.vue'
 import type { Todo } from '@/types'
 
 const app = useAppStore()
@@ -180,6 +181,27 @@ const todayCtaStyle = computed(() =>
     textAlign: 'center',
   }),
 )
+
+// Direct-link progress for a todo's list-card chain badge + bottom line.
+function linkOf(t: Todo) {
+  return app.linkProgressOf({ id: t.id, collection: 'todos' })
+}
+const linkChip = computed(() =>
+  pxify({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 11,
+    color: c.value.dim,
+    padding: '2px 7px',
+    borderRadius: 999,
+    background: c.value.input,
+    border: '1px solid ' + c.value.border,
+  }),
+)
+// The thin progress line hugs the bottom edge of the card, inset past the
+// rounded corners.
+const linkLineWrap = pxify({ position: 'absolute', left: 12, right: 12, bottom: 3 })
 </script>
 
 <template>
@@ -263,14 +285,34 @@ const todayCtaStyle = computed(() =>
                 <div :style="s.taskMain" @click="app.openEdit('todo', t.id)">
                   <span :style="textStyle(t)">{{ t.text }}</span>
                   <span v-if="t.description" :style="descStyle">{{ t.description }}</span>
-                  <div v-if="t.tag" :style="s.chipRow">
-                    <span :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                  <div v-if="t.tag || t.linked.length" :style="s.chipRow">
+                    <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                    <span v-if="t.linked.length" :style="linkChip" title="Linked items">
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        :stroke="c.dim"
+                        stroke-width="1.9"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M9 12h6" />
+                        <path d="M10 8H8a4 4 0 0 0 0 8h2" />
+                        <path d="M14 8h2a4 4 0 0 1 0 8h-2" />
+                      </svg>
+                      {{ linkOf(t).done }}/{{ linkOf(t).total }}
+                    </span>
                   </div>
                   <OfflineChip :pending="app.isItemPending('todo', t.id)" />
                 </div>
                 <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
                 <ShareGlobeButton entity-type="todo" :item="t" variant="row" />
                 <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
+                <div v-if="t.linked.length" :style="linkLineWrap">
+                  <LinkProgressBar :done="linkOf(t).done" :total="linkOf(t).total" compact />
+                </div>
               </div>
             </TransitionGroup>
           </div>

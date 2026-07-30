@@ -76,6 +76,15 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
           P('M9.5 19 H14.5', stroke(col, 1.8)),
           P('M10.2 21 H13.8', stroke(col, 1.8)),
         ]
+  } else if (name === 'overview') {
+    // A 2x2 dashboard grid.
+    const cells = [
+      [4, 4],
+      [13, 4],
+      [4, 13],
+      [13, 13],
+    ]
+    ch = cells.map(([x, y]) => RC(x, y, 7, 7, 2, filled ? { fill: col } : stroke(col)))
   } else if (name === 'stocks') {
     // A rising trend line with an arrow head over a baseline.
     const line = 'M4 15 L9.5 10.5 L13 13 L20 6'

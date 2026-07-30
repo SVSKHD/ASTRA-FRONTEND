@@ -1,7 +1,15 @@
 // Domain types for Aureon.
 
 export type TabKey =
-  'todo' | 'tasks' | 'deadlines' | 'reminders' | 'finances' | 'trips' | 'ideas' | 'stocks'
+  | 'overview'
+  | 'todo'
+  | 'tasks'
+  | 'deadlines'
+  | 'reminders'
+  | 'finances'
+  | 'trips'
+  | 'ideas'
+  | 'stocks'
 
 // Every stored item carries these. Items written before timestamps existed have
 // neither, so applyData() backfills them to 0 — which the formatter renders as
@@ -29,6 +37,22 @@ export function isStatus(v: unknown): v is ItemStatus {
   return v === 'pending' || v === 'progress' || v === 'done'
 }
 
+// A reference to another linkable item. Links are stored as {id, collection}
+// objects (not bare ids) so a todo can link a task and vice versa. `linked`
+// are the children an item depends on / is composed of; `parents` are the
+// reverse pointers, maintained on every link/unlink write.
+export type LinkCollection = 'todos' | 'tasks'
+export interface LinkRef {
+  id: number
+  collection: LinkCollection
+}
+
+// Both linkable item types carry these; backfilled to [] / null on read.
+export interface Linkable {
+  linked: LinkRef[]
+  parents: LinkRef[]
+}
+
 // Items written before status existed only carry `done`.
 export function statusFromDone(done: unknown): ItemStatus {
   return done === true ? 'done' : 'pending'
@@ -48,7 +72,7 @@ export interface Shareable {
   sharedAt: number | null
 }
 
-export interface Todo extends Timestamped, Shareable {
+export interface Todo extends Timestamped, Shareable, Linkable {
   id: number
   text: string
   done: boolean
@@ -57,6 +81,9 @@ export interface Todo extends Timestamped, Shareable {
   // applyData() backfills them on read.
   tag: string
   description: string
+  // When the todo last entered `done` (for month-fulfilment counting); null
+  // while not done. Backfilled on read.
+  completedAt: number | null
   // "Move pending to today" carries an overdue todo forward. Todos have no due
   // date — their day is their createdAt — so a move re-stamps createdAt to
   // today; rolledOverAt/rolloverCount record that, mirroring Task. Backfilled
@@ -65,7 +92,7 @@ export interface Todo extends Timestamped, Shareable {
   rolloverCount: number
 }
 
-export interface Task extends Timestamped {
+export interface Task extends Timestamped, Linkable {
   id: number
   title: string
   tag: string
@@ -80,6 +107,9 @@ export interface Task extends Timestamped {
   // have never been rolled, so applyData() backfills them.
   rolledOverAt: number | null
   rolloverCount: number
+  // When the task last entered `done` (for month-fulfilment counting); null
+  // while not done. Backfilled on read.
+  completedAt: number | null
 }
 
 export interface Deadline extends Timestamped {
@@ -116,6 +146,9 @@ export interface Reminder extends Timestamped {
   // to delete the event later — a template URL never returns one.
   calEventId: string | null
   lastFiredOcc: number | null
+  // When the user last acknowledged (dismissed) this reminder's notification —
+  // the "fulfilled" signal for the monthly overview. Null until acknowledged.
+  acknowledgedAt: number | null
 }
 
 // Ideas carry an editable type. These are the suggested values; the store keeps
