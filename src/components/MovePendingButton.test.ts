@@ -21,6 +21,9 @@ function overdueTask(id: number): Task {
     repo: '',
     rolledOverAt: null,
     rolloverCount: 0,
+    completedAt: null,
+    linked: [],
+    parents: [],
     createdAt: 0,
     updatedAt: 0,
   }
@@ -38,6 +41,9 @@ function overdueTodo(id: number): Todo {
     sharedAt: null,
     rolledOverAt: null,
     rolloverCount: 0,
+    completedAt: null,
+    linked: [],
+    parents: [],
     createdAt: new Date(2020, 0, 1, 9).getTime(),
     updatedAt: 0,
   }

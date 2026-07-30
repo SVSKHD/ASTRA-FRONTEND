@@ -28,6 +28,7 @@ import ShareDialog from '@/components/ShareDialog.vue'
 import LockScreen from '@/components/LockScreen.vue'
 import CloudLoading from '@/components/CloudLoading.vue'
 
+import OverviewView from '@/components/views/OverviewView.vue'
 import TodoView from '@/components/views/TodoView.vue'
 import TasksView from '@/components/views/TasksView.vue'
 import DeadlinesView from '@/components/views/DeadlinesView.vue'
@@ -51,6 +52,7 @@ const showWorkspace = computed(
 )
 
 const viewMap = {
+  overview: OverviewView,
   todo: TodoView,
   tasks: TasksView,
   deadlines: DeadlinesView,

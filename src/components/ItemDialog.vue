@@ -16,6 +16,7 @@ import { ITEM_FORMS, type FieldDef } from '@/utils/itemForms'
 import { noteTitle } from '@/utils/notes'
 import TagPicker from '@/components/TagPicker.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
+import LinkedItemsPanel from '@/components/LinkedItemsPanel.vue'
 import type { Note, Todo } from '@/types'
 
 const app = useAppStore()
@@ -321,6 +322,13 @@ const checkRow = computed(() =>
           />
         </template>
       </div>
+
+      <!-- Linked items — only for a saved todo (tasks use their own dialog). -->
+      <LinkedItemsPanel
+        v-if="active && active.type === 'todo' && active.mode === 'edit' && active.id != null"
+        collection="todos"
+        :doc-id="active.id"
+      />
 
       <div :style="s.dialogActions">
         <button :style="s.cancelBtn" @click="app.closeItemDialog()">

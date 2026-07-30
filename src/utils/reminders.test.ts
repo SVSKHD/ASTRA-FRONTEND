@@ -13,6 +13,7 @@ function reminder(start: string, repeat: Repeat = { type: 'none' }): Reminder {
     priority: 'normal',
     calEventId: null,
     lastFiredOcc: null,
+    acknowledgedAt: null,
     createdAt: 0,
     updatedAt: 0,
   }

@@ -8,6 +8,7 @@ import type { ItemStatus, TabKey } from '@/types'
 export type StatusFilter = ItemStatus | 'all'
 
 const TAB_ORDER: TabKey[] = [
+  'overview',
   'todo',
   'tasks',
   'deadlines',
@@ -25,7 +26,7 @@ export const useUiStore = defineStore('ui', () => {
   // The choice itself lives in the app store so it persists to the user's
   // Firestore document and comes back on refresh. This is a view onto it.
   const { themeSetting } = storeToRefs(useAppStore())
-  const tab = ref<TabKey>('todo')
+  const tab = ref<TabKey>('overview')
   const tabDir = ref<1 | -1>(1)
   const vw = ref<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
   const now = ref<number>(Date.now())

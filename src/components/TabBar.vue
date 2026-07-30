@@ -16,6 +16,7 @@ const { c, isMobile, s, B } = useStyles()
 const { tab, tabDir } = storeToRefs(ui)
 
 const TABS: { key: TabKey; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
   { key: 'todo', label: 'Todo' },
   { key: 'tasks', label: 'Tasks' },
   { key: 'deadlines', label: 'Deadlines' },

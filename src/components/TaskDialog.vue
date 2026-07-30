@@ -7,6 +7,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import StatusPill from '@/components/StatusPill.vue'
 import TagPicker from '@/components/TagPicker.vue'
+import LinkedItemsPanel from '@/components/LinkedItemsPanel.vue'
 import type { PullRequest, Task } from '@/types'
 
 const app = useAppStore()
@@ -212,6 +213,8 @@ function onEnter(e: KeyboardEvent) {
           </div>
         </template>
       </div>
+
+      <LinkedItemsPanel collection="tasks" :doc-id="task.id" />
 
       <div :style="s.dialogActions">
         <button :style="s.saveBtn" @click="app.closeDialog()">Update</button>
