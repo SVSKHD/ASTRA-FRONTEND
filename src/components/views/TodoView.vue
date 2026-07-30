@@ -5,13 +5,16 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDayList } from '@/composables/useDayList'
+import { useMovePending } from '@/composables/useMovePending'
 import { pxify, merge, rowBase, dayBody, dayGroupCard, tagChip } from '@/styles'
 import { buildDayGroups, ymd } from '@/utils/dayGroups'
+import { todayKey } from '@/utils/rollover'
 import DayGroupHead from '@/components/DayGroupHead.vue'
 import DayToolbar from '@/components/DayToolbar.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
+import MovePendingButton from '@/components/MovePendingButton.vue'
 import type { Todo } from '@/types'
 
 const app = useAppStore()
@@ -26,6 +29,11 @@ const { now } = storeToRefs(ui)
 // Creating and editing both happen in ItemDialog now, so N / ⌘K opens that
 // instead of focusing a form the tab no longer carries.
 defineExpose({ focus: () => app.openCreate('todo') })
+
+// The Today empty state offers a secondary "move pending here" entry point; it
+// only shows when Today is empty and there are overdue pending todos to move.
+const moveTodos = useMovePending('todos')
+const todayStr = computed(() => todayKey(new Date(now.value)))
 
 // Todos have no deadline, so the day they belong to is the day they were
 // written. Legacy todos carry createdAt 0 and fall into the undated bucket.
@@ -159,6 +167,19 @@ function particleStyle(i: number) {
     animation: 'burst .6s ease-out forwards',
   })
 }
+
+const todayCtaStyle = computed(() =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 10,
+    padding: '10px 6px',
+    fontSize: 13,
+    color: c.value.dim,
+    textAlign: 'center',
+  }),
+)
 </script>
 
 <template>
@@ -170,7 +191,9 @@ function particleStyle(i: number) {
       @filter="day.setFilter"
       @fold="day.foldAll"
       @new="app.openCreate('todo')"
-    />
+    >
+      <template #action><MovePendingButton collection="todos" /></template>
+    </DayToolbar>
     <div v-if="todos.length === 0" :style="s.empty">Nothing yet — add your first todo.</div>
     <div :style="s.dayGroups">
       <div
@@ -189,7 +212,14 @@ function particleStyle(i: number) {
         />
         <div :style="bodyStyle(day.isOpen(g))">
           <div :style="s.dayBodyInner">
-            <div v-if="g.total === 0" :style="s.dayDropHint">Drop a todo here</div>
+            <div
+              v-if="g.total === 0 && g.date === todayStr && moveTodos.count.value > 0"
+              :style="todayCtaStyle"
+            >
+              <span>Nothing due today — move {{ moveTodos.count.value }} pending todos here?</span>
+              <MovePendingButton collection="todos" />
+            </div>
+            <div v-else-if="g.total === 0" :style="s.dayDropHint">Drop a todo here</div>
             <div v-else-if="day.visible(g).length === 0" :style="s.dayDropHint">
               {{ day.hiddenBy(g) }} hidden by the filter
             </div>

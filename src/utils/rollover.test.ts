@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { chunk, eligibleTasks, isOverdueTask, todayKey } from '@/utils/rollover'
-import type { Task } from '@/types'
+import {
+  chunk,
+  eligibleTasks,
+  eligibleTodos,
+  isOverdueTask,
+  isOverdueTodo,
+  todayKey,
+} from '@/utils/rollover'
+import type { Task, Todo } from '@/types'
 
 function task(over: Partial<Task>): Task {
   return {
@@ -68,6 +75,58 @@ describe('eligibleTasks', () => {
       eligibleTasks([t], TODAY).length ? { ...t, deadline: TODAY } : t,
     )
     expect(eligibleTasks(rolled, TODAY)).toEqual([])
+  })
+})
+
+function todo(over: Partial<Todo>): Todo {
+  return {
+    id: 1,
+    text: 'T',
+    done: false,
+    status: 'pending',
+    tag: '',
+    description: '',
+    isPublic: false,
+    shareId: null,
+    sharedAt: null,
+    rolledOverAt: null,
+    rolloverCount: 0,
+    createdAt: 0,
+    updatedAt: 0,
+    ...over,
+  }
+}
+
+// A local timestamp for 09:00 on the given Y/M/D, so ymd() reads the intended
+// calendar day regardless of the runner's timezone.
+function at(y: number, m: number, d: number): number {
+  return new Date(y, m - 1, d, 9, 0, 0).getTime()
+}
+
+describe('isOverdueTodo / eligibleTodos (todos use createdAt as their day)', () => {
+  it('is overdue when the not-done todo was created before today', () => {
+    expect(isOverdueTodo(todo({ createdAt: at(2026, 7, 29) }), TODAY)).toBe(true)
+  })
+
+  it('is not overdue when created today or later', () => {
+    expect(isOverdueTodo(todo({ createdAt: at(2026, 7, 30) }), TODAY)).toBe(false)
+    expect(isOverdueTodo(todo({ createdAt: at(2026, 8, 1) }), TODAY)).toBe(false)
+  })
+
+  it('leaves done todos and undated (createdAt 0) todos alone', () => {
+    expect(
+      isOverdueTodo(todo({ createdAt: at(2020, 1, 1), status: 'done', done: true }), TODAY),
+    ).toBe(false)
+    expect(isOverdueTodo(todo({ createdAt: 0 }), TODAY)).toBe(false)
+  })
+
+  it('eligibleTodos returns only the overdue ones', () => {
+    const list = [
+      todo({ id: 1, createdAt: at(2026, 7, 1) }),
+      todo({ id: 2, createdAt: at(2026, 7, 30) }),
+      todo({ id: 3, createdAt: 0 }),
+    ]
+    expect(eligibleTodos(list, TODAY).map((t) => t.id)).toEqual([1])
   })
 })
 
