@@ -10,7 +10,8 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 
 import TopBar from '@/components/TopBar.vue'
-import TabBar from '@/components/TabBar.vue'
+import LeftRail from '@/components/LeftRail.vue'
+import BottomBar from '@/components/BottomBar.vue'
 import Ticker from '@/components/Ticker.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
 import NoteView from '@/components/NoteView.vue'
@@ -42,8 +43,32 @@ const ui = useUiStore()
 const app = useAppStore()
 const auth = useAuthStore()
 const lock = useLockStore()
-const { c, s, isMobile } = useStyles()
-const { tab } = storeToRefs(ui)
+const { c, s } = useStyles()
+const { tab, isPhone, isTablet, railCollapsed } = storeToRefs(ui)
+
+// The rail is 72px collapsed / 232px expanded; tablet portrait forces collapsed.
+const railW = computed(() => (isTablet.value || railCollapsed.value ? 72 : 232))
+const shellGrid = computed(() =>
+  pxify({
+    display: 'grid',
+    gridTemplateColumns: railW.value + 'px 1fr',
+    height: '100dvh',
+    transition: 'grid-template-columns .22s cubic-bezier(.4,0,.2,1)',
+  }),
+)
+// The one scroll container in the desktop/tablet shell: full height, wide, no
+// card. Inset per spec (20px top/right/bottom, 16px left). The active view fills
+// it via its panelStyle (flex:1) and scrolls its own list inside — a single
+// scrollbar, no nesting.
+const contentDesktop = pxify({
+  height: '100dvh',
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+  minHeight: 0,
+  padding: '20px 20px 20px 16px',
+  overflow: 'hidden',
+})
 const { isSignedIn, authReady } = storeToRefs(auth)
 const { cloudReady } = storeToRefs(app)
 const { canUseApp } = storeToRefs(lock)
@@ -109,6 +134,12 @@ function onKey(e: KeyboardEvent) {
     focusPrimaryInput()
     return
   }
+  // ⌘/Ctrl + 1–9 jumps to the nth tab (works even while typing, like ⌘K).
+  if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
+    e.preventDefault()
+    ui.setTabByIndex(parseInt(e.key, 10) - 1)
+    return
+  }
   const tag = (e.target as HTMLElement)?.tagName || ''
   const typing =
     tag === 'INPUT' ||
@@ -116,10 +147,11 @@ function onKey(e: KeyboardEvent) {
     tag === 'SELECT' ||
     (e.target as HTMLElement)?.isContentEditable
   if (typing) return
-  if (e.key === 'ArrowRight') ui.cycleTab(1)
-  else if (e.key === 'ArrowLeft') ui.cycleTab(-1)
-  else if (['1', '2', '3', '4', '5', '6', '7', '8'].indexOf(e.key) !== -1)
-    ui.setTabByIndex(parseInt(e.key) - 1)
+  // The rail is vertical now, so ↑/↓ step through tabs; ←/→ are kept as aliases
+  // so the old horizontal habit still works.
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') ui.cycleTab(1)
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') ui.cycleTab(-1)
+  else if (e.key >= '1' && e.key <= '9') ui.setTabByIndex(parseInt(e.key, 10) - 1)
   else if (e.key.toLowerCase() === 'n') {
     e.preventDefault()
     focusPrimaryInput()
@@ -189,18 +221,28 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="showWorkspace" :style="s.page">
-    <div :style="s.stack">
-      <TopBar />
-      <!-- Desktop renders the carousel inside the header; only the fixed bottom
-           bar is still a sibling of the card. -->
-      <TabBar v-if="isMobile" />
-      <div :style="s.container" @touchstart="onTouchStart" @touchend="onTouchEnd">
+  <template v-if="showWorkspace">
+    <!-- Desktop + tablet: the left rail sits beside a single wide scroll region
+         that fills the rest of the viewport. No centered card, no carousel. -->
+    <div v-if="!isPhone" :style="shellGrid">
+      <LeftRail />
+      <main :style="contentDesktop">
         <component :is="currentView" ref="activeView" />
+      </main>
+    </div>
+    <!-- Phone: the proven card layout, with the bottom bar standing in for the
+         old top carousel. -->
+    <div v-else :style="s.page">
+      <div :style="s.stack">
+        <TopBar />
+        <div :style="s.container" @touchstart="onTouchStart" @touchend="onTouchEnd">
+          <component :is="currentView" ref="activeView" />
+        </div>
       </div>
     </div>
-  </div>
+  </template>
 
+  <BottomBar v-if="showWorkspace && isPhone" />
   <Ticker v-if="showWorkspace" />
 
   <button

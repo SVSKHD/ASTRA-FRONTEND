@@ -8,13 +8,12 @@ import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { THEMES, LIGHT_THEME_KEYS, DARK_THEME_KEYS, type ThemeKey } from '@/themes'
-import TabBar from '@/components/TabBar.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
 const app = useAppStore()
 const lock = useLockStore()
-const { c, s, isMobile } = useStyles()
+const { c, s } = useStyles()
 const { themeSetting, themePanelOpen, isDayTime, now } = storeToRefs(ui)
 const { avatarMenuOpen, avatarColor, avatarInitial, avatarName, avatarSub, ghMenuLabel } =
   storeToRefs(auth)
@@ -169,10 +168,6 @@ function onOpenNotes() {
       </div>
       <span :style="s.greetingText">{{ greetingText }}</span>
     </div>
-    <!-- The tab carousel is the middle column of the header on desktop. On
-         mobile the header has no room for it, so it stays in its own bar at the
-         bottom of the screen, where the thumbs are. -->
-    <TabBar v-if="!isMobile" />
     <div :style="s.greetingRight">
       <div :style="s.themeWrap">
         <button
