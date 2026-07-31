@@ -30,6 +30,7 @@ import {
 import { STATUS_CYCLE, emptyFinanceSettings, isStatus, statusFromDone } from '@/types'
 import { chunk, eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
 import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
+import { deviceLabel, draftKey, sanitizeDrafts, type DraftRecord } from '@/utils/drafts'
 import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
 import type {
   ActiveNotif,
@@ -106,6 +107,12 @@ export const useAppStore = defineStore('app', () => {
   const lastAutoRolloverDay = ref('')
   // Monthly-income settings for the expenses view (INR).
   const financeSettings = ref<FinanceSettings>(emptyFinanceSettings())
+  // Draft-resume store (section 8). One in-progress draft per entity, keyed
+  // `${entityType}:${entityId ?? 'new'}`, held in the workspace doc so it rides
+  // the same offline-synced save path and reaches every device. This device's
+  // stable label rides along on each draft so a cross-device draft can be named.
+  const drafts = ref<Record<string, DraftRecord>>({})
+  const thisDeviceLabel = deviceLabel()
   const cloudReady = ref(false)
   const cloudError = ref('')
   const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
@@ -934,6 +941,41 @@ export const useAppStore = defineStore('app', () => {
     }
     editing.value = { type: null, id: null }
     draft.value = {}
+  }
+
+  // ---- Draft resume (section 8) -------------------------------------------
+  // The primitives behind useDraft and the create-dialog resume: read, write and
+  // clear the per-entity draft. All three write through drafts.value, so a draft
+  // change schedules a workspace save exactly like any other edit — which is what
+  // gives drafts offline durability and cross-device delivery with no extra code.
+  function draftFor(entityType: string, entityId: number | null): DraftRecord | null {
+    return drafts.value[draftKey(entityType, entityId)] ?? null
+  }
+  function saveDraft(
+    entityType: string,
+    entityId: number | null,
+    payload: Record<string, unknown>,
+  ) {
+    const key = draftKey(entityType, entityId)
+    drafts.value = {
+      ...drafts.value,
+      [key]: {
+        entityType,
+        entityId: entityId ?? null,
+        // Copy so a later mutation of the caller's form object cannot rewrite a
+        // stored draft behind our back.
+        payload: { ...payload },
+        updatedAt: Date.now(),
+        deviceLabel: thisDeviceLabel,
+      },
+    }
+  }
+  function deleteDraft(entityType: string, entityId: number | null) {
+    const key = draftKey(entityType, entityId)
+    if (!(key in drafts.value)) return
+    const next = { ...drafts.value }
+    delete next[key]
+    drafts.value = next
   }
 
   // ---- Delete + undo ------------------------------------------------------
@@ -1867,6 +1909,7 @@ export const useAppStore = defineStore('app', () => {
       autoRollover: autoRollover.value,
       lastAutoRolloverDay: lastAutoRolloverDay.value,
       financeSettings: financeSettings.value,
+      drafts: drafts.value,
     }
   }
   function resetData() {
@@ -1887,6 +1930,7 @@ export const useAppStore = defineStore('app', () => {
     autoRollover.value = false
     lastAutoRolloverDay.value = ''
     financeSettings.value = emptyFinanceSettings()
+    drafts.value = {}
     syncedSig.value = new Map()
     syncFromCache.value = false
     syncHasPending.value = false
@@ -2071,6 +2115,9 @@ export const useAppStore = defineStore('app', () => {
     } else {
       financeSettings.value = emptyFinanceSettings()
     }
+    // Drafts are newer than the first release, so a legacy doc has none; a
+    // malformed entry is dropped rather than trusted.
+    drafts.value = sanitizeDrafts(data.drafts)
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -2203,6 +2250,7 @@ export const useAppStore = defineStore('app', () => {
         autoRollover,
         lastAutoRolloverDay,
         financeSettings,
+        drafts,
       ],
       scheduleSave,
       { deep: true },
@@ -2244,6 +2292,8 @@ export const useAppStore = defineStore('app', () => {
     retrySync,
     editing,
     draft,
+    drafts,
+    deviceLabel: thisDeviceLabel,
     toast,
     burst,
     itemDialog,
@@ -2316,6 +2366,9 @@ export const useAppStore = defineStore('app', () => {
     cancelEdit,
     setDraft,
     saveEdit,
+    draftFor,
+    saveDraft,
+    deleteDraft,
     deleteWithUndo,
     undoDelete,
     showToastMsg,
@@ -2344,6 +2397,7 @@ export const useAppStore = defineStore('app', () => {
     closeItemDialog,
     setDialogDraft,
     commitCreate,
+    blankDraft,
     itemById,
     updateItem,
     patchItem,
