@@ -31,6 +31,9 @@ import { STATUS_CYCLE, emptyFinanceSettings, isStatus, statusFromDone } from '@/
 import { chunk, eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
 import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
 import { deviceLabel, draftKey, sanitizeDrafts, type DraftRecord } from '@/utils/drafts'
+import { seedBots } from '@/utils/bots'
+import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
+import { titleFromMessage } from '@/utils/ai'
 import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
 import type {
   ActiveNotif,
@@ -117,6 +120,12 @@ export const useAppStore = defineStore('app', () => {
   // stable label rides along on each draft so a cross-device draft can be named.
   const drafts = ref<Record<string, DraftRecord>>({})
   const thisDeviceLabel = deviceLabel()
+  // AI chat (Part A) and trading bots (Part B). Both live in the workspace doc
+  // like everything else, so they sync and work offline through the same layer.
+  const aiChats = ref<AiChat[]>([])
+  const aiActiveChatId = ref<number | null>(null)
+  const aiUseData = ref(true)
+  const bots = ref<Bot[]>([])
   const cloudReady = ref(false)
   const cloudError = ref('')
   const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
@@ -980,6 +989,122 @@ export const useAppStore = defineStore('app', () => {
     const next = { ...drafts.value }
     delete next[key]
     drafts.value = next
+  }
+
+  // ---- AI chat (Part A) ---------------------------------------------------
+  function aiChatById(chatId: number): AiChat | undefined {
+    return aiChats.value.find((ch) => ch.id === chatId)
+  }
+  const activeAiChat = computed<AiChat | null>(
+    () => aiChats.value.find((ch) => ch.id === aiActiveChatId.value) ?? null,
+  )
+  function newAiChat(model = AI_MODELS[0].id): number {
+    const chatId = id()
+    const ts = Date.now()
+    aiChats.value = [
+      ...aiChats.value,
+      {
+        id: chatId,
+        title: 'New chat',
+        model,
+        pinned: false,
+        messages: [],
+        createdAt: ts,
+        updatedAt: ts,
+      },
+    ]
+    aiActiveChatId.value = chatId
+    return chatId
+  }
+  function selectAiChat(chatId: number) {
+    aiActiveChatId.value = chatId
+  }
+  function setAiChatModel(chatId: number, model: string) {
+    aiChats.value = aiChats.value.map((ch) => (ch.id === chatId ? { ...ch, model } : ch))
+  }
+  function renameAiChat(chatId: number, title: string) {
+    const t = title.trim()
+    if (!t) return
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId ? { ...ch, title: t, updatedAt: Date.now() } : ch,
+    )
+  }
+  function toggleAiChatPin(chatId: number) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId ? { ...ch, pinned: !ch.pinned } : ch,
+    )
+  }
+  function deleteAiChat(chatId: number) {
+    aiChats.value = aiChats.value.filter((ch) => ch.id !== chatId)
+    if (aiActiveChatId.value === chatId) aiActiveChatId.value = aiChats.value[0]?.id ?? null
+  }
+  // Append a message and bump the chat. The title is auto-derived from the first
+  // user turn (a plain text slice, no extra model call) until the user renames it.
+  function addAiMessage(chatId: number, msg: Omit<AiMessage, 'id' | 'createdAt'>): number {
+    const chat = aiChatById(chatId)
+    if (!chat) return -1
+    const msgId = id()
+    const ts = Date.now()
+    const message: AiMessage = { ...msg, id: msgId, createdAt: ts }
+    const firstUser = msg.role === 'user' && chat.messages.every((m) => m.role !== 'user')
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? {
+            ...ch,
+            messages: [...ch.messages, message],
+            title: firstUser && ch.title === 'New chat' ? titleFromMessage(msg.content) : ch.title,
+            updatedAt: ts,
+          }
+        : ch,
+    )
+    return msgId
+  }
+  // Stream an assistant reply into an existing message bubble as tokens arrive.
+  function appendAiMessageContent(chatId: number, msgId: number, delta: string) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? {
+            ...ch,
+            messages: ch.messages.map((m) =>
+              m.id === msgId ? { ...m, content: m.content + delta } : m,
+            ),
+          }
+        : ch,
+    )
+  }
+  function setAiUseData(v: boolean) {
+    aiUseData.value = v === true
+  }
+
+  // ---- Trading bots (Part B) ----------------------------------------------
+  function botById(botId: number): Bot | undefined {
+    return bots.value.find((b) => b.id === botId)
+  }
+  function patchBot(botId: number, patch: Partial<Bot>) {
+    bots.value = bots.value.map((b) => (b.id === botId ? { ...b, ...patch } : b))
+  }
+  // Flip `enabled` (the only field the app ever writes) and show the intermediate
+  // "Starting…/Stopping…" state until the bot's next heartbeat confirms. With no
+  // bot process attached this simulates that confirmation after a beat so the UI
+  // is usable; a real bot's heartbeat write clears `pending` the same way.
+  function toggleBot(botId: number, next?: boolean) {
+    const bot = botById(botId)
+    if (!bot) return
+    const target = next === undefined ? !bot.enabled : next
+    patchBot(botId, { enabled: target, pending: true })
+    setTimeout(() => {
+      const b = botById(botId)
+      if (!b || b.enabled !== target) return
+      patchBot(botId, {
+        pending: false,
+        status: target ? 'running' : 'stopped',
+        heartbeatAt: Date.now(),
+      })
+    }, 1200)
+  }
+  // The kill switch: disable every bot at once.
+  function stopAllBots() {
+    for (const b of bots.value) if (b.enabled) toggleBot(b.id, false)
   }
 
   // ---- Delete + undo ------------------------------------------------------
@@ -1915,6 +2040,9 @@ export const useAppStore = defineStore('app', () => {
       lastAutoRolloverDay: lastAutoRolloverDay.value,
       financeSettings: financeSettings.value,
       drafts: drafts.value,
+      aiChats: aiChats.value,
+      aiUseData: aiUseData.value,
+      bots: bots.value,
     }
   }
   function resetData() {
@@ -1937,6 +2065,10 @@ export const useAppStore = defineStore('app', () => {
     lastAutoRolloverDay.value = ''
     financeSettings.value = emptyFinanceSettings()
     drafts.value = {}
+    aiChats.value = []
+    aiActiveChatId.value = null
+    aiUseData.value = true
+    bots.value = []
     syncedSig.value = new Map()
     syncFromCache.value = false
     syncHasPending.value = false
@@ -2125,6 +2257,13 @@ export const useAppStore = defineStore('app', () => {
     // Drafts are newer than the first release, so a legacy doc has none; a
     // malformed entry is dropped rather than trusted.
     drafts.value = sanitizeDrafts(data.drafts)
+    // AI chats + bots (Parts A/B). Arrays are trusted shallowly like the other
+    // collections. Bots seed the two defaults only when the field has never been
+    // written — an explicit empty array (the user removed them all) is respected.
+    aiChats.value = Array.isArray(data.aiChats) ? (data.aiChats as AiChat[]) : []
+    aiUseData.value = data.aiUseData !== false
+    if (Array.isArray(data.bots)) bots.value = data.bots as Bot[]
+    else bots.value = seedBots(id, Date.now())
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -2190,6 +2329,9 @@ export const useAppStore = defineStore('app', () => {
       const snap = await getDoc(ref)
       if (snap.exists()) applyData(snap.data())
       else {
+        // A brand-new workspace: seed the two default bots so the Bots tab has
+        // something to show, then write the first document.
+        bots.value = seedBots(id, Date.now())
         await setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() })
       }
       // Baseline the acknowledged signature so nothing reads as pending on load.
@@ -2259,6 +2401,9 @@ export const useAppStore = defineStore('app', () => {
         lastAutoRolloverDay,
         financeSettings,
         drafts,
+        aiChats,
+        aiUseData,
+        bots,
       ],
       scheduleSave,
       { deep: true },
@@ -2303,6 +2448,11 @@ export const useAppStore = defineStore('app', () => {
     draft,
     drafts,
     deviceLabel: thisDeviceLabel,
+    aiChats,
+    aiActiveChatId,
+    activeAiChat,
+    aiUseData,
+    bots,
     toast,
     burst,
     itemDialog,
@@ -2378,6 +2528,20 @@ export const useAppStore = defineStore('app', () => {
     draftFor,
     saveDraft,
     deleteDraft,
+    aiChatById,
+    newAiChat,
+    selectAiChat,
+    setAiChatModel,
+    renameAiChat,
+    toggleAiChatPin,
+    deleteAiChat,
+    addAiMessage,
+    appendAiMessageContent,
+    setAiUseData,
+    botById,
+    patchBot,
+    toggleBot,
+    stopAllBots,
     deleteWithUndo,
     undoDelete,
     showToastMsg,

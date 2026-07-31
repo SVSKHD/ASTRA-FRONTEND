@@ -10,6 +10,8 @@ export type TabKey =
   | 'trips'
   | 'ideas'
   | 'stocks'
+  | 'ai'
+  | 'bots'
 
 // Every stored item carries these. Items written before timestamps existed have
 // neither, so applyData() backfills them to 0 — which the formatter renders as
@@ -17,6 +19,96 @@ export type TabKey =
 export interface Timestamped {
   createdAt: number
   updatedAt: number
+}
+
+// ---- AI chat (Part A) -----------------------------------------------------
+// The available models. `id` is what the aiProxy Cloud Function forwards to the
+// Anthropic API; the label is what the header dropdown and the per-message badge
+// show. Kept as data so adding a model later is one line.
+export interface AiModel {
+  id: string
+  label: string
+}
+export const AI_MODELS: AiModel[] = [
+  { id: 'claude-opus-4-6', label: 'Opus' },
+  { id: 'claude-sonnet-4-6', label: 'Sonnet' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku' },
+]
+export type AiRole = 'user' | 'assistant'
+export interface AiMessage {
+  id: number
+  role: AiRole
+  content: string
+  // The model that produced an assistant message (badge). Absent on user turns.
+  model?: string
+  tokensIn?: number
+  tokensOut?: number
+  createdAt: number
+}
+export interface AiChat {
+  id: number
+  title: string
+  model: string
+  pinned: boolean
+  messages: AiMessage[]
+  createdAt: number
+  updatedAt: number
+}
+
+// ---- Trading bots (Part B) ------------------------------------------------
+// The app is a control surface: it reads everything the bot process writes and
+// only ever flips `enabled`. Mode 'live' is real money; the toggle for it is
+// gated behind a name-typed confirm.
+export type BotMode = 'paper' | 'demo' | 'live'
+export type BotStatus = 'running' | 'stopped' | 'error' | 'stale'
+export interface BotPosition {
+  ticket: string
+  direction: 'buy' | 'sell'
+  lot: number
+  entry: number
+  current: number
+  floatingPl: number
+  sl: number
+  // Hedge/basket layer tag (H1/H2/H3) where applicable.
+  layer?: string
+}
+export interface BotBasket {
+  open: boolean
+  layers: number
+  floatingTotal: number
+  stop: number
+  openedAt: number | null
+}
+export interface Bot {
+  id: number
+  name: string
+  symbol: string
+  engine: string
+  lot: number
+  enabled: boolean
+  // UI-only: set while a toggle waits for the bot's next heartbeat to confirm,
+  // so we never claim a bot is off before it says so.
+  pending?: boolean
+  mode: BotMode
+  status: BotStatus
+  heartbeatAt: number
+  version: string
+  lastError: string
+  // Today's figures, written by the bot process.
+  realizedPl: number
+  floatingPl: number
+  tradeCount: number
+  winRate: number
+  dailyLossUsed: number
+  dailyLossCap: number
+  positions: BotPosition[]
+  basket: BotBasket | null
+  equityCurve: number[]
+  phase: string
+  phaseRemaining: string
+  blackout: boolean
+  config: Record<string, unknown>
+  configFrozenAt: number
 }
 
 // Todos and tasks share one three-state lifecycle so both lists can be read the

@@ -75,3 +75,52 @@ account menu.
 - GitHub repo/PR/issue data is currently mocked (deterministic per repo name);
   the real GitHub API calls are marked with comments where they would slot in.
 - The previous Next.js/React app has been moved to [`legacy-next/`](./legacy-next).
+
+## AI tab — aiProxy Cloud Function contract
+
+The AI tab never holds the Anthropic API key. The Vue app POSTs to a Cloud
+Function whose URL is `VITE_AI_PROXY_URL`; the function injects the key,
+enforces per-user rate limits, and streams the response back (SSE, `data:`
+lines). Request body sent by the app:
+
+```jsonc
+{
+  "model": "claude-opus-4-6", // the chat's selected model id
+  "messages": [{ "role": "user", "content": "…" }], // full history (stateless)
+  "system": "[AUREON CONTEXT …]", // compact live-data block, omitted when "Use my data" is off
+  "stream": true,
+}
+```
+
+The app reads `data:` lines and appends `delta.text` (or a top-level `text`)
+to the streaming bubble. Anything else (keep-alives, `[DONE]`) is ignored.
+With no `VITE_AI_PROXY_URL` set, the composer still records the turn locally
+and shows a note that the proxy is unconfigured.
+
+## Bots tab — Firestore write contract (for the Python bot)
+
+The app is a **control surface**: it reads everything the bot process writes and
+only ever flips `enabled`. Wire the bot's service account to these paths under
+`users/{uid}/bots/{botId}`:
+
+| Path                              | Written by                                                 | Shape                                                                                                                                                                                |
+| --------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bots/{botId}` (registry doc)     | bot (all fields) / app (`enabled`, `config` when disabled) | `{ name, symbol, engine, lot, enabled, mode, status, config, configFrozenAt, heartbeatAt, version, lastError }`                                                                      |
+| `bots/{botId}/trades/{tradeId}`   | bot                                                        | closed trade `{ entryTime, exitTime, direction, lot, entry, exit, pl, exitReason }` — `exitReason ∈ TP \| SL \| TRAIL \| BASKET_BREAKEVEN \| BASKET_STOP \| PHASE_END \| DAILY_LOCK` |
+| `bots/{botId}/positions/{ticket}` | bot                                                        | open position, **deleted on close** `{ ticket, direction, lot, entry, current, floatingPl, sl, layer }`                                                                              |
+| `bots/{botId}/days/{YYYY-MM-DD}`  | bot                                                        | pre-aggregated rollup `{ trades, wins, pl, maxDD, stopped }` — the UI reads this for ranges, never summing raw trades                                                                |
+| `bots/{botId}/events/{eventId}`   | bot                                                        | alerts / config changes / start-stop `{ type, message, at }`                                                                                                                         |
+
+- **Heartbeat**: the bot updates `heartbeatAt` every ~30s. The UI shows the
+  status dot green under 60s, amber to 5m, red beyond (heartbeat lost).
+- **Enable handshake**: the app writes `enabled` and shows an intermediate
+  "Starting…/Stopping…" state; the bot acts on the change and confirms by
+  advancing `heartbeatAt` / `status`. The UI never claims a bot is off before
+  that confirmation.
+- **Security** (rules to add): bot subcollections are owner-read; `enabled` and
+  `config` are owner-writable, everything else is written only by the bot's
+  service account. Bot data is excluded from any public share view.
+
+> This repo is the frontend control surface. The `aiProxy` Cloud Function, the
+> Firestore security rules, and the Python bot process itself live outside it and
+> are wired up via the contracts above.
