@@ -46,6 +46,23 @@ textarea:focus,
   height: 0;
 }
 
+@keyframes stageDrift {
+  0%,
+  100% {
+    transform: translateY(-3px);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+@keyframes sheen {
+  from {
+    background-position: -160% 0;
+  }
+  to {
+    background-position: 260% 0;
+  }
+}
 @keyframes slideUpSheet {
   from {
     transform: translateY(100%);
