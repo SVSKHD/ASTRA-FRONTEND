@@ -2,7 +2,7 @@
 // depth/limit guards. Kept store-free so it is testable in isolation; the store
 // supplies resolvers that read the live workspace.
 
-import type { LinkRef } from '@/types'
+import type { LinkCollection, LinkRef } from '@/types'
 
 export const MAX_DIRECT_LINKS = 20
 export const MAX_LINK_DEPTH = 3
@@ -85,6 +85,24 @@ export const LINK_REJECTION_MESSAGE: Record<LinkRejection, string> = {
   cycle: 'That would create a loop',
   'max-direct': `Up to ${MAX_DIRECT_LINKS} links per item`,
   'max-depth': `Links can go at most ${MAX_LINK_DEPTH} levels deep`,
+}
+
+// The ids that should be hidden from the top level of a collection's list
+// because they nest under another item present in the same list: an item is a
+// nested child when one of its parents is the same collection AND present in
+// the given (already view-filtered) set. Cross-collection parents, or parents
+// filtered out of the view, do NOT nest it — it stays a top-level row (with a
+// breadcrumb), so nothing silently disappears.
+export function nestedChildIds(
+  collection: LinkCollection,
+  items: { id: number; parents: LinkRef[] }[],
+): Set<number> {
+  const present = new Set(items.map((i) => i.id))
+  const nested = new Set<number>()
+  for (const it of items) {
+    if (it.parents.some((p) => p.collection === collection && present.has(p.id))) nested.add(it.id)
+  }
+  return nested
 }
 
 // Whether `parent` may link `child`. Order matters: self/exists/limit are cheap

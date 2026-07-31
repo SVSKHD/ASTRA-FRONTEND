@@ -16,6 +16,9 @@ import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import MovePendingButton from '@/components/MovePendingButton.vue'
 import LinkProgressBar from '@/components/LinkProgressBar.vue'
+import LinkedAccordion from '@/components/LinkedAccordion.vue'
+import { nestedChildIds } from '@/utils/links'
+import { useAccordionState } from '@/composables/useAccordionState'
 import type { Todo } from '@/types'
 
 const app = useAppStore()
@@ -202,6 +205,97 @@ const linkChip = computed(() =>
 // The thin progress line hugs the bottom edge of the card, inset past the
 // rounded corners.
 const linkLineWrap = pxify({ position: 'absolute', left: 12, right: 12, bottom: 3 })
+
+// --- linked-items nesting ---------------------------------------------------
+// Children whose parent is a visible todo are hidden from the top level and
+// rendered inside the parent's accordion instead. `present` is every visible
+// todo across the day groups; a child whose parent is filtered out (or is a
+// task) stays top-level with a breadcrumb rather than vanishing.
+const acc = useAccordionState()
+const present = computed(() => groups.value.flatMap((g) => day.visible(g)))
+const nestedIds = computed(() => nestedChildIds('todos', present.value))
+function topRows(g: (typeof groups.value)[number]): Todo[] {
+  return day.visible(g).filter((t) => !nestedIds.value.has(t.id))
+}
+function accKey(t: Todo) {
+  return 'todos:' + t.id
+}
+function expanded(t: Todo) {
+  return acc.isOpen(accKey(t))
+}
+function toggleExpand(t: Todo) {
+  acc.toggle(accKey(t))
+}
+// A top-level todo that still has parents is an orphan here (parent absent from
+// this view) — name the parents so the link isn't hidden.
+function orphanBreadcrumb(t: Todo): string {
+  return t.parents
+    .map((p) => app.linkableById(p))
+    .filter((it): it is NonNullable<typeof it> => !!it)
+    .map((it) => ('text' in it ? it.text : it.title))
+    .join(', ')
+}
+const parentKeys = computed(() =>
+  present.value.filter((t) => t.linked.length > 0).map((t) => accKey(t)),
+)
+const anyLinked = computed(() => parentKeys.value.length > 0)
+const allExpanded = computed(
+  () => parentKeys.value.length > 0 && parentKeys.value.every((k) => acc.isOpen(k)),
+)
+function toggleAll() {
+  acc.setMany(parentKeys.value, !allExpanded.value)
+}
+
+const parentCardStyle = pxify({ display: 'flex', flexDirection: 'column' })
+function chevronStyle(t: Todo) {
+  return pxify({
+    width: 18,
+    height: 18,
+    flexShrink: 0,
+    border: 'none',
+    background: 'transparent',
+    color: c.value.dim,
+    cursor: 'pointer',
+    display: 'grid',
+    placeItems: 'center',
+    transform: expanded(t) ? 'rotate(90deg)' : 'rotate(0deg)',
+    transition: 'transform .25s ease',
+  })
+}
+function accBodyOuter(t: Todo) {
+  return pxify({
+    display: 'grid',
+    gridTemplateRows: expanded(t) ? '1fr' : '0fr',
+    transition: 'grid-template-rows .3s cubic-bezier(.4,1,.4,1)',
+  })
+}
+const accBodyClip = pxify({ overflow: 'hidden', minHeight: 0 })
+const accBodyInner = computed(() =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    padding: '8px 6px 2px 30px',
+  }),
+)
+const breadcrumbStyle = computed(() =>
+  pxify({ fontSize: 10, color: c.value.dim, padding: '2px 0 4px 46px' }),
+)
+const linkExpandBtn = computed(() =>
+  pxify({
+    fontSize: 10,
+    fontWeight: 600,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    padding: '5px 10px',
+    borderRadius: 999,
+    border: '1px solid ' + c.value.border,
+    background: 'transparent',
+    color: c.value.dim,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  }),
+)
 </script>
 
 <template>
@@ -214,7 +308,12 @@ const linkLineWrap = pxify({ position: 'absolute', left: 12, right: 12, bottom: 
       @fold="day.foldAll"
       @new="app.openCreate('todo')"
     >
-      <template #action><MovePendingButton collection="todos" /></template>
+      <template #action>
+        <button v-if="anyLinked" type="button" :style="linkExpandBtn" @click="toggleAll">
+          {{ allExpanded ? 'Collapse links' : 'Expand links' }}
+        </button>
+        <MovePendingButton collection="todos" />
+      </template>
     </DayToolbar>
     <div v-if="todos.length === 0" :style="s.empty">Nothing yet — add your first todo.</div>
     <div :style="s.dayGroups">
@@ -246,72 +345,114 @@ const linkLineWrap = pxify({ position: 'absolute', left: 12, right: 12, bottom: 
               {{ day.hiddenBy(g) }} hidden by the filter
             </div>
             <TransitionGroup v-else name="rowflip" tag="div" :style="rowsWrap">
-              <div
-                v-for="t in day.visible(g)"
-                :key="t.id"
-                :style="rowStyle(t)"
-                v-hover-style="s.rowHover"
-                draggable="true"
-                @dragstart="onDragStart($event, t)"
-                @dragend="onDragEnd"
-                @dragover="onRowDragOver"
-                @drop="onRowDrop($event, t)"
-              >
-                <span :style="s.grip"
-                  ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-                ></span>
-                <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">
-                  <svg
-                    v-if="t.done"
-                    :style="checkIcon"
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    :stroke="c.onAccent"
-                    stroke-width="3.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+              <div v-for="t in topRows(g)" :key="t.id" :style="parentCardStyle">
+                <div
+                  :style="rowStyle(t)"
+                  v-hover-style="s.rowHover"
+                  draggable="true"
+                  @dragstart="onDragStart($event, t)"
+                  @dragend="onDragEnd"
+                  @dragover="onRowDragOver"
+                  @drop="onRowDrop($event, t)"
+                >
+                  <button
+                    v-if="t.linked.length"
+                    type="button"
+                    :style="chevronStyle(t)"
+                    :aria-label="expanded(t) ? 'Collapse linked' : 'Expand linked'"
+                    :aria-expanded="expanded(t)"
+                    @click.stop="toggleExpand(t)"
                   >
-                    <polyline
-                      points="20 6 9 17 4 12"
-                      style="animation: popIn 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)"
-                    />
-                  </svg>
-                  <template v-if="burst === t.id">
-                    <span v-for="i in particles" :key="i" :style="particleStyle(i)"></span>
-                  </template>
-                </button>
-                <div :style="s.taskMain" @click="app.openEdit('todo', t.id)">
-                  <span :style="textStyle(t)">{{ t.text }}</span>
-                  <span v-if="t.description" :style="descStyle">{{ t.description }}</span>
-                  <div v-if="t.tag || t.linked.length" :style="s.chipRow">
-                    <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-                    <span v-if="t.linked.length" :style="linkChip" title="Linked items">
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        :stroke="c.dim"
-                        stroke-width="1.9"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="M9 12h6" />
-                        <path d="M10 8H8a4 4 0 0 0 0 8h2" />
-                        <path d="M14 8h2a4 4 0 0 1 0 8h-2" />
-                      </svg>
-                      {{ linkOf(t).done }}/{{ linkOf(t).total }}
-                    </span>
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      :stroke="c.dim"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="9 6 15 12 9 18" />
+                    </svg>
+                  </button>
+                  <span :style="s.grip"
+                    ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+                  ></span>
+                  <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">
+                    <svg
+                      v-if="t.done"
+                      :style="checkIcon"
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      :stroke="c.onAccent"
+                      stroke-width="3.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline
+                        points="20 6 9 17 4 12"
+                        style="animation: popIn 0.35s cubic-bezier(0.3, 1.6, 0.5, 1)"
+                      />
+                    </svg>
+                    <template v-if="burst === t.id">
+                      <span v-for="i in particles" :key="i" :style="particleStyle(i)"></span>
+                    </template>
+                  </button>
+                  <div :style="s.taskMain" @click="app.openEdit('todo', t.id)">
+                    <span :style="textStyle(t)">{{ t.text }}</span>
+                    <span v-if="t.description" :style="descStyle">{{ t.description }}</span>
+                    <div v-if="t.tag || t.linked.length" :style="s.chipRow">
+                      <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                      <span v-if="t.linked.length" :style="linkChip" title="Linked items">
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          :stroke="c.dim"
+                          stroke-width="1.9"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M9 12h6" />
+                          <path d="M10 8H8a4 4 0 0 0 0 8h2" />
+                          <path d="M14 8h2a4 4 0 0 1 0 8h-2" />
+                        </svg>
+                        {{ linkOf(t).done }}/{{ linkOf(t).total }}
+                      </span>
+                    </div>
+                    <OfflineChip :pending="app.isItemPending('todo', t.id)" />
                   </div>
-                  <OfflineChip :pending="app.isItemPending('todo', t.id)" />
+                  <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
+                  <ShareGlobeButton entity-type="todo" :item="t" variant="row" />
+                  <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">
+                    ×
+                  </button>
+                  <div v-if="t.linked.length" :style="linkLineWrap">
+                    <LinkProgressBar :done="linkOf(t).done" :total="linkOf(t).total" compact />
+                  </div>
                 </div>
-                <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
-                <ShareGlobeButton entity-type="todo" :item="t" variant="row" />
-                <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
-                <div v-if="t.linked.length" :style="linkLineWrap">
-                  <LinkProgressBar :done="linkOf(t).done" :total="linkOf(t).total" compact />
+
+                <span v-if="orphanBreadcrumb(t)" :style="breadcrumbStyle">
+                  part of ‹{{ orphanBreadcrumb(t) }}›
+                </span>
+
+                <div v-if="t.linked.length" :style="accBodyOuter(t)">
+                  <div :style="accBodyClip">
+                    <div :style="accBodyInner">
+                      <LinkedAccordion
+                        v-for="ch in t.linked"
+                        :key="ch.collection + ':' + ch.id"
+                        :item-ref="ch"
+                        :parent-ref="{ id: t.id, collection: 'todos' }"
+                        :depth="0"
+                        :is-root="false"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </TransitionGroup>

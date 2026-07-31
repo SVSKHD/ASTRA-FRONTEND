@@ -10,14 +10,14 @@ import { useStyles } from '@/composables/useStyles'
 import { useLinkedItems, type LinkedRow } from '@/composables/useLinkedItems'
 import { pxify } from '@/styles'
 import LinkProgressBar from '@/components/LinkProgressBar.vue'
-import OfflineChip from '@/components/OfflineChip.vue'
-import type { LinkCollection, LinkRef } from '@/types'
+import LinkedAccordion from '@/components/LinkedAccordion.vue'
+import type { LinkCollection } from '@/types'
 
 const props = defineProps<{ collection: LinkCollection; docId: number }>()
 
 const app = useAppStore()
 const { c } = useStyles()
-const { links, progress, link, unlink, candidates } = useLinkedItems(
+const { parentRef, links, progress, link, candidates } = useLinkedItems(
   props.collection,
   () => props.docId,
 )
@@ -37,9 +37,6 @@ function pick(row: LinkedRow) {
   link(row.ref)
   picking.value = false
   query.value = ''
-}
-function openItem(ref: LinkRef) {
-  app.openEdit(ref.collection === 'todos' ? 'todo' : 'task', ref.id)
 }
 const allDone = computed(
   () => progress.value.total > 0 && progress.value.done >= progress.value.total,
@@ -125,17 +122,6 @@ const titleStyle = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const unlinkBtn = computed(() =>
-  pxify({
-    border: 'none',
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    fontSize: 16,
-    lineHeight: 1,
-    flexShrink: 0,
-  }),
-)
 const promptStyle = computed(() =>
   pxify({
     display: 'flex',
@@ -215,29 +201,14 @@ const emptyStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim, padd
       </div>
     </div>
 
-    <!-- linked rows -->
-    <div v-for="row in links" :key="row.collection + ':' + row.ref.id" :style="rowStyle">
-      <span :style="dotStyle(row.done)">
-        <svg
-          v-if="row.done"
-          width="9"
-          height="9"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#08130c"
-          stroke-width="3.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      </span>
-      <span :style="titleStyle" @click="openItem(row.ref)">{{ row.title }}</span>
-      <OfflineChip :pending="row.pending" />
-      <span :style="badgeStyle">{{ row.collection === 'todos' ? 'Todo' : 'Task' }}</span>
-      <button type="button" :style="unlinkBtn" aria-label="Unlink" @click.stop="unlink(row.ref)">
-        ×
-      </button>
-    </div>
+    <!-- linked children as the shared accordion, expanded by default here -->
+    <LinkedAccordion
+      v-for="row in links"
+      :key="row.collection + ':' + row.ref.id"
+      :item-ref="row.ref"
+      :parent-ref="parentRef"
+      :is-root="false"
+      :default-expanded="true"
+    />
   </div>
 </template>

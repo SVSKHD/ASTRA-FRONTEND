@@ -4,6 +4,7 @@ import {
   ancestorHeight,
   checkLink,
   hasRef,
+  nestedChildIds,
   sameRef,
   subtreeDepth,
   wouldCycle,
@@ -106,5 +107,34 @@ describe('checkLink', () => {
       'tasks:2': { linked: [], parents: [] },
     })
     expect(checkLink(g, todo(1), [], task(2))).toEqual({ ok: true })
+  })
+})
+
+describe('nestedChildIds', () => {
+  it('nests a child whose same-collection parent is present', () => {
+    const items = [
+      { id: 1, parents: [] },
+      { id: 2, parents: [todo(1)] },
+    ]
+    expect([...nestedChildIds('todos', items)]).toEqual([2])
+  })
+
+  it('does NOT nest when the parent is a different collection (breadcrumb case)', () => {
+    const items = [{ id: 2, parents: [task(9)] }]
+    expect(nestedChildIds('todos', items).size).toBe(0)
+  })
+
+  it('does NOT nest when the parent is filtered out of the present set', () => {
+    // parent todo:1 is not in this view; child todo:2 stays top-level.
+    const items = [{ id: 2, parents: [todo(1)] }]
+    expect(nestedChildIds('todos', items).size).toBe(0)
+  })
+
+  it('nests under the first visible parent when there are several', () => {
+    const items = [
+      { id: 1, parents: [] },
+      { id: 3, parents: [todo(1), todo(99)] }, // 99 absent, 1 present
+    ]
+    expect([...nestedChildIds('todos', items)]).toEqual([3])
   })
 })
