@@ -2,22 +2,11 @@ import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import { THEMES, computeAutoTheme, type ThemeKey, type Theme, type ThemeSetting } from '@/themes'
 import { useAppStore } from '@/stores/app'
+import { TAB_ORDER } from '@/tabs.config'
 import type { ItemStatus, TabKey } from '@/types'
 
 // 'all' plus the three lifecycle states — what the day-list filter can be set to.
 export type StatusFilter = ItemStatus | 'all'
-
-const TAB_ORDER: TabKey[] = [
-  'overview',
-  'todo',
-  'tasks',
-  'deadlines',
-  'reminders',
-  'finances',
-  'trips',
-  'ideas',
-  'stocks',
-]
 
 export type { ThemeSetting }
 
@@ -25,7 +14,7 @@ export type { ThemeSetting }
 export const useUiStore = defineStore('ui', () => {
   // The choice itself lives in the app store so it persists to the user's
   // Firestore document and comes back on refresh. This is a view onto it.
-  const { themeSetting } = storeToRefs(useAppStore())
+  const { themeSetting, railCollapsed } = storeToRefs(useAppStore())
   const tab = ref<TabKey>('overview')
   const tabDir = ref<1 | -1>(1)
   const vw = ref<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
@@ -72,6 +61,12 @@ export const useUiStore = defineStore('ui', () => {
   const theme = computed<Theme>(() => THEMES[effectiveThemeKey.value])
   const dark = computed(() => theme.value.group === 'dark')
   const isMobile = computed(() => vw.value < 640)
+  // Shell breakpoints for the rail rework (distinct from the 640px isMobile the
+  // existing styles use). Phone gets the bottom bar; tablet portrait gets a
+  // collapsed-only rail with no expand toggle; desktop gets the full rail.
+  const isPhone = computed(() => vw.value < 768)
+  const isTablet = computed(() => vw.value >= 768 && vw.value < 1024)
+  const isDesktop = computed(() => vw.value >= 1024)
   const isDayTime = computed(() => {
     const h = new Date(now.value).getHours()
     return h >= 6 && h < 18
@@ -86,6 +81,12 @@ export const useUiStore = defineStore('ui', () => {
   }
   function toggleDrawer() {
     drawerOpen.value = !drawerOpen.value
+  }
+  function toggleRail() {
+    railCollapsed.value = !railCollapsed.value
+  }
+  function setRailCollapsed(v: boolean) {
+    railCollapsed.value = v === true
   }
   function setTab(k: TabKey) {
     tabDir.value = TAB_ORDER.indexOf(k) > TAB_ORDER.indexOf(tab.value) ? 1 : -1
@@ -107,6 +108,7 @@ export const useUiStore = defineStore('ui', () => {
 
   return {
     themeSetting,
+    railCollapsed,
     tab,
     tabDir,
     vw,
@@ -119,11 +121,16 @@ export const useUiStore = defineStore('ui', () => {
     theme,
     dark,
     isMobile,
+    isPhone,
+    isTablet,
+    isDesktop,
     isDayTime,
     tabOrder: TAB_ORDER,
     setTheme,
     toggleThemePanel,
     toggleDrawer,
+    toggleRail,
+    setRailCollapsed,
     setTab,
     cycleTab,
     setTabByIndex,

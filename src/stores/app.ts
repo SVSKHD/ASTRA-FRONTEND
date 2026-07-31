@@ -100,6 +100,10 @@ export const useAppStore = defineStore('app', () => {
   // Theme is a per-user preference, so it rides along in the workspace doc and
   // is restored on refresh once the document lands. The ui store reads it.
   const themeSetting = ref<ThemeSetting>('auto')
+  // Left-rail collapsed state — a per-user preference, persisted in the same
+  // workspace doc so it comes back on refresh and across devices. The ui store
+  // reads it; the rail's toggle writes it.
+  const railCollapsed = ref(false)
   // "Move pending to today" preferences. autoRollover runs the rollover once on
   // the first load of a new day; lastAutoRolloverDay (a YYYY-MM-DD key) records
   // the last day it did, so it fires at most once per day per device-sync.
@@ -1905,6 +1909,7 @@ export const useAppStore = defineStore('app', () => {
       tags: tags.value,
       security: security.value,
       themeSetting: themeSetting.value,
+      railCollapsed: railCollapsed.value,
       approvedPRs: approvedPRs.value,
       autoRollover: autoRollover.value,
       lastAutoRolloverDay: lastAutoRolloverDay.value,
@@ -1927,6 +1932,7 @@ export const useAppStore = defineStore('app', () => {
     approvedPRs.value = {}
     security.value = emptySecurity()
     themeSetting.value = 'auto'
+    railCollapsed.value = false
     autoRollover.value = false
     lastAutoRolloverDay.value = ''
     financeSettings.value = emptyFinanceSettings()
@@ -2091,6 +2097,7 @@ export const useAppStore = defineStore('app', () => {
     // Guard the stored value: a theme key removed in a later release must not
     // leave the ui store indexing THEMES with a key that no longer exists.
     themeSetting.value = isThemeSetting(data.themeSetting) ? data.themeSetting : 'auto'
+    railCollapsed.value = data.railCollapsed === true
     autoRollover.value = data.autoRollover === true
     lastAutoRolloverDay.value =
       typeof data.lastAutoRolloverDay === 'string' ? data.lastAutoRolloverDay : ''
@@ -2246,6 +2253,7 @@ export const useAppStore = defineStore('app', () => {
         stocks,
         security,
         themeSetting,
+        railCollapsed,
         approvedPRs,
         autoRollover,
         lastAutoRolloverDay,
@@ -2278,6 +2286,7 @@ export const useAppStore = defineStore('app', () => {
     tags,
     security,
     themeSetting,
+    railCollapsed,
     autoRollover,
     financeSettings,
     cloudReady,
