@@ -12,6 +12,9 @@ import DayToolbar from '@/components/DayToolbar.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import MovePendingButton from '@/components/MovePendingButton.vue'
 import LinkProgressBar from '@/components/LinkProgressBar.vue'
+import LinkedAccordion from '@/components/LinkedAccordion.vue'
+import { nestedChildIds } from '@/utils/links'
+import { useAccordionState } from '@/composables/useAccordionState'
 import type { Task } from '@/types'
 
 const app = useAppStore()
@@ -127,6 +130,85 @@ const linkChip = computed(() =>
 )
 const linkLineWrap = pxify({ position: 'absolute', left: 12, right: 12, bottom: 3 })
 
+// --- linked-items nesting (mirrors TodoView) --------------------------------
+const acc = useAccordionState()
+const present = computed(() => groups.value.flatMap((g) => day.visible(g)))
+const nestedIds = computed(() => nestedChildIds('tasks', present.value))
+function topRows(g: (typeof groups.value)[number]): Task[] {
+  return day.visible(g).filter((t) => !nestedIds.value.has(t.id))
+}
+function accKey(t: Task) {
+  return 'tasks:' + t.id
+}
+function expanded(t: Task) {
+  return acc.isOpen(accKey(t))
+}
+function toggleExpand(t: Task) {
+  acc.toggle(accKey(t))
+}
+function orphanBreadcrumb(t: Task): string {
+  return t.parents
+    .map((p) => app.linkableById(p))
+    .filter((it): it is NonNullable<typeof it> => !!it)
+    .map((it) => ('text' in it ? it.text : it.title))
+    .join(', ')
+}
+const parentKeys = computed(() =>
+  present.value.filter((t) => t.linked.length > 0).map((t) => accKey(t)),
+)
+const anyLinked = computed(() => parentKeys.value.length > 0)
+const allExpanded = computed(
+  () => parentKeys.value.length > 0 && parentKeys.value.every((k) => acc.isOpen(k)),
+)
+function toggleAll() {
+  acc.setMany(parentKeys.value, !allExpanded.value)
+}
+const parentCardStyle = pxify({ display: 'flex', flexDirection: 'column' })
+function chevronStyle(t: Task) {
+  return pxify({
+    width: 18,
+    height: 18,
+    flexShrink: 0,
+    border: 'none',
+    background: 'transparent',
+    color: c.value.dim,
+    cursor: 'pointer',
+    display: 'grid',
+    placeItems: 'center',
+    transform: expanded(t) ? 'rotate(90deg)' : 'rotate(0deg)',
+    transition: 'transform .25s ease',
+  })
+}
+function accBodyOuter(t: Task) {
+  return pxify({
+    display: 'grid',
+    gridTemplateRows: expanded(t) ? '1fr' : '0fr',
+    transition: 'grid-template-rows .3s cubic-bezier(.4,1,.4,1)',
+  })
+}
+const accBodyClip = pxify({ overflow: 'hidden', minHeight: 0 })
+const accBodyInner = computed(() =>
+  pxify({ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 6px 2px 30px' }),
+)
+const breadcrumbStyle = computed(() =>
+  pxify({ fontSize: 10, color: c.value.dim, padding: '2px 0 4px 46px' }),
+)
+const linkExpandBtn = computed(() =>
+  pxify({
+    fontSize: 10,
+    fontWeight: 600,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    padding: '5px 10px',
+    borderRadius: 999,
+    border: '1px solid ' + c.value.border,
+    background: 'transparent',
+    color: c.value.dim,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  }),
+)
+
 // Click vs. double-click discrimination (single → dialog, double → task view).
 let clickTimer: ReturnType<typeof setTimeout> | null = null
 function onRowClick(t: Task) {
@@ -196,7 +278,13 @@ function onGroupDrop(e: DragEvent, g: Group) {
       @filter="day.setFilter"
       @fold="day.foldAll"
       @new="app.openCreate('task')"
-    />
+    >
+      <template v-if="anyLinked" #action>
+        <button type="button" :style="linkExpandBtn" @click="toggleAll">
+          {{ allExpanded ? 'Collapse links' : 'Expand links' }}
+        </button>
+      </template>
+    </DayToolbar>
     <div :style="s.dayGroups">
       <div
         v-for="g in groups"
@@ -219,55 +307,95 @@ function onGroupDrop(e: DragEvent, g: Group) {
               {{ day.hiddenBy(g) }} hidden by the filter
             </div>
             <TransitionGroup v-else name="rowflip" tag="div" :style="rowsWrap">
-              <div
-                v-for="t in day.visible(g)"
-                :key="t.id"
-                :style="rowStyle(t)"
-                v-hover-style="s.rowHover"
-                draggable="true"
-                @dragstart="onDragStart($event, t)"
-                @dragend="onDragEnd"
-                @dragover="onRowDragOver"
-                @drop="onRowDrop($event, t)"
-                @click="onRowClick(t)"
-                @dblclick="onRowDblClick(t)"
-              >
-                <span :style="s.grip"
-                  ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-                ></span>
-                <div :style="s.taskMain">
-                  <span :style="textStyle(t)">{{ t.title }}</span>
-                  <div :style="s.chipRow">
-                    <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-                    <span v-if="t.repo" :style="repoChipStyle"
-                      ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
+              <div v-for="t in topRows(g)" :key="t.id" :style="parentCardStyle">
+                <div
+                  :style="rowStyle(t)"
+                  v-hover-style="s.rowHover"
+                  draggable="true"
+                  @dragstart="onDragStart($event, t)"
+                  @dragend="onDragEnd"
+                  @dragover="onRowDragOver"
+                  @drop="onRowDrop($event, t)"
+                  @click="onRowClick(t)"
+                  @dblclick="onRowDblClick(t)"
+                >
+                  <button
+                    v-if="t.linked.length"
+                    type="button"
+                    :style="chevronStyle(t)"
+                    :aria-label="expanded(t) ? 'Collapse linked' : 'Expand linked'"
+                    :aria-expanded="expanded(t)"
+                    @click.stop="toggleExpand(t)"
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      :stroke="c.dim"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
                     >
-                    <span v-if="t.linked.length" :style="linkChip" title="Linked items">
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        :stroke="c.dim"
-                        stroke-width="1.9"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
+                      <polyline points="9 6 15 12 9 18" />
+                    </svg>
+                  </button>
+                  <span :style="s.grip"
+                    ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+                  ></span>
+                  <div :style="s.taskMain">
+                    <span :style="textStyle(t)">{{ t.title }}</span>
+                    <div :style="s.chipRow">
+                      <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                      <span v-if="t.repo" :style="repoChipStyle"
+                        ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
                       >
-                        <path d="M9 12h6" />
-                        <path d="M10 8H8a4 4 0 0 0 0 8h2" />
-                        <path d="M14 8h2a4 4 0 0 1 0 8h-2" />
-                      </svg>
-                      {{ linkOf(t).done }}/{{ linkOf(t).total }}
-                    </span>
+                      <span v-if="t.linked.length" :style="linkChip" title="Linked items">
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          :stroke="c.dim"
+                          stroke-width="1.9"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M9 12h6" />
+                          <path d="M10 8H8a4 4 0 0 0 0 8h2" />
+                          <path d="M14 8h2a4 4 0 0 1 0 8h-2" />
+                        </svg>
+                        {{ linkOf(t).done }}/{{ linkOf(t).total }}
+                      </span>
+                    </div>
+                  </div>
+                  <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+                  <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
+                  <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
+                    ×
+                  </button>
+                  <div v-if="t.linked.length" :style="linkLineWrap">
+                    <LinkProgressBar :done="linkOf(t).done" :total="linkOf(t).total" compact />
                   </div>
                 </div>
-                <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-                <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
-                <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
-                  ×
-                </button>
-                <div v-if="t.linked.length" :style="linkLineWrap">
-                  <LinkProgressBar :done="linkOf(t).done" :total="linkOf(t).total" compact />
+
+                <span v-if="orphanBreadcrumb(t)" :style="breadcrumbStyle">
+                  part of ‹{{ orphanBreadcrumb(t) }}›
+                </span>
+
+                <div v-if="t.linked.length" :style="accBodyOuter(t)">
+                  <div :style="accBodyClip">
+                    <div :style="accBodyInner">
+                      <LinkedAccordion
+                        v-for="ch in t.linked"
+                        :key="ch.collection + ':' + ch.id"
+                        :item-ref="ch"
+                        :parent-ref="{ id: t.id, collection: 'tasks' }"
+                        :depth="0"
+                        :is-root="false"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </TransitionGroup>
