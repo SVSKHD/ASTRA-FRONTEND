@@ -11,13 +11,15 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
+import { useDraft } from '@/composables/useDraft'
 import { pxify, dialogCard } from '@/styles'
 import { ITEM_FORMS, type FieldDef } from '@/utils/itemForms'
 import { noteTitle } from '@/utils/notes'
 import TagPicker from '@/components/TagPicker.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import LinkedItemsPanel from '@/components/LinkedItemsPanel.vue'
-import type { Note, Todo } from '@/types'
+import DraftBanner from '@/components/DraftBanner.vue'
+import type { ItemType, Note, Todo } from '@/types'
 
 const app = useAppStore()
 const { c, s } = useStyles()
@@ -52,6 +54,28 @@ const values = computed<Record<string, unknown>>(() => {
 const fields = computed<FieldDef[]>(() =>
   (form.value?.fields ?? []).filter((f) => !f.when || f.when(values.value)),
 )
+
+// Draft resume (section 8) for create mode only. Edit mode writes through to the
+// stored item on each keystroke, so there is never an unsaved draft to protect;
+// create mode holds its work in the ephemeral dialogDraft, which is exactly what
+// a killed tab or an accidental close would lose. useDraft autosaves that draft
+// under `${type}:new`, restores a newer one on open, and clears it on a
+// successful add. The target type follows whichever create dialog is open; an
+// empty ('') type (edit mode / no dialog) makes the composable inert.
+const createType = () => (isCreate.value && active.value ? active.value.type : '')
+const blankFor = () => {
+  const t = createType()
+  return t ? app.blankDraft(t as ItemType) : {}
+}
+const draft = useDraft(createType, null, dialogDraft, {
+  // Create forms have no saved entity, so any stored draft is newer.
+  entityUpdatedAt: () => 0,
+  // Discard reverts to the type's pristine blank form.
+  baseline: blankFor,
+  // An untouched form (still equal to its blank) is not worth a draft; typing
+  // anything makes it differ and it starts autosaving.
+  isEmpty: (p) => JSON.stringify(p) === JSON.stringify(blankFor()),
+})
 
 // The share globe belongs to a saved item, so it only appears when editing an
 // existing todo — never in create mode, where there is nothing to share yet.
@@ -138,8 +162,19 @@ function detachNote(f: FieldDef, nid: number) {
 }
 
 function save() {
-  if (isCreate.value) app.commitCreate()
-  else app.closeItemDialog()
+  if (isCreate.value) {
+    // Persist the draft first so a rejected commit (a missing required field)
+    // leaves the work stored; on success the item exists, so the draft is
+    // redundant and gets cleared.
+    if (app.commitCreate()) draft.clear()
+  } else app.closeItemDialog()
+}
+// Any manual dismissal of a create dialog flushes the draft synchronously while
+// dialogDraft still holds its content — the close teardown blanks it a beat
+// later, so without this an in-flight (un-debounced) draft would be lost.
+function close() {
+  if (isCreate.value) draft.flush()
+  app.closeItemDialog()
 }
 // Enter confirms from any single-line field; a textarea keeps its newlines and
 // a focused button keeps its own activation.
@@ -216,8 +251,8 @@ const checkRow = computed(() =>
 
 <template>
   <template v-if="active && form">
-    <div :style="s.dialogOverlay" @click="app.closeItemDialog()"></div>
-    <div :style="cardStyle" @keydown.enter="onEnter" @keydown.esc="app.closeItemDialog()">
+    <div :style="s.dialogOverlay" @click="close()"></div>
+    <div :style="cardStyle" @keydown.enter="onEnter" @keydown.esc="close()">
       <div :style="s.dialogHeader">
         <span :style="s.dialogHeading">{{ heading }}</span>
         <ShareGlobeButton
@@ -226,8 +261,18 @@ const checkRow = computed(() =>
           :item="shareTarget"
           variant="dialog"
         />
-        <button :style="s.del" aria-label="Close" @click="app.closeItemDialog()">×</button>
+        <button :style="s.del" aria-label="Close" @click="close()">×</button>
       </div>
+
+      <!-- Unsaved-work resume for create mode (section 8). -->
+      <DraftBanner
+        v-if="isCreate && draft.hasDraft.value"
+        :restored-at="draft.restoredAt.value"
+        :from-other-device="draft.fromOtherDevice.value"
+        @use="draft.applyDraft()"
+        @ignore="draft.ignore()"
+        @discard="draft.discard()"
+      />
 
       <div v-for="f in fields" :key="f.key" :style="fieldStyle">
         <TagPicker
@@ -331,7 +376,7 @@ const checkRow = computed(() =>
       />
 
       <div :style="s.dialogActions">
-        <button :style="s.cancelBtn" @click="app.closeItemDialog()">
+        <button :style="s.cancelBtn" @click="close()">
           {{ isCreate ? 'Cancel' : 'Close' }}
         </button>
         <button :style="s.saveBtn" @click="save">{{ isCreate ? 'Add' : 'Done' }}</button>
