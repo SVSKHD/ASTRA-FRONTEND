@@ -9,9 +9,8 @@ import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 
-import TopBar from '@/components/TopBar.vue'
-import LeftRail from '@/components/LeftRail.vue'
-import BottomBar from '@/components/BottomBar.vue'
+import FloatingDock from '@/components/FloatingDock.vue'
+import FloatingChrome from '@/components/FloatingChrome.vue'
 import Ticker from '@/components/Ticker.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
 import NoteView from '@/components/NoteView.vue'
@@ -43,31 +42,45 @@ const ui = useUiStore()
 const app = useAppStore()
 const auth = useAuthStore()
 const lock = useLockStore()
-const { c, s } = useStyles()
-const { tab, isPhone, isTablet, railCollapsed } = storeToRefs(ui)
+const { c } = useStyles()
+const { tab, vw, isPhone } = storeToRefs(ui)
 
-// The rail is 72px collapsed / 232px expanded; tablet portrait forces collapsed.
-const railW = computed(() => (isTablet.value || railCollapsed.value ? 72 : 232))
-const shellGrid = computed(() =>
-  pxify({
-    display: 'grid',
-    gridTemplateColumns: railW.value + 'px 1fr',
-    height: '100dvh',
-    transition: 'grid-template-columns .22s cubic-bezier(.4,0,.2,1)',
-  }),
-)
-// The one scroll container in the desktop/tablet shell: full height, wide, no
-// card. Inset per spec (20px top/right/bottom, 16px left). The active view fills
-// it via its panelStyle (flex:1) and scrolls its own list inside — a single
-// scrollbar, no nesting.
-const contentDesktop = pxify({
-  height: '100dvh',
-  display: 'flex',
-  flexDirection: 'column',
-  minWidth: 0,
-  minHeight: 0,
-  padding: '20px 20px 20px 16px',
-  overflow: 'hidden',
+// The centered floating stage. Width tracks the breakpoints; it never touches an
+// edge, and it keeps its height even when a section is empty so there is always
+// visible starfield above and below — no dead black region under the cards.
+const stageWrap = pxify({
+  position: 'fixed',
+  inset: 0,
+  zIndex: 2,
+  display: 'grid',
+  placeItems: 'center',
+  // The gutters around the stage belong to the dock and the starfield, so the
+  // wrapper must not eat their clicks.
+  pointerEvents: 'none',
+})
+const stageStyle = computed(() => {
+  const w = vw.value
+  const width = isPhone.value ? '94vw' : w < 1024 ? '92vw' : w < 1440 ? '82vw' : '70vw'
+  return pxify({
+    position: 'relative',
+    pointerEvents: 'auto',
+    width,
+    maxWidth: 1500,
+    minWidth: isPhone.value ? 0 : 720,
+    height: isPhone.value ? '88dvh' : '86vh',
+    display: 'flex',
+    flexDirection: 'column',
+    background: c.value.glass,
+    backdropFilter: 'blur(30px) saturate(1.6)',
+    '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
+    border: '1px solid ' + c.value.border,
+    borderRadius: 24,
+    boxShadow: c.value.shadow + ', inset 0 1px 0 rgba(255,255,255,0.16)',
+    padding: isPhone.value ? '16px' : '22px 24px',
+    overflow: 'hidden',
+    // A gentle idle drift; disabled under prefers-reduced-motion by the global rule.
+    animation: 'stageDrift 6s ease-in-out infinite',
+  })
 })
 const { isSignedIn, authReady } = storeToRefs(auth)
 const { cloudReady } = storeToRefs(app)
@@ -93,8 +106,6 @@ const activeView = ref<{ focus: () => void } | null>(null)
 function focusPrimaryInput() {
   activeView.value?.focus()
 }
-
-const notesIconStyle = pxify({ display: 'block' })
 
 // --- global keyboard --------------------------------------------------------
 function onKey(e: KeyboardEvent) {
@@ -158,20 +169,6 @@ function onKey(e: KeyboardEvent) {
   }
 }
 
-// --- swipe between tabs (touch) --------------------------------------------
-let touchX: number | null = null
-function onTouchStart(e: TouchEvent) {
-  if (!showWorkspace.value) return
-  touchX = e.touches[0].clientX
-}
-function onTouchEnd(e: TouchEvent) {
-  if (touchX == null) return
-  const dx = e.changedTouches[0].clientX - touchX
-  touchX = null
-  if (Math.abs(dx) < 50) return
-  ui.cycleTab(dx < 0 ? 1 : -1)
-}
-
 // --- timers + listeners -----------------------------------------------------
 let clockTimer: ReturnType<typeof setInterval>
 let remTimer: ReturnType<typeof setInterval>
@@ -222,77 +219,18 @@ onBeforeUnmount(() => {
 
 <template>
   <template v-if="showWorkspace">
-    <!-- Desktop + tablet: the left rail sits beside a single wide scroll region
-         that fills the rest of the viewport. No centered card, no carousel. -->
-    <div v-if="!isPhone" :style="shellGrid">
-      <LeftRail />
-      <main :style="contentDesktop">
+    <!-- Everything floats over the starfield: an icon dock on the left, a single
+         centered glass stage holding the active section, and the chrome orbs. -->
+    <FloatingDock />
+    <div :style="stageWrap">
+      <main :style="stageStyle">
         <component :is="currentView" ref="activeView" />
       </main>
     </div>
-    <!-- Phone: the proven card layout, with the bottom bar standing in for the
-         old top carousel. -->
-    <div v-else :style="s.page">
-      <div :style="s.stack">
-        <TopBar />
-        <div :style="s.container" @touchstart="onTouchStart" @touchend="onTouchEnd">
-          <component :is="currentView" ref="activeView" />
-        </div>
-      </div>
-    </div>
+    <FloatingChrome />
   </template>
 
-  <BottomBar v-if="showWorkspace && isPhone" />
   <Ticker v-if="showWorkspace" />
-
-  <button
-    v-if="showWorkspace"
-    :style="s.fab"
-    v-hover-style="s.fabHover"
-    aria-label="Notes"
-    @click="ui.toggleDrawer()"
-  >
-    <svg
-      :style="notesIconStyle"
-      width="19"
-      height="19"
-      viewBox="0 0 24 24"
-      fill="none"
-      :stroke="c.accent"
-      stroke-width="2"
-      stroke-linecap="round"
-    >
-      <rect x="4" y="3" width="16" height="18" rx="2" />
-      <line x1="7.5" y1="8" x2="16.5" y2="8" />
-      <line x1="7.5" y1="12" x2="16.5" y2="12" />
-      <line x1="7.5" y1="16" x2="13" y2="16" />
-    </svg>
-  </button>
-
-  <button
-    v-if="showWorkspace"
-    :style="s.ghFab"
-    v-hover-style="s.fabHover"
-    aria-label="GitHub"
-    @click="auth.openGithubPanel()"
-  >
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      :stroke="c.accent"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <circle cx="6" cy="6" r="2.4" />
-      <circle cx="6" cy="18" r="2.4" />
-      <circle cx="18" cy="8" r="2.4" />
-      <path d="M18 10.4v1.6a3 3 0 0 1-3 3H9" />
-      <line x1="6" y1="8.4" x2="6" y2="15.6" />
-    </svg>
-  </button>
 
   <template v-if="showWorkspace">
     <NotesDrawer />

@@ -16,7 +16,7 @@ import MonthPicker from '@/components/MonthPicker.vue'
 import type { TabKey } from '@/types'
 
 const ui = useUiStore()
-const { c, s, panelStyle, isMobile } = useStyles()
+const { c, panelStyle } = useStyles()
 const route = useRoute()
 const router = useRouter()
 
@@ -195,24 +195,42 @@ const resetChip = computed(() =>
     cursor: 'pointer',
   }),
 )
+// A 2×2 grid of separate floating tiles (not four stretched across), with wide
+// gaps so they read as distinct objects.
 const gridStyle = computed(() =>
   pxify({
     display: 'grid',
-    gridTemplateColumns: isMobile.value ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-    gap: 12,
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: 20,
   }),
 )
-const cardStyle = computed(() =>
+const cardBase = computed(() => ({
+  display: 'flex',
+  flexDirection: 'column' as const,
+  gap: 8,
+  padding: '18px 18px 15px',
+  borderRadius: 18,
+  background: c.value.card,
+  border: '1px solid ' + c.value.border,
+  // Its own shadow so each tile floats separately from its neighbours.
+  boxShadow: c.value.shadow,
+  cursor: 'pointer',
+  minWidth: 0,
+  transition: 'transform .2s ease, box-shadow .25s ease, border-color .25s ease',
+}))
+// Staggered mount: fade + rise, 40ms per card.
+function cardStyleFor(i: number) {
+  return pxify({
+    ...cardBase.value,
+    animation: 'fadeUp .4s ease both',
+    animationDelay: i * 40 + 'ms',
+  })
+}
+const cardHover = computed(() =>
   pxify({
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    padding: '16px 16px 14px',
-    borderRadius: 18,
-    background: c.value.card,
-    border: '1px solid ' + c.value.border,
-    cursor: 'pointer',
-    minWidth: 0,
+    transform: 'translateY(-4px)',
+    boxShadow: '0 18px 40px rgba(0,0,0,0.30)',
+    borderColor: c.value.accent,
   }),
 )
 const cardTop = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
@@ -273,10 +291,10 @@ function compareLineStyle(dir: 'up' | 'down' | 'flat') {
 
     <div :style="gridStyle">
       <div
-        v-for="card in cards"
+        v-for="(card, idx) in cards"
         :key="card.key"
-        :style="cardStyle"
-        v-hover-style="s.rowHover"
+        :style="cardStyleFor(idx)"
+        v-hover-style="cardHover"
         role="button"
         :aria-label="'Open ' + card.label + ' for ' + monthName"
         @click="goTo(card.tab)"
