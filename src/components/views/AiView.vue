@@ -1,0 +1,566 @@
+<script setup lang="ts">
+// AI tab: a chat that knows your app. Two-pane inside the stage — a conversation
+// rail and the thread — with a pinned header (model, "Use my data", New chat) and
+// a pinned composer. The Anthropic key never touches the client: sends POST to a
+// configurable aiProxy Cloud Function (VITE_AI_PROXY_URL) that injects the key,
+// rate-limits, and streams back. When no proxy is configured the composer still
+// stores the turn locally and explains the missing piece.
+import { computed, nextTick, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
+import { useStyles } from '@/composables/useStyles'
+import { useDraft } from '@/composables/useDraft'
+import { useConnectivity } from '@/composables/useConnectivity'
+import { pxify } from '@/styles'
+import { AI_MODELS, type AiChat } from '@/types'
+import { buildAiContext, SUGGESTION_CHIPS, type AiContextInput } from '@/utils/ai'
+import { noteTitle } from '@/utils/notes'
+import { currentMonthKey } from '@/utils/budget'
+
+const app = useAppStore()
+const { c, s, panelStyle } = useStyles()
+const { aiChats, activeAiChat, aiActiveChatId, aiUseData } = storeToRefs(app)
+const { now } = storeToRefs(useUiStore())
+const { isOnline } = useConnectivity()
+
+defineExpose({ focus: () => composerRef.value?.focus() })
+
+const PROXY_URL = import.meta.env.VITE_AI_PROXY_URL || ''
+
+// --- conversation rail ------------------------------------------------------
+const search = ref('')
+const filteredChats = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  const list = q ? aiChats.value.filter((ch) => ch.title.toLowerCase().includes(q)) : aiChats.value
+  return [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
+})
+const startOfToday = () => {
+  const d = new Date(now.value)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+function groupOf(ch: AiChat): 'Pinned' | 'Today' | 'Yesterday' | 'Earlier' {
+  if (ch.pinned) return 'Pinned'
+  const t0 = startOfToday()
+  if (ch.updatedAt >= t0) return 'Today'
+  if (ch.updatedAt >= t0 - 86_400_000) return 'Yesterday'
+  return 'Earlier'
+}
+const groupedChats = computed(() => {
+  const groups: { label: string; chats: AiChat[] }[] = []
+  for (const label of ['Pinned', 'Today', 'Yesterday', 'Earlier'] as const) {
+    const chats = filteredChats.value.filter((ch) => groupOf(ch) === label)
+    if (chats.length) groups.push({ label, chats })
+  }
+  return groups
+})
+
+function newChat() {
+  app.newAiChat()
+}
+function selectChat(id: number) {
+  app.selectAiChat(id)
+}
+
+// --- composer + draft -------------------------------------------------------
+const composerRef = ref<HTMLTextAreaElement | null>(null)
+const threadRef = ref<HTMLElement | null>(null)
+const form = ref<Record<string, unknown>>({ text: '' })
+const draftId = computed(() => aiActiveChatId.value)
+useDraft('aiChat', draftId, form, {
+  isEmpty: (p) => !String(p.text ?? '').trim(),
+})
+const text = computed({
+  get: () => String(form.value.text ?? ''),
+  set: (v: string) => (form.value = { ...form.value, text: v }),
+})
+
+const streaming = ref(false)
+let abort: AbortController | null = null
+
+function scrollToEnd() {
+  void nextTick(() => {
+    const el = threadRef.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
+}
+watch(
+  () => activeAiChat.value?.messages.length,
+  () => scrollToEnd(),
+)
+
+// Assemble the live-data context block fresh each turn.
+function contextInput(): AiContextInput {
+  const monthKey = currentMonthKey()
+  const monthExpenses = app.finances.filter((f) => (f.date || '').startsWith(monthKey))
+  const spent = monthExpenses.reduce((sum, f) => sum + (f.amount || 0), 0)
+  const income = app.financeSettings.incomeByMonth[monthKey] ?? app.financeSettings.monthlyIncome
+  return {
+    overdueTodos: app.pendingOverdue('todos').map((t) => (t as { text: string }).text),
+    todayTodos: [],
+    overdueTasks: app.pendingOverdue('tasks').map((t) => (t as { title: string }).title),
+    upcomingReminders: app.reminders.slice(0, 6).map((r) => r.title),
+    income,
+    spent,
+    remaining: income - spent,
+    trips: app.trips.filter((t) => t.status !== 'done').map((t) => t.title),
+    noteTitles: app.notes.slice(-6).map((n) => noteTitle(n.text)),
+    bots: app.bots.map((b) => ({ name: b.name, status: b.status, enabled: b.enabled })),
+  }
+}
+
+async function send(prompt?: string) {
+  const body = (prompt ?? text.value).trim()
+  if (!body || streaming.value || !isOnline.value) return
+  let chatId = aiActiveChatId.value
+  if (chatId == null) chatId = app.newAiChat()
+  const chat = app.aiChatById(chatId)
+  if (!chat) return
+
+  app.addAiMessage(chatId, { role: 'user', content: body })
+  text.value = ''
+  scrollToEnd()
+
+  const asstId = app.addAiMessage(chatId, { role: 'assistant', content: '', model: chat.model })
+
+  if (!PROXY_URL) {
+    app.appendAiMessageContent(
+      chatId,
+      asstId,
+      '⚠️ AI proxy not configured. Deploy the `/aiProxy` Cloud Function (it injects the Anthropic API key and streams the reply) and set `VITE_AI_PROXY_URL` to its URL. Your message is saved.',
+    )
+    return
+  }
+
+  streaming.value = true
+  abort = new AbortController()
+  try {
+    const history = app
+      .aiChatById(chatId)!
+      .messages.filter((m) => m.id !== asstId)
+      .map((m) => ({ role: m.role, content: m.content }))
+    const res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: chat.model,
+        messages: history,
+        system: aiUseData.value ? buildAiContext(contextInput()) : undefined,
+        stream: true,
+      }),
+      signal: abort.signal,
+    })
+    if (!res.ok || !res.body) throw new Error('Proxy error ' + res.status)
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed.startsWith('data:')) continue
+        const payload = trimmed.slice(5).trim()
+        if (!payload || payload === '[DONE]') continue
+        try {
+          const evt = JSON.parse(payload)
+          const delta = evt?.delta?.text ?? evt?.text ?? ''
+          if (delta) app.appendAiMessageContent(chatId, asstId, delta)
+        } catch {
+          /* ignore keep-alive / non-JSON lines */
+        }
+      }
+      scrollToEnd()
+    }
+  } catch (err) {
+    if ((err as Error).name !== 'AbortError') {
+      app.appendAiMessageContent(chatId, asstId, '\n\n⚠️ Stream failed. Try again.')
+    }
+  } finally {
+    streaming.value = false
+    abort = null
+  }
+}
+function stop() {
+  abort?.abort()
+  streaming.value = false
+}
+function pickSuggestion(chip: string) {
+  void send(chip)
+}
+
+const modelLabel = (mid: string) => AI_MODELS.find((m) => m.id === mid)?.label ?? mid
+const tokenTotal = computed(() => {
+  const chat = activeAiChat.value
+  if (!chat) return 0
+  return chat.messages.reduce((sum, m) => sum + (m.tokensIn || 0) + (m.tokensOut || 0), 0)
+})
+
+// --- styles -----------------------------------------------------------------
+const shell = pxify({ display: 'flex', gap: 14, flex: 1, minHeight: 0 })
+const rail = computed(() =>
+  pxify({
+    width: 240,
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    borderRight: '1px solid ' + c.value.border,
+    paddingRight: 12,
+    minHeight: 0,
+  }),
+)
+const railScroll = pxify({
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+})
+const railHeadRow = pxify({ display: 'flex', gap: 6 })
+const newBtn = computed(() =>
+  pxify({
+    flexShrink: 0,
+    width: 34,
+    borderRadius: 10,
+    border: '1px solid ' + c.value.border,
+    background: c.value.accent,
+    color: c.value.onAccent,
+    fontSize: 18,
+    cursor: 'pointer',
+  }),
+)
+function chatRow(active: boolean) {
+  return pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '8px 10px',
+    borderRadius: 10,
+    cursor: 'pointer',
+    background: active ? c.value.card : 'transparent',
+    border: '1px solid ' + (active ? c.value.border : 'transparent'),
+  })
+}
+const chatTitle = computed(() =>
+  pxify({
+    flex: 1,
+    minWidth: 0,
+    fontSize: 12,
+    color: c.value.text,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  }),
+)
+const groupLabel = computed(() =>
+  pxify({
+    fontSize: 10,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+    padding: '4px 4px 0',
+  }),
+)
+const iconBtn = computed(() =>
+  pxify({
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    color: c.value.dim,
+    fontSize: 12,
+  }),
+)
+
+const main = pxify({ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 })
+const headerRow = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    paddingBottom: 10,
+    borderBottom: '1px solid ' + c.value.border,
+    flexWrap: 'wrap',
+  }),
+)
+const toggleLabel = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 12,
+    color: c.value.dim,
+    cursor: 'pointer',
+  }),
+)
+const tokenReadout = computed(() => pxify({ fontSize: 11, color: c.value.dim, marginLeft: 'auto' }))
+
+const thread = pxify({
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+  padding: '12px 2px',
+})
+function bubbleWrap(role: string) {
+  return pxify({ display: 'flex', justifyContent: role === 'user' ? 'flex-end' : 'flex-start' })
+}
+function bubble(role: string) {
+  return pxify({
+    maxWidth: '78%',
+    padding: '10px 14px',
+    borderRadius: 16,
+    fontSize: 13.5,
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    background: role === 'user' ? c.value.accent : c.value.card,
+    color: role === 'user' ? c.value.onAccent : c.value.text,
+    border: '1px solid ' + c.value.border,
+  })
+}
+const msgMeta = computed(() =>
+  pxify({
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+    marginTop: 4,
+    fontSize: 11,
+    color: c.value.dim,
+  }),
+)
+const badge = computed(() =>
+  pxify({
+    fontSize: 10,
+    fontWeight: 700,
+    padding: '2px 7px',
+    borderRadius: 999,
+    background: c.value.input,
+    color: c.value.accent,
+  }),
+)
+const cursor = pxify({
+  display: 'inline-block',
+  width: 7,
+  height: 15,
+  background: 'currentColor',
+  marginLeft: 2,
+  animation: 'twinkle 1s steps(2) infinite',
+  verticalAlign: 'text-bottom',
+})
+
+const composerBar = computed(() =>
+  pxify({
+    display: 'flex',
+    gap: 8,
+    alignItems: 'flex-end',
+    paddingTop: 10,
+    borderTop: '1px solid ' + c.value.border,
+  }),
+)
+const composerInput = computed(() =>
+  pxify({
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 140,
+    resize: 'none',
+    padding: '11px 14px',
+    borderRadius: 14,
+    border: '1px solid ' + c.value.border,
+    background: c.value.input,
+    color: c.value.text,
+    fontSize: 13.5,
+    outline: 'none',
+    fontFamily: 'inherit',
+  }),
+)
+const sendBtn = computed(() =>
+  pxify({
+    flexShrink: 0,
+    padding: '11px 18px',
+    borderRadius: 14,
+    border: 'none',
+    background: streaming.value ? 'transparent' : c.value.accent,
+    color: streaming.value ? c.value.accent : c.value.onAccent,
+    fontWeight: 700,
+    fontSize: 13,
+    cursor: 'pointer',
+    boxShadow: streaming.value ? 'inset 0 0 0 1px ' + c.value.accent : 'none',
+  }),
+)
+
+// --- empty state ------------------------------------------------------------
+const emptyWrap = pxify({
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 16,
+})
+const emptyOrb = computed(() =>
+  pxify({
+    width: 60,
+    height: 60,
+    borderRadius: '50%',
+    background: 'radial-gradient(circle at 35% 32%, ' + c.value.accent + ' 0%, transparent 72%)',
+    boxShadow: '0 0 24px ' + c.value.accent,
+    animation: 'breathe 5s ease-in-out infinite',
+  }),
+)
+const chipRow = pxify({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+  justifyContent: 'center',
+  maxWidth: 420,
+})
+const chipStyle = computed(() =>
+  pxify({
+    fontSize: 12,
+    padding: '8px 14px',
+    borderRadius: 999,
+    border: '1px solid ' + c.value.border,
+    background: c.value.card,
+    color: c.value.text,
+    cursor: 'pointer',
+  }),
+)
+
+function onComposerKey(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    void send()
+  }
+}
+</script>
+
+<template>
+  <div :style="panelStyle">
+    <div :style="shell">
+      <!-- conversation rail -->
+      <aside :style="rail">
+        <div :style="railHeadRow">
+          <input :style="s.input" v-model="search" placeholder="Search chats" />
+          <button :style="newBtn" aria-label="New chat" @click="newChat">+</button>
+        </div>
+        <div :style="railScroll">
+          <template v-for="g in groupedChats" :key="g.label">
+            <div :style="groupLabel">{{ g.label }}</div>
+            <div
+              v-for="ch in g.chats"
+              :key="ch.id"
+              :style="chatRow(ch.id === aiActiveChatId)"
+              @click="selectChat(ch.id)"
+            >
+              <button
+                :style="iconBtn"
+                :title="ch.pinned ? 'Unpin' : 'Pin'"
+                @click.stop="app.toggleAiChatPin(ch.id)"
+              >
+                {{ ch.pinned ? '★' : '☆' }}
+              </button>
+              <span :style="chatTitle">{{ ch.title }}</span>
+              <button :style="iconBtn" title="Delete" @click.stop="app.deleteAiChat(ch.id)">
+                ×
+              </button>
+            </div>
+          </template>
+          <div v-if="!aiChats.length" :style="{ fontSize: 12, color: c.dim, padding: '8px 4px' }">
+            No chats yet.
+          </div>
+        </div>
+      </aside>
+
+      <!-- thread -->
+      <section :style="main">
+        <div :style="headerRow">
+          <select
+            v-if="activeAiChat"
+            :style="s.select"
+            :value="activeAiChat.model"
+            @change="
+              app.setAiChatModel(activeAiChat.id, ($event.target as HTMLSelectElement).value)
+            "
+          >
+            <option v-for="m in AI_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <label :style="toggleLabel">
+            <input
+              type="checkbox"
+              :checked="aiUseData"
+              @change="app.setAiUseData(($event.target as HTMLInputElement).checked)"
+            />
+            Use my data
+          </label>
+          <span v-if="tokenTotal" :style="tokenReadout">{{ tokenTotal }} tokens</span>
+        </div>
+
+        <div v-if="!activeAiChat || !activeAiChat.messages.length" :style="emptyWrap">
+          <span :style="emptyOrb"></span>
+          <div :style="{ color: c.dim, fontSize: 14 }">
+            Ask about your todos, money, reminders, or bots.
+          </div>
+          <div :style="chipRow">
+            <button
+              v-for="chip in SUGGESTION_CHIPS"
+              :key="chip"
+              :style="chipStyle"
+              @click="pickSuggestion(chip)"
+            >
+              {{ chip }}
+            </button>
+          </div>
+        </div>
+
+        <div v-else ref="threadRef" :style="thread">
+          <div v-for="m in activeAiChat.messages" :key="m.id">
+            <div :style="bubbleWrap(m.role)">
+              <div :style="bubble(m.role)">
+                {{ m.content
+                }}<span
+                  v-if="
+                    streaming &&
+                    m.role === 'assistant' &&
+                    m.id === activeAiChat.messages[activeAiChat.messages.length - 1].id
+                  "
+                  :style="cursor"
+                ></span>
+              </div>
+            </div>
+            <div v-if="m.role === 'assistant'" :style="[msgMeta, { justifyContent: 'flex-start' }]">
+              <span :style="badge">{{ modelLabel(m.model || activeAiChat.model) }}</span>
+              <span v-if="m.tokensIn || m.tokensOut"
+                >{{ (m.tokensIn || 0) + (m.tokensOut || 0) }} tok</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- composer -->
+        <div :style="composerBar">
+          <textarea
+            ref="composerRef"
+            :style="composerInput"
+            :value="text"
+            :disabled="!isOnline"
+            :placeholder="isOnline ? 'Message…' : 'AI needs internet'"
+            rows="1"
+            @input="text = ($event.target as HTMLTextAreaElement).value"
+            @keydown="onComposerKey"
+          ></textarea>
+          <button v-if="streaming" :style="sendBtn" @click="stop">Stop</button>
+          <button v-else :style="sendBtn" :disabled="!isOnline" @click="send()">Send</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</template>

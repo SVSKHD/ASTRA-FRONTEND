@@ -6,6 +6,9 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
+import { useAppStore } from '@/stores/app'
+import { storeToRefs } from 'pinia'
+import { botDisplayStatus } from '@/utils/bots'
 import { useStyles } from '@/composables/useStyles'
 import { useMonthlyOverview } from '@/composables/useMonthlyOverview'
 import { pxify } from '@/styles'
@@ -173,6 +176,22 @@ function comparison(cardKey: string): { dir: 'up' | 'down' | 'flat'; delta: numb
 
 function goTo(tab: TabKey) {
   ui.setTab(tab)
+}
+
+// --- fifth card: Bots -------------------------------------------------------
+const app = useAppStore()
+const { bots } = storeToRefs(app)
+const { now } = storeToRefs(ui)
+const botsRunning = computed(() => {
+  void now.value
+  return bots.value.filter((b) => botDisplayStatus(b, now.value) === 'running').length
+})
+const botsPct = computed(() =>
+  bots.value.length ? Math.round((botsRunning.value / bots.value.length) * 100) : 0,
+)
+const botsPl = computed(() => bots.value.reduce((sum, b) => sum + (b.realizedPl || 0), 0))
+function fmtUsd(n: number): string {
+  return (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US')
 }
 
 // --- styles -----------------------------------------------------------------
@@ -352,6 +371,45 @@ function compareLineStyle(dir: 'up' | 'down' | 'flat') {
           <span :style="ofStyle">{{ card.ofText }} done</span>
           <div :style="trackStyle()"><span :style="fillStyle(card.pct, card.barColor)"></span></div>
           <span :style="pctStyle">{{ card.pct }}% complete</span>
+        </template>
+      </div>
+
+      <!-- Fifth card: Bots — N running · today's P/L. Tapping opens the Bots tab. -->
+      <div
+        :style="cardStyleFor(cards.length)"
+        v-hover-style="cardHover"
+        role="button"
+        aria-label="Open Bots"
+        @click="goTo('bots')"
+      >
+        <div :style="cardTop">
+          <span :style="iconWrap">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              :stroke="c.accent"
+              stroke-width="1.9"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="4.5" y="6.5" width="15" height="12.5" rx="4" />
+              <path d="M12 3v3.5" />
+              <circle cx="9" cy="12.6" r="1.3" />
+              <circle cx="15" cy="12.6" r="1.3" />
+            </svg>
+          </span>
+          <span :style="cardLabel">Bots</span>
+        </div>
+        <template v-if="!bots.length">
+          <span :style="zeroStyle">No bots connected</span>
+        </template>
+        <template v-else>
+          <span :style="bigNum">{{ botsRunning }}</span>
+          <span :style="ofStyle">of {{ bots.length }} running</span>
+          <div :style="trackStyle()"><span :style="fillStyle(botsPct, c.accent)"></span></div>
+          <span :style="pctStyle">today {{ fmtUsd(botsPl) }}</span>
         </template>
       </div>
     </div>

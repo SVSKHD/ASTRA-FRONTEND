@@ -97,6 +97,31 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
           CI(13, 13, 1.4, { fill: col }),
         ]
       : [P(line, stroke(col)), P(arrow, stroke(col))]
+  } else if (name === 'ai') {
+    // A four-point sparkle with a small companion star — the "AI" glyph.
+    const star = 'M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z'
+    const spark = 'M18.5 4 L19.2 6.3 L21.5 7 L19.2 7.7 L18.5 10 L17.8 7.7 L15.5 7 L17.8 6.3 Z'
+    ch = filled
+      ? [P(star, { fill: col }), P(spark, { fill: col })]
+      : [P(star, stroke(col, 1.7)), P(spark, stroke(col, 1.3))]
+  } else if (name === 'bots') {
+    // A robot head: rounded case, two eyes, and an antenna.
+    const antenna = [
+      P('M12 3 V5.4', stroke(col, filled ? 2.2 : 1.9)),
+      CI(12, 2.4, 1.1, filled ? { fill: col } : stroke(col, 1.7)),
+    ]
+    const head = filled
+      ? [
+          RC(4.5, 6.5, 15, 12.5, 4, { fill: col }),
+          CI(9, 12.6, 1.5, { fill: ko || col }),
+          CI(15, 12.6, 1.5, { fill: ko || col }),
+        ]
+      : [
+          RC(4.5, 6.5, 15, 12.5, 4, stroke(col)),
+          CI(9, 12.6, 1.4, stroke(col, 1.7)),
+          CI(15, 12.6, 1.4, stroke(col, 1.7)),
+        ]
+    ch = [...antenna, ...head]
   } else {
     const pin = 'M12 21s6-5.35 6-11a6 6 0 1 0-12 0c0 5.65 6 11 6 11Z'
     ch = filled

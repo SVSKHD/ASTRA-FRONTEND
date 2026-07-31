@@ -12,6 +12,9 @@ interface ImportMetaEnv {
   readonly VITE_ALLOWED_UIDS: string
   readonly VITE_ALLOWED_EMAILS: string
   readonly VITE_AUTO_LOCK_MINUTES: string
+  // URL of the deployed aiProxy Cloud Function (injects the Anthropic key and
+  // streams replies). Empty/unset disables sending in the AI tab.
+  readonly VITE_AI_PROXY_URL: string
 }
 
 interface ImportMeta {

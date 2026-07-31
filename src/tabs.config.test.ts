@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PRIMARY_TABS, SECONDARY_TABS, TABS, TAB_ORDER, tabLabel } from '@/tabs.config'
 
 describe('tabs.config', () => {
-  it('lists all nine sections in a stable order', () => {
+  it('lists all eleven sections in a stable order', () => {
     expect(TAB_ORDER).toEqual([
       'overview',
       'todo',
@@ -13,6 +13,8 @@ describe('tabs.config', () => {
       'trips',
       'ideas',
       'stocks',
+      'ai',
+      'bots',
     ])
   })
 
@@ -27,7 +29,14 @@ describe('tabs.config', () => {
   })
 
   it('routes the remaining tabs into the More sheet', () => {
-    expect(SECONDARY_TABS.map((t) => t.key)).toEqual(['deadlines', 'trips', 'ideas', 'stocks'])
+    expect(SECONDARY_TABS.map((t) => t.key)).toEqual([
+      'deadlines',
+      'trips',
+      'ideas',
+      'stocks',
+      'ai',
+      'bots',
+    ])
   })
 
   it('primary and secondary together cover every tab with no overlap', () => {
