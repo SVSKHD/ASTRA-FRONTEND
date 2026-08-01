@@ -33,7 +33,10 @@ import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
 import { deviceLabel, draftKey, sanitizeDrafts, type DraftRecord } from '@/utils/drafts'
 import { seedBots } from '@/utils/bots'
 import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
+import type { Debt, DebtPayment, FinScope, FinTag, ScopeFilter, Txn } from '@/types'
 import { titleFromMessage } from '@/utils/ai'
+import { debtOutstanding, migrateExpenses } from '@/utils/finance'
+import { resolveIncome } from '@/utils/budget'
 import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
 import type {
   ActiveNotif,
@@ -126,6 +129,15 @@ export const useAppStore = defineStore('app', () => {
   const aiActiveChatId = ref<number | null>(null)
   const aiUseData = ref(true)
   const bots = ref<Bot[]>([])
+  // Finances rework: unified transactions, debts, first-class tags, a per-scope
+  // business income setting (personal reuses financeSettings), the active scope
+  // filter, and a one-time migration guard for the legacy expenses array.
+  const transactions = ref<Txn[]>([])
+  const debts = ref<Debt[]>([])
+  const financeTags = ref<FinTag[]>([])
+  const businessFinance = ref<FinanceSettings>(emptyFinanceSettings())
+  const finScope = ref<ScopeFilter>('personal')
+  const finMigrated = ref(false)
   const cloudReady = ref(false)
   const cloudError = ref('')
   const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
@@ -1107,6 +1119,242 @@ export const useAppStore = defineStore('app', () => {
     for (const b of bots.value) if (b.enabled) toggleBot(b.id, false)
   }
 
+  // ---- Finances rework (transactions / debts / tags) ----------------------
+  function setFinScope(s: ScopeFilter) {
+    finScope.value = s
+  }
+  // Baseline (expected) monthly income for a scope, resolved from that scope's
+  // settings. 'all' sums both scopes' baselines.
+  function baselineIncome(scope: ScopeFilter, monthKey: string): number {
+    if (scope === 'business') return resolveIncome(businessFinance.value, monthKey)
+    if (scope === 'personal') return resolveIncome(financeSettings.value, monthKey)
+    return (
+      resolveIncome(financeSettings.value, monthKey) +
+      resolveIncome(businessFinance.value, monthKey)
+    )
+  }
+  function setScopeIncome(scope: FinScope, monthKey: string, amount: number) {
+    const val = Number.isFinite(amount) && amount > 0 ? amount : 0
+    if (scope === 'business') {
+      businessFinance.value = {
+        ...businessFinance.value,
+        monthlyIncome: val,
+        incomeByMonth: { ...businessFinance.value.incomeByMonth, [monthKey]: val },
+        incomeUpdatedAt: Date.now(),
+      }
+    } else {
+      setMonthlyIncome(monthKey, val)
+    }
+  }
+
+  function addTxn(fields: Partial<Txn> & { kind: Txn['kind']; amount: number }): number {
+    const newId = id()
+    transactions.value = [
+      ...transactions.value,
+      {
+        id: newId,
+        kind: fields.kind,
+        scope: fields.scope ?? (finScope.value === 'all' ? 'personal' : finScope.value),
+        amount: Number(fields.amount) || 0,
+        date: fields.date || rel(0),
+        note: (fields.note ?? '').trim(),
+        category: fields.category ?? (fields.kind === 'income' ? 'Income' : 'Other'),
+        tags: Array.isArray(fields.tags) ? fields.tags : [],
+        source: fields.source,
+        party: fields.party,
+        isRecurring: fields.isRecurring === true,
+        recurrenceRule: fields.recurrenceRule,
+        confirmed: fields.confirmed,
+        gst: fields.gst,
+        debtId: fields.debtId ?? null,
+        attachmentUrl: fields.attachmentUrl,
+        ...stamps(),
+      },
+    ]
+    return newId
+  }
+  function updateTxn(txnId: number, patch: Partial<Txn>) {
+    transactions.value = transactions.value.map((t) =>
+      t.id === txnId ? touched({ ...t, ...patch }) : t,
+    )
+  }
+  function deleteTxn(txnId: number) {
+    const gone = transactions.value.find((t) => t.id === txnId)
+    transactions.value = transactions.value.filter((t) => t.id !== txnId)
+    // If it was a debt payment, drop the matching payment entry so the two sides
+    // stay consistent.
+    if (gone?.debtId != null) {
+      debts.value = debts.value.map((d) =>
+        d.id === gone.debtId
+          ? { ...d, payments: d.payments.filter((p) => p.transactionId !== txnId) }
+          : d,
+      )
+    }
+  }
+  // Confirm a recurring "expected" income as actually received.
+  function confirmIncome(txnId: number) {
+    updateTxn(txnId, { confirmed: true })
+  }
+
+  function addDebt(
+    fields: Partial<Debt> & {
+      direction: Debt['direction']
+      counterparty: string
+      principal: number
+    },
+  ): number {
+    const newId = id()
+    debts.value = [
+      ...debts.value,
+      {
+        id: newId,
+        direction: fields.direction,
+        scope: fields.scope ?? (finScope.value === 'all' ? 'personal' : finScope.value),
+        counterparty: fields.counterparty.trim(),
+        principal: Number(fields.principal) || 0,
+        currency: 'INR',
+        interestRatePct: fields.interestRatePct,
+        interestType: fields.interestType ?? 'none',
+        startDate: fields.startDate || rel(0),
+        dueDate: fields.dueDate,
+        status: fields.status ?? 'open',
+        note: (fields.note ?? '').trim(),
+        tags: Array.isArray(fields.tags) ? fields.tags : [],
+        payments: [],
+        ...stamps(),
+      },
+    ]
+    return newId
+  }
+  function updateDebt(debtId: number, patch: Partial<Debt>) {
+    debts.value = debts.value.map((d) => (d.id === debtId ? touched({ ...d, ...patch }) : d))
+  }
+  function deleteDebt(debtId: number) {
+    debts.value = debts.value.filter((d) => d.id !== debtId)
+    // Unlink (don't delete) any transactions that pointed at it — they remain
+    // valid money records, just no longer tied to a debt.
+    transactions.value = transactions.value.map((t) =>
+      t.debtId === debtId ? { ...t, debtId: null } : t,
+    )
+  }
+  function settleDebt(debtId: number) {
+    updateDebt(debtId, { status: 'settled' })
+  }
+  function writeOffDebt(debtId: number) {
+    updateDebt(debtId, { status: 'written_off' })
+  }
+  // Record a payment against a debt: creates a linked transaction (expense for
+  // money I pay out, income for money coming back to me) so it flows into the
+  // month's totals, then files the payment referencing that transaction.
+  function recordDebtPayment(debtId: number, p: { amount: number; date?: string; note?: string }) {
+    const debt = debts.value.find((d) => d.id === debtId)
+    if (!debt) return
+    const amount = Number(p.amount) || 0
+    if (amount <= 0) return
+    const txnId = addTxn({
+      kind: debt.direction === 'owed_by_me' ? 'expense' : 'income',
+      scope: debt.scope,
+      amount,
+      date: p.date || rel(0),
+      note:
+        p.note ||
+        `Debt ${debt.direction === 'owed_by_me' ? 'payment to' : 'received from'} ${debt.counterparty}`,
+      category: 'Debt',
+      party: debt.counterparty,
+      debtId,
+    })
+    const payment: DebtPayment = {
+      id: id(),
+      amount,
+      date: p.date || rel(0),
+      note: p.note || '',
+      transactionId: txnId,
+    }
+    const next = { ...debt, payments: [...debt.payments, payment] }
+    // Auto-settle once fully repaid.
+    if (debtOutstanding(next, Date.now()) <= 0) next.status = 'settled'
+    debts.value = debts.value.map((d) => (d.id === debtId ? touched(next) : d))
+  }
+  function deleteDebtPayment(debtId: number, paymentId: number) {
+    const debt = debts.value.find((d) => d.id === debtId)
+    if (!debt) return
+    const payment = debt.payments.find((p) => p.id === paymentId)
+    if (payment?.transactionId != null) {
+      transactions.value = transactions.value.filter((t) => t.id !== payment.transactionId)
+    }
+    updateDebt(debtId, { payments: debt.payments.filter((p) => p.id !== paymentId) })
+  }
+
+  // Tags (finance): first-class, colour-coded, shared by income + expenses.
+  const TAG_COLORS = [
+    'oklch(0.7 0.15 25)',
+    'oklch(0.72 0.15 150)',
+    'oklch(0.74 0.13 250)',
+    'oklch(0.8 0.16 72)',
+    'oklch(0.72 0.16 320)',
+    'oklch(0.7 0.13 190)',
+  ]
+  function addFinTag(name: string, scope: ScopeFilter = 'all', color?: string): number | undefined {
+    const nm = name.trim()
+    if (!nm) return undefined
+    const existing = financeTags.value.find((t) => t.name.toLowerCase() === nm.toLowerCase())
+    if (existing) return existing.id
+    const newId = id()
+    financeTags.value = [
+      ...financeTags.value,
+      {
+        id: newId,
+        name: nm,
+        color: color || TAG_COLORS[financeTags.value.length % TAG_COLORS.length],
+        scope,
+        kind: 'both',
+      },
+    ]
+    return newId
+  }
+  // Rename cascades to every transaction and debt carrying the old name, in one
+  // pass, so the table never shows a stale tag.
+  function renameFinTag(tagId: number, newName: string) {
+    const tag = financeTags.value.find((t) => t.id === tagId)
+    const nm = newName.trim()
+    if (!tag || !nm) return
+    const old = tag.name
+    financeTags.value = financeTags.value.map((t) => (t.id === tagId ? { ...t, name: nm } : t))
+    const swap = (arr: string[]) => arr.map((x) => (x === old ? nm : x))
+    transactions.value = transactions.value.map((t) =>
+      t.tags.includes(old) ? { ...t, tags: swap(t.tags) } : t,
+    )
+    debts.value = debts.value.map((d) => (d.tags.includes(old) ? { ...d, tags: swap(d.tags) } : d))
+  }
+  function mergeFinTags(fromId: number, toId: number) {
+    const from = financeTags.value.find((t) => t.id === fromId)
+    const to = financeTags.value.find((t) => t.id === toId)
+    if (!from || !to) return
+    const dedupe = (arr: string[]) =>
+      Array.from(new Set(arr.map((x) => (x === from.name ? to.name : x))))
+    transactions.value = transactions.value.map((t) =>
+      t.tags.includes(from.name) ? { ...t, tags: dedupe(t.tags) } : t,
+    )
+    debts.value = debts.value.map((d) =>
+      d.tags.includes(from.name) ? { ...d, tags: dedupe(d.tags) } : d,
+    )
+    financeTags.value = financeTags.value.filter((t) => t.id !== fromId)
+  }
+  function setFinTagColor(tagId: number, color: string) {
+    financeTags.value = financeTags.value.map((t) => (t.id === tagId ? { ...t, color } : t))
+  }
+  function archiveFinTag(tagId: number, archived = true) {
+    financeTags.value = financeTags.value.map((t) => (t.id === tagId ? { ...t, archived } : t))
+  }
+  // Register a free-form tag typed on a form so it joins the vocabulary with a
+  // colour, then return its stored name.
+  function ensureFinTag(name: string): string {
+    const nm = name.trim()
+    if (!nm) return ''
+    addFinTag(nm)
+    return financeTags.value.find((t) => t.name.toLowerCase() === nm.toLowerCase())?.name ?? nm
+  }
+
   // ---- Delete + undo ------------------------------------------------------
   const LIST_MAP: Record<ListKey, () => { get: () => unknown[]; set: (v: unknown[]) => void }> = {
     todos: () => ({ get: () => todos.value, set: (v) => (todos.value = v as Todo[]) }),
@@ -2043,6 +2291,12 @@ export const useAppStore = defineStore('app', () => {
       aiChats: aiChats.value,
       aiUseData: aiUseData.value,
       bots: bots.value,
+      transactions: transactions.value,
+      debts: debts.value,
+      financeTags: financeTags.value,
+      businessFinance: businessFinance.value,
+      finScope: finScope.value,
+      finMigrated: finMigrated.value,
     }
   }
   function resetData() {
@@ -2069,6 +2323,12 @@ export const useAppStore = defineStore('app', () => {
     aiActiveChatId.value = null
     aiUseData.value = true
     bots.value = []
+    transactions.value = []
+    debts.value = []
+    financeTags.value = []
+    businessFinance.value = emptyFinanceSettings()
+    finScope.value = 'personal'
+    finMigrated.value = false
     syncedSig.value = new Map()
     syncFromCache.value = false
     syncHasPending.value = false
@@ -2264,6 +2524,30 @@ export const useAppStore = defineStore('app', () => {
     aiUseData.value = data.aiUseData !== false
     if (Array.isArray(data.bots)) bots.value = data.bots as Bot[]
     else bots.value = seedBots(id, Date.now())
+    // Finances rework state + one-time migration of the legacy expenses array
+    // into the unified transactions collection (personal scope, no tags). The
+    // guard makes it idempotent: it runs once, then finMigrated stays true.
+    debts.value = Array.isArray(data.debts) ? (data.debts as Debt[]) : []
+    financeTags.value = Array.isArray(data.financeTags) ? (data.financeTags as FinTag[]) : []
+    businessFinance.value =
+      data.businessFinance && typeof data.businessFinance === 'object'
+        ? {
+            ...emptyFinanceSettings(),
+            ...(data.businessFinance as Partial<FinanceSettings>),
+            currency: 'INR',
+          }
+        : emptyFinanceSettings()
+    finScope.value =
+      data.finScope === 'business' || data.finScope === 'all' ? data.finScope : 'personal'
+    finMigrated.value = data.finMigrated === true
+    if (Array.isArray(data.transactions)) {
+      transactions.value = data.transactions as Txn[]
+    } else if (!finMigrated.value) {
+      transactions.value = migrateExpenses(finances.value)
+      finMigrated.value = true
+    } else {
+      transactions.value = []
+    }
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -2404,6 +2688,12 @@ export const useAppStore = defineStore('app', () => {
         aiChats,
         aiUseData,
         bots,
+        transactions,
+        debts,
+        financeTags,
+        businessFinance,
+        finScope,
+        finMigrated,
       ],
       scheduleSave,
       { deep: true },
@@ -2453,6 +2743,11 @@ export const useAppStore = defineStore('app', () => {
     activeAiChat,
     aiUseData,
     bots,
+    transactions,
+    debts,
+    financeTags,
+    businessFinance,
+    finScope,
     toast,
     burst,
     itemDialog,
@@ -2542,6 +2837,26 @@ export const useAppStore = defineStore('app', () => {
     patchBot,
     toggleBot,
     stopAllBots,
+    setFinScope,
+    baselineIncome,
+    setScopeIncome,
+    addTxn,
+    updateTxn,
+    deleteTxn,
+    confirmIncome,
+    addDebt,
+    updateDebt,
+    deleteDebt,
+    settleDebt,
+    writeOffDebt,
+    recordDebtPayment,
+    deleteDebtPayment,
+    addFinTag,
+    renameFinTag,
+    mergeFinTags,
+    setFinTagColor,
+    archiveFinTag,
+    ensureFinTag,
     deleteWithUndo,
     undoDelete,
     showToastMsg,

@@ -9,6 +9,7 @@ import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { storeToRefs } from 'pinia'
 import { botDisplayStatus } from '@/utils/bots'
+import { debtSummary, monthTotals } from '@/utils/finance'
 import { useStyles } from '@/composables/useStyles'
 import { useMonthlyOverview } from '@/composables/useMonthlyOverview'
 import { pxify } from '@/styles'
@@ -83,7 +84,8 @@ interface CardModel {
 }
 
 const financeState = computed(() => {
-  const { spent, income } = overview.value.finance
+  const spent = fin.value.out
+  const income = fin.value.income
   const remaining = income - spent
   if (remaining < 0) return { color: RED, over: true }
   const remPct = income > 0 ? (remaining / income) * 100 : 0
@@ -145,13 +147,13 @@ const cards = computed<CardModel[]>(() => {
       fulfilled: 0,
       ofText: '',
       pct:
-        o.finance.income > 0
-          ? Math.min(100, Math.round((o.finance.spent / o.finance.income) * 100))
-          : o.finance.spent > 0
+        fin.value.income > 0
+          ? Math.min(100, Math.round((fin.value.out / fin.value.income) * 100))
+          : fin.value.out > 0
             ? 100
             : 0,
       barColor: financeState.value.color,
-      zero: o.finance.income === 0 && o.finance.spent === 0,
+      zero: fin.value.income === 0 && fin.value.out === 0 && fin.value.in === 0,
       zeroText: 'No finances in ' + monthName.value,
     },
   ]
@@ -192,6 +194,20 @@ const botsPct = computed(() =>
 const botsPl = computed(() => bots.value.reduce((sum, b) => sum + (b.realizedPl || 0), 0))
 function fmtUsd(n: number): string {
   return (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US')
+}
+
+// Scope-aware finance figures for the finance card, derived from the unified
+// transactions collection (post-migration) rather than the frozen legacy array.
+const { transactions, debts, finScope } = storeToRefs(app)
+const fin = computed(() => {
+  const t = monthTotals(transactions.value, finScope.value, monthKey.value)
+  const baseline = app.baselineIncome(finScope.value, monthKey.value)
+  const income = baseline || t.incomeReceived
+  const ds = debtSummary(debts.value, finScope.value, now.value)
+  return { in: t.incomeReceived, out: t.out, net: t.net, income, overdue: ds.overdueCount }
+})
+function fmtSignedInr(n: number): string {
+  return (n >= 0 ? '+' : '−') + formatINR(Math.abs(n))
 }
 
 // --- styles -----------------------------------------------------------------
@@ -359,12 +375,17 @@ function compareLineStyle(dir: 'up' | 'down' | 'flat') {
           <span :style="zeroStyle">{{ card.zeroText }}</span>
         </template>
         <template v-else-if="card.key === 'finances'">
-          <span :style="bigNum">{{ formatINR(overview.finance.spent) }}</span>
+          <span :style="bigNum">{{ formatINR(fin.out) }}</span>
           <span :style="ofStyle">
-            {{ financeState.over ? 'over ' : 'of ' }}{{ formatINR(overview.finance.income) }}
+            {{ financeState.over ? 'over ' : 'of ' }}{{ formatINR(fin.income) }}
           </span>
           <div :style="trackStyle()"><span :style="fillStyle(card.pct, card.barColor)"></span></div>
-          <span :style="pctStyle">{{ card.pct }}% used</span>
+          <span :style="pctStyle">
+            In {{ formatINR(fin.in) }} · Net {{ fmtSignedInr(fin.net) }}
+            <template v-if="fin.overdue">
+              · <span :style="{ color: RED }">{{ fin.overdue }} debt overdue</span></template
+            >
+          </span>
         </template>
         <template v-else>
           <span :style="bigNum">{{ card.fulfilled }}</span>

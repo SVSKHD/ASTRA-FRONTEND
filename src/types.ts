@@ -303,6 +303,81 @@ export function emptyFinanceSettings(): FinanceSettings {
   return { currency: 'INR', monthlyIncome: 0, incomeByMonth: {}, incomeUpdatedAt: 0 }
 }
 
+// ---- Finances rework: scopes, transactions, debts, tags -------------------
+// Every money object is either personal or business; the tab's scope switch
+// (Personal / Business / All) filters on it with no cross-leak.
+export type FinScope = 'personal' | 'business'
+export type ScopeFilter = FinScope | 'all'
+export type TxnKind = 'expense' | 'income'
+
+export interface FinGst {
+  applicable: boolean
+  ratePct: number
+  amount: number
+}
+
+// The unified money record — income and expenses in one collection so the
+// month's In/Out/Net all derive from a single query.
+export interface Txn extends Timestamped {
+  id: number
+  kind: TxnKind
+  scope: FinScope
+  amount: number
+  date: string // YYYY-MM-DD
+  note: string
+  category: string // single primary bucket
+  tags: string[] // many, cross-cutting
+  source?: string // income only: Salary / Client / Interest / …
+  party?: string // client / vendor / person
+  isRecurring?: boolean
+  recurrenceRule?: string
+  // Recurring income materialises as "expected" until confirmed received.
+  confirmed?: boolean
+  gst?: FinGst
+  // Set when this txn is a debt repayment/borrowing, linking it to the debt.
+  debtId?: number | null
+  attachmentUrl?: string
+}
+
+export type DebtDirection = 'owed_by_me' | 'owed_to_me'
+export type DebtStatus = 'open' | 'settled' | 'overdue' | 'written_off'
+export type InterestType = 'simple' | 'compound' | 'none'
+
+export interface DebtPayment {
+  id: number
+  amount: number
+  date: string
+  note: string
+  transactionId?: number | null
+}
+
+export interface Debt extends Timestamped {
+  id: number
+  direction: DebtDirection
+  scope: FinScope
+  counterparty: string
+  principal: number
+  currency: 'INR'
+  interestRatePct?: number
+  interestType?: InterestType
+  startDate: string
+  dueDate?: string
+  status: DebtStatus
+  note: string
+  tags: string[]
+  payments: DebtPayment[]
+}
+
+// First-class, colour-coded tags shared by income and expenses.
+export interface FinTag {
+  id: number
+  name: string
+  color: string
+  scope: ScopeFilter
+  kind?: TxnKind | 'both'
+  archived?: boolean
+}
+
 export interface Note extends Timestamped {
   id: number
   text: string // HTML
