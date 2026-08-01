@@ -1,393 +1,856 @@
 <script setup lang="ts">
-// Expenses against a monthly income, in INR. The top card shows income (inline
-// editable) and what's left this month — a big, colour-coded number over a
-// spend bar that grows/shrinks as expenses are added or removed. A month
-// switcher moves between months; income applies per month and carries forward.
-//
-// Every rupee figure comes from useMonthlyBudget, so this view and any
-// dashboard widget agree, and nothing stores a running balance to drift.
+// Finances — reworked around scopes (Personal / Business / All), a unified
+// income+expense transaction list, debts, and first-class tags. Sub-tabs inside
+// the stage: Overview · Transactions · Debts · Tags. Everything derives from the
+// pure selectors in utils/finance so nothing leaks across scopes and no running
+// total is stored. INR throughout via formatINR().
 import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { useMonthlyBudget } from '@/composables/useMonthlyBudget'
-import { pxify, rowBase } from '@/styles'
-import { CATEGORY_COLOR } from '@/utils/colors'
+import { useDraft } from '@/composables/useDraft'
+import { pxify } from '@/styles'
 import { formatINR, parseINR } from '@/utils/currency'
-import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
-import ListToolbar from '@/components/ListToolbar.vue'
-import OfflineChip from '@/components/OfflineChip.vue'
-import type { Finance } from '@/types'
+import { currentMonthKey } from '@/utils/budget'
+import {
+  balanceState,
+  categoryOutflow,
+  debtOutstanding,
+  debtPaid,
+  debtSummary,
+  effectiveDebtStatus,
+  extraIncome,
+  filterTxns,
+  isOverdue,
+  monthTotals,
+  tagBreakdown,
+} from '@/utils/finance'
+import MonthPicker from '@/components/MonthPicker.vue'
+import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
 
 const app = useAppStore()
 const { c, s, panelStyle } = useStyles()
-const { finances } = storeToRefs(app)
+const { transactions, debts, finScope } = storeToRefs(app)
+const { now } = storeToRefs(useUiStore())
+const route = useRoute()
+const router = useRouter()
 
-defineExpose({ focus: () => app.openCreate('finance') })
+defineExpose({ focus: () => {} })
 
-// --- month switcher ---------------------------------------------------------
-const monthKey = ref(currentMonthKey())
-const monthTitle = computed(() => monthLabel(monthKey.value))
-const isCurrentMonth = computed(() => monthKey.value === currentMonthKey())
-function prevMonth() {
-  monthKey.value = shiftMonth(monthKey.value, -1)
-}
-function nextMonth() {
-  monthKey.value = shiftMonth(monthKey.value, 1)
-}
-
-const { income, spent, remaining, percentUsed, byCategory } = useMonthlyBudget(monthKey)
-
-// --- state colour -----------------------------------------------------------
-const GREEN = 'oklch(0.72 0.15 150)'
+const GOOD = 'oklch(0.72 0.15 150)'
 const AMBER = 'oklch(0.8 0.16 72)'
 const RED = 'oklch(0.64 0.22 25)'
+const levelColor = { good: GOOD, warn: AMBER, bad: RED, over: RED }
 
-const remainingPct = computed(() => (income.value > 0 ? (remaining.value / income.value) * 100 : 0))
-const isOver = computed(() => remaining.value < 0)
-const state = computed<'over' | 'red' | 'amber' | 'green'>(() => {
-  if (isOver.value) return 'over'
-  if (income.value <= 0) return 'amber'
-  const p = remainingPct.value
-  if (p < 15) return 'red'
-  if (p < 40) return 'amber'
-  return 'green'
+// --- scope + month + sub-tab (URL-synced) ----------------------------------
+const CURRENT = currentMonthKey()
+const validMonth = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}$/.test(v)
+const monthKey = ref(validMonth(route.query.month) ? String(route.query.month) : CURRENT)
+if (
+  route.query.scope === 'business' ||
+  route.query.scope === 'all' ||
+  route.query.scope === 'personal'
+) {
+  app.setFinScope(route.query.scope)
+}
+const subtab = ref<'overview' | 'transactions' | 'debts' | 'tags'>('overview')
+const scope = computed<ScopeFilter>(() => finScope.value)
+const isBusiness = computed(() => scope.value === 'business')
+
+watch([monthKey, scope], ([m, sc]) => {
+  void router.replace({ query: { ...route.query, month: m, scope: sc } })
 })
-const stateColor = computed(() =>
-  state.value === 'green' ? GREEN : state.value === 'amber' ? AMBER : RED,
-)
+function setScope(sc: ScopeFilter) {
+  app.setFinScope(sc)
+}
 
-// --- animated remaining number + bar ---------------------------------------
-// A count-up/down tween so the number visibly moves when an expense is added or
-// removed; the bar width transitions in CSS off the same figures.
-const disp = ref(remaining.value)
-let raf = 0
-watch(remaining, (to) => {
-  const from = disp.value
-  const start = performance.now()
-  const dur = 500
-  cancelAnimationFrame(raf)
-  const step = (t: number) => {
-    const p = Math.min(1, (t - start) / dur)
-    const e = 1 - Math.pow(1 - p, 3)
-    disp.value = from + (to - from) * e
-    if (p < 1) raf = requestAnimationFrame(step)
+// Tag filter from the Tags tab / a tag chip.
+const tagFilter = ref<string>('')
+function filterByTag(name: string) {
+  tagFilter.value = name
+  subtab.value = 'transactions'
+}
+
+// --- derived figures --------------------------------------------------------
+const totals = computed(() => monthTotals(transactions.value, scope.value, monthKey.value))
+const baseline = computed(() => app.baselineIncome(scope.value, monthKey.value))
+const basis = ref<'baseline' | 'received'>(
+  (localStorage.getItem('aureon:finBasis') as 'baseline' | 'received') || 'baseline',
+)
+watch(basis, (b) => {
+  try {
+    localStorage.setItem('aureon:finBasis', b)
+  } catch {
+    /* ignore */
   }
-  raf = requestAnimationFrame(step)
+})
+const incomeBasis = computed(() =>
+  basis.value === 'received' ? totals.value.incomeReceived : baseline.value,
+)
+const balance = computed(() => balanceState(incomeBasis.value, totals.value.out))
+const extra = computed(() => extraIncome(totals.value.incomeReceived, baseline.value))
+const segments = computed(() => categoryOutflow(transactions.value, scope.value, monthKey.value))
+const tagRows = computed(() => tagBreakdown(transactions.value, scope.value, monthKey.value))
+const debtSum = computed(() => debtSummary(debts.value, scope.value, now.value))
+const marginPct = computed(() =>
+  totals.value.incomeReceived > 0
+    ? Math.round((totals.value.net / totals.value.incomeReceived) * 100)
+    : 0,
+)
+
+// Extra-income list: received income beyond the baseline, largest first.
+const extraIncomeList = computed(() =>
+  filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value, kind: 'income' })
+    .filter((t) => t.confirmed !== false)
+    .sort((a, b) => b.amount - a.amount),
+)
+
+const kindFilter = ref<'all' | 'income' | 'expense'>('all')
+const monthTxns = computed(() => {
+  let list = filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value })
+  if (tagFilter.value) list = list.filter((t) => t.tags.includes(tagFilter.value))
+  if (kindFilter.value !== 'all') list = list.filter((t) => t.kind === kindFilter.value)
+  return [...list].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id))
 })
 
-const bigValue = computed(() =>
-  isOver.value ? 'Over by ' + formatINR(Math.abs(disp.value)) : formatINR(disp.value),
-)
-const bigLabel = computed(() => (isOver.value ? 'Over budget' : 'Remaining this month'))
-const barPct = computed(() => Math.max(0, Math.min(100, percentUsed.value)))
+// Group transactions by day with a per-day net subtotal.
+const txnDays = computed(() => {
+  const groups = new Map<string, Txn[]>()
+  for (const t of monthTxns.value) {
+    const arr = groups.get(t.date) || []
+    arr.push(t)
+    groups.set(t.date, arr)
+  }
+  return [...groups.entries()].map(([date, items]) => ({
+    date,
+    items,
+    net: items.reduce((sum, t) => sum + (t.kind === 'income' ? t.amount : -t.amount), 0),
+  }))
+})
 
-// --- expenses for the selected month ----------------------------------------
-interface FinRow {
-  id: number
-  label: string
-  meta: string
-  amountLabel: string
-  color: string
-}
-const monthExpenses = computed<FinRow[]>(() =>
-  finances.value
-    .filter((f) => (f.date || '').slice(0, 7) === monthKey.value)
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id))
-    .map((f) => ({
-      id: f.id,
-      label: f.note || f.category,
-      meta:
-        f.category +
-        ' · ' +
-        new Date(f.date + 'T00:00:00').toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric',
-        }),
-      amountLabel: formatINR(f.amount),
-      color: CATEGORY_COLOR[f.category] || c.value.dim,
-    })),
+const monthDebts = computed(() =>
+  debts.value.filter((d) => scope.value === 'all' || d.scope === scope.value),
 )
-function findFinance(id: number): Finance | undefined {
-  return finances.value.find((f) => f.id === id)
+const iOweDebts = computed(() => monthDebts.value.filter((d) => d.direction === 'owed_by_me'))
+const owedToMeDebts = computed(() => monthDebts.value.filter((d) => d.direction === 'owed_to_me'))
+
+function todayInMonth(): string {
+  return monthKey.value === CURRENT
+    ? new Date(now.value).toISOString().slice(0, 10)
+    : monthKey.value + '-01'
 }
 
-// --- income editor ----------------------------------------------------------
-const incomeOpen = ref(false)
-const incomeInput = ref('')
-function openIncome() {
-  incomeInput.value = income.value > 0 ? String(income.value) : ''
-  incomeOpen.value = true
+// --- add-transaction form ---------------------------------------------------
+const showTxnForm = ref(false)
+const txnForm = ref<Record<string, unknown>>({
+  kind: 'expense',
+  amount: '',
+  date: CURRENT + '-01',
+  note: '',
+  category: '',
+  source: '',
+  party: '',
+  tags: '',
+})
+useDraft('transaction', null, txnForm, {
+  isEmpty: (p) => !String(p.amount ?? '').trim() && !String(p.note ?? '').trim(),
+})
+function openTxnForm(kind: 'income' | 'expense') {
+  txnForm.value = { ...txnForm.value, kind, date: todayInMonth() }
+  showTxnForm.value = true
 }
-function saveIncome() {
-  app.setMonthlyIncome(monthKey.value, parseINR(incomeInput.value))
-  incomeOpen.value = false
+function submitTxn() {
+  const amount = parseINR(String(txnForm.value.amount ?? ''))
+  if (!amount || amount <= 0) return
+  const tags = String(txnForm.value.tags ?? '')
+    .split(',')
+    .map((x) => app.ensureFinTag(x))
+    .filter(Boolean)
+  app.addTxn({
+    kind: txnForm.value.kind as Txn['kind'],
+    amount,
+    date: String(txnForm.value.date || todayInMonth()),
+    note: String(txnForm.value.note ?? ''),
+    category: String(
+      txnForm.value.category || (txnForm.value.kind === 'income' ? 'Income' : 'Other'),
+    ),
+    source: txnForm.value.kind === 'income' ? String(txnForm.value.source || 'Other') : undefined,
+    party: String(txnForm.value.party ?? '') || undefined,
+    tags,
+    scope: scope.value === 'all' ? 'personal' : (scope.value as FinScope),
+  })
+  txnForm.value = {
+    kind: txnForm.value.kind,
+    amount: '',
+    date: todayInMonth(),
+    note: '',
+    category: '',
+    source: '',
+    party: '',
+    tags: '',
+  }
+  showTxnForm.value = false
 }
+
+// --- add-debt form ----------------------------------------------------------
+const showDebtForm = ref(false)
+const debtForm = ref<Record<string, unknown>>({
+  direction: 'owed_by_me',
+  counterparty: '',
+  principal: '',
+  interestRatePct: '',
+  interestType: 'none',
+  startDate: todayInMonth(),
+  dueDate: '',
+  note: '',
+})
+useDraft('debt', null, debtForm, {
+  isEmpty: (p) => !String(p.counterparty ?? '').trim() && !String(p.principal ?? '').trim(),
+})
+function submitDebt() {
+  const principal = parseINR(String(debtForm.value.principal ?? ''))
+  if (!String(debtForm.value.counterparty ?? '').trim() || !principal) return
+  app.addDebt({
+    direction: debtForm.value.direction as Debt['direction'],
+    counterparty: String(debtForm.value.counterparty),
+    principal,
+    interestRatePct: parseINR(String(debtForm.value.interestRatePct ?? '')) || undefined,
+    interestType: debtForm.value.interestType as Debt['interestType'],
+    startDate: String(debtForm.value.startDate || todayInMonth()),
+    dueDate: String(debtForm.value.dueDate ?? '') || undefined,
+    note: String(debtForm.value.note ?? ''),
+    scope: scope.value === 'all' ? 'personal' : (scope.value as FinScope),
+  })
+  debtForm.value = {
+    direction: 'owed_by_me',
+    counterparty: '',
+    principal: '',
+    interestRatePct: '',
+    interestType: 'none',
+    startDate: todayInMonth(),
+    dueDate: '',
+    note: '',
+  }
+  showDebtForm.value = false
+}
+
+// Per-debt payment input.
+const payAmount = ref<Record<number, string>>({})
+function recordPayment(d: Debt) {
+  const amt = parseINR(payAmount.value[d.id] || '')
+  if (!amt || amt <= 0) return
+  app.recordDebtPayment(d.id, { amount: amt, date: todayInMonth() })
+  payAmount.value = { ...payAmount.value, [d.id]: '' }
+}
+
+function daysUntil(due: string): number {
+  const d = Date.parse(due + 'T23:59:59')
+  if (Number.isNaN(d)) return 0
+  return Math.round((d - now.value) / 86_400_000)
+}
+function fmtSigned(n: number): string {
+  return (n >= 0 ? '+' : '−') + formatINR(Math.abs(n))
+}
+
+// Tags table sorting.
+const tagSort = ref<'spent' | 'earned' | 'net' | 'count' | 'name'>('spent')
+const sortedTagRows = computed(() =>
+  [...tagRows.value].sort((a, b) =>
+    tagSort.value === 'name'
+      ? a.name.localeCompare(b.name)
+      : (b[tagSort.value] as number) - (a[tagSort.value] as number),
+  ),
+)
+
+const SOURCES = [
+  'Salary',
+  'Client payment',
+  'Freelance',
+  'Interest',
+  'Dividend',
+  'Rent',
+  'Refund',
+  'Gift',
+  'Sale',
+  'Other',
+]
 
 // --- styles -----------------------------------------------------------------
-const switcherRow = pxify({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 14,
-})
-const switcherBtn = computed(() =>
-  pxify({
-    width: 30,
-    height: 30,
+const header = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+function pill(active: boolean) {
+  return pxify({
+    fontSize: 12,
+    fontWeight: 700,
+    padding: '6px 12px',
     borderRadius: 999,
-    border: '1px solid ' + c.value.border,
-    background: c.value.card,
-    color: c.value.text,
+    border: '1px solid ' + (active ? c.value.accent : c.value.border),
+    background: active ? c.value.accent : 'transparent',
+    color: active ? c.value.onAccent : c.value.dim,
     cursor: 'pointer',
-    display: 'grid',
-    placeItems: 'center',
-    fontSize: 15,
-    lineHeight: 1,
-  }),
-)
-const switcherLabel = computed(() =>
-  pxify({ fontSize: 13, fontWeight: 600, color: c.value.text, minWidth: 120, textAlign: 'center' }),
-)
+  })
+}
+const pillRow = pxify({ display: 'flex', gap: 6 })
+const spacer = pxify({ flex: 1 })
+const body = pxify({
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 16,
+  paddingTop: 14,
+})
 const card = computed(() =>
   pxify({
+    padding: 18,
+    borderRadius: 18,
     background: c.value.card,
     border: '1px solid ' + c.value.border,
-    borderRadius: 20,
-    padding: '18px 20px',
+    boxShadow: c.value.shadow,
     display: 'flex',
     flexDirection: 'column',
-    gap: 14,
+    gap: 10,
   }),
 )
-const incomeRow = pxify({
+const label = computed(() =>
+  pxify({ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.value.dim }),
+)
+const big = computed(() =>
+  pxify({ fontSize: 30, fontWeight: 700, color: c.value.text, lineHeight: 1 }),
+)
+const sub = computed(() => pxify({ fontSize: 12, color: c.value.dim }))
+const strong = computed(() => pxify({ color: c.value.text, fontWeight: 600 }))
+const stackBar = pxify({
   display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 10,
+  height: 10,
+  borderRadius: 999,
+  overflow: 'hidden',
+  gap: 1,
 })
-const incomeCol = pxify({ display: 'flex', flexDirection: 'column', gap: 2 })
-const incomeLabel = computed(() =>
-  pxify({ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.value.dim }),
-)
-const incomeValueBtn = computed(() =>
+const rowLine = pxify({ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13 })
+const catColors = [
+  GOOD,
+  AMBER,
+  'oklch(0.74 0.13 250)',
+  'oklch(0.72 0.16 320)',
+  'oklch(0.7 0.13 190)',
+  RED,
+]
+
+const inp = computed(() => s.value.input)
+const miniBtn = computed(() =>
   pxify({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 8,
-    background: 'transparent',
+    fontSize: 12,
+    fontWeight: 700,
+    padding: '8px 14px',
+    borderRadius: 999,
     border: 'none',
-    color: c.value.text,
-    fontSize: 16,
-    fontWeight: 700,
+    background: c.value.accent,
+    color: c.value.onAccent,
     cursor: 'pointer',
-    padding: 0,
   }),
 )
-const editHint = computed(() => pxify({ fontSize: 11, color: c.value.accent, fontWeight: 600 }))
-const remainingCol = pxify({ display: 'flex', flexDirection: 'column', gap: 4 })
-const bigNumber = computed(() =>
+const ghostBtn = computed(() =>
   pxify({
-    fontSize: 34,
+    fontSize: 12,
     fontWeight: 700,
-    lineHeight: 1.05,
-    color: stateColor.value,
-    transition: 'color .3s ease',
-  }),
-)
-const bigLabelStyle = computed(() =>
-  pxify({ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: c.value.dim }),
-)
-const barTrack = computed(() =>
-  pxify({
-    position: 'relative',
-    height: 10,
+    padding: '8px 14px',
     borderRadius: 999,
-    background: c.value.input,
-    overflow: 'hidden',
+    border: '1px solid ' + c.value.border,
+    background: 'transparent',
+    color: c.value.text,
+    cursor: 'pointer',
   }),
 )
-const barFill = computed(() =>
-  pxify({
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: barPct.value + '%',
-    borderRadius: 999,
-    background:
-      'linear-gradient(90deg, ' +
-      stateColor.value +
-      ' 0%, color-mix(in oklch, ' +
-      stateColor.value +
-      ' 70%, white) 100%)',
-    boxShadow: '0 0 12px ' + stateColor.value,
-    transition: 'width .5s cubic-bezier(.4,1,.4,1), background .3s ease',
-  }),
-)
-const barMeta = computed(() =>
-  pxify({ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: c.value.dim }),
-)
-const sectionLabel = computed(() =>
-  pxify({
+function tagChip(name: string) {
+  const t = app.financeTags.find((x) => x.name === name)
+  return pxify({
     fontSize: 10,
     fontWeight: 700,
-    letterSpacing: '0.12em',
-    textTransform: 'uppercase',
+    padding: '2px 8px',
+    borderRadius: 999,
+    background: (t?.color || c.value.accent) + '22',
+    color: t?.color || c.value.accent,
+    cursor: 'pointer',
+  })
+}
+const scopeChip = computed(() =>
+  pxify({
+    fontSize: 9,
+    fontWeight: 700,
+    padding: '2px 6px',
+    borderRadius: 999,
+    background: c.value.input,
     color: c.value.dim,
   }),
 )
-const catList = pxify({ display: 'flex', flexDirection: 'column', gap: 8 })
-const catRow = computed(() =>
+const formGrid = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+  gap: 8,
+})
+const dayHead = computed(() =>
+  pxify({
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 11,
+    color: c.value.dim,
+    padding: '6px 2px 2px',
+    borderBottom: '1px solid ' + c.value.border,
+  }),
+)
+const txnRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
     gap: 10,
-    padding: '8px 12px',
-    borderRadius: 12,
-    background: c.value.card,
-    border: '1px solid ' + c.value.border,
+    padding: '8px 4px',
+    fontSize: 13,
+    borderBottom: '1px solid ' + c.value.border,
   }),
 )
-function dotStyle(color: string) {
-  return pxify({
-    width: 9,
-    height: 9,
-    borderRadius: '50%',
-    flexShrink: 0,
-    background: color,
-    boxShadow: '0 0 8px ' + color,
-  })
-}
-const catName = computed(() => pxify({ flex: 1, fontSize: 13, color: c.value.text }))
-const catPct = computed(() =>
-  pxify({ fontSize: 11, color: c.value.dim, minWidth: 44, textAlign: 'right' }),
+const table = pxify({ width: '100%', borderCollapse: 'collapse', fontSize: 12 })
+const th = computed(() =>
+  pxify({
+    textAlign: 'left',
+    padding: '6px 8px',
+    color: c.value.dim,
+    borderBottom: '1px solid ' + c.value.border,
+    cursor: 'pointer',
+    fontWeight: 600,
+  }),
 )
-const catAmount = computed(() =>
-  pxify({ fontSize: 13, fontWeight: 600, color: c.value.text, minWidth: 72, textAlign: 'right' }),
+const td = computed(() =>
+  pxify({ padding: '6px 8px', color: c.value.text, borderBottom: '1px solid ' + c.value.border }),
 )
-const row = computed(() => pxify(rowBase(c.value)))
-
-// income dialog input
-const incField = computed(() =>
+const twoCol = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+  gap: 14,
+})
+const summaryStrip = computed(() =>
   pxify({
     display: 'flex',
+    gap: 16,
+    flexWrap: 'wrap',
     alignItems: 'center',
+    padding: '12px 16px',
     borderRadius: 14,
-    border: '1px solid ' + c.value.accent,
     background: c.value.input,
-    overflow: 'hidden',
+    fontSize: 13,
   }),
 )
-const incPrefix = computed(() =>
-  pxify({ padding: '11px 4px 11px 14px', color: c.value.dim, fontSize: 16 }),
-)
-const incInput = computed(() =>
+const debtCard = computed(() =>
   pxify({
-    flex: 1,
-    minWidth: 0,
-    padding: '11px 14px 11px 4px',
-    border: 'none',
-    background: 'transparent',
-    color: c.value.text,
-    fontSize: 16,
-    outline: 'none',
+    padding: 14,
+    borderRadius: 16,
+    background: c.value.card,
+    border: '1px solid ' + c.value.border,
+    boxShadow: c.value.shadow,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
   }),
 )
 </script>
 
 <template>
   <div :style="panelStyle">
-    <!-- Month switcher -->
-    <div :style="switcherRow">
-      <button :style="switcherBtn" aria-label="Previous month" @click="prevMonth">‹</button>
-      <span :style="switcherLabel">{{ monthTitle }}</span>
-      <button
-        :style="[switcherBtn, isCurrentMonth ? { opacity: 0.4, cursor: 'default' } : {}]"
-        aria-label="Next month"
-        :disabled="isCurrentMonth"
-        @click="nextMonth"
-      >
-        ›
-      </button>
+    <!-- header: scope + sub-tabs + month -->
+    <div :style="header">
+      <div :style="pillRow">
+        <button :style="pill(scope === 'personal')" @click="setScope('personal')">Personal</button>
+        <button :style="pill(scope === 'business')" @click="setScope('business')">Business</button>
+        <button :style="pill(scope === 'all')" @click="setScope('all')">All</button>
+      </div>
+      <div :style="pillRow">
+        <button
+          v-for="t in ['overview', 'transactions', 'debts', 'tags']"
+          :key="t"
+          :style="pill(subtab === t)"
+          @click="subtab = t as typeof subtab"
+        >
+          {{ t[0].toUpperCase() + t.slice(1) }}
+        </button>
+      </div>
+      <span :style="spacer"></span>
+      <MonthPicker v-model="monthKey" />
     </div>
 
-    <!-- Income + remaining -->
-    <div :style="card">
-      <div :style="incomeRow">
-        <div :style="incomeCol">
-          <span :style="incomeLabel">Monthly Income</span>
-          <button :style="incomeValueBtn" @click="openIncome">
-            {{ income > 0 ? formatINR(income) : 'Set income' }}
-            <span :style="editHint">Edit</span>
+    <div :style="body">
+      <!-- ============ OVERVIEW ============ -->
+      <template v-if="subtab === 'overview'">
+        <div :style="card">
+          <div :style="{ display: 'flex', alignItems: 'baseline', gap: '10px' }">
+            <span :style="label">{{ isBusiness ? 'Net profit' : 'Remaining' }}</span>
+            <span :style="spacer"></span>
+            <button
+              :style="ghostBtn"
+              @click="basis = basis === 'baseline' ? 'received' : 'baseline'"
+            >
+              {{ basis === 'baseline' ? 'Against baseline' : 'Against received' }}
+            </button>
+          </div>
+          <span :style="[big, { color: balance.over ? RED : levelColor[balance.level] }]">
+            {{
+              isBusiness
+                ? formatINR(totals.net)
+                : balance.over
+                  ? 'Over by ' + formatINR(balance.overBy)
+                  : formatINR(balance.remaining)
+            }}
+          </span>
+          <span v-if="isBusiness" :style="sub">Margin {{ marginPct }}%</span>
+          <div v-if="segments.length" :style="stackBar">
+            <span
+              v-for="(seg, i) in segments"
+              :key="seg.category"
+              :style="{ width: seg.pct + '%', background: catColors[i % catColors.length] }"
+              :title="seg.category + ' ' + formatINR(seg.total)"
+            ></span>
+          </div>
+          <div :style="rowLine">
+            <span
+              >In
+              <span :style="[strong, { color: GOOD }]">{{
+                formatINR(totals.incomeReceived)
+              }}</span></span
+            >
+            <span
+              >Out <span :style="[strong, { color: RED }]">{{ formatINR(totals.out) }}</span></span
+            >
+            <span
+              >Net
+              <span :style="[strong, { color: totals.net >= 0 ? GOOD : RED }]">{{
+                fmtSigned(totals.net)
+              }}</span></span
+            >
+          </div>
+        </div>
+
+        <div :style="card">
+          <div :style="{ display: 'flex', alignItems: 'center', gap: '10px' }">
+            <span :style="label">{{ isBusiness ? 'Monthly revenue target' : 'Income' }}</span>
+            <span :style="spacer"></span>
+            <button :style="ghostBtn" @click="openTxnForm('income')">＋ Add income</button>
+          </div>
+          <div :style="rowLine">
+            <span
+              >Expected <span :style="strong">{{ formatINR(baseline) }}</span></span
+            >
+            <span
+              >Received <span :style="strong">{{ formatINR(totals.incomeReceived) }}</span></span
+            >
+            <span
+              >Extra
+              <span :style="[strong, { color: c.accent }]">{{ formatINR(extra) }}</span></span
+            >
+          </div>
+          <div
+            v-if="extraIncomeList.length"
+            :style="{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }"
+          >
+            <div
+              v-for="t in extraIncomeList"
+              :key="t.id"
+              :style="{ display: 'flex', gap: '10px', fontSize: '12px', alignItems: 'center' }"
+            >
+              <span :style="{ color: GOOD, fontWeight: 600 }">{{ formatINR(t.amount) }}</span>
+              <span :style="scopeChip">{{ t.source || 'Other' }}</span>
+              <span :style="sub">{{ t.note }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div :style="summaryStrip">
+          <span
+            >I owe
+            <span :style="[strong, { color: RED }]">{{ formatINR(debtSum.iOwe) }}</span></span
+          >
+          <span
+            >Owed to me
+            <span :style="[strong, { color: GOOD }]">{{ formatINR(debtSum.owedToMe) }}</span></span
+          >
+          <span
+            >Net
+            <span :style="[strong, { color: debtSum.net >= 0 ? GOOD : RED }]">{{
+              fmtSigned(debtSum.net)
+            }}</span></span
+          >
+          <span v-if="debtSum.overdueCount" :style="{ color: RED, fontWeight: 700 }"
+            >{{ debtSum.overdueCount }} overdue</span
+          >
+        </div>
+      </template>
+
+      <!-- ============ TRANSACTIONS ============ -->
+      <template v-else-if="subtab === 'transactions'">
+        <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }">
+          <button :style="miniBtn" @click="openTxnForm('expense')">＋ Add expense</button>
+          <button :style="ghostBtn" @click="openTxnForm('income')">＋ Add income</button>
+          <span :style="spacer"></span>
+          <button
+            v-for="k in ['all', 'income', 'expense']"
+            :key="k"
+            :style="pill(kindFilter === k)"
+            @click="kindFilter = k as typeof kindFilter"
+          >
+            {{ k[0].toUpperCase() + k.slice(1) }}
           </button>
+          <span v-if="tagFilter" :style="tagChip(tagFilter)" @click="tagFilter = ''"
+            >#{{ tagFilter }} ✕</span
+          >
         </div>
-      </div>
 
-      <div :style="remainingCol">
-        <span :style="bigLabelStyle">{{ bigLabel }}</span>
-        <span :style="bigNumber">{{ bigValue }}</span>
-      </div>
+        <div v-if="showTxnForm" :style="card">
+          <div :style="label">New {{ txnForm.kind }}</div>
+          <div :style="formGrid">
+            <input
+              :style="inp"
+              v-model="txnForm.amount"
+              placeholder="Amount ₹"
+              inputmode="decimal"
+            />
+            <input :style="inp" type="date" v-model="txnForm.date" />
+            <input
+              :style="inp"
+              v-model="txnForm.category"
+              :placeholder="txnForm.kind === 'income' ? 'Income' : 'Category'"
+            />
+            <select v-if="txnForm.kind === 'income'" :style="inp" v-model="txnForm.source">
+              <option v-for="src in SOURCES" :key="src" :value="src">{{ src }}</option>
+            </select>
+            <input :style="inp" v-model="txnForm.party" placeholder="Party (optional)" />
+            <input :style="inp" v-model="txnForm.tags" placeholder="tags, comma-separated" />
+          </div>
+          <input :style="inp" v-model="txnForm.note" placeholder="Note" />
+          <div :style="{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }">
+            <button :style="ghostBtn" @click="showTxnForm = false">Cancel</button>
+            <button :style="miniBtn" @click="submitTxn">Add</button>
+          </div>
+        </div>
 
-      <div :style="barTrack"><span :style="barFill"></span></div>
-      <div :style="barMeta">
-        <span>Spent {{ formatINR(spent) }}</span>
-        <span>of {{ income > 0 ? formatINR(income) : '—' }}</span>
-      </div>
+        <div v-if="!txnDays.length" :style="sub">No transactions in this month.</div>
+        <div v-for="day in txnDays" :key="day.date">
+          <div :style="dayHead">
+            <span>{{ day.date }}</span>
+            <span :style="{ color: day.net >= 0 ? GOOD : RED }">{{ fmtSigned(day.net) }}</span>
+          </div>
+          <div v-for="t in day.items" :key="t.id" :style="txnRow">
+            <span
+              :style="{
+                color: t.kind === 'income' ? GOOD : c.text,
+                fontWeight: 600,
+                minWidth: '92px',
+              }"
+            >
+              {{ t.kind === 'income' ? '+' : '−' }}{{ formatINR(t.amount) }}
+            </span>
+            <span :style="{ flex: 1, minWidth: 0 }">
+              {{ t.note || t.category }}<span v-if="t.party" :style="sub"> · {{ t.party }}</span>
+            </span>
+            <span :style="scopeChip">{{ t.category }}</span>
+            <span v-for="tg in t.tags" :key="tg" :style="tagChip(tg)" @click="filterByTag(tg)"
+              >#{{ tg }}</span
+            >
+            <span v-if="scope === 'all'" :style="scopeChip">{{ t.scope }}</span>
+            <button
+              :style="{
+                background: 'transparent',
+                border: 'none',
+                color: c.dim,
+                cursor: 'pointer',
+              }"
+              @click="app.deleteTxn(t.id)"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <!-- ============ DEBTS ============ -->
+      <template v-else-if="subtab === 'debts'">
+        <div :style="summaryStrip">
+          <span
+            >Total I owe
+            <span :style="[strong, { color: RED }]">{{ formatINR(debtSum.iOwe) }}</span></span
+          >
+          <span
+            >Owed to me
+            <span :style="[strong, { color: GOOD }]">{{ formatINR(debtSum.owedToMe) }}</span></span
+          >
+          <span
+            >Net position
+            <span :style="[strong, { color: debtSum.net >= 0 ? GOOD : RED }]">{{
+              fmtSigned(debtSum.net)
+            }}</span></span
+          >
+          <span v-if="debtSum.overdueCount" :style="{ color: RED, fontWeight: 700 }"
+            >{{ debtSum.overdueCount }} overdue</span
+          >
+          <span :style="spacer"></span>
+          <button :style="ghostBtn" @click="showDebtForm = !showDebtForm">＋ Add debt</button>
+        </div>
+
+        <div v-if="showDebtForm" :style="card">
+          <div :style="formGrid">
+            <select :style="inp" v-model="debtForm.direction">
+              <option value="owed_by_me">I owe</option>
+              <option value="owed_to_me">Owed to me</option>
+            </select>
+            <input :style="inp" v-model="debtForm.counterparty" placeholder="Counterparty" />
+            <input
+              :style="inp"
+              v-model="debtForm.principal"
+              placeholder="Principal ₹"
+              inputmode="decimal"
+            />
+            <input
+              :style="inp"
+              v-model="debtForm.interestRatePct"
+              placeholder="Interest % (opt)"
+              inputmode="decimal"
+            />
+            <select :style="inp" v-model="debtForm.interestType">
+              <option value="none">No interest</option>
+              <option value="simple">Simple</option>
+              <option value="compound">Compound</option>
+            </select>
+            <input :style="inp" type="date" v-model="debtForm.startDate" />
+            <input :style="inp" type="date" v-model="debtForm.dueDate" />
+          </div>
+          <div :style="{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }">
+            <button :style="ghostBtn" @click="showDebtForm = false">Cancel</button>
+            <button :style="miniBtn" @click="submitDebt">Add debt</button>
+          </div>
+        </div>
+
+        <div :style="twoCol">
+          <div :style="{ display: 'flex', flexDirection: 'column', gap: '10px' }">
+            <div :style="label">I owe</div>
+            <div v-if="!iOweDebts.length" :style="sub">Nothing owed.</div>
+            <div v-for="d in iOweDebts" :key="d.id" :style="debtCard">
+              <div :style="{ display: 'flex', alignItems: 'center', gap: '8px' }">
+                <span :style="strong">{{ d.counterparty }}</span>
+                <span v-if="scope === 'all'" :style="scopeChip">{{ d.scope }}</span>
+                <span :style="spacer"></span>
+                <span
+                  v-if="d.dueDate"
+                  :style="{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: isOverdue(d, now) ? RED : c.dim,
+                  }"
+                >
+                  {{ isOverdue(d, now) ? 'overdue' : 'in ' + daysUntil(d.dueDate) + 'd' }}
+                </span>
+              </div>
+              <span :style="big">{{ formatINR(debtOutstanding(d, now)) }}</span>
+              <span :style="sub"
+                >of {{ formatINR(d.principal)
+                }}<span v-if="d.interestRatePct">
+                  · {{ d.interestRatePct }}% {{ d.interestType }}</span
+                ></span
+              >
+              <div
+                :style="{
+                  height: '6px',
+                  borderRadius: '999px',
+                  background: c.input,
+                  overflow: 'hidden',
+                }"
+              >
+                <div
+                  :style="{
+                    height: '100%',
+                    width:
+                      Math.min(100, Math.round((debtPaid(d) / (d.principal || 1)) * 100)) + '%',
+                    background: c.accent,
+                  }"
+                ></div>
+              </div>
+              <span :style="scopeChip">{{ effectiveDebtStatus(d, now) }}</span>
+              <div :style="{ display: 'flex', gap: '6px' }">
+                <input
+                  :style="inp"
+                  v-model="payAmount[d.id]"
+                  placeholder="Payment ₹"
+                  inputmode="decimal"
+                />
+                <button :style="miniBtn" @click="recordPayment(d)">Pay</button>
+                <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
+              </div>
+            </div>
+          </div>
+          <div :style="{ display: 'flex', flexDirection: 'column', gap: '10px' }">
+            <div :style="label">Owed to me</div>
+            <div v-if="!owedToMeDebts.length" :style="sub">Nothing owed to you.</div>
+            <div v-for="d in owedToMeDebts" :key="d.id" :style="debtCard">
+              <div :style="{ display: 'flex', alignItems: 'center', gap: '8px' }">
+                <span :style="strong">{{ d.counterparty }}</span>
+                <span :style="spacer"></span>
+                <span
+                  v-if="d.dueDate"
+                  :style="{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: isOverdue(d, now) ? RED : c.dim,
+                  }"
+                >
+                  {{ isOverdue(d, now) ? 'overdue' : 'in ' + daysUntil(d.dueDate) + 'd' }}
+                </span>
+              </div>
+              <span :style="big">{{ formatINR(debtOutstanding(d, now)) }}</span>
+              <span :style="sub">of {{ formatINR(d.principal) }}</span>
+              <div :style="{ display: 'flex', gap: '6px' }">
+                <input
+                  :style="inp"
+                  v-model="payAmount[d.id]"
+                  placeholder="Received ₹"
+                  inputmode="decimal"
+                />
+                <button :style="miniBtn" @click="recordPayment(d)">Receive</button>
+                <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- ============ TAGS ============ -->
+      <template v-else>
+        <div v-if="!tagRows.length" :style="sub">No tagged transactions this month.</div>
+        <table v-else :style="table">
+          <thead>
+            <tr>
+              <th :style="th" @click="tagSort = 'name'">Tag</th>
+              <th :style="th" @click="tagSort = 'spent'">Spent</th>
+              <th :style="th" @click="tagSort = 'earned'">Earned</th>
+              <th :style="th" @click="tagSort = 'net'">Net</th>
+              <th :style="th" @click="tagSort = 'count'">#</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in sortedTagRows"
+              :key="row.name"
+              style="cursor: pointer"
+              @click="filterByTag(row.name)"
+            >
+              <td :style="td">
+                <span :style="tagChip(row.name)">#{{ row.name }}</span>
+              </td>
+              <td :style="[td, { color: RED }]">{{ formatINR(row.spent) }}</td>
+              <td :style="[td, { color: GOOD }]">{{ formatINR(row.earned) }}</td>
+              <td :style="[td, { color: row.net >= 0 ? GOOD : RED }]">{{ fmtSigned(row.net) }}</td>
+              <td :style="td">{{ row.count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
-
-    <!-- Category breakdown -->
-    <template v-if="byCategory.length">
-      <span :style="sectionLabel">By category</span>
-      <div :style="catList">
-        <div v-for="cat in byCategory" :key="cat.category" :style="catRow">
-          <span :style="dotStyle(CATEGORY_COLOR[cat.category] || c.dim)"></span>
-          <span :style="catName">{{ cat.category }}</span>
-          <span :style="catPct">{{ Math.round(cat.pct) }}%</span>
-          <span :style="catAmount">{{ formatINR(cat.total) }}</span>
-        </div>
-      </div>
-    </template>
-
-    <!-- Expenses this month -->
-    <ListToolbar title="Expenses" new-label="New expense" @new="app.openCreate('finance')" />
-    <div v-if="monthExpenses.length === 0" :style="s.empty">No expenses in {{ monthTitle }}.</div>
-    <div :style="s.list">
-      <div v-for="it in monthExpenses" :key="it.id" :style="row" v-hover-style="s.rowHover">
-        <span :style="dotStyle(it.color)"></span>
-        <div :style="s.taskMain" @click="app.openEdit('finance', it.id)">
-          <span :style="s.finNote">{{ it.label }}</span>
-          <span :style="s.finMeta">{{ it.meta }}</span>
-          <OfflineChip :pending="app.isItemPending('finance', it.id)" />
-        </div>
-        <span :style="s.amount">{{ it.amountLabel }}</span>
-        <button :style="s.shareBtn" @click="app.share('finance', findFinance(it.id)!)">↗</button>
-        <button :style="s.del" @click="app.deleteWithUndo('finances', 'finance', it.id)">×</button>
-      </div>
-    </div>
-
-    <!-- Income editor -->
-    <template v-if="incomeOpen">
-      <div :style="s.dialogOverlay" @click="incomeOpen = false"></div>
-      <div :style="s.shareCard" @keydown.enter="saveIncome" @keydown.esc="incomeOpen = false">
-        <span :style="s.drawerTitle">Monthly income · {{ monthTitle }}</span>
-        <div :style="incField">
-          <span :style="incPrefix">₹</span>
-          <input
-            :style="incInput"
-            type="number"
-            min="0"
-            inputmode="numeric"
-            placeholder="0"
-            :value="incomeInput"
-            @input="incomeInput = ($event.target as HTMLInputElement).value"
-          />
-        </div>
-        <div :style="s.dialogActions">
-          <button :style="s.cancelBtn" @click="incomeOpen = false">Cancel</button>
-          <button :style="s.saveBtn" @click="saveIncome">Save</button>
-        </div>
-      </div>
-    </template>
   </div>
 </template>
