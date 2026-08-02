@@ -38,6 +38,7 @@ import { titleFromMessage } from '@/utils/ai'
 import { debtOutstanding, migrateExpenses } from '@/utils/finance'
 import { resolveIncome } from '@/utils/budget'
 import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
+import { nestSummary, planNest } from '@/utils/dragNest'
 import type {
   ActiveNotif,
   Deadline,
@@ -609,6 +610,57 @@ export const useAppStore = defineStore('app', () => {
     const c = linkableById(child)
     if (p) applyLinkPatch(parent, { linked: p.linked.filter((r) => !sameRef(r, child)) })
     if (c) applyLinkPatch(child, { parents: c.parents.filter((r) => !sameRef(r, parent)) })
+  }
+  // Drag-to-nest: link one or more children under `target`, re-parenting each out
+  // of the parent it was dragged from (sourceParents, keyed `collection:id`).
+  // Reuses linkItems/unlinkItems — both write both directions and coalesce into
+  // one debounced workspace save, which is this app's writeBatch equivalent.
+  // Invalid children are skipped (never silently); the toast reports the mix and
+  // offers a 10s Undo restoring each child's previous parent.
+  interface NestRestore {
+    child: LinkRef
+    oldParent: LinkRef | null
+  }
+  function nestUnder(
+    children: LinkRef[],
+    target: LinkRef,
+    sourceParents: Record<string, LinkRef | null> = {},
+  ) {
+    const plan = planNest(children, (child) => canLinkItems(target, child))
+    const restore: NestRestore[] = []
+    for (const child of plan.valid) {
+      const res = linkItems(target, child)
+      if (!res.ok) continue
+      const old = sourceParents[linkKeyOf(child)] ?? null
+      if (old && !sameRef(old, target)) unlinkItems(old, child)
+      restore.push({ child, oldParent: old })
+    }
+    const msg = nestSummary(plan)
+    if (restore.length) {
+      showToastWithUndo(
+        msg,
+        () => {
+          for (const r of restore) {
+            unlinkItems(target, r.child)
+            if (r.oldParent) linkItems(r.oldParent, r.child)
+          }
+        },
+        10000,
+        'Undo',
+      )
+    } else if (plan.skipped.length) {
+      showToastMsg(msg)
+    }
+    return plan
+  }
+  function linkKeyOf(ref: LinkRef): string {
+    return ref.collection + ':' + ref.id
+  }
+  // Drop onto empty space / the background: lift a child out of a parent to the
+  // top level, keeping the item. A no-op if it wasn't nested there.
+  function unnestFrom(child: LinkRef, parent: LinkRef) {
+    unlinkItems(parent, child)
+    showToastWithUndo('Moved to top level', () => linkItems(parent, child), 10000, 'Undo')
   }
   // On delete: strip the item from every counterpart's linked/parents so no
   // dangling pointers remain.
@@ -2792,6 +2844,8 @@ export const useAppStore = defineStore('app', () => {
     canLinkItems,
     linkItems,
     unlinkItems,
+    nestUnder,
+    unnestFrom,
     linkProgressOf,
     addTrip,
     updateTrip,

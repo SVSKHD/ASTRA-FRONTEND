@@ -11,6 +11,7 @@ import { pxify } from '@/styles'
 
 import FloatingDock from '@/components/FloatingDock.vue'
 import FloatingChrome from '@/components/FloatingChrome.vue'
+import DragGhost from '@/components/DragGhost.vue'
 import Ticker from '@/components/Ticker.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
 import NoteView from '@/components/NoteView.vue'
@@ -249,6 +250,7 @@ onBeforeUnmount(() => {
     <SharedBanner />
     <ShareDialog />
     <Toast />
+    <DragGhost />
   </template>
   <AuthDialog />
   <CloudLoading v-if="authReady && isSignedIn && !cloudReady" />
