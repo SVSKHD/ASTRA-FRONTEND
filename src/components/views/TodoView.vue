@@ -19,11 +19,32 @@ import LinkProgressBar from '@/components/LinkProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import { nestedChildIds } from '@/utils/links'
 import { useAccordionState } from '@/composables/useAccordionState'
-import type { Todo } from '@/types'
+import { useDragNest } from '@/composables/useDragNest'
+import type { LinkRef, Todo } from '@/types'
 
 const app = useAppStore()
 const ui = useUiStore()
 const { c, dark, s, panelStyle } = useStyles()
+const { startDrag, targetState } = useDragNest()
+
+// Drag-to-nest: the grip starts a pointer drag (preventing the row's native
+// day-drag from also firing), and a row highlights when it's the hovered nest
+// target.
+function onGripDown(e: PointerEvent, t: Todo) {
+  e.preventDefault()
+  e.stopPropagation()
+  startDrag([{ id: t.id, collection: 'todos' }], e, {
+    title: t.text || '(untitled)',
+    badge: 'Todo',
+  })
+}
+function nestHighlight(id: number) {
+  const ts = targetState({ id, collection: 'todos' } as LinkRef)
+  if (!ts.active || ts.zone !== 'nest') return {}
+  return ts.valid
+    ? { outline: '2px solid ' + c.value.accent, outlineOffset: '1px', background: c.value.card }
+    : { outline: '2px solid oklch(0.64 0.22 25)', outlineOffset: '1px' }
+}
 const { todos, burst, draggingTodoId } = storeToRefs(app)
 // The reactive clock (ticks every 60s + on focus/resume). Reading it in the
 // grouping computed is what makes the day buckets recompute at midnight, so a
@@ -347,8 +368,10 @@ const linkExpandBtn = computed(() =>
             <TransitionGroup v-else name="rowflip" tag="div" :style="rowsWrap">
               <div v-for="t in topRows(g)" :key="t.id" :style="parentCardStyle">
                 <div
-                  :style="rowStyle(t)"
+                  :style="[rowStyle(t), nestHighlight(t.id)]"
                   v-hover-style="s.rowHover"
+                  :data-nest-id="t.id"
+                  data-nest-collection="todos"
                   draggable="true"
                   @dragstart="onDragStart($event, t)"
                   @dragend="onDragEnd"
@@ -376,7 +399,12 @@ const linkExpandBtn = computed(() =>
                       <polyline points="9 6 15 12 9 18" />
                     </svg>
                   </button>
-                  <span :style="s.grip"
+                  <span
+                    :style="s.grip"
+                    role="button"
+                    aria-label="Drag to nest"
+                    title="Drag to nest"
+                    @pointerdown="onGripDown($event, t)"
                     ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
                   ></span>
                   <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">

@@ -15,11 +15,30 @@ import LinkProgressBar from '@/components/LinkProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import { nestedChildIds } from '@/utils/links'
 import { useAccordionState } from '@/composables/useAccordionState'
-import type { Task } from '@/types'
+import { useDragNest } from '@/composables/useDragNest'
+import type { LinkRef, Task } from '@/types'
 
 const app = useAppStore()
 const ui = useUiStore()
 const { c, dark, s, panelStyle } = useStyles()
+const { startDrag, targetState } = useDragNest()
+
+// Drag-to-nest via the grip (pointer drag, kept off the row's native day-drag).
+function onGripDown(e: PointerEvent, t: Task) {
+  e.preventDefault()
+  e.stopPropagation()
+  startDrag([{ id: t.id, collection: 'tasks' }], e, {
+    title: t.title || '(untitled)',
+    badge: 'Task',
+  })
+}
+function nestHighlight(id: number) {
+  const ts = targetState({ id, collection: 'tasks' } as LinkRef)
+  if (!ts.active || ts.zone !== 'nest') return {}
+  return ts.valid
+    ? { outline: '2px solid ' + c.value.accent, outlineOffset: '1px', background: c.value.card }
+    : { outline: '2px solid oklch(0.64 0.22 25)', outlineOffset: '1px' }
+}
 const { tasks, githubCache, draggingId } = storeToRefs(app)
 // Reactive clock so the deadline buckets re-file at midnight without a refresh.
 const { now } = storeToRefs(ui)
@@ -309,8 +328,10 @@ function onGroupDrop(e: DragEvent, g: Group) {
             <TransitionGroup v-else name="rowflip" tag="div" :style="rowsWrap">
               <div v-for="t in topRows(g)" :key="t.id" :style="parentCardStyle">
                 <div
-                  :style="rowStyle(t)"
+                  :style="[rowStyle(t), nestHighlight(t.id)]"
                   v-hover-style="s.rowHover"
+                  :data-nest-id="t.id"
+                  data-nest-collection="tasks"
                   draggable="true"
                   @dragstart="onDragStart($event, t)"
                   @dragend="onDragEnd"
@@ -340,7 +361,12 @@ function onGroupDrop(e: DragEvent, g: Group) {
                       <polyline points="9 6 15 12 9 18" />
                     </svg>
                   </button>
-                  <span :style="s.grip"
+                  <span
+                    :style="s.grip"
+                    role="button"
+                    aria-label="Drag to nest"
+                    title="Drag to nest"
+                    @pointerdown="onGripDown($event, t)"
                     ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
                   ></span>
                   <div :style="s.taskMain">
