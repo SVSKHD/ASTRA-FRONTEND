@@ -22,7 +22,7 @@ const { c, B } = useStyles()
 const { themePanelOpen, themeSetting, isDayTime, isPhone } = storeToRefs(ui)
 const { avatarMenuOpen, avatarInitial, avatarName, avatarSub, avatarColor, ghMenuLabel } =
   storeToRefs(auth)
-const { security } = storeToRefs(app)
+const { security, autoRollover, hideCompleted, reminderSound } = storeToRefs(app)
 
 // Lift the bottom clusters above the horizontal dock on phones.
 const bottomInset = computed(() =>
@@ -335,6 +335,30 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
         <label :style="menuToggle">
           <input type="checkbox" :checked="security.autoLockEnabled" @change="onAutoLockChange" />
           <span>Auto-lock after 50 min</span>
+        </label>
+        <label :style="menuToggle">
+          <input
+            type="checkbox"
+            :checked="autoRollover"
+            @change="app.setAutoRollover(($event.target as HTMLInputElement).checked)"
+          />
+          <span>Auto-roll overdue to today</span>
+        </label>
+        <label :style="menuToggle">
+          <input
+            type="checkbox"
+            :checked="hideCompleted"
+            @change="app.setHideCompleted(($event.target as HTMLInputElement).checked)"
+          />
+          <span>Hide completed items</span>
+        </label>
+        <label :style="menuToggle">
+          <input
+            type="checkbox"
+            :checked="reminderSound"
+            @change="app.setReminderSound(($event.target as HTMLInputElement).checked)"
+          />
+          <span>Reminder sound</span>
         </label>
         <button :style="menuItem" v-hover-style="menuHover" @click="onLockNow">Lock now</button>
         <button :style="menuItem" v-hover-style="menuHover" @click="auth.openGithubPanel()">

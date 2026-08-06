@@ -1,18 +1,25 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+// The tasks list, restructured like the todo list: a single "Carried over · N"
+// accordion for overdue tasks, today's active items flat (no per-deadline
+// grouping), then a collapsed Completed section. Drag-to-nest, linked
+// accordions, the repo/CI chip and the "Remind me" bell all keep working.
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { useDayList } from '@/composables/useDayList'
-import { pxify, merge, rowBase, dayBody, dayGroupCard, tagChip } from '@/styles'
-import { buildDayGroups } from '@/utils/dayGroups'
-import DayGroupHead from '@/components/DayGroupHead.vue'
-import DayToolbar from '@/components/DayToolbar.vue'
+import { pxify, merge, rowBase, tagChip } from '@/styles'
+import { todayKey, isOverdueTask } from '@/utils/rollover'
+import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
+import { relLabel } from '@/utils/upcoming'
+import ListToolbar from '@/components/ListToolbar.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import MovePendingButton from '@/components/MovePendingButton.vue'
 import LinkProgressBar from '@/components/LinkProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
+import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
+import CompletedSection from '@/components/CompletedSection.vue'
+import ProgressLine from '@/components/ProgressLine.vue'
+import RemindBell from '@/components/RemindBell.vue'
 import { nestedChildIds } from '@/utils/links'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useDragNest } from '@/composables/useDragNest'
@@ -22,8 +29,38 @@ const app = useAppStore()
 const ui = useUiStore()
 const { c, dark, s, panelStyle } = useStyles()
 const { startDrag, targetState } = useDragNest()
+const { tasks, githubCache, draggingId, hideCompleted } = storeToRefs(app)
+const { now } = storeToRefs(ui)
 
-// Drag-to-nest via the grip (pointer drag, kept off the row's native day-drag).
+defineExpose({ focus: () => app.openCreate('task') })
+
+const todayStr = computed(() => todayKey(new Date(now.value)))
+function dayOf(t: Task): string {
+  return t.deadline || ''
+}
+
+const nestedIds = computed(() => nestedChildIds('tasks', tasks.value))
+const topLevel = computed(() => tasks.value.filter((t) => !nestedIds.value.has(t.id)))
+
+const completedSort = ref<'recent' | 'original'>('recent')
+const split = computed(() =>
+  splitList(topLevel.value, {
+    isDone: (t) => t.status === 'done',
+    isCarried: (t) => isOverdueTask(t, todayStr.value),
+    completedAt: (t) => t.completedAt,
+    archivedAt: (t) => t.archivedAt ?? null,
+    completedOnDay: todayStr.value,
+    completedSort: completedSort.value,
+  }),
+)
+const carried = computed(() =>
+  [...split.value.carriedOver].sort((a, b) => dayOf(a).localeCompare(dayOf(b))),
+)
+const active = computed(() => split.value.active)
+const completed = computed(() => split.value.completed)
+const carriedSubtitle = computed(() => oldestFromLabel(carried.value.map(dayOf)))
+
+// --- drag-to-nest -----------------------------------------------------------
 function onGripDown(e: PointerEvent, t: Task) {
   e.preventDefault()
   e.stopPropagation()
@@ -39,59 +76,71 @@ function nestHighlight(id: number) {
     ? { outline: '2px solid ' + c.value.accent, outlineOffset: '1px', background: c.value.card }
     : { outline: '2px solid oklch(0.64 0.22 25)', outlineOffset: '1px' }
 }
-const { tasks, githubCache, draggingId } = storeToRefs(app)
-// Reactive clock so the deadline buckets re-file at midnight without a refresh.
-const { now } = storeToRefs(ui)
 
-// Creating and editing both happen in a dialog now, so N / ⌘K opens that
-// instead of focusing a form the tab no longer carries.
-defineExpose({ focus: () => app.openCreate('task') })
-
-// A folded day animates from 0fr to 1fr rather than being removed, which is
-// what gives the accordion a real height transition instead of a jump.
-function bodyStyle(open: boolean) {
-  return pxify(dayBody(open))
+// --- linked-items nesting ---------------------------------------------------
+const acc = useAccordionState()
+function accKey(t: Task) {
+  return 'tasks:' + t.id
+}
+function expanded(t: Task) {
+  return acc.isOpen(accKey(t))
+}
+function toggleExpand(t: Task) {
+  acc.toggle(accKey(t))
+}
+function orphanBreadcrumb(t: Task): string {
+  return t.parents
+    .map((p) => app.linkableById(p))
+    .filter((it): it is NonNullable<typeof it> => !!it)
+    .map((it) => ('text' in it ? it.text : it.title))
+    .join(', ')
+}
+const parentKeys = computed(() =>
+  topLevel.value.filter((t) => t.linked.length > 0).map((t) => accKey(t)),
+)
+const anyLinked = computed(() => parentKeys.value.length > 0)
+const allExpanded = computed(
+  () => parentKeys.value.length > 0 && parentKeys.value.every((k) => acc.isOpen(k)),
+)
+function toggleAll() {
+  acc.setMany(parentKeys.value, !allExpanded.value)
 }
 
-// Same day-wise shape as the todo list, keyed off the deadline instead of the
-// creation day — hence 'future', which pins Today then Tomorrow.
-const groups = computed(() =>
-  buildDayGroups(tasks.value, (t) => t.deadline || '', {
-    direction: 'future',
-    undatedLabel: 'No date',
-    keepEmptyUndated: true,
-    now: new Date(now.value),
-  }),
-)
-type Group = (typeof groups.value)[number] // the drop handlers need the shape
-const day = useDayList('tasks', groups)
+// --- click vs. double-click (single → dialog, double → task view) -----------
+let clickTimer: ReturnType<typeof setTimeout> | null = null
+function onRowClick(t: Task) {
+  if (clickTimer) return
+  clickTimer = setTimeout(() => {
+    clickTimer = null
+    app.openTaskDialog(t.id)
+  }, 230)
+}
+function onRowDblClick(t: Task) {
+  if (clickTimer) {
+    clearTimeout(clickTimer)
+    clickTimer = null
+  }
+  app.openTaskView(t.id)
+}
 
-const dragging = computed(() => draggingId.value != null)
-const groupStyle = computed(() => pxify(dayGroupCard(c.value, dragging.value)))
-
+// --- styles -----------------------------------------------------------------
 function ciColor(t: Task) {
   const gh = githubCache.value[t.id]
   if (!gh || gh.status === 'loading') return c.value.dim
   return gh.data.ci === 'passing' ? 'oklch(0.7 0.15 145)' : 'oklch(0.65 0.2 25)'
 }
-function rowStyle(t: Task) {
+function rowStyle(t: Task, done = false) {
   const isDrag = draggingId.value === t.id
   return merge(rowBase(c.value), {
-    opacity: t.done ? 0.5 : 1,
+    opacity: done ? 0.55 : 1,
     cursor: 'pointer',
     position: 'relative',
-    // Idle transform stays unset so the FLIP `move` transform is not blocked.
     transform: isDrag ? 'scale(1.03)' : undefined,
     boxShadow: isDrag ? '0 18px 40px rgba(0,0,0,0.45)' : undefined,
     zIndex: isDrag ? 5 : 'auto',
   })
 }
-const rowsWrap = pxify({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 9,
-  position: 'relative',
-})
+const rowsWrap = pxify({ display: 'flex', flexDirection: 'column', gap: 9, position: 'relative' })
 function textStyle(t: Task) {
   return pxify({
     fontSize: 14,
@@ -129,8 +178,6 @@ const gripDots = [0, 1, 2, 3, 4, 5]
 function chipStyle(tag: string) {
   return pxify(tagChip(c.value, tag, dark.value))
 }
-
-// Direct-link progress for a task's list-card chain badge + bottom line.
 function linkOf(t: Task) {
   return app.linkProgressOf({ id: t.id, collection: 'tasks' })
 }
@@ -148,40 +195,29 @@ const linkChip = computed(() =>
   }),
 )
 const linkLineWrap = pxify({ position: 'absolute', left: 12, right: 12, bottom: 3 })
-
-// --- linked-items nesting (mirrors TodoView) --------------------------------
-const acc = useAccordionState()
-const present = computed(() => groups.value.flatMap((g) => day.visible(g)))
-const nestedIds = computed(() => nestedChildIds('tasks', present.value))
-function topRows(g: (typeof groups.value)[number]): Task[] {
-  return day.visible(g).filter((t) => !nestedIds.value.has(t.id))
-}
-function accKey(t: Task) {
-  return 'tasks:' + t.id
-}
-function expanded(t: Task) {
-  return acc.isOpen(accKey(t))
-}
-function toggleExpand(t: Task) {
-  acc.toggle(accKey(t))
-}
-function orphanBreadcrumb(t: Task): string {
-  return t.parents
-    .map((p) => app.linkableById(p))
-    .filter((it): it is NonNullable<typeof it> => !!it)
-    .map((it) => ('text' in it ? it.text : it.title))
-    .join(', ')
-}
-const parentKeys = computed(() =>
-  present.value.filter((t) => t.linked.length > 0).map((t) => accKey(t)),
+const ageChipStyle = computed(() =>
+  pxify({
+    fontSize: 10,
+    padding: '2px 7px',
+    borderRadius: 999,
+    background: c.value.input,
+    border: '1px solid ' + c.value.border,
+    color: c.value.dim,
+    flexShrink: 0,
+  }),
 )
-const anyLinked = computed(() => parentKeys.value.length > 0)
-const allExpanded = computed(
-  () => parentKeys.value.length > 0 && parentKeys.value.every((k) => acc.isOpen(k)),
+const rolloverChipStyle = computed(() =>
+  pxify({
+    fontSize: 10,
+    padding: '2px 7px',
+    borderRadius: 999,
+    background: 'transparent',
+    border: '1px solid ' + (dark.value ? 'oklch(0.72 0.18 55)' : 'oklch(0.6 0.18 55)'),
+    color: dark.value ? 'oklch(0.78 0.16 62)' : 'oklch(0.55 0.18 55)',
+    flexShrink: 0,
+  }),
 )
-function toggleAll() {
-  acc.setMany(parentKeys.value, !allExpanded.value)
-}
+const doneMetaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
 const parentCardStyle = pxify({ display: 'flex', flexDirection: 'column' })
 function chevronStyle(t: Task) {
   return pxify({
@@ -227,35 +263,20 @@ const linkExpandBtn = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
+const dueChipStyle = computed(() => pxify({ fontSize: 10, color: c.value.dim, padding: '2px 0' }))
+function dueLabel(t: Task): string {
+  if (!t.deadline) return ''
+  return new Date(t.deadline + 'T00:00:00').toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+const doneAgo = (t: Task) => (t.completedAt ? relLabel(t.completedAt - now.value) : '')
 
-// Click vs. double-click discrimination (single → dialog, double → task view).
-let clickTimer: ReturnType<typeof setTimeout> | null = null
-function onRowClick(t: Task) {
-  if (clickTimer) return
-  clickTimer = setTimeout(() => {
-    clickTimer = null
-    app.openTaskDialog(t.id)
-  }, 230)
-}
-function onRowDblClick(t: Task) {
-  if (clickTimer) {
-    clearTimeout(clickTimer)
-    clickTimer = null
-  }
-  app.openTaskView(t.id)
-}
-
-function onDragStart(e: DragEvent, t: Task) {
-  app.setDragId(t.id)
-  try {
-    e.dataTransfer!.effectAllowed = 'move'
-    e.dataTransfer!.setData('text/plain', String(t.id))
-  } catch {
-    /* ignore */
-  }
-}
-function onDragEnd() {
-  app.setDragId(null)
+function onGripDrop(e: DragEvent, t: Task) {
+  e.preventDefault()
+  e.stopPropagation()
+  app.dropOnTask(t.id)
 }
 function onRowDragOver(e: DragEvent) {
   e.preventDefault()
@@ -266,168 +287,179 @@ function onRowDragOver(e: DragEvent) {
     /* ignore */
   }
 }
-function onRowDrop(e: DragEvent, t: Task) {
-  e.preventDefault()
-  e.stopPropagation()
-  app.dropOnTask(t.id)
-}
-function onGroupDragOver(e: DragEvent, g: Group) {
-  e.preventDefault()
-  // A drag heading for a folded day should not have to be aborted to open it.
-  day.openForDrop(g)
-  try {
-    e.dataTransfer!.dropEffect = 'move'
-  } catch {
-    /* ignore */
-  }
-}
-function onGroupDrop(e: DragEvent, g: Group) {
-  e.preventDefault()
-  app.dropOnGroup(g.date)
-}
 </script>
 
 <template>
   <div :style="panelStyle">
-    <MovePendingButton collection="tasks" />
-    <DayToolbar
-      :filter="day.filter.value"
-      :all-open="day.allOpen.value"
-      new-label="New task"
-      @filter="day.setFilter"
-      @fold="day.foldAll"
-      @new="app.openCreate('task')"
-    >
-      <template v-if="anyLinked" #action>
-        <button type="button" :style="linkExpandBtn" @click="toggleAll">
+    <ListToolbar title="Tasks" new-label="New task" @new="app.openCreate('task')">
+      <template #actions>
+        <button v-if="anyLinked" type="button" :style="linkExpandBtn" @click="toggleAll">
           {{ allExpanded ? 'Collapse links' : 'Expand links' }}
         </button>
       </template>
-    </DayToolbar>
-    <div :style="s.dayGroups">
-      <div
-        v-for="g in groups"
-        :key="g.key"
-        :style="groupStyle"
-        @dragover="onGroupDragOver($event, g)"
-        @drop="onGroupDrop($event, g)"
-      >
-        <DayGroupHead
-          :label="g.label"
-          :counts="g.counts"
-          :total="g.total"
-          :open="day.isOpen(g)"
-          @toggle="day.toggle(g)"
-        />
-        <div :style="bodyStyle(day.isOpen(g))">
-          <div :style="s.dayBodyInner">
-            <div v-if="g.total === 0" :style="s.dayDropHint">Drop tasks here</div>
-            <div v-else-if="day.visible(g).length === 0" :style="s.dayDropHint">
-              {{ day.hiddenBy(g) }} hidden by the filter
+    </ListToolbar>
+    <ProgressLine :done="split.stats.done" :total="split.stats.total" />
+    <div v-if="tasks.length === 0" :style="s.empty">Nothing yet — add your first task.</div>
+
+    <!-- 1. Carried over accordion -->
+    <CarriedOverGroup
+      v-if="carried.length > 0"
+      collection="tasks"
+      :count="carried.length"
+      :subtitle="carriedSubtitle"
+    >
+      <div v-for="t in carried" :key="t.id" :style="parentCardStyle">
+        <div
+          :style="[rowStyle(t), nestHighlight(t.id)]"
+          v-hover-style="s.rowHover"
+          :data-nest-id="t.id"
+          data-nest-collection="tasks"
+          @dragover="onRowDragOver"
+          @drop="onGripDrop($event, t)"
+        >
+          <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
+          <span
+            :style="s.grip"
+            role="button"
+            aria-label="Drag to nest"
+            title="Drag to nest"
+            @pointerdown="onGripDown($event, t)"
+            ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+          ></span>
+          <div :style="s.taskMain" @click="onRowClick(t)" @dblclick="onRowDblClick(t)">
+            <span :style="textStyle(t)">{{ t.title }}</span>
+            <div :style="s.chipRow">
+              <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+              <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
+                >rolled over ×{{ t.rolloverCount }}</span
+              >
             </div>
-            <TransitionGroup v-else name="rowflip" tag="div" :style="rowsWrap">
-              <div v-for="t in topRows(g)" :key="t.id" :style="parentCardStyle">
-                <div
-                  :style="[rowStyle(t), nestHighlight(t.id)]"
-                  v-hover-style="s.rowHover"
-                  :data-nest-id="t.id"
-                  data-nest-collection="tasks"
-                  draggable="true"
-                  @dragstart="onDragStart($event, t)"
-                  @dragend="onDragEnd"
-                  @dragover="onRowDragOver"
-                  @drop="onRowDrop($event, t)"
-                  @click="onRowClick(t)"
-                  @dblclick="onRowDblClick(t)"
+          </div>
+          <RemindBell collection="tasks" :id="t.id" />
+          <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+          <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">×</button>
+        </div>
+      </div>
+    </CarriedOverGroup>
+
+    <!-- 2. Active items, flat -->
+    <TransitionGroup name="rowflip" tag="div" :style="rowsWrap">
+      <div v-for="t in active" :key="t.id" :style="parentCardStyle">
+        <div
+          :style="[rowStyle(t), nestHighlight(t.id)]"
+          v-hover-style="s.rowHover"
+          :data-nest-id="t.id"
+          data-nest-collection="tasks"
+          @dragover="onRowDragOver"
+          @drop="onGripDrop($event, t)"
+        >
+          <button
+            v-if="t.linked.length"
+            type="button"
+            :style="chevronStyle(t)"
+            :aria-label="expanded(t) ? 'Collapse linked' : 'Expand linked'"
+            :aria-expanded="expanded(t)"
+            @click.stop="toggleExpand(t)"
+          >
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              :stroke="c.dim"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="9 6 15 12 9 18" />
+            </svg>
+          </button>
+          <span
+            :style="s.grip"
+            role="button"
+            aria-label="Drag to nest"
+            title="Drag to nest"
+            @pointerdown="onGripDown($event, t)"
+            ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+          ></span>
+          <div :style="s.taskMain" @click="onRowClick(t)" @dblclick="onRowDblClick(t)">
+            <span :style="textStyle(t)">{{ t.title }}</span>
+            <div :style="s.chipRow">
+              <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+              <span v-if="dueLabel(t)" :style="dueChipStyle">due {{ dueLabel(t) }}</span>
+              <span v-if="t.repo" :style="repoChipStyle"
+                ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
+              >
+              <span v-if="t.linked.length" :style="linkChip" title="Linked items">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  :stroke="c.dim"
+                  stroke-width="1.9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
                 >
-                  <button
-                    v-if="t.linked.length"
-                    type="button"
-                    :style="chevronStyle(t)"
-                    :aria-label="expanded(t) ? 'Collapse linked' : 'Expand linked'"
-                    :aria-expanded="expanded(t)"
-                    @click.stop="toggleExpand(t)"
-                  >
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      :stroke="c.dim"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <polyline points="9 6 15 12 9 18" />
-                    </svg>
-                  </button>
-                  <span
-                    :style="s.grip"
-                    role="button"
-                    aria-label="Drag to nest"
-                    title="Drag to nest"
-                    @pointerdown="onGripDown($event, t)"
-                    ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-                  ></span>
-                  <div :style="s.taskMain">
-                    <span :style="textStyle(t)">{{ t.title }}</span>
-                    <div :style="s.chipRow">
-                      <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-                      <span v-if="t.repo" :style="repoChipStyle"
-                        ><span :style="repoDotStyle(t)"></span>{{ t.repo }}</span
-                      >
-                      <span v-if="t.linked.length" :style="linkChip" title="Linked items">
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          :stroke="c.dim"
-                          stroke-width="1.9"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="M9 12h6" />
-                          <path d="M10 8H8a4 4 0 0 0 0 8h2" />
-                          <path d="M14 8h2a4 4 0 0 1 0 8h-2" />
-                        </svg>
-                        {{ linkOf(t).done }}/{{ linkOf(t).total }}
-                      </span>
-                    </div>
-                  </div>
-                  <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-                  <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
-                  <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
-                    ×
-                  </button>
-                  <div v-if="t.linked.length" :style="linkLineWrap">
-                    <LinkProgressBar :done="linkOf(t).done" :total="linkOf(t).total" compact />
-                  </div>
-                </div>
+                  <path d="M9 12h6" />
+                  <path d="M10 8H8a4 4 0 0 0 0 8h2" />
+                  <path d="M14 8h2a4 4 0 0 1 0 8h-2" />
+                </svg>
+                {{ linkOf(t).done }}/{{ linkOf(t).total }}
+              </span>
+            </div>
+          </div>
+          <RemindBell collection="tasks" :id="t.id" />
+          <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+          <button :style="s.shareBtn" @click.stop="app.share('task', t)">↗</button>
+          <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">×</button>
+          <div v-if="t.linked.length" :style="linkLineWrap">
+            <LinkProgressBar :done="linkOf(t).done" :total="linkOf(t).total" compact />
+          </div>
+        </div>
 
-                <span v-if="orphanBreadcrumb(t)" :style="breadcrumbStyle">
-                  part of ‹{{ orphanBreadcrumb(t) }}›
-                </span>
+        <span v-if="orphanBreadcrumb(t)" :style="breadcrumbStyle">
+          part of ‹{{ orphanBreadcrumb(t) }}›
+        </span>
 
-                <div v-if="t.linked.length" :style="accBodyOuter(t)">
-                  <div :style="accBodyClip">
-                    <div :style="accBodyInner">
-                      <LinkedAccordion
-                        v-for="ch in t.linked"
-                        :key="ch.collection + ':' + ch.id"
-                        :item-ref="ch"
-                        :parent-ref="{ id: t.id, collection: 'tasks' }"
-                        :depth="0"
-                        :is-root="false"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </TransitionGroup>
+        <div v-if="t.linked.length" :style="accBodyOuter(t)">
+          <div :style="accBodyClip">
+            <div :style="accBodyInner">
+              <LinkedAccordion
+                v-for="ch in t.linked"
+                :key="ch.collection + ':' + ch.id"
+                :item-ref="ch"
+                :parent-ref="{ id: t.id, collection: 'tasks' }"
+                :depth="0"
+                :is-root="false"
+              />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </TransitionGroup>
+
+    <!-- 3. Completed section -->
+    <CompletedSection
+      v-if="!hideCompleted && completed.length > 0"
+      collection="tasks"
+      :count="completed.length"
+      :sort="completedSort"
+      clearable
+      @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
+      @clear="app.archiveCompleted('tasks')"
+    >
+      <div v-for="t in completed" :key="t.id" :style="rowStyle(t, true)">
+        <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+        <div :style="s.taskMain" @click="app.openTaskDialog(t.id)">
+          <span :style="textStyle(t)">{{ t.title }}</span>
+          <div :style="s.chipRow">
+            <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+            <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
+          </div>
+        </div>
+        <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">×</button>
+      </div>
+    </CompletedSection>
   </div>
 </template>

@@ -14,6 +14,9 @@ const { s } = useStyles()
 <template>
   <div :style="s.dayToolbar">
     <span :style="s.dayGroupLabelBase">{{ title }}</span>
+    <!-- Optional header actions (e.g. a link expand/collapse toggle) sit between
+         the title and the create button. -->
+    <slot name="actions" />
     <button :style="s.newBtn" v-hover-style="s.addBtnHover" @click="$emit('new')">
       + {{ newLabel }}
     </button>

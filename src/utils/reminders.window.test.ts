@@ -17,6 +17,8 @@ function reminder(start: string, repeat: Repeat = { type: 'none' }): Reminder {
     calEventId: null,
     lastFiredOcc: null,
     acknowledgedAt: null,
+    sourceRef: null,
+    cancelledAt: null,
     createdAt: 0,
     updatedAt: 0,
   }

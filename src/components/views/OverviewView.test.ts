@@ -26,6 +26,8 @@ function makeTask(id: number, over: Partial<Task> = {}): Task {
     completedAt: null,
     linked: [],
     parents: [],
+    reminderIds: [],
+    sourceRef: null,
     createdAt: 0,
     updatedAt: 0,
     ...over,
