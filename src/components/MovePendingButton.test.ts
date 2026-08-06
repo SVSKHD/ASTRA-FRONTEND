@@ -24,6 +24,8 @@ function overdueTask(id: number): Task {
     completedAt: null,
     linked: [],
     parents: [],
+    reminderIds: [],
+    sourceRef: null,
     createdAt: 0,
     updatedAt: 0,
   }
@@ -44,6 +46,8 @@ function overdueTodo(id: number): Todo {
     completedAt: null,
     linked: [],
     parents: [],
+    reminderIds: [],
+    sourceRef: null,
     createdAt: new Date(2020, 0, 1, 9).getTime(),
     updatedAt: 0,
   }

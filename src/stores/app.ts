@@ -62,6 +62,7 @@ import type {
   RepeatType,
   SecuritySettings,
   SharedView,
+  SourceRef,
   Task,
   Timestamped,
   Toast,
@@ -79,6 +80,47 @@ function rel(days: number): string {
 
 function isPriority(value: unknown): value is Priority {
   return value === 'low' || value === 'normal' || value === 'high'
+}
+
+// Sanitise a stored cross-collection back-pointer to a well-formed SourceRef, so
+// a malformed or legacy value reads as "created directly" rather than crashing
+// the bridge logic.
+function sourceRefOf(v: unknown): SourceRef | null {
+  if (!v || typeof v !== 'object') return null
+  const r = v as Partial<SourceRef>
+  if (typeof r.id !== 'number') return null
+  if (r.collection === 'todos' || r.collection === 'tasks' || r.collection === 'reminders') {
+    return { collection: r.collection, id: r.id }
+  }
+  return null
+}
+
+// A short, self-contained WebAudio chime for a firing reminder — no asset to
+// bundle or fetch, so it works offline. Silently no-ops where WebAudio is
+// unavailable (SSR, older browsers, autoplay-blocked before any interaction).
+function playReminderChime() {
+  try {
+    const Ctx =
+      (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
+        .AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(880, ctx.currentTime)
+    osc.frequency.setValueAtTime(1174, ctx.currentTime + 0.12)
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45)
+    osc.connect(gain).connect(ctx.destination)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.5)
+    osc.onended = () => void ctx.close()
+  } catch {
+    /* ignore — sound is a nicety, never a hard dependency */
+  }
 }
 
 function emptySecurity(): SecuritySettings {
@@ -116,6 +158,11 @@ export const useAppStore = defineStore('app', () => {
   // the last day it did, so it fires at most once per day per device-sync.
   const autoRollover = ref(false)
   const lastAutoRolloverDay = ref('')
+  // Done/Not-done split preferences. hideCompleted collapses the Completed
+  // section entirely for users who never want it; reminderSound plays a short
+  // tone alongside the browser notification when a reminder fires.
+  const hideCompleted = ref(false)
+  const reminderSound = ref(false)
   // Monthly-income settings for the expenses view (INR).
   const financeSettings = ref<FinanceSettings>(emptyFinanceSettings())
   // Draft-resume store (section 8). One in-progress draft per entity, keyed
@@ -295,6 +342,8 @@ export const useAppStore = defineStore('app', () => {
         rolledOverAt: null,
         rolloverCount: 0,
         completedAt: null,
+        reminderIds: [],
+        sourceRef: null,
         linked: [],
         parents: [],
         ...stamps(),
@@ -312,7 +361,10 @@ export const useAppStore = defineStore('app', () => {
     const cur = todos.value.find((t) => t.id === tid)
     if (!cur || cur.status === next) return
     todos.value = todos.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
-    if (next === 'done') fireBurst(tid)
+    if (next === 'done') {
+      fireBurst(tid)
+      cancelRemindersFor('todos', tid)
+    }
     // A shared todo's status is part of its public page; keep it in sync.
     syncShareIfPublic('todo', tid)
   }
@@ -343,6 +395,8 @@ export const useAppStore = defineStore('app', () => {
         rolledOverAt: null,
         rolloverCount: 0,
         completedAt: null,
+        reminderIds: [],
+        sourceRef: null,
         linked: [],
         parents: [],
         ...fields,
@@ -351,7 +405,10 @@ export const useAppStore = defineStore('app', () => {
     ]
   }
   function setTaskStatus(tid: number, next: ItemStatus) {
+    const cur = tasks.value.find((t) => t.id === tid)
+    if (!cur || cur.status === next) return
     tasks.value = tasks.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
+    if (next === 'done') cancelRemindersFor('tasks', tid)
   }
   function cycleTaskStatus(tid: number) {
     const cur = tasks.value.find((t) => t.id === tid)
@@ -560,6 +617,12 @@ export const useAppStore = defineStore('app', () => {
 
   function setAutoRollover(v: boolean) {
     autoRollover.value = v === true
+  }
+  function setHideCompleted(v: boolean) {
+    hideCompleted.value = v === true
+  }
+  function setReminderSound(v: boolean) {
+    reminderSound.value = v === true
   }
 
   // ---- Interlinked todos/tasks -------------------------------------------
@@ -1457,6 +1520,23 @@ export const useAppStore = defineStore('app', () => {
     // counterpart pointers — link resolution already ignores missing refs.)
     if (type === 'todo' || type === 'task') {
       cleanupLinksForDelete({ id: itemId, collection: type === 'todo' ? 'todos' : 'tasks' })
+      // Linked reminders are deleted in the same batch — a reminder that points
+      // at a todo makes no sense once the todo is gone. Their calendar events go
+      // with them; Undo restores the item but not these (a resurrected reminder
+      // would re-create fresh events), matching how link pointers aren't restored.
+      const linkedReminderIds = (item as unknown as Todo | Task).reminderIds ?? []
+      if (linkedReminderIds.length) {
+        const gone = new Set(linkedReminderIds)
+        for (const r of reminders.value) {
+          if (gone.has(r.id) && r.calEventId) {
+            void deleteEvent(r.calEventId).catch((error) => {
+              if (error instanceof CalendarAuthError) calendarNeedsAuth.value = true
+              console.error('[Aureon] Calendar delete on linked-reminder delete failed:', error)
+            })
+          }
+        }
+        reminders.value = reminders.value.filter((r) => !gone.has(r.id))
+      }
     }
     // Deleting a reminder must also remove its Google Calendar event, otherwise
     // the event outlives the reminder with nothing left pointing at it. Undo
@@ -1609,6 +1689,8 @@ export const useAppStore = defineStore('app', () => {
           rolledOverAt: null,
           rolloverCount: 0,
           completedAt: null,
+          reminderIds: [],
+          sourceRef: null,
           linked: [],
           parents: [],
           ...stamps(),
@@ -1629,6 +1711,8 @@ export const useAppStore = defineStore('app', () => {
           rolledOverAt: null,
           rolloverCount: 0,
           completedAt: null,
+          reminderIds: [],
+          sourceRef: null,
           linked: [],
           parents: [],
           ...stamps(),
@@ -1755,6 +1839,8 @@ export const useAppStore = defineStore('app', () => {
         rolledOverAt: null,
         rolloverCount: 0,
         completedAt: null,
+        reminderIds: [],
+        sourceRef: null,
         linked: [],
         parents: [],
         ...stamps(),
@@ -2154,6 +2240,7 @@ export const useAppStore = defineStore('app', () => {
     repeat: Repeat
     priority?: Priority
     addToCalendar?: boolean
+    sourceRef?: SourceRef | null
   }) {
     const t = payload.title.trim()
     if (!t || !payload.start) return
@@ -2168,6 +2255,8 @@ export const useAppStore = defineStore('app', () => {
       calEventId: null,
       lastFiredOcc: null,
       acknowledgedAt: null,
+      sourceRef: payload.sourceRef ?? null,
+      cancelledAt: null,
       ...stamps(),
     }
     reminders.value = [...reminders.value, created]
@@ -2192,6 +2281,177 @@ export const useAppStore = defineStore('app', () => {
   }
   function patchReminder(rid: number, patch: Partial<Reminder>) {
     reminders.value = reminders.value.map((r) => (r.id === rid ? { ...r, ...patch } : r))
+  }
+
+  // ---- Todo/Task ↔ Reminder bridge ----------------------------------------
+  // "Remind me" on a todo/task creates a reminder that points back rather than
+  // duplicating the item; completing the item cancels those reminders; and the
+  // reverse ("Create todo from this") sets the same back-pointer the other way.
+  function sourceItem(collection: LinkCollection, itemId: number): Todo | Task | undefined {
+    const list: readonly (Todo | Task)[] = collection === 'todos' ? todos.value : tasks.value
+    return list.find((x) => x.id === itemId)
+  }
+  function reminderTitleOf(item: Todo | Task): string {
+    return 'text' in item ? item.text : item.title
+  }
+  // Add a reminder id to a source item's forward index, branching on the
+  // collection so each list is written as its own concrete type.
+  function indexReminderOnItem(collection: LinkCollection, itemId: number, rid: number) {
+    if (collection === 'todos') {
+      todos.value = todos.value.map((x) =>
+        x.id === itemId ? touched({ ...x, reminderIds: [...x.reminderIds, rid] }) : x,
+      )
+    } else {
+      tasks.value = tasks.value.map((x) =>
+        x.id === itemId ? touched({ ...x, reminderIds: [...x.reminderIds, rid] }) : x,
+      )
+    }
+  }
+
+  // Create a reminder from a todo/task. The reminder inherits the item's title,
+  // carries a sourceRef back to it, and its id is indexed on the item so the row
+  // can show a bell chip and completion can cancel it. Returns the reminder id.
+  function createReminderFromItem(
+    collection: LinkCollection,
+    itemId: number,
+    payload: { start: string; repeat?: Repeat; note?: string; priority?: Priority },
+  ): number | undefined {
+    const src = sourceItem(collection, itemId)
+    if (!src || !payload.start) return
+    const rid = addReminder({
+      title: reminderTitleOf(src),
+      note: payload.note ?? '',
+      start: payload.start,
+      repeat: payload.repeat ?? { type: 'none' },
+      priority: payload.priority ?? 'normal',
+      sourceRef: { collection, id: itemId },
+    })
+    if (rid == null) return
+    indexReminderOnItem(collection, itemId, rid)
+    return rid
+  }
+
+  // Apply one schedule to many items in a single pass — the bulk "Remind me".
+  function createRemindersForItems(
+    collection: LinkCollection,
+    itemIds: number[],
+    payload: { start: string; repeat?: Repeat; note?: string; priority?: Priority },
+  ): number {
+    let made = 0
+    for (const itemId of itemIds) if (createReminderFromItem(collection, itemId, payload) != null) made++
+    return made
+  }
+
+  // Completing a todo/task auto-acknowledges its pending reminders and cancels
+  // their future occurrences, so a done item stops nagging. Kept idempotent by
+  // the cancelledAt guard.
+  function cancelRemindersFor(collection: LinkCollection, itemId: number) {
+    const src = sourceItem(collection, itemId)
+    const ids = src?.reminderIds ?? []
+    if (!ids.length) return
+    const at = Date.now()
+    const set = new Set(ids)
+    let cancelled = 0
+    reminders.value = reminders.value.map((r) => {
+      if (!set.has(r.id) || r.cancelledAt != null) return r
+      cancelled++
+      return { ...r, acknowledgedAt: at, cancelledAt: at }
+    })
+    if (activeNotif.value && set.has(activeNotif.value.id)) activeNotif.value = null
+    if (cancelled) {
+      showToastMsg('Reminder cancelled — ' + (collection === 'todos' ? 'todo' : 'task') + ' completed')
+    }
+  }
+
+  // Acknowledge a specific reminder (the Up next band's Acknowledge, distinct
+  // from dismissing the active banner). Does NOT complete the source item.
+  function acknowledgeReminder(rid: number, at: number = Date.now()) {
+    reminders.value = reminders.value.map((r) => (r.id === rid ? { ...r, acknowledgedAt: at } : r))
+    if (activeNotif.value?.id === rid) activeNotif.value = null
+  }
+
+  // Snooze a specific reminder by `mins`. A one-off simply slides its start
+  // forward; a repeat acknowledges this occurrence and spawns a one-off snooze
+  // that keeps the source link so it's still cancelled if the item completes.
+  function snoozeReminder(rid: number, mins: number) {
+    const r = reminders.value.find((x) => x.id === rid)
+    if (!r) return
+    const when = new Date(Date.now() + mins * 60000).toISOString().slice(0, 16)
+    const repeats = !!r.repeat && r.repeat.type !== 'none'
+    if (!repeats) {
+      patchReminder(rid, { start: when, acknowledgedAt: null, lastFiredOcc: null, cancelledAt: null })
+      if (activeNotif.value?.id === rid) activeNotif.value = null
+      return
+    }
+    acknowledgeReminder(rid)
+    const newId = addReminder({
+      title: r.title,
+      note: r.note,
+      start: when,
+      repeat: { type: 'none' },
+      priority: r.priority,
+      sourceRef: r.sourceRef,
+    })
+    const sr = r.sourceRef
+    if (newId != null && sr && (sr.collection === 'todos' || sr.collection === 'tasks')) {
+      indexReminderOnItem(sr.collection, sr.id, newId)
+    }
+  }
+
+  // Skip this occurrence: a one-off is cancelled outright; a repeat just
+  // acknowledges the current occurrence, leaving the next scheduled.
+  function skipReminder(rid: number) {
+    const r = reminders.value.find((x) => x.id === rid)
+    if (!r) return
+    const at = Date.now()
+    if (!r.repeat || r.repeat.type === 'none') {
+      patchReminder(rid, { acknowledgedAt: at, cancelledAt: at })
+      if (activeNotif.value?.id === rid) activeNotif.value = null
+    } else {
+      acknowledgeReminder(rid, at)
+    }
+  }
+
+  // The acknowledge sheet's one-tap "Mark todo done too": complete the reminder's
+  // source item, which in turn cancels the reminder through the normal path.
+  function completeReminderSource(rid: number) {
+    const r = reminders.value.find((x) => x.id === rid)
+    const sr = r?.sourceRef
+    if (!sr) return
+    if (sr.collection === 'todos') setTodoStatus(sr.id, 'done')
+    else if (sr.collection === 'tasks') setTaskStatus(sr.id, 'done')
+  }
+
+  // Reverse direction: create a todo from a reminder, setting sourceRef the other
+  // way so the two stay traceable. Returns the new todo id.
+  function createTodoFromReminder(rid: number): number | undefined {
+    const r = reminders.value.find((x) => x.id === rid)
+    if (!r) return
+    const newId = id()
+    todos.value = [
+      ...todos.value,
+      {
+        id: newId,
+        text: r.title,
+        done: false,
+        status: 'pending',
+        tag: '',
+        description: r.note,
+        isPublic: false,
+        shareId: null,
+        sharedAt: null,
+        rolledOverAt: null,
+        rolloverCount: 0,
+        completedAt: null,
+        reminderIds: [],
+        sourceRef: { collection: 'reminders', id: rid },
+        linked: [],
+        parents: [],
+        ...stamps(),
+      },
+    ]
+    showToastMsg('Todo created from reminder')
+    return newId
   }
 
   // Creates the event if the reminder has none, otherwise patches the existing
@@ -2265,11 +2525,13 @@ export const useAppStore = defineStore('app', () => {
         /* ignore */
       }
     }
+    if (reminderSound.value) playReminderChime()
   }
   function checkReminders() {
     const now = Date.now()
     let fired = false
     const updated = reminders.value.map((r) => {
+      if (r.cancelledAt != null) return r
       const { last } = occurrences(r, now)
       if (last && now - last < 90000 && r.lastFiredOcc !== last) {
         fired = true
@@ -2297,6 +2559,8 @@ export const useAppStore = defineStore('app', () => {
         calEventId: null,
         lastFiredOcc: null,
         acknowledgedAt: null,
+        sourceRef: null,
+        cancelledAt: null,
         ...stamps(),
       },
     ]
@@ -2338,6 +2602,8 @@ export const useAppStore = defineStore('app', () => {
       approvedPRs: approvedPRs.value,
       autoRollover: autoRollover.value,
       lastAutoRolloverDay: lastAutoRolloverDay.value,
+      hideCompleted: hideCompleted.value,
+      reminderSound: reminderSound.value,
       financeSettings: financeSettings.value,
       drafts: drafts.value,
       aiChats: aiChats.value,
@@ -2369,6 +2635,8 @@ export const useAppStore = defineStore('app', () => {
     railCollapsed.value = false
     autoRollover.value = false
     lastAutoRolloverDay.value = ''
+    hideCompleted.value = false
+    reminderSound.value = false
     financeSettings.value = emptyFinanceSettings()
     drafts.value = {}
     aiChats.value = []
@@ -2445,6 +2713,11 @@ export const useAppStore = defineStore('app', () => {
       rolloverCount: typeof t.rolloverCount === 'number' ? t.rolloverCount : 0,
       // Completion stamp + links, backfilled for todos written before them.
       completedAt: typeof t.completedAt === 'number' ? t.completedAt : null,
+      // Reminder bridge, backfilled for todos written before "Remind me".
+      reminderIds: Array.isArray(t.reminderIds)
+        ? t.reminderIds.filter((n) => typeof n === 'number')
+        : [],
+      sourceRef: sourceRefOf(t.sourceRef),
       linked: linkList(t.linked),
       parents: linkList(t.parents),
     }))
@@ -2457,6 +2730,10 @@ export const useAppStore = defineStore('app', () => {
         rolledOverAt: typeof t.rolledOverAt === 'number' ? t.rolledOverAt : null,
         rolloverCount: typeof t.rolloverCount === 'number' ? t.rolloverCount : 0,
         completedAt: typeof t.completedAt === 'number' ? t.completedAt : null,
+        reminderIds: Array.isArray(t.reminderIds)
+          ? t.reminderIds.filter((n) => typeof n === 'number')
+          : [],
+        sourceRef: sourceRefOf(t.sourceRef),
         linked: linkList(t.linked),
         parents: linkList(t.parents),
       }))
@@ -2470,6 +2747,8 @@ export const useAppStore = defineStore('app', () => {
       priority: isPriority(r.priority) ? r.priority : 'normal',
       acknowledgedAt: typeof r.acknowledgedAt === 'number' ? r.acknowledgedAt : null,
       calEventId: typeof r.calEventId === 'string' ? r.calEventId : null,
+      sourceRef: sourceRefOf(r.sourceRef),
+      cancelledAt: typeof r.cancelledAt === 'number' ? r.cancelledAt : null,
     }))
     // Trips gained a title, status, places, photos and attached notes after the
     // first release; older trips carry only { date, location }. Backfill each
@@ -2545,6 +2824,8 @@ export const useAppStore = defineStore('app', () => {
     autoRollover.value = data.autoRollover === true
     lastAutoRolloverDay.value =
       typeof data.lastAutoRolloverDay === 'string' ? data.lastAutoRolloverDay : ''
+    hideCompleted.value = data.hideCompleted === true
+    reminderSound.value = data.reminderSound === true
     // Finance settings: merge onto the empty shape so a partial or legacy doc
     // still yields a well-formed object, and coerce the income map's values to
     // numbers.
@@ -2735,6 +3016,8 @@ export const useAppStore = defineStore('app', () => {
         approvedPRs,
         autoRollover,
         lastAutoRolloverDay,
+        hideCompleted,
+        reminderSound,
         financeSettings,
         drafts,
         aiChats,
@@ -2775,6 +3058,8 @@ export const useAppStore = defineStore('app', () => {
     themeSetting,
     railCollapsed,
     autoRollover,
+    hideCompleted,
+    reminderSound,
     financeSettings,
     cloudReady,
     cloudError,
@@ -2839,7 +3124,18 @@ export const useAppStore = defineStore('app', () => {
     movePendingToToday,
     undoMovePending,
     setAutoRollover,
+    setHideCompleted,
+    setReminderSound,
     runAutoRolloverIfDue,
+    // Todo/Task ↔ Reminder bridge
+    createReminderFromItem,
+    createRemindersForItems,
+    cancelRemindersFor,
+    acknowledgeReminder,
+    snoozeReminder,
+    skipReminder,
+    completeReminderSource,
+    createTodoFromReminder,
     linkableById,
     canLinkItems,
     linkItems,

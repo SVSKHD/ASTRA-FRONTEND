@@ -187,6 +187,8 @@ const sharedReminder = computed<Reminder | null>(() => {
     calEventId: null,
     lastFiredOcc: null,
     acknowledgedAt: null,
+    sourceRef: null,
+    cancelledAt: null,
     // A share is a frozen snapshot; it carries no stamps of its own, and the
     // timeline does not read them. 0 is the "unknown" sentinel.
     createdAt: Number(raw.createdAt ?? 0),

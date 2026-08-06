@@ -139,6 +139,17 @@ export interface LinkRef {
   collection: LinkCollection
 }
 
+// A cross-collection back-pointer used by the todo↔reminder bridge: a reminder
+// created from a todo carries a sourceRef into 'todos'|'tasks', and a todo
+// created from a reminder carries one into 'reminders'. Unlike LinkRef it can
+// span the reminder collection, so it is its own type rather than a widened
+// LinkRef. Null when the item was created directly.
+export type SourceCollection = 'todos' | 'tasks' | 'reminders'
+export interface SourceRef {
+  collection: SourceCollection
+  id: number
+}
+
 // Both linkable item types carry these; backfilled to [] / null on read.
 export interface Linkable {
   linked: LinkRef[]
@@ -182,6 +193,13 @@ export interface Todo extends Timestamped, Shareable, Linkable {
   // on read for todos written before these existed.
   rolledOverAt: number | null
   rolloverCount: number
+  // Reminders spawned from this todo (the "Remind me" bell). The reminder docs
+  // point back via their own sourceRef; this is the forward index so the row can
+  // show a bell chip and completing the todo can cancel them. Backfilled to [].
+  reminderIds: number[]
+  // Set when this todo was created from a reminder ("Create todo from this");
+  // null otherwise. Backfilled on read.
+  sourceRef: SourceRef | null
 }
 
 export interface Task extends Timestamped, Linkable {
@@ -202,6 +220,10 @@ export interface Task extends Timestamped, Linkable {
   // When the task last entered `done` (for month-fulfilment counting); null
   // while not done. Backfilled on read.
   completedAt: number | null
+  // Reminders spawned from this task, mirroring Todo.reminderIds. Backfilled.
+  reminderIds: number[]
+  // Set when this task was created from a reminder; null otherwise. Backfilled.
+  sourceRef: SourceRef | null
 }
 
 export interface Deadline extends Timestamped {
@@ -241,6 +263,14 @@ export interface Reminder extends Timestamped {
   // When the user last acknowledged (dismissed) this reminder's notification —
   // the "fulfilled" signal for the monthly overview. Null until acknowledged.
   acknowledgedAt: number | null
+  // Set when this reminder was created from a todo/task ("Remind me"); the row
+  // shows a "from Todo: …" chip linking back, and completing that todo cancels
+  // this reminder. Null for a directly-created reminder. Backfilled on read.
+  sourceRef: SourceRef | null
+  // A reminder whose future occurrences have been cancelled (source todo
+  // completed, or "Skip" pressed) — it stops firing and drops out of Up next but
+  // is kept so Undo/history still resolve it. Backfilled to false.
+  cancelledAt: number | null
 }
 
 // Ideas carry an editable type. These are the suggested values; the store keeps
