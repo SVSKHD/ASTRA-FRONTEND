@@ -9,8 +9,6 @@
 // whether it counts as carried over) and get back the three regions plus the
 // progress tally the liquid bar renders.
 
-import type { ItemStatus } from '@/types'
-
 export interface ListStats {
   done: number
   total: number
@@ -54,10 +52,7 @@ function pct(done: number, total: number): number {
   return total === 0 ? 0 : Math.round((done / total) * 100)
 }
 
-export function splitList<T extends { status?: ItemStatus }>(
-  items: readonly T[],
-  opts: SplitOptions<T>,
-): SplitResult<T> {
+export function splitList<T>(items: readonly T[], opts: SplitOptions<T>): SplitResult<T> {
   const completedAt = opts.completedAt ?? (() => null)
   const archivedAt = opts.archivedAt ?? (() => null)
   const live = items.filter((it) => archivedAt(it) == null)
