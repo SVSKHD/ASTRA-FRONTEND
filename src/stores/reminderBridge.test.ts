@@ -123,3 +123,18 @@ describe('todo ↔ reminder bridge', () => {
     expect(app.reminders.find((r) => r.id === repeat)!.acknowledgedAt).not.toBeNull()
   })
 })
+
+describe('archiveCompleted', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('archives only done todos, leaving pending ones live', () => {
+    const app = useAppStore()
+    app.todos = [
+      makeTodo({ id: 1, status: 'done', done: true, completedAt: Date.now() }),
+      makeTodo({ id: 2, status: 'pending' }),
+    ]
+    app.archiveCompleted('todos')
+    expect(app.todos.find((t) => t.id === 1)!.archivedAt).toBeTypeOf('number')
+    expect(app.todos.find((t) => t.id === 2)!.archivedAt ?? null).toBeNull()
+  })
+})
