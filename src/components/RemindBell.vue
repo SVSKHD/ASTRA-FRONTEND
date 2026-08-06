@@ -252,11 +252,18 @@ const backdrop = pxify({ position: 'fixed', inset: 0, zIndex: 20 })
         </button>
         <div :style="rowFlex">
           <select :style="selectStyle" v-model="repeat" aria-label="Repeat">
-            <option v-for="o in repeatOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+            <option v-for="o in repeatOptions" :key="o.value" :value="o.value">
+              {{ o.label }}
+            </option>
           </select>
         </div>
         <div :style="rowFlex">
-          <input :style="customInput" type="datetime-local" v-model="customStart" aria-label="Custom date and time" />
+          <input
+            :style="customInput"
+            type="datetime-local"
+            v-model="customStart"
+            aria-label="Custom date and time"
+          />
           <button :style="setBtn" :disabled="!customStart" @click="chooseCustom">Set</button>
         </div>
       </div>

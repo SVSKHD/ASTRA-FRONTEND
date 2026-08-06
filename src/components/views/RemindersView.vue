@@ -193,11 +193,7 @@ function chevronStyle(open: boolean) {
     <div v-if="reminders.length === 0" :style="s.empty">No reminders set.</div>
     <div :style="s.list">
       <div v-for="it in activeView" :key="it.id" :style="rowWrapStyle">
-        <div
-          :style="rowStyle()"
-          v-hover-style="s.rowHover"
-          @click="app.openReminderDialog(it.id)"
-        >
+        <div :style="rowStyle()" v-hover-style="s.rowHover" @click="app.openReminderDialog(it.id)">
           <div :style="s.taskMain">
             <span :style="s.dlTitle">{{ it.title }}</span>
             <span :style="s.dlDate">{{ it.freqLabel }} · next {{ it.nextLabel }}</span>

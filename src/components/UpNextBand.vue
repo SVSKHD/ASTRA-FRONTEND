@@ -162,7 +162,12 @@ const sourceChip = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const actionsCol = pxify({ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' })
+const actionsCol = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  alignItems: 'flex-end',
+})
 const actionRow = pxify({ display: 'flex', gap: 6 })
 function btn(kind: 'primary' | 'ghost') {
   return pxify({

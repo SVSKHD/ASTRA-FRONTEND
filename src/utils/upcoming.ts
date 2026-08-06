@@ -135,7 +135,11 @@ export function relLabel(ms: number): string {
 
 // The bell-chip label on a todo/task row: the soonest not-yet-cancelled reminder
 // among `ids`, as a coarse "in 3h". Null when none are pending in the future.
-export function bellChipLabel(reminders: readonly Reminder[], ids: number[], now: number): string | null {
+export function bellChipLabel(
+  reminders: readonly Reminder[],
+  ids: number[],
+  now: number,
+): string | null {
   const soonest = soonestFireAmong(reminders, ids, now)
   return soonest == null ? null : relLabel(soonest - now)
 }

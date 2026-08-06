@@ -86,7 +86,12 @@ const bodyOuter = computed(() =>
   }),
 )
 const bodyClip = pxify({ overflow: 'hidden', minHeight: 0 })
-const bodyInner = pxify({ display: 'flex', flexDirection: 'column', gap: 9, padding: '4px 10px 12px' })
+const bodyInner = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 9,
+  padding: '4px 10px 12px',
+})
 const sortLabel = computed(() =>
   props.sort === 'recent' ? 'Recently completed' : 'Original order',
 )

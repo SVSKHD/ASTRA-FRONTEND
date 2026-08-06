@@ -101,8 +101,12 @@ function sourceRefOf(v: unknown): SourceRef | null {
 function playReminderChime() {
   try {
     const Ctx =
-      (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext })
-        .AudioContext ||
+      (
+        window as unknown as {
+          AudioContext?: typeof AudioContext
+          webkitAudioContext?: typeof AudioContext
+        }
+      ).AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!Ctx) return
     const ctx = new Ctx()
@@ -617,6 +621,20 @@ export const useAppStore = defineStore('app', () => {
 
   function setAutoRollover(v: boolean) {
     autoRollover.value = v === true
+  }
+  // "Clear completed": archive (not delete) every done item in a collection, so
+  // it drops out of the list but still counts in Overview and Calendar.
+  function archiveCompleted(collection: LinkCollection) {
+    const at = Date.now()
+    if (collection === 'todos') {
+      todos.value = todos.value.map((t) =>
+        t.status === 'done' && t.archivedAt == null ? { ...t, archivedAt: at } : t,
+      )
+    } else {
+      tasks.value = tasks.value.map((t) =>
+        t.status === 'done' && t.archivedAt == null ? { ...t, archivedAt: at } : t,
+      )
+    }
   }
   function setHideCompleted(v: boolean) {
     hideCompleted.value = v === true
@@ -2338,7 +2356,8 @@ export const useAppStore = defineStore('app', () => {
     payload: { start: string; repeat?: Repeat; note?: string; priority?: Priority },
   ): number {
     let made = 0
-    for (const itemId of itemIds) if (createReminderFromItem(collection, itemId, payload) != null) made++
+    for (const itemId of itemIds)
+      if (createReminderFromItem(collection, itemId, payload) != null) made++
     return made
   }
 
@@ -2359,7 +2378,9 @@ export const useAppStore = defineStore('app', () => {
     })
     if (activeNotif.value && set.has(activeNotif.value.id)) activeNotif.value = null
     if (cancelled) {
-      showToastMsg('Reminder cancelled — ' + (collection === 'todos' ? 'todo' : 'task') + ' completed')
+      showToastMsg(
+        'Reminder cancelled — ' + (collection === 'todos' ? 'todo' : 'task') + ' completed',
+      )
     }
   }
 
@@ -2379,7 +2400,12 @@ export const useAppStore = defineStore('app', () => {
     const when = new Date(Date.now() + mins * 60000).toISOString().slice(0, 16)
     const repeats = !!r.repeat && r.repeat.type !== 'none'
     if (!repeats) {
-      patchReminder(rid, { start: when, acknowledgedAt: null, lastFiredOcc: null, cancelledAt: null })
+      patchReminder(rid, {
+        start: when,
+        acknowledgedAt: null,
+        lastFiredOcc: null,
+        cancelledAt: null,
+      })
       if (activeNotif.value?.id === rid) activeNotif.value = null
       return
     }
@@ -3126,6 +3152,7 @@ export const useAppStore = defineStore('app', () => {
     setAutoRollover,
     setHideCompleted,
     setReminderSound,
+    archiveCompleted,
     runAutoRolloverIfDue,
     // Todo/Task ↔ Reminder bridge
     createReminderFromItem,

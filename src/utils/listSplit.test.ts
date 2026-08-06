@@ -10,7 +10,12 @@ interface Row {
 
 const TODAY = '2026-08-06'
 
-function row(id: number, status: Row['status'], day: string, completedAt: number | null = null): Row {
+function row(
+  id: number,
+  status: Row['status'],
+  day: string,
+  completedAt: number | null = null,
+): Row {
   return { id, status, day, completedAt }
 }
 

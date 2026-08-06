@@ -4,7 +4,7 @@
 // accordion when anything is pending from before today, then today's active
 // items flat, then a collapsed "Completed" section. Drag-to-nest, linked
 // accordions and the new "Remind me" bell all keep working inside every region.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
@@ -48,13 +48,15 @@ function dayOf(t: Todo): string {
 const nestedIds = computed(() => nestedChildIds('todos', todos.value))
 const topLevel = computed(() => todos.value.filter((t) => !nestedIds.value.has(t.id)))
 
+const completedSort = ref<'recent' | 'original'>('recent')
 const split = computed(() =>
   splitList(topLevel.value, {
     isDone: (t) => t.status === 'done',
     isCarried: (t) => isOverdueTodo(t, todayStr.value),
     completedAt: (t) => t.completedAt,
+    archivedAt: (t) => t.archivedAt ?? null,
     completedOnDay: todayStr.value, // Completed shows what was done today
-    completedSort: 'recent',
+    completedSort: completedSort.value,
   }),
 )
 // Carried oldest-first by original day; today's active in list order.
@@ -69,7 +71,10 @@ const carriedSubtitle = computed(() => oldestFromLabel(carried.value.map(dayOf))
 function onGripDown(e: PointerEvent, t: Todo) {
   e.preventDefault()
   e.stopPropagation()
-  startDrag([{ id: t.id, collection: 'todos' }], e, { title: t.text || '(untitled)', badge: 'Todo' })
+  startDrag([{ id: t.id, collection: 'todos' }], e, {
+    title: t.text || '(untitled)',
+    badge: 'Todo',
+  })
 }
 function nestHighlight(id: number) {
   const ts = targetState({ id, collection: 'todos' } as LinkRef)
@@ -411,7 +416,10 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
       v-if="!hideCompleted && completed.length > 0"
       collection="todos"
       :count="completed.length"
-      sort="recent"
+      :sort="completedSort"
+      clearable
+      @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
+      @clear="app.archiveCompleted('todos')"
     >
       <div v-for="t in completed" :key="t.id" :style="rowStyle(true)">
         <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">

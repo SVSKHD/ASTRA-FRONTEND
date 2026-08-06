@@ -95,7 +95,12 @@ describe('todo ↔ reminder bridge', () => {
 
   it('reverse: create a todo from a reminder sets the back-pointer', () => {
     const app = useAppStore()
-    const rid = app.addReminder({ title: 'Pay rent', note: '', start: SOON, repeat: { type: 'none' } })!
+    const rid = app.addReminder({
+      title: 'Pay rent',
+      note: '',
+      start: SOON,
+      repeat: { type: 'none' },
+    })!
     const tid = app.createTodoFromReminder(rid)!
     const todo = app.todos.find((t) => t.id === tid)!
     expect(todo.text).toBe('Pay rent')
@@ -105,7 +110,12 @@ describe('todo ↔ reminder bridge', () => {
   it('skip cancels a one-off reminder but only acknowledges a repeat', () => {
     const app = useAppStore()
     const oneOff = app.addReminder({ title: 'A', note: '', start: SOON, repeat: { type: 'none' } })!
-    const repeat = app.addReminder({ title: 'B', note: '', start: SOON, repeat: { type: 'days', n: 1 } })!
+    const repeat = app.addReminder({
+      title: 'B',
+      note: '',
+      start: SOON,
+      repeat: { type: 'days', n: 1 },
+    })!
     app.skipReminder(oneOff)
     app.skipReminder(repeat)
     expect(app.reminders.find((r) => r.id === oneOff)!.cancelledAt).not.toBeNull()

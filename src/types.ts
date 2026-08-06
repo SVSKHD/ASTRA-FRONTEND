@@ -200,6 +200,9 @@ export interface Todo extends Timestamped, Shareable, Linkable {
   // Set when this todo was created from a reminder ("Create todo from this");
   // null otherwise. Backfilled on read.
   sourceRef: SourceRef | null
+  // Set by "Clear completed": the item is hidden from the list but not deleted,
+  // so it still counts in Overview and Calendar. Absent = live.
+  archivedAt?: number | null
 }
 
 export interface Task extends Timestamped, Linkable {
@@ -224,6 +227,8 @@ export interface Task extends Timestamped, Linkable {
   reminderIds: number[]
   // Set when this task was created from a reminder; null otherwise. Backfilled.
   sourceRef: SourceRef | null
+  // Set by "Clear completed" (archive, not delete). Absent = live.
+  archivedAt?: number | null
 }
 
 export interface Deadline extends Timestamped {

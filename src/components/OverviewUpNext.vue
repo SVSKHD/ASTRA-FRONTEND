@@ -40,7 +40,8 @@ const tileStyle = computed(() =>
     borderRadius: 14,
     cursor: 'pointer',
     background: c.value.card,
-    border: '1px solid ' + (overdue.value ? danger.value : soon.value ? accent.value : c.value.border),
+    border:
+      '1px solid ' + (overdue.value ? danger.value : soon.value ? accent.value : c.value.border),
     boxShadow: dark.value ? '0 8px 24px rgba(0,0,0,0.25)' : '0 8px 24px rgba(80,90,160,0.1)',
   }),
 )
@@ -75,7 +76,12 @@ const mainCol = pxify({ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'c
 </script>
 
 <template>
-  <div :style="tileStyle" role="button" aria-label="Up next reminders" @click="ui.setTab('reminders')">
+  <div
+    :style="tileStyle"
+    role="button"
+    aria-label="Up next reminders"
+    @click="ui.setTab('reminders')"
+  >
     <div>
       <div :style="label">Up next</div>
       <div v-if="soonest" :style="bigStyle">{{ bigLabel }}</div>
@@ -83,9 +89,7 @@ const mainCol = pxify({ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'c
     <div :style="mainCol">
       <template v-if="soonest">
         <span :style="titleStyle">{{ soonest.reminder.title }}</span>
-        <span :style="metaStyle">
-          {{ list.length }} due in the next 24h
-        </span>
+        <span :style="metaStyle"> {{ list.length }} due in the next 24h </span>
       </template>
       <template v-else>
         <span :style="titleStyle">Nothing due soon</span>

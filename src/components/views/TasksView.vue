@@ -3,7 +3,7 @@
 // accordion for overdue tasks, today's active items flat (no per-deadline
 // grouping), then a collapsed Completed section. Drag-to-nest, linked
 // accordions, the repo/CI chip and the "Remind me" bell all keep working.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
@@ -42,13 +42,15 @@ function dayOf(t: Task): string {
 const nestedIds = computed(() => nestedChildIds('tasks', tasks.value))
 const topLevel = computed(() => tasks.value.filter((t) => !nestedIds.value.has(t.id)))
 
+const completedSort = ref<'recent' | 'original'>('recent')
 const split = computed(() =>
   splitList(topLevel.value, {
     isDone: (t) => t.status === 'done',
     isCarried: (t) => isOverdueTask(t, todayStr.value),
     completedAt: (t) => t.completedAt,
+    archivedAt: (t) => t.archivedAt ?? null,
     completedOnDay: todayStr.value,
-    completedSort: 'recent',
+    completedSort: completedSort.value,
   }),
 )
 const carried = computed(() =>
@@ -62,7 +64,10 @@ const carriedSubtitle = computed(() => oldestFromLabel(carried.value.map(dayOf))
 function onGripDown(e: PointerEvent, t: Task) {
   e.preventDefault()
   e.stopPropagation()
-  startDrag([{ id: t.id, collection: 'tasks' }], e, { title: t.title || '(untitled)', badge: 'Task' })
+  startDrag([{ id: t.id, collection: 'tasks' }], e, {
+    title: t.title || '(untitled)',
+    badge: 'Task',
+  })
 }
 function nestHighlight(id: number) {
   const ts = targetState({ id, collection: 'tasks' } as LinkRef)
@@ -258,9 +263,7 @@ const linkExpandBtn = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const dueChipStyle = computed(() =>
-  pxify({ fontSize: 10, color: c.value.dim, padding: '2px 0' }),
-)
+const dueChipStyle = computed(() => pxify({ fontSize: 10, color: c.value.dim, padding: '2px 0' }))
 function dueLabel(t: Task): string {
   if (!t.deadline) return ''
   return new Date(t.deadline + 'T00:00:00').toLocaleDateString(undefined, {
@@ -441,7 +444,10 @@ function onRowDragOver(e: DragEvent) {
       v-if="!hideCompleted && completed.length > 0"
       collection="tasks"
       :count="completed.length"
-      sort="recent"
+      :sort="completedSort"
+      clearable
+      @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
+      @clear="app.archiveCompleted('tasks')"
     >
       <div v-for="t in completed" :key="t.id" :style="rowStyle(t, true)">
         <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
