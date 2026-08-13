@@ -34,12 +34,23 @@ textarea:focus,
 ::placeholder {
   opacity: 0.5;
 }
+/* Cross-cutting themed surfaces the inline JS styles cannot reach. The tokens
+   are set on :root by applyThemeToDom on every theme change; the fallbacks keep
+   things sane before the first paint / in the share pages. */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(150, 160, 220, 0.35);
+  background: var(--theme-border, rgba(150, 160, 220, 0.35));
   border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-dim, rgba(150, 160, 220, 0.5));
+}
+::selection {
+  background: var(--theme-accent, oklch(0.74 0.14 255));
+  color: var(--theme-on-accent, #fff);
 }
 .tab-scroll::-webkit-scrollbar {
   display: none;
