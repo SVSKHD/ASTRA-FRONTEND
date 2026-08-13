@@ -1,6 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { THEMES, computeAutoTheme, type ThemeKey, type Theme, type ThemeSetting } from '@/themes'
+import { applyThemeToDom } from '@/themes/apply'
 import { useAppStore } from '@/stores/app'
 import { TAB_ORDER } from '@/tabs.config'
 import type { ItemStatus, TabKey } from '@/types'
@@ -14,7 +15,7 @@ export type { ThemeSetting }
 export const useUiStore = defineStore('ui', () => {
   // The choice itself lives in the app store so it persists to the user's
   // Firestore document and comes back on refresh. This is a view onto it.
-  const { themeSetting, railCollapsed } = storeToRefs(useAppStore())
+  const { themeSetting, preferredDark, preferredLight, railCollapsed } = storeToRefs(useAppStore())
   const tab = ref<TabKey>('overview')
   const tabDir = ref<1 | -1>(1)
   const vw = ref<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
@@ -60,6 +61,14 @@ export const useUiStore = defineStore('ui', () => {
   )
   const theme = computed<Theme>(() => THEMES[effectiveThemeKey.value])
   const dark = computed(() => theme.value.group === 'dark')
+
+  // Push the resolved theme onto the document (data-theme, meta theme-color, CSS
+  // vars, localStorage mirror) so cross-cutting surfaces and the no-flash boot
+  // script track the choice. Immediate so it runs on first render, and it follows
+  // both an explicit change and the clock-driven 'auto' rotation.
+  watch([effectiveThemeKey, themeSetting], ([key, setting]) => applyThemeToDom(key, setting), {
+    immediate: true,
+  })
   const isMobile = computed(() => vw.value < 640)
   // Shell breakpoints for the rail rework (distinct from the 640px isMobile the
   // existing styles use). Phone gets the bottom bar; tablet portrait gets a
@@ -74,7 +83,21 @@ export const useUiStore = defineStore('ui', () => {
 
   function setTheme(k: ThemeSetting) {
     themeSetting.value = k
+    // Remember the last fixed theme picked in each family (ignoring the special
+    // themes, which have no opposite) so the quick toggle flips between the two
+    // the user actually likes. 'auto' resolves through effectiveThemeKey.
+    if (k !== 'auto') {
+      const g = THEMES[k]
+      if (g.group === 'dark' && !g.noGlass) preferredDark.value = k
+      else if (g.group === 'light') preferredLight.value = k
+    }
     themePanelOpen.value = false
+  }
+  // The header sun/moon: flip to the opposite family's remembered theme. From a
+  // dark theme (or auto currently resolving dark) → the preferred light one, and
+  // vice versa. Always lands on a concrete theme, never 'auto'.
+  function toggleThemeMode() {
+    setTheme(dark.value ? preferredLight.value : preferredDark.value)
   }
   function toggleThemePanel() {
     themePanelOpen.value = !themePanelOpen.value
@@ -126,7 +149,10 @@ export const useUiStore = defineStore('ui', () => {
     isDesktop,
     isDayTime,
     tabOrder: TAB_ORDER,
+    preferredDark,
+    preferredLight,
     setTheme,
+    toggleThemeMode,
     toggleThemePanel,
     toggleDrawer,
     toggleRail,
