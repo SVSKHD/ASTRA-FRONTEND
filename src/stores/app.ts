@@ -3,7 +3,7 @@ import { computed, ref, watch, type Ref } from 'vue'
 import { doc, getDoc, setDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
 import { AUREON_COLLECTION, auth, db, defaultLockMinutes, firebaseEnabled } from '@/firebase'
 import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
-import { isThemeSetting, type ThemeSetting } from '@/themes'
+import { isThemeSetting, isThemeKey, THEMES, type ThemeSetting, type ThemeKey } from '@/themes'
 import { isFirebaseUserAllowed } from '@/stores/auth'
 import { mockGithub } from '@/utils/github'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
@@ -184,6 +184,11 @@ export const useAppStore = defineStore('app', () => {
   // Theme is a per-user preference, so it rides along in the workspace doc and
   // is restored on refresh once the document lands. The ui store reads it.
   const themeSetting = ref<ThemeSetting>('auto')
+  // The last fixed theme the user picked in each family, so the header's
+  // sun/moon quick toggle can flip between "their dark" and "their light"
+  // instead of a hardcoded pair. Persisted alongside themeSetting.
+  const preferredDark = ref<ThemeKey>('deepSpace')
+  const preferredLight = ref<ThemeKey>('daylight')
   // Left-rail collapsed state — a per-user preference, persisted in the same
   // workspace doc so it comes back on refresh and across devices. The ui store
   // reads it; the rail's toggle writes it.
@@ -3123,6 +3128,8 @@ export const useAppStore = defineStore('app', () => {
       tags: tags.value,
       security: security.value,
       themeSetting: themeSetting.value,
+      preferredDark: preferredDark.value,
+      preferredLight: preferredLight.value,
       railCollapsed: railCollapsed.value,
       approvedPRs: approvedPRs.value,
       autoRollover: autoRollover.value,
@@ -3160,6 +3167,8 @@ export const useAppStore = defineStore('app', () => {
     approvedPRs.value = {}
     security.value = emptySecurity()
     themeSetting.value = 'auto'
+    preferredDark.value = 'deepSpace'
+    preferredLight.value = 'daylight'
     railCollapsed.value = false
     autoRollover.value = false
     lastAutoRolloverDay.value = ''
@@ -3405,6 +3414,18 @@ export const useAppStore = defineStore('app', () => {
     // Guard the stored value: a theme key removed in a later release must not
     // leave the ui store indexing THEMES with a key that no longer exists.
     themeSetting.value = isThemeSetting(data.themeSetting) ? data.themeSetting : 'auto'
+    // Only accept a stored preference whose family still matches (and isn't a
+    // special theme), so the quick toggle can never land on the wrong mode.
+    preferredDark.value =
+      isThemeKey(data.preferredDark) &&
+      THEMES[data.preferredDark].group === 'dark' &&
+      !THEMES[data.preferredDark].noGlass
+        ? data.preferredDark
+        : 'deepSpace'
+    preferredLight.value =
+      isThemeKey(data.preferredLight) && THEMES[data.preferredLight].group === 'light'
+        ? data.preferredLight
+        : 'daylight'
     railCollapsed.value = data.railCollapsed === true
     autoRollover.value = data.autoRollover === true
     lastAutoRolloverDay.value =
@@ -3600,6 +3621,8 @@ export const useAppStore = defineStore('app', () => {
         boardEdges,
         security,
         themeSetting,
+        preferredDark,
+        preferredLight,
         railCollapsed,
         approvedPRs,
         autoRollover,
@@ -3644,6 +3667,8 @@ export const useAppStore = defineStore('app', () => {
     tags,
     security,
     themeSetting,
+    preferredDark,
+    preferredLight,
     railCollapsed,
     autoRollover,
     hideCompleted,

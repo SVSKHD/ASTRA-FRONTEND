@@ -12,14 +12,14 @@ import { useAppStore } from '@/stores/app'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
-import { THEMES, LIGHT_THEME_KEYS, DARK_THEME_KEYS, type ThemeKey } from '@/themes'
+import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
 
 const ui = useUiStore()
 const auth = useAuthStore()
 const app = useAppStore()
 const lock = useLockStore()
 const { c, B } = useStyles()
-const { themePanelOpen, themeSetting, isDayTime, isPhone } = storeToRefs(ui)
+const { themePanelOpen, themeSetting, isPhone, dark } = storeToRefs(ui)
 const { avatarMenuOpen, avatarInitial, avatarName, avatarSub, avatarColor, ghMenuLabel } =
   storeToRefs(auth)
 const { security, autoRollover, hideCompleted, reminderSound } = storeToRefs(app)
@@ -33,6 +33,12 @@ const autoActive = computed(() => themeSetting.value === 'auto')
 function isThemeActive(key: ThemeKey) {
   return !autoActive.value && themeSetting.value === key
 }
+// The picker groups, straight from the registry (dark, light, special).
+const darkThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.mode === 'dark' && !t.special))
+const lightThemes = computed(() =>
+  THEME_DESCRIPTORS.filter((t) => t.mode === 'light' && !t.special),
+)
+const specialThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.special))
 function onAutoLockChange(e: Event) {
   lock.setAutoLock((e.target as HTMLInputElement).checked)
 }
@@ -111,19 +117,6 @@ const rightCluster = computed(() =>
 )
 const orbRel = pxify({ position: 'relative' })
 
-// Time-of-day orb face, reused from the old header's sun/moon.
-const themeFace = computed(() =>
-  pxify({
-    width: 22,
-    height: 22,
-    borderRadius: '50%',
-    background: isDayTime.value
-      ? 'radial-gradient(circle at 35% 35%, ' + c.value.accent + ' 0%, transparent 75%)'
-      : 'radial-gradient(circle at 35% 35%, #f0f0f8 0%, #c7c7d6 70%)',
-    boxShadow: isDayTime.value ? '0 0 12px ' + c.value.accent : '0 0 12px rgba(230,230,245,0.55)',
-    animation: isDayTime.value ? 'breathe 5s ease-in-out infinite' : 'none',
-  }),
-)
 const avatarDisc = computed(() =>
   pxify({
     width: 30,
@@ -155,6 +148,27 @@ const popover = computed(() =>
     display: 'flex',
     flexDirection: 'column',
     gap: 2,
+    zIndex: 20,
+    animation: 'fadeUp .22s ease both',
+  }),
+)
+// The Appearance picker is wider than the account menu to fit the card grid,
+// and scrolls if the theme list outgrows the viewport.
+const themePopover = computed(() =>
+  pxify({
+    position: 'absolute',
+    bottom: 'calc(100% + 10px)',
+    right: 0,
+    width: 268,
+    maxHeight: 'min(70vh, 520px)',
+    overflowY: 'auto',
+    background: c.value.glass,
+    backdropFilter: 'blur(28px) saturate(1.6)',
+    '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
+    border: B.value,
+    borderRadius: 18,
+    padding: 10,
+    boxShadow: c.value.shadow,
     zIndex: 20,
     animation: 'fadeUp .22s ease both',
   }),
@@ -191,6 +205,41 @@ const groupLabel = computed(() =>
     color: c.value.dim,
     padding: '6px 8px 2px',
   }),
+)
+// --- Appearance picker: a grid of theme cards, grouped dark / light / special.
+const pickerGrid = pxify({
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 6,
+  padding: '2px 2px 4px',
+})
+function themeCard(active: boolean) {
+  return pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    padding: 8,
+    borderRadius: 12,
+    border: '2px solid ' + (active ? c.value.accent : 'transparent'),
+    background: active ? c.value.card : 'transparent',
+    cursor: 'pointer',
+    textAlign: 'left',
+    width: '100%',
+  })
+}
+// The three preview swatches (surface / accent / card) stacked as a mini board.
+function cardSwatchRow(preview: readonly [string, string, string]) {
+  return pxify({
+    display: 'flex',
+    height: 22,
+    borderRadius: 7,
+    overflow: 'hidden',
+    border: '1px solid ' + c.value.border,
+    background: preview[0],
+  })
+}
+const cardName = computed(() =>
+  pxify({ fontSize: 11, fontWeight: 600, color: c.value.text, lineHeight: 1.1 }),
 )
 const rowText = computed(() => pxify({ fontSize: 12, color: c.value.text }))
 const menuItem = computed(() =>
@@ -273,17 +322,61 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
 
   <!-- Theme + account + GitHub cluster, bottom-right -->
   <div :style="rightCluster">
+    <!-- Quick dark/light toggle: flips between the user's last-chosen dark and
+         light themes without opening the picker. -->
+    <button
+      :style="orb"
+      v-hover-style="orbHover"
+      :aria-label="dark ? 'Switch to light theme' : 'Switch to dark theme'"
+      @click="ui.toggleThemeMode()"
+    >
+      <svg
+        v-if="dark"
+        width="19"
+        height="19"
+        viewBox="0 0 24 24"
+        fill="none"
+        :stroke="c.accent"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="4.2" />
+        <path
+          d="M12 2.5v2.4M12 19.1v2.4M4.4 4.4l1.7 1.7M17.9 17.9l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.4 19.6l1.7-1.7M17.9 6.1l1.7-1.7"
+        />
+      </svg>
+      <svg v-else width="19" height="19" viewBox="0 0 24 24" :fill="c.accent" stroke="none">
+        <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z" />
+      </svg>
+    </button>
     <div :style="orbRel">
       <button
         :style="orb"
         v-hover-style="orbHover"
-        aria-label="Theme"
+        aria-label="Appearance"
         :aria-expanded="themePanelOpen"
         @click="ui.toggleThemePanel()"
       >
-        <span :style="themeFace"></span>
+        <svg
+          width="19"
+          height="19"
+          viewBox="0 0 24 24"
+          fill="none"
+          :stroke="c.accent"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M12 3a9 9 0 1 0 0 18c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.5-1.1-.3-.3-.5-.7-.5-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-3.9-4-6.6-9-6.6z"
+          />
+          <circle cx="7.5" cy="11.5" r="1.1" :fill="c.accent" stroke="none" />
+          <circle cx="12" cy="8" r="1.1" :fill="c.accent" stroke="none" />
+          <circle cx="16.5" cy="11.5" r="1.1" :fill="c.accent" stroke="none" />
+        </svg>
       </button>
-      <div v-if="themePanelOpen" :style="popover">
+      <div v-if="themePanelOpen" :style="themePopover" role="menu">
         <button :style="themeRow(autoActive)" @click="ui.setTheme('auto')">
           <span
             :style="
@@ -295,26 +388,59 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
           ></span>
           <span :style="rowText">Auto (follows time)</span>
         </button>
-        <span :style="groupLabel">Light</span>
-        <button
-          v-for="key in LIGHT_THEME_KEYS"
-          :key="key"
-          :style="themeRow(isThemeActive(key))"
-          @click="ui.setTheme(key)"
-        >
-          <span :style="swatch(THEMES[key].pageBg, isThemeActive(key))"></span>
-          <span :style="rowText">{{ THEMES[key].label }}</span>
-        </button>
         <span :style="groupLabel">Dark</span>
-        <button
-          v-for="key in DARK_THEME_KEYS"
-          :key="key"
-          :style="themeRow(isThemeActive(key))"
-          @click="ui.setTheme(key)"
-        >
-          <span :style="swatch(THEMES[key].pageBg, isThemeActive(key))"></span>
-          <span :style="rowText">{{ THEMES[key].label }}</span>
-        </button>
+        <div :style="pickerGrid">
+          <button
+            v-for="t in darkThemes"
+            :key="t.id"
+            :style="themeCard(isThemeActive(t.id))"
+            :aria-pressed="isThemeActive(t.id)"
+            @click="ui.setTheme(t.id)"
+          >
+            <span :style="cardSwatchRow(t.preview)">
+              <span style="flex: 1" />
+              <span :style="{ flex: 1, background: t.preview[1] }" />
+              <span :style="{ flex: 1, background: t.preview[2] }" />
+            </span>
+            <span :style="cardName">{{ t.name }}</span>
+          </button>
+        </div>
+        <span :style="groupLabel">Light</span>
+        <div :style="pickerGrid">
+          <button
+            v-for="t in lightThemes"
+            :key="t.id"
+            :style="themeCard(isThemeActive(t.id))"
+            :aria-pressed="isThemeActive(t.id)"
+            @click="ui.setTheme(t.id)"
+          >
+            <span :style="cardSwatchRow(t.preview)">
+              <span style="flex: 1" />
+              <span :style="{ flex: 1, background: t.preview[1] }" />
+              <span :style="{ flex: 1, background: t.preview[2] }" />
+            </span>
+            <span :style="cardName">{{ t.name }}</span>
+          </button>
+        </div>
+        <template v-if="specialThemes.length">
+          <span :style="groupLabel">Special</span>
+          <div :style="pickerGrid">
+            <button
+              v-for="t in specialThemes"
+              :key="t.id"
+              :style="themeCard(isThemeActive(t.id))"
+              :aria-pressed="isThemeActive(t.id)"
+              @click="ui.setTheme(t.id)"
+            >
+              <span :style="cardSwatchRow(t.preview)">
+                <span style="flex: 1" />
+                <span :style="{ flex: 1, background: t.preview[1] }" />
+                <span :style="{ flex: 1, background: t.preview[2] }" />
+              </span>
+              <span :style="cardName">{{ t.name }}</span>
+            </button>
+          </div>
+        </template>
       </div>
     </div>
 
