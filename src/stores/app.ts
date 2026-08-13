@@ -54,6 +54,7 @@ import type {
   EditingState,
   Finance,
   GithubCacheEntry,
+  Hierarchical,
   Idea,
   ItemDialogState,
   ItemStatus,
@@ -345,10 +346,13 @@ export const useAppStore = defineStore('app', () => {
   function addTodo(text: string, tag = '', description = '') {
     const t = text.trim()
     if (!t) return
+    const newId = id()
+    const rootOrders = todos.value.filter((x) => x.parentId == null).map((x) => x.order)
+    const nextOrder = rootOrders.length ? Math.max(...rootOrders) + 1 : 0
     todos.value = [
       ...todos.value,
       {
-        id: id(),
+        id: newId,
         text: t,
         done: false,
         status: 'pending',
@@ -364,6 +368,12 @@ export const useAppStore = defineStore('app', () => {
         sourceRef: null,
         linked: [],
         parents: [],
+        parentId: null,
+        order: nextOrder,
+        depth: 0,
+        rootId: newId,
+        localRev: 0,
+        updatedBy: uid ?? '',
         ...stamps(),
       },
     ]
@@ -456,35 +466,44 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Flat-hierarchy moves (drag and drop) -------------------------------
+  // The shape a list must have to take part in the flat tree: an id plus the
+  // hierarchy/edit-sync fields, and a timestamp to age on move. Todos and tasks
+  // both satisfy it, so one engine drives both lists.
+  type Movable = { id: number; updatedAt: number } & Hierarchical
   // Renormalise a sibling group to integers when repeated bisection has made a
   // gap too small to halve again. Writes only the members whose order changed.
-  function renormalizeGroup(parentId: number | null) {
-    const index = buildIndex(tasks.value)
+  function renormalizeInList<T extends Movable>(listRef: Ref<T[]>, parentId: number | null) {
+    const index = buildIndex(listRef.value)
     const group = index.children.get(parentId) ?? []
     if (!needsRenormalize(group)) return
     const remap = renormalize(group)
     if (remap.size === 0) return
-    tasks.value = tasks.value.map((t) =>
+    listRef.value = listRef.value.map((t) =>
       remap.has(t.id) ? { ...t, order: remap.get(t.id) as number } : t,
     )
   }
-  // Move a task (with its whole subtree) under newParentId at the given slot in
+  // Move an item (with its whole subtree) under newParentId at the given slot in
   // that parent's child list. Returns false without writing when the drop would
   // form a cycle (target is the node itself or one of its descendants), so the
   // caller can play a reject animation. Otherwise it writes ONE change set: the
   // dragged node's parentId/order/depth/rootId plus depth/rootId for its
   // descendants — nothing else — and persists, rolling back on write failure.
-  function moveTask(draggedId: number, newParentId: number | null, position: number): boolean {
-    const index = buildIndex(tasks.value)
+  function moveInList<T extends Movable>(
+    listRef: Ref<T[]>,
+    draggedId: number,
+    newParentId: number | null,
+    position: number,
+  ): boolean {
+    const index = buildIndex(listRef.value)
     if (wouldCreateCycle(index, draggedId, newParentId)) return false
     const dragged = index.byId.get(draggedId)
     if (!dragged) return false
     const siblings = (index.children.get(newParentId) ?? []).filter((t) => t.id !== draggedId)
     const order = orderForPosition(siblings, position)
     const drUpdates = recomputeSubtree(index, draggedId, newParentId)
-    const snapshot = tasks.value
+    const snapshot = listRef.value
     const now = Date.now()
-    tasks.value = tasks.value.map((t) => {
+    listRef.value = listRef.value.map((t) => {
       if (t.id === draggedId) {
         const dr = drUpdates.get(t.id)
         return {
@@ -501,18 +520,24 @@ export const useAppStore = defineStore('app', () => {
       const dr = drUpdates.get(t.id)
       return dr ? { ...t, depth: dr.depth, rootId: dr.rootId } : t
     })
-    renormalizeGroup(newParentId)
-    void persistMove(snapshot)
+    renormalizeInList(listRef, newParentId)
+    void persistMove(listRef, snapshot)
     return true
+  }
+  function moveTask(draggedId: number, newParentId: number | null, position: number): boolean {
+    return moveInList(tasks, draggedId, newParentId, position)
+  }
+  function moveTodo(draggedId: number, newParentId: number | null, position: number): boolean {
+    return moveInList(todos, draggedId, newParentId, position)
   }
   // Commit a move immediately and, if the write is rejected, restore the
   // pre-drag snapshot and surface a toast so an item never appears to have moved
   // when it did not persist.
-  async function persistMove(snapshot: Task[]) {
+  async function persistMove<T>(listRef: Ref<T[]>, snapshot: T[]) {
     try {
       await saveCloudNow()
     } catch {
-      tasks.value = snapshot
+      listRef.value = snapshot
       showToastMsg('Move failed — reverted')
     }
   }
@@ -1850,6 +1875,12 @@ export const useAppStore = defineStore('app', () => {
           sourceRef: null,
           linked: [],
           parents: [],
+          parentId: null,
+          order: 0,
+          depth: 0,
+          rootId: nidNew,
+          localRev: 0,
+          updatedBy: uid ?? '',
           ...stamps(),
         },
       ]
@@ -2637,6 +2668,12 @@ export const useAppStore = defineStore('app', () => {
         sourceRef: { collection: 'reminders', id: rid },
         linked: [],
         parents: [],
+        parentId: null,
+        order: 0,
+        depth: 0,
+        rootId: newId,
+        localRev: 0,
+        updatedBy: uid ?? '',
         ...stamps(),
       },
     ]
@@ -2889,7 +2926,7 @@ export const useAppStore = defineStore('app', () => {
 
     // Todos written before tag/description existed lack those fields; fill them
     // in on read so the rest of the app can treat them as required.
-    todos.value = stamped<Todo>(data.todos).map((t) => ({
+    todos.value = stamped<Todo>(data.todos).map((t, i) => ({
       ...statused(t),
       tag: typeof t.tag === 'string' ? t.tag : '',
       description: typeof t.description === 'string' ? t.description : '',
@@ -2910,6 +2947,14 @@ export const useAppStore = defineStore('app', () => {
       sourceRef: sourceRefOf(t.sourceRef),
       linked: linkList(t.linked),
       parents: linkList(t.parents),
+      // Flat-hierarchy fields, backfilled for todos written before it existed:
+      // top-level, keeping their stored list position as the order.
+      parentId: typeof t.parentId === 'number' ? t.parentId : null,
+      order: typeof t.order === 'number' ? t.order : i,
+      depth: typeof t.depth === 'number' ? t.depth : 0,
+      rootId: typeof t.rootId === 'number' ? t.rootId : t.id,
+      localRev: typeof t.localRev === 'number' ? t.localRev : 0,
+      updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
     }))
     // Rollover fields arrived after tasks did; tasks stored before then read as
     // "never rolled over".
@@ -3434,6 +3479,7 @@ export const useAppStore = defineStore('app', () => {
     dropOnTask,
     dropOnGroup,
     moveTask,
+    moveTodo,
     remoteTaskVersion,
     dismissTaskConflict,
     setTodoDragId,
