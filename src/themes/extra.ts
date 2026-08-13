@@ -1,0 +1,148 @@
+// The extended theme palettes added on top of the original space themes. Each is
+// a self-contained Theme token set (adding one here + a line in the registry is
+// all a new theme takes — see index.ts). Dark/light bases mirror the originals'
+// glass look; `contrast` deliberately drops the glass blur for an AMOLED,
+// maximum-contrast surface. `bgSolid` is the opaque surface the contrast checker
+// measures text/accent against (the glass tokens are translucent).
+
+import type { Theme } from './index'
+
+const darkGlass = {
+  glass: 'rgba(20,22,40,0.5)',
+  card: 'rgba(34,38,66,0.44)',
+  input: 'rgba(255,255,255,0.06)',
+  onAccent: '#0c1020',
+  shadow:
+    '0 26px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(160,180,255,0.12), inset 0 1px 0 rgba(255,255,255,0.14)',
+  group: 'dark' as const,
+}
+const lightGlass = {
+  glass: 'rgba(255,255,255,0.6)',
+  input: 'rgba(255,255,255,0.5)',
+  shadow:
+    '0 26px 60px rgba(120,120,190,0.22), 0 0 0 1px rgba(255,255,255,0.5), inset 0 1px 0 rgba(255,255,255,0.9)',
+  group: 'light' as const,
+}
+
+export const EXTRA_THEMES: Record<string, Theme> = {
+  // ---- dark family --------------------------------------------------------
+  midnight: {
+    ...darkGlass,
+    label: 'Midnight',
+    text: '#e9edff',
+    dim: 'rgba(233,237,255,0.5)',
+    border: 'rgba(120,150,255,0.26)',
+    pageBg: 'radial-gradient(130% 130% at 24% 8%, #14213f 0%, #0c1730 45%, #060b18 100%)',
+    bgSolid: '#0b1530',
+    accent: 'oklch(0.72 0.16 250)',
+    celestial: 'earthMoon',
+    corner: 'tr',
+  },
+  nebula: {
+    ...darkGlass,
+    label: 'Nebula',
+    text: '#f2e9ff',
+    dim: 'rgba(242,233,255,0.5)',
+    border: 'rgba(190,120,255,0.28)',
+    pageBg: 'radial-gradient(130% 130% at 26% 10%, #2a0f3d 0%, #1a0a2c 45%, #0b0616 100%)',
+    bgSolid: '#160a26',
+    accent: 'oklch(0.72 0.2 320)',
+    celestial: 'crescent',
+    bgDeep: '#1a0a2c',
+    corner: 'tr',
+  },
+  carbon: {
+    ...darkGlass,
+    label: 'Carbon',
+    text: '#ededed',
+    dim: 'rgba(237,237,237,0.5)',
+    border: 'rgba(200,200,200,0.2)',
+    input: 'rgba(255,255,255,0.05)',
+    pageBg: 'radial-gradient(130% 130% at 24% 8%, #1c1c1c 0%, #141414 45%, #0b0b0b 100%)',
+    bgSolid: '#141414',
+    accent: 'oklch(0.78 0.14 75)',
+    onAccent: '#161006',
+    celestial: 'earthMoon',
+    corner: 'tr',
+  },
+  forest: {
+    ...darkGlass,
+    label: 'Forest',
+    text: '#e6f0e6',
+    dim: 'rgba(230,240,230,0.5)',
+    border: 'rgba(140,190,150,0.24)',
+    pageBg: 'radial-gradient(130% 130% at 24% 8%, #12241b 0%, #0d1a14 45%, #06100b 100%)',
+    bgSolid: '#0d1a14',
+    accent: 'oklch(0.74 0.1 150)',
+    onAccent: '#08160e',
+    celestial: 'auroraDark',
+    ribbonColor: 'rgba(120,200,150,0.3)',
+    corner: 'tr',
+  },
+  // ---- light family -------------------------------------------------------
+  paper: {
+    ...lightGlass,
+    label: 'Paper',
+    card: 'rgba(255,252,246,0.62)',
+    border: 'rgba(120,100,80,0.2)',
+    text: '#3a3226',
+    dim: 'rgba(58,50,38,0.55)',
+    onAccent: '#fffaf3',
+    pageBg: 'radial-gradient(140% 120% at 30% 6%, #fbf6ec 0%, #f6ede0 45%, #fff8ee 100%)',
+    bgSolid: '#f8f1e5',
+    accent: 'oklch(0.55 0.13 40)',
+    celestial: 'sun',
+    sunColor: 'oklch(0.72 0.13 55)',
+    corner: 'tr',
+  },
+  arctic: {
+    ...lightGlass,
+    label: 'Arctic',
+    card: 'rgba(255,255,255,0.66)',
+    border: 'rgba(70,120,140,0.28)',
+    text: '#20323a',
+    dim: 'rgba(32,50,58,0.55)',
+    onAccent: '#ffffff',
+    pageBg: 'radial-gradient(130% 130% at 20% 10%, #eef6fb 0%, #e2eef5 45%, #f5fbff 100%)',
+    bgSolid: '#e8f2f8',
+    accent: 'oklch(0.52 0.11 210)',
+    celestial: 'auroraLight',
+    ribbonColor: 'oklch(0.82 0.1 200)',
+    corner: 'tr',
+  },
+  sand: {
+    ...lightGlass,
+    label: 'Sand',
+    card: 'rgba(250,244,232,0.62)',
+    border: 'rgba(120,100,60,0.24)',
+    text: '#3d3222',
+    dim: 'rgba(61,50,34,0.55)',
+    onAccent: '#fbf6ea',
+    pageBg: 'radial-gradient(140% 120% at 30% 8%, #f3ead6 0%, #ece0c6 45%, #f8f1df 100%)',
+    bgSolid: '#efe6cf',
+    accent: 'oklch(0.5 0.09 110)',
+    celestial: 'sun',
+    sunColor: 'oklch(0.72 0.12 90)',
+    corner: 'tr',
+  },
+  // ---- special ------------------------------------------------------------
+  // AMOLED black / pure white, thicker borders, no glass blur.
+  contrast: {
+    label: 'High Contrast',
+    glass: '#000000',
+    card: '#0a0a0a',
+    input: '#111111',
+    border: 'rgba(255,255,255,0.55)',
+    text: '#ffffff',
+    dim: 'rgba(255,255,255,0.75)',
+    onAccent: '#000000',
+    shadow: '0 0 0 1px rgba(255,255,255,0.4)',
+    group: 'dark',
+    pageBg: '#000000',
+    bgSolid: '#000000',
+    accent: 'oklch(0.85 0.16 90)',
+    celestial: 'earthMoon',
+    corner: 'tr',
+    noGlass: true,
+  },
+}
