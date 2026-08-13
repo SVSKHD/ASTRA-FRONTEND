@@ -273,6 +273,57 @@ textarea:focus,
     transform: none;
   }
 }
+/* Drag handle for the flat todo/task tree. A persistent six-dot grip: faint at
+   rest, full on row hover / focus, always full on touch. The padding expands the
+   pointer hit area to 44x44 while the visual box stays 24x24 (negative margin
+   keeps the layout tight). touch-action:none so a long-press drag does not scroll. */
+.drag-handle {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  grid-auto-rows: 3px;
+  gap: 3px;
+  align-content: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 10px;
+  margin: -10px -4px;
+  box-sizing: content-box;
+  border: none;
+  background: transparent;
+  opacity: 0.35;
+  cursor: grab;
+  touch-action: none;
+  border-radius: 8px;
+  transition: opacity 0.15s ease;
+}
+.tree-row:hover .drag-handle,
+.drag-handle:hover,
+.drag-handle:focus-visible {
+  opacity: 1;
+}
+.drag-handle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px currentColor;
+}
+.drag-handle:active,
+.drag-handle.dragging {
+  cursor: grabbing;
+  opacity: 1;
+}
+.drag-handle .grip-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+@media (pointer: coarse) {
+  .drag-handle {
+    opacity: 1;
+  }
+}
+
 /* Rejected drop (cycle guard): a short horizontal shake, no write. */
 @keyframes shake {
   0%,

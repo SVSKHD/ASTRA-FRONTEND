@@ -16,14 +16,12 @@ import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
 import ListToolbar from '@/components/ListToolbar.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
-import LinkProgressBar from '@/components/LinkProgressBar.vue'
-import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
 import CompletedSection from '@/components/CompletedSection.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
+import TreeList from '@/components/TreeList.vue'
 import { nestedChildIds } from '@/utils/links'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useDragNest } from '@/composables/useDragNest'
@@ -33,7 +31,7 @@ const app = useAppStore()
 const ui = useUiStore()
 const { c, dark, s, panelStyle } = useStyles()
 const { startDrag, targetState } = useDragNest()
-const { todos, burst, hideCompleted } = storeToRefs(app)
+const { todos, hideCompleted } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
 defineExpose({ focus: () => app.openCreate('todo') })
@@ -43,10 +41,21 @@ function dayOf(t: Todo): string {
   return t.createdAt > 0 ? ymd(new Date(t.createdAt)) : ''
 }
 
-// Nested children render inside their parent's accordion, never as top-level
-// rows, so they are filtered out of every region here.
+// Nested children render inside their parent's tree, never as top-level rows, so
+// they are filtered out of every region here — both cross-collection link nesting
+// and the flat parentId hierarchy.
 const nestedIds = computed(() => nestedChildIds('todos', todos.value))
-const topLevel = computed(() => todos.value.filter((t) => !nestedIds.value.has(t.id)))
+const treeNestedIds = computed(() => {
+  const present = new Set(todos.value.map((t) => t.id))
+  const nested = new Set<number>()
+  for (const t of todos.value) {
+    if (t.parentId != null && present.has(t.parentId)) nested.add(t.id)
+  }
+  return nested
+})
+const topLevel = computed(() =>
+  todos.value.filter((t) => !nestedIds.value.has(t.id) && !treeNestedIds.value.has(t.id)),
+)
 
 const completedSort = ref<'recent' | 'original'>('recent')
 const split = computed(() =>
@@ -64,6 +73,7 @@ const carried = computed(() =>
   [...split.value.carriedOver].sort((a, b) => dayOf(a).localeCompare(dayOf(b))),
 )
 const active = computed(() => split.value.active)
+const activeRootIds = computed(() => active.value.map((t) => t.id))
 const completed = computed(() => split.value.completed)
 const carriedSubtitle = computed(() => oldestFromLabel(carried.value.map(dayOf)))
 
@@ -88,19 +98,6 @@ function nestHighlight(id: number) {
 const acc = useAccordionState()
 function accKey(t: Todo) {
   return 'todos:' + t.id
-}
-function expanded(t: Todo) {
-  return acc.isOpen(accKey(t))
-}
-function toggleExpand(t: Todo) {
-  acc.toggle(accKey(t))
-}
-function orphanBreadcrumb(t: Todo): string {
-  return t.parents
-    .map((p) => app.linkableById(p))
-    .filter((it): it is NonNullable<typeof it> => !!it)
-    .map((it) => ('text' in it ? it.text : it.title))
-    .join(', ')
 }
 const parentKeys = computed(() =>
   topLevel.value.filter((t) => t.linked.length > 0).map((t) => accKey(t)),
@@ -148,46 +145,10 @@ const descStyle = computed(() =>
 function rowStyle(done = false) {
   return merge(rowBase(c.value), { opacity: done ? 0.55 : 1, position: 'relative' })
 }
-const rowsWrap = pxify({ display: 'flex', flexDirection: 'column', gap: 9, position: 'relative' })
 const gripDots = [0, 1, 2, 3, 4, 5]
 function chipStyle(tag: string) {
   return pxify(tagChip(c.value, tag, dark.value))
 }
-const particles = [0, 1, 2, 3, 4, 5]
-function particleStyle(i: number) {
-  const a = (i * Math.PI) / 3
-  return pxify({
-    position: 'absolute',
-    left: '50%',
-    top: '50%',
-    width: 5,
-    height: 5,
-    borderRadius: '50%',
-    background: c.value.accent,
-    boxShadow: '0 0 6px ' + c.value.accent,
-    pointerEvents: 'none',
-    '--tx': (Math.cos(a) * 22).toFixed(1) + 'px',
-    '--ty': (Math.sin(a) * 22).toFixed(1) + 'px',
-    animation: 'burst .6s ease-out forwards',
-  })
-}
-function linkOf(t: Todo) {
-  return app.linkProgressOf({ id: t.id, collection: 'todos' })
-}
-const linkChip = computed(() =>
-  pxify({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    fontSize: 11,
-    color: c.value.dim,
-    padding: '2px 7px',
-    borderRadius: 999,
-    background: c.value.input,
-    border: '1px solid ' + c.value.border,
-  }),
-)
-const linkLineWrap = pxify({ position: 'absolute', left: 12, right: 12, bottom: 3 })
 const ageChipStyle = computed(() =>
   pxify({
     fontSize: 10,
@@ -212,35 +173,6 @@ const rolloverChipStyle = computed(() =>
 )
 const doneMetaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
 const parentCardStyle = pxify({ display: 'flex', flexDirection: 'column' })
-function chevronStyle(t: Todo) {
-  return pxify({
-    width: 18,
-    height: 18,
-    flexShrink: 0,
-    border: 'none',
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    display: 'grid',
-    placeItems: 'center',
-    transform: expanded(t) ? 'rotate(90deg)' : 'rotate(0deg)',
-    transition: 'transform .25s ease',
-  })
-}
-function accBodyOuter(t: Todo) {
-  return pxify({
-    display: 'grid',
-    gridTemplateRows: expanded(t) ? '1fr' : '0fr',
-    transition: 'grid-template-rows .3s cubic-bezier(.4,1,.4,1)',
-  })
-}
-const accBodyClip = pxify({ overflow: 'hidden', minHeight: 0 })
-const accBodyInner = computed(() =>
-  pxify({ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 6px 2px 30px' }),
-)
-const breadcrumbStyle = computed(() =>
-  pxify({ fontSize: 10, color: c.value.dim, padding: '2px 0 4px 46px' }),
-)
 const linkExpandBtn = computed(() =>
   pxify({
     fontSize: 10,
@@ -313,103 +245,9 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
       </div>
     </CarriedOverGroup>
 
-    <!-- 2. Today's active items, flat, no date headers -->
-    <TransitionGroup name="rowflip" tag="div" :style="rowsWrap">
-      <div v-for="t in active" :key="t.id" :style="parentCardStyle">
-        <div
-          :style="[rowStyle(), nestHighlight(t.id)]"
-          v-hover-style="s.rowHover"
-          :data-nest-id="t.id"
-          data-nest-collection="todos"
-        >
-          <button
-            v-if="t.linked.length"
-            type="button"
-            :style="chevronStyle(t)"
-            :aria-label="expanded(t) ? 'Collapse linked' : 'Expand linked'"
-            :aria-expanded="expanded(t)"
-            @click.stop="toggleExpand(t)"
-          >
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              :stroke="c.dim"
-              stroke-width="3"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="9 6 15 12 9 18" />
-            </svg>
-          </button>
-          <span
-            :style="s.grip"
-            role="button"
-            aria-label="Drag to nest"
-            title="Drag to nest"
-            @pointerdown="onGripDown($event, t)"
-            ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-          ></span>
-          <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">
-            <template v-if="burst === t.id">
-              <span v-for="i in particles" :key="i" :style="particleStyle(i)"></span>
-            </template>
-          </button>
-          <div :style="s.taskMain" @click="app.openEdit('todo', t.id)">
-            <span :style="textStyle(t)">{{ t.text }}</span>
-            <span v-if="t.description" :style="descStyle">{{ t.description }}</span>
-            <div v-if="t.tag || t.linked.length" :style="s.chipRow">
-              <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-              <span v-if="t.linked.length" :style="linkChip" title="Linked items">
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  :stroke="c.dim"
-                  stroke-width="1.9"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M9 12h6" />
-                  <path d="M10 8H8a4 4 0 0 0 0 8h2" />
-                  <path d="M14 8h2a4 4 0 0 1 0 8h-2" />
-                </svg>
-                {{ linkOf(t).done }}/{{ linkOf(t).total }}
-              </span>
-            </div>
-            <OfflineChip :pending="app.isItemPending('todo', t.id)" />
-          </div>
-          <RemindBell collection="todos" :id="t.id" />
-          <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
-          <ShareGlobeButton entity-type="todo" :item="t" variant="row" />
-          <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
-          <div v-if="t.linked.length" :style="linkLineWrap">
-            <LinkProgressBar :done="linkOf(t).done" :total="linkOf(t).total" compact />
-          </div>
-        </div>
-
-        <span v-if="orphanBreadcrumb(t)" :style="breadcrumbStyle">
-          part of ‹{{ orphanBreadcrumb(t) }}›
-        </span>
-
-        <div v-if="t.linked.length" :style="accBodyOuter(t)">
-          <div :style="accBodyClip">
-            <div :style="accBodyInner">
-              <LinkedAccordion
-                v-for="ch in t.linked"
-                :key="ch.collection + ':' + ch.id"
-                :item-ref="ch"
-                :parent-ref="{ id: t.id, collection: 'todos' }"
-                :depth="0"
-                :is-root="false"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </TransitionGroup>
+    <!-- 2. Today's active items as a flat, drag-reorderable tree (grip handle,
+         reorder / nest / promote indicators, root strip). -->
+    <TreeList collection="todos" :root-ids="activeRootIds" />
 
     <!-- 3. Completed section (collapsed) -->
     <CompletedSection
