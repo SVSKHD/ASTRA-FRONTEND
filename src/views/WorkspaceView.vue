@@ -32,6 +32,7 @@ import CloudLoading from '@/components/CloudLoading.vue'
 import OverviewView from '@/components/views/OverviewView.vue'
 import TodoView from '@/components/views/TodoView.vue'
 import TasksView from '@/components/views/TasksView.vue'
+import PlanningView from '@/components/views/PlanningView.vue'
 import DeadlinesView from '@/components/views/DeadlinesView.vue'
 import RemindersView from '@/components/views/RemindersView.vue'
 import FinancesView from '@/components/views/FinancesView.vue'
@@ -96,6 +97,7 @@ const viewMap = {
   overview: OverviewView,
   todo: TodoView,
   tasks: TasksView,
+  planning: PlanningView,
   deadlines: DeadlinesView,
   reminders: RemindersView,
   finances: FinancesView,

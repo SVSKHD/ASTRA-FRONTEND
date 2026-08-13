@@ -4,6 +4,7 @@ export type TabKey =
   | 'overview'
   | 'todo'
   | 'tasks'
+  | 'planning'
   | 'deadlines'
   | 'reminders'
   | 'finances'
@@ -223,6 +224,9 @@ export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical {
   // Set by "Clear completed": the item is hidden from the list but not deleted,
   // so it still counts in Overview and Calendar. Absent = live.
   archivedAt?: number | null
+  // Back-references to planning-board nodes/relations, so a board relation is
+  // navigable from the item too. Absent on items with no board relations.
+  graphRefs?: GraphRef[]
 }
 
 export interface Task extends Timestamped, Linkable, Hierarchical {
@@ -249,6 +253,8 @@ export interface Task extends Timestamped, Linkable, Hierarchical {
   sourceRef: SourceRef | null
   // Set by "Clear completed" (archive, not delete). Absent = live.
   archivedAt?: number | null
+  // Back-references to planning-board nodes/relations. Absent when none.
+  graphRefs?: GraphRef[]
 }
 
 export interface Deadline extends Timestamped {
@@ -431,6 +437,60 @@ export interface FinTag {
   scope: ScopeFilter
   kind?: TxnKind | 'both'
   archived?: boolean
+}
+
+// ---- Planning boards (JointJS node graphs) --------------------------------
+// A board is a node-graph canvas for thinking a plan out visually; its nodes can
+// become — or link to — real tasks/todos. Adapted to this app's single-workspace
+// document: boards, nodes and edges are flat arrays (like todos/tasks), each node
+// carrying its own position so sync/conflict handling stays granular rather than
+// serialising the whole graph as one blob.
+export type BoardType = 'tree' | 'freeform'
+export type NodeKind = 'idea' | 'milestone' | 'task' | 'todo' | 'group'
+export type EdgeRelation = 'parent' | 'depends_on' | 'blocks' | 'relates_to'
+export type LinkedItemType = 'task' | 'todo'
+
+export interface PlanningBoard extends Timestamped {
+  id: number
+  name: string
+  type: BoardType
+  layoutMode: 'manual' | 'tidy'
+}
+
+export interface PlanningNode extends Timestamped {
+  id: number
+  boardId: number
+  label: string
+  notes: string
+  kind: NodeKind
+  x: number
+  y: number
+  width: number
+  height: number
+  color: string
+  // When set, this node mirrors a real task/todo (one source of truth): its
+  // title/status are read from that doc, not edited on the board.
+  linkedType: LinkedItemType | null
+  linkedId: number | null
+  // Edit-safe sync bookkeeping, like tasks/todos carry.
+  localRev: number
+  updatedBy: string
+}
+
+export interface PlanningEdge extends Timestamped {
+  id: number
+  boardId: number
+  source: number // nodeId
+  target: number // nodeId
+  relation: EdgeRelation
+  label: string
+}
+
+// Back-reference on a task/todo so a board relation is navigable both ways.
+export interface GraphRef {
+  boardId: number
+  nodeId: number
+  relation: EdgeRelation | 'mirror'
 }
 
 export interface Note extends Timestamped {
