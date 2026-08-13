@@ -9,6 +9,22 @@
       name="description"
       content="Aureon — your universe, tracked. Todos, tasks, deadlines, reminders and finances in one liquid-glass, space-themed app."
     />
+    <!-- No-flash theme boot: apply the last-used theme's data-theme + surface
+         colour synchronously, before the app bundle loads, so a reload never
+         flashes an unthemed or wrong-theme frame. The app reconciles from
+         Firestore after auth. -->
+    <script>
+      try {
+        var id = localStorage.getItem('aureon:themeId')
+        var bg = localStorage.getItem('aureon:themeBg')
+        if (id) document.documentElement.dataset.theme = id
+        if (bg) {
+          document.documentElement.style.background = bg
+          var m = document.querySelector('meta[name="theme-color"]')
+          if (m) m.setAttribute('content', bg)
+        }
+      } catch (e) {}
+    </script>
     <title>Aureon</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

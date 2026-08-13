@@ -1,4 +1,13 @@
-// Theme tokens, ported verbatim from the Aureon design's THEMES() map.
+// The theme registry. Each theme is a semantic token set; adding one is a single
+// entry here (or a line in extra.ts) plus nothing else — the picker, the quick
+// toggle, the contrast check and data-theme application all read this registry.
+//
+// The app renders theme tokens as inline styles via buildStyles (not CSS
+// variables), so the tokens live as plain values here; a thin CSS-variable layer
+// (see style.css / applyThemeToDom) carries the few cross-cutting bits inline
+// styles cannot reach (scrollbars, selection, the canvas).
+
+import { EXTRA_THEMES } from './extra'
 
 export type ThemeGroup = 'light' | 'dark'
 
@@ -16,23 +25,44 @@ export interface Theme {
   pageBg: string
   accent: string
   celestial: string
+  // The opaque surface the contrast checker measures text/accent against, since
+  // the glass tokens are translucent. Added for every theme.
+  bgSolid: string
   // optional per-theme extras
   sunColor?: string
   corner?: 'tr' | 'bc'
   rays?: boolean
   ribbonColor?: string
   bgDeep?: string
+  // Special themes (contrast) drop the liquid-glass blur.
+  noGlass?: boolean
 }
 
 export type ThemeKey =
-  'daylight' | 'dawn' | 'auroraDay' | 'deepSpace' | 'nebulaRose' | 'solarFlare' | 'auroraNight'
+  | 'daylight'
+  | 'dawn'
+  | 'auroraDay'
+  | 'deepSpace'
+  | 'nebulaRose'
+  | 'solarFlare'
+  | 'auroraNight'
+  | 'midnight'
+  | 'nebula'
+  | 'carbon'
+  | 'forest'
+  | 'paper'
+  | 'arctic'
+  | 'sand'
+  | 'contrast'
 
 const lightBase = {
   glass: 'rgba(255,255,255,0.55)',
   card: 'rgba(255,255,255,0.55)',
   border: 'rgba(255,255,255,0.85)',
   text: '#2b2c46',
-  dim: 'rgba(43,44,70,0.5)',
+  // Muted/secondary text. Kept opaque enough to clear the WCAG 3:1 large-text
+  // floor against the light surfaces (see contrast.test).
+  dim: 'rgba(43,44,70,0.66)',
   input: 'rgba(255,255,255,0.5)',
   onAccent: '#2b2c46',
   shadow:
@@ -53,11 +83,12 @@ const darkBase = {
   group: 'dark' as const,
 }
 
-export const THEMES: Record<ThemeKey, Theme> = {
+const baseThemes: Record<string, Theme> = {
   daylight: {
     ...lightBase,
     label: 'Daylight Cosmos',
     pageBg: 'radial-gradient(130% 130% at 22% 6%, #d9e3ff 0%, #ece1ff 42%, #ffe7d9 100%)',
+    bgSolid: '#e4e6ff',
     accent: 'oklch(0.68 0.13 70)',
     celestial: 'sun',
     sunColor: 'oklch(0.85 0.15 85)',
@@ -68,6 +99,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
     ...lightBase,
     label: 'Golden Dawn',
     pageBg: 'radial-gradient(140% 120% at 50% 100%, #ffe9d6 0%, #ffd9c2 40%, #fff3e6 100%)',
+    bgSolid: '#ffe4cf',
     accent: 'oklch(0.66 0.15 45)',
     celestial: 'sun',
     sunColor: 'oklch(0.8 0.16 55)',
@@ -78,6 +110,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
     ...lightBase,
     label: 'Aurora Day',
     pageBg: 'radial-gradient(130% 130% at 20% 10%, #dff7f0 0%, #e3f3ff 45%, #f2fff9 100%)',
+    bgSolid: '#e4f4ee',
     accent: 'oklch(0.62 0.13 165)',
     celestial: 'auroraLight',
     ribbonColor: 'oklch(0.85 0.13 165)',
@@ -87,6 +120,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
     ...darkBase,
     label: 'Deep Space',
     pageBg: 'radial-gradient(130% 130% at 24% 8%, #241a5e 0%, #100c2e 44%, #05050f 100%)',
+    bgSolid: '#130f34',
     accent: 'oklch(0.83 0.13 88)',
     celestial: 'earthMoon',
     corner: 'tr',
@@ -95,6 +129,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
     ...darkBase,
     label: 'Nebula Rose',
     pageBg: 'radial-gradient(130% 130% at 26% 10%, #4a1750 0%, #2a0f3d 45%, #120818 100%)',
+    bgSolid: '#2a0f3d',
     accent: 'oklch(0.78 0.15 340)',
     celestial: 'crescent',
     corner: 'tr',
@@ -104,6 +139,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
     ...darkBase,
     label: 'Solar Flare',
     pageBg: 'radial-gradient(130% 130% at 70% 15%, #2a2016 0%, #1a1512 45%, #0d0b09 100%)',
+    bgSolid: '#1a1512',
     accent: 'oklch(0.78 0.15 55)',
     celestial: 'flare',
     sunColor: 'oklch(0.55 0.14 45)',
@@ -113,6 +149,7 @@ export const THEMES: Record<ThemeKey, Theme> = {
     ...darkBase,
     label: 'Aurora Night',
     pageBg: 'radial-gradient(130% 130% at 25% 10%, #0d1b3d 0%, #081226 45%, #030812 100%)',
+    bgSolid: '#081226',
     accent: 'oklch(0.75 0.13 165)',
     celestial: 'auroraDark',
     ribbonColor: 'rgba(90,220,180,0.35)',
@@ -121,18 +158,56 @@ export const THEMES: Record<ThemeKey, Theme> = {
   },
 }
 
-export const LIGHT_THEME_KEYS: ThemeKey[] = ['daylight', 'dawn', 'auroraDay']
-export const DARK_THEME_KEYS: ThemeKey[] = ['deepSpace', 'nebulaRose', 'solarFlare', 'auroraNight']
+export const THEMES = { ...baseThemes, ...EXTRA_THEMES } as Record<ThemeKey, Theme>
+
+// Special themes are grouped apart from the plain dark/light families in the
+// picker (and are excluded from the clock-based auto rotation).
+export const SPECIAL_THEME_KEYS: ThemeKey[] = ['contrast']
+
+export const LIGHT_THEME_KEYS: ThemeKey[] = (Object.keys(THEMES) as ThemeKey[]).filter(
+  (k) => THEMES[k].group === 'light' && !SPECIAL_THEME_KEYS.includes(k),
+)
+export const DARK_THEME_KEYS: ThemeKey[] = (Object.keys(THEMES) as ThemeKey[]).filter(
+  (k) => THEMES[k].group === 'dark' && !SPECIAL_THEME_KEYS.includes(k),
+)
+
+export type ThemeMode = 'dark' | 'light'
+export interface ThemeDescriptor {
+  id: ThemeKey
+  name: string
+  mode: ThemeMode
+  special: boolean
+  // Three swatches for the picker card, straight from the tokens.
+  preview: [string, string, string]
+}
+
+export function describeTheme(id: ThemeKey): ThemeDescriptor {
+  const t = THEMES[id]
+  return {
+    id,
+    name: t.label,
+    mode: t.group,
+    special: SPECIAL_THEME_KEYS.includes(id),
+    preview: [t.bgSolid, t.accent, t.card],
+  }
+}
+// The registry the picker renders, in a stable order (dark, light, special).
+export const THEME_DESCRIPTORS: ThemeDescriptor[] = [
+  ...DARK_THEME_KEYS,
+  ...LIGHT_THEME_KEYS,
+  ...SPECIAL_THEME_KEYS,
+].map(describeTheme)
 
 // The user's stored choice: a fixed theme, or 'auto' to follow the clock.
-// Lives here rather than in the ui store so the app store can persist it
-// without importing the ui store back.
 export type ThemeSetting = 'auto' | ThemeKey
 
 export function isThemeSetting(value: unknown): value is ThemeSetting {
   // hasOwn, not `in`: `in` walks the prototype chain, so 'toString' and
   // 'constructor' would pass and then resolve to a non-Theme at lookup time.
   return value === 'auto' || (typeof value === 'string' && Object.hasOwn(THEMES, value))
+}
+export function isThemeKey(value: unknown): value is ThemeKey {
+  return typeof value === 'string' && Object.hasOwn(THEMES, value)
 }
 
 export function computeAutoTheme(hour: number): ThemeKey {

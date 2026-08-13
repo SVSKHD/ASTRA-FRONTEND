@@ -381,6 +381,29 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     () => syncGraphFromStore(),
     { deep: true, flush: 'post' },
   )
+  // Re-tint every existing cell when the theme changes. Node/link attrs are read
+  // from theme tokens at creation time, so a theme switch alone (which doesn't
+  // touch the store) would otherwise leave already-drawn cells on the old
+  // palette until their next store-driven re-sync.
+  watch(
+    theme,
+    () => {
+      const g = graph.value
+      const id = boardId.value
+      if (!g || id == null) return
+      for (const n of app.nodesOfBoard(id)) {
+        const cell = g.getCell(String(n.id)) as dia.Element | null
+        if (cell) cell.attr(nodeAttrs(n))
+      }
+      for (const e of app.edgesOfBoard(id)) {
+        const link = g.getCell(String(e.id)) as dia.Link | null
+        if (!link) continue
+        link.attr('line/stroke', color('dim'))
+        link.label(0, { attrs: { text: { fill: color('dim') } } })
+      }
+    },
+    { flush: 'post' },
+  )
 
   onBeforeUnmount(teardown)
 
