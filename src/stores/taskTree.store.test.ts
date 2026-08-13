@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
-import type { Task } from '@/types'
+import type { Task, Todo } from '@/types'
 
 function makeTask(id: number, over: Partial<Task> = {}): Task {
   return {
@@ -110,6 +110,55 @@ describe('moveTask — fractional reorder', () => {
     const orders = app.tasks.map((t) => t.order).sort((a, b) => a - b)
     // All integers, evenly spaced.
     expect(orders.every((o) => Number.isInteger(o))).toBe(true)
+  })
+})
+
+function makeTodo(id: number, over: Partial<Todo> = {}): Todo {
+  return {
+    id,
+    text: 'todo ' + id,
+    done: false,
+    status: 'pending',
+    tag: '',
+    description: '',
+    isPublic: false,
+    shareId: null,
+    sharedAt: null,
+    rolledOverAt: null,
+    rolloverCount: 0,
+    completedAt: null,
+    reminderIds: [],
+    sourceRef: null,
+    linked: [],
+    parents: [],
+    parentId: null,
+    order: 0,
+    depth: 0,
+    rootId: id,
+    localRev: 0,
+    updatedBy: '',
+    createdAt: 0,
+    updatedAt: 0,
+    ...over,
+  }
+}
+
+describe('moveTodo — flat hierarchy parity with tasks', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('reparents a todo with its subtree and rejects cycles', () => {
+    const app = useAppStore()
+    app.todos = [
+      makeTodo(1),
+      makeTodo(2, { parentId: 1, depth: 1, rootId: 1 }),
+      makeTodo(3, { parentId: 2, depth: 2, rootId: 1 }),
+    ]
+    // Promote 2 (with 3) to the root.
+    expect(app.moveTodo(2, null, 0)).toBe(true)
+    expect(app.todos.find((t) => t.id === 2)).toMatchObject({ parentId: null, depth: 0, rootId: 2 })
+    expect(app.todos.find((t) => t.id === 3)).toMatchObject({ parentId: 2, depth: 1, rootId: 2 })
+    // Cycle: dropping 2 back under its own child 3 is rejected.
+    expect(app.moveTodo(2, 3, 0)).toBe(false)
   })
 })
 

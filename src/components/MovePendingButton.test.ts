@@ -54,6 +54,12 @@ function overdueTodo(id: number): Todo {
     parents: [],
     reminderIds: [],
     sourceRef: null,
+    parentId: null,
+    order: 0,
+    depth: 0,
+    rootId: id,
+    localRev: 0,
+    updatedBy: '',
     createdAt: new Date(2020, 0, 1, 9).getTime(),
     updatedAt: 0,
   }
