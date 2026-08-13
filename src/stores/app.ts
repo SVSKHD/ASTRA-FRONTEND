@@ -39,6 +39,15 @@ import { debtOutstanding, migrateExpenses } from '@/utils/finance'
 import { resolveIncome } from '@/utils/budget'
 import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
 import { nestSummary, planNest } from '@/utils/dragNest'
+import {
+  buildIndex,
+  needsRenormalize,
+  orderForPosition,
+  recomputeSubtree,
+  renormalize,
+  wouldCreateCycle,
+} from '@/utils/taskTree'
+import { useSyncGuard } from '@/composables/useSyncGuard'
 import type {
   ActiveNotif,
   Deadline,
@@ -249,6 +258,11 @@ export const useAppStore = defineStore('app', () => {
   // dispatches here first, falling back to undoDelete for deletions.
   let toastUndoHandler: (() => void) | null = null
 
+  // Edit-safe sync guard: holds the editing/dirty/buffer state that protects an
+  // open task dialog from incoming snapshots. The store drives it; the snapshot
+  // handler, the task dialog and moveTask all consult it.
+  const syncGuard = useSyncGuard()
+
   // --- id counter bootstrap: keep above any existing ids ------------------
   function bumpNid() {
     const maxId = Math.max(
@@ -385,10 +399,15 @@ export const useAppStore = defineStore('app', () => {
   function addTask(title: string, tag: string, fields: Partial<Task> = {}) {
     const t = title.trim()
     if (!t) return
+    const newId = id()
+    // A fresh task is top-level; give it an order just past the current roots so
+    // it lands at the bottom of the list, and seed depth/rootId for the flat tree.
+    const rootOrders = tasks.value.filter((x) => x.parentId == null).map((x) => x.order)
+    const nextOrder = rootOrders.length ? Math.max(...rootOrders) + 1 : 0
     tasks.value = [
       ...tasks.value,
       {
-        id: id(),
+        id: newId,
         title: t,
         tag: registerTag(tag),
         done: false,
@@ -403,6 +422,12 @@ export const useAppStore = defineStore('app', () => {
         sourceRef: null,
         linked: [],
         parents: [],
+        parentId: null,
+        order: nextOrder,
+        depth: 0,
+        rootId: newId,
+        localRev: 0,
+        updatedBy: uid ?? '',
         ...fields,
         ...stamps(),
       },
@@ -425,6 +450,120 @@ export const useAppStore = defineStore('app', () => {
   function updateTask(tid: number, field: keyof Task, value: string) {
     const v = field === 'tag' ? registerTag(value) : value
     tasks.value = tasks.value.map((t) => (t.id === tid ? touched({ ...t, [field]: v }) : t))
+    // Record the touched field so the sync guard keeps it if a remote snapshot
+    // lands mid-edit (a no-op unless this task's dialog is open).
+    syncGuard.markTouched(tid, field as string)
+  }
+
+  // ---- Flat-hierarchy moves (drag and drop) -------------------------------
+  // Renormalise a sibling group to integers when repeated bisection has made a
+  // gap too small to halve again. Writes only the members whose order changed.
+  function renormalizeGroup(parentId: number | null) {
+    const index = buildIndex(tasks.value)
+    const group = index.children.get(parentId) ?? []
+    if (!needsRenormalize(group)) return
+    const remap = renormalize(group)
+    if (remap.size === 0) return
+    tasks.value = tasks.value.map((t) =>
+      remap.has(t.id) ? { ...t, order: remap.get(t.id) as number } : t,
+    )
+  }
+  // Move a task (with its whole subtree) under newParentId at the given slot in
+  // that parent's child list. Returns false without writing when the drop would
+  // form a cycle (target is the node itself or one of its descendants), so the
+  // caller can play a reject animation. Otherwise it writes ONE change set: the
+  // dragged node's parentId/order/depth/rootId plus depth/rootId for its
+  // descendants — nothing else — and persists, rolling back on write failure.
+  function moveTask(draggedId: number, newParentId: number | null, position: number): boolean {
+    const index = buildIndex(tasks.value)
+    if (wouldCreateCycle(index, draggedId, newParentId)) return false
+    const dragged = index.byId.get(draggedId)
+    if (!dragged) return false
+    const siblings = (index.children.get(newParentId) ?? []).filter((t) => t.id !== draggedId)
+    const order = orderForPosition(siblings, position)
+    const drUpdates = recomputeSubtree(index, draggedId, newParentId)
+    const snapshot = tasks.value
+    const now = Date.now()
+    tasks.value = tasks.value.map((t) => {
+      if (t.id === draggedId) {
+        const dr = drUpdates.get(t.id)
+        return {
+          ...t,
+          parentId: newParentId,
+          order,
+          depth: dr ? dr.depth : t.depth,
+          rootId: dr ? dr.rootId : t.rootId,
+          updatedAt: now,
+          updatedBy: uid ?? t.updatedBy,
+          localRev: t.localRev + 1,
+        }
+      }
+      const dr = drUpdates.get(t.id)
+      return dr ? { ...t, depth: dr.depth, rootId: dr.rootId } : t
+    })
+    renormalizeGroup(newParentId)
+    void persistMove(snapshot)
+    return true
+  }
+  // Commit a move immediately and, if the write is rejected, restore the
+  // pre-drag snapshot and surface a toast so an item never appears to have moved
+  // when it did not persist.
+  async function persistMove(snapshot: Task[]) {
+    try {
+      await saveCloudNow()
+    } catch {
+      tasks.value = snapshot
+      showToastMsg('Move failed — reverted')
+    }
+  }
+
+  // ---- Edit-safe flush on task dialog close -------------------------------
+  // Called when a task dialog closes: write the local edit FIRST (bump localRev /
+  // updatedAt), then drain any snapshot the guard held back while it was open —
+  // applying remote data only to fields the user did not touch, flagging a
+  // conflict when the remote changed a field they did. Never the reverse order,
+  // and never a whole-document last-write-wins.
+  async function flushTaskEdit(id: number) {
+    const local = tasks.value.find((t) => t.id === id)
+    if (!local) {
+      const { heldTasks } = syncGuard.resolveOnClose(id, {} as Task)
+      if (heldTasks) tasks.value = heldTasks.filter((t) => t.id !== id)
+      return
+    }
+    const bumped: Task = {
+      ...local,
+      localRev: local.localRev + 1,
+      updatedAt: Date.now(),
+      updatedBy: uid ?? local.updatedBy,
+    }
+    const { conflict, heldTasks } = syncGuard.resolveOnClose(id, bumped)
+    const mergedItem: Task = conflict
+      ? {
+          ...conflict.merged,
+          // Keep the local write's bookkeeping over the remote's.
+          localRev: bumped.localRev,
+          updatedAt: bumped.updatedAt,
+          updatedBy: bumped.updatedBy,
+          hasConflict: conflict.hasConflict ? true : undefined,
+        }
+      : bumped
+    tasks.value = (heldTasks ?? tasks.value).map((t) => (t.id === id ? mergedItem : t))
+    try {
+      await saveCloudNow()
+    } catch {
+      showToastMsg('Could not save your changes')
+    }
+  }
+  // The remote version of a conflicted task, for the "view remote version" badge.
+  function remoteTaskVersion(id: number): Task | undefined {
+    return syncGuard.remoteVersionOf(id)
+  }
+  // Dismiss a conflict badge once the user has reconciled it.
+  function dismissTaskConflict(id: number) {
+    syncGuard.clearConflict(id)
+    tasks.value = tasks.value.map((t) =>
+      t.id === id && t.hasConflict ? { ...t, hasConflict: undefined } : t,
+    )
   }
 
   // ---- Deadlines ----------------------------------------------------------
@@ -1733,6 +1872,12 @@ export const useAppStore = defineStore('app', () => {
           sourceRef: null,
           linked: [],
           parents: [],
+          parentId: null,
+          order: 0,
+          depth: 0,
+          rootId: nidNew,
+          localRev: 0,
+          updatedBy: uid ?? '',
           ...stamps(),
         },
       ]
@@ -1843,10 +1988,11 @@ export const useAppStore = defineStore('app', () => {
     repo: { name: string; full: string },
     issue: { num: number; title: string },
   ) {
+    const importId = id()
     tasks.value = [
       ...tasks.value,
       {
-        id: id(),
+        id: importId,
         title: issue.title,
         tag: repo.name,
         done: false,
@@ -1861,6 +2007,12 @@ export const useAppStore = defineStore('app', () => {
         sourceRef: null,
         linked: [],
         parents: [],
+        parentId: null,
+        order: 0,
+        depth: 0,
+        rootId: importId,
+        localRev: 0,
+        updatedBy: uid ?? '',
         ...stamps(),
       },
     ]
@@ -2030,6 +2182,12 @@ export const useAppStore = defineStore('app', () => {
     itemDialog.value = { type, mode: 'edit', id: itemId }
     dialogDraft.value = {}
     dialogClosing.value = false
+    // Arm the sync guard for a task edit, snapshotting the base version the edit
+    // starts from so incoming snapshots can be reconciled against it on close.
+    if (type === 'task') {
+      const t = tasks.value.find((x) => x.id === itemId)
+      if (t) syncGuard.beginEdit(itemId, t)
+    }
   }
   // Generic read/write for the one dialog that edits every type. Edit mode
   // writes through on each keystroke, so there is no draft to reconcile — these
@@ -2132,7 +2290,13 @@ export const useAppStore = defineStore('app', () => {
     openEdit('reminder', rid)
   }
   function closeItemDialog() {
-    if (!itemDialog.value) return
+    const state = itemDialog.value
+    if (!state) return
+    // Flush a task edit before tearing down: local write first, then the guard
+    // drains any held remote snapshot through the conflict rules.
+    if (state.type === 'task' && state.mode === 'edit' && state.id != null) {
+      void flushTaskEdit(state.id)
+    }
     dialogClosing.value = true
     setTimeout(() => {
       itemDialog.value = null
@@ -2749,9 +2913,9 @@ export const useAppStore = defineStore('app', () => {
     }))
     // Rollover fields arrived after tasks did; tasks stored before then read as
     // "never rolled over".
-    tasks.value = stamped<Task>(data.tasks)
+    const incomingTasks = stamped<Task>(data.tasks)
       .map(statused)
-      .map((t) => ({
+      .map((t, i) => ({
         ...t,
         rolledOverAt: typeof t.rolledOverAt === 'number' ? t.rolledOverAt : null,
         rolloverCount: typeof t.rolloverCount === 'number' ? t.rolloverCount : 0,
@@ -2762,7 +2926,23 @@ export const useAppStore = defineStore('app', () => {
         sourceRef: sourceRefOf(t.sourceRef),
         linked: linkList(t.linked),
         parents: linkList(t.parents),
+        // Flat-hierarchy fields, backfilled for tasks written before it existed:
+        // no parent (top-level), keep their stored list position as the order,
+        // depth 0 and rootId = own id. Live depth/rootId are recomputed by the
+        // tree; these are just the denormalised cache.
+        parentId: typeof t.parentId === 'number' ? t.parentId : null,
+        order: typeof t.order === 'number' ? t.order : i,
+        depth: typeof t.depth === 'number' ? t.depth : 0,
+        rootId: typeof t.rootId === 'number' ? t.rootId : t.id,
+        // Edit-safe sync bookkeeping, backfilled to a clean baseline.
+        localRev: typeof t.localRev === 'number' ? t.localRev : 0,
+        updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
       }))
+    // Edit-safe sync: a task whose dialog is open (or whose local edits are
+    // unsaved) is protected — the guard holds the incoming version back rather
+    // than clobbering it, and freezes the list order while a dialog is open so it
+    // cannot reflow underneath. Everything else applies normally.
+    tasks.value = syncGuard.reconcileTasks(tasks.value, incomingTasks)
     deadlines.value = stamped<Deadline>(data.deadlines)
     finances.value = stamped<Finance>(data.finances)
     notes.value = stamped<Note>(data.notes)
@@ -3253,6 +3433,9 @@ export const useAppStore = defineStore('app', () => {
     setDragId,
     dropOnTask,
     dropOnGroup,
+    moveTask,
+    remoteTaskVersion,
+    dismissTaskConflict,
     setTodoDragId,
     endTodoDrag,
     dropTodoOnDay,

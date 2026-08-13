@@ -20,15 +20,24 @@ import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
 import CompletedSection from '@/components/CompletedSection.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
+import TaskSubtree from '@/components/TaskSubtree.vue'
 import { nestedChildIds } from '@/utils/links'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useDragNest } from '@/composables/useDragNest'
+import { useTaskTree } from '@/composables/useTaskTree'
+import { useTaskDrag } from '@/composables/useTaskDrag'
 import type { LinkRef, Task } from '@/types'
 
 const app = useAppStore()
 const ui = useUiStore()
 const { c, dark, s, panelStyle } = useStyles()
 const { startDrag, targetState } = useDragNest()
+const tree = useTaskTree()
+const {
+  startDrag: startTreeDrag,
+  targetState: treeTargetState,
+  rootState: treeRootState,
+} = useTaskDrag()
 const { tasks, githubCache, draggingId, hideCompleted } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
@@ -40,7 +49,55 @@ function dayOf(t: Task): string {
 }
 
 const nestedIds = computed(() => nestedChildIds('tasks', tasks.value))
-const topLevel = computed(() => tasks.value.filter((t) => !nestedIds.value.has(t.id)))
+// Tasks nested under another present task via the flat parentId hierarchy render
+// inside their parent's subtree accordion, so they drop out of the main list.
+const treeNestedIds = computed(() => {
+  const present = new Set(tasks.value.map((t) => t.id))
+  const nested = new Set<number>()
+  for (const t of tasks.value) {
+    if (t.parentId != null && present.has(t.parentId)) nested.add(t.id)
+  }
+  return nested
+})
+const topLevel = computed(() =>
+  tasks.value.filter((t) => !nestedIds.value.has(t.id) && !treeNestedIds.value.has(t.id)),
+)
+
+// --- flat-tree drag ---------------------------------------------------------
+function onTreeGripDown(e: PointerEvent, t: Task) {
+  startTreeDrag(t.id, e, { title: t.title || '(untitled)' })
+}
+function treeHighlight(id: number) {
+  const ts = treeTargetState(id)
+  if (!ts.active) return {}
+  const color = ts.valid ? c.value.accent : 'oklch(0.64 0.22 25)'
+  if (ts.zone === 'nest') return { outline: '2px solid ' + color, outlineOffset: '1px' }
+  return ts.zone === 'above'
+    ? { boxShadow: 'inset 0 3px 0 0 ' + color }
+    : { boxShadow: 'inset 0 -3px 0 0 ' + color }
+}
+function treeReject(id: number) {
+  const ts = treeTargetState(id)
+  return ts.active && !ts.valid ? { animation: 'shake .4s' } : {}
+}
+function treeHasChildren(id: number) {
+  return tree.hasChildren(id)
+}
+const rootStripStyle = computed(() => {
+  const rs = treeRootState()
+  return pxify({
+    marginTop: 4,
+    padding: '10px 12px',
+    borderRadius: 12,
+    border: '1.5px dashed ' + (rs.active ? c.value.accent : c.value.border),
+    background: rs.active ? c.value.card : 'transparent',
+    color: c.value.dim,
+    fontSize: 11,
+    textAlign: 'center',
+    letterSpacing: '0.04em',
+    transition: 'border-color .15s ease, background .15s ease',
+  })
+})
 
 const completedSort = ref<'recent' | 'original'>('recent')
 const split = computed(() =>
@@ -344,9 +401,15 @@ function onRowDragOver(e: DragEvent) {
 
     <!-- 2. Active items, flat -->
     <TransitionGroup name="rowflip" tag="div" :style="rowsWrap">
-      <div v-for="t in active" :key="t.id" :style="parentCardStyle">
+      <div
+        v-for="t in active"
+        :key="t.id"
+        :style="parentCardStyle"
+        :data-tasktree-id="t.id"
+        data-tasktree-collection="tasks"
+      >
         <div
-          :style="[rowStyle(t), nestHighlight(t.id)]"
+          :style="[rowStyle(t), nestHighlight(t.id), treeHighlight(t.id), treeReject(t.id)]"
           v-hover-style="s.rowHover"
           :data-nest-id="t.id"
           data-nest-collection="tasks"
@@ -354,10 +417,10 @@ function onRowDragOver(e: DragEvent) {
           @drop="onGripDrop($event, t)"
         >
           <button
-            v-if="t.linked.length"
+            v-if="t.linked.length || treeHasChildren(t.id)"
             type="button"
             :style="chevronStyle(t)"
-            :aria-label="expanded(t) ? 'Collapse linked' : 'Expand linked'"
+            :aria-label="expanded(t) ? 'Collapse' : 'Expand'"
             :aria-expanded="expanded(t)"
             @click.stop="toggleExpand(t)"
           >
@@ -377,9 +440,9 @@ function onRowDragOver(e: DragEvent) {
           <span
             :style="s.grip"
             role="button"
-            aria-label="Drag to nest"
-            title="Drag to nest"
-            @pointerdown="onGripDown($event, t)"
+            aria-label="Drag to move"
+            title="Drag to move or nest"
+            @pointerdown="onTreeGripDown($event, t)"
             ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
           ></span>
           <div :style="s.taskMain" @click="onRowClick(t)" @dblclick="onRowDblClick(t)">
@@ -436,8 +499,22 @@ function onRowDragOver(e: DragEvent) {
             </div>
           </div>
         </div>
+
+        <!-- Flat-hierarchy children: this task's subtree, drag-reorderable. -->
+        <div v-if="treeHasChildren(t.id)" :style="accBodyOuter(t)">
+          <div :style="accBodyClip">
+            <div :style="accBodyInner">
+              <TaskSubtree :task-id="t.id" />
+            </div>
+          </div>
+        </div>
       </div>
     </TransitionGroup>
+
+    <!-- Root drop strip: drop a dragged task here to make it top-level. -->
+    <div v-if="active.length > 0" data-tasktree-root :style="rootStripStyle">
+      Drop here to make top-level
+    </div>
 
     <!-- 3. Completed section -->
     <CompletedSection

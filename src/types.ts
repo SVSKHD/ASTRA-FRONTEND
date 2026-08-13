@@ -229,6 +229,26 @@ export interface Task extends Timestamped, Linkable {
   sourceRef: SourceRef | null
   // Set by "Clear completed" (archive, not delete). Absent = live.
   archivedAt?: number | null
+  // ---- Flat any-depth hierarchy (see utils/taskTree) --------------------
+  // Every task is a flat record; the tree is rebuilt in memory from parentId.
+  // parentId === null is top-level. order is a fractional sort key within a
+  // sibling group so a reparent writes one field, not the whole group. depth
+  // (0 at root) and rootId (the top-level ancestor's id, its own when top-level)
+  // are denormalised for render speed and recomputed on every reparent. All four
+  // are backfilled on read for tasks written before the hierarchy existed.
+  parentId: number | null
+  order: number
+  depth: number
+  rootId: number
+  // ---- Edit-safe sync bookkeeping (see composables/useSyncGuard) --------
+  // localRev increments on every local write so a stale in-flight write can be
+  // recognised; updatedBy records the last writer. Both backfilled on read.
+  localRev: number
+  updatedBy: string
+  // Set when a remote snapshot that landed mid-edit changed a field the user was
+  // also editing: the row shows a small badge offering "view remote version".
+  // Absent/false = clean.
+  hasConflict?: boolean
 }
 
 export interface Deadline extends Timestamped {

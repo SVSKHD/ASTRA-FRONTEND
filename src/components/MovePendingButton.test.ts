@@ -26,6 +26,12 @@ function overdueTask(id: number): Task {
     parents: [],
     reminderIds: [],
     sourceRef: null,
+    parentId: null,
+    order: 0,
+    depth: 0,
+    rootId: id,
+    localRev: 0,
+    updatedBy: '',
     createdAt: 0,
     updatedAt: 0,
   }
