@@ -104,6 +104,15 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
     ch = filled
       ? [P(star, { fill: col }), P(spark, { fill: col })]
       : [P(star, stroke(col, 1.7)), P(spark, stroke(col, 1.3))]
+  } else if (name === 'planning') {
+    // A small node graph: two linked nodes above a child, edges connecting them.
+    const edges = [P('M8 7.5 L8 13', stroke(col, 1.7)), P('M8 7.5 L16 15', stroke(col, 1.7))]
+    const nodes = [
+      RC(4.5, 3.5, 7, 4.5, 1.5, filled ? { fill: col } : stroke(col, 1.7)),
+      RC(3.5, 13, 7, 4.5, 1.5, filled ? { fill: col } : stroke(col, 1.7)),
+      RC(13, 15, 7, 4.5, 1.5, filled ? { fill: col } : stroke(col, 1.7)),
+    ]
+    ch = [...edges, ...nodes]
   } else if (name === 'bots') {
     // A robot head: rounded case, two eyes, and an antenna.
     const antenna = [

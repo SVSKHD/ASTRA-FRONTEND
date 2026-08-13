@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
@@ -32,6 +32,9 @@ import CloudLoading from '@/components/CloudLoading.vue'
 import OverviewView from '@/components/views/OverviewView.vue'
 import TodoView from '@/components/views/TodoView.vue'
 import TasksView from '@/components/views/TasksView.vue'
+// Planning pulls in JointJS (@joint/core), which is heavy; load it only when the
+// tab is opened so it lands in its own async chunk rather than the main bundle.
+const PlanningView = defineAsyncComponent(() => import('@/components/views/PlanningView.vue'))
 import DeadlinesView from '@/components/views/DeadlinesView.vue'
 import RemindersView from '@/components/views/RemindersView.vue'
 import FinancesView from '@/components/views/FinancesView.vue'
@@ -96,6 +99,7 @@ const viewMap = {
   overview: OverviewView,
   todo: TodoView,
   tasks: TasksView,
+  planning: PlanningView,
   deadlines: DeadlinesView,
   reminders: RemindersView,
   finances: FinancesView,

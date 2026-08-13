@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { PRIMARY_TABS, SECONDARY_TABS, TABS, TAB_ORDER, tabLabel } from '@/tabs.config'
 
 describe('tabs.config', () => {
-  it('lists all eleven sections in a stable order', () => {
+  it('lists all sections in a stable order', () => {
     expect(TAB_ORDER).toEqual([
       'overview',
       'todo',
       'tasks',
+      'planning',
       'deadlines',
       'reminders',
       'finances',
@@ -30,6 +31,7 @@ describe('tabs.config', () => {
 
   it('routes the remaining tabs into the More sheet', () => {
     expect(SECONDARY_TABS.map((t) => t.key)).toEqual([
+      'planning',
       'deadlines',
       'trips',
       'ideas',

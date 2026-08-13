@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@joint/core':
+        specifier: ^4.3.1
+        version: 4.3.1
       firebase:
         specifier: ^12.8.0
         version: 12.12.1
@@ -1048,6 +1051,9 @@ packages:
   '@isaacs/cliui@9.0.0':
     resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
     engines: {node: '>=18'}
+
+  '@joint/core@4.3.1':
+    resolution: {integrity: sha512-ikJchpM0Ux9v7CmcR7VQhu2YGS97xrZKjF+rN8nL5XE8ZYf+pSW4Zb0J0+/1AGEvjESN2ppwcJVyxVMbyJ+2XQ==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -4268,6 +4274,8 @@ snapshots:
       wrap-ansi-cjs: wrap-ansi@7.0.0
 
   '@isaacs/cliui@9.0.0': {}
+
+  '@joint/core@4.3.1': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

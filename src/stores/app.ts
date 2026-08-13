@@ -40,6 +40,13 @@ import { resolveIncome } from '@/utils/budget'
 import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
 import { nestSummary, planNest } from '@/utils/dragNest'
 import {
+  DEFAULT_NODE,
+  isEdgeRelation,
+  isNodeKind,
+  nextNodePosition,
+  tidyTreeLayout,
+} from '@/utils/planning'
+import {
   buildIndex,
   needsRenormalize,
   orderForPosition,
@@ -54,9 +61,17 @@ import type {
   EditingState,
   Finance,
   GithubCacheEntry,
+  GraphRef,
   Hierarchical,
   Idea,
   ItemDialogState,
+  BoardType,
+  EdgeRelation,
+  LinkedItemType,
+  NodeKind,
+  PlanningBoard,
+  PlanningEdge,
+  PlanningNode,
   ItemStatus,
   ItemType,
   LinkRef,
@@ -156,6 +171,12 @@ export const useAppStore = defineStore('app', () => {
   const trips = ref<Trip[]>([])
   const ideas = ref<Idea[]>([])
   const stocks = ref<Stock[]>([])
+  // Planning boards (JointJS node graphs). Stored flat in the workspace doc like
+  // everything else: boards plus per-node and per-edge records, so positions and
+  // relations sync granularly. See utils/planning + composables/usePlanningBoard.
+  const boards = ref<PlanningBoard[]>([])
+  const boardNodes = ref<PlanningNode[]>([])
+  const boardEdges = ref<PlanningEdge[]>([])
   // The shared tag vocabulary behind both pickers. Seeded for a new workspace;
   // a hydrate replaces it, and any tag typed anywhere joins it.
   const tags = ref<string[]>(DEFAULT_TAGS.slice())
@@ -277,6 +298,9 @@ export const useAppStore = defineStore('app', () => {
       ...trips.value.map((t) => t.id),
       ...ideas.value.map((t) => t.id),
       ...stocks.value.map((t) => t.id),
+      ...boards.value.map((b) => b.id),
+      ...boardNodes.value.map((n) => n.id),
+      ...boardEdges.value.map((e) => e.id),
     )
     if (maxId >= nid) nid = maxId + 1
   }
@@ -589,6 +613,277 @@ export const useAppStore = defineStore('app', () => {
     tasks.value = tasks.value.map((t) =>
       t.id === id && t.hasConflict ? { ...t, hasConflict: undefined } : t,
     )
+  }
+
+  // ---- Planning boards (node graphs) --------------------------------------
+  // Boards, nodes and edges are flat records in the workspace doc. Node writes
+  // bump localRev so the board's sync guard can recognise a stale in-flight
+  // write; multi-node ops (group move, layout, delete) mutate the array once so
+  // they persist as a single write.
+  function touchNode(n: PlanningNode): PlanningNode {
+    return { ...n, updatedAt: Date.now(), updatedBy: uid ?? n.updatedBy, localRev: n.localRev + 1 }
+  }
+  function addBoard(name: string, type: BoardType = 'tree'): number {
+    const boardId = id()
+    boards.value = [
+      ...boards.value,
+      {
+        id: boardId,
+        name: name.trim() || 'Untitled board',
+        type,
+        layoutMode: 'manual',
+        ...stamps(),
+      },
+    ]
+    return boardId
+  }
+  function renameBoard(boardId: number, name: string) {
+    boards.value = boards.value.map((b) =>
+      b.id === boardId ? touched({ ...b, name: name.trim() || b.name }) : b,
+    )
+  }
+  function setBoardLayoutMode(boardId: number, mode: 'manual' | 'tidy') {
+    boards.value = boards.value.map((b) =>
+      b.id === boardId ? touched({ ...b, layoutMode: mode }) : b,
+    )
+  }
+  function deleteBoard(boardId: number) {
+    const nodeIds = new Set(boardNodes.value.filter((n) => n.boardId === boardId).map((n) => n.id))
+    for (const nid of nodeIds) stripGraphRefsForNode(nid)
+    boardNodes.value = boardNodes.value.filter((n) => n.boardId !== boardId)
+    boardEdges.value = boardEdges.value.filter((e) => e.boardId !== boardId)
+    boards.value = boards.value.filter((b) => b.id !== boardId)
+  }
+  function nodesOfBoard(boardId: number): PlanningNode[] {
+    return boardNodes.value.filter((n) => n.boardId === boardId)
+  }
+  // Run the tidy-tree layout and write every node's new position in one batch.
+  function tidyBoard(boardId: number) {
+    const positions = tidyTreeLayout(nodesOfBoard(boardId), edgesOfBoard(boardId))
+    const updates: { id: number; x: number; y: number }[] = []
+    for (const [nid, p] of positions) updates.push({ id: nid, x: p.x, y: p.y })
+    if (updates.length) moveNodes(updates)
+    setBoardLayoutMode(boardId, 'tidy')
+  }
+  function edgesOfBoard(boardId: number): PlanningEdge[] {
+    return boardEdges.value.filter((e) => e.boardId === boardId)
+  }
+  function nodeById(nid: number): PlanningNode | undefined {
+    return boardNodes.value.find((n) => n.id === nid)
+  }
+  function addNode(boardId: number, kind: NodeKind = 'idea', label = 'New node'): number {
+    const nodeId = id()
+    const pos = nextNodePosition(nodesOfBoard(boardId))
+    boardNodes.value = [
+      ...boardNodes.value,
+      {
+        id: nodeId,
+        boardId,
+        label,
+        notes: '',
+        kind,
+        x: pos.x,
+        y: pos.y,
+        width: DEFAULT_NODE.width,
+        height: DEFAULT_NODE.height,
+        color: '',
+        linkedType: null,
+        linkedId: null,
+        localRev: 0,
+        updatedBy: uid ?? '',
+        ...stamps(),
+      },
+    ]
+    return nodeId
+  }
+  function updateNode(nid: number, patch: Partial<PlanningNode>) {
+    boardNodes.value = boardNodes.value.map((n) =>
+      n.id === nid ? touchNode({ ...n, ...patch }) : n,
+    )
+  }
+  // Position-only write (the drag path); one node, or a batch for group-move.
+  function moveNode(nid: number, x: number, y: number) {
+    boardNodes.value = boardNodes.value.map((n) => (n.id === nid ? touchNode({ ...n, x, y }) : n))
+  }
+  function moveNodes(updates: { id: number; x: number; y: number }[]) {
+    const map = new Map(updates.map((u) => [u.id, u]))
+    boardNodes.value = boardNodes.value.map((n) => {
+      const u = map.get(n.id)
+      return u ? touchNode({ ...n, x: u.x, y: u.y }) : n
+    })
+  }
+  function removeNode(nid: number, alsoDeleteLinked = false) {
+    const node = nodeById(nid)
+    if (node && alsoDeleteLinked && node.linkedType && node.linkedId != null) {
+      deleteWithUndo(node.linkedType === 'task' ? 'tasks' : 'todos', node.linkedType, node.linkedId)
+    } else if (node) {
+      stripGraphRefsForNode(nid)
+    }
+    boardEdges.value = boardEdges.value.filter((e) => e.source !== nid && e.target !== nid)
+    boardNodes.value = boardNodes.value.filter((n) => n.id !== nid)
+  }
+
+  // --- edges / relations ----------------------------------------------------
+  interface EdgeResult {
+    ok: boolean
+    reason?: 'self' | 'exists' | 'cycle'
+  }
+  function addEdge(
+    boardId: number,
+    source: number,
+    target: number,
+    relation: EdgeRelation = 'relates_to',
+  ): EdgeResult {
+    if (source === target) return { ok: false, reason: 'self' }
+    if (boardEdges.value.some((e) => e.source === source && e.target === target)) {
+      return { ok: false, reason: 'exists' }
+    }
+    // A 'parent' edge between two linked items writes the real hierarchy, reusing
+    // the flat-tree cycle guard: source is the parent, target the child.
+    if (relation === 'parent') {
+      const applied = applyParentRelation(source, target)
+      if (!applied.ok) return applied
+    }
+    const edgeId = id()
+    boardEdges.value = [
+      ...boardEdges.value,
+      { id: edgeId, boardId, source, target, relation, label: '', ...stamps() },
+    ]
+    // Record the relation on both linked items so it is navigable from the task.
+    recordEdgeGraphRefs(boardId, source, target, relation)
+    return { ok: true }
+  }
+  // Write child.parentId = parent.id through moveTask/moveTodo (cycle-guarded);
+  // returns cycle when the tree would loop. A no-op (ok) when either side is not
+  // a linked item of the matching type — the edge is still stored as a relation.
+  function applyParentRelation(sourceNode: number, targetNode: number): EdgeResult {
+    const parent = nodeById(sourceNode)
+    const child = nodeById(targetNode)
+    if (!parent?.linkedType || !child?.linkedType || parent.linkedType !== child.linkedType) {
+      return { ok: true }
+    }
+    if (parent.linkedId == null || child.linkedId == null) return { ok: true }
+    const ok =
+      parent.linkedType === 'task'
+        ? moveTask(child.linkedId, parent.linkedId, 0)
+        : moveTodo(child.linkedId, parent.linkedId, 0)
+    return ok ? { ok: true } : { ok: false, reason: 'cycle' }
+  }
+  function updateEdgeRelation(edgeId: number, relation: EdgeRelation): EdgeResult {
+    const edge = boardEdges.value.find((e) => e.id === edgeId)
+    if (!edge) return { ok: true }
+    if (relation === 'parent') {
+      const applied = applyParentRelation(edge.source, edge.target)
+      if (!applied.ok) return applied
+    }
+    boardEdges.value = boardEdges.value.map((e) =>
+      e.id === edgeId ? touched({ ...e, relation }) : e,
+    )
+    return { ok: true }
+  }
+  function removeEdge(edgeId: number) {
+    const edge = boardEdges.value.find((e) => e.id === edgeId)
+    if (!edge) return
+    // Undo a written parent relation: lift the child back to the top level.
+    if (edge.relation === 'parent') {
+      const child = nodeById(edge.target)
+      if (child?.linkedType && child.linkedId != null) {
+        if (child.linkedType === 'task') moveTask(child.linkedId, null, 0)
+        else moveTodo(child.linkedId, null, 0)
+      }
+    }
+    stripEdgeGraphRefs(edge)
+    boardEdges.value = boardEdges.value.filter((e) => e.id !== edgeId)
+  }
+
+  // --- node ↔ task/todo -----------------------------------------------------
+  function convertNodeToTask(nid: number): number | undefined {
+    const node = nodeById(nid)
+    if (!node || node.linkedType) return
+    addTask(node.label || 'Untitled', '', { notes: node.notes })
+    const created = tasks.value[tasks.value.length - 1]
+    if (!created) return
+    linkNode(nid, 'task', created.id)
+    return created.id
+  }
+  function convertNodeToTodo(nid: number): number | undefined {
+    const node = nodeById(nid)
+    if (!node || node.linkedType) return
+    addTodo(node.label || 'Untitled', '', node.notes)
+    const created = todos.value[todos.value.length - 1]
+    if (!created) return
+    linkNode(nid, 'todo', created.id)
+    return created.id
+  }
+  function linkNode(nid: number, type: LinkedItemType, itemId: number) {
+    const node = nodeById(nid)
+    if (!node) return
+    updateNode(nid, { linkedType: type, linkedId: itemId })
+    pushGraphRef(type, itemId, { boardId: node.boardId, nodeId: nid, relation: 'mirror' })
+  }
+  function unlinkNode(nid: number) {
+    const node = nodeById(nid)
+    if (!node || !node.linkedType || node.linkedId == null) return
+    stripGraphRef(node.linkedType, node.linkedId, (r) => r.nodeId === nid)
+    updateNode(nid, { linkedType: null, linkedId: null })
+  }
+
+  // --- graphRefs bookkeeping on tasks/todos ---------------------------------
+  function graphListRef(type: LinkedItemType): Ref<(Task | Todo)[]> {
+    return (type === 'task' ? tasks : todos) as unknown as Ref<(Task | Todo)[]>
+  }
+  function pushGraphRef(type: LinkedItemType, itemId: number, ref: GraphRef) {
+    const listRef = graphListRef(type)
+    listRef.value = listRef.value.map((it) =>
+      it.id === itemId ? { ...it, graphRefs: [...(it.graphRefs ?? []), ref] } : it,
+    )
+  }
+  function stripGraphRef(type: LinkedItemType, itemId: number, match: (r: GraphRef) => boolean) {
+    const listRef = graphListRef(type)
+    listRef.value = listRef.value.map((it) =>
+      it.id === itemId ? { ...it, graphRefs: (it.graphRefs ?? []).filter((r) => !match(r)) } : it,
+    )
+  }
+  // On node delete: drop every graphRef that pointed at it from its linked item.
+  function stripGraphRefsForNode(nid: number) {
+    const node = nodeById(nid)
+    if (node?.linkedType && node.linkedId != null) {
+      stripGraphRef(node.linkedType, node.linkedId, (r) => r.nodeId === nid)
+    }
+  }
+  // Record a relation edge on both endpoints' linked items (skip 'mirror').
+  function recordEdgeGraphRefs(
+    boardId: number,
+    source: number,
+    target: number,
+    relation: EdgeRelation,
+  ) {
+    const s = nodeById(source)
+    const t = nodeById(target)
+    if (s?.linkedType && s.linkedId != null) {
+      pushGraphRef(s.linkedType, s.linkedId, { boardId, nodeId: source, relation })
+    }
+    if (t?.linkedType && t.linkedId != null) {
+      pushGraphRef(t.linkedType, t.linkedId, { boardId, nodeId: target, relation })
+    }
+  }
+  function stripEdgeGraphRefs(edge: PlanningEdge) {
+    const s = nodeById(edge.source)
+    const t = nodeById(edge.target)
+    if (s?.linkedType && s.linkedId != null) {
+      stripGraphRef(
+        s.linkedType,
+        s.linkedId,
+        (r) => r.nodeId === edge.source && r.relation === edge.relation,
+      )
+    }
+    if (t?.linkedType && t.linkedId != null) {
+      stripGraphRef(
+        t.linkedType,
+        t.linkedId,
+        (r) => r.nodeId === edge.target && r.relation === edge.relation,
+      )
+    }
   }
 
   // ---- Deadlines ----------------------------------------------------------
@@ -2822,6 +3117,9 @@ export const useAppStore = defineStore('app', () => {
       trips: trips.value,
       ideas: ideas.value,
       stocks: stocks.value,
+      boards: boards.value,
+      boardNodes: boardNodes.value,
+      boardEdges: boardEdges.value,
       tags: tags.value,
       security: security.value,
       themeSetting: themeSetting.value,
@@ -2855,6 +3153,9 @@ export const useAppStore = defineStore('app', () => {
     trips.value = []
     ideas.value = []
     stocks.value = []
+    boards.value = []
+    boardNodes.value = []
+    boardEdges.value = []
     tags.value = DEFAULT_TAGS.slice()
     approvedPRs.value = {}
     security.value = emptySecurity()
@@ -3051,6 +3352,39 @@ export const useAppStore = defineStore('app', () => {
       watchPrice: typeof st.watchPrice === 'number' ? st.watchPrice : 0,
       tag: typeof st.tag === 'string' ? st.tag : '',
       noteIds: Array.isArray(st.noteIds) ? st.noteIds.filter((n) => typeof n === 'number') : [],
+    }))
+    // Planning boards — flat board/node/edge records. Nodes being dragged or
+    // edited are protected by the planning board's own guard, not here (this only
+    // runs on a server-acked snapshot).
+    boards.value = stamped<PlanningBoard>(data.boards).map((b) => ({
+      ...b,
+      name: typeof b.name === 'string' ? b.name : 'Board',
+      type: b.type === 'freeform' ? 'freeform' : 'tree',
+      layoutMode: b.layoutMode === 'tidy' ? 'tidy' : 'manual',
+    }))
+    boardNodes.value = stamped<PlanningNode>(data.boardNodes).map((n) => ({
+      ...n,
+      boardId: typeof n.boardId === 'number' ? n.boardId : 0,
+      label: typeof n.label === 'string' ? n.label : '',
+      notes: typeof n.notes === 'string' ? n.notes : '',
+      kind: isNodeKind(n.kind) ? n.kind : 'idea',
+      x: typeof n.x === 'number' ? n.x : 0,
+      y: typeof n.y === 'number' ? n.y : 0,
+      width: typeof n.width === 'number' ? n.width : 180,
+      height: typeof n.height === 'number' ? n.height : 64,
+      color: typeof n.color === 'string' ? n.color : '',
+      linkedType: n.linkedType === 'task' || n.linkedType === 'todo' ? n.linkedType : null,
+      linkedId: typeof n.linkedId === 'number' ? n.linkedId : null,
+      localRev: typeof n.localRev === 'number' ? n.localRev : 0,
+      updatedBy: typeof n.updatedBy === 'string' ? n.updatedBy : '',
+    }))
+    boardEdges.value = stamped<PlanningEdge>(data.boardEdges).map((e) => ({
+      ...e,
+      boardId: typeof e.boardId === 'number' ? e.boardId : 0,
+      source: typeof e.source === 'number' ? e.source : 0,
+      target: typeof e.target === 'number' ? e.target : 0,
+      relation: isEdgeRelation(e.relation) ? e.relation : 'relates_to',
+      label: typeof e.label === 'string' ? e.label : '',
     }))
     // Workspaces written before tags existed have none stored. Rather than
     // leaving the pickers empty, seed them from the tags already in use and
@@ -3261,6 +3595,9 @@ export const useAppStore = defineStore('app', () => {
         trips,
         ideas,
         stocks,
+        boards,
+        boardNodes,
+        boardEdges,
         security,
         themeSetting,
         railCollapsed,
@@ -3482,6 +3819,30 @@ export const useAppStore = defineStore('app', () => {
     moveTodo,
     remoteTaskVersion,
     dismissTaskConflict,
+    // planning boards
+    boards,
+    boardNodes,
+    boardEdges,
+    addBoard,
+    renameBoard,
+    setBoardLayoutMode,
+    deleteBoard,
+    nodesOfBoard,
+    edgesOfBoard,
+    nodeById,
+    tidyBoard,
+    addNode,
+    updateNode,
+    moveNode,
+    moveNodes,
+    removeNode,
+    addEdge,
+    updateEdgeRelation,
+    removeEdge,
+    convertNodeToTask,
+    convertNodeToTodo,
+    linkNode,
+    unlinkNode,
     setTodoDragId,
     endTodoDrag,
     dropTodoOnDay,
