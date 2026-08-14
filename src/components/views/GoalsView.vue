@@ -22,6 +22,7 @@ const { goals } = storeToRefs(app)
 const selectedId = ref<number | null>(null)
 const statusFilter = ref<GoalStatus | 'all'>('all')
 const sortKey = ref<'order' | 'target' | 'progress'>('order')
+const search = ref('')
 
 defineExpose({ focus: () => onNew() })
 
@@ -61,6 +62,13 @@ const rows = computed<GoalRow[]>(() => {
   let list = goals.value.slice()
   if (statusFilter.value === 'all') list = list.filter((g) => g.status !== 'archived')
   else list = list.filter((g) => g.status === statusFilter.value)
+
+  // Free-text search over title + description.
+  const q = search.value.trim().toLowerCase()
+  if (q)
+    list = list.filter(
+      (g) => g.title.toLowerCase().includes(q) || g.description.toLowerCase().includes(q),
+    )
 
   const mapped = list.map((goal) => ({
     goal,
@@ -178,6 +186,20 @@ const countChip = computed(() =>
   }),
 )
 const gripDots = [0, 1, 2, 3, 4, 5]
+// One accent colour per goal, used only for the dot (and the detail progress
+// bar) — falls back to the theme accent when the goal has no colour set.
+function colorDot(color: string) {
+  return pxify({
+    width: 10,
+    height: 10,
+    borderRadius: '50%',
+    flexShrink: 0,
+    background: color || c.value.accent,
+  })
+}
+const searchInput = computed(() =>
+  pxify({ ...s.value.input, flex: 1, minWidth: 140, padding: '6px 10px', fontSize: 12 }),
+)
 const importBtn = computed(() =>
   pxify({
     fontSize: 12,
@@ -207,6 +229,13 @@ const importBtn = computed(() =>
       </ListToolbar>
 
       <div v-if="goals.length" :style="filterBar">
+        <input
+          :style="searchInput"
+          :value="search"
+          type="search"
+          placeholder="Search goals…"
+          @input="search = ($event.target as HTMLInputElement).value"
+        />
         <select
           :style="s.select"
           :value="statusFilter"
@@ -257,6 +286,7 @@ const importBtn = computed(() =>
               ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
             ></span>
             <ProgressRing :ratio="r.ratio" :size="42" />
+            <span :style="colorDot(r.goal.color)" aria-hidden="true"></span>
             <span :style="titleStyle">{{ r.goal.title || 'Untitled goal' }}</span>
             <span :style="statusBadge(r.goal.status)">{{ STATUS_META[r.goal.status].label }}</span>
           </div>

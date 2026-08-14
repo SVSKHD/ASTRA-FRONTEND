@@ -18,6 +18,7 @@ import { bucketPct, type Bucket, type MonthlyOverview } from '@/utils/overview'
 import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
 import MonthPicker from '@/components/MonthPicker.vue'
 import OverviewUpNext from '@/components/OverviewUpNext.vue'
+import GoalsDashboardCard from '@/components/GoalsDashboardCard.vue'
 import type { TabKey } from '@/types'
 
 const ui = useUiStore()
@@ -326,6 +327,8 @@ function compareLineStyle(dir: 'up' | 'down' | 'flat') {
     </div>
 
     <OverviewUpNext />
+
+    <GoalsDashboardCard />
 
     <div :style="gridStyle">
       <div
