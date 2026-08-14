@@ -13,6 +13,7 @@ export type TabKey =
   | 'stocks'
   | 'ai'
   | 'bots'
+  | 'goals'
 
 // Every stored item carries these. Items written before timestamps existed have
 // neither, so applyData() backfills them to 0 — which the formatter renders as
@@ -227,6 +228,10 @@ export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical {
   // Back-references to planning-board nodes/relations, so a board relation is
   // navigable from the item too. Absent on items with no board relations.
   graphRefs?: GraphRef[]
+  // Goals this todo is attached to (task 8). Attachment is by reference — the
+  // todo stays in its own list and may belong to several goals at once. Absent
+  // when unattached; backfilled to [] on read.
+  goalIds?: number[]
 }
 
 export interface Task extends Timestamped, Linkable, Hierarchical {
@@ -255,6 +260,53 @@ export interface Task extends Timestamped, Linkable, Hierarchical {
   archivedAt?: number | null
   // Back-references to planning-board nodes/relations. Absent when none.
   graphRefs?: GraphRef[]
+  // Goals this task is attached to (task 8). See Todo.goalIds.
+  goalIds?: number[]
+}
+
+// ---- Goals (task 8) -------------------------------------------------------
+// A goal is a container that sits above tasks/todos: it holds its own checklist
+// items and can have existing tasks/todos attached to it by reference (via their
+// goalIds). Progress rolls up from checklist items + attached items and is
+// computed client-side — never persisted. In this single-workspace-document app
+// the goal's checklist lives as a flat GoalChecklistItem[] array keyed by goalId
+// (adapting the spec's /goals/{id}/checklist subcollection), and progress /
+// counts are derived from the live lists rather than stored counters.
+export type GoalStatus = 'active' | 'paused' | 'done' | 'archived'
+export type GoalSource = 'manual' | 'url-import'
+
+export interface Goal extends Timestamped, Hierarchical {
+  id: number
+  title: string
+  description: string
+  status: GoalStatus
+  // ISO YYYY-MM-DD, '' = unset.
+  targetDate: string
+  startDate: string
+  color: string
+  icon: string
+  source: GoalSource
+  // The original import link, for traceability + idempotent re-import merge.
+  sourceUrl: string
+}
+
+export interface GoalChecklistItem extends Timestamped {
+  id: number
+  goalId: number
+  text: string
+  done: boolean
+  order: number
+  // Planned vs accumulated time, in minutes. estimateMins null = no estimate.
+  estimateMins: number | null
+  spentMins: number
+  // ISO YYYY-MM-DD, '' = no due date.
+  dueAt: string
+  startedAt: number | null
+  completedAt: number | null
+  // Set while the built-in timer is running (epoch ms); null when stopped. On
+  // stop, elapsed minutes are folded into spentMins. Not counted as an edit.
+  timerStartedAt: number | null
+  localRev: number
 }
 
 export interface Deadline extends Timestamped {

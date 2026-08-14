@@ -20,6 +20,7 @@ export const TABS: readonly TabDef[] = [
   { key: 'overview', label: 'Overview', primary: true },
   { key: 'todo', label: 'Todo', primary: true },
   { key: 'tasks', label: 'Tasks', primary: true },
+  { key: 'goals', label: 'Goals' },
   { key: 'planning', label: 'Planning' },
   { key: 'deadlines', label: 'Deadlines' },
   { key: 'reminders', label: 'Reminders', primary: true },

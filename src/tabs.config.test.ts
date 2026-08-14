@@ -7,6 +7,7 @@ describe('tabs.config', () => {
       'overview',
       'todo',
       'tasks',
+      'goals',
       'planning',
       'deadlines',
       'reminders',
@@ -31,6 +32,7 @@ describe('tabs.config', () => {
 
   it('routes the remaining tabs into the More sheet', () => {
     expect(SECONDARY_TABS.map((t) => t.key)).toEqual([
+      'goals',
       'planning',
       'deadlines',
       'trips',

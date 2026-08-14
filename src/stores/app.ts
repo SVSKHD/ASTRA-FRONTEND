@@ -82,6 +82,9 @@ import type {
   Priority,
   PullRequest,
   FinanceSettings,
+  Goal,
+  GoalChecklistItem,
+  GoalStatus,
   Reminder,
   Repeat,
   RepeatType,
@@ -96,6 +99,7 @@ import type {
   TripPlace,
   TripStatus,
 } from '@/types'
+import type { ParsedGoalItem } from '@/utils/goals'
 
 function rel(days: number): string {
   const d = new Date()
@@ -177,6 +181,12 @@ export const useAppStore = defineStore('app', () => {
   const boards = ref<PlanningBoard[]>([])
   const boardNodes = ref<PlanningNode[]>([])
   const boardEdges = ref<PlanningEdge[]>([])
+  // Goals (task 8): a container above tasks/todos. Stored flat in the workspace
+  // doc — the goals themselves plus their checklist items keyed by goalId
+  // (adapting the spec's per-goal checklist subcollection). Tasks/todos attach by
+  // reference through their own goalIds; a goal never stores the item list.
+  const goals = ref<Goal[]>([])
+  const goalChecklist = ref<GoalChecklistItem[]>([])
   // The shared tag vocabulary behind both pickers. Seeded for a new workspace;
   // a hydrate replaces it, and any tag typed anywhere joins it.
   const tags = ref<string[]>(DEFAULT_TAGS.slice())
@@ -306,6 +316,8 @@ export const useAppStore = defineStore('app', () => {
       ...boards.value.map((b) => b.id),
       ...boardNodes.value.map((n) => n.id),
       ...boardEdges.value.map((e) => e.id),
+      ...goals.value.map((g) => g.id),
+      ...goalChecklist.value.map((c) => c.id),
     )
     if (maxId >= nid) nid = maxId + 1
   }
@@ -406,6 +418,7 @@ export const useAppStore = defineStore('app', () => {
         ...stamps(),
       },
     ]
+    return newId
   }
   function updateTodo(tid: number, fields: Partial<Todo>) {
     const next =
@@ -471,6 +484,7 @@ export const useAppStore = defineStore('app', () => {
         ...stamps(),
       },
     ]
+    return newId
   }
   function setTaskStatus(tid: number, next: ItemStatus) {
     const cur = tasks.value.find((t) => t.id === tid)
@@ -569,6 +583,278 @@ export const useAppStore = defineStore('app', () => {
       listRef.value = snapshot
       showToastMsg('Move failed — reverted')
     }
+  }
+
+  // ---- Goals (task 8) -----------------------------------------------------
+  // A goal is a container above tasks/todos. It owns a checklist and can have
+  // existing tasks/todos attached to it by reference (their goalIds). Progress
+  // and counts are derived from the live lists here — never persisted. Reorder of
+  // the goals list reuses the flat-tree mover (goals are a flat, parentId=null
+  // list); the checklist has its own light fractional reorder.
+  const CHECKLIST_GAP = 1000
+
+  function addGoal(fields: Partial<Goal> = {}): number {
+    const newId = id()
+    const rootOrders = goals.value.filter((g) => g.parentId == null).map((g) => g.order)
+    const nextOrder = rootOrders.length ? Math.max(...rootOrders) + 1 : 0
+    goals.value = [
+      ...goals.value,
+      {
+        id: newId,
+        title: 'New goal',
+        description: '',
+        status: 'active',
+        targetDate: '',
+        startDate: '',
+        color: '',
+        icon: '',
+        source: 'manual',
+        sourceUrl: '',
+        parentId: null,
+        order: nextOrder,
+        depth: 0,
+        rootId: newId,
+        localRev: 0,
+        updatedBy: uid ?? '',
+        ...fields,
+        ...stamps(),
+      },
+    ]
+    return newId
+  }
+  function updateGoal(gid: number, fields: Partial<Goal>) {
+    goals.value = goals.value.map((g) =>
+      g.id === gid ? touched({ ...g, ...fields, localRev: g.localRev + 1 }) : g,
+    )
+  }
+  function setGoalStatus(gid: number, status: GoalStatus) {
+    updateGoal(gid, { status })
+  }
+  function moveGoal(draggedId: number, position: number): boolean {
+    return moveInList(goals, draggedId, null, position)
+  }
+  // Delete a goal. Default ('unlink everything'): remove the goal and its
+  // checklist, and detach its id from every task/todo — the items themselves are
+  // never deleted. checklistOnly: wipe just the checklist, leaving the goal and
+  // its attachments in place.
+  function deleteGoal(gid: number, checklistOnly = false) {
+    if (checklistOnly) {
+      goalChecklist.value = goalChecklist.value.filter((c) => c.goalId !== gid)
+      return
+    }
+    goals.value = goals.value.filter((g) => g.id !== gid)
+    goalChecklist.value = goalChecklist.value.filter((c) => c.goalId !== gid)
+    const detach = <T extends { goalIds?: number[] }>(it: T): T =>
+      it.goalIds && it.goalIds.includes(gid)
+        ? { ...it, goalIds: it.goalIds.filter((x) => x !== gid) }
+        : it
+    tasks.value = tasks.value.map(detach)
+    todos.value = todos.value.map(detach)
+  }
+  function goalById(gid: number): Goal | undefined {
+    return goals.value.find((g) => g.id === gid)
+  }
+
+  // --- checklist CRUD ------------------------------------------------------
+  function checklistOf(gid: number): GoalChecklistItem[] {
+    return goalChecklist.value.filter((c) => c.goalId === gid).sort((a, b) => a.order - b.order)
+  }
+  function nextChecklistOrder(gid: number): number {
+    const os = goalChecklist.value.filter((c) => c.goalId === gid).map((c) => c.order)
+    return os.length ? Math.max(...os) + CHECKLIST_GAP : CHECKLIST_GAP
+  }
+  function addChecklistItem(
+    gid: number,
+    text: string,
+    extra: Partial<Pick<GoalChecklistItem, 'estimateMins' | 'dueAt' | 'order'>> = {},
+  ): number {
+    const newId = id()
+    goalChecklist.value = [
+      ...goalChecklist.value,
+      {
+        id: newId,
+        goalId: gid,
+        text: text.trim(),
+        done: false,
+        order: extra.order ?? nextChecklistOrder(gid),
+        estimateMins: extra.estimateMins ?? null,
+        spentMins: 0,
+        dueAt: extra.dueAt ?? '',
+        startedAt: null,
+        completedAt: null,
+        timerStartedAt: null,
+        localRev: 0,
+        ...stamps(),
+      },
+    ]
+    return newId
+  }
+  function updateChecklistItem(itemId: number, fields: Partial<GoalChecklistItem>) {
+    goalChecklist.value = goalChecklist.value.map((c) =>
+      c.id === itemId ? touched({ ...c, ...fields, localRev: c.localRev + 1 }) : c,
+    )
+  }
+  function toggleChecklistItem(itemId: number) {
+    const now = Date.now()
+    goalChecklist.value = goalChecklist.value.map((c) => {
+      if (c.id !== itemId) return c
+      const done = !c.done
+      return touched({
+        ...c,
+        done,
+        completedAt: done ? now : null,
+        startedAt: c.startedAt ?? (done ? now : null),
+        localRev: c.localRev + 1,
+      })
+    })
+  }
+  function deleteChecklistItem(itemId: number) {
+    goalChecklist.value = goalChecklist.value.filter((c) => c.id !== itemId)
+  }
+  function orderBetween(prev?: GoalChecklistItem, next?: GoalChecklistItem): number {
+    if (!prev && !next) return CHECKLIST_GAP
+    if (!prev) return next!.order - CHECKLIST_GAP
+    if (!next) return prev.order + CHECKLIST_GAP
+    return (prev.order + next.order) / 2
+  }
+  // Move a checklist item to a target index within its goal's list (fractional
+  // ordering, so only the moved row is rewritten).
+  function moveChecklistItem(itemId: number, toIndex: number) {
+    const item = goalChecklist.value.find((c) => c.id === itemId)
+    if (!item) return
+    const siblings = checklistOf(item.goalId).filter((c) => c.id !== itemId)
+    const clamped = Math.max(0, Math.min(toIndex, siblings.length))
+    updateChecklistItem(itemId, {
+      order: orderBetween(siblings[clamped - 1], siblings[clamped]),
+    })
+  }
+  // --- checklist timer -----------------------------------------------------
+  function startChecklistTimer(itemId: number) {
+    const now = Date.now()
+    goalChecklist.value = goalChecklist.value.map((c) =>
+      c.id === itemId ? touched({ ...c, timerStartedAt: now, startedAt: c.startedAt ?? now }) : c,
+    )
+  }
+  function stopChecklistTimer(itemId: number) {
+    const now = Date.now()
+    goalChecklist.value = goalChecklist.value.map((c) => {
+      if (c.id !== itemId || c.timerStartedAt == null) return c
+      const elapsed = Math.max(0, Math.round((now - c.timerStartedAt) / 60000))
+      return touched({ ...c, spentMins: c.spentMins + elapsed, timerStartedAt: null })
+    })
+  }
+
+  // --- attachment (by reference, both ways) --------------------------------
+  function attachToGoal(collection: 'tasks' | 'todos', itemId: number, gid: number) {
+    const listRef = collection === 'tasks' ? tasks : todos
+    listRef.value = listRef.value.map((it) =>
+      it.id === itemId
+        ? touched({ ...it, goalIds: Array.from(new Set([...(it.goalIds ?? []), gid])) })
+        : it,
+    ) as typeof listRef.value
+  }
+  function detachFromGoal(collection: 'tasks' | 'todos', itemId: number, gid: number) {
+    const listRef = collection === 'tasks' ? tasks : todos
+    listRef.value = listRef.value.map((it) =>
+      it.id === itemId && it.goalIds?.includes(gid)
+        ? touched({ ...it, goalIds: it.goalIds.filter((x) => x !== gid) })
+        : it,
+    ) as typeof listRef.value
+  }
+  function createTaskInGoal(gid: number, title: string, tag = ''): number | undefined {
+    return addTask(title, tag, { goalIds: [gid] })
+  }
+  function createTodoInGoal(gid: number, text: string): number | undefined {
+    const tid = addTodo(text)
+    if (tid != null) attachToGoal('todos', tid, gid)
+    return tid
+  }
+  function tasksOfGoal(gid: number): Task[] {
+    return tasks.value.filter((t) => t.goalIds?.includes(gid))
+  }
+  function todosOfGoal(gid: number): Todo[] {
+    return todos.value.filter((t) => t.goalIds?.includes(gid))
+  }
+  // Progress rolls up checklist items + attached tasks + attached todos.
+  function goalProgress(gid: number): { done: number; total: number; ratio: number } {
+    const cl = goalChecklist.value.filter((c) => c.goalId === gid)
+    const tk = tasksOfGoal(gid)
+    const td = todosOfGoal(gid)
+    const total = cl.length + tk.length + td.length
+    const done =
+      cl.filter((c) => c.done).length +
+      tk.filter((t) => t.done).length +
+      td.filter((t) => t.done).length
+    return { done, total, ratio: total ? done / total : 0 }
+  }
+  function goalCounts(gid: number): { checklist: number; tasks: number; todos: number } {
+    return {
+      checklist: goalChecklist.value.filter((c) => c.goalId === gid).length,
+      tasks: tasksOfGoal(gid).length,
+      todos: todosOfGoal(gid).length,
+    }
+  }
+  // Estimated vs spent minutes, summed across the goal's checklist items. Tasks
+  // and todos carry no time fields, so only the checklist contributes.
+  function goalTime(gid: number): { estimate: number; spent: number } {
+    let estimate = 0
+    let spent = 0
+    for (const c of goalChecklist.value) {
+      if (c.goalId !== gid) continue
+      estimate += c.estimateMins ?? 0
+      spent += c.spentMins
+    }
+    return { estimate, spent }
+  }
+
+  // --- URL import ----------------------------------------------------------
+  function goalBySourceUrl(url: string): Goal | undefined {
+    return goals.value.find((g) => g.sourceUrl && g.sourceUrl === url)
+  }
+  // A preview row the import view hands back: the parsed item plus the target
+  // kind the user chose for it.
+  interface ImportRow extends ParsedGoalItem {
+    kind: 'checklist' | 'task' | 'todo'
+  }
+  // Write an import in one synchronous pass (one debounced save = one atomic
+  // whole-doc write). Either creates a fresh goal or, when mergeGoalId is given,
+  // appends only checklist items whose text is not already present.
+  function importGoals(opts: {
+    title: string
+    sourceUrl: string
+    rows: ImportRow[]
+    mergeGoalId?: number | null
+  }): number | null {
+    const merging = opts.mergeGoalId != null && goalById(opts.mergeGoalId) != null
+    const gid = merging
+      ? (opts.mergeGoalId as number)
+      : addGoal({
+          title: opts.title.trim() || 'Imported Goals',
+          source: 'url-import',
+          sourceUrl: opts.sourceUrl,
+        })
+    const existing = new Set(checklistOf(gid).map((c) => c.text.toLowerCase()))
+    let ord = nextChecklistOrder(gid) - CHECKLIST_GAP
+    for (const row of opts.rows) {
+      const text = row.text.trim()
+      if (!text) continue
+      if (row.kind === 'checklist') {
+        if (merging && existing.has(text.toLowerCase())) continue
+        existing.add(text.toLowerCase())
+        ord += CHECKLIST_GAP
+        addChecklistItem(gid, text, {
+          order: ord,
+          estimateMins: row.estimateMins,
+          dueAt: row.dueAt ?? '',
+        })
+      } else if (row.kind === 'task') {
+        const tag = row.tags[0] ?? ''
+        createTaskInGoal(gid, text, tag)
+      } else {
+        createTodoInGoal(gid, text)
+      }
+    }
+    return gid
   }
 
   // ---- Edit-safe flush on task dialog close -------------------------------
@@ -3125,6 +3411,8 @@ export const useAppStore = defineStore('app', () => {
       boards: boards.value,
       boardNodes: boardNodes.value,
       boardEdges: boardEdges.value,
+      goals: goals.value,
+      goalChecklist: goalChecklist.value,
       tags: tags.value,
       security: security.value,
       themeSetting: themeSetting.value,
@@ -3163,6 +3451,8 @@ export const useAppStore = defineStore('app', () => {
     boards.value = []
     boardNodes.value = []
     boardEdges.value = []
+    goals.value = []
+    goalChecklist.value = []
     tags.value = DEFAULT_TAGS.slice()
     approvedPRs.value = {}
     security.value = emptySecurity()
@@ -3265,6 +3555,8 @@ export const useAppStore = defineStore('app', () => {
       rootId: typeof t.rootId === 'number' ? t.rootId : t.id,
       localRev: typeof t.localRev === 'number' ? t.localRev : 0,
       updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
+      // Goal attachments (task 8), backfilled to [] for todos written before it.
+      goalIds: Array.isArray(t.goalIds) ? t.goalIds.filter((n) => typeof n === 'number') : [],
     }))
     // Rollover fields arrived after tasks did; tasks stored before then read as
     // "never rolled over".
@@ -3292,6 +3584,8 @@ export const useAppStore = defineStore('app', () => {
         // Edit-safe sync bookkeeping, backfilled to a clean baseline.
         localRev: typeof t.localRev === 'number' ? t.localRev : 0,
         updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
+        // Goal attachments (task 8), backfilled to [].
+        goalIds: Array.isArray(t.goalIds) ? t.goalIds.filter((n) => typeof n === 'number') : [],
       }))
     // Edit-safe sync: a task whose dialog is open (or whose local edits are
     // unsaved) is protected — the guard holds the incoming version back rather
@@ -3395,6 +3689,53 @@ export const useAppStore = defineStore('app', () => {
       relation: isEdgeRelation(e.relation) ? e.relation : 'relates_to',
       label: typeof e.label === 'string' ? e.label : '',
     }))
+    // Goals (task 8). Flat list; depth is always 0 (goals do not nest).
+    const goalStatuses = ['active', 'paused', 'done', 'archived']
+    goals.value = stamped<Goal>(data.goals).map((g, i) => ({
+      ...g,
+      title: typeof g.title === 'string' ? g.title : 'Goal',
+      description: typeof g.description === 'string' ? g.description : '',
+      status: goalStatuses.includes(g.status as string) ? (g.status as GoalStatus) : 'active',
+      targetDate: typeof g.targetDate === 'string' ? g.targetDate : '',
+      startDate: typeof g.startDate === 'string' ? g.startDate : '',
+      color: typeof g.color === 'string' ? g.color : '',
+      icon: typeof g.icon === 'string' ? g.icon : '',
+      source: g.source === 'url-import' ? 'url-import' : 'manual',
+      sourceUrl: typeof g.sourceUrl === 'string' ? g.sourceUrl : '',
+      parentId: null,
+      order: typeof g.order === 'number' ? g.order : i,
+      depth: 0,
+      rootId: typeof g.rootId === 'number' ? g.rootId : g.id,
+      localRev: typeof g.localRev === 'number' ? g.localRev : 0,
+      updatedBy: typeof g.updatedBy === 'string' ? g.updatedBy : '',
+    }))
+    const incomingChecklist = stamped<GoalChecklistItem>(data.goalChecklist).map((c, i) => ({
+      ...c,
+      goalId: typeof c.goalId === 'number' ? c.goalId : 0,
+      text: typeof c.text === 'string' ? c.text : '',
+      done: c.done === true,
+      order: typeof c.order === 'number' ? c.order : (i + 1) * 1000,
+      estimateMins: typeof c.estimateMins === 'number' ? c.estimateMins : null,
+      spentMins: typeof c.spentMins === 'number' ? c.spentMins : 0,
+      dueAt: typeof c.dueAt === 'string' ? c.dueAt : '',
+      startedAt: typeof c.startedAt === 'number' ? c.startedAt : null,
+      completedAt: typeof c.completedAt === 'number' ? c.completedAt : null,
+      timerStartedAt: typeof c.timerStartedAt === 'number' ? c.timerStartedAt : null,
+      localRev: typeof c.localRev === 'number' ? c.localRev : 0,
+    }))
+    // SYNC: keep the local copy of any checklist item being inline-edited or with
+    // a live timer, so a remote snapshot can't reorder or clobber it mid-edit.
+    const heldItems = new Map(
+      goalChecklist.value
+        .filter((c) => syncGuard.editingIds.has(c.id) || c.timerStartedAt != null)
+        .map((c) => [c.id, c]),
+    )
+    goalChecklist.value = heldItems.size
+      ? [
+          ...incomingChecklist.map((c) => heldItems.get(c.id) ?? c),
+          ...[...heldItems.values()].filter((c) => !incomingChecklist.some((x) => x.id === c.id)),
+        ]
+      : incomingChecklist
     // Workspaces written before tags existed have none stored. Rather than
     // leaving the pickers empty, seed them from the tags already in use and
     // fall back to the defaults for a workspace that has none of those either.
@@ -3619,6 +3960,8 @@ export const useAppStore = defineStore('app', () => {
         boards,
         boardNodes,
         boardEdges,
+        goals,
+        goalChecklist,
         security,
         themeSetting,
         preferredDark,
@@ -3868,6 +4211,34 @@ export const useAppStore = defineStore('app', () => {
     convertNodeToTodo,
     linkNode,
     unlinkNode,
+    // goals (task 8)
+    goals,
+    goalChecklist,
+    addGoal,
+    updateGoal,
+    setGoalStatus,
+    moveGoal,
+    deleteGoal,
+    goalById,
+    checklistOf,
+    addChecklistItem,
+    updateChecklistItem,
+    toggleChecklistItem,
+    deleteChecklistItem,
+    moveChecklistItem,
+    startChecklistTimer,
+    stopChecklistTimer,
+    attachToGoal,
+    detachFromGoal,
+    createTaskInGoal,
+    createTodoInGoal,
+    tasksOfGoal,
+    todosOfGoal,
+    goalProgress,
+    goalCounts,
+    goalTime,
+    goalBySourceUrl,
+    importGoals,
     setTodoDragId,
     endTodoDrag,
     dropTodoOnDay,
