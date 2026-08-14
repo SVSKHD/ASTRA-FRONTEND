@@ -104,6 +104,15 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
     ch = filled
       ? [P(star, { fill: col }), P(spark, { fill: col })]
       : [P(star, stroke(col, 1.7)), P(spark, stroke(col, 1.3))]
+  } else if (name === 'goals') {
+    // A target: concentric rings with a centre dot — "goal / aim".
+    ch = filled
+      ? [
+          CI(12, 12, 9, stroke(col, 1.9)),
+          CI(12, 12, 5, stroke(col, 1.9)),
+          CI(12, 12, 1.9, { fill: col }),
+        ]
+      : [CI(12, 12, 9, stroke(col)), CI(12, 12, 5, stroke(col)), CI(12, 12, 1.6, { fill: col })]
   } else if (name === 'planning') {
     // A small node graph: two linked nodes above a child, edges connecting them.
     const edges = [P('M8 7.5 L8 13', stroke(col, 1.7)), P('M8 7.5 L16 15', stroke(col, 1.7))]
