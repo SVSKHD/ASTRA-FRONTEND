@@ -97,6 +97,65 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     return c[token] ?? '#888'
   }
 
+  // --- canvas palette (task 6b) ----------------------------------------------
+  // Joint bakes colours into SVG at draw time and can't follow CSS variables, so
+  // the grid (and, later, the opaque nodes) derive solid colours here from each
+  // theme's opaque surface (bgSolid). Mixing off the surface means a bright theme
+  // gets bright dots and a dark one faint dots — never a fixed grey.
+  function hexToRgb(hex: string): [number, number, number] {
+    const h = hex.replace('#', '')
+    const f = h.length === 3 ? h.replace(/./g, (c) => c + c) : h
+    return [parseInt(f.slice(0, 2), 16), parseInt(f.slice(2, 4), 16), parseInt(f.slice(4, 6), 16)]
+  }
+  // Mix `hex` toward `target` by amount (0..1), returned as an opaque rgb() string.
+  function mix(hex: string, target: [number, number, number], amt: number): string {
+    const [r, g, b] = hexToRgb(hex)
+    const m = (a: number, t: number) => Math.round(a + (t - a) * amt)
+    return `rgb(${m(r, target[0])}, ${m(g, target[1])}, ${m(b, target[2])})`
+  }
+  function canvasPalette() {
+    const t = theme.value
+    const dark = t.group === 'dark'
+    const toward: [number, number, number] = dark ? [255, 255, 255] : [0, 0, 0]
+    return {
+      // The canvas ground: the theme's opaque page surface.
+      bg: t.bgSolid,
+      // Dots sit ~12% off the surface (lighter on dark, darker on light); the
+      // major every-5th dot is stronger.
+      dot: mix(t.bgSolid, toward, 0.12),
+      dotMajor: mix(t.bgSolid, toward, 0.26),
+      // Node body: an elevated opaque surface a touch above the ground. Border is
+      // a solid strong edge, not the translucent glass border.
+      nodeBg: dark ? mix(t.bgSolid, [255, 255, 255], 0.08) : '#ffffff',
+      borderStrong: mix(t.bgSolid, toward, 0.3),
+    }
+  }
+  // Paint the canvas ground + dot grid from the current theme. Re-run on every
+  // theme change since Joint bakes grid colours into an SVG pattern at draw time.
+  // A minor dot every cell, a heavier dot every 5th.
+  function applyCanvas(p: dia.Paper) {
+    const pal = canvasPalette()
+    p.drawBackground({ color: pal.bg })
+    p.setGridSize(GRID)
+    p.setGrid([
+      { name: 'dot', args: { color: pal.dot, thickness: 1 } },
+      // scaleFactor lives inside args — the grid renderer merges it into the
+      // pattern layer, spacing the heavier dot every 5th cell.
+      { name: 'dot', args: { color: pal.dotMajor, thickness: 2, scaleFactor: 5 } },
+    ])
+    updateGridVisibility()
+  }
+  // The grid scales with the paper transform; below 0.5x it collapses into noise,
+  // so fade it out under that zoom.
+  function updateGridVisibility() {
+    const p = paper.value
+    if (!p) return
+    const gridEl = p.getLayerView('grid')?.el as SVGElement | undefined
+    if (!gridEl) return
+    const s = p.scale().sx
+    gridEl.style.opacity = s < 0.5 ? '0' : s < 0.7 ? String((s - 0.5) / 0.2) : '1'
+  }
+
   // --- store → graph ---------------------------------------------------------
   // Title text, wrapped to at most two lines with an ellipsis so a long label
   // never blows the node's height past the two-line cap.
@@ -295,7 +354,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
       model: g,
       width: '100%',
       height: '100%',
-      gridSize: 10,
+      gridSize: GRID,
       async: true,
       cellViewNamespace: shapes,
       background: { color: 'transparent' },
@@ -306,6 +365,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     })
     graph.value = g
     paper.value = p
+    applyCanvas(p)
     wireEvents(p, g)
     wireTools(p)
     // Bulk load frozen, then a single unfreeze for a smooth first paint.
@@ -373,6 +433,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     if (!p) return
     const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next))
     p.scale(clamped, clamped)
+    updateGridVisibility()
   }
   function zoomIn() {
     setZoom(currentScale() * 1.2)
@@ -394,6 +455,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
       maxScale: ZOOM_MAX,
       useModelGeometry: true,
     })
+    updateGridVisibility()
   }
 
   // Run the tidy-tree layout in the store and let the snapshot flow back.
@@ -436,8 +498,11 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     theme,
     () => {
       const g = graph.value
+      const p = paper.value
       const id = boardId.value
-      if (!g || id == null) return
+      if (!g || !p || id == null) return
+      // Repaint the ground + dot grid (Joint won't follow CSS vars).
+      applyCanvas(p)
       for (const n of app.nodesOfBoard(id)) {
         const cell = g.getCell(String(n.id)) as dia.Element | null
         if (cell) cell.attr(nodeAttrs(n))
