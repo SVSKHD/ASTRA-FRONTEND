@@ -32,6 +32,7 @@ import CloudLoading from '@/components/CloudLoading.vue'
 import OverviewView from '@/components/views/OverviewView.vue'
 import TodoView from '@/components/views/TodoView.vue'
 import TasksView from '@/components/views/TasksView.vue'
+import GoalsView from '@/components/views/GoalsView.vue'
 // Planning pulls in JointJS (@joint/core), which is heavy; load it only when the
 // tab is opened so it lands in its own async chunk rather than the main bundle.
 const PlanningView = defineAsyncComponent(() => import('@/components/views/PlanningView.vue'))
@@ -99,6 +100,7 @@ const viewMap = {
   overview: OverviewView,
   todo: TodoView,
   tasks: TasksView,
+  goals: GoalsView,
   planning: PlanningView,
   deadlines: DeadlinesView,
   reminders: RemindersView,
