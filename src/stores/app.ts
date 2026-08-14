@@ -742,6 +742,32 @@ export const useAppStore = defineStore('app', () => {
       return touched({ ...c, spentMins: c.spentMins + elapsed, timerStartedAt: null })
     })
   }
+
+  // --- attachment (by reference, both ways) --------------------------------
+  function attachToGoal(collection: 'tasks' | 'todos', itemId: number, gid: number) {
+    const listRef = collection === 'tasks' ? tasks : todos
+    listRef.value = listRef.value.map((it) =>
+      it.id === itemId
+        ? touched({ ...it, goalIds: Array.from(new Set([...(it.goalIds ?? []), gid])) })
+        : it,
+    ) as typeof listRef.value
+  }
+  function detachFromGoal(collection: 'tasks' | 'todos', itemId: number, gid: number) {
+    const listRef = collection === 'tasks' ? tasks : todos
+    listRef.value = listRef.value.map((it) =>
+      it.id === itemId && it.goalIds?.includes(gid)
+        ? touched({ ...it, goalIds: it.goalIds.filter((x) => x !== gid) })
+        : it,
+    ) as typeof listRef.value
+  }
+  function createTaskInGoal(gid: number, title: string, tag = ''): number | undefined {
+    return addTask(title, tag, { goalIds: [gid] })
+  }
+  function createTodoInGoal(gid: number, text: string): number | undefined {
+    const tid = addTodo(text)
+    if (tid != null) attachToGoal('todos', tid, gid)
+    return tid
+  }
   function tasksOfGoal(gid: number): Task[] {
     return tasks.value.filter((t) => t.goalIds?.includes(gid))
   }
@@ -4151,6 +4177,10 @@ export const useAppStore = defineStore('app', () => {
     moveChecklistItem,
     startChecklistTimer,
     stopChecklistTimer,
+    attachToGoal,
+    detachFromGoal,
+    createTaskInGoal,
+    createTodoInGoal,
     tasksOfGoal,
     todosOfGoal,
     goalProgress,

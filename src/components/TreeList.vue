@@ -103,6 +103,16 @@ function desc(id: number) {
 function tagOf(id: number) {
   return nodeOf(id)?.tag || ''
 }
+// Goals this row is attached to (task 8), for the goal chip. Resolves ids to
+// titles so a row shows which goal(s) it belongs to from the Tasks/Todos tab.
+function goalNamesOf(id: number): string[] {
+  const ids = nodeOf(id)?.goalIds
+  if (!ids || !ids.length) return []
+  return ids
+    .map((gid) => app.goalById(gid)?.title)
+    .filter((t): t is string => !!t)
+    .map((t) => t || 'Goal')
+}
 function done(id: number) {
   return nodeOf(id)?.status === 'done'
 }
@@ -261,6 +271,23 @@ const countChip = computed(() =>
   }),
 )
 const dueChipStyle = computed(() => pxify({ fontSize: 10, color: c.value.dim }))
+// Goal-attachment chip (task 8): a subtle accent-outlined pill on rows that
+// belong to one or more goals, so attachment is visible from the Tasks/Todos tab.
+const goalChip = computed(() =>
+  pxify({
+    fontSize: 10,
+    color: c.value.accent,
+    padding: '1px 6px',
+    borderRadius: 999,
+    background: 'transparent',
+    border: '1px solid ' + c.value.accent,
+    flexShrink: 0,
+    maxWidth: 140,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  }),
+)
 const conflictBadge = computed(() =>
   pxify({
     fontSize: 9,
@@ -382,6 +409,13 @@ const rootStripStyle = computed(() =>
                 tagOf(row.id)
               }}</span>
               <span v-if="dueLabel(row.id)" :style="dueChipStyle">due {{ dueLabel(row.id) }}</span>
+              <span
+                v-for="g in goalNamesOf(row.id)"
+                :key="g"
+                :style="goalChip"
+                title="Attached to goal"
+                >◎ {{ g }}</span
+              >
               <span v-if="hasKids(row.id)" :style="countChip"
                 >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
               >
