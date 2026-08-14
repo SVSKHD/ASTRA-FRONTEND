@@ -1,0 +1,272 @@
+<script setup lang="ts">
+// Goals URL import preview (task 8, route /import/goals). Paste a link shaped
+// like spasta.online/?project=<slug>&goals=<items> (or the legacy
+// ?project=slug=a|b|c form); it is parsed tolerantly, shown as an editable
+// preview, and written in one atomic import. Re-importing the same URL offers a
+// merge into the existing goal instead of creating a duplicate.
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
+import { useStyles } from '@/composables/useStyles'
+import { pxify, rowBase } from '@/styles'
+import { parseImportUrl, MAX_IMPORT_ITEMS, type ParsedImport } from '@/utils/goals'
+
+const app = useAppStore()
+const ui = useUiStore()
+const router = useRouter()
+const { c, s } = useStyles()
+
+type RowKind = 'checklist' | 'task' | 'todo'
+interface Row {
+  text: string
+  estimateMins: number | null
+  dueAt: string | null
+  tags: string[]
+  kind: RowKind
+}
+
+// Prefill from the current URL's query if it already carries the import params,
+// so a pasted spasta link that landed here directly parses on open.
+const initial =
+  typeof window !== 'undefined' && /[?&]project=/.test(window.location.search)
+    ? window.location.href
+    : ''
+const raw = ref(initial)
+const parsed = ref<ParsedImport | null>(null)
+const title = ref('')
+const rows = ref<Row[]>([])
+const merge = ref(false)
+
+const mergeCandidate = computed(() =>
+  parsed.value ? app.goalBySourceUrl(parsed.value.sourceUrl) : undefined,
+)
+const overCap = computed(() => !!parsed.value && parsed.value.overCap)
+
+function doParse() {
+  const p = parseImportUrl(raw.value)
+  parsed.value = p
+  title.value = p.goalTitle
+  rows.value = p.items.map((i) => ({
+    text: i.text,
+    estimateMins: i.estimateMins,
+    dueAt: i.dueAt,
+    tags: i.tags,
+    kind: 'checklist' as RowKind,
+  }))
+  merge.value = !!app.goalBySourceUrl(p.sourceUrl)
+}
+function removeRow(i: number) {
+  rows.value.splice(i, 1)
+}
+function moveRow(i: number, dir: -1 | 1) {
+  const j = i + dir
+  if (j < 0 || j >= rows.value.length) return
+  const arr = rows.value
+  ;[arr[i], arr[j]] = [arr[j], arr[i]]
+}
+function onEstimate(i: number, e: Event) {
+  const v = (e.target as HTMLInputElement).value
+  rows.value[i].estimateMins = v === '' ? null : Math.max(0, parseInt(v, 10) || 0)
+}
+
+function doImport() {
+  if (!parsed.value || overCap.value || rows.value.length === 0) return
+  app.importGoals({
+    title: title.value,
+    sourceUrl: parsed.value.sourceUrl,
+    rows: rows.value.map((r) => ({
+      text: r.text,
+      estimateMins: r.estimateMins,
+      dueAt: r.dueAt,
+      tags: r.tags,
+      kind: r.kind,
+    })),
+    mergeGoalId: merge.value && mergeCandidate.value ? mergeCandidate.value.id : null,
+  })
+  goHome()
+}
+function goHome() {
+  ui.setTab('goals')
+  router.push('/')
+}
+
+// --- styles ------------------------------------------------------------------
+const page = computed(() =>
+  pxify({
+    minHeight: '100vh',
+    padding: '32px 16px',
+    display: 'flex',
+    justifyContent: 'center',
+    color: c.value.text,
+    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+  }),
+)
+const card = computed(() =>
+  pxify({
+    ...rowBase(c.value),
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 14,
+    width: 'min(720px, 100%)',
+    height: 'fit-content',
+    background: c.value.glass,
+    backdropFilter: 'blur(28px) saturate(1.6)',
+    '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
+  }),
+)
+const h1 = computed(() => pxify({ fontSize: 18, fontWeight: 700, color: c.value.text }))
+const sub = computed(() => pxify({ fontSize: 12, color: c.value.dim, lineHeight: 1.5 }))
+const rowStyle = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '6px 8px',
+    borderRadius: 10,
+    border: '1px solid ' + c.value.border,
+    background: c.value.card,
+    flexWrap: 'wrap',
+  }),
+)
+const textInput = computed(() =>
+  pxify({ ...s.value.input, flex: 1, minWidth: 160, padding: '4px 8px' }),
+)
+const mini = computed(() =>
+  pxify({ ...s.value.input, width: 78, padding: '4px 6px', fontSize: 12 }),
+)
+const dueInput = computed(() =>
+  pxify({ ...s.value.input, width: 140, padding: '4px 6px', fontSize: 12 }),
+)
+const btn = computed(() =>
+  pxify({
+    fontSize: 12,
+    fontWeight: 600,
+    padding: '5px 10px',
+    borderRadius: 999,
+    border: '1px solid ' + c.value.border,
+    background: 'transparent',
+    color: c.value.dim,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  }),
+)
+const primary = computed(() =>
+  pxify({
+    fontSize: 13,
+    fontWeight: 700,
+    padding: '9px 16px',
+    borderRadius: 999,
+    border: 'none',
+    background: c.value.accent,
+    color: c.value.onAccent,
+    cursor: 'pointer',
+  }),
+)
+const actions = pxify({
+  display: 'flex',
+  gap: 10,
+  alignItems: 'center',
+  marginTop: 4,
+  flexWrap: 'wrap',
+})
+const warn = computed(() => pxify({ fontSize: 12, color: 'oklch(0.64 0.22 25)', fontWeight: 600 }))
+const mergeNote = computed(() =>
+  pxify({
+    fontSize: 12,
+    color: c.value.text,
+    padding: '8px 10px',
+    borderRadius: 10,
+    border: '1px solid ' + c.value.accent,
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+  }),
+)
+</script>
+
+<template>
+  <div :style="page">
+    <div :style="card">
+      <div :style="h1">Import goals from a link</div>
+      <div :style="sub">
+        Paste a link like
+        <code>spasta.online/?project=learningandgoals=read papers|build bot ~2h</code>. Items can be
+        separated by <code>|</code>, <code>;</code>, commas or new lines, and each may carry
+        <code>~45m</code>/<code>~2h</code> (estimate), <code>@2026-09-01</code> (due) and
+        <code>#tag</code>.
+      </div>
+
+      <textarea
+        :style="{ ...s.input, width: '100%', minHeight: 60, resize: 'vertical' }"
+        v-model="raw"
+        placeholder="Paste the import link…"
+      ></textarea>
+      <div :style="actions">
+        <button :style="primary" @click="doParse">Preview</button>
+        <button :style="btn" @click="goHome">Cancel</button>
+      </div>
+
+      <template v-if="parsed">
+        <div :style="sub">
+          Project <strong>{{ parsed.projectSlug || '—' }}</strong> — this workspace has no separate
+          projects, so it seeds the goal title below.
+        </div>
+
+        <label :style="sub">Goal title</label>
+        <input :style="{ ...s.input, width: '100%' }" v-model="title" placeholder="Goal title" />
+
+        <div v-if="overCap" :style="warn">
+          Too many items — {{ parsed.items.length }} shown, the import cap is
+          {{ MAX_IMPORT_ITEMS }}. Trim the source link and try again.
+        </div>
+
+        <div v-if="mergeCandidate" :style="mergeNote">
+          <input type="checkbox" v-model="merge" />
+          <span>
+            A goal already exists for this link (“{{ mergeCandidate.title }}”). Merge — appending
+            only new checklist items — instead of creating a duplicate.
+          </span>
+        </div>
+
+        <div v-if="rows.length === 0" :style="s.empty">No items parsed from that link.</div>
+        <div v-for="(r, i) in rows" :key="i" :style="rowStyle">
+          <input :style="textInput" v-model="r.text" placeholder="Item text" />
+          <select
+            :style="s.select"
+            :value="r.kind"
+            @change="r.kind = ($event.target as HTMLSelectElement).value as RowKind"
+          >
+            <option value="checklist">Checklist</option>
+            <option value="task">Task</option>
+            <option value="todo">Todo</option>
+          </select>
+          <input
+            :style="mini"
+            type="number"
+            min="0"
+            :value="r.estimateMins ?? ''"
+            placeholder="est m"
+            @input="onEstimate(i, $event)"
+          />
+          <input
+            :style="dueInput"
+            type="date"
+            :value="r.dueAt ?? ''"
+            @change="r.dueAt = ($event.target as HTMLInputElement).value"
+          />
+          <button :style="btn" title="Move up" @click="moveRow(i, -1)">↑</button>
+          <button :style="btn" title="Move down" @click="moveRow(i, 1)">↓</button>
+          <button :style="s.del" @click="removeRow(i)">×</button>
+        </div>
+
+        <div :style="actions">
+          <button :style="primary" :disabled="overCap || rows.length === 0" @click="doImport">
+            {{ merge && mergeCandidate ? 'Merge into goal' : 'Import' }} ({{ rows.length }})
+          </button>
+          <button :style="btn" @click="goHome">Cancel</button>
+        </div>
+      </template>
+    </div>
+  </div>
+</template>

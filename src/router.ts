@@ -47,6 +47,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/SharePage.vue'),
     props: (route) => ({ plural: PLURAL[type], shareId: String(route.params.shareId) }),
   })),
+  // Goals URL import (task 8). The inbound link is pasted in-app; the preview
+  // screen parses it and lets the user edit rows before one atomic import write.
+  {
+    path: '/import/goals',
+    name: 'import-goals',
+    component: () => import('@/views/GoalsImportView.vue'),
+  },
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',

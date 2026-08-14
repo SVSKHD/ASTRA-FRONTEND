@@ -99,6 +99,7 @@ import type {
   TripPlace,
   TripStatus,
 } from '@/types'
+import type { ParsedGoalItem } from '@/utils/goals'
 
 function rel(days: number): string {
   const d = new Date()
@@ -804,6 +805,56 @@ export const useAppStore = defineStore('app', () => {
       spent += c.spentMins
     }
     return { estimate, spent }
+  }
+
+  // --- URL import ----------------------------------------------------------
+  function goalBySourceUrl(url: string): Goal | undefined {
+    return goals.value.find((g) => g.sourceUrl && g.sourceUrl === url)
+  }
+  // A preview row the import view hands back: the parsed item plus the target
+  // kind the user chose for it.
+  interface ImportRow extends ParsedGoalItem {
+    kind: 'checklist' | 'task' | 'todo'
+  }
+  // Write an import in one synchronous pass (one debounced save = one atomic
+  // whole-doc write). Either creates a fresh goal or, when mergeGoalId is given,
+  // appends only checklist items whose text is not already present.
+  function importGoals(opts: {
+    title: string
+    sourceUrl: string
+    rows: ImportRow[]
+    mergeGoalId?: number | null
+  }): number | null {
+    const merging = opts.mergeGoalId != null && goalById(opts.mergeGoalId) != null
+    const gid = merging
+      ? (opts.mergeGoalId as number)
+      : addGoal({
+          title: opts.title.trim() || 'Imported Goals',
+          source: 'url-import',
+          sourceUrl: opts.sourceUrl,
+        })
+    const existing = new Set(checklistOf(gid).map((c) => c.text.toLowerCase()))
+    let ord = nextChecklistOrder(gid) - CHECKLIST_GAP
+    for (const row of opts.rows) {
+      const text = row.text.trim()
+      if (!text) continue
+      if (row.kind === 'checklist') {
+        if (merging && existing.has(text.toLowerCase())) continue
+        existing.add(text.toLowerCase())
+        ord += CHECKLIST_GAP
+        addChecklistItem(gid, text, {
+          order: ord,
+          estimateMins: row.estimateMins,
+          dueAt: row.dueAt ?? '',
+        })
+      } else if (row.kind === 'task') {
+        const tag = row.tags[0] ?? ''
+        createTaskInGoal(gid, text, tag)
+      } else {
+        createTodoInGoal(gid, text)
+      }
+    }
+    return gid
   }
 
   // ---- Edit-safe flush on task dialog close -------------------------------
@@ -4186,6 +4237,8 @@ export const useAppStore = defineStore('app', () => {
     goalProgress,
     goalCounts,
     goalTime,
+    goalBySourceUrl,
+    importGoals,
     setTodoDragId,
     endTodoDrag,
     dropTodoOnDay,
