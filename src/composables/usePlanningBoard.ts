@@ -178,8 +178,11 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     const linked = linkedItem(n)
     const title = linked ? linkedTitle(linked) : n.label || '(untitled)'
     const status = linked ? linkedStatus(linked) : ''
+    const pal = canvasPalette()
     return {
-      body: { fill: color('card'), stroke: color('border') },
+      // Opaque body + strong border, opacity pinned to 1 so no entry animation can
+      // strand it translucent.
+      body: { fill: pal.nodeBg, stroke: pal.borderStrong, strokeWidth: 1, opacity: 1 },
       bar: { fill: n.color || color(KIND_TOKEN[n.kind]) },
       label: { text: nodeLabelText(title), fill: color('text') },
       status: { text: status, fill: color('dim') },
@@ -245,16 +248,50 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
   }
 
   function makeLink(e: PlanningEdge) {
+    const pal = canvasPalette()
     const link = new shapes.standard.Link({
       id: String(e.id),
       source: { id: String(e.source) },
       target: { id: String(e.target) },
       attrs: {
-        line: { stroke: color('dim'), strokeWidth: 1.6, targetMarker: { d: 'M 8 -4 0 0 8 4 z' } },
+        line: {
+          stroke: pal.borderStrong,
+          strokeWidth: 1.5,
+          // Filled solid arrowhead (fill defaults to the line stroke).
+          targetMarker: { type: 'path', d: 'M 8 -4 0 0 8 4 z', fill: pal.borderStrong },
+        },
       },
-      labels: [{ attrs: { text: { text: e.relation, fill: color('dim'), fontSize: 10 } } }],
+      labels: [linkLabel(e, pal)],
     })
     return link
+  }
+  // A solid chip behind the relation text so it reads at full contrast at any
+  // zoom (the default translucent-white label chip was the wash-out bug). The
+  // `rect` refs the text bbox; padding is 8px horizontal / 4px vertical.
+  function linkLabel(e: PlanningEdge, pal = canvasPalette()) {
+    return {
+      attrs: {
+        text: {
+          text: e.relation,
+          fill: color('text'),
+          fontSize: 11,
+          textAnchor: 'middle',
+          textVerticalAnchor: 'middle',
+        },
+        rect: {
+          ref: 'text',
+          fill: pal.nodeBg,
+          stroke: pal.borderStrong,
+          strokeWidth: 1,
+          rx: 4,
+          ry: 4,
+          x: 'calc(x-8)',
+          y: 'calc(y-4)',
+          width: 'calc(w+16)',
+          height: 'calc(h+8)',
+        },
+      },
+    }
   }
 
   // --- graph → store ---------------------------------------------------------
@@ -501,8 +538,10 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
       const p = paper.value
       const id = boardId.value
       if (!g || !p || id == null) return
-      // Repaint the ground + dot grid (Joint won't follow CSS vars).
+      // Repaint the ground + dot grid (Joint won't follow CSS vars), then re-tint
+      // every node and relabel every link with the new palette.
       applyCanvas(p)
+      const pal = canvasPalette()
       for (const n of app.nodesOfBoard(id)) {
         const cell = g.getCell(String(n.id)) as dia.Element | null
         if (cell) cell.attr(nodeAttrs(n))
@@ -510,8 +549,9 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
       for (const e of app.edgesOfBoard(id)) {
         const link = g.getCell(String(e.id)) as dia.Link | null
         if (!link) continue
-        link.attr('line/stroke', color('dim'))
-        link.label(0, { attrs: { text: { fill: color('dim') } } })
+        link.attr('line/stroke', pal.borderStrong)
+        link.attr('line/targetMarker/fill', pal.borderStrong)
+        link.label(0, linkLabel(e, pal))
       }
     },
     { flush: 'post' },
