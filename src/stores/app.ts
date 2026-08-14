@@ -655,6 +655,97 @@ export const useAppStore = defineStore('app', () => {
   function goalById(gid: number): Goal | undefined {
     return goals.value.find((g) => g.id === gid)
   }
+  // Thin status/timeline/colour wrappers over updateGoal (task 10b).
+  function archiveGoal(gid: number) {
+    updateGoal(gid, { status: 'archived' })
+  }
+  function unarchiveGoal(gid: number) {
+    updateGoal(gid, { status: 'active' })
+  }
+  function setGoalTimeline(gid: number, tl: { start?: string; target?: string }) {
+    const patch: Partial<Goal> = {}
+    if (tl.start !== undefined) patch.startDate = tl.start
+    if (tl.target !== undefined) patch.targetDate = tl.target
+    updateGoal(gid, patch)
+  }
+  function setGoalColor(gid: number, color: string) {
+    updateGoal(gid, { color })
+  }
+  // Reorder a goal to sit between two neighbours (midpoint order, single write).
+  // Either neighbour may be absent (moved to an end).
+  function reorderGoal(gid: number, beforeId: number | null, afterId: number | null) {
+    const before = beforeId != null ? goalById(beforeId) : undefined
+    const after = afterId != null ? goalById(afterId) : undefined
+    let order: number
+    if (before && after) order = (before.order + after.order) / 2
+    else if (before) order = before.order + 1000
+    else if (after) order = after.order - 1000
+    else order = 0
+    updateGoal(gid, { order })
+  }
+  // Duplicate a goal and its checklist (appends " (copy)"). Attached tasks/todos
+  // are references and are NOT copied — the duplicate starts with none.
+  function duplicateGoal(gid: number): number | undefined {
+    const g = goalById(gid)
+    if (!g) return undefined
+    const rootOrders = goals.value.filter((x) => x.parentId == null).map((x) => x.order)
+    const newId = addGoal({
+      title: `${g.title} (copy)`,
+      description: g.description,
+      status: g.status,
+      startDate: g.startDate,
+      targetDate: g.targetDate,
+      color: g.color,
+      icon: g.icon,
+      source: 'manual',
+      sourceUrl: '',
+      order: (rootOrders.length ? Math.max(...rootOrders) : 0) + 1000,
+    })
+    for (const c of checklistOf(gid)) {
+      addChecklistItem(newId, c.text, {
+        order: c.order,
+        estimateMins: c.estimateMins,
+        dueAt: c.dueAt,
+        startAt: c.startAt,
+        tags: c.tags,
+        done: c.done,
+      })
+    }
+    return newId
+  }
+  // Delete a goal with an 8s Undo that restores the goal, its checklist, and the
+  // goalId links stripped from every attached task/todo. The whole payload is held
+  // in the toast handler's closure, not persisted.
+  function removeGoalWithUndo(gid: number) {
+    const g = goalById(gid)
+    if (!g) return
+    const savedChecklist = goalChecklist.value.filter((c) => c.goalId === gid)
+    const attachedTaskIds = tasks.value.filter((t) => t.goalIds?.includes(gid)).map((t) => t.id)
+    const attachedTodoIds = todos.value.filter((t) => t.goalIds?.includes(gid)).map((t) => t.id)
+    deleteGoal(gid) // unlinks tasks/todos, removes checklist + goal
+    const short = g.title.length > 28 ? g.title.slice(0, 28) + '…' : g.title || 'goal'
+    showToastWithUndo(
+      `Deleted "${short}"`,
+      () => {
+        goals.value = [...goals.value, g]
+        goalChecklist.value = [...goalChecklist.value, ...savedChecklist]
+        const reAttach = new Set(attachedTaskIds)
+        tasks.value = tasks.value.map((t) =>
+          reAttach.has(t.id)
+            ? { ...t, goalIds: Array.from(new Set([...(t.goalIds ?? []), gid])) }
+            : t,
+        )
+        const reAttachTodos = new Set(attachedTodoIds)
+        todos.value = todos.value.map((t) =>
+          reAttachTodos.has(t.id)
+            ? { ...t, goalIds: Array.from(new Set([...(t.goalIds ?? []), gid])) }
+            : t,
+        )
+      },
+      8000,
+      'Undo',
+    )
+  }
 
   // --- checklist CRUD ------------------------------------------------------
   function checklistOf(gid: number): GoalChecklistItem[] {
@@ -701,6 +792,35 @@ export const useAppStore = defineStore('app', () => {
     goalChecklist.value = goalChecklist.value.map((c) =>
       c.id === itemId ? touched({ ...c, ...fields, localRev: c.localRev + 1 }) : c,
     )
+  }
+  // Add several checklist items in one array mutation (task 10b), so a paste of N
+  // points persists as a single write rather than N.
+  function bulkAddChecklist(gid: number, texts: string[]): number[] {
+    const clean = texts.map((t) => t.trim()).filter(Boolean)
+    if (!clean.length) return []
+    let ord = nextChecklistOrder(gid) - CHECKLIST_GAP
+    const added: GoalChecklistItem[] = clean.map((text) => {
+      ord += CHECKLIST_GAP
+      return {
+        id: id(),
+        goalId: gid,
+        text,
+        done: false,
+        order: ord,
+        estimateMins: null,
+        spentMins: 0,
+        dueAt: '',
+        startAt: '',
+        tags: [],
+        startedAt: null,
+        completedAt: null,
+        timerStartedAt: null,
+        localRev: 0,
+        ...stamps(),
+      }
+    })
+    goalChecklist.value = [...goalChecklist.value, ...added]
+    return added.map((a) => a.id)
   }
   function toggleChecklistItem(itemId: number) {
     const now = Date.now()
@@ -4324,6 +4444,15 @@ export const useAppStore = defineStore('app', () => {
     importGoals,
     importGoalsDocument,
     exportGoal,
+    archiveGoal,
+    unarchiveGoal,
+    setGoalTimeline,
+    setGoalColor,
+    reorderGoal,
+    duplicateGoal,
+    removeGoalWithUndo,
+    bulkAddChecklist,
+    saveCloudNow,
     setTodoDragId,
     endTodoDrag,
     dropTodoOnDay,

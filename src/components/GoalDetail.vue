@@ -9,6 +9,7 @@ import { computed, ref, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
+import { useGoals } from '@/composables/useGoals'
 import { useStyles } from '@/composables/useStyles'
 import { useSyncGuard } from '@/composables/useSyncGuard'
 import { pxify, rowBase } from '@/styles'
@@ -21,6 +22,7 @@ const emit = defineEmits<{ (e: 'back'): void }>()
 
 const app = useAppStore()
 const ui = useUiStore()
+const goalsApi = useGoals()
 const { c, s, isMobile } = useStyles()
 const guard = useSyncGuard()
 const { goals, goalChecklist, tasks, todos } = storeToRefs(app)
@@ -158,12 +160,28 @@ function onExport() {
   URL.revokeObjectURL(url)
 }
 
+// --- duplicate / archive ------------------------------------------------------
+function onDuplicate() {
+  void goalsApi.duplicate(props.goalId)
+  emit('back')
+}
+function onToggleArchive() {
+  if (goal.value?.status === 'archived') void goalsApi.unarchive(props.goalId)
+  else void goalsApi.archive(props.goalId)
+}
+
 // --- delete prompt -----------------------------------------------------------
 const confirmDelete = ref(false)
 function doDelete(checklistOnly: boolean) {
-  app.deleteGoal(props.goalId, checklistOnly)
   confirmDelete.value = false
-  if (!checklistOnly) emit('back')
+  if (checklistOnly) {
+    app.deleteGoal(props.goalId, true)
+    return
+  }
+  // Unlink-everything delete goes through the composable so it carries the 8s
+  // Undo toast (restores the goal, its checklist and the attachment links).
+  void goalsApi.remove(props.goalId)
+  emit('back')
 }
 
 // --- styles ------------------------------------------------------------------
@@ -355,6 +373,10 @@ const pickRow = computed(() =>
         >
           <option v-for="st in STATUS_OPTS" :key="st" :value="st">{{ st }}</option>
         </select>
+        <button :style="smallBtn" title="Duplicate goal" @click="onDuplicate">Duplicate</button>
+        <button :style="smallBtn" title="Archive / unarchive" @click="onToggleArchive">
+          {{ goal.status === 'archived' ? 'Unarchive' : 'Archive' }}
+        </button>
         <button :style="smallBtn" title="Export as JSON" @click="onExport">Export</button>
         <button :style="smallBtn" @click="confirmDelete = true">Delete</button>
       </div>
