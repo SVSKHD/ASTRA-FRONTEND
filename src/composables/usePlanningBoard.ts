@@ -21,35 +21,46 @@ import type { PlanningEdge, PlanningNode } from '@/types'
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 2.5
 const POS_DEBOUNCE = 400
+// Grid cell in paper units. Nodes snap to this on release.
+const GRID = 16
+// Compact node geometry (task 6b). Height grows by one line only when the label
+// wraps; the two-line cap keeps rows tight.
+const NODE_W = 200
+const NODE_H1 = 56
+const NODE_H2 = 74
+const LABEL_PAD = 12
 
 // A custom rounded-rect element: coloured left bar keyed to kind, a title, and an
-// optional status pill — all fed from theme tokens so it follows dark/light.
+// optional status pill — all fed from theme tokens so it follows dark/light. A
+// grab cursor on the whole body signals that the node itself is the drag surface.
 const PlanNode = dia.Element.define(
   'plan.Node',
   {
-    size: { width: 180, height: 64 },
+    size: { width: NODE_W, height: NODE_H1 },
     attrs: {
       body: {
         x: 0,
         y: 0,
         width: 'calc(w)',
         height: 'calc(h)',
-        rx: 12,
-        ry: 12,
-        strokeWidth: 1.5,
+        rx: 8,
+        ry: 8,
+        strokeWidth: 1,
+        cursor: 'grab',
       },
-      bar: { x: 0, y: 0, width: 5, height: 'calc(h)', rx: 2.5 },
+      bar: { x: 0, y: 0, width: 3, height: 'calc(h)', rx: 1.5 },
       label: {
-        x: 16,
+        x: LABEL_PAD,
         y: 'calc(h/2)',
         textVerticalAnchor: 'middle',
         textAnchor: 'start',
         fontSize: 13,
         fontFamily: 'inherit',
+        cursor: 'grab',
       },
       status: {
-        x: 'calc(w-14)',
-        y: 14,
+        x: 'calc(w-12)',
+        y: 12,
         textAnchor: 'end',
         fontSize: 10,
         opacity: 0.85,
@@ -86,15 +97,94 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     return c[token] ?? '#888'
   }
 
+  // --- canvas palette (task 6b) ----------------------------------------------
+  // Joint bakes colours into SVG at draw time and can't follow CSS variables, so
+  // the grid (and, later, the opaque nodes) derive solid colours here from each
+  // theme's opaque surface (bgSolid). Mixing off the surface means a bright theme
+  // gets bright dots and a dark one faint dots — never a fixed grey.
+  function hexToRgb(hex: string): [number, number, number] {
+    const h = hex.replace('#', '')
+    const f = h.length === 3 ? h.replace(/./g, (c) => c + c) : h
+    return [parseInt(f.slice(0, 2), 16), parseInt(f.slice(2, 4), 16), parseInt(f.slice(4, 6), 16)]
+  }
+  // Mix `hex` toward `target` by amount (0..1), returned as an opaque rgb() string.
+  function mix(hex: string, target: [number, number, number], amt: number): string {
+    const [r, g, b] = hexToRgb(hex)
+    const m = (a: number, t: number) => Math.round(a + (t - a) * amt)
+    return `rgb(${m(r, target[0])}, ${m(g, target[1])}, ${m(b, target[2])})`
+  }
+  function canvasPalette() {
+    const t = theme.value
+    const dark = t.group === 'dark'
+    const toward: [number, number, number] = dark ? [255, 255, 255] : [0, 0, 0]
+    return {
+      // The canvas ground: the theme's opaque page surface.
+      bg: t.bgSolid,
+      // Dots sit ~12% off the surface (lighter on dark, darker on light); the
+      // major every-5th dot is stronger.
+      dot: mix(t.bgSolid, toward, 0.12),
+      dotMajor: mix(t.bgSolid, toward, 0.26),
+      // Node body: an elevated opaque surface a touch above the ground. Border is
+      // a solid strong edge, not the translucent glass border.
+      nodeBg: dark ? mix(t.bgSolid, [255, 255, 255], 0.08) : '#ffffff',
+      borderStrong: mix(t.bgSolid, toward, 0.3),
+    }
+  }
+  // Paint the canvas ground + dot grid from the current theme. Re-run on every
+  // theme change since Joint bakes grid colours into an SVG pattern at draw time.
+  // A minor dot every cell, a heavier dot every 5th.
+  function applyCanvas(p: dia.Paper) {
+    const pal = canvasPalette()
+    p.drawBackground({ color: pal.bg })
+    p.setGridSize(GRID)
+    p.setGrid([
+      { name: 'dot', args: { color: pal.dot, thickness: 1 } },
+      // scaleFactor lives inside args — the grid renderer merges it into the
+      // pattern layer, spacing the heavier dot every 5th cell.
+      { name: 'dot', args: { color: pal.dotMajor, thickness: 2, scaleFactor: 5 } },
+    ])
+    updateGridVisibility()
+  }
+  // The grid scales with the paper transform; below 0.5x it collapses into noise,
+  // so fade it out under that zoom.
+  function updateGridVisibility() {
+    const p = paper.value
+    if (!p) return
+    const gridEl = p.getLayerView('grid')?.el as SVGElement | undefined
+    if (!gridEl) return
+    const s = p.scale().sx
+    gridEl.style.opacity = s < 0.5 ? '0' : s < 0.7 ? String((s - 0.5) / 0.2) : '1'
+  }
+
   // --- store → graph ---------------------------------------------------------
+  // Title text, wrapped to at most two lines with an ellipsis so a long label
+  // never blows the node's height past the two-line cap.
+  function nodeLabelText(title: string): string {
+    return util.breakText(
+      title,
+      { width: NODE_W - LABEL_PAD * 2, height: NODE_H2 },
+      { 'font-size': 13, 'font-family': 'inherit' },
+      { ellipsis: true, maxLineCount: 2 },
+    )
+  }
+  // Node render size: fixed width, height grows one line only when the label wraps.
+  function nodeSize(n: PlanningNode): { width: number; height: number } {
+    const linked = linkedItem(n)
+    const title = linked ? linkedTitle(linked) : n.label || '(untitled)'
+    const twoLine = nodeLabelText(title).includes('\n')
+    return { width: NODE_W, height: twoLine ? NODE_H2 : NODE_H1 }
+  }
   function nodeAttrs(n: PlanningNode) {
     const linked = linkedItem(n)
     const title = linked ? linkedTitle(linked) : n.label || '(untitled)'
     const status = linked ? linkedStatus(linked) : ''
+    const pal = canvasPalette()
     return {
-      body: { fill: color('card'), stroke: color('border') },
+      // Opaque body + strong border, opacity pinned to 1 so no entry animation can
+      // strand it translucent.
+      body: { fill: pal.nodeBg, stroke: pal.borderStrong, strokeWidth: 1, opacity: 1 },
       bar: { fill: n.color || color(KIND_TOKEN[n.kind]) },
-      label: { text: util.breakText(title, { width: 150 }, {}), fill: color('text') },
+      label: { text: nodeLabelText(title), fill: color('text') },
       status: { text: status, fill: color('dim') },
     }
   }
@@ -125,17 +215,18 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
 
     for (const n of nodes) {
       if (localMutating.has(n.id) || guard.editingIds.has(n.id)) continue
+      const size = nodeSize(n)
       const cell = g.getCell(String(n.id)) as dia.Element | null
       if (cell) {
         cell.position(n.x, n.y)
-        cell.resize(n.width, n.height)
+        cell.resize(size.width, size.height)
         cell.attr(nodeAttrs(n))
       } else {
         g.addCell(
           new PlanNode({
             id: String(n.id),
             position: { x: n.x, y: n.y },
-            size: { width: n.width, height: n.height },
+            size,
             attrs: nodeAttrs(n),
           }),
         )
@@ -157,16 +248,50 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
   }
 
   function makeLink(e: PlanningEdge) {
+    const pal = canvasPalette()
     const link = new shapes.standard.Link({
       id: String(e.id),
       source: { id: String(e.source) },
       target: { id: String(e.target) },
       attrs: {
-        line: { stroke: color('dim'), strokeWidth: 1.6, targetMarker: { d: 'M 8 -4 0 0 8 4 z' } },
+        line: {
+          stroke: pal.borderStrong,
+          strokeWidth: 1.5,
+          // Filled solid arrowhead (fill defaults to the line stroke).
+          targetMarker: { type: 'path', d: 'M 8 -4 0 0 8 4 z', fill: pal.borderStrong },
+        },
       },
-      labels: [{ attrs: { text: { text: e.relation, fill: color('dim'), fontSize: 10 } } }],
+      labels: [linkLabel(e, pal)],
     })
     return link
+  }
+  // A solid chip behind the relation text so it reads at full contrast at any
+  // zoom (the default translucent-white label chip was the wash-out bug). The
+  // `rect` refs the text bbox; padding is 8px horizontal / 4px vertical.
+  function linkLabel(e: PlanningEdge, pal = canvasPalette()) {
+    return {
+      attrs: {
+        text: {
+          text: e.relation,
+          fill: color('text'),
+          fontSize: 11,
+          textAnchor: 'middle',
+          textVerticalAnchor: 'middle',
+        },
+        rect: {
+          ref: 'text',
+          fill: pal.nodeBg,
+          stroke: pal.borderStrong,
+          strokeWidth: 1,
+          rx: 4,
+          ry: 4,
+          x: 'calc(x-8)',
+          y: 'calc(y-4)',
+          width: 'calc(w+16)',
+          height: 'calc(h+8)',
+        },
+      },
+    }
   }
 
   // --- graph → store ---------------------------------------------------------
@@ -208,12 +333,30 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     // (reused for node ids — globally unique, so no collision with task ids) marks
     // it protected, so syncGraphFromStore skips it until the drag ends.
     p.on('element:pointerdown', (view: dia.ElementView) => {
-      const nid = Number(view.model.id)
+      const el = view.model as dia.Element
+      const nid = Number(el.id)
       selectedId.value = nid
       guard.editingIds.add(nid)
+      // The whole body is the drag surface (Joint translates on element
+      // pointerdown, no threshold). Raise the node above its peers and lift it
+      // with a shadow while it moves.
+      el.toFront()
+      el.attr('body/cursor', 'grabbing')
+      el.attr('body/filter', {
+        name: 'dropShadow',
+        args: { dx: 0, dy: 4, blur: 12, opacity: 0.35, color: 'rgba(0,0,0,0.5)' },
+      })
     })
-    p.on('element:pointerup', (view: dia.ElementView) => {
-      const nid = Number(view.model.id)
+    p.on('element:pointerup', (view: dia.ElementView, evt: dia.Event) => {
+      const el = view.model as dia.Element
+      const nid = Number(el.id)
+      // Snap to the 16px grid on release; hold Alt to drop freely.
+      if (!evt.altKey) {
+        const pos = el.position()
+        el.position(Math.round(pos.x / GRID) * GRID, Math.round(pos.y / GRID) * GRID)
+      }
+      el.removeAttr('body/filter')
+      el.attr('body/cursor', 'grab')
       flushPos(nid)
       guard.editingIds.delete(nid)
       guard.dirtyIds.delete(nid)
@@ -248,7 +391,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
       model: g,
       width: '100%',
       height: '100%',
-      gridSize: 10,
+      gridSize: GRID,
       async: true,
       cellViewNamespace: shapes,
       background: { color: 'transparent' },
@@ -259,6 +402,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     })
     graph.value = g
     paper.value = p
+    applyCanvas(p)
     wireEvents(p, g)
     wireTools(p)
     // Bulk load frozen, then a single unfreeze for a smooth first paint.
@@ -326,6 +470,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     if (!p) return
     const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next))
     p.scale(clamped, clamped)
+    updateGridVisibility()
   }
   function zoomIn() {
     setZoom(currentScale() * 1.2)
@@ -347,6 +492,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
       maxScale: ZOOM_MAX,
       useModelGeometry: true,
     })
+    updateGridVisibility()
   }
 
   // Run the tidy-tree layout in the store and let the snapshot flow back.
@@ -389,8 +535,13 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     theme,
     () => {
       const g = graph.value
+      const p = paper.value
       const id = boardId.value
-      if (!g || id == null) return
+      if (!g || !p || id == null) return
+      // Repaint the ground + dot grid (Joint won't follow CSS vars), then re-tint
+      // every node and relabel every link with the new palette.
+      applyCanvas(p)
+      const pal = canvasPalette()
       for (const n of app.nodesOfBoard(id)) {
         const cell = g.getCell(String(n.id)) as dia.Element | null
         if (cell) cell.attr(nodeAttrs(n))
@@ -398,8 +549,9 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
       for (const e of app.edgesOfBoard(id)) {
         const link = g.getCell(String(e.id)) as dia.Link | null
         if (!link) continue
-        link.attr('line/stroke', color('dim'))
-        link.label(0, { attrs: { text: { fill: color('dim') } } })
+        link.attr('line/stroke', pal.borderStrong)
+        link.attr('line/targetMarker/fill', pal.borderStrong)
+        link.label(0, linkLabel(e, pal))
       }
     },
     { flush: 'post' },

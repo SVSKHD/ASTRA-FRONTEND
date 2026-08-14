@@ -31,7 +31,7 @@ export const KIND_TOKEN: Record<NodeKind, 'accent' | 'dim' | 'text'> = {
   group: 'dim',
 }
 
-export const DEFAULT_NODE = { width: 180, height: 64 }
+export const DEFAULT_NODE = { width: 200, height: 56 }
 
 // Where to drop a freshly-added node so it does not land on top of an existing
 // one: step down-right from the lowest node in the board.
@@ -69,10 +69,10 @@ export interface TidyOptions {
   nodeHeight: number
 }
 export const DEFAULT_TIDY: TidyOptions = {
-  nodeSep: 40,
-  rankSep: 70,
-  nodeWidth: 180,
-  nodeHeight: 64,
+  nodeSep: 24,
+  rankSep: 48,
+  nodeWidth: 200,
+  nodeHeight: 56,
 }
 
 export function tidyTreeLayout(
