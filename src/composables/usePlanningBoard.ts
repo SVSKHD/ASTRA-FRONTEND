@@ -21,35 +21,46 @@ import type { PlanningEdge, PlanningNode } from '@/types'
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 2.5
 const POS_DEBOUNCE = 400
+// Grid cell in paper units. Nodes snap to this on release.
+const GRID = 16
+// Compact node geometry (task 6b). Height grows by one line only when the label
+// wraps; the two-line cap keeps rows tight.
+const NODE_W = 200
+const NODE_H1 = 56
+const NODE_H2 = 74
+const LABEL_PAD = 12
 
 // A custom rounded-rect element: coloured left bar keyed to kind, a title, and an
-// optional status pill — all fed from theme tokens so it follows dark/light.
+// optional status pill — all fed from theme tokens so it follows dark/light. A
+// grab cursor on the whole body signals that the node itself is the drag surface.
 const PlanNode = dia.Element.define(
   'plan.Node',
   {
-    size: { width: 180, height: 64 },
+    size: { width: NODE_W, height: NODE_H1 },
     attrs: {
       body: {
         x: 0,
         y: 0,
         width: 'calc(w)',
         height: 'calc(h)',
-        rx: 12,
-        ry: 12,
-        strokeWidth: 1.5,
+        rx: 8,
+        ry: 8,
+        strokeWidth: 1,
+        cursor: 'grab',
       },
-      bar: { x: 0, y: 0, width: 5, height: 'calc(h)', rx: 2.5 },
+      bar: { x: 0, y: 0, width: 3, height: 'calc(h)', rx: 1.5 },
       label: {
-        x: 16,
+        x: LABEL_PAD,
         y: 'calc(h/2)',
         textVerticalAnchor: 'middle',
         textAnchor: 'start',
         fontSize: 13,
         fontFamily: 'inherit',
+        cursor: 'grab',
       },
       status: {
-        x: 'calc(w-14)',
-        y: 14,
+        x: 'calc(w-12)',
+        y: 12,
         textAnchor: 'end',
         fontSize: 10,
         opacity: 0.85,
@@ -87,6 +98,23 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
   }
 
   // --- store → graph ---------------------------------------------------------
+  // Title text, wrapped to at most two lines with an ellipsis so a long label
+  // never blows the node's height past the two-line cap.
+  function nodeLabelText(title: string): string {
+    return util.breakText(
+      title,
+      { width: NODE_W - LABEL_PAD * 2, height: NODE_H2 },
+      { 'font-size': 13, 'font-family': 'inherit' },
+      { ellipsis: true, maxLineCount: 2 },
+    )
+  }
+  // Node render size: fixed width, height grows one line only when the label wraps.
+  function nodeSize(n: PlanningNode): { width: number; height: number } {
+    const linked = linkedItem(n)
+    const title = linked ? linkedTitle(linked) : n.label || '(untitled)'
+    const twoLine = nodeLabelText(title).includes('\n')
+    return { width: NODE_W, height: twoLine ? NODE_H2 : NODE_H1 }
+  }
   function nodeAttrs(n: PlanningNode) {
     const linked = linkedItem(n)
     const title = linked ? linkedTitle(linked) : n.label || '(untitled)'
@@ -94,7 +122,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     return {
       body: { fill: color('card'), stroke: color('border') },
       bar: { fill: n.color || color(KIND_TOKEN[n.kind]) },
-      label: { text: util.breakText(title, { width: 150 }, {}), fill: color('text') },
+      label: { text: nodeLabelText(title), fill: color('text') },
       status: { text: status, fill: color('dim') },
     }
   }
@@ -125,17 +153,18 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
 
     for (const n of nodes) {
       if (localMutating.has(n.id) || guard.editingIds.has(n.id)) continue
+      const size = nodeSize(n)
       const cell = g.getCell(String(n.id)) as dia.Element | null
       if (cell) {
         cell.position(n.x, n.y)
-        cell.resize(n.width, n.height)
+        cell.resize(size.width, size.height)
         cell.attr(nodeAttrs(n))
       } else {
         g.addCell(
           new PlanNode({
             id: String(n.id),
             position: { x: n.x, y: n.y },
-            size: { width: n.width, height: n.height },
+            size,
             attrs: nodeAttrs(n),
           }),
         )
@@ -208,12 +237,30 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     // (reused for node ids — globally unique, so no collision with task ids) marks
     // it protected, so syncGraphFromStore skips it until the drag ends.
     p.on('element:pointerdown', (view: dia.ElementView) => {
-      const nid = Number(view.model.id)
+      const el = view.model as dia.Element
+      const nid = Number(el.id)
       selectedId.value = nid
       guard.editingIds.add(nid)
+      // The whole body is the drag surface (Joint translates on element
+      // pointerdown, no threshold). Raise the node above its peers and lift it
+      // with a shadow while it moves.
+      el.toFront()
+      el.attr('body/cursor', 'grabbing')
+      el.attr('body/filter', {
+        name: 'dropShadow',
+        args: { dx: 0, dy: 4, blur: 12, opacity: 0.35, color: 'rgba(0,0,0,0.5)' },
+      })
     })
-    p.on('element:pointerup', (view: dia.ElementView) => {
-      const nid = Number(view.model.id)
+    p.on('element:pointerup', (view: dia.ElementView, evt: dia.Event) => {
+      const el = view.model as dia.Element
+      const nid = Number(el.id)
+      // Snap to the 16px grid on release; hold Alt to drop freely.
+      if (!evt.altKey) {
+        const pos = el.position()
+        el.position(Math.round(pos.x / GRID) * GRID, Math.round(pos.y / GRID) * GRID)
+      }
+      el.removeAttr('body/filter')
+      el.attr('body/cursor', 'grab')
       flushPos(nid)
       guard.editingIds.delete(nid)
       guard.dirtyIds.delete(nid)
