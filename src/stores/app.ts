@@ -658,6 +658,90 @@ export const useAppStore = defineStore('app', () => {
   function checklistOf(gid: number): GoalChecklistItem[] {
     return goalChecklist.value.filter((c) => c.goalId === gid).sort((a, b) => a.order - b.order)
   }
+  function nextChecklistOrder(gid: number): number {
+    const os = goalChecklist.value.filter((c) => c.goalId === gid).map((c) => c.order)
+    return os.length ? Math.max(...os) + CHECKLIST_GAP : CHECKLIST_GAP
+  }
+  function addChecklistItem(
+    gid: number,
+    text: string,
+    extra: Partial<Pick<GoalChecklistItem, 'estimateMins' | 'dueAt' | 'order'>> = {},
+  ): number {
+    const newId = id()
+    goalChecklist.value = [
+      ...goalChecklist.value,
+      {
+        id: newId,
+        goalId: gid,
+        text: text.trim(),
+        done: false,
+        order: extra.order ?? nextChecklistOrder(gid),
+        estimateMins: extra.estimateMins ?? null,
+        spentMins: 0,
+        dueAt: extra.dueAt ?? '',
+        startedAt: null,
+        completedAt: null,
+        timerStartedAt: null,
+        localRev: 0,
+        ...stamps(),
+      },
+    ]
+    return newId
+  }
+  function updateChecklistItem(itemId: number, fields: Partial<GoalChecklistItem>) {
+    goalChecklist.value = goalChecklist.value.map((c) =>
+      c.id === itemId ? touched({ ...c, ...fields, localRev: c.localRev + 1 }) : c,
+    )
+  }
+  function toggleChecklistItem(itemId: number) {
+    const now = Date.now()
+    goalChecklist.value = goalChecklist.value.map((c) => {
+      if (c.id !== itemId) return c
+      const done = !c.done
+      return touched({
+        ...c,
+        done,
+        completedAt: done ? now : null,
+        startedAt: c.startedAt ?? (done ? now : null),
+        localRev: c.localRev + 1,
+      })
+    })
+  }
+  function deleteChecklistItem(itemId: number) {
+    goalChecklist.value = goalChecklist.value.filter((c) => c.id !== itemId)
+  }
+  function orderBetween(prev?: GoalChecklistItem, next?: GoalChecklistItem): number {
+    if (!prev && !next) return CHECKLIST_GAP
+    if (!prev) return next!.order - CHECKLIST_GAP
+    if (!next) return prev.order + CHECKLIST_GAP
+    return (prev.order + next.order) / 2
+  }
+  // Move a checklist item to a target index within its goal's list (fractional
+  // ordering, so only the moved row is rewritten).
+  function moveChecklistItem(itemId: number, toIndex: number) {
+    const item = goalChecklist.value.find((c) => c.id === itemId)
+    if (!item) return
+    const siblings = checklistOf(item.goalId).filter((c) => c.id !== itemId)
+    const clamped = Math.max(0, Math.min(toIndex, siblings.length))
+    updateChecklistItem(itemId, {
+      order: orderBetween(siblings[clamped - 1], siblings[clamped]),
+    })
+  }
+  // --- checklist timer -----------------------------------------------------
+  function startChecklistTimer(itemId: number) {
+    const now = Date.now()
+    goalChecklist.value = goalChecklist.value.map((c) =>
+      c.id === itemId ? touched({ ...c, timerStartedAt: now, startedAt: c.startedAt ?? now }) : c,
+    )
+  }
+  function stopChecklistTimer(itemId: number) {
+    const now = Date.now()
+    goalChecklist.value = goalChecklist.value.map((c) => {
+      if (c.id !== itemId || c.timerStartedAt == null) return c
+      const elapsed = Math.max(0, Math.round((now - c.timerStartedAt) / 60000))
+      return touched({ ...c, spentMins: c.spentMins + elapsed, timerStartedAt: null })
+    })
+  }
   function tasksOfGoal(gid: number): Task[] {
     return tasks.value.filter((t) => t.goalIds?.includes(gid))
   }
@@ -4060,6 +4144,13 @@ export const useAppStore = defineStore('app', () => {
     deleteGoal,
     goalById,
     checklistOf,
+    addChecklistItem,
+    updateChecklistItem,
+    toggleChecklistItem,
+    deleteChecklistItem,
+    moveChecklistItem,
+    startChecklistTimer,
+    stopChecklistTimer,
     tasksOfGoal,
     todosOfGoal,
     goalProgress,
