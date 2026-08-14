@@ -92,6 +92,173 @@ function splitItems(payload: string): string[] {
   return decoded.split(delim)
 }
 
+// ---- Canonical Goals JSON (task 10a) --------------------------------------
+// The import/export interchange shape. The same normalisation feeds the URL
+// import, a pasted-JSON box and a dropped .json file; export emits it back and
+// round-trips losslessly. Pure + unit-tested (goals.test.ts).
+
+export const GOALS_JSON_VERSION = 1
+
+export type GoalDocStatus = 'active' | 'paused' | 'done' | 'archived'
+const GOAL_STATUSES: GoalDocStatus[] = ['active', 'paused', 'done', 'archived']
+
+// A fully-normalised point: strings promoted to { text }, inline shorthand parsed
+// out, timeline split into start/target (ISO or null).
+export interface GoalPoint {
+  text: string
+  estimateMins: number | null
+  dueAt: string | null // timeline target / @date
+  startAt: string | null // timeline start
+  done: boolean
+  tags: string[]
+}
+// A normalised goal. `error` is set (and the goal marked non-importable) when a
+// required field is missing; every other goal in the document stays importable.
+export interface GoalDoc {
+  title: string
+  description: string
+  startAt: string | null
+  targetAt: string | null
+  color: string
+  status: GoalDocStatus
+  points: GoalPoint[]
+  error?: string
+}
+export interface GoalsDocument {
+  project: string
+  goals: GoalDoc[]
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+function asIsoDate(v: unknown): string | null {
+  return typeof v === 'string' && ISO_DATE.test(v.trim()) ? v.trim() : null
+}
+
+// A timeline may be an object { start, target } (either optional) or a bare
+// string, which is read as the target. Returns nulls for anything unparseable.
+function parseTimeline(v: unknown): { start: string | null; target: string | null } {
+  if (typeof v === 'string') return { start: null, target: asIsoDate(v) }
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>
+    return { start: asIsoDate(o.start), target: asIsoDate(o.target) }
+  }
+  return { start: null, target: null }
+}
+
+// Normalise one point. A plain string becomes { text }; an object is read
+// field-by-field. Inline shorthand (@date ~est #tag) is always parsed out of the
+// text and stripped; explicit object fields win over shorthand, shorthand fills
+// the gaps. Unknown keys are ignored.
+export function normalizePoint(input: unknown): GoalPoint {
+  const raw =
+    typeof input === 'string' ? { text: input } : ((input ?? {}) as Record<string, unknown>)
+  const shorthand = parseItemMetadata(typeof raw.text === 'string' ? raw.text : '')
+  const timeline = parseTimeline(raw.timeline)
+  const tags = Array.isArray(raw.tags)
+    ? raw.tags.filter((t): t is string => typeof t === 'string')
+    : []
+  // De-dupe tags (shorthand + explicit) case-insensitively, keeping first spelling.
+  const mergedTags: string[] = []
+  const seenTag = new Set<string>()
+  for (const t of [...tags, ...shorthand.tags]) {
+    const k = t.toLowerCase()
+    if (!k || seenTag.has(k)) continue
+    seenTag.add(k)
+    mergedTags.push(t)
+  }
+  return {
+    text: shorthand.text,
+    estimateMins:
+      typeof raw.estimateMins === 'number' && raw.estimateMins >= 0
+        ? raw.estimateMins
+        : shorthand.estimateMins,
+    dueAt: asIsoDate(raw.dueAt) ?? timeline.target ?? shorthand.dueAt,
+    startAt: timeline.start,
+    done: raw.done === true,
+    tags: mergedTags,
+  }
+}
+
+function normalizeGoal(input: unknown): GoalDoc {
+  const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
+  const timeline = parseTimeline(o.timeline)
+  const status =
+    typeof o.status === 'string' && (GOAL_STATUSES as string[]).includes(o.status)
+      ? (o.status as GoalDocStatus)
+      : 'active'
+  const points = Array.isArray(o.points) ? o.points.map(normalizePoint).filter((p) => p.text) : []
+  const title = typeof o.title === 'string' ? o.title.trim() : ''
+  const goal: GoalDoc = {
+    title,
+    description: typeof o.description === 'string' ? o.description : '',
+    startAt: timeline.start ?? asIsoDate(o.startDate),
+    targetAt: timeline.target ?? asIsoDate(o.targetDate),
+    color: typeof o.color === 'string' ? o.color : '',
+    status,
+    points,
+  }
+  // Schema check: a goal without a title is surfaced as an error row in the
+  // preview but never fails the whole import.
+  if (!title) goal.error = 'Missing title'
+  return goal
+}
+
+// Parse the canonical document from a JSON string or an already-parsed object.
+// Never throws: a malformed string yields an empty document with a parseError.
+export function parseGoalsJson(input: string | unknown): GoalsDocument & { parseError?: string } {
+  let obj: unknown = input
+  if (typeof input === 'string') {
+    const trimmed = input.trim()
+    if (!trimmed) return { project: '', goals: [] }
+    try {
+      obj = JSON.parse(trimmed)
+    } catch (e) {
+      return { project: '', goals: [], parseError: (e as Error).message || 'Invalid JSON' }
+    }
+  }
+  const o = (obj && typeof obj === 'object' ? obj : {}) as Record<string, unknown>
+  const rawGoals = Array.isArray(o.goals) ? o.goals : []
+  return {
+    project: typeof o.project === 'string' ? o.project : '',
+    goals: rawGoals.map(normalizeGoal),
+  }
+}
+
+// Serialise goals back to the canonical shape. Only set keys carry through, so a
+// re-parse yields the same normalised document (lossless round-trip). exportedAt
+// is passed in so the function stays pure/testable.
+export function exportGoalsJson(project: string, goals: GoalDoc[], exportedAt: string): string {
+  const timeline = (start: string | null, target: string | null) =>
+    start || target ? { ...(start ? { start } : {}), ...(target ? { target } : {}) } : undefined
+  const doc = {
+    version: GOALS_JSON_VERSION,
+    exportedAt,
+    sourceProject: project,
+    project,
+    goals: goals.map((g) => {
+      const tl = timeline(g.startAt, g.targetAt)
+      return {
+        title: g.title,
+        ...(g.description ? { description: g.description } : {}),
+        ...(tl ? { timeline: tl } : {}),
+        points: g.points.map((p) => {
+          const ptl = timeline(p.startAt, p.dueAt)
+          return {
+            text: p.text,
+            ...(p.estimateMins != null ? { estimateMins: p.estimateMins } : {}),
+            ...(ptl ? { timeline: ptl } : {}),
+            done: p.done,
+            ...(p.tags.length ? { tags: p.tags } : {}),
+          }
+        }),
+        ...(g.color ? { color: g.color } : {}),
+        status: g.status,
+      }
+    }),
+  }
+  return JSON.stringify(doc, null, 2)
+}
+
 // Extract @date / ~estimate / #tag from an item and strip them from the text.
 export function parseItemMetadata(raw: string): ParsedGoalItem {
   let text = raw

@@ -99,7 +99,8 @@ import type {
   TripPlace,
   TripStatus,
 } from '@/types'
-import type { ParsedGoalItem } from '@/utils/goals'
+import type { ParsedGoalItem, GoalDoc, GoalPoint } from '@/utils/goals'
+import { exportGoalsJson } from '@/utils/goals'
 
 function rel(days: number): string {
   const d = new Date()
@@ -666,7 +667,12 @@ export const useAppStore = defineStore('app', () => {
   function addChecklistItem(
     gid: number,
     text: string,
-    extra: Partial<Pick<GoalChecklistItem, 'estimateMins' | 'dueAt' | 'order'>> = {},
+    extra: Partial<
+      Pick<
+        GoalChecklistItem,
+        'estimateMins' | 'dueAt' | 'startAt' | 'tags' | 'order' | 'done' | 'spentMins'
+      >
+    > = {},
   ): number {
     const newId = id()
     goalChecklist.value = [
@@ -675,11 +681,13 @@ export const useAppStore = defineStore('app', () => {
         id: newId,
         goalId: gid,
         text: text.trim(),
-        done: false,
+        done: extra.done ?? false,
         order: extra.order ?? nextChecklistOrder(gid),
         estimateMins: extra.estimateMins ?? null,
-        spentMins: 0,
+        spentMins: extra.spentMins ?? 0,
         dueAt: extra.dueAt ?? '',
+        startAt: extra.startAt ?? '',
+        tags: extra.tags ?? [],
         startedAt: null,
         completedAt: null,
         timerStartedAt: null,
@@ -855,6 +863,79 @@ export const useAppStore = defineStore('app', () => {
       }
     }
     return gid
+  }
+
+  // Import a canonical JSON document (task 10a). Writes one goal per importable
+  // GoalDoc (those without an `error`), each with its points as checklist items,
+  // in one synchronous pass. When a goal's title matches an existing goal from the
+  // same sourceUrl, its points are merged (append only new text) instead.
+  function importGoalsDocument(
+    doc: { goals: GoalDoc[] },
+    opts: { sourceUrl?: string } = {},
+  ): number[] {
+    const created: number[] = []
+    for (const g of doc.goals) {
+      if (g.error || !g.title.trim()) continue
+      const existing = opts.sourceUrl
+        ? goals.value.find((x) => x.sourceUrl === opts.sourceUrl && x.title === g.title)
+        : undefined
+      const gid =
+        existing?.id ??
+        addGoal({
+          title: g.title.trim(),
+          description: g.description,
+          status: g.status,
+          startDate: g.startAt ?? '',
+          targetDate: g.targetAt ?? '',
+          color: g.color,
+          source: opts.sourceUrl ? 'url-import' : 'manual',
+          sourceUrl: opts.sourceUrl ?? '',
+        })
+      const seen = new Set(checklistOf(gid).map((c) => c.text.toLowerCase()))
+      let ord = nextChecklistOrder(gid) - CHECKLIST_GAP
+      for (const p of g.points) {
+        const text = p.text.trim()
+        if (!text || seen.has(text.toLowerCase())) continue
+        seen.add(text.toLowerCase())
+        ord += CHECKLIST_GAP
+        addChecklistItem(gid, text, {
+          order: ord,
+          estimateMins: p.estimateMins,
+          dueAt: p.dueAt ?? '',
+          startAt: p.startAt ?? '',
+          done: p.done,
+          tags: p.tags,
+        })
+      }
+      created.push(gid)
+    }
+    return created
+  }
+
+  // Serialise a goal + its checklist to the canonical JSON string (task 10a), for
+  // the goal's ⋯ → Export. Attached tasks/todos are references, not part of the
+  // portable goal, so only checklist points are emitted.
+  function exportGoal(gid: number, exportedAt: string): string | null {
+    const g = goalById(gid)
+    if (!g) return null
+    const points: GoalPoint[] = checklistOf(gid).map((c) => ({
+      text: c.text,
+      estimateMins: c.estimateMins,
+      dueAt: c.dueAt || null,
+      startAt: c.startAt || null,
+      done: c.done,
+      tags: c.tags ?? [],
+    }))
+    const gdoc: GoalDoc = {
+      title: g.title,
+      description: g.description,
+      startAt: g.startDate || null,
+      targetAt: g.targetDate || null,
+      color: g.color,
+      status: g.status,
+      points,
+    }
+    return exportGoalsJson(g.title, [gdoc], exportedAt)
   }
 
   // ---- Edit-safe flush on task dialog close -------------------------------
@@ -3718,6 +3799,8 @@ export const useAppStore = defineStore('app', () => {
       estimateMins: typeof c.estimateMins === 'number' ? c.estimateMins : null,
       spentMins: typeof c.spentMins === 'number' ? c.spentMins : 0,
       dueAt: typeof c.dueAt === 'string' ? c.dueAt : '',
+      startAt: typeof c.startAt === 'string' ? c.startAt : '',
+      tags: Array.isArray(c.tags) ? c.tags.filter((t): t is string => typeof t === 'string') : [],
       startedAt: typeof c.startedAt === 'number' ? c.startedAt : null,
       completedAt: typeof c.completedAt === 'number' ? c.completedAt : null,
       timerStartedAt: typeof c.timerStartedAt === 'number' ? c.timerStartedAt : null,
@@ -4239,6 +4322,8 @@ export const useAppStore = defineStore('app', () => {
     goalTime,
     goalBySourceUrl,
     importGoals,
+    importGoalsDocument,
+    exportGoal,
     setTodoDragId,
     endTodoDrag,
     dropTodoOnDay,

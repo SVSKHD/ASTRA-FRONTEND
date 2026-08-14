@@ -299,8 +299,13 @@ export interface GoalChecklistItem extends Timestamped {
   // Planned vs accumulated time, in minutes. estimateMins null = no estimate.
   estimateMins: number | null
   spentMins: number
-  // ISO YYYY-MM-DD, '' = no due date.
+  // ISO YYYY-MM-DD, '' = no due date. dueAt doubles as the point timeline's
+  // target; startAt is the point timeline's planned start (both '' = unset). These
+  // let a point round-trip the JSON `timeline: { start, target }` shape losslessly.
   dueAt: string
+  startAt: string
+  // Free-form tags carried on the point, preserved across JSON import/export.
+  tags: string[]
   startedAt: number | null
   completedAt: number | null
   // Set while the built-in timer is running (epoch ms); null when stopped. On

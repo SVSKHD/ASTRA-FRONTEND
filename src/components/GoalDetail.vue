@@ -142,6 +142,22 @@ async function createInGoal(collection: 'tasks' | 'todos') {
   await nextTick()
 }
 
+// --- export (canonical JSON, task 10a) ---------------------------------------
+function onExport() {
+  const json = app.exportGoal(props.goalId, new Date().toISOString())
+  if (!json) return
+  const name = (goal.value?.title || 'goals').toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'goals'
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${name}.goals.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 // --- delete prompt -----------------------------------------------------------
 const confirmDelete = ref(false)
 function doDelete(checklistOnly: boolean) {
@@ -339,6 +355,7 @@ const pickRow = computed(() =>
         >
           <option v-for="st in STATUS_OPTS" :key="st" :value="st">{{ st }}</option>
         </select>
+        <button :style="smallBtn" title="Export as JSON" @click="onExport">Export</button>
         <button :style="smallBtn" @click="confirmDelete = true">Delete</button>
       </div>
       <textarea

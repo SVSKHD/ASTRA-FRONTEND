@@ -10,7 +10,13 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, rowBase } from '@/styles'
-import { parseImportUrl, MAX_IMPORT_ITEMS, type ParsedImport } from '@/utils/goals'
+import {
+  parseImportUrl,
+  parseGoalsJson,
+  MAX_IMPORT_ITEMS,
+  type ParsedImport,
+  type GoalsDocument,
+} from '@/utils/goals'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -34,9 +40,19 @@ const initial =
     : ''
 const raw = ref(initial)
 const parsed = ref<ParsedImport | null>(null)
+const jsonDoc = ref<(GoalsDocument & { parseError?: string }) | null>(null)
 const title = ref('')
 const rows = ref<Row[]>([])
 const merge = ref(false)
+const dragActive = ref(false)
+
+// The pasted text is JSON when it opens with a { or [ (after trimming); anything
+// else is treated as a spasta URL / delimited list.
+function looksLikeJson(s: string): boolean {
+  const t = s.trim()
+  return t.startsWith('{') || t.startsWith('[')
+}
+const importableJsonGoals = computed(() => (jsonDoc.value?.goals ?? []).filter((g) => !g.error))
 
 const mergeCandidate = computed(() =>
   parsed.value ? app.goalBySourceUrl(parsed.value.sourceUrl) : undefined,
@@ -44,6 +60,12 @@ const mergeCandidate = computed(() =>
 const overCap = computed(() => !!parsed.value && parsed.value.overCap)
 
 function doParse() {
+  if (looksLikeJson(raw.value)) {
+    jsonDoc.value = parseGoalsJson(raw.value)
+    parsed.value = null
+    return
+  }
+  jsonDoc.value = null
   const p = parseImportUrl(raw.value)
   parsed.value = p
   title.value = p.goalTitle
@@ -55,6 +77,29 @@ function doParse() {
     kind: 'checklist' as RowKind,
   }))
   merge.value = !!app.goalBySourceUrl(p.sourceUrl)
+}
+function doImportJson() {
+  if (!jsonDoc.value || importableJsonGoals.value.length === 0) return
+  app.importGoalsDocument({ goals: jsonDoc.value.goals })
+  goHome()
+}
+// Read a dropped or chosen .json file into the paste box, then parse it.
+function loadFile(file: File | undefined) {
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    raw.value = String(reader.result ?? '')
+    doParse()
+  }
+  reader.readAsText(file)
+}
+function onDrop(e: DragEvent) {
+  dragActive.value = false
+  const file = e.dataTransfer?.files?.[0]
+  if (file) loadFile(file)
+}
+function onFilePick(e: Event) {
+  loadFile((e.target as HTMLInputElement).files?.[0])
 }
 function removeRow(i: number) {
   rows.value.splice(i, 1)
@@ -170,6 +215,18 @@ const actions = pxify({
   marginTop: 4,
   flexWrap: 'wrap',
 })
+const dropZone = computed(() =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    padding: 10,
+    borderRadius: 12,
+    border: '1.5px dashed ' + (dragActive.value ? c.value.accent : c.value.border),
+    background: dragActive.value ? c.value.card : 'transparent',
+    transition: 'border-color .15s ease, background .15s ease',
+  }),
+)
 const warn = computed(() => pxify({ fontSize: 12, color: 'oklch(0.64 0.22 25)', fontWeight: 600 }))
 const mergeNote = computed(() =>
   pxify({
@@ -188,24 +245,76 @@ const mergeNote = computed(() =>
 <template>
   <div :style="page">
     <div :style="card">
-      <div :style="h1">Import goals from a link</div>
+      <div :style="h1">Import goals</div>
       <div :style="sub">
-        Paste a link like
-        <code>spasta.online/?project=learningandgoals=read papers|build bot ~2h</code>. Items can be
-        separated by <code>|</code>, <code>;</code>, commas or new lines, and each may carry
-        <code>~45m</code>/<code>~2h</code> (estimate), <code>@2026-09-01</code> (due) and
+        Paste a <strong>spasta link</strong> (<code
+          >?project=learningandgoals=read papers|build bot ~2h</code
+        >) or a <strong>goals JSON</strong> document, or drop a <code>.json</code> file below. Link
+        items may carry <code>~45m</code>/<code>~2h</code>, <code>@2026-09-01</code> and
         <code>#tag</code>.
       </div>
 
-      <textarea
-        :style="{ ...s.input, width: '100%', minHeight: 60, resize: 'vertical' }"
-        v-model="raw"
-        placeholder="Paste the import link…"
-      ></textarea>
+      <div
+        :style="dropZone"
+        @dragover.prevent="dragActive = true"
+        @dragleave.prevent="dragActive = false"
+        @drop.prevent="onDrop"
+      >
+        <textarea
+          :style="{ ...s.input, width: '100%', minHeight: 72, resize: 'vertical' }"
+          v-model="raw"
+          placeholder="Paste a link or JSON…"
+        ></textarea>
+        <div :style="sub">Drag a .json file here, or</div>
+        <label :style="btn">
+          Choose file…
+          <input type="file" accept="application/json,.json" hidden @change="onFilePick" />
+        </label>
+      </div>
       <div :style="actions">
         <button :style="primary" @click="doParse">Preview</button>
         <button :style="btn" @click="goHome">Cancel</button>
       </div>
+
+      <template v-if="jsonDoc">
+        <div v-if="jsonDoc.parseError" :style="warn">
+          Could not parse JSON: {{ jsonDoc.parseError }}
+        </div>
+        <div v-else-if="jsonDoc.goals.length === 0" :style="s.empty">
+          No goals found in that JSON.
+        </div>
+        <template v-else>
+          <div :style="sub">
+            {{ importableJsonGoals.length }} goal{{
+              importableJsonGoals.length === 1 ? '' : 's'
+            }}
+            ready to import<span v-if="jsonDoc.project">
+              from project <strong>{{ jsonDoc.project }}</strong></span
+            >.
+          </div>
+          <div v-for="(g, gi) in jsonDoc.goals" :key="gi" :style="rowStyle">
+            <span :style="{ flex: 1, fontWeight: 600, color: c.text }">
+              {{ g.title || '(untitled)' }}
+            </span>
+            <span v-if="g.error" :style="warn">{{ g.error }}</span>
+            <span v-else :style="sub"
+              >{{ g.points.length }} point{{ g.points.length === 1 ? '' : 's' }}</span
+            >
+          </div>
+          <div :style="actions">
+            <button
+              :style="primary"
+              :disabled="importableJsonGoals.length === 0"
+              @click="doImportJson"
+            >
+              Import {{ importableJsonGoals.length }} goal{{
+                importableJsonGoals.length === 1 ? '' : 's'
+              }}
+            </button>
+            <button :style="btn" @click="goHome">Cancel</button>
+          </div>
+        </template>
+      </template>
 
       <template v-if="parsed">
         <div :style="sub">
