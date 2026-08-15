@@ -84,7 +84,10 @@ import type {
   FinanceSettings,
   Goal,
   GoalChecklistItem,
+  GoalOccurrence,
   GoalStatus,
+  Recurrence,
+  Metric,
   Reminder,
   Repeat,
   RepeatType,
@@ -100,6 +103,8 @@ import type {
   TripStatus,
 } from '@/types'
 import type { ParsedGoalItem, GoalDoc, GoalPoint } from '@/utils/goals'
+import { horizonDates, localDateInTz } from '@/utils/recurrence'
+import { captureOutcome } from '@/utils/goalMetrics'
 import { exportGoalsJson } from '@/utils/goals'
 
 function rel(days: number): string {
@@ -188,6 +193,10 @@ export const useAppStore = defineStore('app', () => {
   // reference through their own goalIds; a goal never stores the item list.
   const goals = ref<Goal[]>([])
   const goalChecklist = ref<GoalChecklistItem[]>([])
+  // Dated occurrences of recurring goals (task 11). Flat array keyed by
+  // (goalId, date); generation is idempotent on that pair so multi-device sync
+  // never duplicates a day.
+  const goalOccurrences = ref<GoalOccurrence[]>([])
   // The shared tag vocabulary behind both pickers. Seeded for a new workspace;
   // a hydrate replaces it, and any tag typed anywhere joins it.
   const tags = ref<string[]>(DEFAULT_TAGS.slice())
@@ -209,6 +218,9 @@ export const useAppStore = defineStore('app', () => {
   // the last day it did, so it fires at most once per day per device-sync.
   const autoRollover = ref(false)
   const lastAutoRolloverDay = ref('')
+  // Records the last local day recurring-goal occurrences were generated, so the
+  // lazy generator does its horizon pass at most once per day per device.
+  const lastGoalGenDay = ref('')
   // Done/Not-done split preferences. hideCompleted collapses the Completed
   // section entirely for users who never want it; reminderSound plays a short
   // tone alongside the browser notification when a reminder fires.
@@ -319,6 +331,7 @@ export const useAppStore = defineStore('app', () => {
       ...boardEdges.value.map((e) => e.id),
       ...goals.value.map((g) => g.id),
       ...goalChecklist.value.map((c) => c.id),
+      ...goalOccurrences.value.map((o) => o.id),
     )
     if (maxId >= nid) nid = maxId + 1
   }
@@ -627,6 +640,9 @@ export const useAppStore = defineStore('app', () => {
     goals.value = goals.value.map((g) =>
       g.id === gid ? touched({ ...g, ...fields, localRev: g.localRev + 1 }) : g,
     )
+    // Enabling/retiming recurrence (or reactivating a recurring goal) should
+    // materialise its occurrences right away, not only on the next app open.
+    if ('recurrence' in fields || 'metric' in fields || 'status' in fields) generateOccurrences()
   }
   function setGoalStatus(gid: number, status: GoalStatus) {
     updateGoal(gid, { status })
@@ -933,6 +949,158 @@ export const useAppStore = defineStore('app', () => {
       spent += c.spentMins
     }
     return { estimate, spent }
+  }
+
+  // --- recurring occurrences (task 11) -------------------------------------
+  // Default config factories for the create flow.
+  function defaultRecurrence(): Recurrence {
+    let tz = 'UTC'
+    try {
+      tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    } catch {
+      /* keep UTC */
+    }
+    return {
+      enabled: true,
+      freq: 'daily',
+      daysOfWeek: [],
+      timeOfDay: '09:00',
+      timezone: tz,
+      startDate: localDateInTz(Date.now(), tz),
+      endDate: null,
+    }
+  }
+  function defaultMetric(): Metric {
+    return {
+      enabled: true,
+      label: 'Amount',
+      unit: 'count',
+      target: 1,
+      direction: 'at_least',
+      allowPartial: true,
+    }
+  }
+  function occurrencesOf(gid: number): GoalOccurrence[] {
+    return goalOccurrences.value
+      .filter((o) => o.goalId === gid)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  }
+  function occurrenceOn(gid: number, date: string): GoalOccurrence | undefined {
+    return goalOccurrences.value.find((o) => o.goalId === gid && o.date === date)
+  }
+  // The local "today" for a goal, honouring its captured timezone so travel or a
+  // device-clock change can't mint two occurrences for one calendar day.
+  function goalToday(goal: Goal): string {
+    return localDateInTz(Date.now(), goal.recurrence?.timezone || '')
+  }
+  function todayOccurrence(gid: number): GoalOccurrence | undefined {
+    const g = goalById(gid)
+    return g ? occurrenceOn(gid, goalToday(g)) : undefined
+  }
+
+  // Lazily materialise occurrences for today + the next 7 days for every enabled,
+  // active recurring goal, and flip any past still-`pending` day to `missed`.
+  // Idempotent on (goalId, date): runs safely on every app open and day flip, and
+  // two devices converge because the date string is the identity.
+  function generateOccurrences() {
+    let list = goalOccurrences.value
+    let changed = false
+    const have = new Set(list.map((o) => o.goalId + '|' + o.date))
+    for (const g of goals.value) {
+      const rec = g.recurrence
+      if (!rec?.enabled || g.status !== 'active') continue
+      const today = goalToday(g)
+      const target = g.metric?.enabled ? g.metric.target : 0
+      // Ensure the horizon exists.
+      for (const date of horizonDates(rec, today, 7)) {
+        const key = g.id + '|' + date
+        if (have.has(key)) continue
+        have.add(key)
+        list = [
+          ...list,
+          {
+            id: id(),
+            goalId: g.id,
+            date,
+            status: 'pending',
+            target,
+            actual: null,
+            note: null,
+            completedAt: null,
+            localRev: 0,
+            updatedBy: uid ?? '',
+            ...stamps(),
+          },
+        ]
+        changed = true
+      }
+      // Rollover: a past pending day is a miss (data, not a backlog item).
+      list = list.map((o) => {
+        if (o.goalId === g.id && o.status === 'pending' && o.date < today) {
+          changed = true
+          return touched({ ...o, status: 'missed', localRev: o.localRev + 1 })
+        }
+        return o
+      })
+    }
+    if (changed) goalOccurrences.value = list
+  }
+  // Mirror of runAutoRolloverIfDue: generate once per local day, plus always on a
+  // fresh load. lastGoalGenDay is a device-local guard (host date is fine here —
+  // generation itself is idempotent, this only avoids redundant passes).
+  function runGoalGenerationIfDue() {
+    const key = localDateInTz(Date.now(), '')
+    if (lastGoalGenDay.value === key) {
+      generateOccurrences()
+      return
+    }
+    lastGoalGenDay.value = key
+    generateOccurrences()
+  }
+
+  function writeOccurrence(gid: number, date: string, patch: Partial<GoalOccurrence>) {
+    goalOccurrences.value = goalOccurrences.value.map((o) =>
+      o.goalId === gid && o.date === date
+        ? touched({ ...o, ...patch, localRev: o.localRev + 1 })
+        : o,
+    )
+  }
+  // Capture the actual for a metric occurrence. The actual is always stored as
+  // entered; status becomes 'done' and completedAt is stamped. Colour/label (hit
+  // vs short) is derived in the UI from captureOutcome — never here.
+  function captureOccurrence(gid: number, date: string, actual: number, note: string | null) {
+    writeOccurrence(gid, date, {
+      actual,
+      note,
+      status: 'done',
+      completedAt: Date.now(),
+    })
+  }
+  function skipOccurrence(gid: number, date: string) {
+    writeOccurrence(gid, date, { status: 'skipped', completedAt: null })
+  }
+  function markOccurrenceMissed(gid: number, date: string) {
+    writeOccurrence(gid, date, { status: 'missed', completedAt: null })
+  }
+  // Plain (non-metric) tick: toggle done/pending with no capture prompt.
+  function toggleOccurrenceDone(gid: number, date: string) {
+    const o = occurrenceOn(gid, date)
+    if (!o) return
+    const done = o.status !== 'done'
+    writeOccurrence(gid, date, {
+      status: done ? 'done' : 'pending',
+      completedAt: done ? Date.now() : null,
+    })
+  }
+  // Inline-edit a past occurrence's actual from the history list.
+  function updateOccurrenceActual(gid: number, date: string, actual: number | null) {
+    writeOccurrence(gid, date, { actual })
+  }
+  // Whether entering `actual` hits the goal's target (for the capture UI outcome).
+  function occurrenceOutcome(gid: number, actual: number) {
+    const g = goalById(gid)
+    if (!g?.metric?.enabled) return { hit: true, pct: 100, offerMissed: false }
+    return captureOutcome(g.metric, actual)
   }
 
   // --- URL import ----------------------------------------------------------
@@ -3614,6 +3782,8 @@ export const useAppStore = defineStore('app', () => {
       boardEdges: boardEdges.value,
       goals: goals.value,
       goalChecklist: goalChecklist.value,
+      goalOccurrences: goalOccurrences.value,
+      lastGoalGenDay: lastGoalGenDay.value,
       tags: tags.value,
       security: security.value,
       themeSetting: themeSetting.value,
@@ -3654,6 +3824,8 @@ export const useAppStore = defineStore('app', () => {
     boardEdges.value = []
     goals.value = []
     goalChecklist.value = []
+    goalOccurrences.value = []
+    lastGoalGenDay.value = ''
     tags.value = DEFAULT_TAGS.slice()
     approvedPRs.value = {}
     security.value = emptySecurity()
@@ -3939,6 +4111,35 @@ export const useAppStore = defineStore('app', () => {
           ...[...heldItems.values()].filter((c) => !incomingChecklist.some((x) => x.id === c.id)),
         ]
       : incomingChecklist
+    // Recurring-goal occurrences (task 11). Sanitise, then preserve any occurrence
+    // the capture popover is mid-entry on (in the guard's editingIds) so a remote
+    // snapshot can't overwrite the number being typed.
+    const incomingOccurrences = stamped<GoalOccurrence>(data.goalOccurrences).map((o) => ({
+      ...o,
+      goalId: typeof o.goalId === 'number' ? o.goalId : 0,
+      date: typeof o.date === 'string' ? o.date : '',
+      status:
+        o.status === 'done' || o.status === 'missed' || o.status === 'skipped'
+          ? o.status
+          : ('pending' as GoalOccurrence['status']),
+      target: typeof o.target === 'number' ? o.target : 0,
+      actual: typeof o.actual === 'number' ? o.actual : null,
+      note: typeof o.note === 'string' ? o.note : null,
+      completedAt: typeof o.completedAt === 'number' ? o.completedAt : null,
+      localRev: typeof o.localRev === 'number' ? o.localRev : 0,
+      updatedBy: typeof o.updatedBy === 'string' ? o.updatedBy : '',
+    }))
+    const heldOccurrences = new Map(
+      goalOccurrences.value.filter((o) => syncGuard.editingIds.has(o.id)).map((o) => [o.id, o]),
+    )
+    goalOccurrences.value = heldOccurrences.size
+      ? [
+          ...incomingOccurrences.map((o) => heldOccurrences.get(o.id) ?? o),
+          ...[...heldOccurrences.values()].filter(
+            (o) => !incomingOccurrences.some((x) => x.id === o.id),
+          ),
+        ]
+      : incomingOccurrences
     // Workspaces written before tags existed have none stored. Rather than
     // leaving the pickers empty, seed them from the tags already in use and
     // fall back to the defaults for a workspace that has none of those either.
@@ -3974,6 +4175,7 @@ export const useAppStore = defineStore('app', () => {
     autoRollover.value = data.autoRollover === true
     lastAutoRolloverDay.value =
       typeof data.lastAutoRolloverDay === 'string' ? data.lastAutoRolloverDay : ''
+    lastGoalGenDay.value = typeof data.lastGoalGenDay === 'string' ? data.lastGoalGenDay : ''
     hideCompleted.value = data.hideCompleted === true
     reminderSound.value = data.reminderSound === true
     // Finance settings: merge onto the empty shape so a partial or legacy doc
@@ -4106,8 +4308,12 @@ export const useAppStore = defineStore('app', () => {
       cloudReady.value = true
       syncState.value = 'synced'
       // Once hydration settles (applyData releases the guard on the next tick),
-      // run the auto-rollover if it is enabled and hasn't run today.
-      setTimeout(() => void runAutoRolloverIfDue(), 0)
+      // run the auto-rollover if it is enabled and hasn't run today, and lazily
+      // materialise recurring-goal occurrences for today + the next 7 days.
+      setTimeout(() => {
+        void runAutoRolloverIfDue()
+        runGoalGenerationIfDue()
+      }, 0)
     } catch (error) {
       cloudError.value = 'Could not load your Firebase data.'
       syncState.value = 'error'
@@ -4165,6 +4371,7 @@ export const useAppStore = defineStore('app', () => {
         boardEdges,
         goals,
         goalChecklist,
+        goalOccurrences,
         security,
         themeSetting,
         preferredDark,
@@ -4417,6 +4624,22 @@ export const useAppStore = defineStore('app', () => {
     // goals (task 8)
     goals,
     goalChecklist,
+    goalOccurrences,
+    // recurring occurrences (task 11)
+    defaultRecurrence,
+    defaultMetric,
+    occurrencesOf,
+    occurrenceOn,
+    goalToday,
+    todayOccurrence,
+    generateOccurrences,
+    runGoalGenerationIfDue,
+    captureOccurrence,
+    skipOccurrence,
+    markOccurrenceMissed,
+    toggleOccurrenceDone,
+    updateOccurrenceActual,
+    occurrenceOutcome,
     addGoal,
     updateGoal,
     setGoalStatus,
