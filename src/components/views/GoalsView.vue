@@ -3,7 +3,7 @@
 // checklist and can have existing tasks/todos attached by reference. This view is
 // the list (card grid / mobile list) with status filter, sort, and grip-drag
 // reorder; selecting a card opens GoalDetail in place.
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
@@ -12,6 +12,8 @@ import { pxify, rowBase } from '@/styles'
 import ListToolbar from '@/components/ListToolbar.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import GoalDetail from '@/components/GoalDetail.vue'
+import GoalsEmptyState from '@/components/GoalsEmptyState.vue'
+import GoalCreateSlideOver from '@/components/GoalCreateSlideOver.vue'
 import type { Goal, GoalStatus } from '@/types'
 
 const app = useAppStore()
@@ -26,10 +28,37 @@ const search = ref('')
 
 defineExpose({ focus: () => onNew() })
 
+// Manual create now opens the slide-over (task 12c) rather than dropping a bare
+// "New goal" into the list.
+const showCreate = ref(false)
 function onNew() {
-  const gid = app.addGoal({ title: 'New goal' })
-  selectedId.value = gid
+  showCreate.value = true
 }
+function onCreated(goalId: number) {
+  showCreate.value = false
+  selectedId.value = goalId
+}
+function goImport() {
+  router.push('/import/goals')
+}
+
+// Keyboard: `g` then `n` opens New goal while the Goals tab is focused (task 12d).
+let gPressedAt = 0
+function onKey(e: KeyboardEvent) {
+  const el = e.target as HTMLElement | null
+  const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return
+  if (e.key === 'g') {
+    gPressedAt = Date.now()
+    return
+  }
+  if (e.key === 'n' && Date.now() - gPressedAt < 800 && selectedId.value == null) {
+    e.preventDefault()
+    onNew()
+  }
+}
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 const STATUS_META: Record<GoalStatus, { label: string; col: string }> = {
   active: { label: 'Active', col: 'oklch(0.7 0.15 155)' },
@@ -222,9 +251,10 @@ const importBtn = computed(() =>
     <template v-else>
       <ListToolbar title="Goals" new-label="New goal" @new="onNew">
         <template #actions>
-          <button type="button" :style="importBtn" @click="router.push('/import/goals')">
-            Import from link
-          </button>
+          <!-- Import paths converge on the one /import/goals preview (paste-JSON,
+               .json drop and spasta links all handled there). -->
+          <button type="button" :style="importBtn" @click="goImport">Paste JSON</button>
+          <button type="button" :style="importBtn" @click="goImport">Import link</button>
         </template>
       </ListToolbar>
 
@@ -258,9 +288,12 @@ const importBtn = computed(() =>
         </select>
       </div>
 
-      <div v-if="goals.length === 0" :style="s.empty">
-        No goals yet. Create one, or import from a link.
-      </div>
+      <GoalsEmptyState
+        v-if="goals.length === 0"
+        @new="onNew"
+        @paste-json="goImport"
+        @import-link="goImport"
+      />
       <div v-else-if="rows.length === 0" :style="s.empty">No goals match this filter.</div>
 
       <div v-else :style="grid">
@@ -305,5 +338,7 @@ const importBtn = computed(() =>
         </div>
       </div>
     </template>
+
+    <GoalCreateSlideOver v-if="showCreate" @close="showCreate = false" @created="onCreated" />
   </div>
 </template>

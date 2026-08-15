@@ -105,14 +105,34 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
       ? [P(star, { fill: col }), P(spark, { fill: col })]
       : [P(star, stroke(col, 1.7)), P(spark, stroke(col, 1.3))]
   } else if (name === 'goals') {
-    // A target: concentric rings with a centre dot — "goal / aim".
+    // A football (soccer ball): the outer circle, the central pentagon panel, and
+    // five seams radiating to the edge. Distinct from Trips' pin.
+    const pent = 'M12 8.8 L15 11 L13.9 14.6 L10.1 14.6 L9 11 Z'
+    const seams = [
+      'M12 8.8 L12 3.2',
+      'M15 11 L20.4 9.2',
+      'M13.9 14.6 L17.2 19.2',
+      'M10.1 14.6 L6.8 19.2',
+      'M9 11 L3.6 9.2',
+    ]
     ch = filled
       ? [
-          CI(12, 12, 9, stroke(col, 1.9)),
-          CI(12, 12, 5, stroke(col, 1.9)),
-          CI(12, 12, 1.9, { fill: col }),
+          CI(12, 12, 9, { fill: col }),
+          P(pent, stroke(ko || col, 1.4)),
+          ...seams.map((d) => P(d, stroke(ko || col, 1.4))),
         ]
-      : [CI(12, 12, 9, stroke(col)), CI(12, 12, 5, stroke(col)), CI(12, 12, 1.6, { fill: col })]
+      : [
+          CI(12, 12, 9, stroke(col)),
+          P(pent, stroke(col, 1.5)),
+          ...seams.map((d) => P(d, stroke(col, 1.4))),
+        ]
+  } else if (name === 'trips') {
+    // The location pin belongs to Trips (places visited) — given its own branch so
+    // it no longer shares the generic fallback with any other tab.
+    const pin = 'M12 21s6-5.35 6-11a6 6 0 1 0-12 0c0 5.65 6 11 6 11Z'
+    ch = filled
+      ? [P(pin, { fill: col }), CI(12, 10, 2.15, { fill: ko || col })]
+      : [P(pin, stroke(col)), CI(12, 10, 2.15, stroke(col, 1.8))]
   } else if (name === 'planning') {
     // A small node graph: two linked nodes above a child, edges connecting them.
     const edges = [P('M8 7.5 L8 13', stroke(col, 1.7)), P('M8 7.5 L16 15', stroke(col, 1.7))]
