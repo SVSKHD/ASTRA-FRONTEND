@@ -15,6 +15,7 @@ import { useSyncGuard } from '@/composables/useSyncGuard'
 import { pxify, rowBase } from '@/styles'
 import ProgressRing from '@/components/ProgressRing.vue'
 import TreeList from '@/components/TreeList.vue'
+import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import type { GoalStatus } from '@/types'
 
 const props = defineProps<{ goalId: number }>()
@@ -418,6 +419,9 @@ const pickRow = computed(() =>
         Time — estimated {{ fmtMins(time.estimate) }} · spent {{ fmtMins(time.spent) }}
       </div>
     </div>
+
+    <!-- Recurring config + today's occurrence (task 11) -->
+    <GoalMetricPanel :goal-id="goalId" />
 
     <!-- Checklist -->
     <div :style="sectionTitle">Checklist</div>

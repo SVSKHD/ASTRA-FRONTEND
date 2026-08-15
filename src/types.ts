@@ -1,4 +1,9 @@
 // Domain types for Aureon.
+import type { Recurrence } from './utils/recurrence'
+import type { Metric, Occurrence } from './utils/goalMetrics'
+
+export type { Recurrence } from './utils/recurrence'
+export type { Metric, Occurrence, MetricDirection, MetricUnit } from './utils/goalMetrics'
 
 export type TabKey =
   | 'overview'
@@ -146,7 +151,7 @@ export interface LinkRef {
 // created from a reminder carries one into 'reminders'. Unlike LinkRef it can
 // span the reminder collection, so it is its own type rather than a widened
 // LinkRef. Null when the item was created directly.
-export type SourceCollection = 'todos' | 'tasks' | 'reminders'
+export type SourceCollection = 'todos' | 'tasks' | 'reminders' | 'goals'
 export interface SourceRef {
   collection: SourceCollection
   id: number
@@ -288,6 +293,31 @@ export interface Goal extends Timestamped, Hierarchical {
   source: GoalSource
   // The original import link, for traceability + idempotent re-import merge.
   sourceUrl: string
+  // Recurring-goal config (task 11). Absent/​disabled = a one-off goal. When
+  // enabled the goal generates dated occurrences and fires a daily reminder.
+  recurrence?: Recurrence
+  // Numeric target captured per occurrence (task 11). Absent/​disabled = the
+  // occurrence checkbox behaves as a plain tick with no capture prompt.
+  metric?: Metric
+  // Reminder ids registered for a recurring goal (task 11): the daily fire time
+  // reminder and the optional end-of-day nudge. Managed by syncGoalReminders.
+  reminderIds?: number[]
+}
+
+// One dated instance of a recurring goal (task 11). The doc id IS the local date
+// string, so generation is idempotent and multi-device sync can't duplicate a
+// day. In this single-workspace-document app occurrences live as a flat array
+// keyed by (goalId, date). `target` is snapshotted at generation time so later
+// edits to the goal's metric don't rewrite history.
+export interface GoalOccurrence extends Occurrence, Timestamped {
+  // A local numeric handle (for the sync guard + list keys). Identity for
+  // idempotent generation is the (goalId, date) pair, enforced at generation
+  // time — never create a second occurrence for the same goal+date.
+  id: number
+  goalId: number
+  completedAt: number | null
+  localRev: number
+  updatedBy: string
 }
 
 export interface GoalChecklistItem extends Timestamped {

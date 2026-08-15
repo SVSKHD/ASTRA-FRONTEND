@@ -4,7 +4,7 @@
 // active goals nearest their target date, and an aggregate ring of points done
 // across all active goals. Empty and loading (skeleton) states, no internal
 // scroll, capped height so it never overflows the dashboard.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
@@ -13,17 +13,68 @@ import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import ProgressRing from '@/components/ProgressRing.vue'
+import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
+import { captureOutcome } from '@/utils/goalMetrics'
 
 const app = useAppStore()
 const ui = useUiStore()
 const auth = useAuthStore()
 const router = useRouter()
 const { c } = useStyles()
-const { goals, cloudReady } = storeToRefs(app)
+const { goals, goalOccurrences, cloudReady } = storeToRefs(app)
 const { user } = storeToRefs(auth)
 
 const AMBER = 'oklch(0.8 0.16 72)'
 const RED = 'oklch(0.64 0.22 25)'
+const GREEN = 'oklch(0.72 0.15 150)'
+
+// --- today's recurring goals (task 11) ---------------------------------------
+const dailies = computed(() => {
+  void goalOccurrences.value // reactive dep
+  return activeGoals.value
+    .filter((g) => g.recurrence?.enabled)
+    .map((g) => ({ goal: g, occ: app.occurrenceOn(g.id, app.goalToday(g)) }))
+    .filter((d) => d.occ)
+    .slice(0, 4)
+})
+const dailyAgg = computed(() => {
+  const total = dailies.value.length
+  const done = dailies.value.filter((d) => d.occ!.status === 'done').length
+  return { done, total }
+})
+const captureGoalId = ref<number | null>(null)
+function tickDaily(goalId: number, metricEnabled: boolean, status: string) {
+  const g = goals.value.find((x) => x.id === goalId)
+  if (!g) return
+  const date = app.goalToday(g)
+  if (metricEnabled && status !== 'done') {
+    captureGoalId.value = goalId
+    return
+  }
+  app.toggleOccurrenceDone(goalId, date)
+}
+function onDailySave(goalId: number, payload: { actual: number; note: string | null }) {
+  const g = goals.value.find((x) => x.id === goalId)
+  if (g) app.captureOccurrence(goalId, app.goalToday(g), payload.actual, payload.note)
+  captureGoalId.value = null
+}
+function onDailySkip(goalId: number) {
+  const g = goals.value.find((x) => x.id === goalId)
+  if (g) app.skipOccurrence(goalId, app.goalToday(g))
+  captureGoalId.value = null
+}
+function dailyLabel(
+  goal: (typeof dailies.value)[number]['goal'],
+  occ: NonNullable<(typeof dailies.value)[number]['occ']>,
+) {
+  if (goal.metric?.enabled && occ.actual != null) {
+    const o = captureOutcome(goal.metric, occ.actual)
+    return { text: `${occ.actual}/${occ.target}`, col: o.hit ? GREEN : AMBER }
+  }
+  if (occ.status === 'done') return { text: 'done', col: GREEN }
+  if (goal.metric?.enabled) return { text: `target ${goal.metric.target}`, col: c.value.dim }
+  return { text: '', col: c.value.dim }
+}
 
 // Signed in but the workspace doc hasn't arrived yet → show skeleton rows rather
 // than an empty state that would flash before data lands.
@@ -96,7 +147,6 @@ const card = computed(() =>
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
-    maxHeight: 280,
     minWidth: 0,
   }),
 )
@@ -187,6 +237,38 @@ const footer = computed(() =>
   }),
 )
 const footerText = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+// --- daily strip ---
+const dailyStrip = computed(() =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    paddingBottom: 8,
+    borderBottom: '1px solid ' + c.value.border,
+  }),
+)
+const dailyHead = computed(() => pxify({ fontSize: 11, fontWeight: 700, color: c.value.text }))
+const dailyRow = pxify({
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
+})
+const dailyTitle = computed(() =>
+  pxify({
+    fontSize: 12,
+    color: c.value.text,
+    flex: 1,
+    minWidth: 0,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }),
+)
+function dailyValue(col: string) {
+  return pxify({ fontSize: 11, fontWeight: 600, color: col, flexShrink: 0 })
+}
 const emptyText = computed(() => pxify({ fontSize: 13, color: c.value.dim }))
 const btnRow = pxify({ display: 'flex', gap: 8, flexWrap: 'wrap' })
 const btn = computed(() =>
@@ -231,6 +313,36 @@ function skeleton() {
       <span :style="label">Goals</span>
       <span v-if="activeGoals.length" :style="countChip">{{ activeGoals.length }} active</span>
       <button :style="viewAllBtn" @click="viewAll">View all →</button>
+    </div>
+
+    <!-- Today's recurring goals (task 11) -->
+    <div v-if="dailies.length" :style="dailyStrip">
+      <div :style="dailyHead">
+        {{ dailyAgg.done }} of {{ dailyAgg.total }} daily goal{{ dailyAgg.total === 1 ? '' : 's' }}
+        done today
+      </div>
+      <div v-for="d in dailies" :key="d.goal.id" :style="dailyRow">
+        <input
+          type="checkbox"
+          :checked="d.occ!.status === 'done'"
+          :aria-label="'Complete ' + (d.goal.title || 'goal') + ' today'"
+          @click.prevent="tickDaily(d.goal.id, !!d.goal.metric?.enabled, d.occ!.status)"
+        />
+        <span :style="dailyTitle">{{ d.goal.title || 'Untitled goal' }}</span>
+        <span :style="dailyValue(dailyLabel(d.goal, d.occ!).col)">
+          {{ dailyLabel(d.goal, d.occ!).text }}
+        </span>
+        <MetricCapturePopover
+          v-if="captureGoalId === d.goal.id && d.goal.metric"
+          :occurrence-id="d.occ!.id"
+          :metric="d.goal.metric"
+          :prompt="`How much ${d.goal.metric.label.toLowerCase()} today?`"
+          @save="(p) => onDailySave(d.goal.id, p)"
+          @skip="() => onDailySkip(d.goal.id)"
+          @missed="(p) => onDailySave(d.goal.id, p)"
+          @cancel="captureGoalId = null"
+        />
+      </div>
     </div>
 
     <!-- Loading skeletons -->
