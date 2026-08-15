@@ -10,6 +10,7 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
+import GoalMetricChart from '@/components/GoalMetricChart.vue'
 import { captureOutcome, type MetricDirection, type MetricUnit } from '@/utils/goalMetrics'
 import type { RecurrenceFreq } from '@/utils/recurrence'
 
@@ -294,6 +295,9 @@ const pendingHint = computed(() => pxify({ fontSize: 12, color: c.value.dim, mar
           @cancel="captureOpen = false"
         />
       </div>
+
+      <!-- streaks, rolling stats + target-vs-actual chart (task 11) -->
+      <GoalMetricChart v-if="metricOn" :goal-id="goalId" />
     </template>
   </div>
 </template>
