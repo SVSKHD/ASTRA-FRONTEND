@@ -14,7 +14,9 @@ import GoalMetricChart from '@/components/GoalMetricChart.vue'
 import { captureOutcome, type MetricDirection, type MetricUnit } from '@/utils/goalMetrics'
 import type { RecurrenceFreq } from '@/utils/recurrence'
 
-const props = defineProps<{ goalId: number }>()
+// configOnly hides today's occurrence row + the stats chart, so the create
+// slide-over can reuse just the recurrence/metric editor for a brand-new goal.
+const props = defineProps<{ goalId: number; configOnly?: boolean }>()
 const app = useAppStore()
 const { c, s } = useStyles()
 const { goals, goalOccurrences } = storeToRefs(app)
@@ -264,7 +266,7 @@ const pendingHint = computed(() => pxify({ fontSize: 12, color: c.value.dim, mar
       </div>
 
       <!-- today's occurrence -->
-      <div v-if="todayOcc" :style="todayRow">
+      <div v-if="todayOcc && !configOnly" :style="todayRow">
         <input
           type="checkbox"
           :checked="todayOcc.status === 'done'"
@@ -297,7 +299,7 @@ const pendingHint = computed(() => pxify({ fontSize: 12, color: c.value.dim, mar
       </div>
 
       <!-- streaks, rolling stats + target-vs-actual chart (task 11) -->
-      <GoalMetricChart v-if="metricOn" :goal-id="goalId" />
+      <GoalMetricChart v-if="metricOn && !configOnly" :goal-id="goalId" />
     </template>
   </div>
 </template>
