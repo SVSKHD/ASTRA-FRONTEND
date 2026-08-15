@@ -15,6 +15,8 @@ export interface Recurrence {
   timezone: string // IANA, captured at creation
   startDate: string // yyyy-mm-dd
   endDate: string | null
+  // Second "still pending?" nudge time (HH:mm). null = no end-of-day nudge.
+  endOfDayNudge?: string | null
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/

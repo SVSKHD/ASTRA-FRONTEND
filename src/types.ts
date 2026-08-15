@@ -151,7 +151,7 @@ export interface LinkRef {
 // created from a reminder carries one into 'reminders'. Unlike LinkRef it can
 // span the reminder collection, so it is its own type rather than a widened
 // LinkRef. Null when the item was created directly.
-export type SourceCollection = 'todos' | 'tasks' | 'reminders'
+export type SourceCollection = 'todos' | 'tasks' | 'reminders' | 'goals'
 export interface SourceRef {
   collection: SourceCollection
   id: number
@@ -299,6 +299,9 @@ export interface Goal extends Timestamped, Hierarchical {
   // Numeric target captured per occurrence (task 11). Absent/​disabled = the
   // occurrence checkbox behaves as a plain tick with no capture prompt.
   metric?: Metric
+  // Reminder ids registered for a recurring goal (task 11): the daily fire time
+  // reminder and the optional end-of-day nudge. Managed by syncGoalReminders.
+  reminderIds?: number[]
 }
 
 // One dated instance of a recurring goal (task 11). The doc id IS the local date

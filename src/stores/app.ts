@@ -641,8 +641,12 @@ export const useAppStore = defineStore('app', () => {
       g.id === gid ? touched({ ...g, ...fields, localRev: g.localRev + 1 }) : g,
     )
     // Enabling/retiming recurrence (or reactivating a recurring goal) should
-    // materialise its occurrences right away, not only on the next app open.
-    if ('recurrence' in fields || 'metric' in fields || 'status' in fields) generateOccurrences()
+    // materialise its occurrences right away, not only on the next app open, and
+    // keep the linked daily reminder + calendar event in step with the config.
+    if ('recurrence' in fields || 'metric' in fields || 'status' in fields) {
+      generateOccurrences()
+      if ('recurrence' in fields || 'status' in fields) syncGoalReminders(gid)
+    }
   }
   function setGoalStatus(gid: number, status: GoalStatus) {
     updateGoal(gid, { status })
@@ -659,6 +663,9 @@ export const useAppStore = defineStore('app', () => {
       goalChecklist.value = goalChecklist.value.filter((c) => c.goalId !== gid)
       return
     }
+    // Recurring goal: drop its reminders + calendar events and its occurrences.
+    removeGoalReminders(gid)
+    goalOccurrences.value = goalOccurrences.value.filter((o) => o.goalId !== gid)
     goals.value = goals.value.filter((g) => g.id !== gid)
     goalChecklist.value = goalChecklist.value.filter((c) => c.goalId !== gid)
     const detach = <T extends { goalIds?: number[] }>(it: T): T =>
@@ -736,15 +743,19 @@ export const useAppStore = defineStore('app', () => {
     const g = goalById(gid)
     if (!g) return
     const savedChecklist = goalChecklist.value.filter((c) => c.goalId === gid)
+    const savedOccurrences = goalOccurrences.value.filter((o) => o.goalId === gid)
     const attachedTaskIds = tasks.value.filter((t) => t.goalIds?.includes(gid)).map((t) => t.id)
     const attachedTodoIds = todos.value.filter((t) => t.goalIds?.includes(gid)).map((t) => t.id)
-    deleteGoal(gid) // unlinks tasks/todos, removes checklist + goal
+    deleteGoal(gid) // unlinks tasks/todos, removes checklist + occurrences + goal + reminders
     const short = g.title.length > 28 ? g.title.slice(0, 28) + '…' : g.title || 'goal'
     showToastWithUndo(
       `Deleted "${short}"`,
       () => {
         goals.value = [...goals.value, g]
         goalChecklist.value = [...goalChecklist.value, ...savedChecklist]
+        goalOccurrences.value = [...goalOccurrences.value, ...savedOccurrences]
+        // Re-register the recurring reminders + calendar events if it was recurring.
+        if (g.recurrence?.enabled) syncGoalReminders(gid)
         const reAttach = new Set(attachedTaskIds)
         tasks.value = tasks.value.map((t) =>
           reAttach.has(t.id)
@@ -968,7 +979,79 @@ export const useAppStore = defineStore('app', () => {
       timezone: tz,
       startDate: localDateInTz(Date.now(), tz),
       endDate: null,
+      endOfDayNudge: '21:00',
     }
+  }
+  // Map a recurrence frequency to the reminders module's Repeat shape, so a
+  // recurring goal reuses the existing scheduler + RRULE calendar sync.
+  function recurrenceToRepeat(rec: Recurrence): Repeat {
+    switch (rec.freq) {
+      case 'daily':
+        return { type: 'days', n: 1 }
+      case 'weekdays':
+        return { type: 'weekdays', weekdays: [1, 2, 3, 4, 5] }
+      case 'weekly':
+      case 'custom':
+        return { type: 'weekdays', weekdays: rec.daysOfWeek.slice() }
+    }
+  }
+  // Remove any reminders registered for a goal (silently — no undo toast), taking
+  // their Google Calendar events with them.
+  function removeGoalReminders(gid: number) {
+    const ids = goalById(gid)?.reminderIds ?? []
+    if (!ids.length) return
+    for (const rid of ids) {
+      const r = reminders.value.find((x) => x.id === rid)
+      if (r?.calEventId) void deleteEvent(r.calEventId).catch(() => {})
+    }
+    const gone = new Set(ids)
+    reminders.value = reminders.value.filter((r) => !gone.has(r.id))
+  }
+  // Register (or refresh) a recurring goal's reminders: a daily fire at timeOfDay
+  // synced to Google Calendar as a recurring event, plus an optional end-of-day
+  // "still pending?" nudge. Recreated wholesale on any config change so the
+  // reminder + calendar rule always match the current recurrence.
+  function syncGoalReminders(gid: number) {
+    removeGoalReminders(gid)
+    const g = goalById(gid)
+    if (!g) return
+    const rec = g.recurrence
+    if (!rec?.enabled || g.status !== 'active') {
+      if (g.reminderIds?.length) updateGoalQuiet(gid, { reminderIds: [] })
+      return
+    }
+    const repeat = recurrenceToRepeat(rec)
+    const src = { collection: 'goals' as const, id: gid }
+    const ids: number[] = []
+    const mainId = addReminder({
+      title: g.title || 'Goal',
+      note: g.metric?.enabled ? `Target ${g.metric.target} ${g.metric.unit}` : '',
+      start: `${rec.startDate}T${rec.timeOfDay}`,
+      repeat,
+      addToCalendar: true,
+      sourceRef: src,
+    })
+    if (mainId != null) ids.push(mainId)
+    if (rec.endOfDayNudge) {
+      const nudgeId = addReminder({
+        title: `${g.title || 'Goal'} — still pending?`,
+        note: '',
+        start: `${rec.startDate}T${rec.endOfDayNudge}`,
+        repeat,
+        addToCalendar: false,
+        sourceRef: src,
+      })
+      if (nudgeId != null) ids.push(nudgeId)
+    }
+    updateGoalQuiet(gid, { reminderIds: ids })
+  }
+  // Patch a goal without the recurrence/occurrence/reminder side effects that
+  // updateGoal fires — used when writing back the reminder ids syncGoalReminders
+  // just created, so it can't re-enter itself.
+  function updateGoalQuiet(gid: number, fields: Partial<Goal>) {
+    goals.value = goals.value.map((g) =>
+      g.id === gid ? touched({ ...g, ...fields, localRev: g.localRev + 1 }) : g,
+    )
   }
   function defaultMetric(): Metric {
     return {
@@ -4628,6 +4711,7 @@ export const useAppStore = defineStore('app', () => {
     // recurring occurrences (task 11)
     defaultRecurrence,
     defaultMetric,
+    syncGoalReminders,
     occurrencesOf,
     occurrenceOn,
     goalToday,
