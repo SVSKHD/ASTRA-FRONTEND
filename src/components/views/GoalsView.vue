@@ -12,6 +12,7 @@ import { pxify, rowBase } from '@/styles'
 import ListToolbar from '@/components/ListToolbar.vue'
 import ProgressRing from '@/components/ProgressRing.vue'
 import GoalDetail from '@/components/GoalDetail.vue'
+import GoalsEmptyState from '@/components/GoalsEmptyState.vue'
 import type { Goal, GoalStatus } from '@/types'
 
 const app = useAppStore()
@@ -29,6 +30,9 @@ defineExpose({ focus: () => onNew() })
 function onNew() {
   const gid = app.addGoal({ title: 'New goal' })
   selectedId.value = gid
+}
+function goImport() {
+  router.push('/import/goals')
 }
 
 const STATUS_META: Record<GoalStatus, { label: string; col: string }> = {
@@ -258,9 +262,12 @@ const importBtn = computed(() =>
         </select>
       </div>
 
-      <div v-if="goals.length === 0" :style="s.empty">
-        No goals yet. Create one, or import from a link.
-      </div>
+      <GoalsEmptyState
+        v-if="goals.length === 0"
+        @new="onNew"
+        @paste-json="goImport"
+        @import-link="goImport"
+      />
       <div v-else-if="rows.length === 0" :style="s.empty">No goals match this filter.</div>
 
       <div v-else :style="grid">
