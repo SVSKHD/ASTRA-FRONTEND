@@ -4,7 +4,7 @@
 // ?project=slug=a|b|c form); it is parsed tolerantly, shown as an editable
 // preview, and written in one atomic import. Re-importing the same URL offers a
 // merge into the existing goal instead of creating a duplicate.
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
@@ -45,6 +45,22 @@ const title = ref('')
 const rows = ref<Row[]>([])
 const merge = ref(false)
 const dragActive = ref(false)
+
+// If the box is empty on open, offer to prefill from a spasta link sitting on the
+// clipboard (task 12.3). Permission is requested by the read itself; a denial or
+// unsupported API fails silently — we never surface an error for this convenience.
+onMounted(async () => {
+  if (raw.value) return
+  try {
+    const text = (await navigator.clipboard.readText())?.trim()
+    if (text && /spasta\.online|[?&]project=/.test(text)) {
+      raw.value = text
+      doParse()
+    }
+  } catch {
+    /* clipboard unavailable / denied — ignore */
+  }
+})
 
 // The pasted text is JSON when it opens with a { or [ (after trimming); anything
 // else is treated as a spasta URL / delimited list.
@@ -277,8 +293,12 @@ const mergeNote = computed(() =>
       </div>
 
       <template v-if="jsonDoc">
-        <div v-if="jsonDoc.parseError" :style="warn">
-          Could not parse JSON: {{ jsonDoc.parseError }}
+        <div v-if="jsonDoc.parseError">
+          <div :style="warn">Could not parse JSON: {{ jsonDoc.parseError }}</div>
+          <div :style="sub">
+            Fix common issues — remove trailing commas, replace “smart quotes” with straight
+            <code>"</code>, and make sure every bracket is closed. Your text is kept above.
+          </div>
         </div>
         <div v-else-if="jsonDoc.goals.length === 0" :style="s.empty">
           No goals found in that JSON.
