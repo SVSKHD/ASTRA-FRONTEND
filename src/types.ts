@@ -23,6 +23,7 @@ export type TabKey =
   | 'goals'
   | 'github'
   | 'wallets'
+  | 'calendar'
 
 // Every stored item carries these. Items written before timestamps existed have
 // neither, so applyData() backfills them to 0 — which the formatter renders as
@@ -187,6 +188,20 @@ export interface Hierarchical {
   hasConflict?: boolean
 }
 
+// Calendar scheduling (section 15), carried by both tasks and todos. `startAt`
+// and `endAt` are epoch ms; `allDay` marks a date-only item; `durationMins` is
+// derived from start/end and stored so a render does not have to recompute it.
+// A task's existing `deadline` (YYYY-MM-DD) remains its due date and is
+// unchanged — an item with a deadline but no startAt renders as an all-day chip
+// on that day. All four are absent on items written before the calendar existed
+// and are backfilled on read.
+export interface Schedulable {
+  startAt?: number | null
+  endAt?: number | null
+  allDay?: boolean
+  durationMins?: number | null
+}
+
 // Items written before status existed only carry `done`.
 export function statusFromDone(done: unknown): ItemStatus {
   return done === true ? 'done' : 'pending'
@@ -206,7 +221,7 @@ export interface Shareable {
   sharedAt: number | null
 }
 
-export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical {
+export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical, Schedulable {
   id: number
   text: string
   done: boolean
@@ -243,7 +258,7 @@ export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical {
   goalIds?: number[]
 }
 
-export interface Task extends Timestamped, Linkable, Hierarchical {
+export interface Task extends Timestamped, Linkable, Hierarchical, Schedulable {
   id: number
   title: string
   tag: string

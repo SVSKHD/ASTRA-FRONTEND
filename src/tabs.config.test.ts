@@ -19,6 +19,7 @@ describe('tabs.config', () => {
       'bots',
       'github',
       'wallets',
+      'calendar',
     ])
   })
 
@@ -44,6 +45,7 @@ describe('tabs.config', () => {
       'bots',
       'github',
       'wallets',
+      'calendar',
     ])
   })
 

@@ -83,6 +83,12 @@ import { deviceLabel, draftKey, sanitizeDrafts, type DraftRecord } from '@/utils
 import { seedBots } from '@/utils/bots'
 import { chainName, isChainKey, type ChainKey, type Network } from '@/utils/chains'
 import { validateAddress } from '@/utils/address'
+import {
+  defaultFilters,
+  isCalendarView,
+  type CalendarFilters,
+  type CalendarViewKey,
+} from '@/utils/calendarEvents'
 import { reportError } from '@/utils/scrub'
 import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
 import type { Debt, DebtPayment, FinScope, FinTag, ScopeFilter, Txn } from '@/types'
@@ -157,6 +163,7 @@ import type {
   Trip,
   TripPlace,
   TripStatus,
+  Schedulable,
   Wallet,
 } from '@/types'
 import type { ParsedGoalItem, GoalDoc, GoalPoint } from '@/utils/goals'
@@ -168,6 +175,25 @@ function rel(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
+}
+
+// Backfill the calendar's scheduling fields on read. An item written before the
+// calendar existed is simply unscheduled, which is exactly what "no startAt"
+// means — it lives in the Unscheduled panel rather than being invented onto a day.
+function scheduleFields(item: Partial<Schedulable>): Schedulable {
+  const startAt = typeof item.startAt === 'number' ? item.startAt : null
+  const endAt = typeof item.endAt === 'number' ? item.endAt : null
+  return {
+    startAt,
+    endAt,
+    allDay: item.allDay === true,
+    durationMins:
+      typeof item.durationMins === 'number'
+        ? item.durationMins
+        : startAt !== null && endAt !== null
+          ? Math.max(1, Math.round((endAt - startAt) / 60000))
+          : null,
+  }
 }
 
 function isPriority(value: unknown): value is Priority {
@@ -320,6 +346,10 @@ export const useAppStore = defineStore('app', () => {
   const ghInstalled = ref<LinkedRepo[] | null>(null)
   const ghBusy = ref(false)
   const ghError = ref('')
+  // Calendar (section 15) preferences: the last view used and the filter chips,
+  // per user, so the tab opens where it was left.
+  const calendarView = ref<CalendarViewKey>('dayGridMonth')
+  const calendarFilters = ref<CalendarFilters>(defaultFilters())
   // Wallets (section 14): the user's own PUBLIC receive addresses. They live on
   // the workspace document — under the user, never under a project — so the
   // existing `request.auth.uid == userId` rule already denies another uid's
@@ -3344,6 +3374,16 @@ export const useAppStore = defineStore('app', () => {
     return { id: newId, error: '' }
   }
 
+  // ---- Calendar preferences (section 15) ----------------------------------
+  // The last view used and the filter chips ride in the workspace document, so
+  // the tab opens where the user left it on every device.
+  function setCalendarView(view: CalendarViewKey) {
+    calendarView.value = view
+  }
+  function setCalendarFilters(patch: Partial<CalendarFilters>) {
+    calendarFilters.value = { ...calendarFilters.value, ...patch }
+  }
+
   // Inline edit. An address change is re-validated exactly like a create, so a
   // wallet can never be edited into an invalid — or secret-bearing — state.
   function updateWallet(walletId: number, patch: Partial<Wallet>): { ok: boolean; error: string } {
@@ -4699,6 +4739,8 @@ export const useAppStore = defineStore('app', () => {
       repos: repos.value,
       ghIssues: ghIssues.value,
       wallets: wallets.value,
+      calendarView: calendarView.value,
+      calendarFilters: calendarFilters.value,
     }
   }
   function resetData() {
@@ -4745,6 +4787,8 @@ export const useAppStore = defineStore('app', () => {
     repos.value = []
     ghIssues.value = []
     wallets.value = []
+    calendarView.value = 'dayGridMonth'
+    calendarFilters.value = defaultFilters()
     ghInstalled.value = null
     ghError.value = ''
     syncedSig.value = new Map()
@@ -4828,6 +4872,8 @@ export const useAppStore = defineStore('app', () => {
       updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
       // Goal attachments (task 8), backfilled to [] for todos written before it.
       goalIds: Array.isArray(t.goalIds) ? t.goalIds.filter((n) => typeof n === 'number') : [],
+      // Calendar scheduling (section 15), backfilled to unscheduled.
+      ...scheduleFields(t),
     }))
     // Rollover fields arrived after tasks did; tasks stored before then read as
     // "never rolled over".
@@ -4860,6 +4906,8 @@ export const useAppStore = defineStore('app', () => {
         // GitHub link (section 13c), backfilled to null for tasks written
         // before the integration existed.
         github: githubLinkOf(t.github),
+        // Calendar scheduling (section 15), backfilled to unscheduled.
+        ...scheduleFields(t),
       }))
     // Edit-safe sync: a task whose dialog is open (or whose local edits are
     // unsaved) is protected — the guard holds the incoming version back rather
@@ -5156,6 +5204,13 @@ export const useAppStore = defineStore('app', () => {
         balance: w.balance && typeof w.balance === 'object' ? w.balance : null,
       }))
 
+    // Calendar preferences: the last view and the filter chips.
+    calendarView.value = isCalendarView(data.calendarView) ? data.calendarView : 'dayGridMonth'
+    calendarFilters.value =
+      data.calendarFilters && typeof data.calendarFilters === 'object'
+        ? { ...defaultFilters(), ...(data.calendarFilters as Partial<CalendarFilters>) }
+        : defaultFilters()
+
     // A snapshot may carry issues a webhook mirrored while this client was
     // away; reconcile them with their tasks through the sync guard.
     syncIssuesToTasks()
@@ -5326,6 +5381,8 @@ export const useAppStore = defineStore('app', () => {
         repos,
         ghIssues,
         wallets,
+        calendarView,
+        calendarFilters,
       ],
       scheduleSave,
       { deep: true },
@@ -5416,6 +5473,10 @@ export const useAppStore = defineStore('app', () => {
     walletsByChain,
     walletById,
     defaultWalletFor,
+    calendarView,
+    calendarFilters,
+    setCalendarView,
+    setCalendarFilters,
     addWallet,
     updateWallet,
     removeWallet,
