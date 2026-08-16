@@ -1,0 +1,84 @@
+/* The design system's own layer (section 16b). Every ui/ component styles itself
+   from these variables and nothing else, so a theme change is a token change and
+   "no hardcoded rgba" has somewhere to point.
+
+   The theme-driven values (--glass-*, --theme-*) are set on :root by
+   themes/apply.ts. What lives here is the scale: spacing, radii, type, motion
+   and the density/direction switches the /ui page exercises. */
+
+:root {
+  /* Spacing — a 4px base, so every gap in the app is a multiple of one number. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+
+  /* Type scale */
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 19px;
+  --text-2xl: 24px;
+
+  /* Control heights, switched by density below. */
+  --control-sm: 32px;
+  --control-md: 40px;
+  --control-lg: 48px;
+
+  /* Motion: 150–200ms ease-out on hover/press, a spring for drops. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 150ms;
+  --dur-med: 200ms;
+  --stagger: 30ms;
+
+  /* Elevation, expressed through the theme's own shadow token. */
+  --elev-1: var(--glass-shadow);
+}
+
+/* Compact density: the same components, tighter. The /ui page toggles this on
+   the root so every component can be checked in both. */
+[data-density='compact'] {
+  --sp-2: 6px;
+  --sp-3: 9px;
+  --sp-4: 12px;
+  --sp-5: 18px;
+  --control-sm: 28px;
+  --control-md: 34px;
+  --control-lg: 40px;
+  --text-md: 12px;
+}
+
+/* Every animation in the system is gated on this, in one place. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-med: 0ms;
+    --stagger: 0ms;
+  }
+}
+
+/* Shared primitives the components compose rather than redeclare. */
+.ui-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--theme-accent) 32%, transparent);
+}
+.ui-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

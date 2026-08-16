@@ -22,7 +22,7 @@ import ReminderDialog from '@/components/ReminderDialog.vue'
 import TaskView from '@/components/TaskView.vue'
 import GithubPanel from '@/components/GithubPanel.vue'
 import AuthDialog from '@/components/AuthDialog.vue'
-import Toast from '@/components/Toast.vue'
+import ToastHost from '@/components/ToastHost.vue'
 import NotifBanner from '@/components/NotifBanner.vue'
 import SharedBanner from '@/components/SharedBanner.vue'
 import ShareDialog from '@/components/ShareDialog.vue'
@@ -263,7 +263,7 @@ onBeforeUnmount(() => {
     <NotifBanner />
     <SharedBanner />
     <ShareDialog />
-    <Toast />
+    <ToastHost />
     <DragGhost />
   </template>
   <AuthDialog />

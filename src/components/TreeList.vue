@@ -16,10 +16,10 @@ import { useAccordionState } from '@/composables/useAccordionState'
 import { useTreeDrag, INDENT_PX, type TreeCollection } from '@/composables/useTreeDrag'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
 import { pxify, merge, rowBase, tagChip } from '@/styles'
-import DragHandle from '@/components/DragHandle.vue'
+import TreeDragHandle from '@/components/TreeDragHandle.vue'
 import TreeDropLine from '@/components/TreeDropLine.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
-import LinkProgressBar from '@/components/LinkProgressBar.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import IssueChip from '@/components/IssueChip.vue'
@@ -382,7 +382,7 @@ const rootStripStyle = computed(() =>
           </button>
           <span v-else :style="chevronSpacer"></span>
 
-          <DragHandle :collection="collection" :id="row.id" :title="title(row.id)" />
+          <TreeDragHandle :collection="collection" :id="row.id" :title="title(row.id)" />
 
           <StatusPill v-if="isTasks" :status="statusOf(row.id)" @cycle="cycleStatus(row.id)" />
           <button
@@ -459,7 +459,7 @@ const rootStripStyle = computed(() =>
       </div>
 
       <div v-if="hasKids(row.id) && expanded(row.id)" :style="progressWrap">
-        <LinkProgressBar :done="progress(row.id).done" :total="progress(row.id).total" compact />
+        <ProgressBar :value="progress(row.id).done" :max="progress(row.id).total" size="sm" />
       </div>
 
       <!-- Cross-collection linked items (kept from the old list rows). -->

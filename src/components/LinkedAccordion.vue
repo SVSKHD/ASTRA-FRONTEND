@@ -11,7 +11,7 @@ import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { pxify } from '@/styles'
 import { MAX_LINK_DEPTH } from '@/utils/links'
-import LinkProgressBar from '@/components/LinkProgressBar.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import type { LinkRef, Task, Todo } from '@/types'
 
@@ -264,7 +264,7 @@ const nodeWrap = pxify({ display: 'flex', flexDirection: 'column' })
     <span v-if="breadcrumb" :style="breadcrumbStyle">part of ‹{{ breadcrumb }}›</span>
 
     <div v-if="hasChildren" :style="progressWrap">
-      <LinkProgressBar :done="progress.done" :total="progress.total" compact />
+      <ProgressBar :value="progress.done" :max="progress.total" size="sm" />
     </div>
 
     <div v-if="hasChildren" :style="bodyOuter">

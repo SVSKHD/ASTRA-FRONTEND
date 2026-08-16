@@ -4,6 +4,9 @@ import App from './App.vue'
 import { router } from './router'
 import { vHoverStyle } from './directives/hoverStyle'
 import './style.css'
+// The design system's token layer: spacing, radii, type, motion and the
+// density/direction switches every ui/ component styles itself from.
+import './components/ui/tokens.css'
 // Leaflet's stylesheet powers the Trips maps (tiles, controls, panes).
 import 'leaflet/dist/leaflet.css'
 

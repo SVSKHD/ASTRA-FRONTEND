@@ -54,6 +54,17 @@ const routes: RouteRecordRaw[] = [
     name: 'import-goals',
     component: () => import('@/views/GoalsImportView.vue'),
   },
+  // The design system showcase. Authenticated like the workspace it documents,
+  // and only registered outside production so it never ships to end users.
+  ...(import.meta.env.DEV
+    ? [
+        {
+          path: '/ui',
+          name: 'ui-showcase',
+          component: () => import('@/views/UiShowcaseView.vue'),
+        } as RouteRecordRaw,
+      ]
+    : []),
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
