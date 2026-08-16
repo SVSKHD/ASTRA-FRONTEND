@@ -3343,6 +3343,129 @@ export const useAppStore = defineStore('app', () => {
     return { id: newId, error: '' }
   }
 
+  // Inline edit. An address change is re-validated exactly like a create, so a
+  // wallet can never be edited into an invalid — or secret-bearing — state.
+  function updateWallet(walletId: number, patch: Partial<Wallet>): { ok: boolean; error: string } {
+    const current = walletById(walletId)
+    if (!current) return { ok: false, error: 'Wallet not found' }
+    const next: Wallet = { ...current, ...patch }
+    if (patch.address !== undefined || patch.chain !== undefined || patch.network !== undefined) {
+      const check = validateAddress(next.chain, (next.address || '').trim(), next.network)
+      if (!check.ok) return { ok: false, error: check.reason }
+      next.address = next.address.trim()
+    }
+    if (patch.memoTag !== undefined) next.memoTag = (patch.memoTag || '').trim() || null
+    if (patch.label !== undefined) next.label = patch.label.trim() || chainName(next.chain)
+    wallets.value = wallets.value.map((w) => (w.id === walletId ? touched(next) : w))
+    return { ok: true, error: '' }
+  }
+
+  // Delete with the same undo affordance as everything else in the app; the
+  // confirmation naming the label is the view's job.
+  function removeWallet(walletId: number) {
+    const wallet = walletById(walletId)
+    if (!wallet) return
+    const index = wallets.value.findIndex((w) => w.id === walletId)
+    wallets.value = wallets.value.filter((w) => w.id !== walletId)
+    // If the default went, promote the next wallet on that chain so the chain
+    // still has one.
+    const remaining = wallets.value.filter((w) => w.chain === wallet.chain)
+    if (wallet.isDefault && remaining.length && !remaining.some((w) => w.isDefault)) {
+      const promote = remaining[0].id
+      wallets.value = wallets.value.map((w) => (w.id === promote ? { ...w, isDefault: true } : w))
+    }
+    toast.value = {
+      message: 'Deleted "' + wallet.label + '"',
+      undo: true,
+      listKey: undefined,
+      item: wallet,
+      idx: index,
+    }
+    toastUndoHandler = () => {
+      const restored = wallets.value.slice()
+      restored.splice(Math.min(index, restored.length), 0, wallet)
+      wallets.value = restored
+    }
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => {
+      if (toast.value) toast.value = null
+      toastUndoHandler = null
+    }, 8000)
+  }
+
+  // Drag reorder. Orders are rewritten as a dense sequence rather than bisected:
+  // the list is short, and a stable integer order reads better in the document.
+  function moveWallet(walletId: number, toIndex: number) {
+    const ordered = [...wallets.value].sort((a, b) => a.order - b.order)
+    const from = ordered.findIndex((w) => w.id === walletId)
+    if (from === -1) return
+    const [moved] = ordered.splice(from, 1)
+    ordered.splice(Math.max(0, Math.min(toIndex, ordered.length)), 0, moved)
+    const orderById = new Map(ordered.map((w, i) => [w.id, i]))
+    wallets.value = wallets.value.map((w) => ({ ...w, order: orderById.get(w.id) ?? w.order }))
+  }
+
+  // Exactly one default per chain.
+  function setDefaultWallet(walletId: number) {
+    const wallet = walletById(walletId)
+    if (!wallet) return
+    wallets.value = wallets.value.map((w) =>
+      w.chain === wallet.chain ? { ...w, isDefault: w.id === walletId } : w,
+    )
+  }
+
+  // Balance display is opt-in per wallet and off by default. The read goes
+  // through a Cloud Function so no API key sits in the client, and it never
+  // blocks the list: the wallet renders immediately, the number arrives later.
+  function setWalletBalanceEnabled(walletId: number, enabled: boolean) {
+    wallets.value = wallets.value.map((w) =>
+      w.id === walletId
+        ? { ...w, balanceEnabled: enabled, balance: enabled ? w.balance : null }
+        : w,
+    )
+    if (enabled) void fetchWalletBalance(walletId)
+  }
+
+  async function fetchWalletBalance(walletId: number): Promise<void> {
+    const wallet = walletById(walletId)
+    if (!wallet || !wallet.balanceEnabled) return
+    const url = (import.meta.env.VITE_WALLET_BALANCE_URL || '').trim()
+    const setBalance = (balance: Wallet['balance']) => {
+      wallets.value = wallets.value.map((w) => (w.id === walletId ? { ...w, balance } : w))
+    }
+    if (!url) {
+      setBalance({
+        amount: '',
+        symbol: '',
+        fetchedAt: Date.now(),
+        error: 'Balances not configured',
+      })
+      return
+    }
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chain: wallet.chain,
+          network: wallet.network,
+          address: wallet.address,
+        }),
+      })
+      const payload = (await res.json()) as { amount?: string; symbol?: string; error?: string }
+      setBalance({
+        amount: typeof payload.amount === 'string' ? payload.amount : '',
+        symbol: typeof payload.symbol === 'string' ? payload.symbol : '',
+        fetchedAt: Date.now(),
+        error: typeof payload.error === 'string' ? payload.error : '',
+      })
+    } catch {
+      // A failed balance read is a footnote on one row, never an error state for
+      // the address book.
+      setBalance({ amount: '', symbol: '', fetchedAt: Date.now(), error: 'Balance unavailable' })
+    }
+  }
+
   // ---- Conditional polling fallback (13f) ---------------------------------
   // Webhooks are the primary path; this is the safety net for a delivery that
   // never arrived. Each linked repo is re-read at most every ten minutes with
@@ -5293,6 +5416,12 @@ export const useAppStore = defineStore('app', () => {
     walletById,
     defaultWalletFor,
     addWallet,
+    updateWallet,
+    removeWallet,
+    moveWallet,
+    setDefaultWallet,
+    setWalletBalanceEnabled,
+    fetchWalletBalance,
     repoActivity,
     activityOf,
     refreshRepoIssues,

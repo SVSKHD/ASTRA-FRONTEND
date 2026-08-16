@@ -119,3 +119,96 @@ describe('addWallet', () => {
     expect(app.walletById(id as number)?.memoTag).toBe('12345')
   })
 })
+
+describe('wallet CRUD, reorder and default-per-chain', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  function seed() {
+    const app = useAppStore()
+    const a = app.addWallet({ label: 'Cold', chain: 'BTC', address: BTC }).id as number
+    const b = app.addWallet({ label: 'Hot', chain: 'ETH', address: EVM }).id as number
+    const c = app.addWallet({
+      label: 'Spare',
+      chain: 'ETH',
+      address: '0x8ba1f109551bD432803012645Ac136ddd64DBA72',
+    }).id as number
+    return { app, a, b, c }
+  }
+
+  it('edits a label without touching the address', () => {
+    const { app, a } = seed()
+    expect(app.updateWallet(a, { label: 'Vault' })).toEqual({ ok: true, error: '' })
+    expect(app.walletById(a)?.label).toBe('Vault')
+    expect(app.walletById(a)?.address).toBe(BTC)
+  })
+
+  it('re-validates an edited address and refuses an invalid one', () => {
+    const { app, a } = seed()
+    const result = app.updateWallet(a, { address: BTC + 'x' })
+    expect(result.ok).toBe(false)
+    expect(app.walletById(a)?.address).toBe(BTC)
+  })
+
+  it('refuses to be edited into holding a secret', () => {
+    const { app, a } = seed()
+    const result = app.updateWallet(a, { address: Array(12).fill('abandon').join(' ') })
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe(SECRET_MESSAGE)
+    expect(app.walletById(a)?.address).toBe(BTC)
+  })
+
+  it('names an emptied label after its chain rather than leaving it blank', () => {
+    const { app, a } = seed()
+    app.updateWallet(a, { label: '   ' })
+    expect(app.walletById(a)?.label).toBe('Bitcoin')
+  })
+
+  it('deletes a wallet and offers an undo that restores it in place', () => {
+    const { app, b } = seed()
+    app.removeWallet(b)
+    expect(app.wallets.map((w) => w.label)).toEqual(['Cold', 'Spare'])
+    app.performUndo()
+    expect(app.wallets.map((w) => w.label)).toEqual(['Cold', 'Hot', 'Spare'])
+  })
+
+  it('promotes another wallet on the chain when the default is deleted', () => {
+    const { app, b, c } = seed()
+    expect(app.walletById(b)?.isDefault).toBe(true)
+    app.removeWallet(b)
+    expect(app.walletById(c)?.isDefault).toBe(true)
+  })
+
+  it('keeps exactly one default per chain', () => {
+    const { app, b, c } = seed()
+    app.setDefaultWallet(c)
+    expect(app.walletById(c)?.isDefault).toBe(true)
+    expect(app.walletById(b)?.isDefault).toBe(false)
+    // The other chain's default is untouched.
+    expect(app.defaultWalletFor('BTC')?.label).toBe('Cold')
+  })
+
+  it('reorders by drag, rewriting a dense order sequence', () => {
+    const { app, a, c } = seed()
+    app.moveWallet(c, 0)
+    const order = [...app.wallets].sort((x, y) => x.order - y.order).map((w) => w.label)
+    expect(order).toEqual(['Spare', 'Cold', 'Hot'])
+    expect(app.walletById(a)?.order).toBe(1)
+  })
+
+  it('ignores a reorder of a wallet that is not there', () => {
+    const { app } = seed()
+    const before = app.wallets.map((w) => w.order)
+    app.moveWallet(9999, 0)
+    expect(app.wallets.map((w) => w.order)).toEqual(before)
+  })
+
+  it('leaves balance display off until it is opted into per wallet', () => {
+    const { app, a } = seed()
+    expect(app.walletById(a)?.balanceEnabled).toBe(false)
+    app.setWalletBalanceEnabled(a, true)
+    expect(app.walletById(a)?.balanceEnabled).toBe(true)
+    app.setWalletBalanceEnabled(a, false)
+    expect(app.walletById(a)?.balanceEnabled).toBe(false)
+    expect(app.walletById(a)?.balance).toBeNull()
+  })
+})

@@ -15,6 +15,7 @@ import { copyText } from '@/utils/clipboard'
 import { CHAINS, chainDef, chainName, explorerUrl } from '@/utils/chains'
 import { chainMismatch, copyVerification, rejectSecret, truncateAddress } from '@/utils/address'
 import WalletQrDialog from '@/components/WalletQrDialog.vue'
+import { receiveBlock } from '@/utils/walletShare'
 import type { ChainKey, Network, Wallet } from '@/types'
 
 const app = useAppStore()
@@ -22,6 +23,12 @@ const { c, s, panelStyle } = useStyles()
 const { wallets } = storeToRefs(app)
 
 const qrWallet = ref<Wallet | null>(null)
+// Inline edit, delete confirmation and drag reorder state.
+const editingId = ref<number | null>(null)
+const editDraft = ref({ label: '', address: '', memoTag: '', notes: '' })
+const editError = ref('')
+const confirmingId = ref<number | null>(null)
+const dragId = ref<number | null>(null)
 const adding = ref(false)
 const form = ref({
   label: '',
@@ -98,6 +105,63 @@ function explorerFor(wallet: Wallet): string | null {
   return explorerUrl(wallet.chain, wallet.address, wallet.network)
 }
 
+// --- inline edit -------------------------------------------------------------
+function beginEdit(wallet: Wallet) {
+  editingId.value = wallet.id
+  editError.value = ''
+  editDraft.value = {
+    label: wallet.label,
+    address: wallet.address,
+    memoTag: wallet.memoTag ?? '',
+    notes: wallet.notes,
+  }
+}
+function saveEdit(wallet: Wallet) {
+  const { ok, error } = app.updateWallet(wallet.id, {
+    label: editDraft.value.label,
+    address: editDraft.value.address,
+    memoTag: editDraft.value.memoTag,
+    notes: editDraft.value.notes,
+  })
+  if (!ok) {
+    editError.value = error
+    return
+  }
+  editingId.value = null
+}
+
+// --- delete, always naming what is about to go ------------------------------
+function confirmDelete(wallet: Wallet) {
+  confirmingId.value = wallet.id
+}
+function reallyDelete(wallet: Wallet) {
+  confirmingId.value = null
+  app.removeWallet(wallet.id)
+}
+
+// --- drag reorder ------------------------------------------------------------
+const ordered = computed(() => [...wallets.value].sort((a, b) => a.order - b.order))
+function onDragStart(wallet: Wallet) {
+  dragId.value = wallet.id
+}
+function onDrop(target: Wallet) {
+  if (dragId.value === null || dragId.value === target.id) {
+    dragId.value = null
+    return
+  }
+  app.moveWallet(
+    dragId.value,
+    ordered.value.findIndex((w) => w.id === target.id),
+  )
+  dragId.value = null
+}
+
+// --- share receive details ---------------------------------------------------
+async function shareDetails(wallet: Wallet) {
+  const ok = await copyText(receiveBlock(wallet))
+  app.showToastMsg(ok ? 'Receive details copied' : 'Could not copy the receive details')
+}
+
 // ---- styles ----------------------------------------------------------------
 const groupHead = computed(() =>
   pxify({
@@ -143,6 +207,9 @@ const warnBox = (col: string) =>
     background: 'color-mix(in oklch, ' + col + ' 14%, transparent)',
     color: c.value.text,
   })
+const gripStyle = computed(() =>
+  pxify({ cursor: 'grab', color: c.value.dim, fontSize: 12, flexShrink: 0, letterSpacing: '-2px' }),
+)
 const defaultChip = computed(() =>
   pxify({
     fontSize: 9,
@@ -223,8 +290,17 @@ const defaultChip = computed(() =>
           <span :style="chainGlyph(group.def?.color || c.accent)">{{ group.def?.glyph }}</span>
           {{ chainName(group.chain) }}
         </div>
-        <div v-for="wallet in group.list" :key="wallet.id" :style="s.ghRepoCard">
+        <div
+          v-for="wallet in group.list"
+          :key="wallet.id"
+          :style="s.ghRepoCard"
+          draggable="true"
+          @dragstart="onDragStart(wallet)"
+          @dragover.prevent
+          @drop="onDrop(wallet)"
+        >
           <div :style="row">
+            <span :style="gripStyle" title="Drag to reorder">⋮⋮</span>
             <div :style="s.taskMain">
               <div :style="row">
                 <span :style="s.dlTitle">{{ wallet.label }}</span>
@@ -234,6 +310,14 @@ const defaultChip = computed(() =>
               <span :style="addrStyle">{{ truncateAddress(wallet.address) }}</span>
               <span v-if="wallet.memoTag" :style="s.finMeta">
                 {{ group.def?.memo === 'tag' ? 'tag' : 'memo' }} {{ wallet.memoTag }}
+              </span>
+              <span v-if="wallet.notes" :style="s.finMeta">{{ wallet.notes }}</span>
+              <span v-if="wallet.balanceEnabled" :style="s.finMeta">
+                <template v-if="wallet.balance?.error">{{ wallet.balance.error }}</template>
+                <template v-else-if="wallet.balance">
+                  {{ wallet.balance.amount }} {{ wallet.balance.symbol }}
+                </template>
+                <template v-else>balance…</template>
               </span>
             </div>
             <button :style="s.importBtn" title="Copy full address" @click="onCopy(wallet)">
@@ -249,6 +333,52 @@ const defaultChip = computed(() =>
               title="Open in explorer"
               >↗</a
             >
+            <button :style="s.editBtn" @click="beginEdit(wallet)">Edit</button>
+          </div>
+
+          <!-- inline edit -->
+          <template v-if="editingId === wallet.id">
+            <input :style="s.input" placeholder="Label" v-model="editDraft.label" />
+            <input
+              :style="s.input"
+              placeholder="Public address"
+              v-model="editDraft.address"
+              spellcheck="false"
+            />
+            <input
+              v-if="group.def?.memo"
+              :style="s.input"
+              :placeholder="group.def.memo === 'tag' ? 'Destination tag' : 'Memo'"
+              v-model="editDraft.memoTag"
+            />
+            <input :style="s.input" placeholder="Notes" v-model="editDraft.notes" />
+            <div v-if="editError" :style="warnBox('oklch(0.65 0.22 25)')">{{ editError }}</div>
+            <div :style="s.dialogActions">
+              <button :style="s.saveBtn" @click="saveEdit(wallet)">Save</button>
+              <button :style="s.editBtn" @click="editingId = null">Cancel</button>
+              <button
+                v-if="!wallet.isDefault"
+                :style="s.editBtn"
+                @click="app.setDefaultWallet(wallet.id)"
+              >
+                Make default
+              </button>
+              <button :style="s.editBtn" @click="shareDetails(wallet)">Share details</button>
+              <button
+                :style="s.editBtn"
+                @click="app.setWalletBalanceEnabled(wallet.id, !wallet.balanceEnabled)"
+              >
+                {{ wallet.balanceEnabled ? 'Hide balance' : 'Show balance' }}
+              </button>
+              <button :style="s.cancelBtn" @click="confirmDelete(wallet)">Delete</button>
+            </div>
+          </template>
+
+          <!-- delete confirmation, naming the wallet -->
+          <div v-if="confirmingId === wallet.id" :style="warnBox('oklch(0.65 0.22 25)')">
+            Delete "{{ wallet.label }}"? The address is only removed from this list.
+            <button :style="s.cancelBtn" @click="reallyDelete(wallet)">Delete</button>
+            <button :style="s.editBtn" @click="confirmingId = null">Keep</button>
           </div>
         </div>
       </template>

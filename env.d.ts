@@ -22,6 +22,10 @@ interface ImportMetaEnv {
   readonly VITE_GH_PROXY_URL: string
   // The GitHub App's slug, used to build the "install this App" URL.
   readonly VITE_GH_APP_SLUG: string
+  // Optional Cloud Function that reads a public address's balance, so no chain
+  // API key sits in the client. Unset means the per-wallet balance opt-in
+  // reports itself as unconfigured rather than silently showing nothing.
+  readonly VITE_WALLET_BALANCE_URL: string
 }
 
 interface ImportMeta {
