@@ -1,8 +1,10 @@
 // Domain types for Aureon.
 import type { Recurrence } from './utils/recurrence'
+import type { ChainKey, Network } from './utils/chains'
 import type { Metric, Occurrence } from './utils/goalMetrics'
 
 export type { Recurrence } from './utils/recurrence'
+export type { ChainKey, Network } from './utils/chains'
 export type { Metric, Occurrence, MetricDirection, MetricUnit } from './utils/goalMetrics'
 
 export type TabKey =
@@ -19,6 +21,9 @@ export type TabKey =
   | 'ai'
   | 'bots'
   | 'goals'
+  | 'github'
+  | 'wallets'
+  | 'calendar'
 
 // Every stored item carries these. Items written before timestamps existed have
 // neither, so applyData() backfills them to 0 — which the formatter renders as
@@ -183,6 +188,20 @@ export interface Hierarchical {
   hasConflict?: boolean
 }
 
+// Calendar scheduling (section 15), carried by both tasks and todos. `startAt`
+// and `endAt` are epoch ms; `allDay` marks a date-only item; `durationMins` is
+// derived from start/end and stored so a render does not have to recompute it.
+// A task's existing `deadline` (YYYY-MM-DD) remains its due date and is
+// unchanged — an item with a deadline but no startAt renders as an all-day chip
+// on that day. All four are absent on items written before the calendar existed
+// and are backfilled on read.
+export interface Schedulable {
+  startAt?: number | null
+  endAt?: number | null
+  allDay?: boolean
+  durationMins?: number | null
+}
+
 // Items written before status existed only carry `done`.
 export function statusFromDone(done: unknown): ItemStatus {
   return done === true ? 'done' : 'pending'
@@ -202,7 +221,7 @@ export interface Shareable {
   sharedAt: number | null
 }
 
-export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical {
+export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical, Schedulable {
   id: number
   text: string
   done: boolean
@@ -239,7 +258,7 @@ export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical {
   goalIds?: number[]
 }
 
-export interface Task extends Timestamped, Linkable, Hierarchical {
+export interface Task extends Timestamped, Linkable, Hierarchical, Schedulable {
   id: number
   title: string
   tag: string
@@ -267,6 +286,9 @@ export interface Task extends Timestamped, Linkable, Hierarchical {
   graphRefs?: GraphRef[]
   // Goals this task is attached to (task 8). See Todo.goalIds.
   goalIds?: number[]
+  // The GitHub issue this task is linked to (section 13c), or null when
+  // unlinked. Backfilled to null on read for tasks written before it existed.
+  github?: GithubLink | null
 }
 
 // ---- Goals (task 8) -------------------------------------------------------
@@ -674,49 +696,143 @@ export interface SharedView {
   notFound?: boolean
 }
 
-// GitHub (mock) shapes ----------------------------------------------------
+// ---- GitHub integration (section 13) --------------------------------------
+// The connection itself. The installation id is the only GitHub identifier the
+// client ever holds — the access token lives in Secret Manager, keyed by that
+// installation, and is used exclusively inside the ghProxy Cloud Function.
+// Nothing token-shaped is stored here or anywhere else on the client.
+export interface GithubIntegration {
+  installationId: number | null
+  login: string
+  avatarUrl: string
+  connectedAt: number | null
+  scopes: string[]
+  lastSyncAt: number
+  // Last rate-limit reading from the proxy, shown in Settings → Integrations.
+  rateLimit: { limit: number; remaining: number; resetAt: number } | null
+  // Set when sync backs off; the UI shows a visible "sync paused" state rather
+  // than failing silently (13f).
+  pausedUntil: number | null
+  pausedReason: string
+}
 
-export interface PullRequest {
+export function emptyGithubIntegration(): GithubIntegration {
+  return {
+    installationId: null,
+    login: '',
+    avatarUrl: '',
+    connectedAt: null,
+    scopes: [],
+    lastSyncAt: 0,
+    rateLimit: null,
+    pausedUntil: null,
+    pausedReason: '',
+  }
+}
+
+// A repo linked into the workspace. `id` is the spec's "owner__name" key.
+export interface LinkedRepo {
   id: string
-  num: number
+  owner: string
+  name: string
+  fullName: string
+  defaultBranch: string
+  private: boolean
+  htmlUrl: string
+  stars: number
+  openIssuesCount: number
+  language: string
+  pushedAt: number
+  linkedAt: number
+  syncEnabled: boolean
+  labelFilter: string[]
+  lastSyncAt: number
+  // The conditional-request tag for this repo's issue list; a matching etag
+  // returns 304 and costs no rate limit (13f).
+  etag: string
+}
+
+// A mirrored GitHub issue. `id` is the spec's "owner__name__number" key.
+// `linkedTaskId` is the only Spasta-owned field — everything else is GitHub's,
+// and GitHub wins on conflict.
+export interface GithubIssue {
+  id: string
+  repoId: string
+  number: number
+  title: string
+  body: string
+  state: 'open' | 'closed'
+  labels: string[]
+  assignees: string[]
+  author: string
+  htmlUrl: string
+  createdAt: number
+  updatedAt: number
+  closedAt: number | null
+  commentsCount: number
+  linkedTaskId: number | null
+  etag: string
+}
+
+// The link a task carries once it has an issue on the other side.
+export interface GithubLink {
+  repoId: string
+  issueNumber: number
+  issueUrl: string
+  state: 'open' | 'closed'
+  syncedAt: number
+}
+
+// Recent-activity payloads for the repo cards (read-only, never persisted).
+export interface RepoCommit {
+  sha: string
+  message: string
+  author: string
+  committedAt: number
+  htmlUrl: string
+}
+export interface RepoPull {
+  number: number
   title: string
   author: string
-  url: string
+  htmlUrl: string
+  draft: boolean
+  ci: 'passing' | 'failing' | 'pending' | 'none'
 }
 
-export interface GithubMeta {
-  branch: string
-  issues: number
-  prs: number
-  stars: number
-  ci: 'passing' | 'failing'
-  commitMsg: string
-  commitTime: string
-  prList: PullRequest[]
+// ---- Wallets (section 14) --------------------------------------------------
+// An address book of the user's own PUBLIC receive addresses. There is no field
+// here for a private key, seed phrase or keystore, and there never will be: the
+// app rejects that input at the door (utils/address) rather than storing it.
+//
+// The spec puts these at /users/{uid}/wallets/{walletId}. This app keeps one
+// workspace document per uid, so they live as a flat array on that document —
+// still under the user, never under a project, and covered by the same
+// `request.auth.uid == userId` rule (acceptance 65).
+export interface Wallet extends Timestamped {
+  id: number
+  label: string
+  chain: ChainKey
+  network: Network
+  address: string
+  // XRP/XLM/ATOM destination tag or memo; null when the chain does not use one.
+  memoTag: string | null
+  // At most one default per chain — the one the share block and dashboard
+  // reach for first.
+  isDefault: boolean
+  order: number
+  notes: string
+  // Balance display is off by default and opt-in per wallet; the read goes
+  // through a Cloud Function so no API key sits in the client.
+  balanceEnabled: boolean
+  balance: WalletBalance | null
 }
 
-export type GithubCacheEntry = { status: 'loading' } | { status: 'ready'; data: GithubMeta }
-
-export interface RepoIssue {
-  id: string
-  num: number
-  title: string
-}
-
-export interface Repo {
-  id: string
-  name: string
-  full: string
-  desc: string
-  lang: string
-  langColor: string
-  stars: number
-  issues: number
-  prs: number
-  ci: 'passing' | 'failing'
-  pushedMs: number
-  pushedLabel: string
-  openIssues: RepoIssue[]
+export interface WalletBalance {
+  amount: string
+  symbol: string
+  fetchedAt: number
+  error: string
 }
 
 export interface AureonUser {

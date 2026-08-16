@@ -7,4 +7,26 @@ import './style.css'
 // Leaflet's stylesheet powers the Trips maps (tiles, controls, panes).
 import 'leaflet/dist/leaflet.css'
 
-createApp(App).use(createPinia()).use(router).directive('hover-style', vHoverStyle).mount('#app')
+import { reportError, scrubValue } from './utils/scrub'
+
+const app = createApp(App)
+
+// Wallet addresses and anything key-shaped are scrubbed before an error leaves
+// the app (section 14 privacy). Every reporter — Vue's handler, an unhandled
+// rejection, a window error — goes through the same scrub, so a stack frame or
+// a thrown string carrying an address never reaches a console or an analytics
+// pipeline verbatim.
+app.config.errorHandler = (err, _instance, info) => {
+  reportError('[Aureon] Unhandled error (' + info + ')', scrubValue(err))
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    reportError('[Aureon] Unhandled rejection', scrubValue(event.reason))
+  })
+  window.addEventListener('error', (event) => {
+    reportError('[Aureon] Window error', scrubValue(event.message))
+  })
+}
+
+app.use(createPinia()).use(router).directive('hover-style', vHoverStyle).mount('#app')

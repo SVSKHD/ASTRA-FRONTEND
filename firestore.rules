@@ -29,6 +29,11 @@ service cloud.firestore {
     // AUREON: one complete workspace document per uid, keyed by the uid itself.
     // No hardcoded email and no sign_in_provider gate — a hardcoded owner email
     // here previously locked every other account out of its own workspace.
+    // This one document also carries the user's wallet address book (section
+    // 14): public receive addresses only, never a key or seed. They live here —
+    // under the user, never under a project — precisely so this rule is the only
+    // gate they need: another signed-in user's uid does not match {userId}, so
+    // their read is denied (acceptance 65).
     match /aureon-notes/{userId} {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }

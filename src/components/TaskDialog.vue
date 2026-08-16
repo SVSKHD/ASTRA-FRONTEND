@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
@@ -8,16 +8,48 @@ import { pxify } from '@/styles'
 import StatusPill from '@/components/StatusPill.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import LinkedItemsPanel from '@/components/LinkedItemsPanel.vue'
-import type { PullRequest, Task } from '@/types'
+import IssueChip from '@/components/IssueChip.vue'
+import { fullName } from '@/utils/githubModel'
+import type { Task } from '@/types'
 
 const app = useAppStore()
 const auth = useAuthStore()
 const { c, dark, s } = useStyles()
-const { dialogTaskId, dialogClosing, tasks, githubCache, approvedPRs } = storeToRefs(app)
-const { githubLinked } = storeToRefs(auth)
+const { dialogTaskId, dialogClosing, tasks, repos } = storeToRefs(app)
+const connected = computed(() => app.githubConnected)
 
 const task = computed<Task | undefined>(() => tasks.value.find((t) => t.id === dialogTaskId.value))
-const gh = computed(() => (task.value ? githubCache.value[task.value.id] : undefined))
+
+// --- GitHub section (13c): create an issue in a linked repo, or link an
+// existing one. Both sides of the link are written together.
+const targetRepo = ref('')
+const linkQuery = ref('')
+const linkMode = ref(false)
+const creating = ref(false)
+
+const link = computed(() => task.value?.github ?? null)
+const repoChoices = computed(() => repos.value)
+const chosenRepo = computed(
+  () =>
+    targetRepo.value ||
+    repoChoices.value.find((r) => r.fullName === task.value?.repo)?.id ||
+    repoChoices.value[0]?.id ||
+    '',
+)
+const candidates = computed(() => (linkMode.value ? app.linkableIssues(linkQuery.value) : []))
+
+async function onCreateIssue() {
+  if (!task.value || !chosenRepo.value || creating.value) return
+  creating.value = true
+  await app.createIssueFromTask(task.value.id, chosenRepo.value)
+  creating.value = false
+}
+function onLink(issueId: string) {
+  if (!task.value) return
+  app.linkIssueToTask(task.value.id, issueId)
+  linkMode.value = false
+  linkQuery.value = ''
+}
 
 const dialogCardStyle = computed(() =>
   pxify({
@@ -53,14 +85,14 @@ const connChipStyle = computed(() =>
     fontWeight: 600,
     padding: '4px 10px',
     borderRadius: 8,
-    border: '1px solid ' + (githubLinked.value ? 'oklch(0.68 0.15 145)' : c.value.border),
-    background: githubLinked.value ? 'rgba(90,200,140,0.14)' : 'transparent',
-    color: githubLinked.value
+    border: '1px solid ' + (connected.value ? 'oklch(0.68 0.15 145)' : c.value.border),
+    background: connected.value ? 'rgba(90,200,140,0.14)' : 'transparent',
+    color: connected.value
       ? dark.value
         ? 'oklch(0.82 0.15 145)'
         : 'oklch(0.48 0.15 145)'
       : c.value.dim,
-    boxShadow: githubLinked.value ? '0 0 12px rgba(90,200,140,0.3)' : 'none',
+    boxShadow: connected.value ? '0 0 12px rgba(90,200,140,0.3)' : 'none',
     letterSpacing: '0.04em',
   }),
 )
@@ -69,40 +101,11 @@ const connDotStyle = computed(() =>
     width: 7,
     height: 7,
     borderRadius: '50%',
-    background: githubLinked.value ? 'oklch(0.72 0.16 145)' : c.value.dim,
-    boxShadow: githubLinked.value ? '0 0 8px oklch(0.72 0.16 145)' : 'none',
+    background: connected.value ? 'oklch(0.72 0.16 145)' : c.value.dim,
+    boxShadow: connected.value ? '0 0 8px oklch(0.72 0.16 145)' : 'none',
   }),
 )
-const approvedChip = computed(() =>
-  pxify({
-    flexShrink: 0,
-    fontSize: 9,
-    fontWeight: 600,
-    padding: '4px 9px',
-    borderRadius: 7,
-    color: dark.value ? 'oklch(0.82 0.15 145)' : 'oklch(0.45 0.15 145)',
-    background: 'rgba(90,200,140,0.16)',
-    border: '1px solid oklch(0.68 0.15 145)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-  }),
-)
-function ciStyle(ci: string) {
-  return pxify({
-    fontSize: 12,
-    fontWeight: 600,
-    padding: '2px 8px',
-    borderRadius: 6,
-    color: ci === 'passing' ? 'oklch(0.7 0.15 145)' : 'oklch(0.65 0.2 25)',
-    background: ci === 'passing' ? 'rgba(90,200,140,0.15)' : 'rgba(255,90,90,0.15)',
-  })
-}
-const connLabel = computed(() => (githubLinked.value ? 'GitHub connected' : 'GitHub not connected'))
-const prList = computed<(PullRequest & { approved: boolean })[]>(() => {
-  const g = gh.value
-  if (!g || g.status !== 'ready') return []
-  return g.data.prList.map((pr) => ({ ...pr, approved: !!approvedPRs.value[pr.id] }))
-})
+const connLabel = computed(() => (connected.value ? 'GitHub connected' : 'GitHub not connected'))
 
 function upd(field: keyof Task, e: Event) {
   if (!task.value) return
@@ -155,63 +158,53 @@ function onEnter(e: KeyboardEvent) {
         @input="upd('notes', $event)"
       ></textarea>
 
+      <!-- GitHub (13c): an issue chip once linked, otherwise create or link. -->
       <div :style="s.dialogGithub">
         <div :style="s.ghConnRow">
           <span :style="connChipStyle"><span :style="connDotStyle"></span>{{ connLabel }}</span>
-          <button v-if="!githubLinked" :style="s.saveBtn" @click="auth.openAuth()">Connect</button>
-        </div>
-        <div :style="s.inputRow">
-          <input
-            :style="s.input"
-            placeholder="owner/repo"
-            :value="task.repo"
-            @input="upd('repo', $event)"
-          />
-          <button
-            :style="s.addBtn"
-            v-hover-style="s.addBtnHover"
-            @click="app.attachRepo(task.id, task.repo)"
-          >
-            ↻
+          <button v-if="!connected" :style="s.saveBtn" @click="auth.openGithubPanel()">
+            Connect
           </button>
         </div>
-        <div v-if="gh && gh.status === 'loading'" :style="s.ghShimmer"></div>
-        <template v-else-if="gh && gh.status === 'ready'">
-          <div :style="s.ghGrid">
-            <div :style="s.ghItem">
-              <span :style="s.ghLabel">Branch</span
-              ><span :style="s.ghVal">{{ gh.data.branch }}</span>
-            </div>
-            <div :style="s.ghItem">
-              <span :style="s.ghLabel">Issues</span
-              ><span :style="s.ghVal">{{ gh.data.issues }}</span>
-            </div>
-            <div :style="s.ghItem">
-              <span :style="s.ghLabel">PRs</span><span :style="s.ghVal">{{ gh.data.prs }}</span>
-            </div>
-            <div :style="s.ghItem">
-              <span :style="s.ghLabel">Stars</span><span :style="s.ghVal">{{ gh.data.stars }}</span>
-            </div>
-            <div :style="s.ghItem">
-              <span :style="s.ghLabel">CI</span
-              ><span :style="ciStyle(gh.data.ci)">{{ gh.data.ci }}</span>
-            </div>
-            <div :style="s.ghItem">
-              <span :style="s.ghLabel">Last commit</span>
-              <span :style="s.ghVal">{{ gh.data.commitMsg }} · {{ gh.data.commitTime }}</span>
-            </div>
-          </div>
-          <div v-if="prList.length" :style="s.ghSection">
-            <span :style="s.ghLabel">Open pull requests</span>
-            <div v-for="pr in prList" :key="pr.id" :style="s.ghIssueRow">
-              <a :href="pr.url" target="_blank" rel="noopener" :style="s.prLink"
-                >#{{ pr.num }} · {{ pr.title }}</a
-              >
-              <span v-if="pr.approved" :style="approvedChip">Approved</span>
-              <button v-else :style="s.importBtn" @click="app.approvePR(pr)">Approve</button>
-            </div>
+
+        <template v-if="link">
+          <div :style="s.ghIssueRow">
+            <IssueChip :link="link" />
+            <span :style="s.finMeta">{{ fullName(link.repoId) }}</span>
+            <button :style="s.importBtn" @click="app.unlinkIssueFromTask(task.id)">Unlink</button>
           </div>
         </template>
+
+        <template v-else-if="connected && repoChoices.length">
+          <div :style="s.inputRow">
+            <select :style="s.select" v-model="targetRepo">
+              <option v-for="r in repoChoices" :key="r.id" :value="r.id">{{ r.fullName }}</option>
+            </select>
+            <button
+              :style="s.addBtn"
+              v-hover-style="s.addBtnHover"
+              :disabled="creating"
+              @click="onCreateIssue"
+            >
+              {{ creating ? '…' : 'Create issue' }}
+            </button>
+          </div>
+          <button :style="s.editBtn" @click="linkMode = !linkMode">
+            {{ linkMode ? 'Cancel' : 'Link existing issue' }}
+          </button>
+          <template v-if="linkMode">
+            <input :style="s.input" placeholder="Search by number or title…" v-model="linkQuery" />
+            <div v-if="!candidates.length" :style="s.finMeta">No unlinked issues match.</div>
+            <div v-for="iss in candidates" :key="iss.id" :style="s.ghIssueRow">
+              <span :style="s.ghIssueText">#{{ iss.number }} · {{ iss.title }}</span>
+              <button :style="s.importBtn" @click="onLink(iss.id)">Link</button>
+            </div>
+          </template>
+        </template>
+
+        <span v-else-if="connected" :style="s.finMeta">
+          Link a repository in Settings → GitHub to create issues from tasks.
+        </span>
       </div>
 
       <LinkedItemsPanel collection="tasks" :doc-id="task.id" />

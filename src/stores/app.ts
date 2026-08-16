@@ -5,7 +5,50 @@ import { AUREON_COLLECTION, auth, db, defaultLockMinutes, firebaseEnabled } from
 import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
 import { isThemeSetting, isThemeKey, THEMES, type ThemeSetting, type ThemeKey } from '@/themes'
 import { isFirebaseUserAllowed } from '@/stores/auth'
-import { mockGithub } from '@/utils/github'
+import {
+  GhNotConfiguredError,
+  GhRateLimitError,
+  ghCall,
+  ghInstallUrl,
+  isGhConfigured,
+  type GhRateLimit,
+} from '@/utils/ghProxy'
+import {
+  CLOSED_VIA_SPASTA,
+  buildIssueBody,
+  commitFromApi,
+  pullFromApi,
+  fullName,
+  githubLinkOf,
+  ingestIssues,
+  issueFromApi,
+  issueKey,
+  issueStateForTaskStatus,
+  parseRepoKey,
+  repoFromApi,
+  sanitizeIntegration,
+  sanitizeIssue,
+  sanitizeRepo,
+  shouldPatchIssue,
+  stripSpastaFooter,
+  taskUrl,
+} from '@/utils/githubModel'
+import {
+  POLL_TICK_MS,
+  backoffDelay,
+  reposDueForPoll,
+  resumeAtFor,
+  shouldPauseForRateLimit,
+} from '@/utils/ghPoll'
+import {
+  effectsForIssues,
+  isGhDelivery,
+  issueFromDelivery,
+  mergeDeferred,
+  partitionEffects,
+  repoPatchFromDelivery,
+  type TaskEffect,
+} from '@/utils/ghSync'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
 import { createShare, deleteShare, updateShareItem, writeShareDoc } from '@/utils/shares'
 import {
@@ -27,11 +70,26 @@ import {
   withTag,
   withoutTag,
 } from '@/utils/tags'
-import { STATUS_CYCLE, emptyFinanceSettings, isStatus, statusFromDone } from '@/types'
+import {
+  STATUS_CYCLE,
+  emptyFinanceSettings,
+  emptyGithubIntegration,
+  isStatus,
+  statusFromDone,
+} from '@/types'
 import { chunk, eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
 import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
 import { deviceLabel, draftKey, sanitizeDrafts, type DraftRecord } from '@/utils/drafts'
 import { seedBots } from '@/utils/bots'
+import { chainName, isChainKey, type ChainKey, type Network } from '@/utils/chains'
+import { validateAddress } from '@/utils/address'
+import {
+  defaultFilters,
+  isCalendarView,
+  type CalendarFilters,
+  type CalendarViewKey,
+} from '@/utils/calendarEvents'
+import { reportError } from '@/utils/scrub'
 import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
 import type { Debt, DebtPayment, FinScope, FinTag, ScopeFilter, Txn } from '@/types'
 import { titleFromMessage } from '@/utils/ai'
@@ -60,7 +118,12 @@ import type {
   Deadline,
   EditingState,
   Finance,
-  GithubCacheEntry,
+  GithubIntegration,
+  GithubIssue,
+  GithubLink,
+  RepoCommit,
+  RepoPull,
+  LinkedRepo,
   GraphRef,
   Hierarchical,
   Idea,
@@ -80,7 +143,6 @@ import type {
   Note,
   Stock,
   Priority,
-  PullRequest,
   FinanceSettings,
   Goal,
   GoalChecklistItem,
@@ -101,6 +163,8 @@ import type {
   Trip,
   TripPlace,
   TripStatus,
+  Schedulable,
+  Wallet,
 } from '@/types'
 import type { ParsedGoalItem, GoalDoc, GoalPoint } from '@/utils/goals'
 import { horizonDates, localDateInTz } from '@/utils/recurrence'
@@ -111,6 +175,25 @@ function rel(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
+}
+
+// Backfill the calendar's scheduling fields on read. An item written before the
+// calendar existed is simply unscheduled, which is exactly what "no startAt"
+// means — it lives in the Unscheduled panel rather than being invented onto a day.
+function scheduleFields(item: Partial<Schedulable>): Schedulable {
+  const startAt = typeof item.startAt === 'number' ? item.startAt : null
+  const endAt = typeof item.endAt === 'number' ? item.endAt : null
+  return {
+    startAt,
+    endAt,
+    allDay: item.allDay === true,
+    durationMins:
+      typeof item.durationMins === 'number'
+        ? item.durationMins
+        : startAt !== null && endAt !== null
+          ? Math.max(1, Math.round((endAt - startAt) / 60000))
+          : null,
+  }
 }
 
 function isPriority(value: unknown): value is Priority {
@@ -249,6 +332,29 @@ export const useAppStore = defineStore('app', () => {
   const businessFinance = ref<FinanceSettings>(emptyFinanceSettings())
   const finScope = ref<ScopeFilter>('personal')
   const finMigrated = ref(false)
+  // GitHub integration (section 13). The connection record holds the installation
+  // id, never a token — tokens live in Secret Manager and are only ever used
+  // inside the ghProxy Cloud Function. Repos and mirrored issues are flat arrays
+  // keyed by the spec's composite ids ("owner__name", "owner__name__number"),
+  // adapting /projects/{id}/repos and /projects/{id}/issues to this app's single
+  // workspace document.
+  const githubIntegration = ref<GithubIntegration>(emptyGithubIntegration())
+  const repos = ref<LinkedRepo[]>([])
+  const ghIssues = ref<GithubIssue[]>([])
+  // Transient: the repos the installation can see, for the picker. Never
+  // persisted — it is a live read, and stale entries would mislead.
+  const ghInstalled = ref<LinkedRepo[] | null>(null)
+  const ghBusy = ref(false)
+  const ghError = ref('')
+  // Calendar (section 15) preferences: the last view used and the filter chips,
+  // per user, so the tab opens where it was left.
+  const calendarView = ref<CalendarViewKey>('dayGridMonth')
+  const calendarFilters = ref<CalendarFilters>(defaultFilters())
+  // Wallets (section 14): the user's own PUBLIC receive addresses. They live on
+  // the workspace document — under the user, never under a project — so the
+  // existing `request.auth.uid == userId` rule already denies another uid's
+  // wallets (acceptance 65). No key material is ever accepted or stored.
+  const wallets = ref<Wallet[]>([])
   const cloudReady = ref(false)
   const cloudError = ref('')
   const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
@@ -282,8 +388,6 @@ export const useAppStore = defineStore('app', () => {
   const noteView = ref<{ id: number | null; mode: 'read' | 'edit' } | null>(null)
   const noteViewClosing = ref(false)
 
-  const githubCache = ref<Record<number, GithubCacheEntry>>({})
-  const approvedPRs = ref<Record<string, boolean>>({})
   const draggingId = ref<number | null>(null)
   const draggingTodoId = ref<number | null>(null)
 
@@ -398,7 +502,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Todos --------------------------------------------------------------
-  function addTodo(text: string, tag = '', description = '') {
+  // `fields` carries anything beyond the three common arguments — today that is
+  // the calendar's scheduling fields on a duplicated todo.
+  function addTodo(text: string, tag = '', description = '', fields: Partial<Todo> = {}) {
     const t = text.trim()
     if (!t) return
     const newId = id()
@@ -429,6 +535,7 @@ export const useAppStore = defineStore('app', () => {
         rootId: newId,
         localRev: 0,
         updatedBy: uid ?? '',
+        ...fields,
         ...stamps(),
       },
     ]
@@ -505,6 +612,8 @@ export const useAppStore = defineStore('app', () => {
     if (!cur || cur.status === next) return
     tasks.value = tasks.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
     if (next === 'done') cancelRemindersFor('tasks', tid)
+    // A linked task that changes state closes/reopens its issue (13c).
+    scheduleIssuePush(tid)
   }
   function cycleTaskStatus(tid: number) {
     const cur = tasks.value.find((t) => t.id === tid)
@@ -520,6 +629,9 @@ export const useAppStore = defineStore('app', () => {
     // Record the touched field so the sync guard keeps it if a remote snapshot
     // lands mid-edit (a no-op unless this task's dialog is open).
     syncGuard.markTouched(tid, field as string)
+    // Title/description are the only fields that flow out to a linked issue,
+    // debounced so a burst of keystrokes is one PATCH.
+    if (field === 'title' || field === 'notes') scheduleIssuePush(tid)
   }
 
   // ---- Flat-hierarchy moves (drag and drop) -------------------------------
@@ -1340,6 +1452,9 @@ export const useAppStore = defineStore('app', () => {
         }
       : bumped
     tasks.value = (heldTasks ?? tasks.value).map((t) => (t.id === id ? mergedItem : t))
+    // The edit is written; now let any webhook that arrived while the dialog was
+    // open have its say (acceptance 57).
+    replayDeferredGhEffects(id)
     try {
       await saveCloudNow()
     } catch {
@@ -2751,7 +2866,7 @@ export const useAppStore = defineStore('app', () => {
           if (gone.has(r.id) && r.calEventId) {
             void deleteEvent(r.calEventId).catch((error) => {
               if (error instanceof CalendarAuthError) calendarNeedsAuth.value = true
-              console.error('[Aureon] Calendar delete on linked-reminder delete failed:', error)
+              reportError('[Aureon] Calendar delete on linked-reminder delete failed:', error)
             })
           }
         }
@@ -2767,7 +2882,7 @@ export const useAppStore = defineStore('app', () => {
       if (eventId) {
         void deleteEvent(eventId).catch((error) => {
           if (error instanceof CalendarAuthError) calendarNeedsAuth.value = true
-          console.error('[Aureon] Calendar delete on reminder delete failed:', error)
+          reportError('[Aureon] Calendar delete on reminder delete failed:', error)
         })
       }
     }
@@ -2871,7 +2986,7 @@ export const useAppStore = defineStore('app', () => {
       await copyToClipboard(buildShareUrl(pending.type, shareId))
       showToastMsg(isPublic ? 'Public link copied' : 'Private link copied')
     } catch (error) {
-      console.error('[Aureon] Share failed:', error)
+      reportError('[Aureon] Share failed:', error)
       showToastMsg('Could not create the share link')
     } finally {
       shareBusy.value = false
@@ -3033,61 +3148,977 @@ export const useAppStore = defineStore('app', () => {
     dismissShared()
   }
 
-  // ---- GitHub (mock) ------------------------------------------------------
-  function fetchGithub(taskId: number, repo: string) {
-    githubCache.value = { ...githubCache.value, [taskId]: { status: 'loading' } }
-    setTimeout(
-      () => {
-        const data = mockGithub(repo)
-        githubCache.value = { ...githubCache.value, [taskId]: { status: 'ready', data } }
-      },
-      800 + Math.random() * 600,
+  // ---- GitHub integration (section 13) ------------------------------------
+  // Every call below goes through the ghProxy Cloud Function. Nothing in this
+  // file has, or can obtain, a GitHub token (acceptance 59).
+
+  const githubConnected = computed(() => githubIntegration.value.installationId !== null)
+  const githubConfigured = computed(() => isGhConfigured())
+  // Visible "sync paused" state rather than silent failure (13f).
+  const githubPaused = computed(() => {
+    const until = githubIntegration.value.pausedUntil
+    return until !== null && until > Date.now()
+  })
+
+  function patchIntegration(patch: Partial<GithubIntegration>) {
+    githubIntegration.value = { ...githubIntegration.value, ...patch }
+  }
+
+  // Fold the rate-limit reading from any proxy call into the integration record,
+  // and pause sync when the window is spent.
+  function noteRateLimit(rl: GhRateLimit | null) {
+    if (!rl) return
+    patchIntegration({ rateLimit: rl })
+    if (rl.remaining <= 0) pauseGithubSync(rl.resetAt, 'GitHub rate limit reached')
+  }
+
+  function pauseGithubSync(until: number, reason: string) {
+    patchIntegration({ pausedUntil: until, pausedReason: reason })
+  }
+  function resumeGithubSync() {
+    patchIntegration({ pausedUntil: null, pausedReason: '' })
+  }
+
+  // Shared error handling: a rate-limit refusal pauses sync; anything else
+  // surfaces as a message on the panel rather than a thrown promise.
+  function handleGhError(err: unknown, fallback: string): void {
+    if (err instanceof GhRateLimitError) {
+      pauseGithubSync(err.resetAt, 'GitHub rate limit reached')
+      ghError.value = 'Sync paused — GitHub rate limit reached.'
+      return
+    }
+    if (err instanceof GhNotConfiguredError) {
+      ghError.value = 'GitHub is not configured for this workspace.'
+      return
+    }
+    ghError.value = err instanceof Error ? err.message : fallback
+    reportError('[Aureon] GitHub:', err)
+  }
+
+  // Load the repos this installation can see. Called when the picker opens.
+  async function loadInstalledRepos(): Promise<void> {
+    if (ghBusy.value) return
+    ghBusy.value = true
+    ghError.value = ''
+    try {
+      const res = await ghCall<{
+        installationId?: number
+        login?: string
+        avatarUrl?: string
+        scopes?: string[]
+        repositories?: Record<string, unknown>[]
+      }>('installations')
+      noteRateLimit(res.rateLimit)
+      const payload = res.data || {}
+      const now = Date.now()
+      const list = Array.isArray(payload.repositories) ? payload.repositories : []
+      ghInstalled.value = list
+        .map((r) => repoFromApi(r, now))
+        .filter((r): r is LinkedRepo => r !== null)
+      // The installation identity is the only GitHub identifier we keep.
+      if (typeof payload.installationId === 'number') {
+        patchIntegration({
+          installationId: payload.installationId,
+          login: typeof payload.login === 'string' ? payload.login : githubIntegration.value.login,
+          avatarUrl:
+            typeof payload.avatarUrl === 'string'
+              ? payload.avatarUrl
+              : githubIntegration.value.avatarUrl,
+          scopes: Array.isArray(payload.scopes) ? payload.scopes : githubIntegration.value.scopes,
+          connectedAt: githubIntegration.value.connectedAt ?? now,
+        })
+        resumeGithubSync()
+      }
+    } catch (err) {
+      ghInstalled.value = ghInstalled.value ?? []
+      handleGhError(err, 'Could not list your GitHub repositories.')
+    } finally {
+      ghBusy.value = false
+    }
+  }
+
+  // "Connect GitHub" — send the user to install the App, then read the
+  // installation back. Installing is what grants per-repo access; there is no
+  // token round-trip in the browser.
+  function githubInstallUrl(): string {
+    return ghInstallUrl()
+  }
+  async function connectGithub(): Promise<void> {
+    await loadInstalledRepos()
+  }
+
+  function disconnectGithub() {
+    githubIntegration.value = emptyGithubIntegration()
+    ghInstalled.value = null
+    ghError.value = ''
+    // Linked repos and mirrored issues are left in place: disconnecting stops
+    // syncing, it does not throw away what the workspace already knows. Tasks
+    // keep their issue chips and can still be unlinked one by one.
+  }
+
+  function repoById(repoId: string): LinkedRepo | undefined {
+    return repos.value.find((r) => r.id === repoId)
+  }
+
+  // Link a repo the installation can see. Idempotent: linking an already-linked
+  // repo refreshes its metadata rather than adding a duplicate.
+  function linkRepo(repo: LinkedRepo): LinkedRepo {
+    const existing = repoById(repo.id)
+    if (existing) {
+      const merged: LinkedRepo = {
+        ...existing,
+        ...repo,
+        linkedAt: existing.linkedAt,
+        syncEnabled: existing.syncEnabled,
+        labelFilter: existing.labelFilter,
+        lastSyncAt: existing.lastSyncAt,
+        etag: existing.etag,
+      }
+      repos.value = repos.value.map((r) => (r.id === repo.id ? merged : r))
+      return merged
+    }
+    repos.value = [...repos.value, { ...repo, linkedAt: Date.now() }]
+    showToastMsg('Linked ' + repo.fullName)
+    return repo
+  }
+
+  function unlinkRepo(repoId: string) {
+    const repo = repoById(repoId)
+    repos.value = repos.value.filter((r) => r.id !== repoId)
+    // Mirrored issues for an unlinked repo are dropped; the issues themselves
+    // are untouched on GitHub, and any task link survives (it carries its own
+    // repoId + number, so the chip still resolves).
+    ghIssues.value = ghIssues.value.filter((i) => i.repoId !== repoId)
+    if (repo) showToastMsg('Unlinked ' + repo.fullName)
+  }
+
+  function toggleRepoLink(repo: LinkedRepo) {
+    if (repoById(repo.id)) unlinkRepo(repo.id)
+    else linkRepo(repo)
+  }
+
+  function setRepoSync(repoId: string, enabled: boolean) {
+    repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, syncEnabled: enabled } : r))
+  }
+
+  function setRepoLabelFilter(repoId: string, labels: string[]) {
+    const clean = labels.map((l) => l.trim()).filter(Boolean)
+    repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, labelFilter: clean } : r))
+  }
+
+  // ---- Wallets (section 14) ------------------------------------------------
+  // Read-only by design: this is an address book. Nothing below signs, builds a
+  // transaction or connects a wallet, and every write goes through
+  // validateAddress first — which refuses a seed phrase or private key outright
+  // and never persists the offending input, not even as a draft (acceptance 61).
+
+  const walletsByChain = computed(() => {
+    const groups = new Map<ChainKey, Wallet[]>()
+    for (const w of [...wallets.value].sort((a, b) => a.order - b.order)) {
+      const list = groups.get(w.chain) ?? []
+      list.push(w)
+      groups.set(w.chain, list)
+    }
+    return groups
+  })
+
+  function walletById(walletId: number): Wallet | undefined {
+    return wallets.value.find((w) => w.id === walletId)
+  }
+
+  // The default wallet for a chain: the flagged one, else the first by order.
+  function defaultWalletFor(chain: ChainKey): Wallet | undefined {
+    const list = walletsByChain.value.get(chain) ?? []
+    return list.find((w) => w.isDefault) ?? list[0]
+  }
+
+  // Add a wallet. Returns the rejection reason rather than throwing, so the form
+  // can show something specific — and returns before any write when the input is
+  // a secret, so nothing about it is ever persisted.
+  function addWallet(fields: {
+    label: string
+    chain: ChainKey
+    network?: Network
+    address: string
+    memoTag?: string | null
+    notes?: string
+  }): { id: number | null; error: string } {
+    const network: Network = fields.network ?? 'mainnet'
+    const address = (fields.address || '').trim()
+    const check = validateAddress(fields.chain, address, network)
+    if (!check.ok) return { id: null, error: check.reason }
+    // The same address on the same chain twice is a mistake, not a feature.
+    const duplicate = wallets.value.find(
+      (w) => w.chain === fields.chain && w.network === network && w.address === address,
     )
-  }
-  function attachRepo(taskId: number, repo: string) {
-    if (!repo || !repo.trim()) return
-    fetchGithub(taskId, repo.trim())
-  }
-  function approvePR(pr: PullRequest) {
-    approvedPRs.value = { ...approvedPRs.value, [pr.id]: true }
-    showToastMsg('Approved PR #' + pr.num)
-    // GitHub review API: POST /repos/{owner}/{repo}/pulls/{num}/reviews { event: 'APPROVE' }
-  }
-  function importIssue(
-    repo: { name: string; full: string },
-    issue: { num: number; title: string },
-  ) {
-    const importId = id()
-    tasks.value = [
-      ...tasks.value,
+    if (duplicate) return { id: null, error: 'That address is already saved on this chain' }
+
+    const newId = id()
+    const orders = wallets.value.map((w) => w.order)
+    const chainHasOne = wallets.value.some((w) => w.chain === fields.chain)
+    wallets.value = [
+      ...wallets.value,
       {
-        id: importId,
-        title: issue.title,
-        tag: repo.name,
-        done: false,
-        status: 'pending',
-        deadline: '',
-        notes: 'Imported from ' + repo.full + ' #' + issue.num,
-        repo: repo.full,
-        rolledOverAt: null,
-        rolloverCount: 0,
-        completedAt: null,
-        reminderIds: [],
-        sourceRef: null,
-        linked: [],
-        parents: [],
-        parentId: null,
-        order: 0,
-        depth: 0,
-        rootId: importId,
-        localRev: 0,
-        updatedBy: uid ?? '',
+        id: newId,
+        label: (fields.label || '').trim() || chainName(fields.chain) + ' wallet',
+        chain: fields.chain,
+        network,
+        address,
+        memoTag: (fields.memoTag || '').trim() || null,
+        // The first wallet on a chain is that chain's default.
+        isDefault: !chainHasOne,
+        order: orders.length ? Math.max(...orders) + 1 : 0,
+        notes: (fields.notes || '').trim(),
+        balanceEnabled: false,
+        balance: null,
         ...stamps(),
       },
     ]
-    showToastMsg(
-      'Imported "' + (issue.title.length > 24 ? issue.title.slice(0, 24) + '…' : issue.title) + '"',
+    return { id: newId, error: '' }
+  }
+
+  // ---- Calendar writes (section 15 SYNC) ----------------------------------
+  // Every drag and resize is optimistic and rolls back on failure, and the
+  // dragged item is held in the sync guard for the duration — so a snapshot
+  // arriving mid-drag is buffered rather than snapping the event back under the
+  // pointer (acceptance 69).
+
+  function beginCalendarDrag(type: 'task' | 'todo', itemId: number) {
+    if (type !== 'task') return
+    const task = tasks.value.find((t) => t.id === itemId)
+    if (task) syncGuard.beginEdit(itemId, task)
+  }
+  function endCalendarDrag(type: 'task' | 'todo', itemId: number) {
+    if (type !== 'task') return
+    if (syncGuard.isEditing(itemId)) void flushTaskEdit(itemId)
+  }
+
+  // Apply a scheduling patch to a task or todo. Returns false (having restored
+  // the previous value) when the write fails.
+  async function rescheduleItem(
+    type: 'task' | 'todo',
+    itemId: number,
+    patch: Schedulable,
+  ): Promise<boolean> {
+    const listRef = type === 'task' ? tasks : todos
+    const before = listRef.value
+    const target = before.find((i) => i.id === itemId)
+    if (!target) return false
+    // Optimistic: the grid has already moved the event, so the store follows
+    // immediately and only the failure path is visible.
+    listRef.value = before.map((item) =>
+      item.id === itemId
+        ? touched({
+            ...item,
+            startAt: patch.startAt,
+            endAt: patch.endAt,
+            allDay: patch.allDay ?? false,
+            durationMins: patch.durationMins ?? null,
+          })
+        : item,
+    ) as typeof before
+    if (type === 'task') syncGuard.markTouched(itemId, 'startAt')
+    try {
+      await saveCloudNow()
+      return true
+    } catch {
+      listRef.value = before
+      showToastMsg('Could not reschedule — reverted')
+      return false
+    }
+  }
+
+  // Several selected events moved at once: one write, not one per event.
+  async function rescheduleMany(
+    moves: { type: 'task' | 'todo'; id: number; patch: Schedulable }[],
+  ): Promise<boolean> {
+    if (!moves.length) return true
+    const beforeTasks = tasks.value
+    const beforeTodos = todos.value
+    const apply = <T extends { id: number }>(list: T[], type: 'task' | 'todo') =>
+      list.map((item) => {
+        const move = moves.find((m) => m.type === type && m.id === item.id)
+        return move
+          ? touched({
+              ...item,
+              startAt: move.patch.startAt,
+              endAt: move.patch.endAt,
+              allDay: move.patch.allDay ?? false,
+              durationMins: move.patch.durationMins ?? null,
+            })
+          : item
+      })
+    tasks.value = apply(tasks.value, 'task')
+    todos.value = apply(todos.value, 'todo')
+    try {
+      await saveCloudNow()
+      return true
+    } catch {
+      tasks.value = beforeTasks
+      todos.value = beforeTodos
+      showToastMsg('Could not reschedule — reverted')
+      return false
+    }
+  }
+
+  // Alt/Option-drag: duplicate at the new time rather than moving.
+  function duplicateScheduled(
+    type: 'task' | 'todo',
+    itemId: number,
+    patch: Schedulable,
+  ): number | null {
+    if (type === 'task') {
+      const task = tasks.value.find((t) => t.id === itemId)
+      if (!task) return null
+      const newId = addTask(task.title, task.tag, {
+        notes: task.notes,
+        deadline: task.deadline,
+        startAt: patch.startAt,
+        endAt: patch.endAt,
+        allDay: patch.allDay,
+        durationMins: patch.durationMins,
+      })
+      return newId ?? null
+    }
+    const todo = todos.value.find((t) => t.id === itemId)
+    if (!todo) return null
+    const newId = addTodo(todo.text, todo.tag, todo.description, {
+      startAt: patch.startAt,
+      endAt: patch.endAt,
+      allDay: patch.allDay,
+      durationMins: patch.durationMins,
+    })
+    return newId ?? null
+  }
+
+  // Moving a reminder on the grid moves its fire time — and, when it already
+  // has a Google Calendar event, patches THAT event by its stored id rather
+  // than creating a second one.
+  async function rescheduleReminder(reminderId: number, startAt: number): Promise<boolean> {
+    const before = reminders.value
+    const target = before.find((r) => r.id === reminderId)
+    if (!target) return false
+    const local = new Date(startAt)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const value = `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}T${pad(local.getHours())}:${pad(local.getMinutes())}`
+    patchReminder(reminderId, { start: value })
+    try {
+      await saveCloudNow()
+    } catch {
+      reminders.value = before
+      showToastMsg('Could not reschedule — reverted')
+      return false
+    }
+    // Two-way with Google Calendar for reminders that already sync: match on
+    // the stored external event id, so nothing is ever duplicated.
+    if (target.calEventId && hasCalendarToken()) await syncCalendar(reminderId)
+    return true
+  }
+
+  // Quick create from the calendar: one call whatever the type toggle says, so
+  // the popover does not have to know how each collection is written.
+  function createScheduledItem(
+    kind: 'task' | 'todo' | 'reminder',
+    title: string,
+    project: string,
+    patch: Schedulable,
+  ): number | null {
+    const text = title.trim()
+    if (!text) return null
+    if (kind === 'reminder') {
+      const start = new Date(patch.startAt ?? Date.now())
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const value = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}T${pad(start.getHours())}:${pad(start.getMinutes())}`
+      return addReminder({ title: text, note: '', start: value, repeat: { type: 'none' } }) ?? null
+    }
+    if (kind === 'todo') {
+      return addTodo(text, project, '', { ...patch }) ?? null
+    }
+    return (
+      addTask(text, project, {
+        startAt: patch.startAt,
+        endAt: patch.endAt,
+        allDay: patch.allDay,
+        durationMins: patch.durationMins,
+        // An all-day quick-create doubles as a due date, which is what the rest
+        // of the app already understands.
+        deadline: patch.allDay && patch.startAt ? ymd(new Date(patch.startAt)) : '',
+      }) ?? null
     )
+  }
+
+  // Dragging an event back to the Unscheduled panel clears its schedule and
+  // nothing else.
+  async function unscheduleItem(type: 'task' | 'todo', itemId: number): Promise<boolean> {
+    return rescheduleItem(type, itemId, {
+      startAt: null,
+      endAt: null,
+      allDay: false,
+      durationMins: null,
+    })
+  }
+
+  // ---- Calendar preferences (section 15) ----------------------------------
+  // The last view used and the filter chips ride in the workspace document, so
+  // the tab opens where the user left it on every device.
+  function setCalendarView(view: CalendarViewKey) {
+    calendarView.value = view
+  }
+  function setCalendarFilters(patch: Partial<CalendarFilters>) {
+    calendarFilters.value = { ...calendarFilters.value, ...patch }
+  }
+
+  // Inline edit. An address change is re-validated exactly like a create, so a
+  // wallet can never be edited into an invalid — or secret-bearing — state.
+  function updateWallet(walletId: number, patch: Partial<Wallet>): { ok: boolean; error: string } {
+    const current = walletById(walletId)
+    if (!current) return { ok: false, error: 'Wallet not found' }
+    const next: Wallet = { ...current, ...patch }
+    if (patch.address !== undefined || patch.chain !== undefined || patch.network !== undefined) {
+      const check = validateAddress(next.chain, (next.address || '').trim(), next.network)
+      if (!check.ok) return { ok: false, error: check.reason }
+      next.address = next.address.trim()
+    }
+    if (patch.memoTag !== undefined) next.memoTag = (patch.memoTag || '').trim() || null
+    if (patch.label !== undefined) next.label = patch.label.trim() || chainName(next.chain)
+    wallets.value = wallets.value.map((w) => (w.id === walletId ? touched(next) : w))
+    return { ok: true, error: '' }
+  }
+
+  // Delete with the same undo affordance as everything else in the app; the
+  // confirmation naming the label is the view's job.
+  function removeWallet(walletId: number) {
+    const wallet = walletById(walletId)
+    if (!wallet) return
+    const index = wallets.value.findIndex((w) => w.id === walletId)
+    wallets.value = wallets.value.filter((w) => w.id !== walletId)
+    // If the default went, promote the next wallet on that chain so the chain
+    // still has one.
+    const remaining = wallets.value.filter((w) => w.chain === wallet.chain)
+    if (wallet.isDefault && remaining.length && !remaining.some((w) => w.isDefault)) {
+      const promote = remaining[0].id
+      wallets.value = wallets.value.map((w) => (w.id === promote ? { ...w, isDefault: true } : w))
+    }
+    toast.value = {
+      message: 'Deleted "' + wallet.label + '"',
+      undo: true,
+      listKey: undefined,
+      item: wallet,
+      idx: index,
+    }
+    toastUndoHandler = () => {
+      const restored = wallets.value.slice()
+      restored.splice(Math.min(index, restored.length), 0, wallet)
+      wallets.value = restored
+    }
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => {
+      if (toast.value) toast.value = null
+      toastUndoHandler = null
+    }, 8000)
+  }
+
+  // Drag reorder. Orders are rewritten as a dense sequence rather than bisected:
+  // the list is short, and a stable integer order reads better in the document.
+  function moveWallet(walletId: number, toIndex: number) {
+    const ordered = [...wallets.value].sort((a, b) => a.order - b.order)
+    const from = ordered.findIndex((w) => w.id === walletId)
+    if (from === -1) return
+    const [moved] = ordered.splice(from, 1)
+    ordered.splice(Math.max(0, Math.min(toIndex, ordered.length)), 0, moved)
+    const orderById = new Map(ordered.map((w, i) => [w.id, i]))
+    wallets.value = wallets.value.map((w) => ({ ...w, order: orderById.get(w.id) ?? w.order }))
+  }
+
+  // Exactly one default per chain.
+  function setDefaultWallet(walletId: number) {
+    const wallet = walletById(walletId)
+    if (!wallet) return
+    wallets.value = wallets.value.map((w) =>
+      w.chain === wallet.chain ? { ...w, isDefault: w.id === walletId } : w,
+    )
+  }
+
+  // Balance display is opt-in per wallet and off by default. The read goes
+  // through a Cloud Function so no API key sits in the client, and it never
+  // blocks the list: the wallet renders immediately, the number arrives later.
+  function setWalletBalanceEnabled(walletId: number, enabled: boolean) {
+    wallets.value = wallets.value.map((w) =>
+      w.id === walletId
+        ? { ...w, balanceEnabled: enabled, balance: enabled ? w.balance : null }
+        : w,
+    )
+    if (enabled) void fetchWalletBalance(walletId)
+  }
+
+  async function fetchWalletBalance(walletId: number): Promise<void> {
+    const wallet = walletById(walletId)
+    if (!wallet || !wallet.balanceEnabled) return
+    const url = (import.meta.env.VITE_WALLET_BALANCE_URL || '').trim()
+    const setBalance = (balance: Wallet['balance']) => {
+      wallets.value = wallets.value.map((w) => (w.id === walletId ? { ...w, balance } : w))
+    }
+    if (!url) {
+      setBalance({
+        amount: '',
+        symbol: '',
+        fetchedAt: Date.now(),
+        error: 'Balances not configured',
+      })
+      return
+    }
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chain: wallet.chain,
+          network: wallet.network,
+          address: wallet.address,
+        }),
+      })
+      const payload = (await res.json()) as { amount?: string; symbol?: string; error?: string }
+      setBalance({
+        amount: typeof payload.amount === 'string' ? payload.amount : '',
+        symbol: typeof payload.symbol === 'string' ? payload.symbol : '',
+        fetchedAt: Date.now(),
+        error: typeof payload.error === 'string' ? payload.error : '',
+      })
+    } catch {
+      // A failed balance read is a footnote on one row, never an error state for
+      // the address book.
+      setBalance({ amount: '', symbol: '', fetchedAt: Date.now(), error: 'Balance unavailable' })
+    }
+  }
+
+  // ---- Conditional polling fallback (13f) ---------------------------------
+  // Webhooks are the primary path; this is the safety net for a delivery that
+  // never arrived. Each linked repo is re-read at most every ten minutes with
+  // its stored etag, so an unchanged repo answers 304 and costs no rate limit.
+
+  let ghPollTimer: ReturnType<typeof setInterval> | undefined
+  // Consecutive failures per repo, for exponential backoff. Cleared on success.
+  const ghFailures = new Map<string, number>()
+
+  // Refresh one repo's issues conditionally. Returns true when new data landed.
+  async function refreshRepoIssues(repoId: string, force = false): Promise<boolean> {
+    const repo = repoById(repoId)
+    if (!repo || !canCallGithub()) return false
+    if (!force && !repo.syncEnabled) return false
+    try {
+      const res = await ghCall<Record<string, unknown>[]>(
+        'issues',
+        { owner: repo.owner, repo: repo.name, perPage: 50 },
+        { etag: repo.etag || null },
+      )
+      noteRateLimit(res.rateLimit)
+      ghFailures.delete(repoId)
+      // 304: nothing changed. Still stamp lastSyncAt, or the repo would look
+      // permanently overdue and poll on every tick.
+      if (res.notModified) {
+        patchRepo(repoId, { lastSyncAt: Date.now() })
+        return false
+      }
+      const incoming = (res.data ?? [])
+        .map((raw) => issueFromApi(raw, repoId))
+        .filter((i): i is GithubIssue => i !== null)
+      patchRepo(repoId, { lastSyncAt: Date.now(), etag: res.etag ?? repo.etag })
+      ingestGithubIssues(incoming)
+      // Leave room for interactive work rather than spending the last of the
+      // budget on background polling.
+      if (shouldPauseForRateLimit(githubIntegration.value.rateLimit)) {
+        pauseGithubSync(
+          resumeAtFor(githubIntegration.value.rateLimit, Date.now()),
+          'GitHub rate limit low',
+        )
+      }
+      return incoming.length > 0
+    } catch (err) {
+      const attempt = (ghFailures.get(repoId) ?? 0) + 1
+      ghFailures.set(repoId, attempt)
+      if (err instanceof GhRateLimitError) {
+        handleGhError(err, '')
+      } else {
+        // Back off visibly rather than retrying into a wall every tick.
+        pauseGithubSync(Date.now() + backoffDelay(attempt), 'GitHub sync failing')
+        handleGhError(err, 'Could not sync issues from GitHub.')
+      }
+      return false
+    }
+  }
+
+  // One tick of the fallback poller. Cheap when nothing is due: no I/O at all.
+  async function pollGithubOnce(): Promise<void> {
+    if (!canCallGithub()) return
+    const due = reposDueForPoll(repos.value, Date.now())
+    for (const repo of due) await refreshRepoIssues(repo.id)
+  }
+
+  function startGithubPolling() {
+    if (ghPollTimer || !isGhConfigured()) return
+    ghPollTimer = setInterval(() => {
+      // A pause that has expired lifts itself, so sync resumes without the user
+      // having to press anything.
+      if (githubIntegration.value.pausedUntil !== null && !githubPaused.value) resumeGithubSync()
+      void pollGithubOnce()
+    }, POLL_TICK_MS)
+  }
+  function stopGithubPolling() {
+    clearInterval(ghPollTimer)
+    ghPollTimer = undefined
+  }
+
+  // ---- Repo reads (13e) ---------------------------------------------------
+  // Recent commits, open PRs and branches for a repo card. Transient by design:
+  // it is a live read, and a stale copy in the workspace document would be worse
+  // than an empty card.
+  interface RepoActivity {
+    commits: RepoCommit[]
+    pulls: RepoPull[]
+    branches: string[]
+    loading: boolean
+    loadedAt: number
+  }
+  const repoActivity = ref<Record<string, RepoActivity>>({})
+
+  function activityOf(repoId: string): RepoActivity {
+    return (
+      repoActivity.value[repoId] ?? {
+        commits: [],
+        pulls: [],
+        branches: [],
+        loading: false,
+        loadedAt: 0,
+      }
+    )
+  }
+  function setActivity(repoId: string, patch: Partial<RepoActivity>) {
+    repoActivity.value = {
+      ...repoActivity.value,
+      [repoId]: { ...activityOf(repoId), ...patch },
+    }
+  }
+
+  async function loadRepoActivity(repoId: string, force = false): Promise<void> {
+    const repo = repoById(repoId)
+    if (!repo || !canCallGithub()) return
+    const current = activityOf(repoId)
+    if (current.loading) return
+    // Five minutes is plenty fresh for a card nobody is staring at.
+    if (!force && current.loadedAt && Date.now() - current.loadedAt < 5 * 60_000) return
+    setActivity(repoId, { loading: true })
+    try {
+      const [commits, pulls, branches] = await Promise.all([
+        ghCall<Record<string, unknown>[]>('commits', {
+          owner: repo.owner,
+          repo: repo.name,
+          perPage: 5,
+        }),
+        ghCall<Record<string, unknown>[]>('pulls', { owner: repo.owner, repo: repo.name }),
+        ghCall<{ name?: string }[]>('branches', { owner: repo.owner, repo: repo.name }),
+      ])
+      noteRateLimit(commits.rateLimit ?? pulls.rateLimit ?? branches.rateLimit)
+      setActivity(repoId, {
+        commits: (commits.data ?? []).map(commitFromApi).filter((c): c is RepoCommit => c !== null),
+        pulls: (pulls.data ?? []).map(pullFromApi).filter((p): p is RepoPull => p !== null),
+        branches: (branches.data ?? [])
+          .map((b) => (typeof b?.name === 'string' ? b.name : ''))
+          .filter(Boolean),
+        loading: false,
+        loadedAt: Date.now(),
+      })
+    } catch (err) {
+      setActivity(repoId, { loading: false, loadedAt: Date.now() })
+      handleGhError(err, 'Could not read repository activity.')
+    }
+  }
+
+  // ---- Task ↔ issue (13c) -------------------------------------------------
+  // The only writes that cross to GitHub are: create an issue from a task, patch
+  // a linked issue's title/state, and close it with a comment. Labels and
+  // assignees flow GitHub → Spasta only; comments do not sync in v1.
+
+  function canCallGithub(): boolean {
+    return githubConfigured.value && githubConnected.value && !githubPaused.value
+  }
+
+  // Debounced outbound patches, one timer per task, so a burst of keystrokes is
+  // one request.
+  const ghPushTimers = new Map<number, ReturnType<typeof setTimeout>>()
+  function scheduleIssuePush(taskId: number) {
+    const t = tasks.value.find((x) => x.id === taskId)
+    if (!t?.github || !canCallGithub()) return
+    clearTimeout(ghPushTimers.get(taskId))
+    ghPushTimers.set(
+      taskId,
+      setTimeout(() => {
+        ghPushTimers.delete(taskId)
+        void pushTaskToIssue(taskId)
+      }, 1200),
+    )
+  }
+
+  // Push the task's side of the contract to GitHub. shouldPatchIssue is what
+  // stops an inbound webhook write from bouncing straight back out again.
+  async function pushTaskToIssue(taskId: number): Promise<void> {
+    const task = tasks.value.find((t) => t.id === taskId)
+    if (!task?.github || !canCallGithub()) return
+    const parsed = parseRepoKey(task.github.repoId)
+    if (!parsed) return
+    const issue = issueByKey(issueKey(parsed.owner, parsed.name, task.github.issueNumber))
+    if (!shouldPatchIssue(task, issue)) return
+    const nextState = issueStateForTaskStatus(task.status)
+    try {
+      const res = await ghCall<Record<string, unknown>>('patchIssue', {
+        owner: parsed.owner,
+        repo: parsed.name,
+        number: task.github.issueNumber,
+        title: task.title,
+        body: buildIssueBody(task.notes, taskUrl(location.origin, task.id), task.id),
+        state: nextState,
+      })
+      noteRateLimit(res.rateLimit)
+      // Closing gets a comment so the trail is readable on GitHub's side.
+      if (nextState === 'closed' && issue?.state === 'open') {
+        const commented = await ghCall('comment', {
+          owner: parsed.owner,
+          repo: parsed.name,
+          number: task.github.issueNumber,
+          body: CLOSED_VIA_SPASTA,
+        })
+        noteRateLimit(commented.rateLimit)
+      }
+      const updated = res.data ? issueFromApi(res.data, task.github.repoId) : null
+      if (updated) ingestGithubIssues([updated])
+      setTaskGithubLink(taskId, { ...task.github, state: nextState, syncedAt: Date.now() })
+    } catch (err) {
+      handleGhError(err, 'Could not update the GitHub issue.')
+    }
+  }
+
+  function setTaskGithubLink(taskId: number, link: GithubLink | null) {
+    tasks.value = tasks.value.map((t) => (t.id === taskId ? { ...t, github: link } : t))
+  }
+
+  // Create an issue from a task. Title from the task title, body from its notes
+  // plus a backlink and the round-trip marker, labels default from the task's
+  // tag and the assignee defaults to the connected user.
+  async function createIssueFromTask(taskId: number, repoId: string): Promise<boolean> {
+    const task = tasks.value.find((t) => t.id === taskId)
+    const parsed = parseRepoKey(repoId)
+    if (!task || !parsed) return false
+    if (!canCallGithub()) {
+      showToastMsg('Connect GitHub first')
+      return false
+    }
+    try {
+      const res = await ghCall<Record<string, unknown>>('createIssue', {
+        owner: parsed.owner,
+        repo: parsed.name,
+        title: task.title,
+        body: buildIssueBody(task.notes, taskUrl(location.origin, task.id), task.id),
+        labels: task.tag ? [task.tag] : [],
+        assignees: githubIntegration.value.login ? [githubIntegration.value.login] : [],
+      })
+      noteRateLimit(res.rateLimit)
+      const issue = res.data ? issueFromApi(res.data, repoId) : null
+      if (!issue) {
+        ghError.value = 'GitHub accepted the issue but returned nothing usable.'
+        return false
+      }
+      ghIssues.value = ingestIssues(ghIssues.value, [{ ...issue, linkedTaskId: task.id }])
+      setTaskGithubLink(taskId, {
+        repoId,
+        issueNumber: issue.number,
+        issueUrl: issue.htmlUrl,
+        state: issue.state,
+        syncedAt: Date.now(),
+      })
+      showToastMsg('Created #' + issue.number + ' in ' + fullName(repoId))
+      return true
+    } catch (err) {
+      handleGhError(err, 'Could not create the GitHub issue.')
+      return false
+    }
+  }
+
+  // Link a task to an issue that already exists. The issue body is left exactly
+  // as its author wrote it — the link lives on both records instead.
+  function linkIssueToTask(taskId: number, issueId: string): boolean {
+    const issue = issueByKey(issueId)
+    const task = tasks.value.find((t) => t.id === taskId)
+    if (!issue || !task) return false
+    ghIssues.value = ghIssues.value.map((i) =>
+      i.id === issueId ? { ...i, linkedTaskId: taskId } : i,
+    )
+    setTaskGithubLink(taskId, {
+      repoId: issue.repoId,
+      issueNumber: issue.number,
+      issueUrl: issue.htmlUrl,
+      state: issue.state,
+      syncedAt: Date.now(),
+    })
+    // Adopt the issue's state immediately, so a task linked to a closed issue
+    // does not sit open until the next webhook.
+    syncIssuesToTasks()
+    showToastMsg('Linked #' + issue.number)
+    return true
+  }
+
+  // Unlink: the issue on GitHub is left completely alone.
+  function unlinkIssueFromTask(taskId: number) {
+    const task = tasks.value.find((t) => t.id === taskId)
+    if (!task?.github) return
+    const parsed = parseRepoKey(task.github.repoId)
+    if (parsed) {
+      const key = issueKey(parsed.owner, parsed.name, task.github.issueNumber)
+      ghIssues.value = ghIssues.value.map((i) =>
+        i.id === key && i.linkedTaskId === taskId ? { ...i, linkedTaskId: null } : i,
+      )
+    }
+    clearTimeout(ghPushTimers.get(taskId))
+    ghPushTimers.delete(taskId)
+    setTaskGithubLink(taskId, null)
+    showToastMsg('Unlinked from GitHub')
+  }
+
+  // Candidates for "Link existing issue": mirrored issues in linked repos,
+  // matched by number or title, that no task has claimed yet.
+  function linkableIssues(query: string, limit = 20): GithubIssue[] {
+    const q = query.trim().toLowerCase()
+    const linkedRepoIds = new Set(repos.value.map((r) => r.id))
+    const claimed = new Set(
+      tasks.value
+        .filter((t) => t.github)
+        .map((t) => `${t.github?.repoId}__${t.github?.issueNumber}`),
+    )
+    return ghIssues.value
+      .filter((i) => linkedRepoIds.has(i.repoId) && !claimed.has(i.id) && i.linkedTaskId === null)
+      .filter((i) => !q || String(i.number) === q || i.title.toLowerCase().includes(q))
+      .slice(0, limit)
+  }
+
+  // Pull an issue in as a task, preserving the marker relationship so the next
+  // sync links rather than duplicates (acceptance 58).
+  function createTaskFromIssue(issueId: string): number | null {
+    const issue = issueByKey(issueId)
+    if (!issue || issue.linkedTaskId !== null) return null
+    const repo = repoById(issue.repoId)
+    const newId = addTask(issue.title || 'Issue #' + issue.number, repo?.name ?? '', {
+      notes: stripSpastaFooter(issue.body),
+      repo: repo?.fullName ?? fullName(issue.repoId),
+      status: issue.state === 'closed' ? 'done' : 'pending',
+      done: issue.state === 'closed',
+      completedAt: issue.state === 'closed' ? issue.closedAt : null,
+      github: {
+        repoId: issue.repoId,
+        issueNumber: issue.number,
+        issueUrl: issue.htmlUrl,
+        state: issue.state,
+        syncedAt: Date.now(),
+      },
+    })
+    if (newId == null) return null
+    ghIssues.value = ghIssues.value.map((i) =>
+      i.id === issueId ? { ...i, linkedTaskId: newId } : i,
+    )
+    return newId
+  }
+
+  // Bulk "Create tasks from selected issues" — skips anything already linked, so
+  // running it twice cannot duplicate.
+  function createTasksFromIssues(issueIds: string[]): number {
+    let made = 0
+    for (const issueId of issueIds) if (createTaskFromIssue(issueId) !== null) made++
+    if (made) showToastMsg('Created ' + made + (made === 1 ? ' task' : ' tasks'))
+    return made
+  }
+
+  // ---- Webhook ingestion (13f) --------------------------------------------
+  // Deliveries land here already verified: the Cloud Function checks the
+  // X-Hub-Signature-256 HMAC and rejects a mismatch before anything is written.
+  // This side turns them into mirrored issues, repo metadata and the one narrow
+  // task effect the spec allows — always through the section-3 sync guard.
+
+  // Effects held back because their task's dialog was open when they arrived.
+  // Replayed by flushTaskEdit once the dialog closes, so the webhook is neither
+  // lost nor allowed to clobber the edit (acceptance 57).
+  let deferredGhEffects: TaskEffect[] = []
+
+  function applyTaskEffect(effect: TaskEffect) {
+    const cur = tasks.value.find((t) => t.id === effect.taskId)
+    if (!cur) return
+    // GitHub wins for the issue fields it owns (state, url); the task's own
+    // fields — goalIds, parentId, estimates — are never touched from here.
+    const withLink: Task = { ...cur, github: { ...effect.link, syncedAt: Date.now() } }
+    tasks.value = tasks.value.map((t) =>
+      t.id === effect.taskId
+        ? effect.status === cur.status
+          ? withLink
+          : withStatus(withLink, effect.status)
+        : t,
+    )
+    if (effect.status === 'done' && cur.status !== 'done')
+      cancelRemindersFor('tasks', effect.taskId)
+  }
+
+  // Reconcile every mirrored issue against its task. Called after a snapshot
+  // hydrate and after any ingestion, so the two sides converge whichever path
+  // the data arrived by.
+  function syncIssuesToTasks() {
+    const effects = effectsForIssues(ghIssues.value, tasks.value)
+    if (!effects.length) return
+    const { apply, deferred } = partitionEffects(effects, syncGuard.editingIds)
+    for (const effect of apply) applyTaskEffect(effect)
+    if (deferred.length) deferredGhEffects = mergeDeferred(deferredGhEffects, deferred)
+  }
+
+  // Replay whatever a webhook wanted to do to this task while its dialog was
+  // open. The local edit has already been written by the time this runs.
+  function replayDeferredGhEffects(taskId: number) {
+    const mine = deferredGhEffects.filter((e) => e.taskId === taskId)
+    if (!mine.length) return
+    deferredGhEffects = deferredGhEffects.filter((e) => e.taskId !== taskId)
+    for (const effect of mine) applyTaskEffect(effect)
+  }
+
+  function ingestGithubIssues(incoming: GithubIssue[]) {
+    if (!incoming.length) return
+    ghIssues.value = ingestIssues(ghIssues.value, incoming)
+    patchIntegration({ lastSyncAt: Date.now() })
+    syncIssuesToTasks()
+  }
+
+  function patchRepo(repoId: string, patch: Partial<LinkedRepo>) {
+    repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, ...patch } : r))
+  }
+
+  // Drain a batch of verified deliveries. Unknown events and deliveries for
+  // repos this workspace has not linked are ignored rather than half-applied.
+  function ingestGithubDeliveries(raw: unknown[]): number {
+    const deliveries = (Array.isArray(raw) ? raw : []).filter(isGhDelivery)
+    const issues: GithubIssue[] = []
+    let applied = 0
+    for (const delivery of deliveries) {
+      if (!repoById(delivery.repoId)) continue
+      applied++
+      const issue = issueFromDelivery(delivery)
+      if (issue) issues.push(issue)
+      const repoPatch = repoPatchFromDelivery(delivery)
+      if (repoPatch) patchRepo(delivery.repoId, repoPatch)
+    }
+    // A repo's label filter is a display filter, not an ingestion filter for
+    // issues already mirrored: an issue that stops matching still needs its
+    // final state, or a linked task would be stranded mid-flight.
+    ingestGithubIssues(issues)
+    return applied
+  }
+
+  function issuesOfRepo(repoId: string): GithubIssue[] {
+    return ghIssues.value.filter((i) => i.repoId === repoId)
+  }
+  function issueByKey(issueId: string): GithubIssue | undefined {
+    return ghIssues.value.find((i) => i.id === issueId)
   }
 
   // ---- Drag & drop (tasks) ------------------------------------------------
@@ -3348,7 +4379,7 @@ export const useAppStore = defineStore('app', () => {
     const shareId = item?.shareId
     if (!item || item.isPublic !== true || typeof shareId !== 'string' || !shareId) return
     updateShareItem(shareId, uid, item).catch((error) => {
-      console.error('[Aureon] Share snapshot sync failed:', error)
+      reportError('[Aureon] Share snapshot sync failed:', error)
     })
   }
 
@@ -3745,7 +4776,7 @@ export const useAppStore = defineStore('app', () => {
         calendarNeedsAuth.value = true
         showToastMsg('Google Calendar access expired')
       } else {
-        console.error('[Aureon] Calendar sync failed:', error)
+        reportError('[Aureon] Calendar sync failed:', error)
         showToastMsg('Could not sync to Google Calendar')
       }
     }
@@ -3764,7 +4795,7 @@ export const useAppStore = defineStore('app', () => {
       showToastMsg('Removed from Google Calendar')
     } catch (error) {
       if (error instanceof CalendarAuthError) calendarNeedsAuth.value = true
-      console.error('[Aureon] Calendar remove failed:', error)
+      reportError('[Aureon] Calendar remove failed:', error)
       showToastMsg('Could not remove the calendar event')
     }
   }
@@ -3873,7 +4904,6 @@ export const useAppStore = defineStore('app', () => {
       preferredDark: preferredDark.value,
       preferredLight: preferredLight.value,
       railCollapsed: railCollapsed.value,
-      approvedPRs: approvedPRs.value,
       autoRollover: autoRollover.value,
       lastAutoRolloverDay: lastAutoRolloverDay.value,
       hideCompleted: hideCompleted.value,
@@ -3889,6 +4919,12 @@ export const useAppStore = defineStore('app', () => {
       businessFinance: businessFinance.value,
       finScope: finScope.value,
       finMigrated: finMigrated.value,
+      githubIntegration: githubIntegration.value,
+      repos: repos.value,
+      ghIssues: ghIssues.value,
+      wallets: wallets.value,
+      calendarView: calendarView.value,
+      calendarFilters: calendarFilters.value,
     }
   }
   function resetData() {
@@ -3910,7 +4946,6 @@ export const useAppStore = defineStore('app', () => {
     goalOccurrences.value = []
     lastGoalGenDay.value = ''
     tags.value = DEFAULT_TAGS.slice()
-    approvedPRs.value = {}
     security.value = emptySecurity()
     themeSetting.value = 'auto'
     preferredDark.value = 'deepSpace'
@@ -3932,6 +4967,14 @@ export const useAppStore = defineStore('app', () => {
     businessFinance.value = emptyFinanceSettings()
     finScope.value = 'personal'
     finMigrated.value = false
+    githubIntegration.value = emptyGithubIntegration()
+    repos.value = []
+    ghIssues.value = []
+    wallets.value = []
+    calendarView.value = 'dayGridMonth'
+    calendarFilters.value = defaultFilters()
+    ghInstalled.value = null
+    ghError.value = ''
     syncedSig.value = new Map()
     syncFromCache.value = false
     syncHasPending.value = false
@@ -4013,6 +5056,8 @@ export const useAppStore = defineStore('app', () => {
       updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
       // Goal attachments (task 8), backfilled to [] for todos written before it.
       goalIds: Array.isArray(t.goalIds) ? t.goalIds.filter((n) => typeof n === 'number') : [],
+      // Calendar scheduling (section 15), backfilled to unscheduled.
+      ...scheduleFields(t),
     }))
     // Rollover fields arrived after tasks did; tasks stored before then read as
     // "never rolled over".
@@ -4042,6 +5087,11 @@ export const useAppStore = defineStore('app', () => {
         updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
         // Goal attachments (task 8), backfilled to [].
         goalIds: Array.isArray(t.goalIds) ? t.goalIds.filter((n) => typeof n === 'number') : [],
+        // GitHub link (section 13c), backfilled to null for tasks written
+        // before the integration existed.
+        github: githubLinkOf(t.github),
+        // Calendar scheduling (section 15), backfilled to unscheduled.
+        ...scheduleFields(t),
       }))
     // Edit-safe sync: a task whose dialog is open (or whose local edits are
     // unsaved) is protected — the guard holds the incoming version back rather
@@ -4231,10 +5281,6 @@ export const useAppStore = defineStore('app', () => {
     for (const item of [...todos.value, ...tasks.value, ...ideas.value, ...stocks.value])
       vocab = withTag(vocab, item.tag || '')
     tags.value = vocab
-    approvedPRs.value =
-      data.approvedPRs && typeof data.approvedPRs === 'object'
-        ? (data.approvedPRs as Record<string, boolean>)
-        : {}
     security.value =
       data.security && typeof data.security === 'object'
         ? { ...emptySecurity(), ...(data.security as Partial<SecuritySettings>) }
@@ -4316,6 +5362,42 @@ export const useAppStore = defineStore('app', () => {
     } else {
       transactions.value = []
     }
+    // GitHub integration (section 13). Every field goes through a strict
+    // sanitiser rather than a spread, so nothing unexpected — least of all
+    // anything token-shaped — can ride in from a stored document.
+    githubIntegration.value = sanitizeIntegration(data.githubIntegration)
+    repos.value = Array.isArray(data.repos)
+      ? data.repos.map(sanitizeRepo).filter((r): r is LinkedRepo => r !== null)
+      : []
+    ghIssues.value = Array.isArray(data.ghIssues)
+      ? data.ghIssues.map(sanitizeIssue).filter((i): i is GithubIssue => i !== null)
+      : []
+    // Wallets. Every field is checked on read: an unknown chain, or an address
+    // that no longer validates, is dropped rather than shown as if it were fine.
+    wallets.value = stamped<Wallet>(data.wallets)
+      .filter((w) => isChainKey(w.chain) && typeof w.address === 'string' && w.address.length > 0)
+      .map((w, i) => ({
+        ...w,
+        label: typeof w.label === 'string' ? w.label : '',
+        network: w.network === 'testnet' ? 'testnet' : 'mainnet',
+        memoTag: typeof w.memoTag === 'string' && w.memoTag ? w.memoTag : null,
+        isDefault: w.isDefault === true,
+        order: typeof w.order === 'number' ? w.order : i,
+        notes: typeof w.notes === 'string' ? w.notes : '',
+        balanceEnabled: w.balanceEnabled === true,
+        balance: w.balance && typeof w.balance === 'object' ? w.balance : null,
+      }))
+
+    // Calendar preferences: the last view and the filter chips.
+    calendarView.value = isCalendarView(data.calendarView) ? data.calendarView : 'dayGridMonth'
+    calendarFilters.value =
+      data.calendarFilters && typeof data.calendarFilters === 'object'
+        ? { ...defaultFilters(), ...(data.calendarFilters as Partial<CalendarFilters>) }
+        : defaultFilters()
+
+    // A snapshot may carry issues a webhook mirrored while this client was
+    // away; reconcile them with their tasks through the sync guard.
+    syncIssuesToTasks()
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -4333,7 +5415,7 @@ export const useAppStore = defineStore('app', () => {
       .catch((error) => {
         syncState.value = 'error'
         cloudError.value = 'Could not save changes to Firebase.'
-        console.error('[Aureon] Cloud save failed:', error)
+        reportError('[Aureon] Cloud save failed:', error)
       })
   }
   function scheduleSave() {
@@ -4359,7 +5441,7 @@ export const useAppStore = defineStore('app', () => {
       .catch((error) => {
         syncState.value = 'error'
         cloudError.value = 'Could not save changes to Firebase.'
-        console.error('[Aureon] Cloud save failed:', error)
+        reportError('[Aureon] Cloud save failed:', error)
         throw error
       })
   }
@@ -4370,6 +5452,7 @@ export const useAppStore = defineStore('app', () => {
       cloudUnsub = null
     }
     clearTimeout(saveTimer)
+    stopGithubPolling()
     cloudReady.value = false
     cloudError.value = ''
     syncState.value = 'idle'
@@ -4396,11 +5479,14 @@ export const useAppStore = defineStore('app', () => {
       setTimeout(() => {
         void runAutoRolloverIfDue()
         runGoalGenerationIfDue()
+        // Webhooks are primary; this is the every-10-minutes conditional
+        // fallback for a delivery that never arrived.
+        startGithubPolling()
       }, 0)
     } catch (error) {
       cloudError.value = 'Could not load your Firebase data.'
       syncState.value = 'error'
-      console.error('[Aureon] Cloud load failed:', error)
+      reportError('[Aureon] Cloud load failed:', error)
       return
     }
     // Live updates from other devices. includeMetadataChanges so the pending /
@@ -4424,7 +5510,7 @@ export const useAppStore = defineStore('app', () => {
       (error) => {
         cloudError.value = 'Firebase realtime sync was interrupted.'
         syncState.value = 'error'
-        console.error('[Aureon] Cloud listener failed:', error)
+        reportError('[Aureon] Cloud listener failed:', error)
       },
     )
   }
@@ -4460,7 +5546,6 @@ export const useAppStore = defineStore('app', () => {
         preferredDark,
         preferredLight,
         railCollapsed,
-        approvedPRs,
         autoRollover,
         lastAutoRolloverDay,
         hideCompleted,
@@ -4476,6 +5561,12 @@ export const useAppStore = defineStore('app', () => {
         businessFinance,
         finScope,
         finMigrated,
+        githubIntegration,
+        repos,
+        ghIssues,
+        wallets,
+        calendarView,
+        calendarFilters,
       ],
       scheduleSave,
       { deep: true },
@@ -4543,8 +5634,69 @@ export const useAppStore = defineStore('app', () => {
     noteView,
     noteViewClosing,
     openNote,
-    githubCache,
-    approvedPRs,
+    githubIntegration,
+    repos,
+    ghIssues,
+    ghInstalled,
+    ghBusy,
+    ghError,
+    githubConnected,
+    githubConfigured,
+    githubPaused,
+    githubInstallUrl,
+    connectGithub,
+    disconnectGithub,
+    loadInstalledRepos,
+    repoById,
+    linkRepo,
+    unlinkRepo,
+    toggleRepoLink,
+    setRepoSync,
+    setRepoLabelFilter,
+    wallets,
+    walletsByChain,
+    walletById,
+    defaultWalletFor,
+    calendarView,
+    calendarFilters,
+    beginCalendarDrag,
+    endCalendarDrag,
+    rescheduleItem,
+    rescheduleMany,
+    duplicateScheduled,
+    rescheduleReminder,
+    createScheduledItem,
+    unscheduleItem,
+    setCalendarView,
+    setCalendarFilters,
+    addWallet,
+    updateWallet,
+    removeWallet,
+    moveWallet,
+    setDefaultWallet,
+    setWalletBalanceEnabled,
+    fetchWalletBalance,
+    repoActivity,
+    activityOf,
+    refreshRepoIssues,
+    pollGithubOnce,
+    startGithubPolling,
+    stopGithubPolling,
+    loadRepoActivity,
+    createIssueFromTask,
+    linkIssueToTask,
+    unlinkIssueFromTask,
+    linkableIssues,
+    createTaskFromIssue,
+    createTasksFromIssues,
+    pushTaskToIssue,
+    ingestGithubIssues,
+    ingestGithubDeliveries,
+    syncIssuesToTasks,
+    issuesOfRepo,
+    issueByKey,
+    pauseGithubSync,
+    resumeGithubSync,
     draggingId,
     draggingTodoId,
     activeNotif,
@@ -4670,9 +5822,6 @@ export const useAppStore = defineStore('app', () => {
     createShareLink,
     dismissShared,
     addSharedItem,
-    attachRepo,
-    approvePR,
-    importIssue,
     setDragId,
     dropOnTask,
     dropOnGroup,
