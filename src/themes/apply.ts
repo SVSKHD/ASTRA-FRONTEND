@@ -63,14 +63,3 @@ export function applyThemeToDom(key: ThemeKey, setting: ThemeSetting): void {
     /* private mode / quota — the Firestore copy still syncs */
   }
 }
-
-// The theme setting persisted to localStorage (mirrors the Firestore value), read
-// synchronously so the app can honour it before the Firestore doc arrives.
-export function readStoredSetting(): ThemeSetting | null {
-  try {
-    const v = localStorage.getItem(LS_THEME_SETTING)
-    return v === 'auto' || (v && Object.hasOwn(THEMES, v)) ? (v as ThemeSetting) : null
-  } catch {
-    return null
-  }
-}

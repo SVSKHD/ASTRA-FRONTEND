@@ -1337,34 +1337,6 @@ export function dialogCard(c: Theme, closing: boolean): Style {
   }
 }
 
-// The folding part of a day card. Animating grid-template-rows from 0fr to 1fr
-// is what gives the accordion a real height transition without anyone having to
-// measure the content — the row stays in the DOM, so there is nothing to jump.
-// Slow and eased on purpose: this is the motion you watch on every toggle.
-export function dayBody(open: boolean): Style {
-  return {
-    display: 'grid',
-    gridTemplateRows: open ? '1fr' : '0fr',
-    opacity: open ? 1 : 0,
-    // Cancels the card's gap while folded, so a closed day is exactly its header.
-    marginTop: open ? 0 : -9,
-    transition:
-      'grid-template-rows .55s cubic-bezier(.22,1,.36,1), opacity .45s ease, margin-top .55s cubic-bezier(.22,1,.36,1)',
-  }
-}
-
-// One position dot under the mobile tab carousel. The current tab's dot
-// stretches into a pill so the position reads without counting.
-export function tabDot(c: Theme, active: boolean): Style {
-  return {
-    width: active ? 14 : 5,
-    height: 5,
-    borderRadius: 3,
-    background: active ? c.accent : c.border,
-    transition: 'width .3s cubic-bezier(.5,1.4,.35,1), background .3s ease',
-  }
-}
-
 // The note reader/editor. Deliberately bigger than dialogCard — a note is the
 // content, not a form, and it stays up until it is closed.
 export function noteViewCard(c: Theme, isMobile: boolean, closing: boolean): Style {
@@ -1389,21 +1361,6 @@ export function noteViewCard(c: Theme, isMobile: boolean, closing: boolean): Sty
     animation: closing
       ? 'springOut .22s ease forwards'
       : 'springIn .4s cubic-bezier(.34,1.56,.64,1) both',
-  }
-}
-
-// A day card. `active` lights the dashed border up while a drag is in flight
-// (tasks only — todo days are not drop targets, they just share the shell).
-export function dayGroupCard(c: Theme, active: boolean): Style {
-  return {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 9,
-    padding: '10px 12px 12px',
-    borderRadius: 18,
-    border: '1.5px dashed ' + (active ? c.accent : c.border),
-    background: active ? c.input : 'transparent',
-    transition: 'border-color .25s ease, background .25s ease',
   }
 }
 
@@ -1454,40 +1411,6 @@ export function tagChip(c: Theme, tag: string, dark: boolean): Style {
     border: '1px solid ' + col,
     color: c.mono ? c.text : col,
     letterSpacing: '0.03em',
-  }
-}
-
-// A tab in the status filter above the day cards. Selected tabs take their
-// state's colour so the filter and the tallies below it agree.
-export function filterTab(c: Theme, status: ItemStatus | 'all', selected: boolean): Style {
-  const col = status === 'all' ? c.accent : statusColor(c, status)
-  return {
-    fontSize: 11,
-    fontWeight: 600,
-    padding: '6px 12px',
-    borderRadius: 999,
-    border: '1px solid ' + (selected ? col : c.border),
-    background: selected ? c.input : 'transparent',
-    color: selected ? col : c.dim,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    transition: 'color .25s ease, border-color .25s ease, background .25s ease',
-  }
-}
-
-// The compact "3 pending" chip in a day-group header.
-export function statusStat(c: Theme, status: ItemStatus, active: boolean): Style {
-  const col = statusColor(c, status)
-  return {
-    fontSize: 10,
-    fontWeight: 600,
-    padding: '3px 8px',
-    borderRadius: 999,
-    border: '1px solid ' + (active ? col : c.border),
-    color: active ? col : c.dim,
-    background: active ? c.input : 'transparent',
-    opacity: active ? 1 : 0.55,
-    whiteSpace: 'nowrap',
   }
 }
 

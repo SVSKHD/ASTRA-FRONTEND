@@ -1,7 +1,7 @@
 // Pure logic behind the flat, any-depth task hierarchy. Every task is stored as
 // a flat record carrying parentId/order/depth/rootId; the tree is rebuilt in
 // memory here (never persisted as nested data). Kept store-free so it is testable
-// in isolation and reused by useTaskTree, the drag engine and the store's move.
+// in isolation and reused by the tree views, the drag engine and the store's move.
 //
 //   parentId === null   → a top-level (root) node
 //   order               → fractional sort key within a sibling group

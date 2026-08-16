@@ -137,12 +137,6 @@ export async function fetchShare(shareId: string): Promise<ShareLoad> {
   }
 }
 
-export async function setSharePublic(shareId: string, isPublic: boolean): Promise<void> {
-  const cloud = await loadFirestore()
-  if (!cloud) return
-  await cloud.fs.updateDoc(cloud.fs.doc(cloud.db, SHARES_COLLECTION, shareId), { isPublic })
-}
-
 export async function deleteShare(shareId: string): Promise<void> {
   const cloud = await loadFirestore()
   if (!cloud) return

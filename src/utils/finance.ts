@@ -33,12 +33,6 @@ export function filterTxns(txns: Txn[], q: TxnQuery): Txn[] {
   )
 }
 
-// An income turn counts as "received" unless it is an unconfirmed recurring one
-// (confirmed === false), which is only "expected".
-export function isReceived(t: Txn): boolean {
-  return t.kind === 'income' && t.confirmed !== false
-}
-
 export interface MonthTotals {
   incomeReceived: number
   incomeExpected: number // unconfirmed recurring income

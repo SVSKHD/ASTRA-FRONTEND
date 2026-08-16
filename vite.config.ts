@@ -105,6 +105,11 @@ export default defineConfig({
     },
   },
   build: {
+    // The only chunk over Rollup's 500KB default is the Firestore SDK, which is
+    // a single vendor module that cannot be split further and no longer loads
+    // until after sign-in. The limit is raised to just above it so a genuinely
+    // oversized chunk still warns rather than the build shipping a standing one.
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
         // Split the vendors that change on different schedules from the app and

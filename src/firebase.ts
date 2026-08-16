@@ -127,10 +127,6 @@ function setPersistence(mode: PersistenceMode): void {
   persistenceListeners.clear()
 }
 
-export function currentPersistenceMode(): PersistenceMode {
-  return persistenceMode
-}
-
 export function onPersistenceResolved(listener: PersistenceListener): void {
   if (persistenceResolved) {
     listener(persistenceMode)

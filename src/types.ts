@@ -460,7 +460,7 @@ export interface Finance extends Timestamped {
 // Monthly-income settings for the expenses view. Income is tracked per month
 // (keyed 'YYYY-MM') so a raise mid-year does not retroactively rewrite older
 // months; `monthlyIncome` is the most recent value set and is the fallback for
-// any month that has no explicit entry (see useMonthlyBudget). Amounts are in
+// any month that has no explicit entry. Amounts are in
 // whole/decimal rupees — the app is INR-only for now.
 export interface FinanceSettings {
   currency: 'INR'
