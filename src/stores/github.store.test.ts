@@ -1,0 +1,232 @@
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { useAppStore } from '@/stores/app'
+import { useSyncGuard } from '@/composables/useSyncGuard'
+import type { GithubIssue, LinkedRepo, Task } from '@/types'
+
+function makeTask(id: number, over: Partial<Task> = {}): Task {
+  return {
+    id,
+    title: 'task ' + id,
+    tag: '',
+    done: false,
+    status: 'pending',
+    deadline: '',
+    notes: '',
+    repo: '',
+    rolledOverAt: null,
+    rolloverCount: 0,
+    completedAt: null,
+    linked: [],
+    parents: [],
+    reminderIds: [],
+    sourceRef: null,
+    parentId: null,
+    order: 0,
+    depth: 0,
+    rootId: id,
+    localRev: 0,
+    updatedBy: '',
+    createdAt: 0,
+    updatedAt: 0,
+    github: null,
+    ...over,
+  }
+}
+
+function makeRepo(over: Partial<LinkedRepo> = {}): LinkedRepo {
+  return {
+    id: 'octo__demo',
+    owner: 'octo',
+    name: 'demo',
+    fullName: 'octo/demo',
+    defaultBranch: 'main',
+    private: false,
+    htmlUrl: 'https://github.com/octo/demo',
+    stars: 0,
+    openIssuesCount: 1,
+    language: 'TypeScript',
+    pushedAt: 0,
+    linkedAt: 0,
+    syncEnabled: true,
+    labelFilter: [],
+    lastSyncAt: 0,
+    etag: '',
+    ...over,
+  }
+}
+
+function makeIssue(over: Partial<GithubIssue> = {}): GithubIssue {
+  return {
+    id: 'octo__demo__12',
+    repoId: 'octo__demo',
+    number: 12,
+    title: 'Fix the thing',
+    body: '',
+    state: 'open',
+    labels: [],
+    assignees: [],
+    author: 'octo',
+    htmlUrl: 'https://github.com/octo/demo/issues/12',
+    createdAt: 0,
+    updatedAt: 1000,
+    closedAt: null,
+    commentsCount: 0,
+    linkedTaskId: 1,
+    etag: '',
+    ...over,
+  }
+}
+
+const link = {
+  repoId: 'octo__demo',
+  issueNumber: 12,
+  issueUrl: 'https://github.com/octo/demo/issues/12',
+  state: 'open' as const,
+  syncedAt: 0,
+}
+
+describe('repo linking', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('links a repo once and refreshes it on a second link', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.linkRepo(makeRepo({ stars: 42 }))
+    expect(app.repos).toHaveLength(1)
+    expect(app.repos[0].stars).toBe(42)
+  })
+
+  it('keeps the local sync toggle and label filter across a metadata refresh', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.setRepoSync('octo__demo', false)
+    app.setRepoLabelFilter('octo__demo', [' bug ', ''])
+    app.linkRepo(makeRepo({ stars: 7 }))
+    expect(app.repos[0].syncEnabled).toBe(false)
+    expect(app.repos[0].labelFilter).toEqual(['bug'])
+  })
+
+  it('unlinking drops the repo and its mirrored issues but leaves the task link', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.tasks = [makeTask(1, { github: link })]
+    app.ingestGithubIssues([makeIssue()])
+    app.unlinkRepo('octo__demo')
+    expect(app.repos).toEqual([])
+    expect(app.ghIssues).toEqual([])
+    expect(app.tasks[0].github).not.toBeNull()
+  })
+
+  it('toggleRepoLink flips both ways', () => {
+    const app = useAppStore()
+    app.toggleRepoLink(makeRepo())
+    expect(app.repos).toHaveLength(1)
+    app.toggleRepoLink(makeRepo())
+    expect(app.repos).toHaveLength(0)
+  })
+})
+
+describe('webhook ingestion', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('marks the linked task done when the issue closes (acceptance 56)', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.tasks = [makeTask(1, { status: 'progress', github: link })]
+    app.ingestGithubDeliveries([
+      {
+        event: 'issues',
+        action: 'closed',
+        repoId: 'octo__demo',
+        deliveryId: 'd1',
+        receivedAt: 1,
+        issue: {
+          number: 12,
+          title: 'Fix the thing',
+          state: 'closed',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+      },
+    ])
+    expect(app.tasks[0].status).toBe('done')
+    expect(app.tasks[0].done).toBe(true)
+    expect(app.tasks[0].github?.state).toBe('closed')
+  })
+
+  it('moves the task back to in-progress when the issue reopens', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.tasks = [makeTask(1, { status: 'done', done: true, github: { ...link, state: 'closed' } })]
+    app.ingestGithubIssues([makeIssue({ state: 'open', updatedAt: 5000 })])
+    expect(app.tasks[0].status).toBe('progress')
+  })
+
+  it('ignores a delivery for a repo this workspace has not linked', () => {
+    const app = useAppStore()
+    app.tasks = [makeTask(1, { github: link })]
+    const applied = app.ingestGithubDeliveries([
+      {
+        event: 'issues',
+        action: 'closed',
+        repoId: 'octo__demo',
+        deliveryId: 'd1',
+        receivedAt: 1,
+        issue: { number: 12, state: 'closed' },
+      },
+    ])
+    expect(applied).toBe(0)
+    expect(app.tasks[0].status).toBe('pending')
+  })
+
+  it('applies a push event to the repo record', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.ingestGithubDeliveries([
+      {
+        event: 'push',
+        action: '',
+        repoId: 'octo__demo',
+        deliveryId: 'd2',
+        receivedAt: 9,
+        repository: { pushed_at: '2024-05-05T00:00:00Z', open_issues_count: 6 },
+      },
+    ])
+    expect(app.repos[0].pushedAt).toBe(Date.parse('2024-05-05T00:00:00Z'))
+    expect(app.repos[0].openIssuesCount).toBe(6)
+  })
+
+  it('mirrors an issue with no linked task without inventing one', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.ingestGithubIssues([makeIssue({ linkedTaskId: null })])
+    expect(app.ghIssues).toHaveLength(1)
+    expect(app.tasks).toEqual([])
+  })
+})
+
+describe('the sync guard holds webhooks off an open dialog', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('defers the effect while the task dialog is open, then replays it on close (acceptance 57)', () => {
+    const app = useAppStore()
+    const guard = useSyncGuard()
+    app.linkRepo(makeRepo())
+    app.tasks = [makeTask(1, { status: 'progress', github: link })]
+
+    // The user opens the task and renames it.
+    app.openEdit('task', 1)
+    app.updateTask(1, 'title', 'My edit')
+
+    // A webhook lands mid-edit saying the issue closed.
+    app.ingestGithubIssues([makeIssue({ state: 'closed', updatedAt: 5000 })])
+    expect(app.tasks[0].status).toBe('progress')
+    expect(app.tasks[0].title).toBe('My edit')
+
+    // Closing the dialog writes the edit first, then replays the webhook.
+    app.closeItemDialog()
+    expect(guard.isEditing(1)).toBe(false)
+    expect(app.tasks[0].title).toBe('My edit')
+    expect(app.tasks[0].status).toBe('done')
+  })
+})

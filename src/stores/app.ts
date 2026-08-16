@@ -16,11 +16,21 @@ import {
 } from '@/utils/ghProxy'
 import {
   githubLinkOf,
+  ingestIssues,
   repoFromApi,
   sanitizeIntegration,
   sanitizeIssue,
   sanitizeRepo,
 } from '@/utils/githubModel'
+import {
+  effectsForIssues,
+  isGhDelivery,
+  issueFromDelivery,
+  mergeDeferred,
+  partitionEffects,
+  repoPatchFromDelivery,
+  type TaskEffect,
+} from '@/utils/ghSync'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
 import { createShare, deleteShare, updateShareItem, writeShareDoc } from '@/utils/shares'
 import {
@@ -1378,6 +1388,9 @@ export const useAppStore = defineStore('app', () => {
         }
       : bumped
     tasks.value = (heldTasks ?? tasks.value).map((t) => (t.id === id ? mergedItem : t))
+    // The edit is written; now let any webhook that arrived while the dialog was
+    // open have its say (acceptance 57).
+    replayDeferredGhEffects(id)
     try {
       await saveCloudNow()
     } catch {
@@ -3229,6 +3242,93 @@ export const useAppStore = defineStore('app', () => {
     repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, labelFilter: clean } : r))
   }
 
+  // ---- Webhook ingestion (13f) --------------------------------------------
+  // Deliveries land here already verified: the Cloud Function checks the
+  // X-Hub-Signature-256 HMAC and rejects a mismatch before anything is written.
+  // This side turns them into mirrored issues, repo metadata and the one narrow
+  // task effect the spec allows — always through the section-3 sync guard.
+
+  // Effects held back because their task's dialog was open when they arrived.
+  // Replayed by flushTaskEdit once the dialog closes, so the webhook is neither
+  // lost nor allowed to clobber the edit (acceptance 57).
+  let deferredGhEffects: TaskEffect[] = []
+
+  function applyTaskEffect(effect: TaskEffect) {
+    const cur = tasks.value.find((t) => t.id === effect.taskId)
+    if (!cur) return
+    // GitHub wins for the issue fields it owns (state, url); the task's own
+    // fields — goalIds, parentId, estimates — are never touched from here.
+    const withLink: Task = { ...cur, github: { ...effect.link, syncedAt: Date.now() } }
+    tasks.value = tasks.value.map((t) =>
+      t.id === effect.taskId
+        ? effect.status === cur.status
+          ? withLink
+          : withStatus(withLink, effect.status)
+        : t,
+    )
+    if (effect.status === 'done' && cur.status !== 'done')
+      cancelRemindersFor('tasks', effect.taskId)
+  }
+
+  // Reconcile every mirrored issue against its task. Called after a snapshot
+  // hydrate and after any ingestion, so the two sides converge whichever path
+  // the data arrived by.
+  function syncIssuesToTasks() {
+    const effects = effectsForIssues(ghIssues.value, tasks.value)
+    if (!effects.length) return
+    const { apply, deferred } = partitionEffects(effects, syncGuard.editingIds)
+    for (const effect of apply) applyTaskEffect(effect)
+    if (deferred.length) deferredGhEffects = mergeDeferred(deferredGhEffects, deferred)
+  }
+
+  // Replay whatever a webhook wanted to do to this task while its dialog was
+  // open. The local edit has already been written by the time this runs.
+  function replayDeferredGhEffects(taskId: number) {
+    const mine = deferredGhEffects.filter((e) => e.taskId === taskId)
+    if (!mine.length) return
+    deferredGhEffects = deferredGhEffects.filter((e) => e.taskId !== taskId)
+    for (const effect of mine) applyTaskEffect(effect)
+  }
+
+  function ingestGithubIssues(incoming: GithubIssue[]) {
+    if (!incoming.length) return
+    ghIssues.value = ingestIssues(ghIssues.value, incoming)
+    patchIntegration({ lastSyncAt: Date.now() })
+    syncIssuesToTasks()
+  }
+
+  function patchRepo(repoId: string, patch: Partial<LinkedRepo>) {
+    repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, ...patch } : r))
+  }
+
+  // Drain a batch of verified deliveries. Unknown events and deliveries for
+  // repos this workspace has not linked are ignored rather than half-applied.
+  function ingestGithubDeliveries(raw: unknown[]): number {
+    const deliveries = (Array.isArray(raw) ? raw : []).filter(isGhDelivery)
+    const issues: GithubIssue[] = []
+    let applied = 0
+    for (const delivery of deliveries) {
+      if (!repoById(delivery.repoId)) continue
+      applied++
+      const issue = issueFromDelivery(delivery)
+      if (issue) issues.push(issue)
+      const repoPatch = repoPatchFromDelivery(delivery)
+      if (repoPatch) patchRepo(delivery.repoId, repoPatch)
+    }
+    // A repo's label filter is a display filter, not an ingestion filter for
+    // issues already mirrored: an issue that stops matching still needs its
+    // final state, or a linked task would be stranded mid-flight.
+    ingestGithubIssues(issues)
+    return applied
+  }
+
+  function issuesOfRepo(repoId: string): GithubIssue[] {
+    return ghIssues.value.filter((i) => i.repoId === repoId)
+  }
+  function issueByKey(issueId: string): GithubIssue | undefined {
+    return ghIssues.value.find((i) => i.id === issueId)
+  }
+
   // ---- GitHub (mock) ------------------------------------------------------
   function fetchGithub(taskId: number, repo: string) {
     githubCache.value = { ...githubCache.value, [taskId]: { status: 'loading' } }
@@ -4533,6 +4633,9 @@ export const useAppStore = defineStore('app', () => {
     ghIssues.value = Array.isArray(data.ghIssues)
       ? data.ghIssues.map(sanitizeIssue).filter((i): i is GithubIssue => i !== null)
       : []
+    // A snapshot may carry issues a webhook mirrored while this client was
+    // away; reconcile them with their tasks through the sync guard.
+    syncIssuesToTasks()
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -4783,6 +4886,11 @@ export const useAppStore = defineStore('app', () => {
     toggleRepoLink,
     setRepoSync,
     setRepoLabelFilter,
+    ingestGithubIssues,
+    ingestGithubDeliveries,
+    syncIssuesToTasks,
+    issuesOfRepo,
+    issueByKey,
     pauseGithubSync,
     resumeGithubSync,
     approvedPRs,
