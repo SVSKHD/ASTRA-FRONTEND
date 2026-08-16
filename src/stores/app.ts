@@ -502,7 +502,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Todos --------------------------------------------------------------
-  function addTodo(text: string, tag = '', description = '') {
+  // `fields` carries anything beyond the three common arguments — today that is
+  // the calendar's scheduling fields on a duplicated todo.
+  function addTodo(text: string, tag = '', description = '', fields: Partial<Todo> = {}) {
     const t = text.trim()
     if (!t) return
     const newId = id()
@@ -533,6 +535,7 @@ export const useAppStore = defineStore('app', () => {
         rootId: newId,
         localRev: 0,
         updatedBy: uid ?? '',
+        ...fields,
         ...stamps(),
       },
     ]
@@ -3374,6 +3377,144 @@ export const useAppStore = defineStore('app', () => {
     return { id: newId, error: '' }
   }
 
+  // ---- Calendar writes (section 15 SYNC) ----------------------------------
+  // Every drag and resize is optimistic and rolls back on failure, and the
+  // dragged item is held in the sync guard for the duration — so a snapshot
+  // arriving mid-drag is buffered rather than snapping the event back under the
+  // pointer (acceptance 69).
+
+  function beginCalendarDrag(type: 'task' | 'todo', itemId: number) {
+    if (type !== 'task') return
+    const task = tasks.value.find((t) => t.id === itemId)
+    if (task) syncGuard.beginEdit(itemId, task)
+  }
+  function endCalendarDrag(type: 'task' | 'todo', itemId: number) {
+    if (type !== 'task') return
+    if (syncGuard.isEditing(itemId)) void flushTaskEdit(itemId)
+  }
+
+  // Apply a scheduling patch to a task or todo. Returns false (having restored
+  // the previous value) when the write fails.
+  async function rescheduleItem(
+    type: 'task' | 'todo',
+    itemId: number,
+    patch: Schedulable,
+  ): Promise<boolean> {
+    const listRef = type === 'task' ? tasks : todos
+    const before = listRef.value
+    const target = before.find((i) => i.id === itemId)
+    if (!target) return false
+    // Optimistic: the grid has already moved the event, so the store follows
+    // immediately and only the failure path is visible.
+    listRef.value = before.map((item) =>
+      item.id === itemId
+        ? touched({
+            ...item,
+            startAt: patch.startAt,
+            endAt: patch.endAt,
+            allDay: patch.allDay ?? false,
+            durationMins: patch.durationMins ?? null,
+          })
+        : item,
+    ) as typeof before
+    if (type === 'task') syncGuard.markTouched(itemId, 'startAt')
+    try {
+      await saveCloudNow()
+      return true
+    } catch {
+      listRef.value = before
+      showToastMsg('Could not reschedule — reverted')
+      return false
+    }
+  }
+
+  // Several selected events moved at once: one write, not one per event.
+  async function rescheduleMany(
+    moves: { type: 'task' | 'todo'; id: number; patch: Schedulable }[],
+  ): Promise<boolean> {
+    if (!moves.length) return true
+    const beforeTasks = tasks.value
+    const beforeTodos = todos.value
+    const apply = <T extends { id: number }>(list: T[], type: 'task' | 'todo') =>
+      list.map((item) => {
+        const move = moves.find((m) => m.type === type && m.id === item.id)
+        return move
+          ? touched({
+              ...item,
+              startAt: move.patch.startAt,
+              endAt: move.patch.endAt,
+              allDay: move.patch.allDay ?? false,
+              durationMins: move.patch.durationMins ?? null,
+            })
+          : item
+      })
+    tasks.value = apply(tasks.value, 'task')
+    todos.value = apply(todos.value, 'todo')
+    try {
+      await saveCloudNow()
+      return true
+    } catch {
+      tasks.value = beforeTasks
+      todos.value = beforeTodos
+      showToastMsg('Could not reschedule — reverted')
+      return false
+    }
+  }
+
+  // Alt/Option-drag: duplicate at the new time rather than moving.
+  function duplicateScheduled(
+    type: 'task' | 'todo',
+    itemId: number,
+    patch: Schedulable,
+  ): number | null {
+    if (type === 'task') {
+      const task = tasks.value.find((t) => t.id === itemId)
+      if (!task) return null
+      const newId = addTask(task.title, task.tag, {
+        notes: task.notes,
+        deadline: task.deadline,
+        startAt: patch.startAt,
+        endAt: patch.endAt,
+        allDay: patch.allDay,
+        durationMins: patch.durationMins,
+      })
+      return newId ?? null
+    }
+    const todo = todos.value.find((t) => t.id === itemId)
+    if (!todo) return null
+    const newId = addTodo(todo.text, todo.tag, todo.description, {
+      startAt: patch.startAt,
+      endAt: patch.endAt,
+      allDay: patch.allDay,
+      durationMins: patch.durationMins,
+    })
+    return newId ?? null
+  }
+
+  // Moving a reminder on the grid moves its fire time — and, when it already
+  // has a Google Calendar event, patches THAT event by its stored id rather
+  // than creating a second one.
+  async function rescheduleReminder(reminderId: number, startAt: number): Promise<boolean> {
+    const before = reminders.value
+    const target = before.find((r) => r.id === reminderId)
+    if (!target) return false
+    const local = new Date(startAt)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const value = `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}T${pad(local.getHours())}:${pad(local.getMinutes())}`
+    patchReminder(reminderId, { start: value })
+    try {
+      await saveCloudNow()
+    } catch {
+      reminders.value = before
+      showToastMsg('Could not reschedule — reverted')
+      return false
+    }
+    // Two-way with Google Calendar for reminders that already sync: match on
+    // the stored external event id, so nothing is ever duplicated.
+    if (target.calEventId && hasCalendarToken()) await syncCalendar(reminderId)
+    return true
+  }
+
   // ---- Calendar preferences (section 15) ----------------------------------
   // The last view used and the filter chips ride in the workspace document, so
   // the tab opens where the user left it on every device.
@@ -5475,6 +5616,12 @@ export const useAppStore = defineStore('app', () => {
     defaultWalletFor,
     calendarView,
     calendarFilters,
+    beginCalendarDrag,
+    endCalendarDrag,
+    rescheduleItem,
+    rescheduleMany,
+    duplicateScheduled,
+    rescheduleReminder,
     setCalendarView,
     setCalendarFilters,
     addWallet,

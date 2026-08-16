@@ -13,19 +13,32 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
-import type { CalendarOptions, DatesSetArg } from '@fullcalendar/core'
+import type { CalendarOptions, DatesSetArg, EventDropArg } from '@fullcalendar/core'
+import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { useCalendar } from '@/composables/useCalendar'
 import CalEventCard from '@/components/CalEventCard.vue'
-import { CALENDAR_VIEWS, type CalEvent, type CalendarViewKey } from '@/utils/calendarEvents'
+import {
+  CALENDAR_VIEWS,
+  durationLabel,
+  type CalEvent,
+  type CalendarViewKey,
+} from '@/utils/calendarEvents'
+import {
+  dropPatch,
+  isCopyDrag,
+  moveAllDaySpan,
+  resizePatch,
+  snapMinutesFor,
+} from '@/utils/calendarDrag'
 
 const app = useAppStore()
 const ui = useUiStore()
 const { c, s, dark, isMobile, panelStyle } = useStyles()
-const { calendarView, tags } = storeToRefs(app)
+const { calendarView, tags, tasks, todos } = storeToRefs(app)
 
 const calendar = useCalendar(() => dark.value)
 const { events, filters } = calendar
@@ -59,6 +72,73 @@ function onDatesSet(arg: DatesSetArg) {
 }
 function onJump() {
   if (jumpDate.value) api()?.gotoDate(jumpDate.value)
+}
+
+// --- drag to reschedule, resize to retime -----------------------------------
+// The grid has already moved the block by the time these fire, so the write is
+// optimistic; a failure rolls the store back and FullCalendar's own revert is
+// called so the two never disagree. The dragged item is held in the sync guard
+// for the duration, which is what stops a snapshot snapping it back (69).
+const dragging = ref(false)
+// Live duration while resizing ("1h 30m").
+const resizeHint = ref('')
+
+function scheduledOf(source: string, refId: number) {
+  if (source === 'task') return tasks.value.find((t) => t.id === refId)
+  if (source === 'todo') return todos.value.find((t) => t.id === refId)
+  return undefined
+}
+
+async function onEventDrop(arg: EventDropArg) {
+  const event = eventById(arg.event.id)
+  const start = arg.event.start?.getTime()
+  if (!event || start === undefined) return arg.revert()
+  hovered.value = null
+
+  if (event.source === 'reminder') {
+    if (!(await app.rescheduleReminder(event.refId, start))) arg.revert()
+    return
+  }
+  const type = event.source === 'todo' ? 'todo' : 'task'
+  const item = scheduledOf(event.source, event.refId)
+  if (!item) return arg.revert()
+
+  const allDay = arg.event.allDay
+  const patch =
+    allDay && item.allDay
+      ? // A multi-day span moved in month view keeps its length in days.
+        moveAllDaySpan(item, start)
+      : dropPatch(item, start, { allDay, snapMinutes: snapMinutesFor(arg.jsEvent) })
+
+  // Alt/Option-drag duplicates at the new time instead of moving.
+  if (isCopyDrag(arg.jsEvent)) {
+    arg.revert()
+    app.duplicateScheduled(type, event.refId, patch)
+    return
+  }
+  app.beginCalendarDrag(type, event.refId)
+  const ok = await app.rescheduleItem(type, event.refId, patch)
+  app.endCalendarDrag(type, event.refId)
+  if (!ok) arg.revert()
+}
+
+async function onEventResize(arg: EventResizeDoneArg) {
+  resizeHint.value = ''
+  const event = eventById(arg.event.id)
+  const start = arg.event.start?.getTime()
+  const end = arg.event.end?.getTime()
+  if (!event || start === undefined || end === undefined) return arg.revert()
+  const type = event.source === 'todo' ? 'todo' : 'task'
+  const item = scheduledOf(event.source, event.refId)
+  if (!item) return arg.revert()
+  // Which edge actually moved decides the rule: bottom changes only the end,
+  // top only the start.
+  const patch = resizePatch(item, { start, end })
+  if (!patch) return arg.revert()
+  app.beginCalendarDrag(type, event.refId)
+  const ok = await app.rescheduleItem(type, event.refId, patch)
+  app.endCalendarDrag(type, event.refId)
+  if (!ok) arg.revert()
 }
 
 // --- hover card (desktop) / long-press sheet (mobile) ------------------------
@@ -108,8 +188,11 @@ function onEventClick(arg: { event: { id: string }; jsEvent: MouseEvent }) {
   if (event) openEvent(event)
 }
 
-const fcEvents = computed(() =>
-  events.value.map((event) => ({
+// While a drag or resize is in flight the event list is frozen: a snapshot
+// landing mid-gesture must not re-layout the grid under the pointer.
+let frozenEvents: ReturnType<typeof toFcEvents> = []
+function toFcEvents(list: CalEvent[]) {
+  return list.map((event) => ({
     id: event.id,
     title: event.title,
     start: new Date(event.start),
@@ -127,8 +210,13 @@ const fcEvents = computed(() =>
       refId: event.refId,
       durationMins: event.durationMins,
     },
-  })),
-)
+  }))
+}
+const fcEvents = computed(() => {
+  if (dragging.value) return frozenEvents
+  frozenEvents = toFcEvents(events.value)
+  return frozenEvents
+})
 
 const options = computed<CalendarOptions>(() => ({
   plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
@@ -154,6 +242,33 @@ const options = computed<CalendarOptions>(() => ({
   views: { listMonth: { duration: { days: 30 }, buttonText: 'Agenda' } },
   events: fcEvents.value,
   datesSet: onDatesSet,
+  eventStartEditable: true,
+  eventDurationEditable: true,
+  // No remote reflow while a drag or resize is in flight — the grid must not
+  // re-layout under the pointer.
+  eventDragStart: () => {
+    dragging.value = true
+    hovered.value = null
+  },
+  eventDragStop: () => {
+    dragging.value = false
+  },
+  eventResizeStart: (arg) => {
+    dragging.value = true
+    hovered.value = null
+    resizeHint.value = durationLabel(
+      (arg.event.extendedProps as { durationMins: number }).durationMins,
+    )
+  },
+  eventResizeStop: (arg) => {
+    dragging.value = false
+    const start = arg.event.start?.getTime()
+    const end = arg.event.end?.getTime()
+    resizeHint.value =
+      start !== undefined && end !== undefined ? durationLabel((end - start) / 60_000) : ''
+  },
+  eventDrop: onEventDrop,
+  eventResize: onEventResize,
   eventClick: onEventClick,
   eventMouseEnter: onEventMouseEnter,
   eventMouseLeave: onEventMouseLeave,
@@ -198,6 +313,22 @@ const titleStyle = computed(() =>
   pxify({ fontSize: 14, fontWeight: 600, color: c.value.text, whiteSpace: 'nowrap' }),
 )
 const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
+const hintStyle = computed(() =>
+  pxify({
+    position: 'fixed',
+    bottom: 24,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 19,
+    fontSize: 12,
+    fontWeight: 600,
+    padding: '6px 12px',
+    borderRadius: 10,
+    background: c.value.glass,
+    border: '1px solid ' + c.value.border,
+    color: c.value.text,
+  }),
+)
 </script>
 
 <template>
@@ -280,6 +411,8 @@ const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
         </template>
       </FullCalendar>
     </div>
+
+    <div v-if="resizeHint" :style="hintStyle">{{ resizeHint }}</div>
 
     <CalEventCard
       v-if="hovered"
