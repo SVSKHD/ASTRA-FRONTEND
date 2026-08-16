@@ -12,6 +12,7 @@ import LocationSearch from '@/components/trips/LocationSearch.vue'
 import RichEditor from '@/components/RichEditor.vue'
 import type { GeoResult } from '@/utils/geo'
 import type { TripPlace } from '@/types'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const props = defineProps<{ tripId: number; places: TripPlace[]; active: number | null }>()
 const emit = defineEmits<{ (e: 'select', placeId: number): void }>()
@@ -249,11 +250,12 @@ const addBtn = () =>
 
         <div :style="field">
           <span :style="labelStyle()">Visited date &amp; time</span>
-          <input
-            :style="inputStyle()"
-            type="datetime-local"
-            :value="place.visitedAt"
-            @input="setField(place, 'visitedAt', ($event.target as HTMLInputElement).value)"
+          <GlassDatePicker
+            mode="datetime"
+            size="sm"
+            :model-value="place.visitedAt"
+            placeholder="Visited at"
+            @update:model-value="setField(place, 'visitedAt', String($event ?? ''))"
           />
         </div>
 

@@ -12,6 +12,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import { parseItemMetadata } from '@/utils/goals'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const emit = defineEmits<{ (e: 'close'): void; (e: 'created', goalId: number): void }>()
 
@@ -196,18 +197,17 @@ const cancelBtn = computed(() =>
 
       <div :style="dateRow">
         <label :style="fieldLabel">Start</label>
-        <input
-          type="date"
-          :style="s.input"
-          :value="goal?.startDate"
-          @change="set('startDate', ($event.target as HTMLInputElement).value)"
+        <GlassDatePicker
+          :model-value="goal?.startDate ?? ''"
+          placeholder="Start"
+          @update:model-value="set('startDate', String($event ?? ''))"
         />
         <label :style="fieldLabel">Target</label>
-        <input
-          type="date"
-          :style="s.input"
-          :value="goal?.targetDate"
-          @change="set('targetDate', ($event.target as HTMLInputElement).value)"
+        <GlassDatePicker
+          :model-value="goal?.targetDate ?? ''"
+          :min="goal?.startDate || null"
+          placeholder="Target"
+          @update:model-value="set('targetDate', String($event ?? ''))"
         />
       </div>
 

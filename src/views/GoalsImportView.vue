@@ -5,6 +5,7 @@
 // preview, and written in one atomic import. Re-importing the same URL offers a
 // merge into the existing goal instead of creating a duplicate.
 import { computed, ref, onMounted } from 'vue'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
@@ -196,9 +197,6 @@ const textInput = computed(() =>
 const mini = computed(() =>
   pxify({ ...s.value.input, width: 78, padding: '4px 6px', fontSize: 12 }),
 )
-const dueInput = computed(() =>
-  pxify({ ...s.value.input, width: 140, padding: '4px 6px', fontSize: 12 }),
-)
 const btn = computed(() =>
   pxify({
     fontSize: 12,
@@ -378,11 +376,11 @@ const mergeNote = computed(() =>
             placeholder="est m"
             @input="onEstimate(i, $event)"
           />
-          <input
-            :style="dueInput"
-            type="date"
-            :value="r.dueAt ?? ''"
-            @change="r.dueAt = ($event.target as HTMLInputElement).value"
+          <GlassDatePicker
+            size="sm"
+            :model-value="r.dueAt ?? ''"
+            placeholder="Due"
+            @update:model-value="r.dueAt = String($event ?? '')"
           />
           <button :style="btn" title="Move up" @click="moveRow(i, -1)">↑</button>
           <button :style="btn" title="Move down" @click="moveRow(i, 1)">↓</button>

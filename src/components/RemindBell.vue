@@ -6,6 +6,7 @@
 // reminder is already attached the button shows a small chip with the next fire
 // time ("in 3h"); tapping the chip opens that reminder.
 import { computed, ref } from 'vue'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
@@ -184,18 +185,6 @@ const selectStyle = computed(() =>
     color: c.value.text,
   }),
 )
-const customInput = computed(() =>
-  pxify({
-    flex: 1,
-    fontSize: 11,
-    padding: '6px 8px',
-    borderRadius: 9,
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    colorScheme: dark.value ? 'dark' : 'light',
-  }),
-)
 const setBtn = computed(() =>
   pxify({
     fontSize: 11,
@@ -258,11 +247,12 @@ const backdrop = pxify({ position: 'fixed', inset: 0, zIndex: 20 })
           </select>
         </div>
         <div :style="rowFlex">
-          <input
-            :style="customInput"
-            type="datetime-local"
+          <GlassDatePicker
             v-model="customStart"
-            aria-label="Custom date and time"
+            mode="datetime"
+            size="sm"
+            label="Custom date and time"
+            placeholder="Pick date and time"
           />
           <button :style="setBtn" :disabled="!customStart" @click="chooseCustom">Set</button>
         </div>

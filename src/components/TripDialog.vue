@@ -17,6 +17,7 @@ import TripTimeline from '@/components/trips/TripTimeline.vue'
 import TripPlacesEditor from '@/components/trips/TripPlacesEditor.vue'
 import { noteTitle } from '@/utils/notes'
 import type { Note, Trip } from '@/types'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
 const router = useRouter()
@@ -370,11 +371,10 @@ const dangerBtn = computed(() =>
         </div>
         <div :style="field">
           <span :style="labelStyle">Planned date</span>
-          <input
-            :style="inputStyle"
-            type="date"
-            :value="draftVal('date')"
-            @input="setDraft('date', ($event.target as HTMLInputElement).value)"
+          <GlassDatePicker
+            :model-value="draftVal('date')"
+            placeholder="Planned date"
+            @update:model-value="setDraft('date', String($event ?? ''))"
           />
         </div>
         <div :style="field">
@@ -430,7 +430,7 @@ const dangerBtn = computed(() =>
         <div v-if="visitedPromptOpen" :style="pxify({ ...rowWrapRaw, alignItems: 'flex-end' })">
           <div :style="pxify({ ...fieldRaw, flex: 1 })">
             <span :style="labelStyle">Visited on</span>
-            <input :style="inputStyle" type="date" v-model="visitedDate" />
+            <GlassDatePicker v-model="visitedDate" placeholder="Visited on" />
           </div>
           <button :style="primaryBtn" @click="confirmVisited">Confirm</button>
           <button :style="ghostBtn" @click="visitedPromptOpen = false">Cancel</button>
@@ -459,11 +459,10 @@ const dangerBtn = computed(() =>
         <div :style="rowWrap">
           <div :style="pxify({ ...fieldRaw, flex: 1, minWidth: 150 })">
             <span :style="labelStyle">Planned date</span>
-            <input
-              :style="inputStyle"
-              type="date"
-              :value="trip.date"
-              @input="setField('date', ($event.target as HTMLInputElement).value)"
+            <GlassDatePicker
+              :model-value="trip.date"
+              placeholder="Planned date"
+              @update:model-value="setField('date', String($event ?? ''))"
             />
           </div>
           <div
@@ -471,11 +470,10 @@ const dangerBtn = computed(() =>
             :style="pxify({ ...fieldRaw, flex: 1, minWidth: 150 })"
           >
             <span :style="labelStyle">Visited date</span>
-            <input
-              :style="inputStyle"
-              type="date"
-              :value="trip.visitedDate"
-              @input="setField('visitedDate', ($event.target as HTMLInputElement).value)"
+            <GlassDatePicker
+              :model-value="trip.visitedDate"
+              placeholder="Visited date"
+              @update:model-value="setField('visitedDate', String($event ?? ''))"
             />
           </div>
         </div>

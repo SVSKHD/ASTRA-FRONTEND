@@ -29,6 +29,7 @@ import {
 } from '@/utils/finance'
 import MonthPicker from '@/components/MonthPicker.vue'
 import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
 const { c, s, panelStyle } = useStyles()
@@ -613,7 +614,12 @@ const debtCard = computed(() =>
               placeholder="Amount ₹"
               inputmode="decimal"
             />
-            <input :style="inp" type="date" v-model="txnForm.date" />
+            <GlassDatePicker
+              :model-value="String(txnForm.date ?? '')"
+              size="sm"
+              placeholder="Date"
+              @update:model-value="txnForm.date = String($event ?? '')"
+            />
             <input
               :style="inp"
               v-model="txnForm.category"
@@ -719,8 +725,19 @@ const debtCard = computed(() =>
               <option value="simple">Simple</option>
               <option value="compound">Compound</option>
             </select>
-            <input :style="inp" type="date" v-model="debtForm.startDate" />
-            <input :style="inp" type="date" v-model="debtForm.dueDate" />
+            <GlassDatePicker
+              :model-value="String(debtForm.startDate ?? '')"
+              size="sm"
+              placeholder="Start date"
+              @update:model-value="debtForm.startDate = String($event ?? '')"
+            />
+            <GlassDatePicker
+              :model-value="String(debtForm.dueDate ?? '')"
+              size="sm"
+              :min="String(debtForm.startDate ?? '') || null"
+              placeholder="Due date"
+              @update:model-value="debtForm.dueDate = String($event ?? '')"
+            />
           </div>
           <div :style="{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }">
             <button :style="ghostBtn" @click="showDebtForm = false">Cancel</button>

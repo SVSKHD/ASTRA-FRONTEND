@@ -17,6 +17,7 @@ import ProgressRing from '@/components/ProgressRing.vue'
 import TreeList from '@/components/TreeList.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import type { GoalStatus } from '@/types'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const props = defineProps<{ goalId: number }>()
 const emit = defineEmits<{ (e: 'back'): void }>()
@@ -93,8 +94,12 @@ function onEstimate(id: number, e: Event) {
   const v = (e.target as HTMLInputElement).value
   app.updateChecklistItem(id, { estimateMins: v === '' ? null : Math.max(0, parseInt(v, 10) || 0) })
 }
-function onDue(id: number, e: Event) {
-  app.updateChecklistItem(id, { dueAt: (e.target as HTMLInputElement).value })
+// The picker hands back the value itself; the edit guard still brackets it so a
+// remote snapshot cannot land mid-change.
+function onDueValue(id: number, value: string) {
+  beginEditItem(id)
+  app.updateChecklistItem(id, { dueAt: value })
+  endEditItem(id)
 }
 function toggleTimer(id: number, running: boolean) {
   if (running) app.stopChecklistTimer(id)
@@ -291,9 +296,6 @@ const itemText = computed(() =>
 const miniInput = computed(() =>
   pxify({ ...s.value.input, width: 74, padding: '4px 6px', fontSize: 12 }),
 )
-const dueInput = computed(() =>
-  pxify({ ...s.value.input, width: 140, padding: '4px 6px', fontSize: 12 }),
-)
 const timerBtn = (running: boolean) =>
   pxify({
     fontSize: 11,
@@ -391,22 +393,17 @@ const pickRow = computed(() =>
       ></textarea>
       <div :style="dateRow">
         <label :style="fieldLabel">Start</label>
-        <input
-          type="date"
-          :style="s.input"
-          :value="goal.startDate"
-          @change="
-            app.updateGoal(goal.id, { startDate: ($event.target as HTMLInputElement).value })
-          "
+        <GlassDatePicker
+          :model-value="goal.startDate"
+          placeholder="Start"
+          @update:model-value="app.updateGoal(goal.id, { startDate: String($event ?? '') })"
         />
         <label :style="fieldLabel">Target</label>
-        <input
-          type="date"
-          :style="s.input"
-          :value="goal.targetDate"
-          @change="
-            app.updateGoal(goal.id, { targetDate: ($event.target as HTMLInputElement).value })
-          "
+        <GlassDatePicker
+          :model-value="goal.targetDate"
+          :min="goal.startDate || null"
+          placeholder="Target"
+          @update:model-value="app.updateGoal(goal.id, { targetDate: String($event ?? '') })"
         />
       </div>
       <div :style="dateRow">
@@ -467,13 +464,11 @@ const pickRow = computed(() =>
         @blur="endEditItem(item.id)"
         @input="onEstimate(item.id, $event)"
       />
-      <input
-        :style="dueInput"
-        type="date"
-        :value="item.dueAt"
-        @focus="beginEditItem(item.id)"
-        @blur="endEditItem(item.id)"
-        @change="onDue(item.id, $event)"
+      <GlassDatePicker
+        size="sm"
+        :model-value="item.dueAt"
+        placeholder="Due"
+        @update:model-value="onDueValue(item.id, String($event ?? ''))"
       />
       <button
         :style="timerBtn(item.timerStartedAt != null)"

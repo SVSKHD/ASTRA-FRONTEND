@@ -6,6 +6,7 @@
 // the date); the card then leaves its list with the same FLIP migration the
 // day accordions use. Filter by tag and sort by date or name in both sub-tabs.
 import { computed, nextTick, onMounted, ref } from 'vue'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -243,16 +244,6 @@ const promptRow = computed(() =>
     background: c.value.input,
   }),
 )
-const promptInput = computed(() =>
-  pxify({
-    padding: '7px 10px',
-    borderRadius: 10,
-    border: '1px solid ' + c.value.border,
-    background: c.value.card,
-    color: c.value.text,
-    fontSize: 12,
-  }),
-)
 </script>
 
 <template>
@@ -317,7 +308,7 @@ const promptInput = computed(() =>
           <!-- Inline visited-date prompt -->
           <div v-if="promptId === t.id" :style="promptRow" @click.stop>
             <span :style="dateStyle">Visited on</span>
-            <input :style="promptInput" type="date" v-model="promptDate" />
+            <GlassDatePicker v-model="promptDate" size="sm" placeholder="Visited on" />
             <button :style="visitBtn" @click="confirmVisited(t)">Confirm</button>
             <button :style="ghostBtn" @click="promptId = null">Cancel</button>
           </div>
