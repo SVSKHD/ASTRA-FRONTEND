@@ -65,8 +65,30 @@ export function useCalendar(dark: () => boolean) {
 
   const colorOf = (tag: string) => tagColor(tag, dark())
 
-  const events = computed<CalEvent[]>(() =>
-    buildEvents(
+  // Built events, memoised per (range, filters, data revision). Navigating back
+  // to a range already visited re-uses the last build instead of walking every
+  // list again; any edit to the underlying data changes the key, so the cache
+  // can never serve something stale.
+  let cache: { key: string; events: CalEvent[] } | null = null
+
+  const dataRevision = computed(
+    () =>
+      `${tasks.value.length}:${todos.value.length}:${goals.value.length}:` +
+      `${goalOccurrences.value.length}:${reminders.value.length}:` +
+      // Cheap change detector: the newest updatedAt across the lists that can be
+      // edited from the grid.
+      `${Math.max(
+        0,
+        ...tasks.value.map((t) => t.updatedAt),
+        ...todos.value.map((t) => t.updatedAt),
+        ...reminders.value.map((r) => r.updatedAt),
+      )}`,
+  )
+
+  const events = computed<CalEvent[]>(() => {
+    const key = `${range.value.start}:${range.value.end}:${JSON.stringify(calendarFilters.value)}:${dataRevision.value}`
+    if (cache && cache.key === key) return cache.events
+    const built = buildEvents(
       {
         tasks: tasks.value,
         todos: todos.value,
@@ -77,8 +99,10 @@ export function useCalendar(dark: () => boolean) {
       },
       range.value,
       calendarFilters.value,
-    ),
-  )
+    )
+    cache = { key, events: built }
+    return built
+  })
 
   const unscheduled = computed(() => unscheduledItems({ tasks: tasks.value, todos: todos.value }))
 

@@ -329,10 +329,15 @@ const options = computed<CalendarOptions>(() => ({
   slotDuration: '00:30:00',
   slotLabelFormat: { hour: 'numeric', minute: '2-digit', omitZeroMinute: true } as const,
   eventTimeFormat: { hour: 'numeric', minute: '2-digit', omitZeroMinute: true } as const,
-  // A day cell shows a handful and then "+N more" rather than growing without
-  // bound (acceptance 72).
-  dayMaxEvents: 3,
+  // A day cell renders a handful and then "+N more" rather than growing without
+  // bound: a day with forty items stays a normal-sized cell, and the rest are
+  // one click away in a popover (acceptance 72).
+  dayMaxEvents: isMobile.value ? 2 : 3,
   moreLinkClick: 'popover' as const,
+  moreLinkContent: (arg: { num: number }) => `+${arg.num} more`,
+  // Only what the popover actually opens gets rendered, so the cap is a real
+  // rendering saving rather than a visual crop.
+  eventMaxStack: isMobile.value ? 2 : 4,
   listDayFormat: { weekday: 'long', month: 'short', day: 'numeric' } as const,
   noEventsText: 'Nothing scheduled',
   // Agenda covers the next 30 days rather than the calendar month.

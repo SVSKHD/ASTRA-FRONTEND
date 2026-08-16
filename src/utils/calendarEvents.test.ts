@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_BLOCK_MINS,
+  busiestDayCount,
+  groupByDay,
+  overflowCount,
   blockFor,
   buildEvents,
   dayStart,
@@ -344,5 +347,37 @@ describe('display helpers', () => {
 
   it('truncates a very long first line', () => {
     expect(firstLine('x'.repeat(200))).toHaveLength(90)
+  })
+})
+
+describe('overflow rendering (acceptance 72)', () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, i) =>
+      taskEvent(task({ id: i + 1, startAt: DAY + i * MIN }), '#123'),
+    ).filter((e): e is NonNullable<typeof e> => e !== null)
+
+  it('groups a day full of events under one key', () => {
+    const groups = groupByDay(many(40))
+    expect(groups.size).toBe(1)
+    expect([...groups.values()][0]).toHaveLength(40)
+  })
+
+  it('reports what a capped cell is hiding', () => {
+    expect(overflowCount(many(40), 3)).toBe(37)
+  })
+
+  it('hides nothing when everything fits', () => {
+    expect(overflowCount(many(2), 3)).toBe(0)
+    expect(overflowCount([], 3)).toBe(0)
+  })
+
+  it('finds the busiest day across the range', () => {
+    const spread = [
+      ...many(40),
+      ...(taskEvent(task({ id: 99, startAt: DAY + 2 * 24 * 60 * MIN }), '#1')
+        ? [taskEvent(task({ id: 99, startAt: DAY + 2 * 24 * 60 * MIN }), '#1')!]
+        : []),
+    ]
+    expect(busiestDayCount(spread)).toBe(40)
   })
 })

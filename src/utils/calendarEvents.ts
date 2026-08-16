@@ -340,3 +340,30 @@ export function durationLabel(minutes: number): string {
 export function dayKeyOf(event: CalEvent): string {
   return ymd(new Date(event.start))
 }
+
+// Events grouped by day. The calendar caps what a cell renders; this is what
+// tells the cap what it is capping (and what a "+N more" link is hiding).
+export function groupByDay(events: CalEvent[]): Map<string, CalEvent[]> {
+  const groups = new Map<string, CalEvent[]>()
+  for (const event of events) {
+    const key = dayKeyOf(event)
+    const list = groups.get(key)
+    if (list) list.push(event)
+    else groups.set(key, [event])
+  }
+  return groups
+}
+
+// How many events a day hides behind its overflow link. Zero when everything
+// fits — a "+0 more" link would be worse than none.
+export function overflowCount(events: CalEvent[], max: number): number {
+  return Math.max(0, events.length - Math.max(0, max))
+}
+
+// The busiest day in the range, which is what decides whether a month cell
+// needs to cap at all.
+export function busiestDayCount(events: CalEvent[]): number {
+  let most = 0
+  for (const list of groupByDay(events).values()) most = Math.max(most, list.length)
+  return most
+}
