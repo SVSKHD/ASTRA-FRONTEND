@@ -766,6 +766,19 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       color: c.text,
       fontSize: 13,
     },
+    // The window-extension row at the foot of a long list (useLongList): the
+    // only visible sign that a completed section is rendering in windows.
+    showMoreRow: {
+      width: '100%',
+      padding: '10px 12px',
+      borderRadius: 10,
+      border: '1px dashed ' + c.border,
+      background: 'transparent',
+      color: c.dim,
+      fontSize: 12,
+      cursor: 'pointer',
+      textAlign: 'center' as const,
+    },
     taskMain: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 },
     chipRow: { display: 'flex', gap: 6, flexWrap: 'wrap' },
     chip: {

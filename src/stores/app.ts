@@ -1,7 +1,16 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch, type Ref } from 'vue'
-import { doc, getDoc, setDoc, onSnapshot, type Unsubscribe } from 'firebase/firestore'
-import { AUREON_COLLECTION, auth, db, defaultLockMinutes, firebaseEnabled } from '@/firebase'
+// Type-only: the Firestore SDK itself is loaded on demand (see @/firebase), so
+// nothing here may import a value from 'firebase/firestore'.
+import type { Unsubscribe } from 'firebase/firestore'
+import {
+  AUREON_COLLECTION,
+  auth,
+  defaultLockMinutes,
+  firebaseEnabled,
+  firestoreReady,
+  loadFirestore,
+} from '@/firebase'
 import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
 import { isThemeSetting, isThemeKey, THEMES, type ThemeSetting, type ThemeKey } from '@/themes'
 import { isFirebaseUserAllowed } from '@/stores/auth'
@@ -5405,10 +5414,12 @@ export const useAppStore = defineStore('app', () => {
     }, 0)
   }
   function saveCloud() {
-    if (!firebaseEnabled || !db || !uid || hydrating || !cloudReady.value) return
-    const ref = doc(db, AUREON_COLLECTION, uid)
+    const cloud = firestoreReady()
+    if (!firebaseEnabled || !cloud || !uid || hydrating || !cloudReady.value) return
+    const ref = cloud.fs.doc(cloud.db, AUREON_COLLECTION, uid)
     syncState.value = 'saving'
-    setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
+    cloud.fs
+      .setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
       .then(() => {
         syncState.value = 'synced'
       })
@@ -5430,11 +5441,14 @@ export const useAppStore = defineStore('app', () => {
   // not on a timer. Resolves (a no-op) when there is nothing to persist to, so
   // callers do not have to special-case an offline/unconfigured workspace.
   function saveCloudNow(): Promise<void> {
-    if (!firebaseEnabled || !db || !uid || hydrating || !cloudReady.value) return Promise.resolve()
-    const ref = doc(db, AUREON_COLLECTION, uid)
+    const cloud = firestoreReady()
+    if (!firebaseEnabled || !cloud || !uid || hydrating || !cloudReady.value)
+      return Promise.resolve()
+    const ref = cloud.fs.doc(cloud.db, AUREON_COLLECTION, uid)
     clearTimeout(saveTimer)
     syncState.value = 'saving'
-    return setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
+    return cloud.fs
+      .setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
       .then(() => {
         syncState.value = 'synced'
       })
@@ -5458,16 +5472,21 @@ export const useAppStore = defineStore('app', () => {
     syncState.value = 'idle'
     uid = u && isFirebaseUserAllowed(u) ? u.uid : null
     resetData()
-    if (!uid || !db) return
-    const ref = doc(db, AUREON_COLLECTION, uid)
+    if (!uid) return
+    // Sign-in is where Firestore is first genuinely needed, so this is where it
+    // is fetched. Everything below runs after the SDK has landed.
+    const cloud = await loadFirestore()
+    if (!cloud) return
+    const { db, fs } = cloud
+    const ref = fs.doc(db, AUREON_COLLECTION, uid)
     try {
-      const snap = await getDoc(ref)
+      const snap = await fs.getDoc(ref)
       if (snap.exists()) applyData(snap.data())
       else {
         // A brand-new workspace: seed the two default bots so the Bots tab has
         // something to show, then write the first document.
         bots.value = seedBots(id, Date.now())
-        await setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() })
+        await fs.setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() })
       }
       // Baseline the acknowledged signature so nothing reads as pending on load.
       captureSyncedBaseline()
@@ -5491,7 +5510,7 @@ export const useAppStore = defineStore('app', () => {
     }
     // Live updates from other devices. includeMetadataChanges so the pending /
     // fromCache transitions (which carry no data change) still wake the pill.
-    cloudUnsub = onSnapshot(
+    cloudUnsub = fs.onSnapshot(
       ref,
       { includeMetadataChanges: true },
       (s) => {
@@ -5521,7 +5540,7 @@ export const useAppStore = defineStore('app', () => {
     await connectCloud(auth?.currentUser ?? null)
   }
 
-  if (firebaseEnabled && auth && db) {
+  if (firebaseEnabled && auth) {
     onAuthStateChanged(auth, connectCloud)
 
     watch(

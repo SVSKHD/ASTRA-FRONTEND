@@ -28,10 +28,26 @@
     <title>Aureon</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      The webfont is loaded without blocking the first paint. As a plain
+      stylesheet this is a third-party request on the critical path — a DNS
+      lookup, a TLS handshake and a round trip to a host we do not control,
+      all before anything renders. Switching the media type after load lets the
+      browser fetch it at low priority instead; `display=swap` in the URL means
+      text paints in the fallback immediately and swaps when the font lands.
+    -->
     <link
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
   </head>
   <body>
     <div id="app"></div>

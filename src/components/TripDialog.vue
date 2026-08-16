@@ -4,7 +4,7 @@
 // in edit mode, where the map, the ordered places, the timeline and attached
 // notes all live. A sticky Map ↔ Timeline toggle sits at the top of the body so
 // it stays reachable while the content scrolls, on mobile and desktop alike.
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -12,7 +12,9 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, type Style } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import TagPicker from '@/components/TagPicker.vue'
-import TripMap from '@/components/trips/TripMap.vue'
+// Leaflet is ~43KB gzipped and only ever needed once a trip's map is on screen,
+// so the map arrives with the dialog rather than with the app.
+const TripMap = defineAsyncComponent(() => import('@/components/trips/TripMap.vue'))
 import TripTimeline from '@/components/trips/TripTimeline.vue'
 import TripPlacesEditor from '@/components/trips/TripPlacesEditor.vue'
 import { noteTitle } from '@/utils/notes'

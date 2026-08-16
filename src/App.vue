@@ -9,7 +9,7 @@ import CursorTail from '@/components/CursorTail.vue'
 import SyncPill from '@/components/SyncPill.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAppStore } from '@/stores/app'
-import { firebaseEnabled, persistenceMode } from '@/firebase'
+import { firebaseEnabled, onPersistenceResolved } from '@/firebase'
 
 const { s } = useStyles()
 const app = useAppStore()
@@ -22,10 +22,13 @@ const showBrand = computed(() => route.name !== 'workspace')
 
 // One-time notice when offline persistence could not be enabled (private mode /
 // unsupported browser): the app still works, just without offline durability.
+// Firestore now loads after the first paint, so the answer arrives via the
+// subscription rather than being readable at mount.
 onMounted(() => {
-  if (firebaseEnabled && persistenceMode === 'memory') {
-    app.showToastMsg('Offline mode unavailable in this browser')
-  }
+  if (!firebaseEnabled) return
+  onPersistenceResolved((mode) => {
+    if (mode === 'memory') app.showToastMsg('Offline mode unavailable in this browser')
+  })
 })
 </script>
 
