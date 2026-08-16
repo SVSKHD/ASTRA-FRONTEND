@@ -22,6 +22,7 @@ import OfflineChip from '@/components/OfflineChip.vue'
 import LinkProgressBar from '@/components/LinkProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import StatusPill from '@/components/StatusPill.vue'
+import IssueChip from '@/components/IssueChip.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import type { LinkRef, Task, Todo } from '@/types'
@@ -102,6 +103,11 @@ function desc(id: number) {
 }
 function tagOf(id: number) {
   return nodeOf(id)?.tag || ''
+}
+// A linked GitHub issue shows as a chip on the row (13c). Tasks only — todos
+// never link to issues.
+function issueLinkOf(id: number) {
+  return isTasks.value ? ((nodeOf(id) as Task | undefined)?.github ?? null) : null
 }
 // Goals this row is attached to (task 8), for the goal chip. Resolves ids to
 // titles so a row shows which goal(s) it belongs to from the Tasks/Todos tab.
@@ -409,6 +415,7 @@ const rootStripStyle = computed(() =>
                 tagOf(row.id)
               }}</span>
               <span v-if="dueLabel(row.id)" :style="dueChipStyle">due {{ dueLabel(row.id) }}</span>
+              <IssueChip v-if="issueLinkOf(row.id)" :link="issueLinkOf(row.id)!" compact />
               <span
                 v-for="g in goalNamesOf(row.id)"
                 :key="g"

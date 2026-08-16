@@ -781,51 +781,6 @@ export interface RepoPull {
   ci: 'passing' | 'failing' | 'pending' | 'none'
 }
 
-// GitHub (mock) shapes ----------------------------------------------------
-
-export interface PullRequest {
-  id: string
-  num: number
-  title: string
-  author: string
-  url: string
-}
-
-export interface GithubMeta {
-  branch: string
-  issues: number
-  prs: number
-  stars: number
-  ci: 'passing' | 'failing'
-  commitMsg: string
-  commitTime: string
-  prList: PullRequest[]
-}
-
-export type GithubCacheEntry = { status: 'loading' } | { status: 'ready'; data: GithubMeta }
-
-export interface RepoIssue {
-  id: string
-  num: number
-  title: string
-}
-
-export interface Repo {
-  id: string
-  name: string
-  full: string
-  desc: string
-  lang: string
-  langColor: string
-  stars: number
-  issues: number
-  prs: number
-  ci: 'passing' | 'failing'
-  pushedMs: number
-  pushedLabel: string
-  openIssues: RepoIssue[]
-}
-
 export interface AureonUser {
   uid: string
   name: string

@@ -230,3 +230,83 @@ describe('the sync guard holds webhooks off an open dialog', () => {
     expect(app.tasks[0].status).toBe('done')
   })
 })
+
+describe('task ↔ issue linking (13c)', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('links an existing issue on both sides and adopts its state', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.tasks = [makeTask(1)]
+    app.ingestGithubIssues([makeIssue({ linkedTaskId: null, state: 'closed' })])
+    expect(app.linkIssueToTask(1, 'octo__demo__12')).toBe(true)
+    expect(app.tasks[0].github).toMatchObject({ repoId: 'octo__demo', issueNumber: 12 })
+    expect(app.ghIssues[0].linkedTaskId).toBe(1)
+    expect(app.tasks[0].status).toBe('done')
+  })
+
+  it('unlinking clears the task side and leaves the issue itself alone', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.tasks = [makeTask(1)]
+    app.ingestGithubIssues([makeIssue({ linkedTaskId: null })])
+    app.linkIssueToTask(1, 'octo__demo__12')
+    app.unlinkIssueFromTask(1)
+    expect(app.tasks[0].github).toBeNull()
+    expect(app.ghIssues).toHaveLength(1)
+    expect(app.ghIssues[0].linkedTaskId).toBeNull()
+  })
+
+  it('offers only unclaimed issues in linked repos as link candidates', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.tasks = [makeTask(1, { github: link })]
+    app.ingestGithubIssues([
+      makeIssue(),
+      makeIssue({ id: 'octo__demo__13', number: 13, title: 'Another', linkedTaskId: null }),
+      makeIssue({ id: 'other__repo__1', repoId: 'other__repo', number: 1, linkedTaskId: null }),
+    ])
+    expect(app.linkableIssues('').map((i) => i.id)).toEqual(['octo__demo__13'])
+    expect(app.linkableIssues('13').map((i) => i.id)).toEqual(['octo__demo__13'])
+    expect(app.linkableIssues('another').map((i) => i.id)).toEqual(['octo__demo__13'])
+    expect(app.linkableIssues('nothing')).toEqual([])
+  })
+
+  it('pulls an issue in as a task, stripping our own footer from the body', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.ingestGithubIssues([
+      makeIssue({
+        linkedTaskId: null,
+        body: 'Real description\n\n---\n[Open in Spasta](https://x/tasks/4/view)\n<!-- spasta:taskId:4 -->',
+      }),
+    ])
+    const newId = app.createTaskFromIssue('octo__demo__12') as number
+    const task = app.tasks.find((t) => t.id === newId) as Task
+    expect(task.notes).toBe('Real description')
+    expect(task.github?.issueNumber).toBe(12)
+    expect(app.ghIssues[0].linkedTaskId).toBe(newId)
+  })
+
+  it('bulk creation skips already-linked issues, so a re-run cannot duplicate (acceptance 58)', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.ingestGithubIssues([
+      makeIssue({ linkedTaskId: null }),
+      makeIssue({ id: 'octo__demo__13', number: 13, linkedTaskId: null }),
+    ])
+    expect(app.createTasksFromIssues(['octo__demo__12', 'octo__demo__13'])).toBe(2)
+    expect(app.createTasksFromIssues(['octo__demo__12', 'octo__demo__13'])).toBe(0)
+    expect(app.tasks).toHaveLength(2)
+  })
+
+  it('carries a closed issue in as a done task', () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.ingestGithubIssues([makeIssue({ linkedTaskId: null, state: 'closed', closedAt: 77 })])
+    const newId = app.createTaskFromIssue('octo__demo__12') as number
+    const task = app.tasks.find((t) => t.id === newId) as Task
+    expect(task.status).toBe('done')
+    expect(task.done).toBe(true)
+  })
+})

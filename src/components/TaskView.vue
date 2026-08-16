@@ -4,6 +4,8 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, statusColor } from '@/styles'
+import IssueChip from '@/components/IssueChip.vue'
+import { fullName } from '@/utils/githubModel'
 import { STATUS_LABEL, type ItemStatus, type Task } from '@/types'
 
 const app = useAppStore()
@@ -58,6 +60,12 @@ const statusChip = computed(() => {
           <div v-if="task.repo" :style="s.taskViewMetaItem">
             <span :style="s.taskViewMetaLabel">Repo</span
             ><span :style="s.taskViewMetaVal">{{ task.repo }}</span>
+          </div>
+          <div v-if="task.github" :style="s.taskViewMetaItem">
+            <span :style="s.taskViewMetaLabel">Issue</span>
+            <span :style="s.taskViewMetaVal">
+              <IssueChip :link="task.github" /> {{ fullName(task.github.repoId) }}
+            </span>
           </div>
         </div>
         <div v-if="task.notes && task.notes.trim()" :style="s.taskViewNotes">{{ task.notes }}</div>

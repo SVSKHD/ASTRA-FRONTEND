@@ -5,7 +5,6 @@ import { AUREON_COLLECTION, auth, db, defaultLockMinutes, firebaseEnabled } from
 import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
 import { isThemeSetting, isThemeKey, THEMES, type ThemeSetting, type ThemeKey } from '@/themes'
 import { isFirebaseUserAllowed } from '@/stores/auth'
-import { mockGithub } from '@/utils/github'
 import {
   GhNotConfiguredError,
   GhRateLimitError,
@@ -15,12 +14,22 @@ import {
   type GhRateLimit,
 } from '@/utils/ghProxy'
 import {
+  CLOSED_VIA_SPASTA,
+  buildIssueBody,
+  fullName,
   githubLinkOf,
   ingestIssues,
+  issueFromApi,
+  issueKey,
+  issueStateForTaskStatus,
+  parseRepoKey,
   repoFromApi,
   sanitizeIntegration,
   sanitizeIssue,
   sanitizeRepo,
+  shouldPatchIssue,
+  stripSpastaFooter,
+  taskUrl,
 } from '@/utils/githubModel'
 import {
   effectsForIssues,
@@ -91,9 +100,9 @@ import type {
   Deadline,
   EditingState,
   Finance,
-  GithubCacheEntry,
   GithubIntegration,
   GithubIssue,
+  GithubLink,
   LinkedRepo,
   GraphRef,
   Hierarchical,
@@ -114,7 +123,6 @@ import type {
   Note,
   Stock,
   Priority,
-  PullRequest,
   FinanceSettings,
   Goal,
   GoalChecklistItem,
@@ -330,8 +338,6 @@ export const useAppStore = defineStore('app', () => {
   const noteView = ref<{ id: number | null; mode: 'read' | 'edit' } | null>(null)
   const noteViewClosing = ref(false)
 
-  const githubCache = ref<Record<number, GithubCacheEntry>>({})
-  const approvedPRs = ref<Record<string, boolean>>({})
   const draggingId = ref<number | null>(null)
   const draggingTodoId = ref<number | null>(null)
 
@@ -553,6 +559,8 @@ export const useAppStore = defineStore('app', () => {
     if (!cur || cur.status === next) return
     tasks.value = tasks.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
     if (next === 'done') cancelRemindersFor('tasks', tid)
+    // A linked task that changes state closes/reopens its issue (13c).
+    scheduleIssuePush(tid)
   }
   function cycleTaskStatus(tid: number) {
     const cur = tasks.value.find((t) => t.id === tid)
@@ -568,6 +576,9 @@ export const useAppStore = defineStore('app', () => {
     // Record the touched field so the sync guard keeps it if a remote snapshot
     // lands mid-edit (a no-op unless this task's dialog is open).
     syncGuard.markTouched(tid, field as string)
+    // Title/description are the only fields that flow out to a linked issue,
+    // debounced so a burst of keystrokes is one PATCH.
+    if (field === 'title' || field === 'notes') scheduleIssuePush(tid)
   }
 
   // ---- Flat-hierarchy moves (drag and drop) -------------------------------
@@ -3242,6 +3253,207 @@ export const useAppStore = defineStore('app', () => {
     repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, labelFilter: clean } : r))
   }
 
+  // ---- Task ↔ issue (13c) -------------------------------------------------
+  // The only writes that cross to GitHub are: create an issue from a task, patch
+  // a linked issue's title/state, and close it with a comment. Labels and
+  // assignees flow GitHub → Spasta only; comments do not sync in v1.
+
+  function canCallGithub(): boolean {
+    return githubConfigured.value && githubConnected.value && !githubPaused.value
+  }
+
+  // Debounced outbound patches, one timer per task, so a burst of keystrokes is
+  // one request.
+  const ghPushTimers = new Map<number, ReturnType<typeof setTimeout>>()
+  function scheduleIssuePush(taskId: number) {
+    const t = tasks.value.find((x) => x.id === taskId)
+    if (!t?.github || !canCallGithub()) return
+    clearTimeout(ghPushTimers.get(taskId))
+    ghPushTimers.set(
+      taskId,
+      setTimeout(() => {
+        ghPushTimers.delete(taskId)
+        void pushTaskToIssue(taskId)
+      }, 1200),
+    )
+  }
+
+  // Push the task's side of the contract to GitHub. shouldPatchIssue is what
+  // stops an inbound webhook write from bouncing straight back out again.
+  async function pushTaskToIssue(taskId: number): Promise<void> {
+    const task = tasks.value.find((t) => t.id === taskId)
+    if (!task?.github || !canCallGithub()) return
+    const parsed = parseRepoKey(task.github.repoId)
+    if (!parsed) return
+    const issue = issueByKey(issueKey(parsed.owner, parsed.name, task.github.issueNumber))
+    if (!shouldPatchIssue(task, issue)) return
+    const nextState = issueStateForTaskStatus(task.status)
+    try {
+      const res = await ghCall<Record<string, unknown>>('patchIssue', {
+        owner: parsed.owner,
+        repo: parsed.name,
+        number: task.github.issueNumber,
+        title: task.title,
+        body: buildIssueBody(task.notes, taskUrl(location.origin, task.id), task.id),
+        state: nextState,
+      })
+      noteRateLimit(res.rateLimit)
+      // Closing gets a comment so the trail is readable on GitHub's side.
+      if (nextState === 'closed' && issue?.state === 'open') {
+        const commented = await ghCall('comment', {
+          owner: parsed.owner,
+          repo: parsed.name,
+          number: task.github.issueNumber,
+          body: CLOSED_VIA_SPASTA,
+        })
+        noteRateLimit(commented.rateLimit)
+      }
+      const updated = res.data ? issueFromApi(res.data, task.github.repoId) : null
+      if (updated) ingestGithubIssues([updated])
+      setTaskGithubLink(taskId, { ...task.github, state: nextState, syncedAt: Date.now() })
+    } catch (err) {
+      handleGhError(err, 'Could not update the GitHub issue.')
+    }
+  }
+
+  function setTaskGithubLink(taskId: number, link: GithubLink | null) {
+    tasks.value = tasks.value.map((t) => (t.id === taskId ? { ...t, github: link } : t))
+  }
+
+  // Create an issue from a task. Title from the task title, body from its notes
+  // plus a backlink and the round-trip marker, labels default from the task's
+  // tag and the assignee defaults to the connected user.
+  async function createIssueFromTask(taskId: number, repoId: string): Promise<boolean> {
+    const task = tasks.value.find((t) => t.id === taskId)
+    const parsed = parseRepoKey(repoId)
+    if (!task || !parsed) return false
+    if (!canCallGithub()) {
+      showToastMsg('Connect GitHub first')
+      return false
+    }
+    try {
+      const res = await ghCall<Record<string, unknown>>('createIssue', {
+        owner: parsed.owner,
+        repo: parsed.name,
+        title: task.title,
+        body: buildIssueBody(task.notes, taskUrl(location.origin, task.id), task.id),
+        labels: task.tag ? [task.tag] : [],
+        assignees: githubIntegration.value.login ? [githubIntegration.value.login] : [],
+      })
+      noteRateLimit(res.rateLimit)
+      const issue = res.data ? issueFromApi(res.data, repoId) : null
+      if (!issue) {
+        ghError.value = 'GitHub accepted the issue but returned nothing usable.'
+        return false
+      }
+      ghIssues.value = ingestIssues(ghIssues.value, [{ ...issue, linkedTaskId: task.id }])
+      setTaskGithubLink(taskId, {
+        repoId,
+        issueNumber: issue.number,
+        issueUrl: issue.htmlUrl,
+        state: issue.state,
+        syncedAt: Date.now(),
+      })
+      showToastMsg('Created #' + issue.number + ' in ' + fullName(repoId))
+      return true
+    } catch (err) {
+      handleGhError(err, 'Could not create the GitHub issue.')
+      return false
+    }
+  }
+
+  // Link a task to an issue that already exists. The issue body is left exactly
+  // as its author wrote it — the link lives on both records instead.
+  function linkIssueToTask(taskId: number, issueId: string): boolean {
+    const issue = issueByKey(issueId)
+    const task = tasks.value.find((t) => t.id === taskId)
+    if (!issue || !task) return false
+    ghIssues.value = ghIssues.value.map((i) =>
+      i.id === issueId ? { ...i, linkedTaskId: taskId } : i,
+    )
+    setTaskGithubLink(taskId, {
+      repoId: issue.repoId,
+      issueNumber: issue.number,
+      issueUrl: issue.htmlUrl,
+      state: issue.state,
+      syncedAt: Date.now(),
+    })
+    // Adopt the issue's state immediately, so a task linked to a closed issue
+    // does not sit open until the next webhook.
+    syncIssuesToTasks()
+    showToastMsg('Linked #' + issue.number)
+    return true
+  }
+
+  // Unlink: the issue on GitHub is left completely alone.
+  function unlinkIssueFromTask(taskId: number) {
+    const task = tasks.value.find((t) => t.id === taskId)
+    if (!task?.github) return
+    const parsed = parseRepoKey(task.github.repoId)
+    if (parsed) {
+      const key = issueKey(parsed.owner, parsed.name, task.github.issueNumber)
+      ghIssues.value = ghIssues.value.map((i) =>
+        i.id === key && i.linkedTaskId === taskId ? { ...i, linkedTaskId: null } : i,
+      )
+    }
+    clearTimeout(ghPushTimers.get(taskId))
+    ghPushTimers.delete(taskId)
+    setTaskGithubLink(taskId, null)
+    showToastMsg('Unlinked from GitHub')
+  }
+
+  // Candidates for "Link existing issue": mirrored issues in linked repos,
+  // matched by number or title, that no task has claimed yet.
+  function linkableIssues(query: string, limit = 20): GithubIssue[] {
+    const q = query.trim().toLowerCase()
+    const linkedRepoIds = new Set(repos.value.map((r) => r.id))
+    const claimed = new Set(
+      tasks.value
+        .filter((t) => t.github)
+        .map((t) => `${t.github?.repoId}__${t.github?.issueNumber}`),
+    )
+    return ghIssues.value
+      .filter((i) => linkedRepoIds.has(i.repoId) && !claimed.has(i.id) && i.linkedTaskId === null)
+      .filter((i) => !q || String(i.number) === q || i.title.toLowerCase().includes(q))
+      .slice(0, limit)
+  }
+
+  // Pull an issue in as a task, preserving the marker relationship so the next
+  // sync links rather than duplicates (acceptance 58).
+  function createTaskFromIssue(issueId: string): number | null {
+    const issue = issueByKey(issueId)
+    if (!issue || issue.linkedTaskId !== null) return null
+    const repo = repoById(issue.repoId)
+    const newId = addTask(issue.title || 'Issue #' + issue.number, repo?.name ?? '', {
+      notes: stripSpastaFooter(issue.body),
+      repo: repo?.fullName ?? fullName(issue.repoId),
+      status: issue.state === 'closed' ? 'done' : 'pending',
+      done: issue.state === 'closed',
+      completedAt: issue.state === 'closed' ? issue.closedAt : null,
+      github: {
+        repoId: issue.repoId,
+        issueNumber: issue.number,
+        issueUrl: issue.htmlUrl,
+        state: issue.state,
+        syncedAt: Date.now(),
+      },
+    })
+    if (newId == null) return null
+    ghIssues.value = ghIssues.value.map((i) =>
+      i.id === issueId ? { ...i, linkedTaskId: newId } : i,
+    )
+    return newId
+  }
+
+  // Bulk "Create tasks from selected issues" — skips anything already linked, so
+  // running it twice cannot duplicate.
+  function createTasksFromIssues(issueIds: string[]): number {
+    let made = 0
+    for (const issueId of issueIds) if (createTaskFromIssue(issueId) !== null) made++
+    if (made) showToastMsg('Created ' + made + (made === 1 ? ' task' : ' tasks'))
+    return made
+  }
+
   // ---- Webhook ingestion (13f) --------------------------------------------
   // Deliveries land here already verified: the Cloud Function checks the
   // X-Hub-Signature-256 HMAC and rejects a mismatch before anything is written.
@@ -3327,63 +3539,6 @@ export const useAppStore = defineStore('app', () => {
   }
   function issueByKey(issueId: string): GithubIssue | undefined {
     return ghIssues.value.find((i) => i.id === issueId)
-  }
-
-  // ---- GitHub (mock) ------------------------------------------------------
-  function fetchGithub(taskId: number, repo: string) {
-    githubCache.value = { ...githubCache.value, [taskId]: { status: 'loading' } }
-    setTimeout(
-      () => {
-        const data = mockGithub(repo)
-        githubCache.value = { ...githubCache.value, [taskId]: { status: 'ready', data } }
-      },
-      800 + Math.random() * 600,
-    )
-  }
-  function attachRepo(taskId: number, repo: string) {
-    if (!repo || !repo.trim()) return
-    fetchGithub(taskId, repo.trim())
-  }
-  function approvePR(pr: PullRequest) {
-    approvedPRs.value = { ...approvedPRs.value, [pr.id]: true }
-    showToastMsg('Approved PR #' + pr.num)
-    // GitHub review API: POST /repos/{owner}/{repo}/pulls/{num}/reviews { event: 'APPROVE' }
-  }
-  function importIssue(
-    repo: { name: string; full: string },
-    issue: { num: number; title: string },
-  ) {
-    const importId = id()
-    tasks.value = [
-      ...tasks.value,
-      {
-        id: importId,
-        title: issue.title,
-        tag: repo.name,
-        done: false,
-        status: 'pending',
-        deadline: '',
-        notes: 'Imported from ' + repo.full + ' #' + issue.num,
-        repo: repo.full,
-        rolledOverAt: null,
-        rolloverCount: 0,
-        completedAt: null,
-        reminderIds: [],
-        sourceRef: null,
-        linked: [],
-        parents: [],
-        parentId: null,
-        order: 0,
-        depth: 0,
-        rootId: importId,
-        localRev: 0,
-        updatedBy: uid ?? '',
-        ...stamps(),
-      },
-    ]
-    showToastMsg(
-      'Imported "' + (issue.title.length > 24 ? issue.title.slice(0, 24) + '…' : issue.title) + '"',
-    )
   }
 
   // ---- Drag & drop (tasks) ------------------------------------------------
@@ -4169,7 +4324,6 @@ export const useAppStore = defineStore('app', () => {
       preferredDark: preferredDark.value,
       preferredLight: preferredLight.value,
       railCollapsed: railCollapsed.value,
-      approvedPRs: approvedPRs.value,
       autoRollover: autoRollover.value,
       lastAutoRolloverDay: lastAutoRolloverDay.value,
       hideCompleted: hideCompleted.value,
@@ -4209,7 +4363,6 @@ export const useAppStore = defineStore('app', () => {
     goalOccurrences.value = []
     lastGoalGenDay.value = ''
     tags.value = DEFAULT_TAGS.slice()
-    approvedPRs.value = {}
     security.value = emptySecurity()
     themeSetting.value = 'auto'
     preferredDark.value = 'deepSpace'
@@ -4538,10 +4691,6 @@ export const useAppStore = defineStore('app', () => {
     for (const item of [...todos.value, ...tasks.value, ...ideas.value, ...stocks.value])
       vocab = withTag(vocab, item.tag || '')
     tags.value = vocab
-    approvedPRs.value =
-      data.approvedPRs && typeof data.approvedPRs === 'object'
-        ? (data.approvedPRs as Record<string, boolean>)
-        : {}
     security.value =
       data.security && typeof data.security === 'object'
         ? { ...emptySecurity(), ...(data.security as Partial<SecuritySettings>) }
@@ -4780,7 +4929,6 @@ export const useAppStore = defineStore('app', () => {
         preferredDark,
         preferredLight,
         railCollapsed,
-        approvedPRs,
         autoRollover,
         lastAutoRolloverDay,
         hideCompleted,
@@ -4866,7 +5014,6 @@ export const useAppStore = defineStore('app', () => {
     noteView,
     noteViewClosing,
     openNote,
-    githubCache,
     githubIntegration,
     repos,
     ghIssues,
@@ -4886,6 +5033,13 @@ export const useAppStore = defineStore('app', () => {
     toggleRepoLink,
     setRepoSync,
     setRepoLabelFilter,
+    createIssueFromTask,
+    linkIssueToTask,
+    unlinkIssueFromTask,
+    linkableIssues,
+    createTaskFromIssue,
+    createTasksFromIssues,
+    pushTaskToIssue,
     ingestGithubIssues,
     ingestGithubDeliveries,
     syncIssuesToTasks,
@@ -4893,7 +5047,6 @@ export const useAppStore = defineStore('app', () => {
     issueByKey,
     pauseGithubSync,
     resumeGithubSync,
-    approvedPRs,
     draggingId,
     draggingTodoId,
     activeNotif,
@@ -5019,9 +5172,6 @@ export const useAppStore = defineStore('app', () => {
     createShareLink,
     dismissShared,
     addSharedItem,
-    attachRepo,
-    approvePR,
-    importIssue,
     setDragId,
     dropOnTask,
     dropOnGroup,
