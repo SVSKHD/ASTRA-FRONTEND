@@ -45,6 +45,7 @@ import StocksView from '@/components/views/StocksView.vue'
 import AiView from '@/components/views/AiView.vue'
 import BotsView from '@/components/views/BotsView.vue'
 import GithubView from '@/components/views/GithubView.vue'
+import WalletsView from '@/components/views/WalletsView.vue'
 
 const ui = useUiStore()
 const app = useAppStore()
@@ -112,6 +113,7 @@ const viewMap = {
   ai: AiView,
   bots: BotsView,
   github: GithubView,
+  wallets: WalletsView,
 }
 const currentView = computed(() => viewMap[tab.value])
 const activeView = ref<{ focus: () => void } | null>(null)

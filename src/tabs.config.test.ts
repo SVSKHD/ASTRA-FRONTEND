@@ -18,6 +18,7 @@ describe('tabs.config', () => {
       'ai',
       'bots',
       'github',
+      'wallets',
     ])
   })
 
@@ -42,6 +43,7 @@ describe('tabs.config', () => {
       'ai',
       'bots',
       'github',
+      'wallets',
     ])
   })
 
