@@ -15,12 +15,15 @@ import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import type { CalendarOptions, DatesSetArg } from '@fullcalendar/core'
 import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { useCalendar } from '@/composables/useCalendar'
-import { CALENDAR_VIEWS, type CalendarViewKey } from '@/utils/calendarEvents'
+import CalEventCard from '@/components/CalEventCard.vue'
+import { CALENDAR_VIEWS, type CalEvent, type CalendarViewKey } from '@/utils/calendarEvents'
 
 const app = useAppStore()
+const ui = useUiStore()
 const { c, s, dark, isMobile, panelStyle } = useStyles()
 const { calendarView, tags } = storeToRefs(app)
 
@@ -56,6 +59,53 @@ function onDatesSet(arg: DatesSetArg) {
 }
 function onJump() {
   if (jumpDate.value) api()?.gotoDate(jumpDate.value)
+}
+
+// --- hover card (desktop) / long-press sheet (mobile) ------------------------
+const hovered = ref<{ event: CalEvent; x: number; y: number; sheet: boolean } | null>(null)
+let pressTimer: ReturnType<typeof setTimeout> | undefined
+
+function eventById(id: string): CalEvent | undefined {
+  return events.value.find((e) => e.id === id)
+}
+function showCard(id: string, x: number, y: number, sheet: boolean) {
+  const event = eventById(id)
+  if (event) hovered.value = { event, x, y, sheet }
+}
+function onEventMouseEnter(arg: { event: { id: string }; jsEvent: MouseEvent }) {
+  if (isMobile.value) return
+  showCard(arg.event.id, arg.jsEvent.clientX, arg.jsEvent.clientY, false)
+}
+function onEventMouseLeave() {
+  if (!isMobile.value) hovered.value = null
+}
+// Touch: a long press opens the sheet; a short tap opens the item, and a scroll
+// cancels the press so the sheet never fights the gesture.
+function onEventTouchStart(id: string) {
+  clearTimeout(pressTimer)
+  pressTimer = setTimeout(() => showCard(id, 0, 0, true), 450)
+}
+function cancelPress() {
+  clearTimeout(pressTimer)
+}
+
+// Open the underlying item in its own editor.
+function openEvent(event: CalEvent) {
+  hovered.value = null
+  if (event.source === 'task') app.openEdit('task', event.refId)
+  else if (event.source === 'todo') app.openEdit('todo', event.refId)
+  else if (event.source === 'reminder') app.openReminderDialog(event.refId)
+  else ui.setTab('goals')
+}
+function completeEvent(event: CalEvent) {
+  if (event.source === 'task') app.toggleTask(event.refId)
+  else if (event.source === 'todo') app.toggleTodo(event.refId)
+  hovered.value = null
+}
+function onEventClick(arg: { event: { id: string }; jsEvent: MouseEvent }) {
+  cancelPress()
+  const event = eventById(arg.event.id)
+  if (event) openEvent(event)
 }
 
 const fcEvents = computed(() =>
@@ -104,6 +154,9 @@ const options = computed<CalendarOptions>(() => ({
   views: { listMonth: { duration: { days: 30 }, buttonText: 'Agenda' } },
   events: fcEvents.value,
   datesSet: onDatesSet,
+  eventClick: onEventClick,
+  eventMouseEnter: onEventMouseEnter,
+  eventMouseLeave: onEventMouseLeave,
 }))
 
 // ---- styles ----------------------------------------------------------------
@@ -208,6 +261,9 @@ const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
             class="cal-event"
             :class="{ 'cal-done': arg.event.extendedProps.completed }"
             :style="{ '--bar': arg.event.extendedProps.barColor }"
+            @touchstart="onEventTouchStart(arg.event.id)"
+            @touchend="cancelPress"
+            @touchmove="cancelPress"
           >
             <span class="cal-title">{{ arg.event.title }}</span>
             <span
@@ -224,6 +280,17 @@ const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
         </template>
       </FullCalendar>
     </div>
+
+    <CalEventCard
+      v-if="hovered"
+      :event="hovered.event"
+      :x="hovered.x"
+      :y="hovered.y"
+      :sheet="hovered.sheet"
+      @close="hovered = null"
+      @open="openEvent"
+      @complete="completeEvent"
+    />
   </div>
 </template>
 
