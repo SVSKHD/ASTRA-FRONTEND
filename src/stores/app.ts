@@ -3515,6 +3515,49 @@ export const useAppStore = defineStore('app', () => {
     return true
   }
 
+  // Quick create from the calendar: one call whatever the type toggle says, so
+  // the popover does not have to know how each collection is written.
+  function createScheduledItem(
+    kind: 'task' | 'todo' | 'reminder',
+    title: string,
+    project: string,
+    patch: Schedulable,
+  ): number | null {
+    const text = title.trim()
+    if (!text) return null
+    if (kind === 'reminder') {
+      const start = new Date(patch.startAt ?? Date.now())
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const value = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}T${pad(start.getHours())}:${pad(start.getMinutes())}`
+      return addReminder({ title: text, note: '', start: value, repeat: { type: 'none' } }) ?? null
+    }
+    if (kind === 'todo') {
+      return addTodo(text, project, '', { ...patch }) ?? null
+    }
+    return (
+      addTask(text, project, {
+        startAt: patch.startAt,
+        endAt: patch.endAt,
+        allDay: patch.allDay,
+        durationMins: patch.durationMins,
+        // An all-day quick-create doubles as a due date, which is what the rest
+        // of the app already understands.
+        deadline: patch.allDay && patch.startAt ? ymd(new Date(patch.startAt)) : '',
+      }) ?? null
+    )
+  }
+
+  // Dragging an event back to the Unscheduled panel clears its schedule and
+  // nothing else.
+  async function unscheduleItem(type: 'task' | 'todo', itemId: number): Promise<boolean> {
+    return rescheduleItem(type, itemId, {
+      startAt: null,
+      endAt: null,
+      allDay: false,
+      durationMins: null,
+    })
+  }
+
   // ---- Calendar preferences (section 15) ----------------------------------
   // The last view used and the filter chips ride in the workspace document, so
   // the tab opens where the user left it on every device.
@@ -5622,6 +5665,8 @@ export const useAppStore = defineStore('app', () => {
     rescheduleMany,
     duplicateScheduled,
     rescheduleReminder,
+    createScheduledItem,
+    unscheduleItem,
     setCalendarView,
     setCalendarFilters,
     addWallet,

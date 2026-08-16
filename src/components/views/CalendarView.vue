@@ -6,21 +6,23 @@
 // FullCalendar ships its own CSS variables; they are remapped to the section-7
 // theme tokens in the scoped block below, so the grid reads on every theme
 // rather than looking like a bolted-on widget.
-import { computed, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { storeToRefs } from 'pinia'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
-import interactionPlugin from '@fullcalendar/interaction'
+import interactionPlugin, { Draggable } from '@fullcalendar/interaction'
 import type { CalendarOptions, DatesSetArg, EventDropArg } from '@fullcalendar/core'
-import type { EventResizeDoneArg } from '@fullcalendar/interaction'
+import type { DateSelectArg } from '@fullcalendar/core'
+import type { DropArg, EventResizeDoneArg } from '@fullcalendar/interaction'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { useCalendar } from '@/composables/useCalendar'
 import CalEventCard from '@/components/CalEventCard.vue'
+import CalQuickCreate from '@/components/CalQuickCreate.vue'
 import {
   CALENDAR_VIEWS,
   durationLabel,
@@ -32,6 +34,7 @@ import {
   isCopyDrag,
   moveAllDaySpan,
   resizePatch,
+  schedulePatch,
   snapMinutesFor,
 } from '@/utils/calendarDrag'
 
@@ -139,6 +142,100 @@ async function onEventResize(arg: EventResizeDoneArg) {
   const ok = await app.rescheduleItem(type, event.refId, patch)
   app.endCalendarDrag(type, event.refId)
   if (!ok) arg.revert()
+}
+
+// --- unscheduled panel -------------------------------------------------------
+// Items with no date at all. Dragging one onto a slot schedules it (it then
+// disappears from the panel because it is no longer unscheduled); dragging an
+// event back over the panel unschedules it.
+const panelOpen = ref(true)
+const panelEl = ref<HTMLElement | null>(null)
+let draggable: Draggable | null = null
+
+onMounted(() => {
+  if (panelEl.value) {
+    draggable = new Draggable(panelEl.value, {
+      itemSelector: '.unsched-item',
+      // The drop handler reads the real item off the element's dataset; this is
+      // only what the ghost shows while dragging.
+      eventData: (el) => ({ title: el.getAttribute('data-title') || '', duration: '00:30' }),
+    })
+  }
+})
+onBeforeUnmount(() => draggable?.destroy())
+
+async function onExternalDrop(arg: DropArg) {
+  const el = arg.draggedEl
+  const type = (el.getAttribute('data-type') as 'task' | 'todo') || 'task'
+  const refId = Number(el.getAttribute('data-id'))
+  if (!Number.isFinite(refId)) return
+  await app.rescheduleItem(type, refId, schedulePatch(arg.date.getTime(), arg.allDay))
+}
+
+// Dropping an event over the panel takes it off the grid.
+function pointerOverPanel(event: MouseEvent | TouchEvent | null): boolean {
+  const el = panelEl.value
+  if (!el || !event) return false
+  const point = 'clientX' in event ? event : event.changedTouches?.[0]
+  if (!point) return false
+  const rect = el.getBoundingClientRect()
+  return (
+    point.clientX >= rect.left &&
+    point.clientX <= rect.right &&
+    point.clientY >= rect.top &&
+    point.clientY <= rect.bottom
+  )
+}
+
+// --- quick create ------------------------------------------------------------
+const quick = ref<{ start: number; end: number; allDay: boolean; x: number; y: number } | null>(
+  null,
+)
+function onSelect(arg: DateSelectArg) {
+  quick.value = {
+    start: arg.start.getTime(),
+    end: arg.end.getTime(),
+    allDay: arg.allDay,
+    x: (arg.jsEvent as MouseEvent | null)?.clientX ?? 80,
+    y: (arg.jsEvent as MouseEvent | null)?.clientY ?? 80,
+  }
+}
+function onQuickCreate(payload: {
+  kind: 'task' | 'todo' | 'reminder'
+  title: string
+  project: string
+}) {
+  const range = quick.value
+  if (!range) return
+  app.createScheduledItem(payload.kind, payload.title, payload.project, {
+    startAt: range.start,
+    endAt: range.end,
+    allDay: range.allDay,
+    durationMins: Math.max(1, Math.round((range.end - range.start) / 60_000)),
+  })
+  quick.value = null
+  api()?.unselect()
+}
+
+// Double-click a day in month view creates an all-day task there.
+let lastDayClick = { date: 0, at: 0 }
+function onDateClick(arg: {
+  date: Date
+  allDay: boolean
+  jsEvent: MouseEvent
+  view: { type: string }
+}) {
+  const now = Date.now()
+  const same = lastDayClick.date === arg.date.getTime() && now - lastDayClick.at < 400
+  lastDayClick = { date: arg.date.getTime(), at: now }
+  if (!same || arg.view.type !== 'dayGridMonth') return
+  quick.value = {
+    start: arg.date.getTime(),
+    end: arg.date.getTime() + 24 * 60 * 60_000,
+    allDay: true,
+    x: arg.jsEvent.clientX,
+    y: arg.jsEvent.clientY,
+  }
 }
 
 // --- hover card (desktop) / long-press sheet (mobile) ------------------------
@@ -250,8 +347,13 @@ const options = computed<CalendarOptions>(() => ({
     dragging.value = true
     hovered.value = null
   },
-  eventDragStop: () => {
+  eventDragStop: (arg) => {
     dragging.value = false
+    // Dropped over the Unscheduled panel → take it off the grid.
+    if (!pointerOverPanel(arg.jsEvent)) return
+    const event = eventById(arg.event.id)
+    if (!event || (event.source !== 'task' && event.source !== 'todo')) return
+    void app.unscheduleItem(event.source, event.refId)
   },
   eventResizeStart: (arg) => {
     dragging.value = true
@@ -267,6 +369,12 @@ const options = computed<CalendarOptions>(() => ({
     resizeHint.value =
       start !== undefined && end !== undefined ? durationLabel((end - start) / 60_000) : ''
   },
+  selectable: true,
+  selectMirror: true,
+  select: onSelect,
+  dateClick: onDateClick,
+  droppable: true,
+  drop: onExternalDrop,
   eventDrop: onEventDrop,
   eventResize: onEventResize,
   eventClick: onEventClick,
@@ -313,6 +421,45 @@ const titleStyle = computed(() =>
   pxify({ fontSize: 14, fontWeight: 600, color: c.value.text, whiteSpace: 'nowrap' }),
 )
 const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
+const bodyRow = pxify({ display: 'flex', gap: 10, flex: 1, minHeight: 0 })
+const panelStyleBox = computed(() =>
+  pxify({
+    width: 170,
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    overflowY: 'auto',
+    padding: 8,
+    borderRadius: 12,
+    border: '1px solid ' + c.value.border,
+    background: 'color-mix(in oklch, ' + c.value.border + ' 18%, transparent)',
+  }),
+)
+const panelHead = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: 10,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
+)
+const unschedRow = computed(() =>
+  pxify({
+    fontSize: 12,
+    padding: '6px 8px',
+    borderRadius: 8,
+    background: c.value.card,
+    border: '1px solid ' + c.value.border,
+    cursor: 'grab',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }),
+)
 const hintStyle = computed(() =>
   pxify({
     position: 'fixed',
@@ -385,34 +532,85 @@ const hintStyle = computed(() =>
       </select>
     </div>
 
-    <div :style="gridWrap" class="cal-host">
-      <FullCalendar ref="calendarRef" :options="options">
-        <template #eventContent="arg">
-          <div
-            class="cal-event"
-            :class="{ 'cal-done': arg.event.extendedProps.completed }"
-            :style="{ '--bar': arg.event.extendedProps.barColor }"
-            @touchstart="onEventTouchStart(arg.event.id)"
-            @touchend="cancelPress"
-            @touchmove="cancelPress"
-          >
-            <span class="cal-title">{{ arg.event.title }}</span>
-            <span
-              v-if="
-                arg.event.extendedProps.subtitle &&
-                !arg.event.allDay &&
-                arg.event.extendedProps.durationMins >= 45 &&
-                arg.view.type !== 'dayGridMonth'
-              "
-              class="cal-sub"
-              >{{ arg.event.extendedProps.subtitle }}</span
+    <div :style="bodyRow">
+      <!-- Unscheduled: drag onto the grid to schedule, drag back to unschedule -->
+      <div v-if="panelOpen" ref="panelEl" :style="panelStyleBox">
+        <div :style="panelHead">
+          <span>Unscheduled</span>
+          <button :style="s.editBtn" @click="panelOpen = false">×</button>
+        </div>
+        <div
+          v-for="item in calendar.unscheduled.value.tasks"
+          :key="'task-' + item.id"
+          class="unsched-item"
+          :style="unschedRow"
+          :data-type="'task'"
+          :data-id="item.id"
+          :data-title="item.title"
+        >
+          {{ item.title }}
+        </div>
+        <div
+          v-for="item in calendar.unscheduled.value.todos"
+          :key="'todo-' + item.id"
+          class="unsched-item"
+          :style="unschedRow"
+          :data-type="'todo'"
+          :data-id="item.id"
+          :data-title="item.text"
+        >
+          {{ item.text }}
+        </div>
+        <span
+          v-if="
+            !calendar.unscheduled.value.tasks.length && !calendar.unscheduled.value.todos.length
+          "
+          :style="s.finMeta"
+          >Everything is scheduled.</span
+        >
+      </div>
+      <button v-else :style="s.editBtn" @click="panelOpen = true">Unscheduled</button>
+
+      <div :style="gridWrap" class="cal-host">
+        <FullCalendar ref="calendarRef" :options="options">
+          <template #eventContent="arg">
+            <div
+              class="cal-event"
+              :class="{ 'cal-done': arg.event.extendedProps.completed }"
+              :style="{ '--bar': arg.event.extendedProps.barColor }"
+              @touchstart="onEventTouchStart(arg.event.id)"
+              @touchend="cancelPress"
+              @touchmove="cancelPress"
             >
-          </div>
-        </template>
-      </FullCalendar>
+              <span class="cal-title">{{ arg.event.title }}</span>
+              <span
+                v-if="
+                  arg.event.extendedProps.subtitle &&
+                  !arg.event.allDay &&
+                  arg.event.extendedProps.durationMins >= 45 &&
+                  arg.view.type !== 'dayGridMonth'
+                "
+                class="cal-sub"
+                >{{ arg.event.extendedProps.subtitle }}</span
+              >
+            </div>
+          </template>
+        </FullCalendar>
+      </div>
     </div>
 
     <div v-if="resizeHint" :style="hintStyle">{{ resizeHint }}</div>
+
+    <CalQuickCreate
+      v-if="quick"
+      :start="quick.start"
+      :end="quick.end"
+      :all-day="quick.allDay"
+      :x="quick.x"
+      :y="quick.y"
+      @close="quick = null"
+      @create="onQuickCreate"
+    />
 
     <CalEventCard
       v-if="hovered"

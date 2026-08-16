@@ -198,3 +198,90 @@ describe('reminder rescheduling', () => {
     expect(await app.rescheduleReminder(999, DAY)).toBe(false)
   })
 })
+
+describe('unscheduled panel and quick create', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('scheduling an unscheduled task removes it from the panel (acceptance 70)', async () => {
+    const app = useAppStore()
+    const id = app.addTask('Later', 'work') as number
+    expect(app.tasks.find((t) => t.id === id)?.startAt ?? null).toBeNull()
+
+    const tuesdayTen = DAY + 10 * 60 * MIN
+    await app.rescheduleItem('task', id, {
+      startAt: tuesdayTen,
+      endAt: tuesdayTen + 30 * MIN,
+      allDay: false,
+      durationMins: 30,
+    })
+    expect(taskOf(app, id).startAt).toBe(tuesdayTen)
+  })
+
+  it('dragging back to the panel clears every scheduling field', async () => {
+    const app = useAppStore()
+    const id = seedTask(app)
+    await app.unscheduleItem('task', id)
+    const task = taskOf(app, id)
+    expect(task.startAt).toBeNull()
+    expect(task.endAt).toBeNull()
+    expect(task.durationMins).toBeNull()
+    expect(task.allDay).toBe(false)
+  })
+
+  it('quick-creates a task at the dragged range', () => {
+    const app = useAppStore()
+    const id = app.createScheduledItem('task', 'New block', 'work', {
+      startAt: NINE,
+      endAt: TEN,
+      allDay: false,
+      durationMins: 60,
+    }) as number
+    const task = taskOf(app, id)
+    expect(task.title).toBe('New block')
+    expect(task.tag).toBe('work')
+    expect(task.startAt).toBe(NINE)
+  })
+
+  it('quick-creates a todo and a reminder from the same call', () => {
+    const app = useAppStore()
+    const todoId = app.createScheduledItem('todo', 'A todo', '', {
+      startAt: NINE,
+      endAt: TEN,
+      allDay: false,
+      durationMins: 60,
+    })
+    expect(app.todos.find((t) => t.id === todoId)?.startAt).toBe(NINE)
+
+    const reminderId = app.createScheduledItem('reminder', 'A reminder', '', {
+      startAt: NINE,
+      endAt: TEN,
+      allDay: false,
+      durationMins: 60,
+    })
+    expect(app.reminders.find((r) => r.id === reminderId)?.start).toBe('2024-06-10T09:00')
+  })
+
+  it('an all-day quick-create doubles as a due date', () => {
+    const app = useAppStore()
+    const id = app.createScheduledItem('task', 'All day thing', '', {
+      startAt: DAY,
+      endAt: DAY + 24 * 60 * MIN,
+      allDay: true,
+      durationMins: 24 * 60,
+    }) as number
+    expect(taskOf(app, id).deadline).toBe('2024-06-10')
+  })
+
+  it('creates nothing from an empty title', () => {
+    const app = useAppStore()
+    expect(
+      app.createScheduledItem('task', '   ', '', {
+        startAt: NINE,
+        endAt: TEN,
+        allDay: false,
+        durationMins: 60,
+      }),
+    ).toBeNull()
+    expect(app.tasks).toEqual([])
+  })
+})
