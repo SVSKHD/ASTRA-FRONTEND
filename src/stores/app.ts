@@ -81,6 +81,8 @@ import { chunk, eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
 import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
 import { deviceLabel, draftKey, sanitizeDrafts, type DraftRecord } from '@/utils/drafts'
 import { seedBots } from '@/utils/bots'
+import { chainName, isChainKey, type ChainKey, type Network } from '@/utils/chains'
+import { validateAddress } from '@/utils/address'
 import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
 import type { Debt, DebtPayment, FinScope, FinTag, ScopeFilter, Txn } from '@/types'
 import { titleFromMessage } from '@/utils/ai'
@@ -154,6 +156,7 @@ import type {
   Trip,
   TripPlace,
   TripStatus,
+  Wallet,
 } from '@/types'
 import type { ParsedGoalItem, GoalDoc, GoalPoint } from '@/utils/goals'
 import { horizonDates, localDateInTz } from '@/utils/recurrence'
@@ -316,6 +319,11 @@ export const useAppStore = defineStore('app', () => {
   const ghInstalled = ref<LinkedRepo[] | null>(null)
   const ghBusy = ref(false)
   const ghError = ref('')
+  // Wallets (section 14): the user's own PUBLIC receive addresses. They live on
+  // the workspace document — under the user, never under a project — so the
+  // existing `request.auth.uid == userId` rule already denies another uid's
+  // wallets (acceptance 65). No key material is ever accepted or stored.
+  const wallets = ref<Wallet[]>([])
   const cloudReady = ref(false)
   const cloudError = ref('')
   const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
@@ -3264,6 +3272,77 @@ export const useAppStore = defineStore('app', () => {
     repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, labelFilter: clean } : r))
   }
 
+  // ---- Wallets (section 14) ------------------------------------------------
+  // Read-only by design: this is an address book. Nothing below signs, builds a
+  // transaction or connects a wallet, and every write goes through
+  // validateAddress first — which refuses a seed phrase or private key outright
+  // and never persists the offending input, not even as a draft (acceptance 61).
+
+  const walletsByChain = computed(() => {
+    const groups = new Map<ChainKey, Wallet[]>()
+    for (const w of [...wallets.value].sort((a, b) => a.order - b.order)) {
+      const list = groups.get(w.chain) ?? []
+      list.push(w)
+      groups.set(w.chain, list)
+    }
+    return groups
+  })
+
+  function walletById(walletId: number): Wallet | undefined {
+    return wallets.value.find((w) => w.id === walletId)
+  }
+
+  // The default wallet for a chain: the flagged one, else the first by order.
+  function defaultWalletFor(chain: ChainKey): Wallet | undefined {
+    const list = walletsByChain.value.get(chain) ?? []
+    return list.find((w) => w.isDefault) ?? list[0]
+  }
+
+  // Add a wallet. Returns the rejection reason rather than throwing, so the form
+  // can show something specific — and returns before any write when the input is
+  // a secret, so nothing about it is ever persisted.
+  function addWallet(fields: {
+    label: string
+    chain: ChainKey
+    network?: Network
+    address: string
+    memoTag?: string | null
+    notes?: string
+  }): { id: number | null; error: string } {
+    const network: Network = fields.network ?? 'mainnet'
+    const address = (fields.address || '').trim()
+    const check = validateAddress(fields.chain, address, network)
+    if (!check.ok) return { id: null, error: check.reason }
+    // The same address on the same chain twice is a mistake, not a feature.
+    const duplicate = wallets.value.find(
+      (w) => w.chain === fields.chain && w.network === network && w.address === address,
+    )
+    if (duplicate) return { id: null, error: 'That address is already saved on this chain' }
+
+    const newId = id()
+    const orders = wallets.value.map((w) => w.order)
+    const chainHasOne = wallets.value.some((w) => w.chain === fields.chain)
+    wallets.value = [
+      ...wallets.value,
+      {
+        id: newId,
+        label: (fields.label || '').trim() || chainName(fields.chain) + ' wallet',
+        chain: fields.chain,
+        network,
+        address,
+        memoTag: (fields.memoTag || '').trim() || null,
+        // The first wallet on a chain is that chain's default.
+        isDefault: !chainHasOne,
+        order: orders.length ? Math.max(...orders) + 1 : 0,
+        notes: (fields.notes || '').trim(),
+        balanceEnabled: false,
+        balance: null,
+        ...stamps(),
+      },
+    ]
+    return { id: newId, error: '' }
+  }
+
   // ---- Conditional polling fallback (13f) ---------------------------------
   // Webhooks are the primary path; this is the safety net for a delivery that
   // never arrived. Each linked repo is re-read at most every ten minutes with
@@ -4495,6 +4574,7 @@ export const useAppStore = defineStore('app', () => {
       githubIntegration: githubIntegration.value,
       repos: repos.value,
       ghIssues: ghIssues.value,
+      wallets: wallets.value,
     }
   }
   function resetData() {
@@ -4540,6 +4620,7 @@ export const useAppStore = defineStore('app', () => {
     githubIntegration.value = emptyGithubIntegration()
     repos.value = []
     ghIssues.value = []
+    wallets.value = []
     ghInstalled.value = null
     ghError.value = ''
     syncedSig.value = new Map()
@@ -4935,6 +5016,22 @@ export const useAppStore = defineStore('app', () => {
     ghIssues.value = Array.isArray(data.ghIssues)
       ? data.ghIssues.map(sanitizeIssue).filter((i): i is GithubIssue => i !== null)
       : []
+    // Wallets. Every field is checked on read: an unknown chain, or an address
+    // that no longer validates, is dropped rather than shown as if it were fine.
+    wallets.value = stamped<Wallet>(data.wallets)
+      .filter((w) => isChainKey(w.chain) && typeof w.address === 'string' && w.address.length > 0)
+      .map((w, i) => ({
+        ...w,
+        label: typeof w.label === 'string' ? w.label : '',
+        network: w.network === 'testnet' ? 'testnet' : 'mainnet',
+        memoTag: typeof w.memoTag === 'string' && w.memoTag ? w.memoTag : null,
+        isDefault: w.isDefault === true,
+        order: typeof w.order === 'number' ? w.order : i,
+        notes: typeof w.notes === 'string' ? w.notes : '',
+        balanceEnabled: w.balanceEnabled === true,
+        balance: w.balance && typeof w.balance === 'object' ? w.balance : null,
+      }))
+
     // A snapshot may carry issues a webhook mirrored while this client was
     // away; reconcile them with their tasks through the sync guard.
     syncIssuesToTasks()
@@ -5104,6 +5201,7 @@ export const useAppStore = defineStore('app', () => {
         githubIntegration,
         repos,
         ghIssues,
+        wallets,
       ],
       scheduleSave,
       { deep: true },
@@ -5190,6 +5288,11 @@ export const useAppStore = defineStore('app', () => {
     toggleRepoLink,
     setRepoSync,
     setRepoLabelFilter,
+    wallets,
+    walletsByChain,
+    walletById,
+    defaultWalletFor,
+    addWallet,
     repoActivity,
     activityOf,
     refreshRepoIssues,

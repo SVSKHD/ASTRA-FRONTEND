@@ -1,8 +1,10 @@
 // Domain types for Aureon.
 import type { Recurrence } from './utils/recurrence'
+import type { ChainKey, Network } from './utils/chains'
 import type { Metric, Occurrence } from './utils/goalMetrics'
 
 export type { Recurrence } from './utils/recurrence'
+export type { ChainKey, Network } from './utils/chains'
 export type { Metric, Occurrence, MetricDirection, MetricUnit } from './utils/goalMetrics'
 
 export type TabKey =
@@ -780,6 +782,41 @@ export interface RepoPull {
   htmlUrl: string
   draft: boolean
   ci: 'passing' | 'failing' | 'pending' | 'none'
+}
+
+// ---- Wallets (section 14) --------------------------------------------------
+// An address book of the user's own PUBLIC receive addresses. There is no field
+// here for a private key, seed phrase or keystore, and there never will be: the
+// app rejects that input at the door (utils/address) rather than storing it.
+//
+// The spec puts these at /users/{uid}/wallets/{walletId}. This app keeps one
+// workspace document per uid, so they live as a flat array on that document —
+// still under the user, never under a project, and covered by the same
+// `request.auth.uid == userId` rule (acceptance 65).
+export interface Wallet extends Timestamped {
+  id: number
+  label: string
+  chain: ChainKey
+  network: Network
+  address: string
+  // XRP/XLM/ATOM destination tag or memo; null when the chain does not use one.
+  memoTag: string | null
+  // At most one default per chain — the one the share block and dashboard
+  // reach for first.
+  isDefault: boolean
+  order: number
+  notes: string
+  // Balance display is off by default and opt-in per wallet; the read goes
+  // through a Cloud Function so no API key sits in the client.
+  balanceEnabled: boolean
+  balance: WalletBalance | null
+}
+
+export interface WalletBalance {
+  amount: string
+  symbol: string
+  fetchedAt: number
+  error: string
 }
 
 export interface AureonUser {
