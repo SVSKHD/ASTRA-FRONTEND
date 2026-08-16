@@ -310,3 +310,38 @@ describe('task ↔ issue linking (13c)', () => {
     expect(task.done).toBe(true)
   })
 })
+
+describe('sync pausing (13f)', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('reports paused only until the resume time', () => {
+    const app = useAppStore()
+    app.pauseGithubSync(Date.now() + 60_000, 'GitHub rate limit reached')
+    expect(app.githubPaused).toBe(true)
+    app.pauseGithubSync(Date.now() - 1, 'expired')
+    expect(app.githubPaused).toBe(false)
+  })
+
+  it('resuming clears both the deadline and the reason', () => {
+    const app = useAppStore()
+    app.pauseGithubSync(Date.now() + 60_000, 'GitHub rate limit reached')
+    app.resumeGithubSync()
+    expect(app.githubPaused).toBe(false)
+    expect(app.githubIntegration.pausedUntil).toBeNull()
+    expect(app.githubIntegration.pausedReason).toBe('')
+  })
+
+  it('does nothing on a poll tick when GitHub is not connected', async () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    await app.pollGithubOnce()
+    expect(app.repos[0].lastSyncAt).toBe(0)
+  })
+
+  it('refreshing a repo is a no-op while sync is switched off for it', async () => {
+    const app = useAppStore()
+    app.linkRepo(makeRepo())
+    app.setRepoSync('octo__demo', false)
+    expect(await app.refreshRepoIssues('octo__demo')).toBe(false)
+  })
+})

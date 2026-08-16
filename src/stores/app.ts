@@ -34,6 +34,13 @@ import {
   taskUrl,
 } from '@/utils/githubModel'
 import {
+  POLL_TICK_MS,
+  backoffDelay,
+  reposDueForPoll,
+  resumeAtFor,
+  shouldPauseForRateLimit,
+} from '@/utils/ghPoll'
+import {
   effectsForIssues,
   isGhDelivery,
   issueFromDelivery,
@@ -3257,6 +3264,83 @@ export const useAppStore = defineStore('app', () => {
     repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, labelFilter: clean } : r))
   }
 
+  // ---- Conditional polling fallback (13f) ---------------------------------
+  // Webhooks are the primary path; this is the safety net for a delivery that
+  // never arrived. Each linked repo is re-read at most every ten minutes with
+  // its stored etag, so an unchanged repo answers 304 and costs no rate limit.
+
+  let ghPollTimer: ReturnType<typeof setInterval> | undefined
+  // Consecutive failures per repo, for exponential backoff. Cleared on success.
+  const ghFailures = new Map<string, number>()
+
+  // Refresh one repo's issues conditionally. Returns true when new data landed.
+  async function refreshRepoIssues(repoId: string, force = false): Promise<boolean> {
+    const repo = repoById(repoId)
+    if (!repo || !canCallGithub()) return false
+    if (!force && !repo.syncEnabled) return false
+    try {
+      const res = await ghCall<Record<string, unknown>[]>(
+        'issues',
+        { owner: repo.owner, repo: repo.name, perPage: 50 },
+        { etag: repo.etag || null },
+      )
+      noteRateLimit(res.rateLimit)
+      ghFailures.delete(repoId)
+      // 304: nothing changed. Still stamp lastSyncAt, or the repo would look
+      // permanently overdue and poll on every tick.
+      if (res.notModified) {
+        patchRepo(repoId, { lastSyncAt: Date.now() })
+        return false
+      }
+      const incoming = (res.data ?? [])
+        .map((raw) => issueFromApi(raw, repoId))
+        .filter((i): i is GithubIssue => i !== null)
+      patchRepo(repoId, { lastSyncAt: Date.now(), etag: res.etag ?? repo.etag })
+      ingestGithubIssues(incoming)
+      // Leave room for interactive work rather than spending the last of the
+      // budget on background polling.
+      if (shouldPauseForRateLimit(githubIntegration.value.rateLimit)) {
+        pauseGithubSync(
+          resumeAtFor(githubIntegration.value.rateLimit, Date.now()),
+          'GitHub rate limit low',
+        )
+      }
+      return incoming.length > 0
+    } catch (err) {
+      const attempt = (ghFailures.get(repoId) ?? 0) + 1
+      ghFailures.set(repoId, attempt)
+      if (err instanceof GhRateLimitError) {
+        handleGhError(err, '')
+      } else {
+        // Back off visibly rather than retrying into a wall every tick.
+        pauseGithubSync(Date.now() + backoffDelay(attempt), 'GitHub sync failing')
+        handleGhError(err, 'Could not sync issues from GitHub.')
+      }
+      return false
+    }
+  }
+
+  // One tick of the fallback poller. Cheap when nothing is due: no I/O at all.
+  async function pollGithubOnce(): Promise<void> {
+    if (!canCallGithub()) return
+    const due = reposDueForPoll(repos.value, Date.now())
+    for (const repo of due) await refreshRepoIssues(repo.id)
+  }
+
+  function startGithubPolling() {
+    if (ghPollTimer || !isGhConfigured()) return
+    ghPollTimer = setInterval(() => {
+      // A pause that has expired lifts itself, so sync resumes without the user
+      // having to press anything.
+      if (githubIntegration.value.pausedUntil !== null && !githubPaused.value) resumeGithubSync()
+      void pollGithubOnce()
+    }, POLL_TICK_MS)
+  }
+  function stopGithubPolling() {
+    clearInterval(ghPollTimer)
+    ghPollTimer = undefined
+  }
+
   // ---- Repo reads (13e) ---------------------------------------------------
   // Recent commits, open PRs and branches for a repo card. Transient by design:
   // it is a live read, and a stale copy in the workspace document would be worse
@@ -4908,6 +4992,7 @@ export const useAppStore = defineStore('app', () => {
       cloudUnsub = null
     }
     clearTimeout(saveTimer)
+    stopGithubPolling()
     cloudReady.value = false
     cloudError.value = ''
     syncState.value = 'idle'
@@ -4934,6 +5019,9 @@ export const useAppStore = defineStore('app', () => {
       setTimeout(() => {
         void runAutoRolloverIfDue()
         runGoalGenerationIfDue()
+        // Webhooks are primary; this is the every-10-minutes conditional
+        // fallback for a delivery that never arrived.
+        startGithubPolling()
       }, 0)
     } catch (error) {
       cloudError.value = 'Could not load your Firebase data.'
@@ -5104,6 +5192,10 @@ export const useAppStore = defineStore('app', () => {
     setRepoLabelFilter,
     repoActivity,
     activityOf,
+    refreshRepoIssues,
+    pollGithubOnce,
+    startGithubPolling,
+    stopGithubPolling,
     loadRepoActivity,
     createIssueFromTask,
     linkIssueToTask,

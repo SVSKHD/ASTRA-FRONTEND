@@ -5,13 +5,14 @@
 // The panel never sees a GitHub token: connecting means installing the GitHub
 // App, and every read here is a ghProxy Cloud Function call authenticated with
 // the user's Firebase ID token.
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
+import { pausedLabel, rateLimitLabel } from '@/utils/ghPoll'
 import type { LinkedRepo } from '@/types'
 
 const app = useAppStore()
@@ -21,7 +22,6 @@ const { githubPanelOpen } = storeToRefs(auth)
 const { githubIntegration, repos, ghInstalled, ghBusy, ghError } = storeToRefs(app)
 
 const search = ref('')
-const now = Date.now()
 
 // Opening the panel is what triggers the installation read — there is no reason
 // to spend rate limit on a panel nobody opened.
@@ -51,8 +51,30 @@ const pickerRepos = computed<LinkedRepo[]>(() => {
     })
 })
 
-const rate = computed(() => githubIntegration.value.rateLimit)
-const pausedUntil = computed(() => githubIntegration.value.pausedUntil)
+// Rate limit and the paused state are always on screen: a stalled sync should
+// be explicable at a glance rather than looking like nothing is happening.
+const now = ref(Date.now())
+const rateLabel = computed(() => rateLimitLabel(githubIntegration.value.rateLimit, now.value))
+const paused = computed(() =>
+  pausedLabel(githubIntegration.value.pausedUntil, githubIntegration.value.pausedReason, now.value),
+)
+const lastSync = computed(() => githubIntegration.value.lastSyncAt)
+
+// Tick the clock while the panel is open so "resuming in 3m" counts down.
+let clock: ReturnType<typeof setInterval> | undefined
+watch(
+  githubPanelOpen,
+  (open) => {
+    clearInterval(clock)
+    clock = open ? setInterval(() => (now.value = Date.now()), 15_000) : undefined
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => clearInterval(clock))
+
+async function syncNow() {
+  for (const repo of repos.value) await app.refreshRepoIssues(repo.id, true)
+}
 
 const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
 const toggleTrack = (on: boolean) =>
@@ -146,6 +168,7 @@ const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShri
             <span :style="s.finMeta">
               installation {{ githubIntegration.installationId }} · connected
               {{ formatRelative(githubIntegration.connectedAt ?? 0, now) }}
+              <template v-if="lastSync"> · synced {{ formatRelative(lastSync, now) }}</template>
             </span>
           </div>
           <button :style="s.del" title="Disconnect" @click="app.disconnectGithub()">
@@ -154,16 +177,13 @@ const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShri
         </div>
 
         <!-- Rate limit is always visible, so a stalled sync is explicable (13f). -->
-        <div v-if="rate" :style="s.finMeta">
-          Rate limit {{ rate.remaining }}/{{ rate.limit }} · resets
-          {{ new Date(rate.resetAt).toLocaleTimeString() }}
+        <div :style="s.ghConnRow">
+          <span :style="s.finMeta">{{ rateLabel }}</span>
+          <button :style="s.importBtn" @click="syncNow">Sync now</button>
         </div>
-        <div v-if="app.githubPaused" :style="bannerStyle('oklch(0.72 0.16 60)')">
+        <div v-if="paused" :style="bannerStyle('oklch(0.72 0.16 60)')">
           <strong>Sync paused</strong>
-          <span
-            >{{ githubIntegration.pausedReason || 'Backing off' }} — resumes
-            {{ new Date(pausedUntil ?? 0).toLocaleTimeString() }}.</span
-          >
+          <span>{{ paused }}</span>
           <button :style="s.editBtn" @click="app.resumeGithubSync()">Resume now</button>
         </div>
         <div v-if="ghError" :style="bannerStyle('oklch(0.65 0.2 25)')">{{ ghError }}</div>
