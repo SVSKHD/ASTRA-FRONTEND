@@ -34,8 +34,13 @@ export interface Theme {
   rays?: boolean
   ribbonColor?: string
   bgDeep?: string
-  // Special themes (contrast) drop the liquid-glass blur.
+  // Special themes (contrast, mono) drop the liquid-glass blur.
   noGlass?: boolean
+  // Zero-chroma themes (section 16c). Every colour helper checks this and
+  // returns an achromatic value, so status is carried by weight, border,
+  // underline and icon rather than by hue — and the two mono themes are the
+  // reference surfaces for accessibility checks.
+  mono?: boolean
 }
 
 export type ThemeKey =
@@ -54,6 +59,8 @@ export type ThemeKey =
   | 'arctic'
   | 'sand'
   | 'contrast'
+  | 'monoDark'
+  | 'monoLight'
 
 const lightBase = {
   glass: 'rgba(255,255,255,0.55)',
@@ -162,7 +169,7 @@ export const THEMES = { ...baseThemes, ...EXTRA_THEMES } as Record<ThemeKey, The
 
 // Special themes are grouped apart from the plain dark/light families in the
 // picker (and are excluded from the clock-based auto rotation).
-export const SPECIAL_THEME_KEYS: ThemeKey[] = ['contrast']
+export const SPECIAL_THEME_KEYS: ThemeKey[] = ['contrast', 'monoDark', 'monoLight']
 
 export const LIGHT_THEME_KEYS: ThemeKey[] = (Object.keys(THEMES) as ThemeKey[]).filter(
   (k) => THEMES[k].group === 'light' && !SPECIAL_THEME_KEYS.includes(k),

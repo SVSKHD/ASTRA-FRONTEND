@@ -44,7 +44,10 @@ const ui = useUiStore()
 const { c, s, dark, isMobile, panelStyle } = useStyles()
 const { calendarView, tags, tasks, todos } = storeToRefs(app)
 
-const calendar = useCalendar(() => dark.value)
+const calendar = useCalendar(
+  () => dark.value,
+  () => c.value.mono === true,
+)
 const { events, filters } = calendar
 
 const calendarRef = shallowRef<InstanceType<typeof FullCalendar> | null>(null)

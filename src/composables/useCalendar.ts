@@ -44,7 +44,7 @@ export function mergeRanges(visited: Range[], range: Range): Range[] {
   return out
 }
 
-export function useCalendar(dark: () => boolean) {
+export function useCalendar(dark: () => boolean, mono: () => boolean = () => false) {
   const app = useAppStore()
   const guard = useSyncGuard()
   const { tasks, todos, goals, goalOccurrences, reminders, calendarFilters } = storeToRefs(app)
@@ -63,7 +63,7 @@ export function useCalendar(dark: () => boolean) {
     if (!coveredBy(next, visited.value)) visited.value = mergeRanges(visited.value, next)
   }
 
-  const colorOf = (tag: string) => tagColor(tag, dark())
+  const colorOf = (tag: string) => tagColor(tag, dark(), mono())
 
   // Built events, memoised per (range, filters, data revision). Navigating back
   // to a range already visited re-uses the last build instead of walking every

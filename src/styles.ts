@@ -2,6 +2,7 @@ import type { CSSProperties } from 'vue'
 import type { Theme } from '@/themes'
 import type { ItemStatus } from '@/types'
 import { tagColor } from '@/utils/tags'
+import { monoPatternCss, monoPatternFor } from '@/utils/mono'
 
 // ---------------------------------------------------------------------------
 // pxify: the design's style objects use raw numbers for pixel values (React
@@ -1399,7 +1400,9 @@ export function dayGroupCard(c: Theme, active: boolean): Style {
 // every theme, like the CI dot does.
 export function statusColor(c: Theme, status: ItemStatus): string {
   if (status === 'done') return c.accent
-  if (status === 'progress') return 'oklch(0.75 0.16 75)'
+  // In-progress is the one status carrying a hue of its own; under a mono theme
+  // it becomes a neutral and the pill's border weight does the distinguishing.
+  if (status === 'progress') return c.mono ? c.text : 'oklch(0.75 0.16 75)'
   return c.dim
 }
 
@@ -1426,15 +1429,17 @@ export function statusPill(c: Theme, status: ItemStatus): Style {
 // The tag chip on a todo/task row, tinted with the tag's own colour so the
 // lists can be read by tag at a glance.
 export function tagChip(c: Theme, tag: string, dark: boolean): Style {
-  const col = tagColor(tag, dark)
+  const col = tagColor(tag, dark, c.mono)
   return {
     alignSelf: 'flex-start',
     fontSize: 10,
     padding: '2px 8px',
     borderRadius: 10,
-    background: c.input,
+    // Under a mono theme the chip carries the tag's pattern instead of its hue:
+    // an outlined shape with a distinct fill, per section 16c.
+    background: c.mono ? monoPatternCss(monoPatternFor(tag), col) : c.input,
     border: '1px solid ' + col,
-    color: col,
+    color: c.mono ? c.text : col,
     letterSpacing: '0.03em',
   }
 }
