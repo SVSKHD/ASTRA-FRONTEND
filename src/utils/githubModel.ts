@@ -19,6 +19,8 @@ import type {
   GithubLink,
   ItemStatus,
   LinkedRepo,
+  RepoCommit,
+  RepoPull,
   Task,
 } from '@/types'
 
@@ -168,6 +170,41 @@ export function issueFromApi(raw: Record<string, unknown>, repoId: string): Gith
     // rather than duplicates.
     linkedTaskId: parseTaskMarker(body),
     etag: '',
+  }
+}
+
+// Recent commits on the default branch and open PRs, for the repo cards (13e).
+// Read-only and never persisted, so these are plain normalisers with no merge
+// rules attached.
+export function commitFromApi(raw: Record<string, unknown>): RepoCommit | null {
+  const sha = str(raw.sha)
+  if (!sha) return null
+  const commit = (raw.commit ?? {}) as Record<string, unknown>
+  const author = (commit.author ?? {}) as Record<string, unknown>
+  return {
+    sha,
+    // A commit message's first line is the subject; the body is not shown.
+    message: str(commit.message).split('\n')[0],
+    author: str((raw.author as { login?: unknown } | null)?.login) || str(author.name),
+    committedAt: ms(author.date) ?? 0,
+    htmlUrl: str(raw.html_url),
+  }
+}
+
+// GitHub reports CI through the combined status / check-runs conclusion; the
+// proxy flattens it to one word, and anything unrecognised reads as 'none'
+// rather than pretending a PR is green.
+export function pullFromApi(raw: Record<string, unknown>): RepoPull | null {
+  const number = num(raw.number, -1)
+  if (number < 0) return null
+  const ci = str(raw.ci)
+  return {
+    number,
+    title: str(raw.title),
+    author: str((raw.user as { login?: unknown } | null)?.login),
+    htmlUrl: str(raw.html_url),
+    draft: raw.draft === true,
+    ci: ci === 'passing' || ci === 'failing' || ci === 'pending' ? ci : 'none',
   }
 }
 

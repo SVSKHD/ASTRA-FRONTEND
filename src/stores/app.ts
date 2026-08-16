@@ -16,6 +16,8 @@ import {
 import {
   CLOSED_VIA_SPASTA,
   buildIssueBody,
+  commitFromApi,
+  pullFromApi,
   fullName,
   githubLinkOf,
   ingestIssues,
@@ -103,6 +105,8 @@ import type {
   GithubIntegration,
   GithubIssue,
   GithubLink,
+  RepoCommit,
+  RepoPull,
   LinkedRepo,
   GraphRef,
   Hierarchical,
@@ -3253,6 +3257,71 @@ export const useAppStore = defineStore('app', () => {
     repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, labelFilter: clean } : r))
   }
 
+  // ---- Repo reads (13e) ---------------------------------------------------
+  // Recent commits, open PRs and branches for a repo card. Transient by design:
+  // it is a live read, and a stale copy in the workspace document would be worse
+  // than an empty card.
+  interface RepoActivity {
+    commits: RepoCommit[]
+    pulls: RepoPull[]
+    branches: string[]
+    loading: boolean
+    loadedAt: number
+  }
+  const repoActivity = ref<Record<string, RepoActivity>>({})
+
+  function activityOf(repoId: string): RepoActivity {
+    return (
+      repoActivity.value[repoId] ?? {
+        commits: [],
+        pulls: [],
+        branches: [],
+        loading: false,
+        loadedAt: 0,
+      }
+    )
+  }
+  function setActivity(repoId: string, patch: Partial<RepoActivity>) {
+    repoActivity.value = {
+      ...repoActivity.value,
+      [repoId]: { ...activityOf(repoId), ...patch },
+    }
+  }
+
+  async function loadRepoActivity(repoId: string, force = false): Promise<void> {
+    const repo = repoById(repoId)
+    if (!repo || !canCallGithub()) return
+    const current = activityOf(repoId)
+    if (current.loading) return
+    // Five minutes is plenty fresh for a card nobody is staring at.
+    if (!force && current.loadedAt && Date.now() - current.loadedAt < 5 * 60_000) return
+    setActivity(repoId, { loading: true })
+    try {
+      const [commits, pulls, branches] = await Promise.all([
+        ghCall<Record<string, unknown>[]>('commits', {
+          owner: repo.owner,
+          repo: repo.name,
+          perPage: 5,
+        }),
+        ghCall<Record<string, unknown>[]>('pulls', { owner: repo.owner, repo: repo.name }),
+        ghCall<{ name?: string }[]>('branches', { owner: repo.owner, repo: repo.name }),
+      ])
+      noteRateLimit(commits.rateLimit ?? pulls.rateLimit ?? branches.rateLimit)
+      setActivity(repoId, {
+        commits: (commits.data ?? []).map(commitFromApi).filter((c): c is RepoCommit => c !== null),
+        pulls: (pulls.data ?? []).map(pullFromApi).filter((p): p is RepoPull => p !== null),
+        branches: (branches.data ?? [])
+          .map((b) => (typeof b?.name === 'string' ? b.name : ''))
+          .filter(Boolean),
+        loading: false,
+        loadedAt: Date.now(),
+      })
+    } catch (err) {
+      setActivity(repoId, { loading: false, loadedAt: Date.now() })
+      handleGhError(err, 'Could not read repository activity.')
+    }
+  }
+
   // ---- Task ↔ issue (13c) -------------------------------------------------
   // The only writes that cross to GitHub are: create an issue from a task, patch
   // a linked issue's title/state, and close it with a comment. Labels and
@@ -5033,6 +5102,9 @@ export const useAppStore = defineStore('app', () => {
     toggleRepoLink,
     setRepoSync,
     setRepoLabelFilter,
+    repoActivity,
+    activityOf,
+    loadRepoActivity,
     createIssueFromTask,
     linkIssueToTask,
     unlinkIssueFromTask,

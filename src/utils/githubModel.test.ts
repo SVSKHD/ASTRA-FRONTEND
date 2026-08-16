@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildIssueBody,
+  commitFromApi,
+  pullFromApi,
   ingestIssues,
   issueFromApi,
   issueKey,
@@ -278,5 +280,46 @@ describe('shouldPatchIssue', () => {
   it('does not patch an unlinked task, or across a mismatched link', () => {
     expect(shouldPatchIssue(task(), issue())).toBe(false)
     expect(shouldPatchIssue(task({ github: { ...link, issueNumber: 99 } }), issue())).toBe(false)
+  })
+})
+
+describe('repo activity normalisation', () => {
+  it('takes the subject line of a commit message and the author login', () => {
+    const commit = commitFromApi({
+      sha: 'abc',
+      html_url: 'https://github.com/octo/demo/commit/abc',
+      author: { login: 'octo' },
+      commit: { message: 'Fix the thing\n\nlong body', author: { date: '2024-04-04T00:00:00Z' } },
+    })
+    expect(commit).toMatchObject({ sha: 'abc', message: 'Fix the thing', author: 'octo' })
+    expect(commit?.committedAt).toBe(Date.parse('2024-04-04T00:00:00Z'))
+  })
+
+  it('falls back to the git author name when there is no GitHub account', () => {
+    expect(commitFromApi({ sha: 'a', commit: { author: { name: 'A Human' } } })?.author).toBe(
+      'A Human',
+    )
+  })
+
+  it('refuses a commit payload with no sha', () => {
+    expect(commitFromApi({})).toBeNull()
+  })
+
+  it('reads a PR with its flattened CI state', () => {
+    expect(
+      pullFromApi({ number: 4, title: 'Add x', user: { login: 'nova' }, ci: 'failing' }),
+    ).toEqual({
+      number: 4,
+      title: 'Add x',
+      author: 'nova',
+      htmlUrl: '',
+      draft: false,
+      ci: 'failing',
+    })
+  })
+
+  it('reads an unknown CI value as none rather than green', () => {
+    expect(pullFromApi({ number: 4, ci: 'weird' })?.ci).toBe('none')
+    expect(pullFromApi({ number: 4 })?.ci).toBe('none')
   })
 })

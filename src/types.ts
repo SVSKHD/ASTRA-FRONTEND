@@ -19,6 +19,7 @@ export type TabKey =
   | 'ai'
   | 'bots'
   | 'goals'
+  | 'github'
 
 // Every stored item carries these. Items written before timestamps existed have
 // neither, so applyData() backfills them to 0 — which the formatter renders as

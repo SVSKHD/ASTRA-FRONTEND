@@ -30,6 +30,7 @@ export const TABS: readonly TabDef[] = [
   { key: 'stocks', label: 'Stocks' },
   { key: 'ai', label: 'AI' },
   { key: 'bots', label: 'Bots' },
+  { key: 'github', label: 'GitHub' },
 ] as const
 
 // The canonical tab order, consumed by the ui store's keyboard navigation so the

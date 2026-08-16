@@ -19,6 +19,7 @@ import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
 import MonthPicker from '@/components/MonthPicker.vue'
 import OverviewUpNext from '@/components/OverviewUpNext.vue'
 import GoalsDashboardCard from '@/components/GoalsDashboardCard.vue'
+import RepoDashboardCard from '@/components/RepoDashboardCard.vue'
 import type { TabKey } from '@/types'
 
 const ui = useUiStore()
@@ -329,6 +330,8 @@ function compareLineStyle(dir: 'up' | 'down' | 'flat') {
     <OverviewUpNext />
 
     <GoalsDashboardCard />
+
+    <RepoDashboardCard />
 
     <div :style="gridStyle">
       <div
