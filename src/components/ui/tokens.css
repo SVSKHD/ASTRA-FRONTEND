@@ -68,10 +68,69 @@
   }
 }
 
+/* A staggered list entrance: 30ms between rows, capped so a long list does not
+   spend a second animating. Composed by any list that wants it rather than
+   re-declared per view. */
+.stagger-in > * {
+  animation: uiRowIn var(--dur-med) var(--ease-out) both;
+  animation-delay: calc(var(--stagger) * var(--row-index, 0));
+}
+.stagger-in > *:nth-child(1) {
+  --row-index: 0;
+}
+.stagger-in > *:nth-child(2) {
+  --row-index: 1;
+}
+.stagger-in > *:nth-child(3) {
+  --row-index: 2;
+}
+.stagger-in > *:nth-child(4) {
+  --row-index: 3;
+}
+.stagger-in > *:nth-child(5) {
+  --row-index: 4;
+}
+.stagger-in > *:nth-child(6) {
+  --row-index: 5;
+}
+.stagger-in > *:nth-child(n + 7) {
+  --row-index: 6;
+}
+@keyframes uiRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stagger-in > * {
+    animation: none;
+  }
+}
+
+/* The drop spring, for anything that lands after a drag. */
+.drop-spring {
+  animation: uiDrop var(--dur-med) var(--spring) both;
+}
+@keyframes uiDrop {
+  from {
+    transform: scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop-spring {
+    animation: none;
+  }
+}
+
 /* Shared primitives the components compose rather than redeclare. */
 .ui-focus-ring:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--theme-accent) 32%, transparent);
+  /* The ring, plus the accent glow — the glow is a shadow, never a text colour,
+     which is how vibrancy stays away from anything contrast-critical. */
+  box-shadow:
+    0 0 0 3px color-mix(in oklch, var(--theme-accent) 32%, transparent),
+    var(--accent-glow, none);
 }
 .ui-sr-only {
   position: absolute;

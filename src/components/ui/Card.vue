@@ -33,7 +33,9 @@ defineEmits<{ click: [] }>()
   padding: var(--sp-4);
   border-radius: var(--radius-lg);
   border: 1px solid var(--glass-border);
-  background: var(--glass-card);
+  background:
+    linear-gradient(var(--surface-tint, transparent), var(--surface-tint, transparent)),
+    var(--glass-card);
   color: var(--theme-text);
   box-shadow: var(--elev-1);
   min-width: 0;
@@ -47,6 +49,7 @@ defineEmits<{ click: [] }>()
 .ui-card.is-interactive:hover {
   transform: translateY(-2px);
   border-color: var(--theme-accent);
+  box-shadow: var(--accent-glow, none), var(--elev-1);
 }
 .ui-card__head {
   display: flex;

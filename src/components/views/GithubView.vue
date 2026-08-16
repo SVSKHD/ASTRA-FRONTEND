@@ -270,7 +270,7 @@ function progressInner(pct: number) {
         No repositories linked yet — connect GitHub and pick one in Settings.
       </div>
       <div v-else-if="!visibleIssues.length" :style="s.empty">No issues match these filters.</div>
-      <div v-else :style="s.list">
+      <div class="stagger-in" v-else :style="s.list">
         <div v-for="issue in visibleIssues" :key="issue.id" :style="s.ghRepoCard">
           <div :style="rowStyle">
             <input

@@ -19,7 +19,11 @@ withDefaults(
 
 <style scoped>
 .ui-glass {
-  background: var(--glass-bg);
+  /* A trace of the accent over the glass, so a panel belongs to its theme
+     rather than sitting grey beside it. Mono resolves the tint to transparent. */
+  background:
+    linear-gradient(var(--surface-tint, transparent), var(--surface-tint, transparent)),
+    var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
   border: 1px solid var(--glass-border);

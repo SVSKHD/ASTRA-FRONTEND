@@ -6,6 +6,7 @@
 // mounts (no flash on reload).
 
 import { THEMES, type ThemeKey, type ThemeSetting } from './index'
+import { accentGlow, accentGradient, surfaceTint } from '@/utils/gradient'
 
 export const LS_THEME_ID = 'aureon:themeId'
 export const LS_THEME_SETTING = 'aureon:themeSetting'
@@ -36,6 +37,15 @@ export function applyThemeToDom(key: ThemeKey, setting: ThemeSetting): void {
   // @supports fallback in style.css.
   root.style.setProperty('--glass-solid', t.bgSolid)
   root.style.setProperty('--theme-input', t.input)
+  // The vibrant pass (section 16d): an accent gradient pair, a surface tint and
+  // a focus glow, all derived from the theme's own accent so every theme gets
+  // them and none has to define them. Mono returns flat values, so the same
+  // components render correctly with no chroma at all.
+  const gradient = accentGradient(t)
+  root.style.setProperty('--accent-grad-from', gradient.from)
+  root.style.setProperty('--accent-grad-to', gradient.to)
+  root.style.setProperty('--surface-tint', surfaceTint(t))
+  root.style.setProperty('--accent-glow', accentGlow(t))
 
   let meta = document.querySelector('meta[name="theme-color"]')
   if (!meta) {
