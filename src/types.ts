@@ -267,6 +267,9 @@ export interface Task extends Timestamped, Linkable, Hierarchical {
   graphRefs?: GraphRef[]
   // Goals this task is attached to (task 8). See Todo.goalIds.
   goalIds?: number[]
+  // The GitHub issue this task is linked to (section 13c), or null when
+  // unlinked. Backfilled to null on read for tasks written before it existed.
+  github?: GithubLink | null
 }
 
 // ---- Goals (task 8) -------------------------------------------------------
@@ -672,6 +675,110 @@ export interface SharedView {
   type?: ItemType
   item?: Record<string, unknown>
   notFound?: boolean
+}
+
+// ---- GitHub integration (section 13) --------------------------------------
+// The connection itself. The installation id is the only GitHub identifier the
+// client ever holds — the access token lives in Secret Manager, keyed by that
+// installation, and is used exclusively inside the ghProxy Cloud Function.
+// Nothing token-shaped is stored here or anywhere else on the client.
+export interface GithubIntegration {
+  installationId: number | null
+  login: string
+  avatarUrl: string
+  connectedAt: number | null
+  scopes: string[]
+  lastSyncAt: number
+  // Last rate-limit reading from the proxy, shown in Settings → Integrations.
+  rateLimit: { limit: number; remaining: number; resetAt: number } | null
+  // Set when sync backs off; the UI shows a visible "sync paused" state rather
+  // than failing silently (13f).
+  pausedUntil: number | null
+  pausedReason: string
+}
+
+export function emptyGithubIntegration(): GithubIntegration {
+  return {
+    installationId: null,
+    login: '',
+    avatarUrl: '',
+    connectedAt: null,
+    scopes: [],
+    lastSyncAt: 0,
+    rateLimit: null,
+    pausedUntil: null,
+    pausedReason: '',
+  }
+}
+
+// A repo linked into the workspace. `id` is the spec's "owner__name" key.
+export interface LinkedRepo {
+  id: string
+  owner: string
+  name: string
+  fullName: string
+  defaultBranch: string
+  private: boolean
+  htmlUrl: string
+  stars: number
+  openIssuesCount: number
+  language: string
+  pushedAt: number
+  linkedAt: number
+  syncEnabled: boolean
+  labelFilter: string[]
+  lastSyncAt: number
+  // The conditional-request tag for this repo's issue list; a matching etag
+  // returns 304 and costs no rate limit (13f).
+  etag: string
+}
+
+// A mirrored GitHub issue. `id` is the spec's "owner__name__number" key.
+// `linkedTaskId` is the only Spasta-owned field — everything else is GitHub's,
+// and GitHub wins on conflict.
+export interface GithubIssue {
+  id: string
+  repoId: string
+  number: number
+  title: string
+  body: string
+  state: 'open' | 'closed'
+  labels: string[]
+  assignees: string[]
+  author: string
+  htmlUrl: string
+  createdAt: number
+  updatedAt: number
+  closedAt: number | null
+  commentsCount: number
+  linkedTaskId: number | null
+  etag: string
+}
+
+// The link a task carries once it has an issue on the other side.
+export interface GithubLink {
+  repoId: string
+  issueNumber: number
+  issueUrl: string
+  state: 'open' | 'closed'
+  syncedAt: number
+}
+
+// Recent-activity payloads for the repo cards (read-only, never persisted).
+export interface RepoCommit {
+  sha: string
+  message: string
+  author: string
+  committedAt: number
+  htmlUrl: string
+}
+export interface RepoPull {
+  number: number
+  title: string
+  author: string
+  htmlUrl: string
+  draft: boolean
+  ci: 'passing' | 'failing' | 'pending' | 'none'
 }
 
 // GitHub (mock) shapes ----------------------------------------------------

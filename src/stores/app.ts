@@ -6,6 +6,21 @@ import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
 import { isThemeSetting, isThemeKey, THEMES, type ThemeSetting, type ThemeKey } from '@/themes'
 import { isFirebaseUserAllowed } from '@/stores/auth'
 import { mockGithub } from '@/utils/github'
+import {
+  GhNotConfiguredError,
+  GhRateLimitError,
+  ghCall,
+  ghInstallUrl,
+  isGhConfigured,
+  type GhRateLimit,
+} from '@/utils/ghProxy'
+import {
+  githubLinkOf,
+  repoFromApi,
+  sanitizeIntegration,
+  sanitizeIssue,
+  sanitizeRepo,
+} from '@/utils/githubModel'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
 import { createShare, deleteShare, updateShareItem, writeShareDoc } from '@/utils/shares'
 import {
@@ -27,7 +42,13 @@ import {
   withTag,
   withoutTag,
 } from '@/utils/tags'
-import { STATUS_CYCLE, emptyFinanceSettings, isStatus, statusFromDone } from '@/types'
+import {
+  STATUS_CYCLE,
+  emptyFinanceSettings,
+  emptyGithubIntegration,
+  isStatus,
+  statusFromDone,
+} from '@/types'
 import { chunk, eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
 import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
 import { deviceLabel, draftKey, sanitizeDrafts, type DraftRecord } from '@/utils/drafts'
@@ -61,6 +82,9 @@ import type {
   EditingState,
   Finance,
   GithubCacheEntry,
+  GithubIntegration,
+  GithubIssue,
+  LinkedRepo,
   GraphRef,
   Hierarchical,
   Idea,
@@ -249,6 +273,20 @@ export const useAppStore = defineStore('app', () => {
   const businessFinance = ref<FinanceSettings>(emptyFinanceSettings())
   const finScope = ref<ScopeFilter>('personal')
   const finMigrated = ref(false)
+  // GitHub integration (section 13). The connection record holds the installation
+  // id, never a token — tokens live in Secret Manager and are only ever used
+  // inside the ghProxy Cloud Function. Repos and mirrored issues are flat arrays
+  // keyed by the spec's composite ids ("owner__name", "owner__name__number"),
+  // adapting /projects/{id}/repos and /projects/{id}/issues to this app's single
+  // workspace document.
+  const githubIntegration = ref<GithubIntegration>(emptyGithubIntegration())
+  const repos = ref<LinkedRepo[]>([])
+  const ghIssues = ref<GithubIssue[]>([])
+  // Transient: the repos the installation can see, for the picker. Never
+  // persisted — it is a live read, and stale entries would mislead.
+  const ghInstalled = ref<LinkedRepo[] | null>(null)
+  const ghBusy = ref(false)
+  const ghError = ref('')
   const cloudReady = ref(false)
   const cloudError = ref('')
   const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
@@ -3033,6 +3071,164 @@ export const useAppStore = defineStore('app', () => {
     dismissShared()
   }
 
+  // ---- GitHub integration (section 13) ------------------------------------
+  // Every call below goes through the ghProxy Cloud Function. Nothing in this
+  // file has, or can obtain, a GitHub token (acceptance 59).
+
+  const githubConnected = computed(() => githubIntegration.value.installationId !== null)
+  const githubConfigured = computed(() => isGhConfigured())
+  // Visible "sync paused" state rather than silent failure (13f).
+  const githubPaused = computed(() => {
+    const until = githubIntegration.value.pausedUntil
+    return until !== null && until > Date.now()
+  })
+
+  function patchIntegration(patch: Partial<GithubIntegration>) {
+    githubIntegration.value = { ...githubIntegration.value, ...patch }
+  }
+
+  // Fold the rate-limit reading from any proxy call into the integration record,
+  // and pause sync when the window is spent.
+  function noteRateLimit(rl: GhRateLimit | null) {
+    if (!rl) return
+    patchIntegration({ rateLimit: rl })
+    if (rl.remaining <= 0) pauseGithubSync(rl.resetAt, 'GitHub rate limit reached')
+  }
+
+  function pauseGithubSync(until: number, reason: string) {
+    patchIntegration({ pausedUntil: until, pausedReason: reason })
+  }
+  function resumeGithubSync() {
+    patchIntegration({ pausedUntil: null, pausedReason: '' })
+  }
+
+  // Shared error handling: a rate-limit refusal pauses sync; anything else
+  // surfaces as a message on the panel rather than a thrown promise.
+  function handleGhError(err: unknown, fallback: string): void {
+    if (err instanceof GhRateLimitError) {
+      pauseGithubSync(err.resetAt, 'GitHub rate limit reached')
+      ghError.value = 'Sync paused — GitHub rate limit reached.'
+      return
+    }
+    if (err instanceof GhNotConfiguredError) {
+      ghError.value = 'GitHub is not configured for this workspace.'
+      return
+    }
+    ghError.value = err instanceof Error ? err.message : fallback
+    console.error('[Aureon] GitHub:', err)
+  }
+
+  // Load the repos this installation can see. Called when the picker opens.
+  async function loadInstalledRepos(): Promise<void> {
+    if (ghBusy.value) return
+    ghBusy.value = true
+    ghError.value = ''
+    try {
+      const res = await ghCall<{
+        installationId?: number
+        login?: string
+        avatarUrl?: string
+        scopes?: string[]
+        repositories?: Record<string, unknown>[]
+      }>('installations')
+      noteRateLimit(res.rateLimit)
+      const payload = res.data || {}
+      const now = Date.now()
+      const list = Array.isArray(payload.repositories) ? payload.repositories : []
+      ghInstalled.value = list
+        .map((r) => repoFromApi(r, now))
+        .filter((r): r is LinkedRepo => r !== null)
+      // The installation identity is the only GitHub identifier we keep.
+      if (typeof payload.installationId === 'number') {
+        patchIntegration({
+          installationId: payload.installationId,
+          login: typeof payload.login === 'string' ? payload.login : githubIntegration.value.login,
+          avatarUrl:
+            typeof payload.avatarUrl === 'string'
+              ? payload.avatarUrl
+              : githubIntegration.value.avatarUrl,
+          scopes: Array.isArray(payload.scopes) ? payload.scopes : githubIntegration.value.scopes,
+          connectedAt: githubIntegration.value.connectedAt ?? now,
+        })
+        resumeGithubSync()
+      }
+    } catch (err) {
+      ghInstalled.value = ghInstalled.value ?? []
+      handleGhError(err, 'Could not list your GitHub repositories.')
+    } finally {
+      ghBusy.value = false
+    }
+  }
+
+  // "Connect GitHub" — send the user to install the App, then read the
+  // installation back. Installing is what grants per-repo access; there is no
+  // token round-trip in the browser.
+  function githubInstallUrl(): string {
+    return ghInstallUrl()
+  }
+  async function connectGithub(): Promise<void> {
+    await loadInstalledRepos()
+  }
+
+  function disconnectGithub() {
+    githubIntegration.value = emptyGithubIntegration()
+    ghInstalled.value = null
+    ghError.value = ''
+    // Linked repos and mirrored issues are left in place: disconnecting stops
+    // syncing, it does not throw away what the workspace already knows. Tasks
+    // keep their issue chips and can still be unlinked one by one.
+  }
+
+  function repoById(repoId: string): LinkedRepo | undefined {
+    return repos.value.find((r) => r.id === repoId)
+  }
+
+  // Link a repo the installation can see. Idempotent: linking an already-linked
+  // repo refreshes its metadata rather than adding a duplicate.
+  function linkRepo(repo: LinkedRepo): LinkedRepo {
+    const existing = repoById(repo.id)
+    if (existing) {
+      const merged: LinkedRepo = {
+        ...existing,
+        ...repo,
+        linkedAt: existing.linkedAt,
+        syncEnabled: existing.syncEnabled,
+        labelFilter: existing.labelFilter,
+        lastSyncAt: existing.lastSyncAt,
+        etag: existing.etag,
+      }
+      repos.value = repos.value.map((r) => (r.id === repo.id ? merged : r))
+      return merged
+    }
+    repos.value = [...repos.value, { ...repo, linkedAt: Date.now() }]
+    showToastMsg('Linked ' + repo.fullName)
+    return repo
+  }
+
+  function unlinkRepo(repoId: string) {
+    const repo = repoById(repoId)
+    repos.value = repos.value.filter((r) => r.id !== repoId)
+    // Mirrored issues for an unlinked repo are dropped; the issues themselves
+    // are untouched on GitHub, and any task link survives (it carries its own
+    // repoId + number, so the chip still resolves).
+    ghIssues.value = ghIssues.value.filter((i) => i.repoId !== repoId)
+    if (repo) showToastMsg('Unlinked ' + repo.fullName)
+  }
+
+  function toggleRepoLink(repo: LinkedRepo) {
+    if (repoById(repo.id)) unlinkRepo(repo.id)
+    else linkRepo(repo)
+  }
+
+  function setRepoSync(repoId: string, enabled: boolean) {
+    repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, syncEnabled: enabled } : r))
+  }
+
+  function setRepoLabelFilter(repoId: string, labels: string[]) {
+    const clean = labels.map((l) => l.trim()).filter(Boolean)
+    repos.value = repos.value.map((r) => (r.id === repoId ? { ...r, labelFilter: clean } : r))
+  }
+
   // ---- GitHub (mock) ------------------------------------------------------
   function fetchGithub(taskId: number, repo: string) {
     githubCache.value = { ...githubCache.value, [taskId]: { status: 'loading' } }
@@ -3889,6 +4085,9 @@ export const useAppStore = defineStore('app', () => {
       businessFinance: businessFinance.value,
       finScope: finScope.value,
       finMigrated: finMigrated.value,
+      githubIntegration: githubIntegration.value,
+      repos: repos.value,
+      ghIssues: ghIssues.value,
     }
   }
   function resetData() {
@@ -3932,6 +4131,11 @@ export const useAppStore = defineStore('app', () => {
     businessFinance.value = emptyFinanceSettings()
     finScope.value = 'personal'
     finMigrated.value = false
+    githubIntegration.value = emptyGithubIntegration()
+    repos.value = []
+    ghIssues.value = []
+    ghInstalled.value = null
+    ghError.value = ''
     syncedSig.value = new Map()
     syncFromCache.value = false
     syncHasPending.value = false
@@ -4042,6 +4246,9 @@ export const useAppStore = defineStore('app', () => {
         updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
         // Goal attachments (task 8), backfilled to [].
         goalIds: Array.isArray(t.goalIds) ? t.goalIds.filter((n) => typeof n === 'number') : [],
+        // GitHub link (section 13c), backfilled to null for tasks written
+        // before the integration existed.
+        github: githubLinkOf(t.github),
       }))
     // Edit-safe sync: a task whose dialog is open (or whose local edits are
     // unsaved) is protected — the guard holds the incoming version back rather
@@ -4316,6 +4523,16 @@ export const useAppStore = defineStore('app', () => {
     } else {
       transactions.value = []
     }
+    // GitHub integration (section 13). Every field goes through a strict
+    // sanitiser rather than a spread, so nothing unexpected — least of all
+    // anything token-shaped — can ride in from a stored document.
+    githubIntegration.value = sanitizeIntegration(data.githubIntegration)
+    repos.value = Array.isArray(data.repos)
+      ? data.repos.map(sanitizeRepo).filter((r): r is LinkedRepo => r !== null)
+      : []
+    ghIssues.value = Array.isArray(data.ghIssues)
+      ? data.ghIssues.map(sanitizeIssue).filter((i): i is GithubIssue => i !== null)
+      : []
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -4476,6 +4693,9 @@ export const useAppStore = defineStore('app', () => {
         businessFinance,
         finScope,
         finMigrated,
+        githubIntegration,
+        repos,
+        ghIssues,
       ],
       scheduleSave,
       { deep: true },
@@ -4544,6 +4764,27 @@ export const useAppStore = defineStore('app', () => {
     noteViewClosing,
     openNote,
     githubCache,
+    githubIntegration,
+    repos,
+    ghIssues,
+    ghInstalled,
+    ghBusy,
+    ghError,
+    githubConnected,
+    githubConfigured,
+    githubPaused,
+    githubInstallUrl,
+    connectGithub,
+    disconnectGithub,
+    loadInstalledRepos,
+    repoById,
+    linkRepo,
+    unlinkRepo,
+    toggleRepoLink,
+    setRepoSync,
+    setRepoLabelFilter,
+    pauseGithubSync,
+    resumeGithubSync,
     approvedPRs,
     draggingId,
     draggingTodoId,

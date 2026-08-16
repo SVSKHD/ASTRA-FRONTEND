@@ -14,9 +14,8 @@ import {
   type UserCredential,
 } from 'firebase/auth'
 import { auth, firebaseEnabled } from '@/firebase'
-import { mockRepos } from '@/utils/github'
 import { CALENDAR_SCOPE, hasCalendarToken, setCalendarToken } from '@/utils/gcal'
-import type { AureonUser, Repo } from '@/types'
+import type { AureonUser } from '@/types'
 
 const GOOGLE_COLOR = 'oklch(0.62 0.15 255)'
 const GITHUB_COLOR = 'oklch(0.5 0.02 260)'
@@ -98,11 +97,6 @@ export const useAuthStore = defineStore('auth', () => {
   const avatarMenuOpen = ref(false)
   const githubPanelOpen = ref(false)
 
-  const ghRepos = ref<Repo[] | null>(null)
-  const ghLoadingRepos = ref(false)
-  const ghSearch = ref('')
-  const expandedRepoId = ref<string | null>(null)
-
   const isSignedIn = computed(() => !!user.value)
   const hasAllowlist = computed(() => allowedUids.length > 0 || allowedEmails.length > 0)
   const configurationReady = computed(() => firebaseEnabled && hasAllowlist.value)
@@ -151,14 +145,6 @@ export const useAuthStore = defineStore('auth', () => {
       authOpen.value = false
       authReady.value = true
     })
-  }
-
-  function loadRepos() {
-    ghLoadingRepos.value = true
-    setTimeout(() => {
-      ghRepos.value = mockRepos(Date.now())
-      ghLoadingRepos.value = false
-    }, 900)
   }
 
   async function loginWithProvider(provider: AuthProvider) {
@@ -234,7 +220,6 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     githubLinked.value = false
     setCalendarToken(null)
-    ghRepos.value = null
     avatarMenuOpen.value = false
     githubPanelOpen.value = false
     authOpen.value = true
@@ -251,7 +236,6 @@ export const useAuthStore = defineStore('auth', () => {
       provider.addScope('repo')
       await linkWithPopup(auth.currentUser, provider)
       githubLinked.value = true
-      loadRepos()
     } catch (error) {
       console.error('[Aureon] GitHub link failed:', error)
     }
@@ -259,20 +243,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   function openGithubPanel() {
     if (!user.value) return
+    // The panel itself loads the installation's repos through ghProxy when it
+    // opens; nothing to prefetch here.
     githubPanelOpen.value = true
     avatarMenuOpen.value = false
-    if (githubLinked.value && !ghRepos.value && !ghLoadingRepos.value) loadRepos()
   }
   function closeGithubPanel() {
     githubPanelOpen.value = false
   }
-  function toggleRepoExpand(id: string) {
-    expandedRepoId.value = expandedRepoId.value === id ? null : id
-  }
-  function setGhSearch(value: string) {
-    ghSearch.value = value
-  }
-
   return {
     user,
     authOpen,
@@ -282,10 +260,6 @@ export const useAuthStore = defineStore('auth', () => {
     githubLinked,
     avatarMenuOpen,
     githubPanelOpen,
-    ghRepos,
-    ghLoadingRepos,
-    ghSearch,
-    expandedRepoId,
     isSignedIn,
     configurationReady,
     avatarInitial,
@@ -300,10 +274,7 @@ export const useAuthStore = defineStore('auth', () => {
     signOut,
     toggleAvatarMenu,
     linkGithub,
-    loadRepos,
     openGithubPanel,
     closeGithubPanel,
-    toggleRepoExpand,
-    setGhSearch,
   }
 })

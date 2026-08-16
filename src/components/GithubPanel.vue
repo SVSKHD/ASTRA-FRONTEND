@@ -1,90 +1,96 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+// Settings → Integrations → GitHub (section 13a). "Connect GitHub", then a repo
+// picker listing the repos the App installation can see with a toggle per repo.
+//
+// The panel never sees a GitHub token: connecting means installing the GitHub
+// App, and every read here is a ghProxy Cloud Function call authenticated with
+// the user's Firebase ID token.
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
-import { STATUS_LABEL, type ItemStatus, type Repo } from '@/types'
+import { formatRelative } from '@/utils/timestamps'
+import type { LinkedRepo } from '@/types'
 
 const app = useAppStore()
 const auth = useAuthStore()
-const { c, dark, s } = useStyles()
-const { tasks } = storeToRefs(app)
-const { githubPanelOpen, githubLinked, ghRepos, ghSearch, expandedRepoId } = storeToRefs(auth)
+const { c, s } = useStyles()
+const { githubPanelOpen } = storeToRefs(auth)
+const { githubIntegration, repos, ghInstalled, ghBusy, ghError } = storeToRefs(app)
 
-const unlinked = computed(() => githubPanelOpen.value && !githubLinked.value)
-const linkedNoRepos = computed(() => githubLinked.value && !ghRepos.value)
-const showRepos = computed(() => githubLinked.value && !!ghRepos.value)
+const search = ref('')
+const now = Date.now()
 
-interface RepoView {
-  repo: Repo
-  expanded: boolean
-  ciColor: string
-  attached: { id: number; title: string; status: ItemStatus }[]
-  doneCount: number
-  pct: number
-}
-const repos = computed<RepoView[]>(() => {
-  const q = ghSearch.value.trim().toLowerCase()
-  return (ghRepos.value || [])
-    .filter((r) => !q || (r.name + ' ' + r.desc).toLowerCase().indexOf(q) !== -1)
+// Opening the panel is what triggers the installation read — there is no reason
+// to spend rate limit on a panel nobody opened.
+watch(
+  githubPanelOpen,
+  (open) => {
+    if (open && app.githubConfigured && ghInstalled.value === null && !ghBusy.value) {
+      void app.loadInstalledRepos()
+    }
+  },
+  { immediate: true },
+)
+
+const linkedIds = computed(() => new Set(repos.value.map((r) => r.id)))
+
+// The picker lists what the installation can see; linked repos sort first so the
+// current selection is readable at a glance.
+const pickerRepos = computed<LinkedRepo[]>(() => {
+  const q = search.value.trim().toLowerCase()
+  return (ghInstalled.value || [])
+    .filter((r) => !q || r.fullName.toLowerCase().includes(q))
     .slice()
-    .sort((a, b) => b.pushedMs - a.pushedMs)
-    .map((repo) => {
-      const attached = tasks.value.filter((t) => t.repo === repo.full)
-      const doneCount = attached.filter((t) => t.done).length
-      return {
-        repo,
-        expanded: expandedRepoId.value === repo.id,
-        ciColor:
-          repo.ci === 'passing'
-            ? dark.value
-              ? 'oklch(0.72 0.15 145)'
-              : 'oklch(0.55 0.15 145)'
-            : 'oklch(0.65 0.2 25)',
-        attached: attached.map((t) => ({ id: t.id, title: t.title, status: t.status })),
-        doneCount,
-        pct: attached.length ? Math.round((doneCount / attached.length) * 100) : 0,
-      }
+    .sort((a, b) => {
+      const la = linkedIds.value.has(a.id) ? 0 : 1
+      const lb = linkedIds.value.has(b.id) ? 0 : 1
+      return la - lb || b.pushedAt - a.pushedAt
     })
 })
 
-const headerStyle = pxify({ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' })
-function langDotStyle(color: string) {
-  return pxify({
-    display: 'inline-block',
-    width: 9,
-    height: 9,
-    borderRadius: '50%',
-    background: color,
-    marginRight: 8,
-    boxShadow: '0 0 6px ' + color,
-    verticalAlign: 'middle',
-  })
-}
-function ciBadgeStyle(rv: RepoView) {
-  return pxify({
+const rate = computed(() => githubIntegration.value.rateLimit)
+const pausedUntil = computed(() => githubIntegration.value.pausedUntil)
+
+const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
+const toggleTrack = (on: boolean) =>
+  pxify({
     flexShrink: 0,
-    fontSize: 10,
-    fontWeight: 600,
-    padding: '3px 8px',
-    borderRadius: 7,
-    color: rv.ciColor,
-    background: rv.repo.ci === 'passing' ? 'rgba(90,200,140,0.14)' : 'rgba(255,90,90,0.14)',
-    whiteSpace: 'nowrap',
+    width: 38,
+    height: 22,
+    borderRadius: 11,
+    background: on ? 'oklch(0.68 0.16 150)' : c.value.border,
+    border: '1px solid ' + c.value.border,
+    cursor: 'pointer',
+    position: 'relative',
+    transition: 'background .2s ease',
   })
-}
-function progressInner(pct: number) {
-  return pxify({
-    height: '100%',
-    width: pct + '%',
-    background: c.value.accent,
-    borderRadius: 3,
-    boxShadow: '0 0 8px ' + c.value.accent,
-    transition: 'width .5s ease',
+const toggleKnob = (on: boolean) =>
+  pxify({
+    position: 'absolute',
+    top: 2,
+    left: on ? 18 : 2,
+    width: 16,
+    height: 16,
+    borderRadius: '50%',
+    background: '#fff',
+    transition: 'left .2s ease',
   })
-}
+const bannerStyle = (col: string) =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    padding: '8px 10px',
+    borderRadius: 10,
+    border: '1px solid ' + col,
+    background: 'color-mix(in oklch, ' + col + ' 14%, transparent)',
+    fontSize: 12,
+    color: c.value.text,
+  })
+const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShrink: 0 })
 </script>
 
 <template>
@@ -96,56 +102,97 @@ function progressInner(pct: number) {
         <button :style="s.del" @click="auth.closeGithubPanel()">×</button>
       </div>
 
-      <div v-if="unlinked" :style="s.ghLinkCard">
-        <span :style="s.finMeta">Connect GitHub to browse repos, issues, PRs and CI status.</span>
-        <button :style="s.saveBtn" @click="auth.linkGithub()">Link GitHub</button>
+      <!-- No proxy URL: the integration is simply not deployed here. Say so
+           rather than offering a Connect button that cannot work. -->
+      <div v-if="!app.githubConfigured" :style="s.ghLinkCard">
+        <span :style="s.finMeta">
+          GitHub is not configured for this workspace. Set <code>VITE_GH_PROXY_URL</code> to the
+          ghProxy Cloud Function endpoint — the access token stays in Secret Manager and never
+          reaches the browser.
+        </span>
       </div>
 
-      <div v-else-if="linkedNoRepos" :style="s.ghShimmer"></div>
+      <template v-else-if="!app.githubConnected">
+        <div :style="s.ghLinkCard">
+          <span :style="s.finMeta">
+            Install the GitHub App to pick exactly which repositories Spasta can read. Issues are
+            read/write; contents, metadata and pull requests are read-only.
+          </span>
+          <a
+            v-if="app.githubInstallUrl()"
+            :style="s.saveBtn"
+            :href="app.githubInstallUrl()"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Connect GitHub</a
+          >
+          <button :style="s.editBtn" :disabled="ghBusy" @click="app.connectGithub()">
+            {{ ghBusy ? 'Checking…' : "I've installed it" }}
+          </button>
+          <span v-if="ghError" :style="s.finMeta">{{ ghError }}</span>
+        </div>
+      </template>
 
-      <template v-else-if="showRepos">
-        <input
-          :style="s.input"
-          placeholder="Search repos…"
-          :value="ghSearch"
-          @input="auth.setGhSearch(($event.target as HTMLInputElement).value)"
-        />
-        <div :style="s.list">
-          <div v-for="rv in repos" :key="rv.repo.id" :style="s.ghRepoCard">
-            <div :style="headerStyle" @click="auth.toggleRepoExpand(rv.repo.id)">
+      <template v-else>
+        <div :style="rowStyle">
+          <img
+            v-if="githubIntegration.avatarUrl"
+            :src="githubIntegration.avatarUrl"
+            :style="avatarStyle"
+            alt=""
+          />
+          <div :style="s.taskMain">
+            <span :style="s.dlTitle">{{ githubIntegration.login || 'Installed' }}</span>
+            <span :style="s.finMeta">
+              installation {{ githubIntegration.installationId }} · connected
+              {{ formatRelative(githubIntegration.connectedAt ?? 0, now) }}
+            </span>
+          </div>
+          <button :style="s.del" title="Disconnect" @click="app.disconnectGithub()">
+            Disconnect
+          </button>
+        </div>
+
+        <!-- Rate limit is always visible, so a stalled sync is explicable (13f). -->
+        <div v-if="rate" :style="s.finMeta">
+          Rate limit {{ rate.remaining }}/{{ rate.limit }} · resets
+          {{ new Date(rate.resetAt).toLocaleTimeString() }}
+        </div>
+        <div v-if="app.githubPaused" :style="bannerStyle('oklch(0.72 0.16 60)')">
+          <strong>Sync paused</strong>
+          <span
+            >{{ githubIntegration.pausedReason || 'Backing off' }} — resumes
+            {{ new Date(pausedUntil ?? 0).toLocaleTimeString() }}.</span
+          >
+          <button :style="s.editBtn" @click="app.resumeGithubSync()">Resume now</button>
+        </div>
+        <div v-if="ghError" :style="bannerStyle('oklch(0.65 0.2 25)')">{{ ghError }}</div>
+
+        <input :style="s.input" placeholder="Search repositories…" v-model="search" />
+
+        <div v-if="ghBusy && !ghInstalled" :style="s.ghShimmer"></div>
+        <div v-else-if="!pickerRepos.length" :style="s.empty">
+          No repositories in this installation.
+        </div>
+        <div v-else :style="s.list">
+          <div v-for="repo in pickerRepos" :key="repo.id" :style="s.ghRepoCard">
+            <div :style="rowStyle">
               <div :style="s.taskMain">
-                <span :style="s.dlTitle"
-                  ><span :style="langDotStyle(rv.repo.langColor)"></span>{{ rv.repo.name }}</span
-                >
-                <span :style="s.finMeta">{{ rv.repo.desc }}</span>
+                <span :style="s.dlTitle">{{ repo.fullName }}</span>
+                <span :style="s.finMeta">
+                  {{ repo.private ? 'private' : 'public' }}
+                  <template v-if="repo.language"> · {{ repo.language }}</template>
+                  · {{ repo.defaultBranch }} · {{ repo.openIssuesCount }} open
+                </span>
               </div>
-              <span :style="ciBadgeStyle(rv)">CI {{ rv.repo.ci }}</span>
-            </div>
-            <div :style="s.ghRepoMeta">
-              <span>★ {{ rv.repo.stars }}</span>
-              <span>issues {{ rv.repo.issues }}</span>
-              <span>PRs {{ rv.repo.prs }}</span>
-              <span>pushed {{ rv.repo.pushedLabel }}</span>
-            </div>
-            <template v-if="rv.attached.length">
-              <div :style="s.ghProgressOuter"><div :style="progressInner(rv.pct)"></div></div>
-              <span :style="s.finMeta"
-                >{{ rv.doneCount }}/{{ rv.attached.length }} attached tasks done</span
+              <div
+                :style="toggleTrack(linkedIds.has(repo.id))"
+                role="switch"
+                :aria-checked="linkedIds.has(repo.id)"
+                :title="linkedIds.has(repo.id) ? 'Unlink from workspace' : 'Link to workspace'"
+                @click="app.toggleRepoLink(repo)"
               >
-            </template>
-            <div v-if="rv.expanded" :style="s.ghSection">
-              <span :style="s.ghLabel">Attached tasks</span>
-              <span v-if="rv.attached.length === 0" :style="s.finMeta"
-                >None yet — import an issue below.</span
-              >
-              <div v-for="at in rv.attached" :key="at.id" :style="s.ghIssueRow">
-                <span :style="s.ghIssueText">{{ at.title }}</span>
-                <span :style="s.finMeta">{{ STATUS_LABEL[at.status].toLowerCase() }}</span>
-              </div>
-              <span :style="s.ghLabel">Open issues</span>
-              <div v-for="iss in rv.repo.openIssues" :key="iss.id" :style="s.ghIssueRow">
-                <span :style="s.ghIssueText">#{{ iss.num }} · {{ iss.title }}</span>
-                <button :style="s.importBtn" @click="app.importIssue(rv.repo, iss)">Import</button>
+                <div :style="toggleKnob(linkedIds.has(repo.id))"></div>
               </div>
             </div>
           </div>
