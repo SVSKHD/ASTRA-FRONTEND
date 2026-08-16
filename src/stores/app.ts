@@ -83,6 +83,7 @@ import { deviceLabel, draftKey, sanitizeDrafts, type DraftRecord } from '@/utils
 import { seedBots } from '@/utils/bots'
 import { chainName, isChainKey, type ChainKey, type Network } from '@/utils/chains'
 import { validateAddress } from '@/utils/address'
+import { reportError } from '@/utils/scrub'
 import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
 import type { Debt, DebtPayment, FinScope, FinTag, ScopeFilter, Txn } from '@/types'
 import { titleFromMessage } from '@/utils/ai'
@@ -2832,7 +2833,7 @@ export const useAppStore = defineStore('app', () => {
           if (gone.has(r.id) && r.calEventId) {
             void deleteEvent(r.calEventId).catch((error) => {
               if (error instanceof CalendarAuthError) calendarNeedsAuth.value = true
-              console.error('[Aureon] Calendar delete on linked-reminder delete failed:', error)
+              reportError('[Aureon] Calendar delete on linked-reminder delete failed:', error)
             })
           }
         }
@@ -2848,7 +2849,7 @@ export const useAppStore = defineStore('app', () => {
       if (eventId) {
         void deleteEvent(eventId).catch((error) => {
           if (error instanceof CalendarAuthError) calendarNeedsAuth.value = true
-          console.error('[Aureon] Calendar delete on reminder delete failed:', error)
+          reportError('[Aureon] Calendar delete on reminder delete failed:', error)
         })
       }
     }
@@ -2952,7 +2953,7 @@ export const useAppStore = defineStore('app', () => {
       await copyToClipboard(buildShareUrl(pending.type, shareId))
       showToastMsg(isPublic ? 'Public link copied' : 'Private link copied')
     } catch (error) {
-      console.error('[Aureon] Share failed:', error)
+      reportError('[Aureon] Share failed:', error)
       showToastMsg('Could not create the share link')
     } finally {
       shareBusy.value = false
@@ -3158,7 +3159,7 @@ export const useAppStore = defineStore('app', () => {
       return
     }
     ghError.value = err instanceof Error ? err.message : fallback
-    console.error('[Aureon] GitHub:', err)
+    reportError('[Aureon] GitHub:', err)
   }
 
   // Load the repos this installation can see. Called when the picker opens.
@@ -4154,7 +4155,7 @@ export const useAppStore = defineStore('app', () => {
     const shareId = item?.shareId
     if (!item || item.isPublic !== true || typeof shareId !== 'string' || !shareId) return
     updateShareItem(shareId, uid, item).catch((error) => {
-      console.error('[Aureon] Share snapshot sync failed:', error)
+      reportError('[Aureon] Share snapshot sync failed:', error)
     })
   }
 
@@ -4551,7 +4552,7 @@ export const useAppStore = defineStore('app', () => {
         calendarNeedsAuth.value = true
         showToastMsg('Google Calendar access expired')
       } else {
-        console.error('[Aureon] Calendar sync failed:', error)
+        reportError('[Aureon] Calendar sync failed:', error)
         showToastMsg('Could not sync to Google Calendar')
       }
     }
@@ -4570,7 +4571,7 @@ export const useAppStore = defineStore('app', () => {
       showToastMsg('Removed from Google Calendar')
     } catch (error) {
       if (error instanceof CalendarAuthError) calendarNeedsAuth.value = true
-      console.error('[Aureon] Calendar remove failed:', error)
+      reportError('[Aureon] Calendar remove failed:', error)
       showToastMsg('Could not remove the calendar event')
     }
   }
@@ -5175,7 +5176,7 @@ export const useAppStore = defineStore('app', () => {
       .catch((error) => {
         syncState.value = 'error'
         cloudError.value = 'Could not save changes to Firebase.'
-        console.error('[Aureon] Cloud save failed:', error)
+        reportError('[Aureon] Cloud save failed:', error)
       })
   }
   function scheduleSave() {
@@ -5201,7 +5202,7 @@ export const useAppStore = defineStore('app', () => {
       .catch((error) => {
         syncState.value = 'error'
         cloudError.value = 'Could not save changes to Firebase.'
-        console.error('[Aureon] Cloud save failed:', error)
+        reportError('[Aureon] Cloud save failed:', error)
         throw error
       })
   }
@@ -5246,7 +5247,7 @@ export const useAppStore = defineStore('app', () => {
     } catch (error) {
       cloudError.value = 'Could not load your Firebase data.'
       syncState.value = 'error'
-      console.error('[Aureon] Cloud load failed:', error)
+      reportError('[Aureon] Cloud load failed:', error)
       return
     }
     // Live updates from other devices. includeMetadataChanges so the pending /
@@ -5270,7 +5271,7 @@ export const useAppStore = defineStore('app', () => {
       (error) => {
         cloudError.value = 'Firebase realtime sync was interrupted.'
         syncState.value = 'error'
-        console.error('[Aureon] Cloud listener failed:', error)
+        reportError('[Aureon] Cloud listener failed:', error)
       },
     )
   }
