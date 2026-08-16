@@ -344,6 +344,11 @@ const options = computed<CalendarOptions>(() => ({
   views: { listMonth: { duration: { days: 30 }, buttonText: 'Agenda' } },
   events: fcEvents.value,
   datesSet: onDatesSet,
+  // Touch: a drag or resize only begins after a deliberate long press, so a
+  // scroll gesture is never mistaken for one.
+  longPressDelay: 400,
+  eventLongPressDelay: 400,
+  selectLongPressDelay: 400,
   eventStartEditable: true,
   eventDurationEditable: true,
   // No remote reflow while a drag or resize is in flight — the grid must not
@@ -700,6 +705,26 @@ const hintStyle = computed(() =>
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Month view: one line per item — dot, time, title. */
+.cal-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 3px;
+  overflow: hidden;
+  cursor: grab;
+}
+.cal-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--bar);
+}
+.cal-time {
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 /* Completed items: half opacity, struck-through title. */
 .cal-done {
