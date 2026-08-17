@@ -20,6 +20,7 @@ import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import LinkedItemsPanel from '@/components/LinkedItemsPanel.vue'
 import DraftBanner from '@/components/DraftBanner.vue'
 import type { ItemType, Note, Todo } from '@/types'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
 const { c, s } = useStyles()
@@ -348,18 +349,19 @@ const checkRow = computed(() =>
               @input="onInput(f, $event)"
             />
           </div>
+          <!-- Dates go through the one picker; everything else stays a plain
+               input, so there is no native date field left in the app. -->
+          <GlassDatePicker
+            v-else-if="f.kind === 'date' || f.kind === 'datetime'"
+            :mode="f.kind === 'date' ? 'date' : 'datetime'"
+            :model-value="String(val(f) ?? '')"
+            :placeholder="f.placeholder || f.label"
+            @update:model-value="set(f, String($event ?? ''))"
+          />
           <input
             v-else
             :style="s.input"
-            :type="
-              f.kind === 'date'
-                ? 'date'
-                : f.kind === 'datetime'
-                  ? 'datetime-local'
-                  : f.kind === 'number'
-                    ? 'number'
-                    : 'text'
-            "
+            :type="f.kind === 'number' ? 'number' : 'text'"
             :min="f.min"
             :placeholder="f.placeholder"
             :value="val(f)"

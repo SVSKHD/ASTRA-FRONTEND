@@ -21,6 +21,7 @@ import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
 import { nestedChildIds } from '@/utils/links'
 import { useAccordionState } from '@/composables/useAccordionState'
+import { useLongList } from '@/composables/useLongList'
 import { useDragNest } from '@/composables/useDragNest'
 import type { LinkRef, Task } from '@/types'
 
@@ -70,6 +71,10 @@ const carried = computed(() =>
 const active = computed(() => split.value.active)
 const activeRootIds = computed(() => active.value.map((t) => t.id))
 const completed = computed(() => split.value.completed)
+// A completed list is unbounded — it grows for as long as the workspace is
+// used. Past 100 rows it renders in windows so opening the section stays
+// instant however many years are behind it.
+const completedWindow = useLongList(completed)
 const carriedSubtitle = computed(() => oldestFromLabel(carried.value.map(dayOf)))
 
 // --- drag-to-nest -----------------------------------------------------------
@@ -271,7 +276,7 @@ function onRowDragOver(e: DragEvent) {
       @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
       @clear="app.archiveCompleted('tasks')"
     >
-      <div v-for="t in completed" :key="t.id" :style="rowStyle(t, true)">
+      <div v-for="t in completedWindow.visible.value" :key="t.id" :style="rowStyle(t, true)">
         <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
         <div :style="s.taskMain" @click="app.openTaskDialog(t.id)">
           <span :style="textStyle(t)">{{ t.title }}</span>
@@ -282,6 +287,16 @@ function onRowDragOver(e: DragEvent) {
         </div>
         <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">×</button>
       </div>
+      <button
+        v-if="completedWindow.remaining.value > 0"
+        :style="s.showMoreRow"
+        @click="completedWindow.more()"
+      >
+        Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
+          completedWindow.remaining.value
+        }}
+        hidden)
+      </button>
     </CompletedSection>
   </div>
 </template>

@@ -7,6 +7,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, merge, rowBase } from '@/styles'
 import { occurrences, repFreqLabel } from '@/utils/reminders'
 import { splitList } from '@/utils/listSplit'
+import { useLongList } from '@/composables/useLongList'
 import { relLabel } from '@/utils/upcoming'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
 import ListToolbar from '@/components/ListToolbar.vue'
@@ -123,6 +124,10 @@ const activeView = computed<RemView[]>(() =>
     .map(toView),
 )
 const completedView = computed<RemView[]>(() => split.value.completed.map(toView))
+// A completed list is unbounded — it grows for as long as the workspace is
+// used. Past 100 rows it renders in windows so opening the section stays
+// instant however many years are behind it.
+const completedWindow = useLongList(completedView)
 
 function rowStyle(done = false) {
   return merge(rowBase(c.value), { cursor: 'pointer', opacity: done ? 0.55 : 1 })
@@ -226,7 +231,7 @@ function chevronStyle(open: boolean) {
       :sort="completedSort"
       @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
     >
-      <div v-for="it in completedView" :key="it.id" :style="rowStyle(true)">
+      <div v-for="it in completedWindow.visible.value" :key="it.id" :style="rowStyle(true)">
         <div :style="s.taskMain" @click="app.openReminderDialog(it.id)">
           <span :style="s.dlTitle">{{ it.title }}</span>
           <span :style="s.dlDate">
@@ -239,6 +244,16 @@ function chevronStyle(open: boolean) {
           ×
         </button>
       </div>
+      <button
+        v-if="completedWindow.remaining.value > 0"
+        :style="s.showMoreRow"
+        @click="completedWindow.more()"
+      >
+        Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
+          completedWindow.remaining.value
+        }}
+        hidden)
+      </button>
     </CompletedSection>
   </div>
 </template>

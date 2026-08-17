@@ -19,12 +19,6 @@ export interface Recurrence {
   endOfDayNudge?: string | null
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-
-export function isDateStr(s: unknown): s is string {
-  return typeof s === 'string' && DATE_RE.test(s)
-}
-
 // Day of week (0=Sun … 6=Sat) for a yyyy-mm-dd string, computed from the calendar
 // components alone (UTC epoch) so it never shifts with the host timezone.
 export function dayOfWeek(dateStr: string): number {

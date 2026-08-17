@@ -13,6 +13,7 @@ import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
 import GoalMetricChart from '@/components/GoalMetricChart.vue'
 import { captureOutcome, type MetricDirection, type MetricUnit } from '@/utils/goalMetrics'
 import type { RecurrenceFreq } from '@/utils/recurrence'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 // configOnly hides today's occurrence row + the stats chart, so the create
 // slide-over can reuse just the recurrence/metric editor for a brand-new goal.
@@ -193,11 +194,12 @@ const pendingHint = computed(() => pxify({ fontSize: 12, color: c.value.dim, mar
           <option v-for="f in FREQ_OPTS" :key="f.v" :value="f.v">{{ f.label }}</option>
         </select>
         <label :style="fieldLabel">at</label>
-        <input
-          type="time"
-          :style="miniInput"
-          :value="goal.recurrence.timeOfDay"
-          @change="patchRec({ timeOfDay: ($event.target as HTMLInputElement).value })"
+        <GlassDatePicker
+          mode="time"
+          size="sm"
+          :model-value="goal.recurrence.timeOfDay"
+          placeholder="Time"
+          @update:model-value="patchRec({ timeOfDay: String($event ?? '') })"
         />
       </div>
       <div

@@ -7,6 +7,9 @@
 // default marker-image assets breaking under a bundler.
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import L from 'leaflet'
+// Leaflet's stylesheet lives with the only component that draws a map, so it
+// travels in the same lazily-loaded chunk instead of the initial CSS payload.
+import 'leaflet/dist/leaflet.css'
 import { useStyles } from '@/composables/useStyles'
 import type { TripPlace } from '@/types'
 

@@ -7,6 +7,8 @@
 
 // What a fresh workspace starts with. Deliberately short: the point is that you
 // add your own, not that we guess your life.
+import { monoNeutral } from '@/utils/mono'
+
 export const DEFAULT_TAGS = ['Office', 'Personal', 'Home', 'Errands']
 
 // Display form: trimmed, inner whitespace collapsed. Case is preserved as
@@ -52,7 +54,10 @@ export function sanitizeTags(value: unknown): string[] {
 // A stable colour per tag, so the same tag looks the same everywhere without
 // anyone having to pick one. Hue only — lightness and chroma stay fixed so no
 // tag can turn unreadable on either theme.
-export function tagColor(tag: string, dark: boolean): string {
+export function tagColor(tag: string, dark: boolean, mono = false): string {
+  // Under a mono theme a tag is told apart by its pattern (utils/mono), not its
+  // hue, so the colour itself collapses to a neutral.
+  if (mono) return monoNeutral(dark, 'mid')
   let h = 0
   const key = tag.toLowerCase()
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360

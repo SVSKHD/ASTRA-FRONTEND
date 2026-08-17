@@ -4,7 +4,7 @@
 // in edit mode, where the map, the ordered places, the timeline and attached
 // notes all live. A sticky Map ↔ Timeline toggle sits at the top of the body so
 // it stays reachable while the content scrolls, on mobile and desktop alike.
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -12,11 +12,14 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, type Style } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import TagPicker from '@/components/TagPicker.vue'
-import TripMap from '@/components/trips/TripMap.vue'
+// Leaflet is ~43KB gzipped and only ever needed once a trip's map is on screen,
+// so the map arrives with the dialog rather than with the app.
+const TripMap = defineAsyncComponent(() => import('@/components/trips/TripMap.vue'))
 import TripTimeline from '@/components/trips/TripTimeline.vue'
 import TripPlacesEditor from '@/components/trips/TripPlacesEditor.vue'
 import { noteTitle } from '@/utils/notes'
 import type { Note, Trip } from '@/types'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
 const router = useRouter()
@@ -370,11 +373,10 @@ const dangerBtn = computed(() =>
         </div>
         <div :style="field">
           <span :style="labelStyle">Planned date</span>
-          <input
-            :style="inputStyle"
-            type="date"
-            :value="draftVal('date')"
-            @input="setDraft('date', ($event.target as HTMLInputElement).value)"
+          <GlassDatePicker
+            :model-value="draftVal('date')"
+            placeholder="Planned date"
+            @update:model-value="setDraft('date', String($event ?? ''))"
           />
         </div>
         <div :style="field">
@@ -430,7 +432,7 @@ const dangerBtn = computed(() =>
         <div v-if="visitedPromptOpen" :style="pxify({ ...rowWrapRaw, alignItems: 'flex-end' })">
           <div :style="pxify({ ...fieldRaw, flex: 1 })">
             <span :style="labelStyle">Visited on</span>
-            <input :style="inputStyle" type="date" v-model="visitedDate" />
+            <GlassDatePicker v-model="visitedDate" placeholder="Visited on" />
           </div>
           <button :style="primaryBtn" @click="confirmVisited">Confirm</button>
           <button :style="ghostBtn" @click="visitedPromptOpen = false">Cancel</button>
@@ -459,11 +461,10 @@ const dangerBtn = computed(() =>
         <div :style="rowWrap">
           <div :style="pxify({ ...fieldRaw, flex: 1, minWidth: 150 })">
             <span :style="labelStyle">Planned date</span>
-            <input
-              :style="inputStyle"
-              type="date"
-              :value="trip.date"
-              @input="setField('date', ($event.target as HTMLInputElement).value)"
+            <GlassDatePicker
+              :model-value="trip.date"
+              placeholder="Planned date"
+              @update:model-value="setField('date', String($event ?? ''))"
             />
           </div>
           <div
@@ -471,11 +472,10 @@ const dangerBtn = computed(() =>
             :style="pxify({ ...fieldRaw, flex: 1, minWidth: 150 })"
           >
             <span :style="labelStyle">Visited date</span>
-            <input
-              :style="inputStyle"
-              type="date"
-              :value="trip.visitedDate"
-              @input="setField('visitedDate', ($event.target as HTMLInputElement).value)"
+            <GlassDatePicker
+              :model-value="trip.visitedDate"
+              placeholder="Visited date"
+              @update:model-value="setField('visitedDate', String($event ?? ''))"
             />
           </div>
         </div>

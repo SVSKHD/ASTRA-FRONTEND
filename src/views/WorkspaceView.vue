@@ -22,30 +22,33 @@ import ReminderDialog from '@/components/ReminderDialog.vue'
 import TaskView from '@/components/TaskView.vue'
 import GithubPanel from '@/components/GithubPanel.vue'
 import AuthDialog from '@/components/AuthDialog.vue'
-import Toast from '@/components/Toast.vue'
+import ToastHost from '@/components/ToastHost.vue'
 import NotifBanner from '@/components/NotifBanner.vue'
 import SharedBanner from '@/components/SharedBanner.vue'
 import ShareDialog from '@/components/ShareDialog.vue'
 import LockScreen from '@/components/LockScreen.vue'
 import CloudLoading from '@/components/CloudLoading.vue'
 
-import OverviewView from '@/components/views/OverviewView.vue'
-import TodoView from '@/components/views/TodoView.vue'
-import TasksView from '@/components/views/TasksView.vue'
-import GoalsView from '@/components/views/GoalsView.vue'
-// Planning pulls in JointJS (@joint/core), which is heavy; load it only when the
-// tab is opened so it lands in its own async chunk rather than the main bundle.
+// Every tab is its own async chunk (section 16e): opening the app parses the
+// shell and the one tab being shown, not the code behind twelve others. The
+// heavy ones — Planning (JointJS) and Calendar (FullCalendar) — are the reason
+// this matters most, but the rule is uniform so no future tab reintroduces the
+// problem.
 const PlanningView = defineAsyncComponent(() => import('@/components/views/PlanningView.vue'))
-import DeadlinesView from '@/components/views/DeadlinesView.vue'
-import RemindersView from '@/components/views/RemindersView.vue'
-import FinancesView from '@/components/views/FinancesView.vue'
-import TripsView from '@/components/views/TripsView.vue'
-import IdeasView from '@/components/views/IdeasView.vue'
-import StocksView from '@/components/views/StocksView.vue'
-import AiView from '@/components/views/AiView.vue'
-import BotsView from '@/components/views/BotsView.vue'
-import GithubView from '@/components/views/GithubView.vue'
-import WalletsView from '@/components/views/WalletsView.vue'
+const OverviewView = defineAsyncComponent(() => import('@/components/views/OverviewView.vue'))
+const TodoView = defineAsyncComponent(() => import('@/components/views/TodoView.vue'))
+const TasksView = defineAsyncComponent(() => import('@/components/views/TasksView.vue'))
+const GoalsView = defineAsyncComponent(() => import('@/components/views/GoalsView.vue'))
+const DeadlinesView = defineAsyncComponent(() => import('@/components/views/DeadlinesView.vue'))
+const RemindersView = defineAsyncComponent(() => import('@/components/views/RemindersView.vue'))
+const FinancesView = defineAsyncComponent(() => import('@/components/views/FinancesView.vue'))
+const TripsView = defineAsyncComponent(() => import('@/components/views/TripsView.vue'))
+const IdeasView = defineAsyncComponent(() => import('@/components/views/IdeasView.vue'))
+const StocksView = defineAsyncComponent(() => import('@/components/views/StocksView.vue'))
+const AiView = defineAsyncComponent(() => import('@/components/views/AiView.vue'))
+const BotsView = defineAsyncComponent(() => import('@/components/views/BotsView.vue'))
+const GithubView = defineAsyncComponent(() => import('@/components/views/GithubView.vue'))
+const WalletsView = defineAsyncComponent(() => import('@/components/views/WalletsView.vue'))
 // FullCalendar (grid + interaction plugins) is heavy; load it only when the
 // Calendar tab is opened so it lands in its own async chunk.
 const CalendarView = defineAsyncComponent(() => import('@/components/views/CalendarView.vue'))
@@ -263,7 +266,7 @@ onBeforeUnmount(() => {
     <NotifBanner />
     <SharedBanner />
     <ShareDialog />
-    <Toast />
+    <ToastHost />
     <DragGhost />
   </template>
   <AuthDialog />

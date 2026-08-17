@@ -4,7 +4,7 @@
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
-import LinkProgressBar from '@/components/LinkProgressBar.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
 
 const props = defineProps<{ done: number; total: number }>()
 const { c } = useStyles()
@@ -18,6 +18,6 @@ const labelStyle = computed(() =>
 <template>
   <div v-if="total > 0">
     <span :style="labelStyle">{{ done }} of {{ total }} done · {{ pct }}%</span>
-    <LinkProgressBar :done="done" :total="total" />
+    <ProgressBar :value="done" :max="total" />
   </div>
 </template>

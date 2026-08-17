@@ -8,8 +8,10 @@
 // Snapshots are frozen: the item is copied as it looked when shared, so later
 // edits to the original never change what a recipient sees.
 
-import { doc, collection, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
-import { db } from '@/firebase'
+// The Firestore SDK is loaded on demand (see @/firebase) — a share page that
+// never opens a share should not pay for it, and no module may import the query
+// builders statically without pulling the SDK back into the initial chunk.
+import { loadFirestore } from '@/firebase'
 import type { ItemType } from '@/types'
 
 export const SHARES_COLLECTION = 'aureon-shares'
@@ -41,9 +43,11 @@ export async function createShare(
   item: unknown,
   isPublic: boolean,
 ): Promise<string | null> {
-  if (!db) return null
-  const ref = doc(collection(db, SHARES_COLLECTION))
-  await setDoc(ref, {
+  const cloud = await loadFirestore()
+  if (!cloud) return null
+  const { db, fs } = cloud
+  const ref = fs.doc(fs.collection(db, SHARES_COLLECTION))
+  await fs.setDoc(ref, {
     ownerId,
     type,
     item: plain(item),
@@ -69,9 +73,11 @@ export async function writeShareDoc(
   isPublic: boolean,
   refPath: string,
 ): Promise<void> {
-  if (!db) throw new Error('Firebase is not configured')
+  const cloud = await loadFirestore()
+  if (!cloud) throw new Error('Firebase is not configured')
+  const { db, fs } = cloud
   const now = Date.now()
-  await setDoc(doc(db, SHARES_COLLECTION, shareId), {
+  await fs.setDoc(fs.doc(db, SHARES_COLLECTION, shareId), {
     ownerId,
     type,
     refPath,
@@ -91,9 +97,11 @@ export async function updateShareItem(
   ownerId: string,
   item: unknown,
 ): Promise<void> {
-  if (!db) return
-  await setDoc(
-    doc(db, SHARES_COLLECTION, shareId),
+  const cloud = await loadFirestore()
+  if (!cloud) return
+  const { db, fs } = cloud
+  await fs.setDoc(
+    fs.doc(db, SHARES_COLLECTION, shareId),
     { ownerId, item: plain(item), isPublic: true },
     { merge: true },
   )
@@ -103,9 +111,11 @@ export async function updateShareItem(
 // permission-denied is reported as needs-auth rather than not-found: for a
 // private share the honest prompt is "sign in", not "this doesn't exist".
 export async function fetchShare(shareId: string): Promise<ShareLoad> {
-  if (!db) return { status: 'unavailable' }
+  const cloud = await loadFirestore()
+  if (!cloud) return { status: 'unavailable' }
+  const { db, fs } = cloud
   try {
-    const snap = await getDoc(doc(db, SHARES_COLLECTION, shareId))
+    const snap = await fs.getDoc(fs.doc(db, SHARES_COLLECTION, shareId))
     if (!snap.exists()) return { status: 'not-found' }
     const data = snap.data()
     return {
@@ -127,12 +137,8 @@ export async function fetchShare(shareId: string): Promise<ShareLoad> {
   }
 }
 
-export async function setSharePublic(shareId: string, isPublic: boolean): Promise<void> {
-  if (!db) return
-  await updateDoc(doc(db, SHARES_COLLECTION, shareId), { isPublic })
-}
-
 export async function deleteShare(shareId: string): Promise<void> {
-  if (!db) return
-  await deleteDoc(doc(db, SHARES_COLLECTION, shareId))
+  const cloud = await loadFirestore()
+  if (!cloud) return
+  await cloud.fs.deleteDoc(cloud.fs.doc(cloud.db, SHARES_COLLECTION, shareId))
 }

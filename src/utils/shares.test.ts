@@ -7,16 +7,20 @@ const getDoc = vi.fn()
 const setDoc = vi.fn()
 const docFn = vi.fn(() => ({ id: 'generated-id' }))
 
-vi.mock('firebase/firestore', () => ({
+const fs = {
   doc: (...args: unknown[]) => docFn(...(args as [])),
   collection: vi.fn(() => ({})),
   getDoc: (...args: unknown[]) => getDoc(...(args as [])),
   setDoc: (...args: unknown[]) => setDoc(...(args as [])),
   updateDoc: vi.fn(),
   deleteDoc: vi.fn(),
-}))
+}
 
-vi.mock('@/firebase', () => ({ db: {} }))
+// The service now asks @/firebase for the SDK rather than importing it, so the
+// mock hands back the same fake module through the loader.
+vi.mock('@/firebase', () => ({
+  loadFirestore: () => Promise.resolve({ db: {}, fs }),
+}))
 
 const { createShare, fetchShare } = await import('@/utils/shares')
 

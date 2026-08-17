@@ -8,12 +8,14 @@
 // is display-only either way — there are no edit controls here — so the public
 // view differs only in its top bar: a PUBLIC badge and an "Open in app" button
 // instead of "‹ Trips".
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, tagChip, type Style } from '@/styles'
 import { formatWhen, routeDistanceKm, formatDistance } from '@/utils/geo'
 import { groupPlacesByDay, dayColor } from '@/utils/tripDays'
-import TripMap from '@/components/trips/TripMap.vue'
+// Same as the trip dialog: the map (and Leaflet with it) loads when the trip
+// page is opened, not when the app starts.
+const TripMap = defineAsyncComponent(() => import('@/components/trips/TripMap.vue'))
 import TripItinerary from '@/components/trips/TripItinerary.vue'
 import TripLightbox from '@/components/trips/TripLightbox.vue'
 import type { Note, Trip, TripPlace } from '@/types'

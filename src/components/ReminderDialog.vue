@@ -8,6 +8,7 @@ import { pxify } from '@/styles'
 import { occurrences, buildGCalUrl } from '@/utils/reminders'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
 import type { Reminder, RepeatType } from '@/types'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -93,9 +94,9 @@ function updNote(e: Event) {
   if (reminder.value)
     app.updateReminder(reminder.value.id, 'note', (e.target as HTMLTextAreaElement).value)
 }
-function updStart(e: Event) {
-  if (reminder.value)
-    app.updateReminder(reminder.value.id, 'start', (e.target as HTMLInputElement).value)
+// The picker hands back the value itself rather than an event.
+function onStart(value: string) {
+  if (reminder.value) app.updateReminder(reminder.value.id, 'start', value)
 }
 function updRepeatType(e: Event) {
   if (!reminder.value) return
@@ -145,11 +146,12 @@ function onDelete() {
         <button :style="s.del" @click="app.closeReminderDialog()">×</button>
       </div>
       <div :style="s.dialogRow">
-        <input
-          :style="s.editInputSmall"
-          type="datetime-local"
-          :value="reminder.start"
-          @input="updStart"
+        <GlassDatePicker
+          mode="datetime"
+          size="sm"
+          :model-value="reminder.start"
+          placeholder="When"
+          @update:model-value="onStart(String($event ?? ''))"
         />
         <select :style="s.select" :value="rep.type" @change="updRepeatType">
           <option value="none">One-off</option>

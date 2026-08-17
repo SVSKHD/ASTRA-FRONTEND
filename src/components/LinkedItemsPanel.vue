@@ -9,7 +9,7 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useLinkedItems, type LinkedRow } from '@/composables/useLinkedItems'
 import { pxify } from '@/styles'
-import LinkProgressBar from '@/components/LinkProgressBar.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import type { LinkCollection } from '@/types'
 
@@ -171,7 +171,7 @@ const emptyStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim, padd
       <button type="button" :style="addBtn" @click="openPicker">+ Link item</button>
     </div>
 
-    <LinkProgressBar v-if="progress.total > 0" :done="progress.done" :total="progress.total" />
+    <ProgressBar v-if="progress.total > 0" :value="progress.done" :max="progress.total" />
 
     <div v-if="allDone" :style="promptStyle">
       <span>All linked items done — mark this complete?</span>

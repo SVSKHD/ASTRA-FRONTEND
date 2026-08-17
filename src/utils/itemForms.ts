@@ -171,8 +171,3 @@ export const ITEM_FORMS: Record<ItemType, FormDef> = {
   // Notes are written in the drawer's rich-text editor, not a field form.
   note: { newTitle: 'New note', editTitle: 'Edit note', fields: [] },
 }
-
-// Which types the generic dialog owns end to end. Tasks and reminders have
-// their own edit dialogs (repo/CI panel, calendar sync), so the generic one
-// only creates those.
-export const GENERIC_EDIT: ItemType[] = ['todo', 'deadline', 'finance', 'trip', 'idea', 'stock']

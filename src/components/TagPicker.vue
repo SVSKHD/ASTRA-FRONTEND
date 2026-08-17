@@ -53,7 +53,7 @@ const isNew = computed(() => {
 })
 
 function chipStyle(tag: string) {
-  const col = tagColor(tag, dark.value)
+  const col = tagColor(tag, dark.value, c.value.mono)
   const on = isSelected(tag)
   return pxify({
     display: 'inline-flex',

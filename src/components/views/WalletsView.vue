@@ -284,7 +284,7 @@ const defaultChip = computed(() =>
     </div>
 
     <!-- ---- list, grouped by chain -------------------------------------- -->
-    <div :style="s.list">
+    <div class="stagger-in" :style="s.list">
       <template v-for="group in groups" :key="group.chain">
         <div :style="groupHead">
           <span :style="chainGlyph(group.def?.color || c.accent)">{{ group.def?.glyph }}</span>

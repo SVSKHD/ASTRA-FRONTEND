@@ -95,7 +95,15 @@ const filterBar = pxify({ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0
     <div v-if="stocks.length === 0" :style="s.empty">Your watchlist is empty.</div>
     <div v-else-if="view.length === 0" :style="s.empty">No stocks match this filter.</div>
     <div :style="s.list">
-      <div v-for="t in view" :key="t.id" :style="row" v-hover-style="s.rowHover">
+      <!-- Same as Ideas: the memo covers everything the row draws, plus the
+           theme the styles are derived from. -->
+      <div
+        v-for="t in view"
+        :key="t.id"
+        v-memo="[t.symbol, t.name, t.targetPrice, t.watchPrice, t.tag, t.noteIds.length, c]"
+        :style="row"
+        v-hover-style="s.rowHover"
+      >
         <span :style="symBadge">{{ t.symbol }}</span>
         <div :style="s.taskMain" @click="app.openEdit('stock', t.id)">
           <span :style="s.dlTitle">{{ t.name || t.symbol }}</span>

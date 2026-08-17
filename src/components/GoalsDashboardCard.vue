@@ -12,7 +12,7 @@ import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
-import ProgressRing from '@/components/ProgressRing.vue'
+import ProgressRing from '@/components/ui/ProgressRing.vue'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
 import { captureOutcome } from '@/utils/goalMetrics'
 

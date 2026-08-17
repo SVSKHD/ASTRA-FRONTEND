@@ -24,7 +24,52 @@ const lightGlass = {
   group: 'light' as const,
 }
 
+// The mono pair (section 16c): pure black/white surfaces, greys between, and
+// zero chroma anywhere. Nothing here is a colour decision — every value is a
+// neutral, so any hue that appears on screen under these themes is a bug the
+// mono test will catch. Both clear 21:1 trivially, which is why they are the
+// reference themes for accessibility work.
+const monoShared = {
+  // No blur: a mono theme is about edges, and 1px solid borders read better
+  // against flat black or white than a translucent pane does.
+  noGlass: true,
+  mono: true,
+  celestial: 'none',
+  group: 'dark' as const,
+}
+
 export const EXTRA_THEMES: Record<string, Theme> = {
+  monoDark: {
+    ...monoShared,
+    label: 'Mono dark',
+    glass: '#0a0a0a',
+    card: '#141414',
+    input: '#141414',
+    border: 'rgba(255,255,255,0.22)',
+    text: '#ffffff',
+    dim: 'rgba(255,255,255,0.68)',
+    onAccent: '#000000',
+    shadow: '0 0 0 1px rgba(255,255,255,0.14)',
+    pageBg: '#000000',
+    bgSolid: '#000000',
+    accent: '#ffffff',
+  },
+  monoLight: {
+    ...monoShared,
+    group: 'light' as const,
+    label: 'Mono light',
+    glass: '#fafafa',
+    card: '#f0f0f0',
+    input: '#f0f0f0',
+    border: 'rgba(0,0,0,0.24)',
+    text: '#000000',
+    dim: 'rgba(0,0,0,0.66)',
+    onAccent: '#ffffff',
+    shadow: '0 0 0 1px rgba(0,0,0,0.14)',
+    pageBg: '#ffffff',
+    bgSolid: '#ffffff',
+    accent: '#000000',
+  },
   // ---- dark family --------------------------------------------------------
   midnight: {
     ...darkGlass,

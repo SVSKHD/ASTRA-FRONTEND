@@ -7,6 +7,7 @@
 // theme tokens in the scoped block below, so the grid reads on every theme
 // rather than looking like a bolted-on widget.
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import { storeToRefs } from 'pinia'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -43,7 +44,10 @@ const ui = useUiStore()
 const { c, s, dark, isMobile, panelStyle } = useStyles()
 const { calendarView, tags, tasks, todos } = storeToRefs(app)
 
-const calendar = useCalendar(() => dark.value)
+const calendar = useCalendar(
+  () => dark.value,
+  () => c.value.mono === true,
+)
 const { events, filters } = calendar
 
 const calendarRef = shallowRef<InstanceType<typeof FullCalendar> | null>(null)
@@ -496,7 +500,12 @@ const hintStyle = computed(() =>
       <button :style="s.editBtn" @click="api()?.next()">›</button>
       <span :style="titleStyle">{{ periodTitle }}</span>
       <span style="flex: 1"></span>
-      <input :style="s.editInputSmall" type="date" v-model="jumpDate" @change="onJump" />
+      <GlassDatePicker
+        v-model="jumpDate"
+        size="sm"
+        placeholder="Jump to…"
+        @update:model-value="onJump"
+      />
       <button
         v-for="view in CALENDAR_VIEWS"
         :key="view.key"

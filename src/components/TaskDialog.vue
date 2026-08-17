@@ -9,6 +9,7 @@ import StatusPill from '@/components/StatusPill.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import LinkedItemsPanel from '@/components/LinkedItemsPanel.vue'
 import IssueChip from '@/components/IssueChip.vue'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import { fullName } from '@/utils/githubModel'
 import type { Task } from '@/types'
 
@@ -139,11 +140,11 @@ function onEnter(e: KeyboardEvent) {
       </div>
       <div :style="s.dialogRow">
         <StatusPill :status="task.status" @cycle="app.cycleTaskStatus(task.id)" />
-        <input
-          :style="s.editInputSmall"
-          type="date"
-          :value="task.deadline"
-          @input="upd('deadline', $event)"
+        <GlassDatePicker
+          size="sm"
+          :model-value="task.deadline"
+          placeholder="Due date"
+          @update:model-value="app.updateTask(task.id, 'deadline', String($event ?? ''))"
         />
       </div>
       <TagPicker

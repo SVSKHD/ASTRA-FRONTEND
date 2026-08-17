@@ -148,7 +148,16 @@ const metaStyle = computed(() =>
     <div v-if="ideas.length === 0" :style="s.empty">No ideas yet. Brainstorm one.</div>
     <div v-else-if="view.length === 0" :style="s.empty">No ideas match these filters.</div>
     <div :style="s.list">
-      <div v-for="t in view" :key="t.id" :style="row" v-hover-style="s.rowHover">
+      <!-- The row re-renders only when something it draws changes. `c` is in the
+           list because every style below is theme-derived, so a theme switch has
+           to invalidate the memo along with the data. -->
+      <div
+        v-for="t in view"
+        :key="t.id"
+        v-memo="[t.title, t.tag, t.typeLabel, t.hasDue, t.dueBadge, t.dueCol, t.noteIds.length, c]"
+        :style="row"
+        v-hover-style="s.rowHover"
+      >
         <span v-if="t.hasDue" :style="badgeStyle(t.dueCol)">{{ t.dueBadge }}</span>
         <div :style="s.taskMain" @click="app.openEdit('idea', t.id)">
           <span :style="s.dlTitle">{{ t.title }}</span>

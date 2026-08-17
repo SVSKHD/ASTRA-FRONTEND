@@ -2,6 +2,7 @@ import type { CSSProperties } from 'vue'
 import type { Theme } from '@/themes'
 import type { ItemStatus } from '@/types'
 import { tagColor } from '@/utils/tags'
+import { monoPatternCss, monoPatternFor } from '@/utils/mono'
 
 // ---------------------------------------------------------------------------
 // pxify: the design's style objects use raw numbers for pixel values (React
@@ -765,6 +766,19 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       color: c.text,
       fontSize: 13,
     },
+    // The window-extension row at the foot of a long list (useLongList): the
+    // only visible sign that a completed section is rendering in windows.
+    showMoreRow: {
+      width: '100%',
+      padding: '10px 12px',
+      borderRadius: 10,
+      border: '1px dashed ' + c.border,
+      background: 'transparent',
+      color: c.dim,
+      fontSize: 12,
+      cursor: 'pointer',
+      textAlign: 'center' as const,
+    },
     taskMain: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 },
     chipRow: { display: 'flex', gap: 6, flexWrap: 'wrap' },
     chip: {
@@ -1323,34 +1337,6 @@ export function dialogCard(c: Theme, closing: boolean): Style {
   }
 }
 
-// The folding part of a day card. Animating grid-template-rows from 0fr to 1fr
-// is what gives the accordion a real height transition without anyone having to
-// measure the content — the row stays in the DOM, so there is nothing to jump.
-// Slow and eased on purpose: this is the motion you watch on every toggle.
-export function dayBody(open: boolean): Style {
-  return {
-    display: 'grid',
-    gridTemplateRows: open ? '1fr' : '0fr',
-    opacity: open ? 1 : 0,
-    // Cancels the card's gap while folded, so a closed day is exactly its header.
-    marginTop: open ? 0 : -9,
-    transition:
-      'grid-template-rows .55s cubic-bezier(.22,1,.36,1), opacity .45s ease, margin-top .55s cubic-bezier(.22,1,.36,1)',
-  }
-}
-
-// One position dot under the mobile tab carousel. The current tab's dot
-// stretches into a pill so the position reads without counting.
-export function tabDot(c: Theme, active: boolean): Style {
-  return {
-    width: active ? 14 : 5,
-    height: 5,
-    borderRadius: 3,
-    background: active ? c.accent : c.border,
-    transition: 'width .3s cubic-bezier(.5,1.4,.35,1), background .3s ease',
-  }
-}
-
 // The note reader/editor. Deliberately bigger than dialogCard — a note is the
 // content, not a form, and it stays up until it is closed.
 export function noteViewCard(c: Theme, isMobile: boolean, closing: boolean): Style {
@@ -1378,28 +1364,15 @@ export function noteViewCard(c: Theme, isMobile: boolean, closing: boolean): Sty
   }
 }
 
-// A day card. `active` lights the dashed border up while a drag is in flight
-// (tasks only — todo days are not drop targets, they just share the shell).
-export function dayGroupCard(c: Theme, active: boolean): Style {
-  return {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 9,
-    padding: '10px 12px 12px',
-    borderRadius: 18,
-    border: '1.5px dashed ' + (active ? c.accent : c.border),
-    background: active ? c.input : 'transparent',
-    transition: 'border-color .25s ease, background .25s ease',
-  }
-}
-
 // One colour per lifecycle state, shared by the row pills and the per-day
 // tallies so "in progress" looks the same wherever it is counted or set.
 // Done borrows the theme accent; the other two are fixed hues that read on
 // every theme, like the CI dot does.
 export function statusColor(c: Theme, status: ItemStatus): string {
   if (status === 'done') return c.accent
-  if (status === 'progress') return 'oklch(0.75 0.16 75)'
+  // In-progress is the one status carrying a hue of its own; under a mono theme
+  // it becomes a neutral and the pill's border weight does the distinguishing.
+  if (status === 'progress') return c.mono ? c.text : 'oklch(0.75 0.16 75)'
   return c.dim
 }
 
@@ -1426,50 +1399,18 @@ export function statusPill(c: Theme, status: ItemStatus): Style {
 // The tag chip on a todo/task row, tinted with the tag's own colour so the
 // lists can be read by tag at a glance.
 export function tagChip(c: Theme, tag: string, dark: boolean): Style {
-  const col = tagColor(tag, dark)
+  const col = tagColor(tag, dark, c.mono)
   return {
     alignSelf: 'flex-start',
     fontSize: 10,
     padding: '2px 8px',
     borderRadius: 10,
-    background: c.input,
+    // Under a mono theme the chip carries the tag's pattern instead of its hue:
+    // an outlined shape with a distinct fill, per section 16c.
+    background: c.mono ? monoPatternCss(monoPatternFor(tag), col) : c.input,
     border: '1px solid ' + col,
-    color: col,
+    color: c.mono ? c.text : col,
     letterSpacing: '0.03em',
-  }
-}
-
-// A tab in the status filter above the day cards. Selected tabs take their
-// state's colour so the filter and the tallies below it agree.
-export function filterTab(c: Theme, status: ItemStatus | 'all', selected: boolean): Style {
-  const col = status === 'all' ? c.accent : statusColor(c, status)
-  return {
-    fontSize: 11,
-    fontWeight: 600,
-    padding: '6px 12px',
-    borderRadius: 999,
-    border: '1px solid ' + (selected ? col : c.border),
-    background: selected ? c.input : 'transparent',
-    color: selected ? col : c.dim,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    transition: 'color .25s ease, border-color .25s ease, background .25s ease',
-  }
-}
-
-// The compact "3 pending" chip in a day-group header.
-export function statusStat(c: Theme, status: ItemStatus, active: boolean): Style {
-  const col = statusColor(c, status)
-  return {
-    fontSize: 10,
-    fontWeight: 600,
-    padding: '3px 8px',
-    borderRadius: 999,
-    border: '1px solid ' + (active ? col : c.border),
-    color: active ? col : c.dim,
-    background: active ? c.input : 'transparent',
-    opacity: active ? 1 : 0.55,
-    whiteSpace: 'nowrap',
   }
 }
 
