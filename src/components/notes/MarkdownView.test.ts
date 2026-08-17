@@ -106,3 +106,133 @@ describe('links', () => {
     expect(push).not.toHaveBeenCalled()
   })
 })
+
+describe('code fences (acceptance 83)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    push.mockReset()
+  })
+
+  it('puts a language label and a copy button above the fence', async () => {
+    const wrapper = mountView('```ts\nconst x = 1\n```')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(wrapper.find('.md-fence-head').text()).toContain('typescript')
+    expect(wrapper.find('.md-fence-copy').exists()).toBe(true)
+  })
+
+  it('copies the code, not the label or the markers', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const wrapper = mountView('```js\nconst x = 1\n```')
+    await new Promise((r) => setTimeout(r, 0))
+    await wrapper.find('.md-fence-copy').trigger('click')
+    expect(writeText).toHaveBeenCalledWith('const x = 1\n')
+  })
+
+  it('adds no fence chrome to a note without code', async () => {
+    const wrapper = mountView('# Title\n\njust prose')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(wrapper.find('.md-fence-head').exists()).toBe(false)
+  })
+})
+
+describe('long notes', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    push.mockReset()
+  })
+
+  const long = Array.from(
+    { length: 400 },
+    (_, i) => `Paragraph number ${i} ${'x'.repeat(200)}`,
+  ).join('\n\n')
+
+  it('renders part of a very long note and offers the rest', () => {
+    const wrapper = mountView(long)
+    expect(wrapper.text()).toContain('Paragraph number 0')
+    expect(wrapper.text()).not.toContain('Paragraph number 399')
+    expect(wrapper.find('button').text()).toContain('Show the rest')
+  })
+
+  it('renders the whole note once asked', async () => {
+    const wrapper = mountView(long)
+    await wrapper.find('button').trigger('click')
+    expect(wrapper.text()).toContain('Paragraph number 399')
+    expect(wrapper.find('button').exists()).toBe(false)
+  })
+
+  it('offers nothing extra for an ordinary note', () => {
+    const wrapper = mountView('# Title\n\nshort')
+    expect(wrapper.find('button').exists()).toBe(false)
+  })
+})
+
+describe('images', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    push.mockReset()
+  })
+
+  it('opens a lightbox on click and closes it again', async () => {
+    const wrapper = mountView('![shot](https://example.com/a.png)')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    await wrapper.find('img.md-img').trigger('click')
+    const dialog = wrapper.find('[role="dialog"]')
+    expect(dialog.exists()).toBe(true)
+    await dialog.trigger('click')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('degrades a broken image to its alt text', async () => {
+    const wrapper = mountView('![the diagram](https://example.com/missing.png)')
+    await new Promise((r) => setTimeout(r, 0))
+    wrapper.find('img.md-img').element.dispatchEvent(new Event('error'))
+    expect(wrapper.find('.md-img-broken').text()).toBe('the diagram')
+    expect(wrapper.find('img.md-img').exists()).toBe(false)
+  })
+})
+
+describe('search highlighting', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    push.mockReset()
+  })
+
+  it('marks the term where the reader is looking', async () => {
+    const wrapper = mountView('The quarterly plan is quarterly.', { highlight: 'quarterly' })
+    await new Promise((r) => setTimeout(r, 0))
+    const hits = wrapper.findAll('mark.md-hit')
+    expect(hits).toHaveLength(2)
+    expect(hits[0].text()).toBe('quarterly')
+    // The surrounding text is untouched.
+    expect(wrapper.text()).toContain('The quarterly plan is quarterly.')
+  })
+
+  it('marks case-insensitively but shows the original casing', async () => {
+    const wrapper = mountView('Quarterly plan', { highlight: 'quarter' })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(wrapper.find('mark.md-hit').text()).toBe('Quarter')
+  })
+
+  it('never marks inside a code fence', async () => {
+    const wrapper = mountView('```\nconst quarterly = 1\n```', { highlight: 'quarterly' })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(wrapper.find('mark.md-hit').exists()).toBe(false)
+  })
+
+  it('ignores a term too short to be a search', async () => {
+    const wrapper = mountView('a plan', { highlight: 'a' })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(wrapper.find('mark.md-hit').exists()).toBe(false)
+  })
+
+  it('cannot inject markup through the term', async () => {
+    const wrapper = mountView('text with <b>bold</b> written out', {
+      highlight: '<b>bold</b>',
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(wrapper.find('b').exists()).toBe(false)
+    expect(wrapper.find('mark.md-hit').text()).toBe('<b>bold</b>')
+  })
+})

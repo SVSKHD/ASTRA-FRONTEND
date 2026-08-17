@@ -13,13 +13,17 @@ import { isHtmlNote, noteChecks, noteTitle } from '@/utils/notes'
 import { sanitize } from '@/utils/sanitizeHtml'
 import { toMarkdown } from '@/utils/noteMigrate'
 import { toggleTaskAt } from '@/utils/mdTyping'
+import { copyAsMarkdown, copyAsRichText, downloadMarkdown } from '@/utils/noteExport'
+import { checklistItems } from '@/utils/mdTyping'
 import MarkdownEditor from '@/components/notes/MarkdownEditor.vue'
 import MarkdownView from '@/components/notes/MarkdownView.vue'
+import NoteToc from '@/components/notes/NoteToc.vue'
+import ChecklistToTasks from '@/components/notes/ChecklistToTasks.vue'
 
 const app = useAppStore()
 const ui = useUiStore()
 const { c, s, isMobile } = useStyles()
-const { noteView, noteViewClosing, openNote, draft } = storeToRefs(app)
+const { noteView, noteViewClosing, openNote, draft, noteSearch } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
 const isEdit = computed(() => noteView.value?.mode === 'edit')
@@ -136,6 +140,70 @@ function onLegacyClick(e: MouseEvent) {
   app.setNoteText(n.id, body.innerHTML)
 }
 
+// --- the note menu ----------------------------------------------------------
+const menuOpen = ref(false)
+const convertOpen = ref(false)
+const hasChecklist = computed(() => !isLegacy.value && checklistItems(source.value).length > 0)
+
+async function doCopyMarkdown() {
+  menuOpen.value = false
+  app.showToastMsg((await copyAsMarkdown(source.value)) ? 'Copied as markdown' : 'Could not copy')
+}
+async function doCopyRich() {
+  menuOpen.value = false
+  app.showToastMsg((await copyAsRichText(source.value)) ? 'Copied as rich text' : 'Could not copy')
+}
+function doExport() {
+  menuOpen.value = false
+  downloadMarkdown(source.value)
+}
+function openConvert() {
+  menuOpen.value = false
+  convertOpen.value = true
+}
+
+// The contents list scrolls the rendered note rather than navigating, so the
+// note stays open and the reader keeps their place in the app.
+const viewBody = ref<HTMLElement | null>(null)
+function jumpTo(id: string) {
+  viewBody.value?.querySelector('#' + CSS.escape(id))?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  })
+}
+
+const menuWrap = pxify({ position: 'relative' })
+const menuPanel = computed(() =>
+  pxify({
+    position: 'absolute',
+    bottom: 'calc(100% + 8px)',
+    right: 0,
+    zIndex: 20,
+    minWidth: 190,
+    display: 'flex',
+    flexDirection: 'column',
+    padding: 6,
+    borderRadius: 14,
+    border: '1px solid ' + c.value.border,
+    background: c.value.glass,
+    backdropFilter: 'blur(24px) saturate(1.5)',
+    boxShadow: c.value.shadow,
+  }),
+)
+const menuItem = computed(() =>
+  pxify({
+    padding: '8px 10px',
+    borderRadius: 9,
+    border: 'none',
+    background: 'transparent',
+    color: c.value.text,
+    fontSize: 12,
+    textAlign: 'left',
+    cursor: 'pointer',
+  }),
+)
+const menuItemHover = computed(() => ({ background: c.value.card }))
+
 const cardStyle = computed(() =>
   pxify(noteViewCard(c.value, isMobile.value, noteViewClosing.value)),
 )
@@ -183,13 +251,17 @@ const spacer = pxify({ flex: 1 })
           v-html="legacyHtml"
           @click="onLegacyClick"
         ></div>
-        <MarkdownView
-          v-else
-          :source="source"
-          interactive
-          :style="s.noteViewBody"
-          @toggle-task="onToggleTask"
-        />
+        <template v-else>
+          <NoteToc :source="source" @jump="jumpTo" />
+          <div ref="viewBody" :style="s.noteViewBody">
+            <MarkdownView
+              :source="source"
+              interactive
+              :highlight="noteSearch"
+              @toggle-task="onToggleTask"
+            />
+          </div>
+        </template>
         <div :style="s.noteViewFoot">
           <span :style="metaStyle">{{ savedLabel }}</span>
           <span :style="spacer"></span>
@@ -199,10 +271,41 @@ const spacer = pxify({ flex: 1 })
           <button :style="s.shareBtn" title="Share note" aria-label="Share note" @click="shareNote">
             ↗
           </button>
+          <div :style="menuWrap">
+            <button
+              :style="s.shareBtn"
+              title="More"
+              aria-label="Note actions"
+              :aria-expanded="menuOpen"
+              @click="menuOpen = !menuOpen"
+            >
+              ⋯
+            </button>
+            <div v-if="menuOpen" :style="menuPanel">
+              <button :style="menuItem" v-hover-style="menuItemHover" @click="doCopyMarkdown">
+                Copy as markdown
+              </button>
+              <button :style="menuItem" v-hover-style="menuItemHover" @click="doCopyRich">
+                Copy as rich text
+              </button>
+              <button :style="menuItem" v-hover-style="menuItemHover" @click="doExport">
+                Export as .md
+              </button>
+              <button
+                v-if="hasChecklist"
+                :style="menuItem"
+                v-hover-style="menuItemHover"
+                @click="openConvert"
+              >
+                Convert checklist to tasks
+              </button>
+            </div>
+          </div>
           <button :style="s.cancelBtn" @click="app.closeNoteView()">Close</button>
           <button :style="s.saveBtn" @click="app.editNoteView()">Edit</button>
         </div>
       </template>
     </div>
+    <ChecklistToTasks :source="source" :open="convertOpen" @close="convertOpen = false" />
   </template>
 </template>

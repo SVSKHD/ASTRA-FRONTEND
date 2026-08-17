@@ -152,6 +152,9 @@ export default defineConfig({
             return 'markdown'
           }
           if (id.includes('turndown') || id.includes('domino')) return 'turndown'
+          // The syntax highlighter: fetched only by a note that has a fence, so
+          // it must not be merged into anything a note without one pulls in.
+          if (id.includes('highlight.js')) return 'highlight'
           if (id.includes('viem') || id.includes('@noble') || id.includes('@scure')) return 'crypto'
           if (id.includes('qrcode')) return 'qrcode'
           return 'vendor'

@@ -2343,9 +2343,14 @@ export const useAppStore = defineStore('app', () => {
   function setNoteEditorMode(mode: NoteEditorMode) {
     noteEditorMode.value = mode
   }
-  function openNoteView(noteId: number) {
+  // The term a note was found by, so the rendered view can mark it. Ephemeral
+  // UI state: it belongs to this visit to this note, not to the workspace, so
+  // it is deliberately not part of the snapshot.
+  const noteSearch = ref('')
+  function openNoteView(noteId: number, term = '') {
     noteView.value = { id: noteId, mode: 'read' }
     noteViewClosing.value = false
+    noteSearch.value = term
   }
   function editNoteView(noteId?: number) {
     const target = noteId ?? noteView.value?.id ?? null
@@ -5697,6 +5702,7 @@ export const useAppStore = defineStore('app', () => {
     defaultWalletFor,
     noteEditorMode,
     setNoteEditorMode,
+    noteSearch,
     calendarView,
     calendarFilters,
     beginCalendarDrag,

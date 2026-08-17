@@ -628,3 +628,70 @@ textarea:focus,
   font-size: 0.9em;
   color: var(--theme-dim);
 }
+
+/* A broken image shows what it was meant to be, not a broken-file glyph. */
+.md .md-img-broken {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px dashed var(--theme-border);
+  border-radius: 8px;
+  color: var(--theme-dim);
+  font-size: 0.9em;
+}
+/* A search hit inside the rendered note. Distinct from ==mark== so a note that
+   uses both stays readable: the hit is the accent, the mark is the tint. */
+.md mark.md-hit {
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
+  border-bottom: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Syntax highlighting. highlight.js emits its own class names; the palette is
+   derived from theme tokens rather than shipping one of its stylesheets, so a
+   fence follows the theme — including the mono themes, where the distinctions
+   fall back to weight and opacity because there is no hue to spend.
+   --------------------------------------------------------------------------- */
+.md .hljs {
+  color: var(--theme-text);
+}
+.md .hljs-comment,
+.md .hljs-quote {
+  color: var(--theme-dim);
+  font-style: italic;
+}
+.md .hljs-keyword,
+.md .hljs-selector-tag,
+.md .hljs-literal,
+.md .hljs-section,
+.md .hljs-doctag,
+.md .hljs-type,
+.md .hljs-name,
+.md .hljs-strong {
+  color: var(--theme-accent);
+  font-weight: 600;
+}
+.md .hljs-string,
+.md .hljs-title,
+.md .hljs-attr,
+.md .hljs-attribute,
+.md .hljs-symbol,
+.md .hljs-bullet,
+.md .hljs-addition {
+  color: color-mix(in oklch, var(--theme-accent) 70%, var(--theme-text));
+}
+.md .hljs-number,
+.md .hljs-variable,
+.md .hljs-template-variable,
+.md .hljs-regexp,
+.md .hljs-link,
+.md .hljs-built_in,
+.md .hljs-deletion {
+  color: color-mix(in oklch, var(--theme-text) 78%, var(--theme-dim));
+}
+.md .hljs-meta {
+  color: var(--theme-dim);
+}
+.md .hljs-emphasis {
+  font-style: italic;
+}
