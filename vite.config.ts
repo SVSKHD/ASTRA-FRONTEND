@@ -134,6 +134,24 @@ export default defineConfig({
           if (id.includes('@fullcalendar')) return 'fullcalendar'
           if (id.includes('@joint') || id.includes('jointjs')) return 'jointjs'
           if (id.includes('leaflet')) return 'leaflet'
+          // The sanitiser is reached from anything that renders stored HTML —
+          // a trip's place notes, a shared note — so it is its own chunk rather
+          // than riding along with the markdown parser those views never need.
+          if (id.includes('dompurify')) return 'sanitize'
+          // The notes markdown pipeline. Only ever reached from a note, so it
+          // is kept out of `vendor` — which is eagerly preloaded — and travels
+          // with the views that render markdown instead.
+          if (
+            id.includes('markdown-it') ||
+            id.includes('linkify-it') ||
+            id.includes('mdurl') ||
+            id.includes('uc.micro') ||
+            id.includes('entities') ||
+            id.includes('punycode')
+          ) {
+            return 'markdown'
+          }
+          if (id.includes('turndown') || id.includes('domino')) return 'turndown'
           if (id.includes('viem') || id.includes('@noble') || id.includes('@scure')) return 'crypto'
           if (id.includes('qrcode')) return 'qrcode'
           return 'vendor'

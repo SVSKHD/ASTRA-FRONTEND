@@ -10,6 +10,7 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, noteViewCard } from '@/styles'
 import { noteChecks, noteTitle } from '@/utils/notes'
+import { sanitize } from '@/utils/sanitizeHtml'
 import RichEditor from '@/components/RichEditor.vue'
 
 const app = useAppStore()
@@ -20,7 +21,7 @@ const { now } = storeToRefs(ui)
 
 const isEdit = computed(() => noteView.value?.mode === 'edit')
 const isNew = computed(() => noteView.value?.id == null)
-const html = computed(() => openNote.value?.text ?? '')
+const html = computed(() => sanitize(openNote.value?.text ?? ''))
 const title = computed(() =>
   isNew.value ? 'New note' : noteTitle(isEdit.value ? String(draft.value.text ?? '') : html.value),
 )

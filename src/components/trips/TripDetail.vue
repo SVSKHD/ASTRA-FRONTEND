@@ -9,6 +9,7 @@
 // view differs only in its top bar: a PUBLIC badge and an "Open in app" button
 // instead of "‹ Trips".
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { sanitize } from '@/utils/sanitizeHtml'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, tagChip, type Style } from '@/styles'
 import { formatWhen, routeDistanceKm, formatDistance } from '@/utils/geo'
@@ -334,6 +335,13 @@ const sectionTitle = computed(() =>
     padding: '2px 2px',
   }),
 )
+
+// Trip notes are rich text the owner wrote, but this same component renders a
+// public share in a stranger's browser — so the stored HTML is sanitised on the
+// way to the DOM rather than trusted (section 17: no unsanitised v-html).
+function safe(html: unknown): string {
+  return sanitize(String(html ?? ''))
+}
 </script>
 
 <template>
@@ -435,7 +443,7 @@ const sectionTitle = computed(() =>
           <div
             class="rich"
             :style="pxify({ fontSize: 13, lineHeight: 1.6, color: c.text })"
-            v-html="n.text"
+            v-html="safe(n.text)"
           ></div>
         </div>
       </template>

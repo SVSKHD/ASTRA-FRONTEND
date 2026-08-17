@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { sanitize } from '@/utils/sanitizeHtml'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -40,7 +41,8 @@ const summaryLines = computed<string[]>(() => {
   return lines
 })
 const isNote = computed(() => sharedView.value?.type === 'note')
-const noteHtml = computed(() => (sharedView.value?.item?.text as string) || '')
+// Same as the share page: this is another user's content in your browser.
+const noteHtml = computed(() => sanitize((sharedView.value?.item?.text as string) || ''))
 const linesStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 })
 const noteStyle = computed(() => pxify({ fontSize: 13, lineHeight: 1.5, color: c.value.text }))
 </script>
