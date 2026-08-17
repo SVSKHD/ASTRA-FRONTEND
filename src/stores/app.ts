@@ -70,7 +70,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { occurrences } from '@/utils/reminders'
 import { stampOnDay, ymd } from '@/utils/dayGroups'
-import { isBlankNote } from '@/utils/notes'
+import { isBlankNote, isNoteEditorMode, type NoteEditorMode } from '@/utils/notes'
 import {
   DEFAULT_TAGS,
   normalizeTag,
@@ -357,6 +357,10 @@ export const useAppStore = defineStore('app', () => {
   const ghError = ref('')
   // Calendar (section 15) preferences: the last view used and the filter chips,
   // per user, so the tab opens where it was left.
+  // How the note editor is laid out (section 17). Remembered per user with
+  // everything else on the workspace document, so it survives a reload and a
+  // different device rather than living in localStorage.
+  const noteEditorMode = ref<NoteEditorMode>('split')
   const calendarView = ref<CalendarViewKey>('dayGridMonth')
   const calendarFilters = ref<CalendarFilters>(defaultFilters())
   // Wallets (section 14): the user's own PUBLIC receive addresses. They live on
@@ -2336,6 +2340,9 @@ export const useAppStore = defineStore('app', () => {
     noteViewClosing.value = false
     draft.value = { text: '' }
   }
+  function setNoteEditorMode(mode: NoteEditorMode) {
+    noteEditorMode.value = mode
+  }
   function openNoteView(noteId: number) {
     noteView.value = { id: noteId, mode: 'read' }
     noteViewClosing.value = false
@@ -2348,10 +2355,9 @@ export const useAppStore = defineStore('app', () => {
   }
   // Commit the editor's HTML. A note whose markup carries no text at all is
   // dropped rather than saved — an empty <div> would be an unreadable row.
-  function saveNoteView(html: string) {
+  function saveNoteView(text: string) {
     const v = noteView.value
     if (!v) return
-    const text = html
     if (isBlankNote(text)) {
       if (v.id == null) return closeNoteView()
       deleteWithUndo('notes', 'note', v.id)
@@ -2359,11 +2365,15 @@ export const useAppStore = defineStore('app', () => {
     }
     if (v.id == null) {
       const newId = id()
-      notes.value = [...notes.value, { id: newId, text, ts: Date.now(), ...stamps() }]
+      notes.value = [...notes.value, { id: newId, text, format: 'md', ts: Date.now(), ...stamps() }]
       noteView.value = { id: newId, mode: 'read' }
     } else {
       const target = v.id
-      notes.value = notes.value.map((n) => (n.id === target ? touched({ ...n, text }) : n))
+      // Saving through the markdown editor also settles the format: a note
+      // converted from the old HTML is markdown from here on.
+      notes.value = notes.value.map((n) =>
+        n.id === target ? touched({ ...n, text, format: 'md' as const }) : n,
+      )
       noteView.value = { id: target, mode: 'read' }
     }
     draft.value = {}
@@ -2379,24 +2389,29 @@ export const useAppStore = defineStore('app', () => {
   }
   // A checkbox ticked in the reader writes straight back, so the note is the
   // checklist rather than a picture of one.
-  function setNoteText(noteId: number, html: string) {
-    notes.value = notes.value.map((n) => (n.id === noteId ? touched({ ...n, text: html }) : n))
+  // The checkbox write-back path: ticking a box in the rendered note replaces
+  // the source in place. The format is whatever it already was — a legacy HTML
+  // note stays HTML until it is opened in the editor.
+  function setNoteText(noteId: number, text: string) {
+    notes.value = notes.value.map((n) => (n.id === noteId ? touched({ ...n, text }) : n))
   }
   // Autosave while editing: persist the draft in place without leaving edit
   // mode. A new note is created on its first non-blank keystroke and the view
   // rebinds to it, so subsequent autosaves update rather than duplicate. Blank
   // markup is ignored — an empty note is not worth a row until it has content.
-  function autosaveNoteDraft(html: string) {
+  function autosaveNoteDraft(text: string) {
     const v = noteView.value
     if (!v || v.mode !== 'edit') return
-    if (isBlankNote(html)) return
+    if (isBlankNote(text)) return
     if (v.id == null) {
       const newId = id()
-      notes.value = [...notes.value, { id: newId, text: html, ts: Date.now(), ...stamps() }]
+      notes.value = [...notes.value, { id: newId, text, format: 'md', ts: Date.now(), ...stamps() }]
       noteView.value = { id: newId, mode: 'edit' }
     } else {
       const target = v.id
-      notes.value = notes.value.map((n) => (n.id === target ? touched({ ...n, text: html }) : n))
+      notes.value = notes.value.map((n) =>
+        n.id === target ? touched({ ...n, text, format: 'md' as const }) : n,
+      )
     }
   }
   function cancelEdit() {
@@ -4932,6 +4947,7 @@ export const useAppStore = defineStore('app', () => {
       repos: repos.value,
       ghIssues: ghIssues.value,
       wallets: wallets.value,
+      noteEditorMode: noteEditorMode.value,
       calendarView: calendarView.value,
       calendarFilters: calendarFilters.value,
     }
@@ -4980,6 +4996,7 @@ export const useAppStore = defineStore('app', () => {
     repos.value = []
     ghIssues.value = []
     wallets.value = []
+    noteEditorMode.value = 'split'
     calendarView.value = 'dayGridMonth'
     calendarFilters.value = defaultFilters()
     ghInstalled.value = null
@@ -5398,6 +5415,7 @@ export const useAppStore = defineStore('app', () => {
       }))
 
     // Calendar preferences: the last view and the filter chips.
+    noteEditorMode.value = isNoteEditorMode(data.noteEditorMode) ? data.noteEditorMode : 'split'
     calendarView.value = isCalendarView(data.calendarView) ? data.calendarView : 'dayGridMonth'
     calendarFilters.value =
       data.calendarFilters && typeof data.calendarFilters === 'object'
@@ -5584,6 +5602,7 @@ export const useAppStore = defineStore('app', () => {
         repos,
         ghIssues,
         wallets,
+        noteEditorMode,
         calendarView,
         calendarFilters,
       ],
@@ -5676,6 +5695,8 @@ export const useAppStore = defineStore('app', () => {
     walletsByChain,
     walletById,
     defaultWalletFor,
+    noteEditorMode,
+    setNoteEditorMode,
     calendarView,
     calendarFilters,
     beginCalendarDrag,

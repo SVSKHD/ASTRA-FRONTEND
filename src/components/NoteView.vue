@@ -9,9 +9,12 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, noteViewCard } from '@/styles'
-import { noteChecks, noteTitle } from '@/utils/notes'
+import { isHtmlNote, noteChecks, noteTitle } from '@/utils/notes'
 import { sanitize } from '@/utils/sanitizeHtml'
-import RichEditor from '@/components/RichEditor.vue'
+import { toMarkdown } from '@/utils/noteMigrate'
+import { toggleTaskAt } from '@/utils/mdTyping'
+import MarkdownEditor from '@/components/notes/MarkdownEditor.vue'
+import MarkdownView from '@/components/notes/MarkdownView.vue'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -21,16 +24,47 @@ const { now } = storeToRefs(ui)
 
 const isEdit = computed(() => noteView.value?.mode === 'edit')
 const isNew = computed(() => noteView.value?.id == null)
-const html = computed(() => sanitize(openNote.value?.text ?? ''))
+const source = computed(() => openNote.value?.text ?? '')
+// Notes written before section 17 hold HTML. They still render — through the
+// same allow-list as before — rather than being converted just to be read.
+const isLegacy = computed(() => isHtmlNote(source.value))
+const legacyHtml = computed(() => (isLegacy.value ? sanitize(source.value) : ''))
 const title = computed(() =>
-  isNew.value ? 'New note' : noteTitle(isEdit.value ? String(draft.value.text ?? '') : html.value),
+  isNew.value
+    ? 'New note'
+    : noteTitle(isEdit.value ? String(draft.value.text ?? '') : source.value),
 )
-const checks = computed(() => noteChecks(html.value))
+const checks = computed(() => noteChecks(source.value))
 
 const editorRef = ref<{ focus: () => void } | null>(null)
 watch(isEdit, (v) => {
   if (v) nextTick(() => editorRef.value?.focus())
 })
+
+// Opening a legacy note in the editor is where it becomes markdown: the draft
+// is seeded with the conversion, and saving writes it back with format 'md'.
+watch(
+  [isEdit, () => noteView.value?.id],
+  async ([editing]) => {
+    if (!editing || !isLegacy.value) return
+    const converted = await toMarkdown(source.value)
+    // Only seed if nothing has been typed since — an await is a chance for the
+    // user to have started editing.
+    if (noteView.value?.mode === 'edit' && String(draft.value.text ?? '') === source.value) {
+      app.setDraft('text', converted)
+    }
+  },
+  { immediate: true },
+)
+
+// Ticking a box in the rendered note rewrites the markdown source, which is
+// what makes the state survive a reload (acceptance 82). It goes through the
+// store like any other edit, so the sync guard and the debounced save apply.
+function onToggleTask(index: number) {
+  const note = openNote.value
+  if (!note) return
+  app.setNoteText(note.id, toggleTaskAt(source.value, index))
+}
 
 const savedLabel = computed(() => {
   const n = openNote.value
@@ -90,9 +124,9 @@ function shareNote() {
   if (n) app.share('note', n)
 }
 
-// Reading mode is live: ticking a checkbox in the rendered note writes the
-// attribute back to the stored HTML, so the note is the checklist.
-function onBodyClick(e: MouseEvent) {
+// A legacy HTML note keeps its old behaviour: the checkbox state lives in the
+// attribute, so ticking one writes the markup back.
+function onLegacyClick(e: MouseEvent) {
   const el = e.target as HTMLElement
   const n = openNote.value
   if (!n || !(el instanceof HTMLInputElement) || el.type !== 'checkbox') return
@@ -127,17 +161,14 @@ const spacer = pxify({ flex: 1 })
       </div>
 
       <template v-if="isEdit">
-        <RichEditor
+        <MarkdownEditor
           ref="editorRef"
           :model-value="draftText()"
-          placeholder="Type / for commands…"
           @update:model-value="onDraft"
           @save="save"
         />
         <div :style="s.noteViewFoot">
-          <span :style="metaStyle">{{
-            autosaveLabel || 'Type / for commands · ⌘↵ to finish'
-          }}</span>
+          <span :style="metaStyle">{{ autosaveLabel || 'Markdown · ⌘↵ to finish' }}</span>
           <span :style="spacer"></span>
           <button :style="s.cancelBtn" @click="cancel">Cancel</button>
           <button :style="s.saveBtn" @click="save">Done</button>
@@ -145,7 +176,20 @@ const spacer = pxify({ flex: 1 })
       </template>
 
       <template v-else>
-        <div class="rich" :style="s.noteViewBody" v-html="html" @click="onBodyClick"></div>
+        <div
+          v-if="isLegacy"
+          class="rich"
+          :style="s.noteViewBody"
+          v-html="legacyHtml"
+          @click="onLegacyClick"
+        ></div>
+        <MarkdownView
+          v-else
+          :source="source"
+          interactive
+          :style="s.noteViewBody"
+          @toggle-task="onToggleTask"
+        />
         <div :style="s.noteViewFoot">
           <span :style="metaStyle">{{ savedLabel }}</span>
           <span :style="spacer"></span>
