@@ -98,16 +98,42 @@ function resolveOnClose(id: number, localCurrent: Task): FlushResolution {
       ? resolveConflict(base.get(id), localCurrent, remote, touchedFields)
       : null
   if (conflict?.hasConflict && remote) remoteVersions.set(id, remote)
-  const held = heldTasks
-  // Clear this item's guard state; drop the held list only once no dialog remains.
+  // Clear this item's guard state.
   editingIds.delete(id)
   dirtyIds.delete(id)
   base.delete(id)
   touched.delete(id)
   buffer.delete(id)
-  if (editingIds.size === 0) heldTasks = null
+  // The held list is handed back only by the LAST dialog out. Applying it while
+  // another is still open is exactly the reflow the freeze exists to prevent —
+  // the detail dialog's drill-in walks through that state on every step.
+  const last = editingIds.size === 0
+  const held = last ? heldTasks : null
+  if (last) heldTasks = null
   revision.value++
   return { conflict, heldTasks: held }
+}
+
+// A hold with no edit to reconcile: the goal detail dialog (section 18e). A goal
+// is not a Task, so there is nothing for resolveConflict to merge — but the list
+// BEHIND the dialog is full of tasks, and freezing it is the whole point. The
+// hold registers in the same set, so `syncSuppressed` and the list freeze in
+// `reconcileTasks` cover a goal dialog exactly as they cover a task one.
+function beginHold(id: number) {
+  editingIds.add(id)
+}
+
+// Release a hold and, once the last dialog has gone, hand back the list held
+// while it was open so the store can apply it in one write. Returns null while
+// another dialog is still open — applying a held list underneath it is precisely
+// the reflow the freeze exists to prevent.
+function releaseHold(id: number): Task[] | null {
+  editingIds.delete(id)
+  if (editingIds.size > 0) return null
+  const held = heldTasks
+  heldTasks = null
+  revision.value++
+  return held
 }
 
 function clearConflict(id: number) {
@@ -127,6 +153,8 @@ export function useSyncGuard() {
     syncSuppressed,
     revision,
     beginEdit,
+    beginHold,
+    releaseHold,
     markTouched,
     reconcileTasks,
     resolveOnClose,

@@ -32,6 +32,15 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/TripPage.vue'),
     props: (route) => ({ id: Number(route.params.id) }),
   },
+  // The goal's own wide page (section 18d's "Open full page"). Numeric like the
+  // trip page above, and declared before the share routes so it is matched
+  // first — /goals is not a share plural today, but making the constraint
+  // explicit keeps it from becoming a collision if it ever is.
+  {
+    path: '/goals/:goalId(\\d+)',
+    name: 'goal-page',
+    component: () => import('@/views/WorkspaceView.vue'),
+  },
   ...sharePlurals.map((plural): RouteRecordRaw => ({
     path: `/${plural}/:shareId`,
     name: `share-${plural}`,

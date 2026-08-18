@@ -15,7 +15,7 @@ import DragGhost from '@/components/DragGhost.vue'
 import Ticker from '@/components/Ticker.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
 import NoteView from '@/components/NoteView.vue'
-import TaskDialog from '@/components/TaskDialog.vue'
+import DetailHost from '@/components/detail/DetailHost.vue'
 import ItemDialog from '@/components/ItemDialog.vue'
 import TripDialog from '@/components/TripDialog.vue'
 import ReminderDialog from '@/components/ReminderDialog.vue'
@@ -142,6 +142,9 @@ function onKey(e: KeyboardEvent) {
       return
     }
     if (app.taskViewId != null) return app.closeTaskView()
+    // The detail dialog handles its own Escape (it has a dirty guard to run
+    // first), so it is deliberately not closed from here.
+    if (app.detailOpen) return
     // One slot now backs every dialog, so one check closes whichever is open.
     if (app.itemDialog) return app.closeItemDialog()
     if (auth.githubPanelOpen) {
@@ -218,6 +221,24 @@ watch(
   },
   { immediate: true },
 )
+// /goals/:goalId is the goal's wide page (section 18d). It is the Goals tab
+// showing one goal, so entering the route switches tab as well as selection —
+// otherwise a cold load would land on whatever tab was last used and show
+// nothing.
+watch(
+  () => (route.name === 'goal-page' ? String(route.params.goalId ?? '') : ''),
+  (raw) => {
+    if (!raw) {
+      if (app.goalPageId != null) app.closeGoalPage()
+      return
+    }
+    const parsed = Number.parseInt(raw, 10)
+    if (Number.isNaN(parsed)) return
+    ui.setTab('goals')
+    app.openGoalPage(parsed)
+  },
+  { immediate: true },
+)
 
 onMounted(() => {
   lock.start()
@@ -259,7 +280,7 @@ onBeforeUnmount(() => {
     <NoteView />
     <ItemDialog />
     <TripDialog />
-    <TaskDialog />
+    <DetailHost />
     <ReminderDialog />
     <TaskView />
     <GithubPanel />

@@ -289,7 +289,32 @@ export interface Task extends Timestamped, Linkable, Hierarchical, Schedulable {
   // The GitHub issue this task is linked to (section 13c), or null when
   // unlinked. Backfilled to null on read for tasks written before it existed.
   github?: GithubLink | null
+  // ---- Detail-dialog fields (section 18c) ---------------------------------
+  // The meta row of the task detail dialog. All optional and all backfilled on
+  // read, so a task written before the dialog existed simply has none of them
+  // set rather than reading as assigned to nobody in particular.
+  // Free text rather than a user id: this is a single-user workspace, and the
+  // field is for "who owes me this", not an account.
+  assignee?: string
+  priority?: Priority
+  // Planned vs accumulated minutes, mirroring GoalChecklistItem. null estimate =
+  // no estimate given, which is different from an estimate of zero.
+  estimateMins?: number | null
+  spentMins?: number
+  // Status transitions, newest last, for the activity section. Capped when
+  // written — this is a readable history, not an audit log, and it rides in the
+  // one workspace document with everything else.
+  statusLog?: StatusChange[]
 }
+
+// One entry in a task's status history (section 18c).
+export interface StatusChange {
+  at: number
+  status: ItemStatus
+}
+// Kept short deliberately: the activity section shows the recent shape of a
+// task's life, and an unbounded array in a single-document store is a slow leak.
+export const STATUS_LOG_LIMIT = 20
 
 // ---- Goals (task 8) -------------------------------------------------------
 // A goal is a container that sits above tasks/todos: it holds its own checklist

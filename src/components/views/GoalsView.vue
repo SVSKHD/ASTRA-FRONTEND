@@ -14,6 +14,9 @@ import ProgressRing from '@/components/ui/ProgressRing.vue'
 import GoalDetail from '@/components/GoalDetail.vue'
 import GoalsEmptyState from '@/components/GoalsEmptyState.vue'
 import GoalCreateSlideOver from '@/components/GoalCreateSlideOver.vue'
+import GoalCardTick from '@/components/GoalCardTick.vue'
+import Dropdown from '@/components/ui/Dropdown.vue'
+import { useTapOpen } from '@/composables/useTapOpen'
 import type { Goal, GoalStatus } from '@/types'
 
 const app = useAppStore()
@@ -21,7 +24,12 @@ const router = useRouter()
 const { c, s, isMobile, panelStyle } = useStyles()
 const { goals } = storeToRefs(app)
 
-const selectedId = ref<number | null>(null)
+// The selected goal lives in the store, so /goals/:goalId can open it on a cold
+// load and the dialog's "Open full page" can hand a goal over to this view.
+const selectedId = computed({
+  get: () => app.goalPageId,
+  set: (value: number | null) => (value == null ? app.closeGoalPage() : app.openGoalPage(value)),
+})
 const statusFilter = ref<GoalStatus | 'all'>('all')
 const sortKey = ref<'order' | 'target' | 'progress'>('order')
 const search = ref('')
@@ -38,8 +46,45 @@ function onCreated(goalId: number) {
   showCreate.value = false
   selectedId.value = goalId
 }
+// A card opens the goal dialog (acceptance 89); the wide page is reached from
+// the dialog's footer, or by loading /goals/:goalId directly.
+function openGoal(goalId: number) {
+  app.openGoalDialog(
+    goalId,
+    rows.value.map((r) => r.goal.id),
+  )
+}
 function goImport() {
   router.push('/import/goals')
+}
+
+// The whole card is the open target, so it has to distinguish a tap from the
+// press-and-hold that starts a reorder drag (section 18b) — otherwise every
+// drag ends with a dialog open over the list it was dropped into.
+const pressedCard = ref<number | null>(null)
+const tap = useTapOpen(() => {
+  const goalId = pressedCard.value
+  pressedCard.value = null
+  if (goalId != null) openGoal(goalId)
+})
+function onCardPointerDown(event: PointerEvent, goalId: number) {
+  pressedCard.value = goalId
+  tap.onPointerDown(event)
+}
+
+// The card's own actions. Everything here stops the click from reaching the
+// card, so none of it opens the dialog.
+const CARD_MENU = [
+  { value: 'open', label: 'Open full page' },
+  { value: 'duplicate', label: 'Duplicate' },
+  { value: 'archive', label: 'Archive' },
+  { value: 'delete', label: 'Delete' },
+]
+function onCardMenu(goalId: number, action: string) {
+  if (action === 'open') router.push(`/goals/${goalId}`)
+  else if (action === 'duplicate') app.duplicateGoal(goalId)
+  else if (action === 'archive') app.archiveGoal(goalId)
+  else if (action === 'delete') app.removeGoalWithUndo(goalId)
 }
 
 // Keyboard: `g` then `n` opens New goal while the Goals tab is focused (task 12d).
@@ -306,7 +351,9 @@ const importBtn = computed(() =>
           @dragstart="onDragStart($event, r.goal.id)"
           @dragover="onDragOver"
           @drop="onDropOn(i)"
-          @click="selectedId = r.goal.id"
+          @pointerdown="onCardPointerDown($event, r.goal.id)"
+          @pointercancel="tap.onPointerCancel"
+          @click="tap.onClick"
         >
           <div :style="topRow">
             <span
@@ -318,10 +365,22 @@ const importBtn = computed(() =>
               @click.stop
               ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
             ></span>
-            <ProgressRing :ratio="r.ratio" :size="42" />
+            <!-- The ring reports progress; it is not a way into the goal, so a
+                 click on it does nothing rather than opening the dialog. -->
+            <span class="goalcard__ring" @click.stop
+              ><ProgressRing :ratio="r.ratio" :size="42"
+            /></span>
             <span :style="colorDot(r.goal.color)" aria-hidden="true"></span>
             <span :style="titleStyle">{{ r.goal.title || 'Untitled goal' }}</span>
+            <GoalCardTick :goal-id="r.goal.id" />
             <span :style="statusBadge(r.goal.status)">{{ STATUS_META[r.goal.status].label }}</span>
+            <span @click.stop>
+              <Dropdown
+                label="Goal actions"
+                :items="CARD_MENU"
+                @select="onCardMenu(r.goal.id, $event)"
+              />
+            </span>
           </div>
           <div v-if="r.goal.description" :style="descStyle">{{ r.goal.description }}</div>
           <div :style="metaRow">

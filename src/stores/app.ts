@@ -13,6 +13,19 @@ import {
 } from '@/firebase'
 import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
 import { isThemeSetting, isThemeKey, THEMES, type ThemeSetting, type ThemeKey } from '@/themes'
+import type { DetailKind } from '@/utils/detailUrl'
+import {
+  canGoBack,
+  openStack,
+  parentFrame,
+  popFrame,
+  pushFrame,
+  replaceTop,
+  sameFrame,
+  stepIds,
+  topOf,
+  type DetailFrame,
+} from '@/utils/detailStack'
 import { isFirebaseUserAllowed } from '@/stores/auth'
 import {
   GhNotConfiguredError,
@@ -81,6 +94,7 @@ import {
 } from '@/utils/tags'
 import {
   STATUS_CYCLE,
+  STATUS_LOG_LIMIT,
   emptyFinanceSettings,
   emptyGithubIntegration,
   isStatus,
@@ -152,6 +166,7 @@ import type {
   Note,
   Stock,
   Priority,
+  StatusChange,
   FinanceSettings,
   Goal,
   GoalChecklistItem,
@@ -207,6 +222,22 @@ function scheduleFields(item: Partial<Schedulable>): Schedulable {
 
 function isPriority(value: unknown): value is Priority {
   return value === 'low' || value === 'normal' || value === 'high'
+}
+
+// Sanitise a stored status history (section 18c) to well-formed entries, oldest
+// first, capped. A malformed value reads as no history rather than crashing the
+// activity section, and the cap is re-applied on read so a document written by
+// an older or buggier client cannot grow unboundedly here.
+function statusLogOf(value: unknown): StatusChange[] {
+  if (!Array.isArray(value)) return []
+  const entries = value.filter(
+    (e): e is StatusChange =>
+      !!e &&
+      typeof e === 'object' &&
+      typeof (e as StatusChange).at === 'number' &&
+      isStatus((e as StatusChange).status),
+  )
+  return entries.slice(-STATUS_LOG_LIMIT)
 }
 
 // Sanitise a stored cross-collection back-pointer to a well-formed SourceRef, so
@@ -395,6 +426,22 @@ export const useAppStore = defineStore('app', () => {
   const dialogDraft = ref<Record<string, unknown>>({})
   const dialogClosing = ref(false)
   const taskViewId = ref<number | null>(null)
+
+  // The detail dialog (section 18): a stack rather than a single id, because
+  // clicking a subtask inside it swaps the content and must leave a back path.
+  // The top frame is what is on screen; an empty stack is a closed dialog.
+  const detailStack = ref<DetailFrame[]>([])
+  // The ids of the list the dialog was opened from, in the order the reader sees
+  // them, so the header's prev/next arrows step through what they are looking at
+  // rather than through the unfiltered collection.
+  const detailSiblings = ref<number[]>([])
+  // Set by the open body while a debounced autosave is still pending. The shell
+  // reads it to decide whether closing needs a confirmation.
+  const detailDirty = ref(false)
+  // The goal open on its own wide page, /goals/:goalId (section 18d's footer
+  // link). Distinct from the dialog: the page is the Goals tab showing one goal
+  // full width, and it survives a reload because the URL names it.
+  const goalPageId = ref<number | null>(null)
   // The note open in the full-screen reader/editor. It stays up until it is
   // closed, so it is a slot of its own rather than a mode of the drawer. A null
   // id in edit mode is a note that has not been saved yet.
@@ -620,10 +667,19 @@ export const useAppStore = defineStore('app', () => {
     ]
     return newId
   }
+  // Append a status transition to a task's history (section 18c). Capped at
+  // write time as well as read time, so the array cannot grow past the limit
+  // even in a long-lived session that never reloads.
+  function withStatusLog(task: Task, next: ItemStatus): Task {
+    const log = [...(task.statusLog ?? []), { at: Date.now(), status: next }]
+    return { ...task, statusLog: log.slice(-STATUS_LOG_LIMIT) }
+  }
   function setTaskStatus(tid: number, next: ItemStatus) {
     const cur = tasks.value.find((t) => t.id === tid)
     if (!cur || cur.status === next) return
-    tasks.value = tasks.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
+    tasks.value = tasks.value.map((t) =>
+      t.id === tid ? withStatusLog(withStatus(t, next), next) : t,
+    )
     if (next === 'done') cancelRemindersFor('tasks', tid)
     // A linked task that changes state closes/reopens its issue (13c).
     scheduleIssuePush(tid)
@@ -645,6 +701,58 @@ export const useAppStore = defineStore('app', () => {
     // Title/description are the only fields that flow out to a linked issue,
     // debounced so a burst of keystrokes is one PATCH.
     if (field === 'title' || field === 'notes') scheduleIssuePush(tid)
+  }
+  // The typed sibling of updateTask, for the detail dialog's non-string fields
+  // (priority, estimate, schedule). Same guard bookkeeping, same one write.
+  function patchTask(tid: number, patch: Partial<Task>) {
+    const keys = Object.keys(patch)
+    if (!keys.length) return
+    tasks.value = tasks.value.map((t) => (t.id === tid ? touched({ ...t, ...patch }) : t))
+    for (const key of keys) syncGuard.markTouched(tid, key)
+    if ('title' in patch || 'notes' in patch) scheduleIssuePush(tid)
+  }
+  // ⋯ → Duplicate. A copy of the task itself, dropped in beside it: the subtree,
+  // the GitHub link and the reminders are deliberately NOT copied — a duplicated
+  // task must not close someone else's issue or fire someone else's alarm.
+  function duplicateTask(tid: number): number | null {
+    const src = tasks.value.find((t) => t.id === tid)
+    if (!src) return null
+    const newId = addTask(`${src.title} (copy)`, src.tag, {
+      deadline: src.deadline,
+      notes: src.notes,
+      repo: src.repo,
+    })
+    if (newId == null) return null
+    patchTask(newId, {
+      parentId: src.parentId,
+      depth: src.depth,
+      rootId: src.parentId == null ? newId : src.rootId,
+      order: src.order + 0.5,
+      assignee: src.assignee ?? '',
+      priority: src.priority ?? 'normal',
+      estimateMins: src.estimateMins ?? null,
+      goalIds: [...(src.goalIds ?? [])],
+    })
+    return newId
+  }
+  // ⋯ → Archive. The same archive "Clear completed" uses, so an archived task
+  // leaves the list without being destroyed.
+  function archiveTask(tid: number) {
+    patchTask(tid, { archivedAt: Date.now() })
+  }
+  // ⋯ → Convert to goal point. The task becomes a checklist point on the goal and
+  // is archived rather than deleted, so nothing that referenced it dangles.
+  function convertTaskToGoalPoint(tid: number, goalId: number): number | null {
+    const task = tasks.value.find((t) => t.id === tid)
+    if (!task || !goals.value.some((g) => g.id === goalId)) return null
+    const pointId = addChecklistItem(goalId, task.title, {
+      dueAt: task.deadline,
+      estimateMins: task.estimateMins ?? null,
+      spentMins: task.spentMins ?? 0,
+      done: task.status === 'done',
+    })
+    archiveTask(tid)
+    return pointId
   }
 
   // ---- Flat-hierarchy moves (drag and drop) -------------------------------
@@ -4412,8 +4520,148 @@ export const useAppStore = defineStore('app', () => {
     })
   }
 
-  function openTaskDialog(tid: number) {
-    openEdit('task', tid)
+  // ---- Detail dialog (section 18) -----------------------------------------
+  // One shared shell over two bodies. The store owns which frame is on screen
+  // and the sync-guard bookkeeping around entering and leaving one; the router
+  // sync and everything visual live in the components.
+  //
+  // Section 18e's ordering is the load-bearing part: leaving a frame FLUSHES its
+  // local writes, THEN drains whatever the guard held back, THEN drops the id.
+  // `leaveFrame` is the single place that happens, so every exit — close, back,
+  // drill-in, prev/next — goes through it in the same order.
+  //
+  // Moving BETWEEN frames is bracketed by a transition token. Without it the
+  // moment between leaving one frame and entering the next is a moment with no
+  // dialog registered at all — and the guard would take that as its cue to drain
+  // the held list, reordering the list underneath a reader who never left the
+  // dialog. The token holds the freeze across the gap; ids are all positive, so
+  // a negative one can never collide with a real item.
+  const DETAIL_TRANSITION = -1
+  function acrossFrames(move: () => void) {
+    syncGuard.beginHold(DETAIL_TRANSITION)
+    try {
+      move()
+    } finally {
+      const held = syncGuard.releaseHold(DETAIL_TRANSITION)
+      if (held) tasks.value = held
+    }
+  }
+  function enterFrame(frame: DetailFrame) {
+    if (frame.kind === 'task') {
+      const t = tasks.value.find((x) => x.id === frame.id)
+      if (t) syncGuard.beginEdit(frame.id, t)
+      else syncGuard.beginHold(frame.id)
+    } else {
+      syncGuard.beginHold(frame.id)
+    }
+  }
+  function leaveFrame(frame: DetailFrame | null) {
+    if (!frame) return
+    detailDirty.value = false
+    if (frame.kind === 'task') {
+      // Writes the local edit first, then lets the guard reconcile the buffered
+      // remote against it (see flushTaskEdit).
+      void flushTaskEdit(frame.id)
+      return
+    }
+    // A goal has no per-field merge to do — its own writes already went through
+    // updateGoal. Releasing the hold drains the task list held while the dialog
+    // covered it, so the list catches up in one go rather than mid-read.
+    const held = syncGuard.releaseHold(frame.id)
+    if (held) tasks.value = held
+  }
+
+  const detailFrame = computed<DetailFrame | null>(() => topOf(detailStack.value))
+  const detailOpen = computed(() => detailStack.value.length > 0)
+  const detailCanGoBack = computed(() => canGoBack(detailStack.value))
+  const detailParent = computed(() => parentFrame(detailStack.value))
+  // Prev/next only at the root of the stack: two levels deep, "next" has no
+  // meaning the reader could predict.
+  const detailSteps = computed(() => {
+    const frame = detailFrame.value
+    if (!frame || detailStack.value.length > 1) return { prevId: null, nextId: null }
+    return stepIds(detailSiblings.value, frame.id)
+  })
+
+  function openDetail(kind: DetailKind, itemId: number, siblings: number[] = []) {
+    const next = { kind, id: itemId }
+    if (sameFrame(detailFrame.value, next) && detailStack.value.length === 1) {
+      detailSiblings.value = siblings.slice()
+      return
+    }
+    acrossFrames(() => {
+      leaveFrame(detailFrame.value)
+      detailSiblings.value = siblings.slice()
+      detailStack.value = openStack(next)
+      enterFrame(next)
+    })
+  }
+  // Drill in from inside the dialog (a subtask, an attached task, a breadcrumb).
+  function pushDetail(kind: DetailKind, itemId: number) {
+    const next = { kind, id: itemId }
+    if (sameFrame(detailFrame.value, next)) return
+    acrossFrames(() => {
+      leaveFrame(detailFrame.value)
+      detailStack.value = pushFrame(detailStack.value, next)
+      enterFrame(next)
+    })
+  }
+  // The back arrow. Popping the last frame closes the dialog.
+  function popDetail() {
+    if (!detailStack.value.length) return
+    if (detailStack.value.length === 1) {
+      closeDetail()
+      return
+    }
+    acrossFrames(() => {
+      leaveFrame(detailFrame.value)
+      const rest = popFrame(detailStack.value)
+      detailStack.value = rest
+      const top = topOf(rest)
+      if (top) enterFrame(top)
+    })
+  }
+  // The prev/next arrows and j/k: same depth, sibling content.
+  function stepDetail(itemId: number) {
+    const frame = detailFrame.value
+    if (!frame || frame.id === itemId) return
+    const next = { kind: frame.kind, id: itemId }
+    acrossFrames(() => {
+      leaveFrame(frame)
+      detailStack.value = replaceTop(detailStack.value, next)
+      enterFrame(next)
+    })
+  }
+  function closeDetail() {
+    if (!detailStack.value.length) return
+    // Frames below the top go first, so the top frame is the last one out and
+    // its flush is the one that drains the held list — merged with the local
+    // edit rather than applied over it.
+    for (const frame of detailStack.value.slice(0, -1)) syncGuard.releaseHold(frame.id)
+    leaveFrame(detailFrame.value)
+    detailStack.value = []
+    detailSiblings.value = []
+    detailDirty.value = false
+  }
+  function setDetailDirty(value: boolean) {
+    detailDirty.value = value
+  }
+  // The wide page. Opening one closes the dialog — they are two views of the
+  // same goal, and leaving both up would leave the reader editing through a
+  // dialog over a page showing the same fields.
+  function openGoalPage(gid: number) {
+    if (detailStack.value.length) closeDetail()
+    goalPageId.value = gid
+  }
+  function closeGoalPage() {
+    goalPageId.value = null
+  }
+
+  function openTaskDialog(tid: number, siblings: number[] = []) {
+    openDetail('task', tid, siblings)
+  }
+  function openGoalDialog(gid: number, siblings: number[] = []) {
+    openDetail('goal', gid, siblings)
   }
   function openReminderDialog(rid: number) {
     openEdit('reminder', rid)
@@ -4532,6 +4780,10 @@ export const useAppStore = defineStore('app', () => {
     taskViewId.value = tid
     itemDialog.value = null
     dialogClosing.value = false
+    // The full-page view and the detail dialog are two views of one task, and a
+    // double click on a row reaches this through the dialog the first click
+    // opened — so the dialog gets out of the way rather than stacking.
+    if (detailStack.value.length) closeDetail()
   }
   function closeTaskView() {
     taskViewId.value = null
@@ -5014,6 +5266,13 @@ export const useAppStore = defineStore('app', () => {
     draft.value = {}
     noteView.value = null
     noteViewClosing.value = false
+    // A detail dialog left open across a sign-out would point at an id that no
+    // longer exists. Cleared directly rather than through closeDetail, which
+    // would try to flush an edit into a workspace that has just been emptied.
+    detailStack.value = []
+    detailSiblings.value = []
+    detailDirty.value = false
+    goalPageId.value = null
     nid = 100
     setTimeout(() => {
       hydrating = false
@@ -5123,6 +5382,14 @@ export const useAppStore = defineStore('app', () => {
         github: githubLinkOf(t.github),
         // Calendar scheduling (section 15), backfilled to unscheduled.
         ...scheduleFields(t),
+        // Detail-dialog meta (section 18c). Absent rather than defaulted where
+        // "unset" is the meaningful state: a task with no assignee should read
+        // as unassigned, not as assigned to the empty string.
+        assignee: typeof t.assignee === 'string' ? t.assignee : '',
+        priority: isPriority(t.priority) ? t.priority : 'normal',
+        estimateMins: typeof t.estimateMins === 'number' ? t.estimateMins : null,
+        spentMins: typeof t.spentMins === 'number' ? t.spentMins : 0,
+        statusLog: statusLogOf(t.statusLog),
       }))
     // Edit-safe sync: a task whose dialog is open (or whose local edits are
     // unsaved) is protected — the guard holds the incoming version back rather
@@ -5762,6 +6029,10 @@ export const useAppStore = defineStore('app', () => {
     setTaskStatus,
     cycleTaskStatus,
     updateTask,
+    patchTask,
+    duplicateTask,
+    archiveTask,
+    convertTaskToGoalPoint,
     addDeadline,
     updateDeadline,
     addFinance,
@@ -5974,7 +6245,26 @@ export const useAppStore = defineStore('app', () => {
     dialogTaskId,
     dialogReminderId,
     openTaskDialog,
+    openGoalDialog,
     openReminderDialog,
+    // Detail dialog (section 18).
+    detailStack,
+    detailSiblings,
+    detailDirty,
+    detailFrame,
+    detailOpen,
+    detailCanGoBack,
+    detailParent,
+    detailSteps,
+    goalPageId,
+    openGoalPage,
+    closeGoalPage,
+    openDetail,
+    pushDetail,
+    popDetail,
+    stepDetail,
+    closeDetail,
+    setDetailDirty,
     // The two named dialogs close the one shared slot.
     closeDialog: closeItemDialog,
     closeReminderDialog: closeItemDialog,
