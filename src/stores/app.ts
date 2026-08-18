@@ -13,6 +13,19 @@ import {
 } from '@/firebase'
 import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
 import { isThemeSetting, isThemeKey, THEMES, type ThemeSetting, type ThemeKey } from '@/themes'
+import type { DetailKind } from '@/utils/detailUrl'
+import {
+  canGoBack,
+  openStack,
+  parentFrame,
+  popFrame,
+  pushFrame,
+  replaceTop,
+  sameFrame,
+  stepIds,
+  topOf,
+  type DetailFrame,
+} from '@/utils/detailStack'
 import { isFirebaseUserAllowed } from '@/stores/auth'
 import {
   GhNotConfiguredError,
@@ -395,6 +408,18 @@ export const useAppStore = defineStore('app', () => {
   const dialogDraft = ref<Record<string, unknown>>({})
   const dialogClosing = ref(false)
   const taskViewId = ref<number | null>(null)
+
+  // The detail dialog (section 18): a stack rather than a single id, because
+  // clicking a subtask inside it swaps the content and must leave a back path.
+  // The top frame is what is on screen; an empty stack is a closed dialog.
+  const detailStack = ref<DetailFrame[]>([])
+  // The ids of the list the dialog was opened from, in the order the reader sees
+  // them, so the header's prev/next arrows step through what they are looking at
+  // rather than through the unfiltered collection.
+  const detailSiblings = ref<number[]>([])
+  // Set by the open body while a debounced autosave is still pending. The shell
+  // reads it to decide whether closing needs a confirmation.
+  const detailDirty = ref(false)
   // The note open in the full-screen reader/editor. It stays up until it is
   // closed, so it is a slot of its own rather than a mode of the drawer. A null
   // id in edit mode is a note that has not been saved yet.
@@ -4412,8 +4437,138 @@ export const useAppStore = defineStore('app', () => {
     })
   }
 
-  function openTaskDialog(tid: number) {
-    openEdit('task', tid)
+  // ---- Detail dialog (section 18) -----------------------------------------
+  // One shared shell over two bodies. The store owns which frame is on screen
+  // and the sync-guard bookkeeping around entering and leaving one; the router
+  // sync and everything visual live in the components.
+  //
+  // Section 18e's ordering is the load-bearing part: leaving a frame FLUSHES its
+  // local writes, THEN drains whatever the guard held back, THEN drops the id.
+  // `leaveFrame` is the single place that happens, so every exit — close, back,
+  // drill-in, prev/next — goes through it in the same order.
+  //
+  // Moving BETWEEN frames is bracketed by a transition token. Without it the
+  // moment between leaving one frame and entering the next is a moment with no
+  // dialog registered at all — and the guard would take that as its cue to drain
+  // the held list, reordering the list underneath a reader who never left the
+  // dialog. The token holds the freeze across the gap; ids are all positive, so
+  // a negative one can never collide with a real item.
+  const DETAIL_TRANSITION = -1
+  function acrossFrames(move: () => void) {
+    syncGuard.beginHold(DETAIL_TRANSITION)
+    try {
+      move()
+    } finally {
+      const held = syncGuard.releaseHold(DETAIL_TRANSITION)
+      if (held) tasks.value = held
+    }
+  }
+  function enterFrame(frame: DetailFrame) {
+    if (frame.kind === 'task') {
+      const t = tasks.value.find((x) => x.id === frame.id)
+      if (t) syncGuard.beginEdit(frame.id, t)
+      else syncGuard.beginHold(frame.id)
+    } else {
+      syncGuard.beginHold(frame.id)
+    }
+  }
+  function leaveFrame(frame: DetailFrame | null) {
+    if (!frame) return
+    detailDirty.value = false
+    if (frame.kind === 'task') {
+      // Writes the local edit first, then lets the guard reconcile the buffered
+      // remote against it (see flushTaskEdit).
+      void flushTaskEdit(frame.id)
+      return
+    }
+    // A goal has no per-field merge to do — its own writes already went through
+    // updateGoal. Releasing the hold drains the task list held while the dialog
+    // covered it, so the list catches up in one go rather than mid-read.
+    const held = syncGuard.releaseHold(frame.id)
+    if (held) tasks.value = held
+  }
+
+  const detailFrame = computed<DetailFrame | null>(() => topOf(detailStack.value))
+  const detailOpen = computed(() => detailStack.value.length > 0)
+  const detailCanGoBack = computed(() => canGoBack(detailStack.value))
+  const detailParent = computed(() => parentFrame(detailStack.value))
+  // Prev/next only at the root of the stack: two levels deep, "next" has no
+  // meaning the reader could predict.
+  const detailSteps = computed(() => {
+    const frame = detailFrame.value
+    if (!frame || detailStack.value.length > 1) return { prevId: null, nextId: null }
+    return stepIds(detailSiblings.value, frame.id)
+  })
+
+  function openDetail(kind: DetailKind, itemId: number, siblings: number[] = []) {
+    const next = { kind, id: itemId }
+    if (sameFrame(detailFrame.value, next) && detailStack.value.length === 1) {
+      detailSiblings.value = siblings.slice()
+      return
+    }
+    acrossFrames(() => {
+      leaveFrame(detailFrame.value)
+      detailSiblings.value = siblings.slice()
+      detailStack.value = openStack(next)
+      enterFrame(next)
+    })
+  }
+  // Drill in from inside the dialog (a subtask, an attached task, a breadcrumb).
+  function pushDetail(kind: DetailKind, itemId: number) {
+    const next = { kind, id: itemId }
+    if (sameFrame(detailFrame.value, next)) return
+    acrossFrames(() => {
+      leaveFrame(detailFrame.value)
+      detailStack.value = pushFrame(detailStack.value, next)
+      enterFrame(next)
+    })
+  }
+  // The back arrow. Popping the last frame closes the dialog.
+  function popDetail() {
+    if (!detailStack.value.length) return
+    if (detailStack.value.length === 1) {
+      closeDetail()
+      return
+    }
+    acrossFrames(() => {
+      leaveFrame(detailFrame.value)
+      const rest = popFrame(detailStack.value)
+      detailStack.value = rest
+      const top = topOf(rest)
+      if (top) enterFrame(top)
+    })
+  }
+  // The prev/next arrows and j/k: same depth, sibling content.
+  function stepDetail(itemId: number) {
+    const frame = detailFrame.value
+    if (!frame || frame.id === itemId) return
+    const next = { kind: frame.kind, id: itemId }
+    acrossFrames(() => {
+      leaveFrame(frame)
+      detailStack.value = replaceTop(detailStack.value, next)
+      enterFrame(next)
+    })
+  }
+  function closeDetail() {
+    if (!detailStack.value.length) return
+    // Frames below the top go first, so the top frame is the last one out and
+    // its flush is the one that drains the held list — merged with the local
+    // edit rather than applied over it.
+    for (const frame of detailStack.value.slice(0, -1)) syncGuard.releaseHold(frame.id)
+    leaveFrame(detailFrame.value)
+    detailStack.value = []
+    detailSiblings.value = []
+    detailDirty.value = false
+  }
+  function setDetailDirty(value: boolean) {
+    detailDirty.value = value
+  }
+
+  function openTaskDialog(tid: number, siblings: number[] = []) {
+    openDetail('task', tid, siblings)
+  }
+  function openGoalDialog(gid: number, siblings: number[] = []) {
+    openDetail('goal', gid, siblings)
   }
   function openReminderDialog(rid: number) {
     openEdit('reminder', rid)
@@ -5014,6 +5169,12 @@ export const useAppStore = defineStore('app', () => {
     draft.value = {}
     noteView.value = null
     noteViewClosing.value = false
+    // A detail dialog left open across a sign-out would point at an id that no
+    // longer exists. Cleared directly rather than through closeDetail, which
+    // would try to flush an edit into a workspace that has just been emptied.
+    detailStack.value = []
+    detailSiblings.value = []
+    detailDirty.value = false
     nid = 100
     setTimeout(() => {
       hydrating = false
@@ -5974,7 +6135,23 @@ export const useAppStore = defineStore('app', () => {
     dialogTaskId,
     dialogReminderId,
     openTaskDialog,
+    openGoalDialog,
     openReminderDialog,
+    // Detail dialog (section 18).
+    detailStack,
+    detailSiblings,
+    detailDirty,
+    detailFrame,
+    detailOpen,
+    detailCanGoBack,
+    detailParent,
+    detailSteps,
+    openDetail,
+    pushDetail,
+    popDetail,
+    stepDetail,
+    closeDetail,
+    setDetailDirty,
     // The two named dialogs close the one shared slot.
     closeDialog: closeItemDialog,
     closeReminderDialog: closeItemDialog,

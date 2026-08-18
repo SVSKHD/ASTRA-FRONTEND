@@ -168,9 +168,10 @@ describe('edit-safe flush — dialog close bumps localRev', () => {
   it('writes the local edit (localRev++) when the task dialog closes', () => {
     const app = useAppStore()
     app.tasks = [makeTask(5, { localRev: 2 })]
+    // A task row now opens the section-18 detail dialog, which owns the flush.
     app.openTaskDialog(5)
     app.updateTask(5, 'title', 'edited')
-    app.closeDialog()
+    app.closeDetail()
     expect(byId(app, 5).title).toBe('edited')
     expect(byId(app, 5).localRev).toBe(3)
   })
