@@ -16,6 +16,7 @@ import DetailDialog from '@/components/detail/DetailDialog.vue'
 import type { DetailKind } from '@/utils/detailUrl'
 
 const TaskDetailBody = defineAsyncComponent(() => import('@/components/detail/TaskDetailBody.vue'))
+const GoalDetailBody = defineAsyncComponent(() => import('@/components/detail/GoalDetailBody.vue'))
 
 const app = useAppStore()
 const { isMobile } = useStyles()
@@ -150,6 +151,14 @@ function onOpen(target: { kind: DetailKind; id: number }) {
       ref="body"
       :key="frame.id"
       :task-id="frame.id"
+      @open="onOpen"
+      @close="onClose"
+    />
+    <GoalDetailBody
+      v-else-if="frame?.kind === 'goal' && goal"
+      ref="body"
+      :key="frame.id"
+      :goal-id="frame.id"
       @open="onOpen"
       @close="onClose"
     />

@@ -438,6 +438,10 @@ export const useAppStore = defineStore('app', () => {
   // Set by the open body while a debounced autosave is still pending. The shell
   // reads it to decide whether closing needs a confirmation.
   const detailDirty = ref(false)
+  // The goal open on its own wide page, /goals/:goalId (section 18d's footer
+  // link). Distinct from the dialog: the page is the Goals tab showing one goal
+  // full width, and it survives a reload because the URL names it.
+  const goalPageId = ref<number | null>(null)
   // The note open in the full-screen reader/editor. It stays up until it is
   // closed, so it is a slot of its own rather than a mode of the drawer. A null
   // id in edit mode is a note that has not been saved yet.
@@ -4642,6 +4646,16 @@ export const useAppStore = defineStore('app', () => {
   function setDetailDirty(value: boolean) {
     detailDirty.value = value
   }
+  // The wide page. Opening one closes the dialog — they are two views of the
+  // same goal, and leaving both up would leave the reader editing through a
+  // dialog over a page showing the same fields.
+  function openGoalPage(gid: number) {
+    if (detailStack.value.length) closeDetail()
+    goalPageId.value = gid
+  }
+  function closeGoalPage() {
+    goalPageId.value = null
+  }
 
   function openTaskDialog(tid: number, siblings: number[] = []) {
     openDetail('task', tid, siblings)
@@ -5254,6 +5268,7 @@ export const useAppStore = defineStore('app', () => {
     detailStack.value = []
     detailSiblings.value = []
     detailDirty.value = false
+    goalPageId.value = null
     nid = 100
     setTimeout(() => {
       hydrating = false
@@ -6237,6 +6252,9 @@ export const useAppStore = defineStore('app', () => {
     detailCanGoBack,
     detailParent,
     detailSteps,
+    goalPageId,
+    openGoalPage,
+    closeGoalPage,
     openDetail,
     pushDetail,
     popDetail,

@@ -21,7 +21,12 @@ const router = useRouter()
 const { c, s, isMobile, panelStyle } = useStyles()
 const { goals } = storeToRefs(app)
 
-const selectedId = ref<number | null>(null)
+// The selected goal lives in the store, so /goals/:goalId can open it on a cold
+// load and the dialog's "Open full page" can hand a goal over to this view.
+const selectedId = computed({
+  get: () => app.goalPageId,
+  set: (value: number | null) => (value == null ? app.closeGoalPage() : app.openGoalPage(value)),
+})
 const statusFilter = ref<GoalStatus | 'all'>('all')
 const sortKey = ref<'order' | 'target' | 'progress'>('order')
 const search = ref('')
@@ -37,6 +42,14 @@ function onNew() {
 function onCreated(goalId: number) {
   showCreate.value = false
   selectedId.value = goalId
+}
+// A card opens the goal dialog (acceptance 89); the wide page is reached from
+// the dialog's footer, or by loading /goals/:goalId directly.
+function openGoal(goalId: number) {
+  app.openGoalDialog(
+    goalId,
+    rows.value.map((r) => r.goal.id),
+  )
 }
 function goImport() {
   router.push('/import/goals')
@@ -306,7 +319,7 @@ const importBtn = computed(() =>
           @dragstart="onDragStart($event, r.goal.id)"
           @dragover="onDragOver"
           @drop="onDropOn(i)"
-          @click="selectedId = r.goal.id"
+          @click="openGoal(r.goal.id)"
         >
           <div :style="topRow">
             <span

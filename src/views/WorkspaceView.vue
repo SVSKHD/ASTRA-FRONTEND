@@ -221,6 +221,24 @@ watch(
   },
   { immediate: true },
 )
+// /goals/:goalId is the goal's wide page (section 18d). It is the Goals tab
+// showing one goal, so entering the route switches tab as well as selection —
+// otherwise a cold load would land on whatever tab was last used and show
+// nothing.
+watch(
+  () => (route.name === 'goal-page' ? String(route.params.goalId ?? '') : ''),
+  (raw) => {
+    if (!raw) {
+      if (app.goalPageId != null) app.closeGoalPage()
+      return
+    }
+    const parsed = Number.parseInt(raw, 10)
+    if (Number.isNaN(parsed)) return
+    ui.setTab('goals')
+    app.openGoalPage(parsed)
+  },
+  { immediate: true },
+)
 
 onMounted(() => {
   lock.start()

@@ -62,7 +62,14 @@ export function exportFilename(source: string): string {
 // The download itself. Returns the object URL it created so a caller (a test,
 // or a caller that wants to revoke early) can see what happened.
 export function downloadMarkdown(source: string, filename = exportFilename(source)): string {
-  const blob = new Blob([source || ''], { type: 'text/markdown;charset=utf-8' })
+  return downloadText(source, filename, 'text/markdown;charset=utf-8')
+}
+
+// The same download for anything else a view wants to hand over as a file — the
+// goal dialog's "Export JSON" (section 18d). One implementation, because the
+// fiddly part is the anchor and the deferred revoke, not the mime type.
+export function downloadText(text: string, filename: string, mime: string): string {
+  const blob = new Blob([text || ''], { type: mime })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url

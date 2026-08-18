@@ -6,6 +6,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { defineComponent, h } from 'vue'
 import DetailHost from '@/components/detail/DetailHost.vue'
+// The host loads its bodies on demand. Importing them here puts them in the
+// module cache so the dynamic import resolves immediately, rather than each
+// test waiting out a first-time transform of the markdown editor underneath.
+import '@/components/detail/TaskDetailBody.vue'
+import '@/components/detail/GoalDetailBody.vue'
 import { useAppStore } from '@/stores/app'
 import { useSyncGuard } from '@/composables/useSyncGuard'
 import { INLINE_SAVE_MS } from '@/composables/useInlineField'
@@ -63,13 +68,13 @@ type Wrapper = ReturnType<typeof mount>
 
 // The body is loaded on demand, so opening a dialog needs the dynamic import to
 // resolve before the sections it renders exist.
-// The first open in a run pays to load and transform the whole markdown editor
-// underneath, so this waits generously — and returns the instant the body is up.
-async function settle(wrapper?: Wrapper) {
-  for (let i = 0; i < 400; i++) {
+// The body arrives one tick after the frame does, so anything that inspects it
+// waits for it — and returns the instant it is up.
+async function settle(wrapper?: Wrapper, selector = '.tdb') {
+  for (let i = 0; i < 40; i++) {
     await new Promise((resolve) => setTimeout(resolve, 5))
     await flushPromises()
-    if (!wrapper || wrapper.find('.tdb').exists()) return
+    if (!wrapper || wrapper.find(selector).exists()) return
   }
 }
 
@@ -202,6 +207,43 @@ describe('drilling in and back (acceptance 88)', () => {
     await settle(wrapper)
     expect(app.tasks.find((t) => t.id === 1)?.title).toBe('Parent, renamed')
     expect(app.tasks.find((t) => t.id === 2)?.title).toBe('Child')
+  })
+})
+
+describe('goals (acceptance 89)', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('opens the goal dialog over the card grid', async () => {
+    const { app, wrapper } = await mountHost()
+    app.goals = [
+      {
+        id: 50,
+        title: 'Ship it',
+        description: '',
+        status: 'active',
+        targetDate: '',
+        startDate: '',
+        color: '',
+        icon: '',
+        source: 'manual',
+        sourceUrl: '',
+        parentId: null,
+        order: 0,
+        depth: 0,
+        rootId: 50,
+        localRev: 0,
+        updatedBy: '',
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ]
+    app.openGoalDialog(50, [50])
+    await settle(wrapper, '.gdb')
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+    expect((wrapper.find('input[aria-label="Goal title"]').element as HTMLInputElement).value).toBe(
+      'Ship it',
+    )
+    expect(wrapper.text()).toContain('Points')
   })
 })
 
