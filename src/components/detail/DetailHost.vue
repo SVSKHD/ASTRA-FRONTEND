@@ -13,10 +13,22 @@ import { useStyles } from '@/composables/useStyles'
 import { useDetailRoute } from '@/composables/useDetailRoute'
 import { useInlineField } from '@/composables/useInlineField'
 import DetailDialog from '@/components/detail/DetailDialog.vue'
+import DetailPeek from '@/components/detail/DetailPeek.vue'
 import type { DetailKind } from '@/utils/detailUrl'
 
-const TaskDetailBody = defineAsyncComponent(() => import('@/components/detail/TaskDetailBody.vue'))
-const GoalDetailBody = defineAsyncComponent(() => import('@/components/detail/GoalDetailBody.vue'))
+// `delay: 0` so the stand-in is up on the first frame rather than after the
+// usual 200ms grace: the whole point is that the dialog is never empty
+// (section 18b).
+const TaskDetailBody = defineAsyncComponent({
+  loader: () => import('@/components/detail/TaskDetailBody.vue'),
+  loadingComponent: DetailPeek,
+  delay: 0,
+})
+const GoalDetailBody = defineAsyncComponent({
+  loader: () => import('@/components/detail/GoalDetailBody.vue'),
+  loadingComponent: DetailPeek,
+  delay: 0,
+})
 
 const app = useAppStore()
 const { isMobile } = useStyles()

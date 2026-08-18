@@ -4,14 +4,15 @@
 // control. Ticking a metric-enabled occurrence opens the capture popover
 // (MetricCapturePopover) instead of marking it done immediately; the entered
 // actual is stored and the outcome (hit / short) is reflected inline.
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
+import { useGoalToday } from '@/composables/useGoalToday'
 import GoalMetricChart from '@/components/GoalMetricChart.vue'
-import { captureOutcome, type MetricDirection, type MetricUnit } from '@/utils/goalMetrics'
+import type { MetricDirection, MetricUnit } from '@/utils/goalMetrics'
 import type { RecurrenceFreq } from '@/utils/recurrence'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
@@ -20,7 +21,7 @@ import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 const props = defineProps<{ goalId: number; configOnly?: boolean }>()
 const app = useAppStore()
 const { c, s } = useStyles()
-const { goals, goalOccurrences } = storeToRefs(app)
+const { goals } = storeToRefs(app)
 
 const goal = computed(() => goals.value.find((g) => g.id === props.goalId))
 const recurring = computed(() => !!goal.value?.recurrence?.enabled)
@@ -69,50 +70,17 @@ function patchMetric(patch: Partial<NonNullable<typeof goal.value>['metric']>) {
 }
 
 // --- today's occurrence -------------------------------------------------------
-const today = computed(() => (goal.value ? app.goalToday(goal.value) : ''))
-const todayOcc = computed(() => {
-  void goalOccurrences.value // reactive dep
-  return goal.value ? app.occurrenceOn(props.goalId, today.value) : undefined
-})
-const captureOpen = ref(false)
-
-function onTick() {
-  const occ = todayOcc.value
-  if (!occ) return
-  if (metricOn.value && occ.status !== 'done') {
-    captureOpen.value = true
-    return
-  }
-  // Non-metric, or un-ticking a done metric day → plain toggle.
-  app.toggleOccurrenceDone(props.goalId, today.value)
-}
-function onSave(payload: { actual: number; note: string | null }) {
-  app.captureOccurrence(props.goalId, today.value, payload.actual, payload.note)
-  captureOpen.value = false
-}
-function onSkip() {
-  app.skipOccurrence(props.goalId, today.value)
-  captureOpen.value = false
-}
-function onMissed(payload: { actual: number; note: string | null }) {
-  // Store the actual as entered, but record the day as missed.
-  app.captureOccurrence(props.goalId, today.value, payload.actual, payload.note)
-  app.markOccurrenceMissed(props.goalId, today.value)
-  captureOpen.value = false
-}
-
-// Today's inline label: "400 / 500 · 80%" once captured, coloured by hit/short.
-const todayLabel = computed(() => {
-  const occ = todayOcc.value
-  const m = goal.value?.metric
-  if (!occ || !m?.enabled || occ.actual == null) return null
-  const o = captureOutcome(m, occ.actual)
-  return {
-    text: `${occ.actual} / ${occ.target} · ${o.pct}%${o.hit ? ' ✓' : ''}`,
-    hit: o.hit,
-    missed: occ.status === 'missed',
-  }
-})
+// Shared with the goal card's own tick control (section 18b) so the rule that a
+// metric day opens the capture popover cannot diverge between the two.
+const {
+  occurrence: todayOcc,
+  captureOpen,
+  label: todayLabel,
+  onTick,
+  onSave,
+  onSkip,
+  onMissed,
+} = useGoalToday(() => props.goalId)
 
 // --- styles ------------------------------------------------------------------
 const box = computed(() =>

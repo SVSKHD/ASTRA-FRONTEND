@@ -14,6 +14,7 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useTreeDrag, INDENT_PX, type TreeCollection } from '@/composables/useTreeDrag'
+import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
 import { pxify, merge, rowBase, tagChip } from '@/styles'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
@@ -110,14 +111,15 @@ function issueLinkOf(id: number) {
   return isTasks.value ? ((nodeOf(id) as Task | undefined)?.github ?? null) : null
 }
 // Goals this row is attached to (task 8), for the goal chip. Resolves ids to
-// titles so a row shows which goal(s) it belongs to from the Tasks/Todos tab.
-function goalNamesOf(id: number): string[] {
+// goals so a row shows which goal(s) it belongs to from the Tasks/Todos tab —
+// and so the chip can open that goal rather than the row it sits on (18b).
+function goalsOf(id: number): { id: number; label: string }[] {
   const ids = nodeOf(id)?.goalIds
   if (!ids || !ids.length) return []
   return ids
-    .map((gid) => app.goalById(gid)?.title)
-    .filter((t): t is string => !!t)
-    .map((t) => t || 'Goal')
+    .map((gid) => app.goalById(gid))
+    .filter((g): g is NonNullable<typeof g> => !!g)
+    .map((g) => ({ id: g.id, label: g.title || 'Goal' }))
 }
 function done(id: number) {
   return nodeOf(id)?.status === 'done'
@@ -153,6 +155,22 @@ function openDetail(id: number) {
       rows.value.map((r) => r.id),
     )
   else app.openEdit('todo', id)
+}
+// A goal chip opens its goal, not the row it is sitting on (section 18b).
+function openGoal(goalId: number) {
+  app.openGoalDialog(goalId)
+}
+// The row's open zone is a tap target, not a press-and-hold one: holding starts
+// a drag, and releasing from a drag must not leave a dialog open behind it.
+const pressedRow = ref<number | null>(null)
+const tap = useTapOpen(() => {
+  const id = pressedRow.value
+  pressedRow.value = null
+  if (id != null) openDetail(id)
+})
+function onRowPointerDown(event: PointerEvent, id: number) {
+  pressedRow.value = id
+  tap.onPointerDown(event)
 }
 function toggleDone(id: number) {
   if (isTasks.value) app.cycleTaskStatus(id)
@@ -414,7 +432,12 @@ const rootStripStyle = computed(() =>
             </svg>
           </button>
 
-          <div :style="s.taskMain" @click="openDetail(row.id)">
+          <div
+            :style="s.taskMain"
+            @pointerdown="onRowPointerDown($event, row.id)"
+            @pointercancel="tap.onPointerCancel"
+            @click="tap.onClick"
+          >
             <span :style="textStyle(row.id)">{{ title(row.id) }}</span>
             <span v-if="desc(row.id)" :style="descStyle">{{ desc(row.id) }}</span>
             <div :style="s.chipRow">
@@ -423,13 +446,16 @@ const rootStripStyle = computed(() =>
               }}</span>
               <span v-if="dueLabel(row.id)" :style="dueChipStyle">due {{ dueLabel(row.id) }}</span>
               <IssueChip v-if="issueLinkOf(row.id)" :link="issueLinkOf(row.id)!" compact />
-              <span
-                v-for="g in goalNamesOf(row.id)"
-                :key="g"
+              <button
+                v-for="g in goalsOf(row.id)"
+                :key="g.id"
+                type="button"
                 :style="goalChip"
-                title="Attached to goal"
-                >◎ {{ g }}</span
+                title="Open this goal"
+                @click.stop="openGoal(g.id)"
               >
+                ◎ {{ g.label }}
+              </button>
               <span v-if="hasKids(row.id)" :style="countChip"
                 >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
               >

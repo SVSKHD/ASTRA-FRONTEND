@@ -4780,6 +4780,10 @@ export const useAppStore = defineStore('app', () => {
     taskViewId.value = tid
     itemDialog.value = null
     dialogClosing.value = false
+    // The full-page view and the detail dialog are two views of one task, and a
+    // double click on a row reaches this through the dialog the first click
+    // opened — so the dialog gets out of the way rather than stacking.
+    if (detailStack.value.length) closeDetail()
   }
   function closeTaskView() {
     taskViewId.value = null

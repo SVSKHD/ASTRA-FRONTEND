@@ -19,6 +19,7 @@ import CompletedSection from '@/components/CompletedSection.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
+import { useTapOpen } from '@/composables/useTapOpen'
 import { nestedChildIds } from '@/utils/links'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useLongList } from '@/composables/useLongList'
@@ -110,20 +111,22 @@ function toggleAll() {
   acc.setMany(parentKeys.value, !allExpanded.value)
 }
 
-// --- click vs. double-click (single → dialog, double → task view) -----------
-let clickTimer: ReturnType<typeof setTimeout> | null = null
-function onRowClick(t: Task) {
-  if (clickTimer) return
-  clickTimer = setTimeout(() => {
-    clickTimer = null
-    app.openTaskDialog(t.id, activeRootIds.value)
-  }, 230)
+// --- opening a row ----------------------------------------------------------
+// A single click opens the detail dialog, immediately (section 18b). This row
+// used to hold the click for 230ms to see whether a second one was coming; the
+// double click still opens the full-page task view, but it now does so from an
+// already-open dialog rather than by making every single click feel slow.
+const pressedRow = ref<number | null>(null)
+const tap = useTapOpen(() => {
+  const id = pressedRow.value
+  pressedRow.value = null
+  if (id != null) app.openTaskDialog(id, activeRootIds.value)
+})
+function onRowPointerDown(event: PointerEvent, t: Task) {
+  pressedRow.value = t.id
+  tap.onPointerDown(event)
 }
 function onRowDblClick(t: Task) {
-  if (clickTimer) {
-    clearTimeout(clickTimer)
-    clickTimer = null
-  }
   app.openTaskView(t.id)
 }
 
@@ -246,7 +249,13 @@ function onRowDragOver(e: DragEvent) {
             @pointerdown="onGripDown($event, t)"
             ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
           ></span>
-          <div :style="s.taskMain" @click="onRowClick(t)" @dblclick="onRowDblClick(t)">
+          <div
+            :style="s.taskMain"
+            @pointerdown="onRowPointerDown($event, t)"
+            @pointercancel="tap.onPointerCancel"
+            @click="tap.onClick"
+            @dblclick="onRowDblClick(t)"
+          >
             <span :style="textStyle(t)">{{ t.title }}</span>
             <div :style="s.chipRow">
               <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
