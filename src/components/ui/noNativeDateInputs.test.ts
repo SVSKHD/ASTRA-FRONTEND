@@ -33,7 +33,7 @@ describe('no native date inputs remain', () => {
     // A spot-check that the migration actually landed rather than the inputs
     // simply being deleted: the dialogs that own a date still have a picker.
     for (const file of [
-      'components/TaskDialog.vue',
+      'components/detail/TaskDetailBody.vue',
       'components/ReminderDialog.vue',
       'components/GoalDetail.vue',
       'components/ItemDialog.vue',

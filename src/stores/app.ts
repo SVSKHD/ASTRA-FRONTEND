@@ -94,6 +94,7 @@ import {
 } from '@/utils/tags'
 import {
   STATUS_CYCLE,
+  STATUS_LOG_LIMIT,
   emptyFinanceSettings,
   emptyGithubIntegration,
   isStatus,
@@ -165,6 +166,7 @@ import type {
   Note,
   Stock,
   Priority,
+  StatusChange,
   FinanceSettings,
   Goal,
   GoalChecklistItem,
@@ -220,6 +222,22 @@ function scheduleFields(item: Partial<Schedulable>): Schedulable {
 
 function isPriority(value: unknown): value is Priority {
   return value === 'low' || value === 'normal' || value === 'high'
+}
+
+// Sanitise a stored status history (section 18c) to well-formed entries, oldest
+// first, capped. A malformed value reads as no history rather than crashing the
+// activity section, and the cap is re-applied on read so a document written by
+// an older or buggier client cannot grow unboundedly here.
+function statusLogOf(value: unknown): StatusChange[] {
+  if (!Array.isArray(value)) return []
+  const entries = value.filter(
+    (e): e is StatusChange =>
+      !!e &&
+      typeof e === 'object' &&
+      typeof (e as StatusChange).at === 'number' &&
+      isStatus((e as StatusChange).status),
+  )
+  return entries.slice(-STATUS_LOG_LIMIT)
 }
 
 // Sanitise a stored cross-collection back-pointer to a well-formed SourceRef, so
@@ -645,10 +663,19 @@ export const useAppStore = defineStore('app', () => {
     ]
     return newId
   }
+  // Append a status transition to a task's history (section 18c). Capped at
+  // write time as well as read time, so the array cannot grow past the limit
+  // even in a long-lived session that never reloads.
+  function withStatusLog(task: Task, next: ItemStatus): Task {
+    const log = [...(task.statusLog ?? []), { at: Date.now(), status: next }]
+    return { ...task, statusLog: log.slice(-STATUS_LOG_LIMIT) }
+  }
   function setTaskStatus(tid: number, next: ItemStatus) {
     const cur = tasks.value.find((t) => t.id === tid)
     if (!cur || cur.status === next) return
-    tasks.value = tasks.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
+    tasks.value = tasks.value.map((t) =>
+      t.id === tid ? withStatusLog(withStatus(t, next), next) : t,
+    )
     if (next === 'done') cancelRemindersFor('tasks', tid)
     // A linked task that changes state closes/reopens its issue (13c).
     scheduleIssuePush(tid)
@@ -670,6 +697,58 @@ export const useAppStore = defineStore('app', () => {
     // Title/description are the only fields that flow out to a linked issue,
     // debounced so a burst of keystrokes is one PATCH.
     if (field === 'title' || field === 'notes') scheduleIssuePush(tid)
+  }
+  // The typed sibling of updateTask, for the detail dialog's non-string fields
+  // (priority, estimate, schedule). Same guard bookkeeping, same one write.
+  function patchTask(tid: number, patch: Partial<Task>) {
+    const keys = Object.keys(patch)
+    if (!keys.length) return
+    tasks.value = tasks.value.map((t) => (t.id === tid ? touched({ ...t, ...patch }) : t))
+    for (const key of keys) syncGuard.markTouched(tid, key)
+    if ('title' in patch || 'notes' in patch) scheduleIssuePush(tid)
+  }
+  // ⋯ → Duplicate. A copy of the task itself, dropped in beside it: the subtree,
+  // the GitHub link and the reminders are deliberately NOT copied — a duplicated
+  // task must not close someone else's issue or fire someone else's alarm.
+  function duplicateTask(tid: number): number | null {
+    const src = tasks.value.find((t) => t.id === tid)
+    if (!src) return null
+    const newId = addTask(`${src.title} (copy)`, src.tag, {
+      deadline: src.deadline,
+      notes: src.notes,
+      repo: src.repo,
+    })
+    if (newId == null) return null
+    patchTask(newId, {
+      parentId: src.parentId,
+      depth: src.depth,
+      rootId: src.parentId == null ? newId : src.rootId,
+      order: src.order + 0.5,
+      assignee: src.assignee ?? '',
+      priority: src.priority ?? 'normal',
+      estimateMins: src.estimateMins ?? null,
+      goalIds: [...(src.goalIds ?? [])],
+    })
+    return newId
+  }
+  // ⋯ → Archive. The same archive "Clear completed" uses, so an archived task
+  // leaves the list without being destroyed.
+  function archiveTask(tid: number) {
+    patchTask(tid, { archivedAt: Date.now() })
+  }
+  // ⋯ → Convert to goal point. The task becomes a checklist point on the goal and
+  // is archived rather than deleted, so nothing that referenced it dangles.
+  function convertTaskToGoalPoint(tid: number, goalId: number): number | null {
+    const task = tasks.value.find((t) => t.id === tid)
+    if (!task || !goals.value.some((g) => g.id === goalId)) return null
+    const pointId = addChecklistItem(goalId, task.title, {
+      dueAt: task.deadline,
+      estimateMins: task.estimateMins ?? null,
+      spentMins: task.spentMins ?? 0,
+      done: task.status === 'done',
+    })
+    archiveTask(tid)
+    return pointId
   }
 
   // ---- Flat-hierarchy moves (drag and drop) -------------------------------
@@ -5284,6 +5363,14 @@ export const useAppStore = defineStore('app', () => {
         github: githubLinkOf(t.github),
         // Calendar scheduling (section 15), backfilled to unscheduled.
         ...scheduleFields(t),
+        // Detail-dialog meta (section 18c). Absent rather than defaulted where
+        // "unset" is the meaningful state: a task with no assignee should read
+        // as unassigned, not as assigned to the empty string.
+        assignee: typeof t.assignee === 'string' ? t.assignee : '',
+        priority: isPriority(t.priority) ? t.priority : 'normal',
+        estimateMins: typeof t.estimateMins === 'number' ? t.estimateMins : null,
+        spentMins: typeof t.spentMins === 'number' ? t.spentMins : 0,
+        statusLog: statusLogOf(t.statusLog),
       }))
     // Edit-safe sync: a task whose dialog is open (or whose local edits are
     // unsaved) is protected — the guard holds the incoming version back rather
@@ -5923,6 +6010,10 @@ export const useAppStore = defineStore('app', () => {
     setTaskStatus,
     cycleTaskStatus,
     updateTask,
+    patchTask,
+    duplicateTask,
+    archiveTask,
+    convertTaskToGoalPoint,
     addDeadline,
     updateDeadline,
     addFinance,

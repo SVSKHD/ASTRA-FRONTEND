@@ -144,7 +144,14 @@ function dueLabel(id: number) {
 }
 
 function openDetail(id: number) {
-  if (isTasks.value) app.openTaskDialog(id)
+  // The rows currently on screen, in the order they are read, so the dialog's
+  // prev/next arrows step through what the reader is looking at rather than
+  // through the whole collection (section 18a).
+  if (isTasks.value)
+    app.openTaskDialog(
+      id,
+      rows.value.map((r) => r.id),
+    )
   else app.openEdit('todo', id)
 }
 function toggleDone(id: number) {

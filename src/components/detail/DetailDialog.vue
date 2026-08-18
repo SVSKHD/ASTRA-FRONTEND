@@ -32,7 +32,7 @@ const props = withDefaults(
     hasNext: false,
   },
 )
-const emit = defineEmits<{ close: []; back: []; prev: []; next: [] }>()
+const emit = defineEmits<{ close: []; discard: []; back: []; prev: []; next: [] }>()
 
 const titleId = `detail-title-${useId()}`
 const panel = ref<HTMLElement | null>(null)
@@ -52,9 +52,11 @@ function requestClose() {
   }
   emit('close')
 }
+// Deliberately NOT `close`: closing flushes what is in flight, and the whole
+// point of this answer is that the reader does not want it written.
 function discard() {
   confirming.value = false
-  emit('close')
+  emit('discard')
 }
 function keepEditing() {
   confirming.value = false
@@ -279,7 +281,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
           >
             ‹
           </button>
-          <h2 :id="titleId" class="detail__title">{{ title }}</h2>
+          <!-- The dialog's accessible name is always the plain title text. The
+               visible title is a slot because both bodies put an inline-editable
+               input there, and an input makes a poor label for its own dialog. -->
+          <h2 :id="titleId" class="detail__srtitle">{{ title }}</h2>
+          <div class="detail__title">
+            <slot name="title">{{ title }}</slot>
+          </div>
           <div class="detail__headslot"><slot name="header" /></div>
           <button
             type="button"
@@ -416,10 +424,18 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   border-bottom: 1px solid var(--glass-border);
   background: inherit;
 }
+.detail__srtitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 .detail__title {
   flex: 1;
   min-width: 0;
-  margin: 0;
   font-size: var(--text-lg);
   font-weight: 600;
   overflow: hidden;

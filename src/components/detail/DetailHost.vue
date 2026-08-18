@@ -1,0 +1,183 @@
+<script setup lang="ts">
+// Mounts the detail dialog over whatever the workspace is showing (section 18).
+//
+// The host owns the three things that are the same whichever body is open: the
+// inline title in the header, the wiring from the shell's events to the store's
+// stack, and keeping the URL in step. The bodies are loaded on demand — the
+// dialog is a lot of machinery for a workspace that may never open one, and the
+// markdown editor it contains is the single heaviest thing in it.
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '@/stores/app'
+import { useStyles } from '@/composables/useStyles'
+import { useDetailRoute } from '@/composables/useDetailRoute'
+import { useInlineField } from '@/composables/useInlineField'
+import DetailDialog from '@/components/detail/DetailDialog.vue'
+import type { DetailKind } from '@/utils/detailUrl'
+
+const TaskDetailBody = defineAsyncComponent(() => import('@/components/detail/TaskDetailBody.vue'))
+
+const app = useAppStore()
+const { isMobile } = useStyles()
+const { tasks, goals, detailFrame, detailDirty } = storeToRefs(app)
+
+useDetailRoute()
+
+interface BodyHandle {
+  flush?: () => void
+  revert?: () => void
+}
+const body = ref<BodyHandle | null>(null)
+
+const frame = computed(() => detailFrame.value)
+const open = computed(() => app.detailOpen)
+
+const task = computed(() =>
+  frame.value?.kind === 'task' ? tasks.value.find((t) => t.id === frame.value?.id) : undefined,
+)
+const goal = computed(() =>
+  frame.value?.kind === 'goal' ? goals.value.find((g) => g.id === frame.value?.id) : undefined,
+)
+// The plain text of the title, for the dialog's accessible name. An id the
+// workspace does not have yet reads as "Loading…" rather than as an empty
+// dialog — the shell is up either way (section 18b).
+const titleText = computed(() => {
+  if (!frame.value) return ''
+  if (frame.value.kind === 'task')
+    return task.value ? task.value.title || 'Untitled task' : 'Loading…'
+  return goal.value ? goal.value.title || 'Untitled goal' : 'Loading…'
+})
+const exists = computed(() => !!task.value || !!goal.value)
+
+// The header's inline title. One field for both kinds, because "rename the thing
+// this dialog is about" is the same interaction either way.
+const title = useInlineField({
+  value: () =>
+    frame.value?.kind === 'goal' ? (goal.value?.title ?? '') : (task.value?.title ?? ''),
+  commit: (next) => {
+    const current = frame.value
+    if (!current) return
+    if (current.kind === 'goal') app.updateGoal(current.id, { title: next })
+    else app.updateTask(current.id, 'title', next)
+  },
+  onDirty: (dirty) => app.setDetailDirty(dirty),
+})
+// Stepping to a sibling swaps what the field is about, so a pending write goes
+// to the item it was typed into rather than the one that just arrived.
+watch(
+  () => frame.value && `${frame.value.kind}:${frame.value.id}`,
+  (_next, previous) => {
+    if (previous) title.flush()
+  },
+)
+
+const backLabel = computed(() => {
+  const parent = app.detailParent
+  if (!parent) return 'Back'
+  const name =
+    parent.kind === 'task'
+      ? tasks.value.find((t) => t.id === parent.id)?.title
+      : goals.value.find((g) => g.id === parent.id)?.title
+  return name ? `Back to ${name}` : 'Back'
+})
+
+// Every exit flushes what is in flight first: the header title, then whatever
+// the body still holds. Only then does the store run its own close ordering.
+function flushEverything() {
+  title.flush()
+  body.value?.flush?.()
+}
+function onClose() {
+  flushEverything()
+  app.closeDetail()
+}
+// The other answer to the unsaved-edits question. Reverting rather than flushing
+// is the difference between the two — a reader who said "discard" must not find
+// the edit saved anyway.
+function onDiscard() {
+  title.revert()
+  body.value?.revert?.()
+  app.setDetailDirty(false)
+  app.closeDetail()
+}
+function onBack() {
+  flushEverything()
+  app.popDetail()
+}
+function onStep(id: number | null) {
+  if (id == null) return
+  flushEverything()
+  app.stepDetail(id)
+}
+function onOpen(target: { kind: DetailKind; id: number }) {
+  flushEverything()
+  app.pushDetail(target.kind, target.id)
+}
+</script>
+
+<template>
+  <DetailDialog
+    :open="open"
+    :title="titleText"
+    :dirty="detailDirty"
+    :mobile="isMobile"
+    :can-go-back="app.detailCanGoBack"
+    :back-label="backLabel"
+    :has-prev="app.detailSteps.prevId != null"
+    :has-next="app.detailSteps.nextId != null"
+    @close="onClose"
+    @discard="onDiscard"
+    @back="onBack"
+    @prev="onStep(app.detailSteps.prevId)"
+    @next="onStep(app.detailSteps.nextId)"
+  >
+    <template #title>
+      <input
+        v-if="exists"
+        class="dhost__title"
+        :value="title.draft.value"
+        :aria-label="frame?.kind === 'goal' ? 'Goal title' : 'Task title'"
+        @input="title.onInput"
+        @focus="title.onFocus"
+        @blur="title.onBlur"
+        @keydown="title.onKeydown"
+      />
+      <span v-else>{{ titleText }}</span>
+    </template>
+
+    <TaskDetailBody
+      v-if="frame?.kind === 'task' && task"
+      ref="body"
+      :key="frame.id"
+      :task-id="frame.id"
+      @open="onOpen"
+      @close="onClose"
+    />
+    <p v-else-if="frame" class="dhost__missing">
+      This {{ frame.kind }} is not in your workspace. It may have been deleted, or still be loading.
+    </p>
+  </DetailDialog>
+</template>
+
+<style scoped>
+.dhost__title {
+  width: 100%;
+  padding: var(--sp-1) 0;
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--theme-text);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-family: inherit;
+}
+.dhost__title:focus {
+  outline: none;
+  border-bottom-color: var(--theme-accent);
+}
+.dhost__missing {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--theme-dim);
+}
+</style>

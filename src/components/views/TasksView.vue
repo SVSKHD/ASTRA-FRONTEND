@@ -116,7 +116,7 @@ function onRowClick(t: Task) {
   if (clickTimer) return
   clickTimer = setTimeout(() => {
     clickTimer = null
-    app.openTaskDialog(t.id)
+    app.openTaskDialog(t.id, activeRootIds.value)
   }, 230)
 }
 function onRowDblClick(t: Task) {
@@ -278,7 +278,15 @@ function onRowDragOver(e: DragEvent) {
     >
       <div v-for="t in completedWindow.visible.value" :key="t.id" :style="rowStyle(t, true)">
         <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-        <div :style="s.taskMain" @click="app.openTaskDialog(t.id)">
+        <div
+          :style="s.taskMain"
+          @click="
+            app.openTaskDialog(
+              t.id,
+              completedWindow.visible.value.map((x) => x.id),
+            )
+          "
+        >
           <span :style="textStyle(t)">{{ t.title }}</span>
           <div :style="s.chipRow">
             <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>

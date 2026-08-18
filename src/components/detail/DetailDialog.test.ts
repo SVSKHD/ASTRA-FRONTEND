@@ -76,11 +76,14 @@ describe('the dirty guard', () => {
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true)
   })
 
-  it('closes once the reader confirms', async () => {
+  it('discards once the reader confirms — a different event from a plain close', async () => {
     const wrapper = mountShell({ dirty: true })
     await wrapper.find('[data-testid="detail-scrim"]').trigger('click')
     await wrapper.findAll('.detail__confirm button')[1].trigger('click')
-    expect(wrapper.emitted('close')).toHaveLength(1)
+    // `close` flushes what is in flight, which is the opposite of what was just
+    // asked for, so this is its own event.
+    expect(wrapper.emitted('discard')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toBeUndefined()
   })
 
   it('goes back to editing on the other answer', async () => {
