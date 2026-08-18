@@ -134,7 +134,7 @@ function checkLabel(n: Note) {
         :key="n.id"
         :style="s.noteCard"
         v-hover-style="s.noteCardHover"
-        @click="app.openNoteView(n.id)"
+        @click="app.openNoteView(n.id, query)"
       >
         <span :style="s.noteCardTitle">{{ noteTitle(n.text) }}</span>
         <span v-if="notePreview(n.text)" :style="s.noteCardPreview">{{ notePreview(n.text) }}</span>

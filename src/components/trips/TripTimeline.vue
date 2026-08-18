@@ -5,6 +5,7 @@
 // planned order/times instead of visited ones. Nodes stagger in; clicking one
 // asks the dialog to highlight/pan that pin when it flips back to the map.
 import { computed } from 'vue'
+import { sanitize } from '@/utils/sanitizeHtml'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { formatGap, formatWhen } from '@/utils/geo'
@@ -121,6 +122,13 @@ const photoCell = pxify({
 const emptyStyle = computed(() =>
   pxify({ textAlign: 'center', color: c.value.dim, fontSize: 12.5, padding: '24px 0' }),
 )
+
+// Trip notes are rich text the owner wrote, but this same component renders a
+// public share in a stranger's browser — so the stored HTML is sanitised on the
+// way to the DOM rather than trusted (section 17: no unsanitised v-html).
+function safe(html: unknown): string {
+  return sanitize(String(html ?? ''))
+}
 </script>
 
 <template>
@@ -153,7 +161,7 @@ const emptyStyle = computed(() =>
           v-if="node.place.notes"
           class="rich"
           :style="notesStyle"
-          v-html="node.place.notes"
+          v-html="safe(node.place.notes)"
         ></div>
         <div :style="photoRow">
           <button

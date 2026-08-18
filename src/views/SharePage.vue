@@ -3,6 +3,7 @@
 // The previous SharedBanner rendered inside `v-if="showWorkspace"`, so a
 // recipient who was not signed in, hydrated and unlocked saw nothing at all.
 import { computed, onMounted, ref, watch } from 'vue'
+import { sanitize } from '@/utils/sanitizeHtml'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
@@ -124,7 +125,9 @@ const lines = computed<string[]>(() => {
 })
 
 const isNote = computed(() => share.value?.type === 'note')
-const noteHtml = computed(() => String(item.value.text ?? ''))
+// A share page renders someone else's note in this reader's browser, so the
+// stored HTML is sanitised before it reaches the DOM rather than trusted.
+const noteHtml = computed(() => sanitize(String(item.value.text ?? '')))
 
 // A shared trip renders the exact same full detail page as /trips/:id, in a
 // read-only public variant, rebuilt from the frozen snapshot — every place

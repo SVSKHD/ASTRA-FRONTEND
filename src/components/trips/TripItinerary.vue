@@ -9,6 +9,7 @@
 // photo asks the page to open the lightbox at that photo. Works for a To-Visit
 // trip too — it just reads planned dates.
 import { ref } from 'vue'
+import { sanitize } from '@/utils/sanitizeHtml'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { formatGap } from '@/utils/geo'
@@ -189,6 +190,13 @@ const emptyStyle = () =>
 function placeTime(p: TripPlace): string {
   return timeOf(p.visitedAt)
 }
+
+// Trip notes are rich text the owner wrote, but this same component renders a
+// public share in a stranger's browser — so the stored HTML is sanitised on the
+// way to the DOM rather than trusted (section 17: no unsanitised v-html).
+function safe(html: unknown): string {
+  return sanitize(String(html ?? ''))
+}
 </script>
 
 <template>
@@ -237,7 +245,7 @@ function placeTime(p: TripPlace): string {
               <span v-if="gap(day, i)" :style="gapChip()">{{ gap(day, i) }}</span>
             </div>
             <div v-if="p.address" :style="addr()">📍 {{ p.address }}</div>
-            <div v-if="p.notes" class="rich" :style="notes()" v-html="p.notes"></div>
+            <div v-if="p.notes" class="rich" :style="notes()" v-html="safe(p.notes)"></div>
             <div :style="photoGrid">
               <button
                 v-for="(url, pi) in p.photos"

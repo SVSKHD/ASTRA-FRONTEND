@@ -604,7 +604,11 @@ export interface GraphRef {
 
 export interface Note extends Timestamped {
   id: number
-  text: string // HTML
+  // Markdown source when `format` is 'md'. Notes written before section 17 hold
+  // HTML from the old contentEditable and carry no `format`; they are converted
+  // the first time they are opened in the editor.
+  text: string
+  format?: 'md'
   ts: number
 }
 
