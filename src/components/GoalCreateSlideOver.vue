@@ -10,6 +10,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import AutoTextarea from '@/components/ui/AutoTextarea.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import { parseItemMetadata } from '@/utils/goals'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
@@ -33,7 +34,8 @@ const canCreate = computed(() => (goal.value?.title ?? '').trim().length > 0)
 const COLORS = ['#4ade80', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa', '#f87171', '#34d399']
 
 const titleInput = ref<HTMLInputElement | null>(null)
-const pointInput = ref<HTMLInputElement | null>(null)
+// AutoTextarea exposes focus(); the ref is to the component, not the element.
+const pointInput = ref<{ focus: () => void } | null>(null)
 const draftPoint = ref('')
 
 // Live shorthand preview of the point being typed.
@@ -61,7 +63,7 @@ function addPoint() {
 }
 function exitAdd() {
   draftPoint.value = ''
-  pointInput.value?.blur()
+  ;(document.activeElement as HTMLElement | null)?.blur?.()
 }
 function removePoint(id: number) {
   app.deleteChecklistItem(id)
@@ -134,8 +136,20 @@ const sectionTitle = computed(() =>
     marginTop: 4,
   }),
 )
-const pointRow = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
-const pointText = computed(() => pxify({ fontSize: 13, color: c.value.text, flex: 1, minWidth: 0 }))
+// Top-aligned: a point that wraps keeps its delete button beside the first line.
+const pointRow = pxify({ display: 'flex', alignItems: 'flex-start', gap: 8 })
+// Wraps rather than truncating — an added point is read back in full.
+const pointText = computed(() =>
+  pxify({
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: c.value.text,
+    flex: 1,
+    minWidth: 0,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+  }),
+)
 const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: -4 })
 const chip = computed(() =>
   pxify({
@@ -236,13 +250,17 @@ const cancelBtn = computed(() =>
         <span :style="pointText">{{ p.text }}</span>
         <button :style="delBtn" @click="removePoint(p.id)">×</button>
       </div>
-      <input
+      <!-- Grows as it is typed rather than scrolling sideways, so a long point
+           is readable before it is added (section 20b). Enter still adds it;
+           Shift+Enter is how a newline gets in. -->
+      <AutoTextarea
         ref="pointInput"
-        :style="{ ...s.input, width: '100%' }"
+        class="gcso__pointinput"
         v-model="draftPoint"
+        label="Add a point"
         placeholder="Add a point — Enter to add, shorthand ~2h @date #tag"
-        @keydown.enter.prevent="addPoint"
-        @keydown.esc.prevent="exitAdd"
+        @commit="addPoint"
+        @revert="exitAdd"
       />
       <div v-if="draftPoint.trim()" :style="chipRow">
         <span :style="chip">{{ parsedPoint.text || '(empty)' }}</span>
