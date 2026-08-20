@@ -8,14 +8,13 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, rowBase } from '@/styles'
+import { pxify } from '@/styles'
+import { daysRemaining } from '@/utils/detailFields'
 import ListToolbar from '@/components/ListToolbar.vue'
-import ProgressRing from '@/components/ui/ProgressRing.vue'
 import GoalDetail from '@/components/GoalDetail.vue'
 import GoalsEmptyState from '@/components/GoalsEmptyState.vue'
 import GoalCreateSlideOver from '@/components/GoalCreateSlideOver.vue'
-import GoalCardTick from '@/components/GoalCardTick.vue'
-import Dropdown from '@/components/ui/Dropdown.vue'
+import GoalCard from '@/components/goals/GoalCard.vue'
 import { useTapOpen } from '@/composables/useTapOpen'
 import type { Goal, GoalStatus } from '@/types'
 
@@ -112,19 +111,9 @@ const STATUS_META: Record<GoalStatus, { label: string; col: string }> = {
   archived: { label: 'Archived', col: 'oklch(0.6 0.02 250)' },
 }
 
-const today = computed(() => {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d
-})
-function daysChip(target: string): { text: string; col: string } | null {
-  if (!target) return null
-  const due = new Date(target + 'T00:00:00')
-  const days = Math.round((due.getTime() - today.value.getTime()) / 86400000)
-  if (days < 0) return { text: `${-days}d overdue`, col: 'oklch(0.64 0.22 25)' }
-  if (days === 0) return { text: 'today', col: 'oklch(0.72 0.16 55)' }
-  return { text: `${days}d left`, col: c.value.dim }
-}
+// The days-left chip is the same one the goal dialog shows (section 18d), so a
+// goal reads the same wherever it appears.
+const daysChip = (target: string) => daysRemaining(target)
 
 interface GoalRow {
   goal: Goal
@@ -186,91 +175,22 @@ function onDropOn(index: number) {
 const grid = computed(() =>
   pxify({
     display: 'grid',
-    gridTemplateColumns: isMobile.value ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))',
-    gap: 12,
+    // Wider minimum than before: five narrow columns wrapped every title to
+    // four lines. Capped at four columns so an ultrawide screen does not turn
+    // the grid into a wall of thumbnails.
+    gridTemplateColumns: isMobile.value ? '1fr' : 'repeat(auto-fill, minmax(300px, min(1fr, 25%)))',
+    // Every card in a row gets the tallest card's height, so the row is level.
+    gridAutoRows: 'minmax(180px, 1fr)',
+    gap: 16,
     padding: '2px',
     overflowY: 'auto',
+    alignContent: 'start',
   }),
 )
-function cardStyle(id: number) {
-  return pxify({
-    ...rowBase(c.value),
-    alignItems: 'stretch',
-    flexDirection: 'column',
-    gap: 10,
-    cursor: 'pointer',
-    opacity: dragId.value === id ? 0.5 : 1,
-  })
+function cellStyle(id: number) {
+  return pxify({ minWidth: 0, opacity: dragId.value === id ? 0.5 : 1 })
 }
 const filterBar = pxify({ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 2px 10px' })
-const topRow = pxify({ display: 'flex', alignItems: 'center', gap: 12 })
-const titleStyle = computed(() =>
-  pxify({
-    fontSize: 15,
-    fontWeight: 600,
-    color: c.value.text,
-    lineHeight: 1.25,
-    flex: 1,
-    minWidth: 0,
-  }),
-)
-const descStyle = computed(() =>
-  pxify({
-    fontSize: 12,
-    color: c.value.dim,
-    lineHeight: 1.4,
-    display: '-webkit-box',
-    '-webkit-line-clamp': '2',
-    '-webkit-box-orient': 'vertical',
-    overflow: 'hidden',
-  }),
-)
-const metaRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' })
-function statusBadge(status: GoalStatus) {
-  const m = STATUS_META[status]
-  return pxify({
-    fontSize: 10,
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    padding: '3px 8px',
-    borderRadius: 999,
-    color: m.col,
-    border: '1px solid ' + m.col,
-  })
-}
-function chip(col: string) {
-  return pxify({
-    fontSize: 11,
-    fontWeight: 600,
-    padding: '3px 8px',
-    borderRadius: 999,
-    color: col,
-    border: '1px solid ' + col,
-  })
-}
-const countChip = computed(() =>
-  pxify({
-    fontSize: 11,
-    color: c.value.dim,
-    padding: '3px 8px',
-    borderRadius: 999,
-    background: c.value.input,
-    border: '1px solid ' + c.value.border,
-  }),
-)
-const gripDots = [0, 1, 2, 3, 4, 5]
-// One accent colour per goal, used only for the dot (and the detail progress
-// bar) — falls back to the theme accent when the goal has no colour set.
-function colorDot(color: string) {
-  return pxify({
-    width: 10,
-    height: 10,
-    borderRadius: '50%',
-    flexShrink: 0,
-    background: color || c.value.accent,
-  })
-}
 const searchInput = computed(() =>
   pxify({ ...s.value.input, flex: 1, minWidth: 140, padding: '6px 10px', fontSize: 12 }),
 )
@@ -345,8 +265,7 @@ const importBtn = computed(() =>
         <div
           v-for="(r, i) in rows"
           :key="r.goal.id"
-          :style="cardStyle(r.goal.id)"
-          v-hover-style="s.rowHover"
+          :style="cellStyle(r.goal.id)"
           :draggable="sortKey === 'order'"
           @dragstart="onDragStart($event, r.goal.id)"
           @dragover="onDragOver"
@@ -355,45 +274,16 @@ const importBtn = computed(() =>
           @pointercancel="tap.onPointerCancel"
           @click="tap.onClick"
         >
-          <div :style="topRow">
-            <span
-              v-if="sortKey === 'order'"
-              :style="s.grip"
-              role="button"
-              aria-label="Drag to reorder"
-              title="Drag to reorder"
-              @click.stop
-              ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-            ></span>
-            <!-- The ring reports progress; it is not a way into the goal, so a
-                 click on it does nothing rather than opening the dialog. -->
-            <span class="goalcard__ring" @click.stop
-              ><ProgressRing :ratio="r.ratio" :size="42"
-            /></span>
-            <span :style="colorDot(r.goal.color)" aria-hidden="true"></span>
-            <span :style="titleStyle">{{ r.goal.title || 'Untitled goal' }}</span>
-            <GoalCardTick :goal-id="r.goal.id" />
-            <span :style="statusBadge(r.goal.status)">{{ STATUS_META[r.goal.status].label }}</span>
-            <span @click.stop>
-              <Dropdown
-                label="Goal actions"
-                :items="CARD_MENU"
-                @select="onCardMenu(r.goal.id, $event)"
-              />
-            </span>
-          </div>
-          <div v-if="r.goal.description" :style="descStyle">{{ r.goal.description }}</div>
-          <div :style="metaRow">
-            <span
-              v-if="daysChip(r.goal.targetDate)"
-              :style="chip(daysChip(r.goal.targetDate)!.col)"
-            >
-              {{ daysChip(r.goal.targetDate)!.text }}
-            </span>
-            <span :style="countChip">{{ r.counts.checklist }} checklist</span>
-            <span :style="countChip">{{ r.counts.tasks }} tasks</span>
-            <span :style="countChip">{{ r.counts.todos }} todos</span>
-          </div>
+          <GoalCard
+            :goal="r.goal"
+            :ratio="r.ratio"
+            :counts="r.counts"
+            :days-chip="daysChip(r.goal.targetDate)"
+            :status-label="STATUS_META[r.goal.status].label"
+            :menu="CARD_MENU"
+            :draggable="sortKey === 'order'"
+            @menu="onCardMenu(r.goal.id, $event)"
+          />
         </div>
       </div>
     </template>
