@@ -104,13 +104,6 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
-const STATUS_META: Record<GoalStatus, { label: string; col: string }> = {
-  active: { label: 'Active', col: 'oklch(0.7 0.15 155)' },
-  paused: { label: 'Paused', col: 'oklch(0.75 0.13 80)' },
-  done: { label: 'Done', col: 'oklch(0.7 0.13 250)' },
-  archived: { label: 'Archived', col: 'oklch(0.6 0.02 250)' },
-}
-
 // The days-left chip is the same one the goal dialog shows (section 18d), so a
 // goal reads the same wherever it appears.
 const daysChip = (target: string) => daysRemaining(target)
@@ -279,7 +272,6 @@ const importBtn = computed(() =>
             :ratio="r.ratio"
             :counts="r.counts"
             :days-chip="daysChip(r.goal.targetDate)"
-            :status-label="STATUS_META[r.goal.status].label"
             :menu="CARD_MENU"
             :draggable="sortKey === 'order'"
             @menu="onCardMenu(r.goal.id, $event)"

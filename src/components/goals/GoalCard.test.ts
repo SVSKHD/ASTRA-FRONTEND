@@ -93,10 +93,10 @@ describe('the header is a grid with declared tracks (section 19a)', () => {
     expect(ruleHas('.gcard__title', 'min-width: 0')).toBe(true)
   })
 
-  it('truncates the title rather than growing the row', () => {
+  it('clamps the title rather than growing the row (section 19b)', () => {
+    // It used to run to four lines and drag the rest of the header with it.
+    expect(ruleHas('.gcard__title', '-webkit-line-clamp: 2')).toBe(true)
     expect(ruleHas('.gcard__title', 'overflow: hidden')).toBe(true)
-    expect(ruleHas('.gcard__title', 'text-overflow: ellipsis')).toBe(true)
-    expect(ruleHas('.gcard__title', 'white-space: nowrap')).toBe(true)
   })
 
   it('keeps the actions in their own column, never wrapping', () => {
@@ -128,13 +128,42 @@ describe('uniform height (acceptance 92)', () => {
 describe('what it renders', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('shows the goal and its counts', () => {
+  it('shows the goal and its non-zero counts, biggest first', () => {
     const wrapper = mountCard(makeGoal({ title: 'Ship it', description: 'the thing' }), {
       counts: { checklist: 2, tasks: 1, todos: 0 },
     })
     expect(wrapper.find('.gcard__title').text()).toBe('Ship it')
     expect(wrapper.find('.gcard__desc').text()).toBe('the thing')
-    expect(wrapper.text()).toContain('2 checklist')
+    expect(wrapper.findAll('.gcard__chip').map((c) => c.text())).toEqual(['2 points', '1 task'])
+  })
+
+  it('says nothing at all rather than ACTIVE (section 19b)', () => {
+    expect(
+      mountCard(makeGoal({ status: 'active' }))
+        .find('.gcard__badge')
+        .exists(),
+    ).toBe(false)
+    expect(
+      mountCard(makeGoal({ status: 'paused' }))
+        .find('.gcard__badge')
+        .text(),
+    ).toBe('Paused')
+  })
+
+  it('shows one muted line for a goal with nothing in it (acceptance 93)', () => {
+    const wrapper = mountCard()
+    expect(wrapper.findAll('.gcard__chip')).toHaveLength(0)
+    expect(wrapper.find('.gcard__none').text()).toBe('No items yet')
+  })
+
+  it('draws a flat track instead of a ring reading zero', () => {
+    const zero = mountCard()
+    expect(zero.find('.gcard__track').exists()).toBe(true)
+    expect(zero.findComponent({ name: 'ProgressRing' }).exists()).toBe(false)
+
+    const some = mountCard(makeGoal(), { ratio: 0.5 })
+    expect(some.find('.gcard__track').exists()).toBe(false)
+    expect(some.find('.gcard__pct').text()).toBe('50%')
   })
 
   it('names an untitled goal rather than showing nothing', () => {

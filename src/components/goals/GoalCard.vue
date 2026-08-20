@@ -20,21 +20,27 @@ import { computed } from 'vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import GoalCardTick from '@/components/GoalCardTick.vue'
 import Dropdown, { type MenuItem } from '@/components/ui/Dropdown.vue'
-import type { Goal, GoalStatus } from '@/types'
+import { cardMeta, ringPercent, showRing, statusBadge } from '@/utils/goalCardMeta'
+import type { DaysChip } from '@/utils/detailFields'
+import type { Goal } from '@/types'
 
 const props = defineProps<{
   goal: Goal
   ratio: number
   counts: { checklist: number; tasks: number; todos: number }
-  daysChip: { text: string; tone: 'overdue' | 'today' | 'ahead' } | null
-  statusLabel: string
+  daysChip: DaysChip | null
   menu: MenuItem[]
   draggable?: boolean
 }>()
 const emit = defineEmits<{ menu: [string] }>()
 
 const dotColor = computed(() => props.goal.color || 'var(--theme-accent)')
-const badgeTone = computed<GoalStatus>(() => props.goal.status)
+// Section 19b: only the states worth noticing wear a badge, only counts above
+// zero become chips, and the ring is drawn only once there is progress in it.
+const badge = computed(() => statusBadge(props.goal.status))
+const meta = computed(() => cardMeta(props.counts, props.daysChip))
+const hasProgress = computed(() => showRing(props.ratio))
+const percent = computed(() => ringPercent(props.ratio))
 </script>
 
 <template>
@@ -53,9 +59,14 @@ const badgeTone = computed<GoalStatus>(() => props.goal.status)
       <span v-else class="gcard__grip gcard__grip--empty" aria-hidden="true"></span>
 
       <!-- The ring reports progress; it is not a way into the goal, so a click
-           on it does nothing rather than opening the dialog (section 18b). -->
+           on it does nothing rather than opening the dialog (section 18b). At
+           zero it is a flat track: a "0" repeated down the grid said nothing. -->
       <span class="gcard__ring goalcard__ring" @click.stop>
-        <ProgressRing :ratio="ratio" :size="40" :color="goal.color || undefined" />
+        <template v-if="hasProgress">
+          <ProgressRing :ratio="ratio" :size="40" :color="goal.color || undefined" />
+          <span class="gcard__pct">{{ percent }}</span>
+        </template>
+        <span v-else class="gcard__track" aria-hidden="true"></span>
       </span>
 
       <div class="gcard__titleblock">
@@ -74,13 +85,20 @@ const badgeTone = computed<GoalStatus>(() => props.goal.status)
     <p v-if="goal.description" class="gcard__desc">{{ goal.description }}</p>
 
     <div class="gcard__meta">
-      <span :class="['gcard__badge', `gcard__badge--${badgeTone}`]">{{ statusLabel }}</span>
-      <span v-if="daysChip" :class="['gcard__chip', `gcard__chip--${daysChip.tone}`]">
-        {{ daysChip.text }}
+      <span v-if="badge" :class="['gcard__badge', `gcard__badge--${goal.status}`]">
+        {{ badge }}
       </span>
-      <span class="gcard__chip">{{ counts.checklist }} checklist</span>
-      <span class="gcard__chip">{{ counts.tasks }} tasks</span>
-      <span class="gcard__chip">{{ counts.todos }} todos</span>
+      <span
+        v-for="chip in meta.chips"
+        :key="chip.key"
+        :class="['gcard__chip', `gcard__chip--${chip.tone}`]"
+      >
+        {{ chip.text }}
+      </span>
+      <span v-if="meta.overflow" class="gcard__chip" :title="meta.overflowTitle">
+        +{{ meta.overflow }}
+      </span>
+      <span v-if="meta.empty && !meta.chips.length" class="gcard__none">No items yet</span>
     </div>
   </article>
 </template>
@@ -120,7 +138,20 @@ const badgeTone = computed<GoalStatus>(() => props.goal.status)
   /* Aligned with the title's first line rather than the card's centre. */
   margin-top: 6px;
   cursor: grab;
+  /* Quiet until wanted: the handle fades in on hover, and its column is
+     reserved either way so nothing shifts when it appears. */
+  opacity: 0;
+  transition: opacity var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.gcard:hover .gcard__grip,
+.gcard__grip:focus-visible {
   opacity: 0.5;
+}
+/* A touch device has no hover, so hiding it there would hide it for good. */
+@media (hover: none) {
+  .gcard__grip {
+    opacity: 0.5;
+  }
 }
 .gcard__grip--empty {
   width: 9px;
@@ -132,8 +163,30 @@ const badgeTone = computed<GoalStatus>(() => props.goal.status)
   background: var(--theme-dim);
 }
 .gcard__ring {
-  display: inline-flex;
+  /* A one-cell grid rather than relative/absolute: the percentage and the ring
+     are stacked in the same declared cell, so the label has reserved space and
+     nothing is positioned out of flow (section 19e). */
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+.gcard__ring > * {
+  grid-area: 1 / 1;
+}
+/* The percentage sits inside the ring, so no second label is needed. */
+.gcard__pct {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--theme-dim);
+}
+/* Zero progress: a thin track, no number. */
+.gcard__track {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in oklch, var(--theme-dim) 22%, transparent);
 }
 .gcard__titleblock {
   /* The line that stops the overlap: without it a grid child refuses to shrink
@@ -156,9 +209,14 @@ const badgeTone = computed<GoalStatus>(() => props.goal.status)
   font-size: var(--text-md);
   font-weight: 600;
   line-height: 1.3;
+  /* Two lines, then an ellipsis. A title used to run to four lines and drag
+     the rest of the header along with it. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
 }
 /* Fixed right column: the actions never wrap and never sit in the title flow. */
 .gcard__actions {
@@ -181,13 +239,21 @@ const badgeTone = computed<GoalStatus>(() => props.goal.status)
   overflow-wrap: break-word;
 }
 .gcard__meta {
-  /* Pinned to the bottom, so meta rows align across cards of a row. */
+  /* Pinned to the bottom, so meta rows align across cards of a row. One line:
+     what does not fit becomes "+N" rather than wrapping the card taller. */
   margin-top: auto;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
   min-width: 0;
+}
+.gcard__none {
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+  opacity: 0.75;
+  white-space: nowrap;
 }
 .gcard__chip,
 .gcard__badge {
