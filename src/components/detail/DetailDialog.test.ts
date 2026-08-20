@@ -196,31 +196,34 @@ describe('the mobile sheet', () => {
     else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetHeight
   })
 
-  function drag(el: Element, to: number) {
-    for (const type of ['pointerdown', 'pointermove', 'pointerup'] as const) {
-      el.dispatchEvent(
-        new MouseEvent(type, { bubbles: true, clientY: type === 'pointerdown' ? 0 : to }),
-      )
-    }
+  // The gap between the press and the move is real time, because the component
+  // measures velocity from the events' own timestamps. Dispatching all three in
+  // the same instant reads as an infinitely fast flick, which is not the gesture
+  // any of these tests mean.
+  async function drag(el: Element, to: number) {
+    el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 0 }))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    el.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: to }))
+    el.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: to }))
   }
 
   it('dismisses when dragged far enough down', async () => {
     const wrapper = mountShell({ mobile: true })
-    drag(wrapper.find('[data-testid="detail-grip"]').element, 480)
+    await drag(wrapper.find('[data-testid="detail-grip"]').element, 480)
     await nextTick()
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 
   it('springs back rather than dismissing on a short drag', async () => {
     const wrapper = mountShell({ mobile: true })
-    drag(wrapper.find('[data-testid="detail-grip"]').element, 20)
+    await drag(wrapper.find('[data-testid="detail-grip"]').element, 20)
     await nextTick()
     expect(wrapper.emitted('close')).toBeUndefined()
   })
 
   it('a drag away still respects unsaved edits', async () => {
     const wrapper = mountShell({ mobile: true, dirty: true })
-    drag(wrapper.find('[data-testid="detail-grip"]').element, 480)
+    await drag(wrapper.find('[data-testid="detail-grip"]').element, 480)
     await nextTick()
     expect(wrapper.emitted('close')).toBeUndefined()
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true)

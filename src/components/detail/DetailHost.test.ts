@@ -78,7 +78,8 @@ async function settle(wrapper?: Wrapper, selector = '.tdb') {
   }
 }
 
-const titleInput = (wrapper: Wrapper) => wrapper.find('input[aria-label="Task title"]')
+// A textarea since section 20b: a long title wraps rather than being cut off.
+const titleInput = (wrapper: Wrapper) => wrapper.find('textarea[aria-label="Task title"]')
 
 describe('opening', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -93,14 +94,14 @@ describe('opening', () => {
     app.openTaskDialog(1, [1])
     await settle(wrapper)
     expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
-    expect((titleInput(wrapper).element as HTMLInputElement).value).toBe('Ship the thing')
+    expect((titleInput(wrapper).element as HTMLTextAreaElement).value).toBe('Ship the thing')
     expect(wrapper.text()).toContain('Subtasks')
   })
 
   it('opens over the list on a cold load of its address (acceptance 86)', async () => {
     const { wrapper } = await mountHost('/?task=2')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
-    expect((titleInput(wrapper).element as HTMLInputElement).value).toBe('task 2')
+    expect((titleInput(wrapper).element as HTMLTextAreaElement).value).toBe('task 2')
   })
 
   it('back closes it (acceptance 86)', async () => {
@@ -189,13 +190,13 @@ describe('drilling in and back (acceptance 88)', () => {
     await settle(wrapper)
     await wrapper.find('.tdb__subtitle').trigger('click')
     await settle(wrapper)
-    expect((titleInput(wrapper).element as HTMLInputElement).value).toBe('Child')
+    expect((titleInput(wrapper).element as HTMLTextAreaElement).value).toBe('Child')
 
     const back = wrapper.find('button[aria-label="Back to Parent"]')
     expect(back.exists()).toBe(true)
     await back.trigger('click')
     await settle(wrapper)
-    expect((titleInput(wrapper).element as HTMLInputElement).value).toBe('Parent')
+    expect((titleInput(wrapper).element as HTMLTextAreaElement).value).toBe('Parent')
     expect(app.detailOpen).toBe(true)
   })
 
@@ -240,9 +241,9 @@ describe('goals (acceptance 89)', () => {
     app.openGoalDialog(50, [50])
     await settle(wrapper, '.gdb')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
-    expect((wrapper.find('input[aria-label="Goal title"]').element as HTMLInputElement).value).toBe(
-      'Ship it',
-    )
+    expect(
+      (wrapper.find('textarea[aria-label="Goal title"]').element as HTMLTextAreaElement).value,
+    ).toBe('Ship it')
     expect(wrapper.text()).toContain('Points')
   })
 })
@@ -256,7 +257,7 @@ describe('stepping through the list behind', () => {
     await settle(wrapper)
     await wrapper.find('button[aria-label="Next"]').trigger('click')
     await settle(wrapper)
-    expect((titleInput(wrapper).element as HTMLInputElement).value).toBe('task 2')
+    expect((titleInput(wrapper).element as HTMLTextAreaElement).value).toBe('task 2')
     expect(app.detailOpen).toBe(true)
   })
 

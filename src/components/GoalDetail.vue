@@ -16,6 +16,7 @@ import { pxify, rowBase } from '@/styles'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import TreeList from '@/components/TreeList.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
+import GoalPointRow from '@/components/goals/GoalPointRow.vue'
 import type { GoalStatus } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
@@ -87,12 +88,27 @@ function beginEditItem(id: number) {
 function endEditItem(id: number) {
   guard.editingIds.delete(id)
 }
-function onItemText(id: number, e: Event) {
-  app.updateChecklistItem(id, { text: (e.target as HTMLInputElement).value })
+// The row hands back values rather than events, and brackets each write with
+// the edit guard so a remote snapshot cannot land mid-keystroke.
+function onItemTextValue(id: number, text: string) {
+  beginEditItem(id)
+  app.updateChecklistItem(id, { text })
+  endEditItem(id)
 }
-function onEstimate(id: number, e: Event) {
-  const v = (e.target as HTMLInputElement).value
-  app.updateChecklistItem(id, { estimateMins: v === '' ? null : Math.max(0, parseInt(v, 10) || 0) })
+function onEstimateValue(id: number, estimateMins: number | null) {
+  beginEditItem(id)
+  app.updateChecklistItem(id, { estimateMins })
+  endEditItem(id)
+}
+// Plain Enter finishes a point and moves to the next, adding one at the end.
+async function onItemCommit(index: number) {
+  if (!checklist.value[index + 1]) {
+    app.addChecklistItem(props.goalId, '')
+    await nextTick()
+  }
+  await nextTick()
+  const fields = document.querySelectorAll<HTMLTextAreaElement>('.gpr__text')
+  fields[index + 1]?.focus()
 }
 // The picker hands back the value itself; the edit guard still brackets it so a
 // remote snapshot cannot land mid-change.
@@ -271,47 +287,6 @@ const smallBtn = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const itemRow = computed(() =>
-  pxify({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '6px 8px',
-    borderRadius: 10,
-    border: '1px solid ' + c.value.border,
-    background: c.value.card,
-    flexWrap: isMobile.value ? 'wrap' : 'nowrap',
-  }),
-)
-const itemText = computed(() =>
-  pxify({
-    ...s.value.input,
-    flex: 1,
-    minWidth: 120,
-    border: 'none',
-    background: 'transparent',
-    padding: '2px 4px',
-  }),
-)
-const miniInput = computed(() =>
-  pxify({ ...s.value.input, width: 74, padding: '4px 6px', fontSize: 12 }),
-)
-const timerBtn = (running: boolean) =>
-  pxify({
-    fontSize: 11,
-    fontWeight: 600,
-    padding: '4px 8px',
-    borderRadius: 8,
-    border: '1px solid ' + (running ? 'oklch(0.64 0.22 25)' : c.value.border),
-    background: 'transparent',
-    color: running ? 'oklch(0.64 0.22 25)' : c.value.dim,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  })
-const spentTag = computed(() =>
-  pxify({ fontSize: 11, color: c.value.dim, minWidth: 52, textAlign: 'right' }),
-)
-const gripDots = [0, 1, 2, 3, 4, 5]
 const addRow = computed(() =>
   pxify({ display: 'flex', gap: 8, alignItems: 'center', padding: '2px 0' }),
 )
@@ -436,48 +411,25 @@ const pickRow = computed(() =>
     <div
       v-for="(item, i) in checklist"
       :key="item.id"
-      :style="itemRow"
       :draggable="true"
       @dragstart="onItemDragStart(item.id)"
       @dragover.prevent
       @drop="onItemDrop(i)"
     >
-      <span :style="s.grip" role="button" aria-label="Drag to reorder" @click.stop
-        ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-      ></span>
-      <input type="checkbox" :checked="item.done" @change="app.toggleChecklistItem(item.id)" />
-      <input
-        :style="itemText"
-        :value="item.text"
-        :placeholder="'Item'"
-        @focus="beginEditItem(item.id)"
-        @blur="endEditItem(item.id)"
-        @input="onItemText(item.id, $event)"
+      <!-- The same row the dialog uses (section 20b), so a point reads and
+           behaves identically on the wide page and in the dialog. -->
+      <GoalPointRow
+        :point="item"
+        :spent="liveSpent(item.id)"
+        :mobile="isMobile"
+        @toggle="app.toggleChecklistItem(item.id)"
+        @update:text="onItemTextValue(item.id, $event)"
+        @commit="onItemCommit(i)"
+        @update:estimate="onEstimateValue(item.id, $event)"
+        @update:due="onDueValue(item.id, $event)"
+        @toggle-timer="toggleTimer(item.id, item.timerStartedAt != null)"
+        @remove="app.deleteChecklistItem(item.id)"
       />
-      <input
-        :style="miniInput"
-        type="number"
-        min="0"
-        :value="item.estimateMins ?? ''"
-        placeholder="est m"
-        @focus="beginEditItem(item.id)"
-        @blur="endEditItem(item.id)"
-        @input="onEstimate(item.id, $event)"
-      />
-      <GlassDatePicker
-        size="sm"
-        :model-value="item.dueAt"
-        placeholder="Due"
-        @update:model-value="onDueValue(item.id, String($event ?? ''))"
-      />
-      <button
-        :style="timerBtn(item.timerStartedAt != null)"
-        @click="toggleTimer(item.id, item.timerStartedAt != null)"
-      >
-        {{ item.timerStartedAt != null ? '■ Stop' : '▶ Start' }}
-      </button>
-      <span :style="spentTag">{{ fmtMins(liveSpent(item.id)) }}</span>
-      <button :style="s.del" @click="app.deleteChecklistItem(item.id)">×</button>
     </div>
 
     <!-- Tasks -->
