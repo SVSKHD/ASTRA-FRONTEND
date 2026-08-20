@@ -180,7 +180,8 @@ describe('a goal card (acceptance 89)', () => {
 
   it('does not open when the ⋯ menu is used', async () => {
     const wrapper = mountCards()
-    await wrapper.find('[aria-haspopup]').trigger('click')
+    // The toolbar's Import menu is also a dropdown, so this targets the card's.
+    await wrapper.find('.gcard [aria-haspopup]').trigger('click')
     expect(app.detailOpen).toBe(false)
     expect(wrapper.findAll('button').some((b) => b.text() === 'Duplicate')).toBe(true)
   })

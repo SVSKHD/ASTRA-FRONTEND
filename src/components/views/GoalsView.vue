@@ -3,25 +3,30 @@
 // checklist and can have existing tasks/todos attached by reference. This view is
 // the list (card grid / mobile list) with status filter, sort, and grip-drag
 // reorder; selecting a card opens GoalDetail in place.
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, defineAsyncComponent, ref, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, rowBase } from '@/styles'
-import ListToolbar from '@/components/ListToolbar.vue'
-import ProgressRing from '@/components/ui/ProgressRing.vue'
-import GoalDetail from '@/components/GoalDetail.vue'
+import { pxify } from '@/styles'
+import { debounce } from '@/utils/syncGuard'
+import { daysRemaining } from '@/utils/detailFields'
+import GoalsToolbar from '@/components/goals/GoalsToolbar.vue'
+// The wide page is heavy (the metric chart, a TreeList per attachment) and is
+// rendered only once a goal is opened on it, so it stays off the grid's first
+// paint (section 19d).
+const GoalDetail = defineAsyncComponent(() => import('@/components/GoalDetail.vue'))
 import GoalsEmptyState from '@/components/GoalsEmptyState.vue'
 import GoalCreateSlideOver from '@/components/GoalCreateSlideOver.vue'
-import GoalCardTick from '@/components/GoalCardTick.vue'
-import Dropdown from '@/components/ui/Dropdown.vue'
+import GoalCard from '@/components/goals/GoalCard.vue'
+import GoalCardSkeleton from '@/components/goals/GoalCardSkeleton.vue'
+import GoalGrid from '@/components/goals/GoalGrid.vue'
 import { useTapOpen } from '@/composables/useTapOpen'
 import type { Goal, GoalStatus } from '@/types'
 
 const app = useAppStore()
 const router = useRouter()
-const { c, s, isMobile, panelStyle } = useStyles()
+const { s, isMobile, panelStyle } = useStyles()
 const { goals } = storeToRefs(app)
 
 // The selected goal lives in the store, so /goals/:goalId can open it on a cold
@@ -32,7 +37,34 @@ const selectedId = computed({
 })
 const statusFilter = ref<GoalStatus | 'all'>('all')
 const sortKey = ref<'order' | 'target' | 'progress'>('order')
+
+// Search is debounced (section 19d): `search` is what the field shows, `query`
+// is what the list filters by. Filtering a few hundred cards on every keystroke
+// is what made typing here feel heavy.
+const SEARCH_DEBOUNCE_MS = 200
 const search = ref('')
+const query = ref('')
+const searchWriter = debounce(() => {
+  query.value = search.value
+}, SEARCH_DEBOUNCE_MS)
+function onSearch(event: Event) {
+  search.value = (event.target as HTMLInputElement).value
+  searchWriter.schedule()
+}
+// Enter submits immediately rather than waiting out the debounce.
+function onSearchSubmit() {
+  searchWriter.flush()
+  query.value = search.value
+}
+onBeforeUnmount(() => searchWriter.cancel())
+
+// The workspace arrives as one document, so "loading" is simply "not here yet"
+// — one read for the whole page, however many goals it holds (acceptance 94).
+// Guarded by the goal count as well, so a local-only or offline session with
+// data in hand shows that data rather than skeletons forever.
+const loading = computed(() => !app.cloudReady && goals.value.length === 0)
+// Enough to fill the fold without promising rows that may not exist.
+const SKELETON_COUNT = 6
 
 defineExpose({ focus: () => onNew() })
 
@@ -105,26 +137,9 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
-const STATUS_META: Record<GoalStatus, { label: string; col: string }> = {
-  active: { label: 'Active', col: 'oklch(0.7 0.15 155)' },
-  paused: { label: 'Paused', col: 'oklch(0.75 0.13 80)' },
-  done: { label: 'Done', col: 'oklch(0.7 0.13 250)' },
-  archived: { label: 'Archived', col: 'oklch(0.6 0.02 250)' },
-}
-
-const today = computed(() => {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d
-})
-function daysChip(target: string): { text: string; col: string } | null {
-  if (!target) return null
-  const due = new Date(target + 'T00:00:00')
-  const days = Math.round((due.getTime() - today.value.getTime()) / 86400000)
-  if (days < 0) return { text: `${-days}d overdue`, col: 'oklch(0.64 0.22 25)' }
-  if (days === 0) return { text: 'today', col: 'oklch(0.72 0.16 55)' }
-  return { text: `${days}d left`, col: c.value.dim }
-}
+// The days-left chip is the same one the goal dialog shows (section 18d), so a
+// goal reads the same wherever it appears.
+const daysChip = (target: string) => daysRemaining(target)
 
 interface GoalRow {
   goal: Goal
@@ -138,7 +153,7 @@ const rows = computed<GoalRow[]>(() => {
   else list = list.filter((g) => g.status === statusFilter.value)
 
   // Free-text search over title + description.
-  const q = search.value.trim().toLowerCase()
+  const q = query.value.trim().toLowerCase()
   if (q)
     list = list.filter(
       (g) => g.title.toLowerCase().includes(q) || g.description.toLowerCase().includes(q),
@@ -186,107 +201,29 @@ function onDropOn(index: number) {
 const grid = computed(() =>
   pxify({
     display: 'grid',
-    gridTemplateColumns: isMobile.value ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))',
-    gap: 12,
+    // Wider minimum than before: five narrow columns wrapped every title to
+    // four lines. Capped at four columns so an ultrawide screen does not turn
+    // the grid into a wall of thumbnails.
+    gridTemplateColumns: isMobile.value ? '1fr' : 'repeat(auto-fill, minmax(300px, min(1fr, 25%)))',
+    // Every card in a row gets the tallest card's height, so the row is level.
+    gridAutoRows: 'minmax(180px, 1fr)',
+    gap: 16,
     padding: '2px',
     overflowY: 'auto',
+    alignContent: 'start',
   }),
 )
-function cardStyle(id: number) {
-  return pxify({
-    ...rowBase(c.value),
-    alignItems: 'stretch',
-    flexDirection: 'column',
-    gap: 10,
-    cursor: 'pointer',
-    opacity: dragId.value === id ? 0.5 : 1,
-  })
+// GoalGrid takes the goals themselves; the ratio and counts come from the
+// store's rollup index, which is O(1) per card (section 19d).
+const visibleGoals = computed(() => rows.value.map((r) => r.goal))
+
+// The card's position in the filtered list, for a drop that lands on it.
+function indexOf(goalId: number): number {
+  return rows.value.findIndex((r) => r.goal.id === goalId)
 }
-const filterBar = pxify({ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 2px 10px' })
-const topRow = pxify({ display: 'flex', alignItems: 'center', gap: 12 })
-const titleStyle = computed(() =>
-  pxify({
-    fontSize: 15,
-    fontWeight: 600,
-    color: c.value.text,
-    lineHeight: 1.25,
-    flex: 1,
-    minWidth: 0,
-  }),
-)
-const descStyle = computed(() =>
-  pxify({
-    fontSize: 12,
-    color: c.value.dim,
-    lineHeight: 1.4,
-    display: '-webkit-box',
-    '-webkit-line-clamp': '2',
-    '-webkit-box-orient': 'vertical',
-    overflow: 'hidden',
-  }),
-)
-const metaRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' })
-function statusBadge(status: GoalStatus) {
-  const m = STATUS_META[status]
-  return pxify({
-    fontSize: 10,
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    padding: '3px 8px',
-    borderRadius: 999,
-    color: m.col,
-    border: '1px solid ' + m.col,
-  })
+function cellStyle(id: number) {
+  return pxify({ minWidth: 0, opacity: dragId.value === id ? 0.5 : 1 })
 }
-function chip(col: string) {
-  return pxify({
-    fontSize: 11,
-    fontWeight: 600,
-    padding: '3px 8px',
-    borderRadius: 999,
-    color: col,
-    border: '1px solid ' + col,
-  })
-}
-const countChip = computed(() =>
-  pxify({
-    fontSize: 11,
-    color: c.value.dim,
-    padding: '3px 8px',
-    borderRadius: 999,
-    background: c.value.input,
-    border: '1px solid ' + c.value.border,
-  }),
-)
-const gripDots = [0, 1, 2, 3, 4, 5]
-// One accent colour per goal, used only for the dot (and the detail progress
-// bar) — falls back to the theme accent when the goal has no colour set.
-function colorDot(color: string) {
-  return pxify({
-    width: 10,
-    height: 10,
-    borderRadius: '50%',
-    flexShrink: 0,
-    background: color || c.value.accent,
-  })
-}
-const searchInput = computed(() =>
-  pxify({ ...s.value.input, flex: 1, minWidth: 140, padding: '6px 10px', fontSize: 12 }),
-)
-const importBtn = computed(() =>
-  pxify({
-    fontSize: 12,
-    fontWeight: 600,
-    padding: '7px 12px',
-    borderRadius: 999,
-    border: '1px solid ' + c.value.border,
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  }),
-)
 </script>
 
 <template>
@@ -294,108 +231,61 @@ const importBtn = computed(() =>
     <GoalDetail v-if="selectedId != null" :goal-id="selectedId" @back="selectedId = null" />
 
     <template v-else>
-      <ListToolbar title="Goals" new-label="New goal" @new="onNew">
-        <template #actions>
-          <!-- Import paths converge on the one /import/goals preview (paste-JSON,
-               .json drop and spasta links all handled there). -->
-          <button type="button" :style="importBtn" @click="goImport">Paste JSON</button>
-          <button type="button" :style="importBtn" @click="goImport">Import link</button>
-        </template>
-      </ListToolbar>
+      <GoalsToolbar
+        :search="search"
+        :status="statusFilter"
+        :sort="sortKey"
+        :mobile="isMobile"
+        :show-filters="goals.length > 0"
+        @update:search="onSearch"
+        @submit-search="onSearchSubmit"
+        @update:status="statusFilter = $event"
+        @update:sort="sortKey = $event"
+        @import="goImport"
+        @new="onNew"
+      />
 
-      <div v-if="goals.length" :style="filterBar">
-        <input
-          :style="searchInput"
-          :value="search"
-          type="search"
-          placeholder="Search goals…"
-          @input="search = ($event.target as HTMLInputElement).value"
-        />
-        <select
-          :style="s.select"
-          :value="statusFilter"
-          @change="statusFilter = ($event.target as HTMLSelectElement).value as GoalStatus | 'all'"
-        >
-          <option value="all">Active &amp; open</option>
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
-          <option value="done">Done</option>
-          <option value="archived">Archived</option>
-        </select>
-        <select
-          :style="s.select"
-          :value="sortKey"
-          @change="sortKey = ($event.target as HTMLSelectElement).value as typeof sortKey"
-        >
-          <option value="order">Manual order</option>
-          <option value="target">By target date</option>
-          <option value="progress">By progress</option>
-        </select>
+      <!-- Skeletons while the workspace is still arriving. Same box model as
+           the real card, so the swap moves nothing (acceptance 95). First,
+           because "nothing here" and "not here yet" are different answers. -->
+      <div v-if="loading" :style="grid" aria-busy="true" aria-label="Loading goals">
+        <GoalCardSkeleton v-for="n in SKELETON_COUNT" :key="n" />
       </div>
 
       <GoalsEmptyState
-        v-if="goals.length === 0"
+        v-else-if="goals.length === 0"
         @new="onNew"
         @paste-json="goImport"
         @import-link="goImport"
       />
       <div v-else-if="rows.length === 0" :style="s.empty">No goals match this filter.</div>
 
-      <div v-else :style="grid">
-        <div
-          v-for="(r, i) in rows"
-          :key="r.goal.id"
-          :style="cardStyle(r.goal.id)"
-          v-hover-style="s.rowHover"
-          :draggable="sortKey === 'order'"
-          @dragstart="onDragStart($event, r.goal.id)"
-          @dragover="onDragOver"
-          @drop="onDropOn(i)"
-          @pointerdown="onCardPointerDown($event, r.goal.id)"
-          @pointercancel="tap.onPointerCancel"
-          @click="tap.onClick"
-        >
-          <div :style="topRow">
-            <span
-              v-if="sortKey === 'order'"
-              :style="s.grip"
-              role="button"
-              aria-label="Drag to reorder"
-              title="Drag to reorder"
-              @click.stop
-              ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-            ></span>
-            <!-- The ring reports progress; it is not a way into the goal, so a
-                 click on it does nothing rather than opening the dialog. -->
-            <span class="goalcard__ring" @click.stop
-              ><ProgressRing :ratio="r.ratio" :size="42"
-            /></span>
-            <span :style="colorDot(r.goal.color)" aria-hidden="true"></span>
-            <span :style="titleStyle">{{ r.goal.title || 'Untitled goal' }}</span>
-            <GoalCardTick :goal-id="r.goal.id" />
-            <span :style="statusBadge(r.goal.status)">{{ STATUS_META[r.goal.status].label }}</span>
-            <span @click.stop>
-              <Dropdown
-                label="Goal actions"
-                :items="CARD_MENU"
-                @select="onCardMenu(r.goal.id, $event)"
-              />
-            </span>
+      <GoalGrid v-else :items="visibleGoals" :mobile="isMobile">
+        <template #default="{ item }">
+          <div
+            :key="item.id"
+            v-memo="[item.id, item.updatedAt, sortKey, dragId === item.id]"
+            :style="cellStyle(item.id)"
+            :draggable="sortKey === 'order'"
+            @dragstart="onDragStart($event, item.id)"
+            @dragover="onDragOver"
+            @drop="onDropOn(indexOf(item.id))"
+            @pointerdown="onCardPointerDown($event, item.id)"
+            @pointercancel="tap.onPointerCancel"
+            @click="tap.onClick"
+          >
+            <GoalCard
+              :goal="item"
+              :ratio="app.goalProgress(item.id).ratio"
+              :counts="app.goalCounts(item.id)"
+              :days-chip="daysChip(item.targetDate)"
+              :menu="CARD_MENU"
+              :draggable="sortKey === 'order'"
+              @menu="onCardMenu(item.id, $event)"
+            />
           </div>
-          <div v-if="r.goal.description" :style="descStyle">{{ r.goal.description }}</div>
-          <div :style="metaRow">
-            <span
-              v-if="daysChip(r.goal.targetDate)"
-              :style="chip(daysChip(r.goal.targetDate)!.col)"
-            >
-              {{ daysChip(r.goal.targetDate)!.text }}
-            </span>
-            <span :style="countChip">{{ r.counts.checklist }} checklist</span>
-            <span :style="countChip">{{ r.counts.tasks }} tasks</span>
-            <span :style="countChip">{{ r.counts.todos }} todos</span>
-          </div>
-        </div>
-      </div>
+        </template>
+      </GoalGrid>
     </template>
 
     <GoalCreateSlideOver v-if="showCreate" @close="showCreate = false" @created="onCreated" />

@@ -1163,24 +1163,69 @@ export const useAppStore = defineStore('app', () => {
   function todosOfGoal(gid: number): Todo[] {
     return todos.value.filter((t) => t.goalIds?.includes(gid))
   }
+  // ---- Goal rollups (section 19d) -----------------------------------------
+  // Counts and progress for EVERY goal, built in one pass over the three source
+  // arrays and cached until one of them changes.
+  //
+  // This is the local equivalent of the brief's denormalised counters. In this
+  // single-workspace-document app there is no per-goal document and no
+  // subcollection to read, so there is no N+1 fan-out to remove — but the old
+  // goalCounts/goalProgress each re-scanned all three arrays PER CARD, which is
+  // the same O(cards x items) cost in CPU that the fan-out was in requests. A
+  // grid of 200 goals over a few hundred items did roughly 120,000 comparisons
+  // per render; it now does a few hundred, once.
+  //
+  // Deliberately derived rather than persisted onto the goal: a stored counter
+  // in this data model buys no read that is not already free, and every write
+  // path that touches a task, todo or checklist item becomes a chance for it to
+  // drift. A computed index cannot disagree with the items it counts.
+  interface GoalRollup {
+    checklist: number
+    tasks: number
+    todos: number
+    done: number
+    total: number
+    ratio: number
+  }
+  const EMPTY_ROLLUP: GoalRollup = { checklist: 0, tasks: 0, todos: 0, done: 0, total: 0, ratio: 0 }
+
+  const goalRollups = computed(() => {
+    const map = new Map<number, GoalRollup>()
+    const slot = (gid: number): GoalRollup => {
+      let entry = map.get(gid)
+      if (!entry) {
+        entry = { checklist: 0, tasks: 0, todos: 0, done: 0, total: 0, ratio: 0 }
+        map.set(gid, entry)
+      }
+      return entry
+    }
+    const add = (gid: number, kind: 'checklist' | 'tasks' | 'todos', done: boolean) => {
+      const entry = slot(gid)
+      entry[kind]++
+      entry.total++
+      if (done) entry.done++
+    }
+    for (const item of goalChecklist.value) add(item.goalId, 'checklist', item.done)
+    for (const task of tasks.value)
+      for (const gid of task.goalIds ?? []) add(gid, 'tasks', task.done)
+    for (const todo of todos.value)
+      for (const gid of todo.goalIds ?? []) add(gid, 'todos', todo.done)
+    for (const entry of map.values()) entry.ratio = entry.total ? entry.done / entry.total : 0
+    return map
+  })
+
   // Progress rolls up checklist items + attached tasks + attached todos.
   function goalProgress(gid: number): { done: number; total: number; ratio: number } {
-    const cl = goalChecklist.value.filter((c) => c.goalId === gid)
-    const tk = tasksOfGoal(gid)
-    const td = todosOfGoal(gid)
-    const total = cl.length + tk.length + td.length
-    const done =
-      cl.filter((c) => c.done).length +
-      tk.filter((t) => t.done).length +
-      td.filter((t) => t.done).length
-    return { done, total, ratio: total ? done / total : 0 }
+    const { done, total, ratio } = goalRollups.value.get(gid) ?? EMPTY_ROLLUP
+    return { done, total, ratio }
   }
   function goalCounts(gid: number): { checklist: number; tasks: number; todos: number } {
-    return {
-      checklist: goalChecklist.value.filter((c) => c.goalId === gid).length,
-      tasks: tasksOfGoal(gid).length,
-      todos: todosOfGoal(gid).length,
-    }
+    const {
+      checklist,
+      tasks: taskCount,
+      todos: todoCount,
+    } = goalRollups.value.get(gid) ?? EMPTY_ROLLUP
+    return { checklist, tasks: taskCount, todos: todoCount }
   }
   // Estimated vs spent minutes, summed across the goal's checklist items. Tasks
   // and todos carry no time fields, so only the checklist contributes.
@@ -6210,6 +6255,7 @@ export const useAppStore = defineStore('app', () => {
     createTodoInGoal,
     tasksOfGoal,
     todosOfGoal,
+    goalRollups,
     goalProgress,
     goalCounts,
     goalTime,
