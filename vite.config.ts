@@ -155,6 +155,11 @@ export default defineConfig({
           // The syntax highlighter: fetched only by a note that has a fence, so
           // it must not be merged into anything a note without one pulls in.
           if (id.includes('highlight.js')) return 'highlight'
+          // The grid virtualiser is reached only from the goals grid, which
+          // lives behind the workspace route. Left in `vendor` it rides in the
+          // eagerly preloaded chunk, ~7KB gzipped downloaded before sign-in for
+          // a list the reader may never open.
+          if (id.includes('@tanstack')) return 'virtual'
           if (id.includes('viem') || id.includes('@noble') || id.includes('@scure')) return 'crypto'
           if (id.includes('qrcode')) return 'qrcode'
           return 'vendor'

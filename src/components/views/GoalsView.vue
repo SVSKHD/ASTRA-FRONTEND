@@ -11,7 +11,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { debounce } from '@/utils/syncGuard'
 import { daysRemaining } from '@/utils/detailFields'
-import ListToolbar from '@/components/ListToolbar.vue'
+import GoalsToolbar from '@/components/goals/GoalsToolbar.vue'
 // The wide page is heavy (the metric chart, a TreeList per attachment) and is
 // rendered only once a goal is opened on it, so it stays off the grid's first
 // paint (section 19d).
@@ -26,7 +26,7 @@ import type { Goal, GoalStatus } from '@/types'
 
 const app = useAppStore()
 const router = useRouter()
-const { c, s, isMobile, panelStyle } = useStyles()
+const { s, isMobile, panelStyle } = useStyles()
 const { goals } = storeToRefs(app)
 
 // The selected goal lives in the store, so /goals/:goalId can open it on a cold
@@ -224,23 +224,6 @@ function indexOf(goalId: number): number {
 function cellStyle(id: number) {
   return pxify({ minWidth: 0, opacity: dragId.value === id ? 0.5 : 1 })
 }
-const filterBar = pxify({ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 2px 10px' })
-const searchInput = computed(() =>
-  pxify({ ...s.value.input, flex: 1, minWidth: 140, padding: '6px 10px', fontSize: 12 }),
-)
-const importBtn = computed(() =>
-  pxify({
-    fontSize: 12,
-    fontWeight: 600,
-    padding: '7px 12px',
-    borderRadius: 999,
-    border: '1px solid ' + c.value.border,
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  }),
-)
 </script>
 
 <template>
@@ -248,45 +231,19 @@ const importBtn = computed(() =>
     <GoalDetail v-if="selectedId != null" :goal-id="selectedId" @back="selectedId = null" />
 
     <template v-else>
-      <ListToolbar title="Goals" new-label="New goal" @new="onNew">
-        <template #actions>
-          <!-- Import paths converge on the one /import/goals preview (paste-JSON,
-               .json drop and spasta links all handled there). -->
-          <button type="button" :style="importBtn" @click="goImport">Paste JSON</button>
-          <button type="button" :style="importBtn" @click="goImport">Import link</button>
-        </template>
-      </ListToolbar>
-
-      <div v-if="goals.length" :style="filterBar">
-        <input
-          :style="searchInput"
-          :value="search"
-          type="search"
-          placeholder="Search goals…"
-          @input="onSearch"
-          @keydown.enter.prevent="onSearchSubmit"
-        />
-        <select
-          :style="s.select"
-          :value="statusFilter"
-          @change="statusFilter = ($event.target as HTMLSelectElement).value as GoalStatus | 'all'"
-        >
-          <option value="all">Active &amp; open</option>
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
-          <option value="done">Done</option>
-          <option value="archived">Archived</option>
-        </select>
-        <select
-          :style="s.select"
-          :value="sortKey"
-          @change="sortKey = ($event.target as HTMLSelectElement).value as typeof sortKey"
-        >
-          <option value="order">Manual order</option>
-          <option value="target">By target date</option>
-          <option value="progress">By progress</option>
-        </select>
-      </div>
+      <GoalsToolbar
+        :search="search"
+        :status="statusFilter"
+        :sort="sortKey"
+        :mobile="isMobile"
+        :show-filters="goals.length > 0"
+        @update:search="onSearch"
+        @submit-search="onSearchSubmit"
+        @update:status="statusFilter = $event"
+        @update:sort="sortKey = $event"
+        @import="goImport"
+        @new="onNew"
+      />
 
       <!-- Skeletons while the workspace is still arriving. Same box model as
            the real card, so the swap moves nothing (acceptance 95). First,
