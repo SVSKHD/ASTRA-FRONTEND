@@ -3,6 +3,7 @@
 // whole set from one place.
 
 export { default as Accordion } from './Accordion.vue'
+export { default as AutoTextarea } from './AutoTextarea.vue'
 export { default as Avatar } from './Avatar.vue'
 export { default as Badge } from './Badge.vue'
 export { default as BottomSheet } from './BottomSheet.vue'
