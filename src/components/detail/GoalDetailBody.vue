@@ -8,11 +8,12 @@
 // occurrence with its tick control, the capture popover, target vs actual and
 // the mini chart already live there, and a second implementation of any of that
 // would drift from the one on the wide page.
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
+import { useStyles } from '@/composables/useStyles'
 import { useInlineField } from '@/composables/useInlineField'
 import { daysRemaining, formatMinutes, relativeStamp } from '@/utils/detailFields'
 import DetailSection from '@/components/detail/DetailSection.vue'
@@ -21,6 +22,7 @@ import ProgressBar from '@/components/ui/ProgressBar.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
+import GoalPointRow from '@/components/goals/GoalPointRow.vue'
 import MarkdownEditor from '@/components/notes/MarkdownEditor.vue'
 import ColorPicker from '@/components/ui/ColorPicker.vue'
 import { downloadText } from '@/utils/noteExport'
@@ -32,6 +34,7 @@ const emit = defineEmits<{ open: [{ kind: 'task' | 'goal'; id: number }]; close:
 const app = useAppStore()
 const ui = useUiStore()
 const router = useRouter()
+const { isMobile } = useStyles()
 const { goals, goalChecklist } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
@@ -131,6 +134,19 @@ const dragPointId = ref<number | null>(null)
 function onPointDrop(position: number) {
   if (dragPointId.value != null) app.moveChecklistItem(dragPointId.value, position)
   dragPointId.value = null
+}
+// Plain Enter on a point finishes it and moves to the next — creating one at
+// the end, so a list can be typed straight through without reaching for the
+// mouse (section 20b).
+async function onPointCommit(index: number) {
+  const next = points.value[index + 1]
+  if (!next) {
+    app.addChecklistItem(props.goalId, '')
+    await nextTick()
+  }
+  await nextTick()
+  const fields = document.querySelectorAll<HTMLTextAreaElement>('.gpr__text')
+  fields[index + 1]?.focus()
 }
 function toggleTimer(itemId: number, running: boolean) {
   if (running) app.stopChecklistTimer(itemId)
@@ -238,67 +254,23 @@ defineExpose({
       <div
         v-for="(point, i) in points"
         :key="point.id"
-        class="gdb__point"
         draggable="true"
         @dragstart="dragPointId = point.id"
         @dragover.prevent
         @drop="onPointDrop(i)"
       >
-        <button
-          type="button"
-          class="gdb__box"
-          :class="point.done && 'gdb__box--on'"
-          :aria-label="point.done ? 'Mark not done' : 'Mark done'"
-          @click="app.toggleChecklistItem(point.id)"
-        >
-          <span v-if="point.done" aria-hidden="true">✓</span>
-        </button>
-        <input
-          class="gdb__input gdb__pointtext"
-          :class="point.done && 'gdb__pointtext--done'"
-          aria-label="Point"
-          :value="point.text"
-          @input="
-            app.updateChecklistItem(point.id, { text: ($event.target as HTMLInputElement).value })
-          "
+        <GoalPointRow
+          :point="point"
+          :spent="liveSpent(point.id)"
+          :mobile="isMobile"
+          @toggle="app.toggleChecklistItem(point.id)"
+          @update:text="app.updateChecklistItem(point.id, { text: $event })"
+          @commit="onPointCommit(i)"
+          @update:estimate="app.updateChecklistItem(point.id, { estimateMins: $event })"
+          @update:due="app.updateChecklistItem(point.id, { dueAt: $event })"
+          @toggle-timer="toggleTimer(point.id, point.timerStartedAt != null)"
+          @remove="app.deleteChecklistItem(point.id)"
         />
-        <input
-          class="gdb__input gdb__mins"
-          aria-label="Estimate in minutes"
-          placeholder="est"
-          :value="point.estimateMins ?? ''"
-          @input="
-            app.updateChecklistItem(point.id, {
-              estimateMins:
-                ($event.target as HTMLInputElement).value === ''
-                  ? null
-                  : Math.max(0, parseInt(($event.target as HTMLInputElement).value, 10) || 0),
-            })
-          "
-        />
-        <GlassDatePicker
-          size="sm"
-          clearable
-          placeholder="due"
-          :model-value="point.dueAt"
-          @update:model-value="app.updateChecklistItem(point.id, { dueAt: String($event ?? '') })"
-        />
-        <button
-          type="button"
-          class="gdb__mini"
-          :title="point.timerStartedAt != null ? 'Stop the timer' : 'Start the timer'"
-          @click="toggleTimer(point.id, point.timerStartedAt != null)"
-        >
-          {{ point.timerStartedAt != null ? '■' : '▶' }} {{ formatMinutes(liveSpent(point.id)) }}
-        </button>
-        <button
-          type="button"
-          class="gdb__mini"
-          aria-label="Delete point"
-          @click="app.deleteChecklistItem(point.id)"
-        >
-          ×
-        </button>
       </div>
       <div class="gdb__addrow">
         <input

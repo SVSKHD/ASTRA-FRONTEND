@@ -12,6 +12,7 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useDetailRoute } from '@/composables/useDetailRoute'
 import { useInlineField } from '@/composables/useInlineField'
+import AutoTextarea from '@/components/ui/AutoTextarea.vue'
 import DetailDialog from '@/components/detail/DetailDialog.vue'
 import DetailPeek from '@/components/detail/DetailPeek.vue'
 import type { DetailKind } from '@/utils/detailUrl'
@@ -122,6 +123,12 @@ function onStep(id: number | null) {
   flushEverything()
   app.stepDetail(id)
 }
+// Enter in the title writes it and gets out of the way, rather than putting a
+// newline into what is a one-line-ish name.
+function onTitleCommit() {
+  title.flush()
+  ;(document.activeElement as HTMLElement | null)?.blur?.()
+}
 function onOpen(target: { kind: DetailKind; id: number }) {
   flushEverything()
   app.pushDetail(target.kind, target.id)
@@ -145,15 +152,19 @@ function onOpen(target: { kind: DetailKind; id: number }) {
     @next="onStep(app.detailSteps.nextId)"
   >
     <template #title>
-      <input
+      <!-- A textarea, not an input: a long title used to run out of the
+           header rather than wrapping onto a second line (section 20b). -->
+      <AutoTextarea
         v-if="exists"
         class="dhost__title"
-        :value="title.draft.value"
-        :aria-label="frame?.kind === 'goal' ? 'Goal title' : 'Task title'"
-        @input="title.onInput"
+        variant="title"
+        :model-value="title.draft.value"
+        :label="frame?.kind === 'goal' ? 'Goal title' : 'Task title'"
+        @update:model-value="title.set"
+        @commit="onTitleCommit"
+        @revert="title.revert"
         @focus="title.onFocus"
         @blur="title.onBlur"
-        @keydown="title.onKeydown"
       />
       <span v-else>{{ titleText }}</span>
     </template>
@@ -183,18 +194,6 @@ function onOpen(target: { kind: DetailKind; id: number }) {
 <style scoped>
 .dhost__title {
   width: 100%;
-  padding: var(--sp-1) 0;
-  border: none;
-  border-bottom: 1px solid transparent;
-  background: transparent;
-  color: var(--theme-text);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  font-family: inherit;
-}
-.dhost__title:focus {
-  outline: none;
-  border-bottom-color: var(--theme-accent);
 }
 .dhost__missing {
   margin: 0;

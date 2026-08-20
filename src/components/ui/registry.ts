@@ -68,6 +68,18 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     snippet: '<Textarea v-model="notes" label="Notes" :rows="4" />',
   },
   {
+    name: 'AutoTextarea',
+    group: 'Inputs',
+    summary: 'Inline-editable line that grows to fit its text and shows no chrome until focused.',
+    props: [
+      { name: 'modelValue', type: 'string' },
+      { name: 'variant', type: "'body' | 'title'", default: 'body' },
+      { name: 'done', type: 'boolean', note: 'Struck through and dimmed, still readable.' },
+      { name: 'minHeight', type: 'number', note: 'Floor in px, for a list of empty rows.' },
+    ],
+    snippet: '<AutoTextarea v-model="point.text" label="Point" @commit="next" />',
+  },
+  {
     name: 'Select',
     group: 'Inputs',
     summary: 'Native select, themed — keeps the platform picker on mobile.',

@@ -5,6 +5,7 @@
 // preview, and written in one atomic import. Re-importing the same URL offers a
 // merge into the existing goal instead of creating a duplicate.
 import { computed, ref, onMounted } from 'vue'
+import AutoTextarea from '@/components/ui/AutoTextarea.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
@@ -182,7 +183,8 @@ const sub = computed(() => pxify({ fontSize: 12, color: c.value.dim, lineHeight:
 const rowStyle = computed(() =>
   pxify({
     display: 'flex',
-    alignItems: 'center',
+    // Top-aligned, so the controls stay beside a wrapped row's first line.
+    alignItems: 'flex-start',
     gap: 8,
     padding: '6px 8px',
     borderRadius: 10,
@@ -190,9 +192,6 @@ const rowStyle = computed(() =>
     background: c.value.card,
     flexWrap: 'wrap',
   }),
-)
-const textInput = computed(() =>
-  pxify({ ...s.value.input, flex: 1, minWidth: 160, padding: '4px 8px' }),
 )
 const mini = computed(() =>
   pxify({ ...s.value.input, width: 78, padding: '4px 6px', fontSize: 12 }),
@@ -358,7 +357,14 @@ const mergeNote = computed(() =>
 
         <div v-if="rows.length === 0" :style="s.empty">No items parsed from that link.</div>
         <div v-for="(r, i) in rows" :key="i" :style="rowStyle">
-          <input :style="textInput" v-model="r.text" placeholder="Item text" />
+          <!-- A pasted point has to be readable in full before it is confirmed
+               (acceptance 105), so this grows to fit rather than cutting off. -->
+          <AutoTextarea
+            class="importrow__text"
+            v-model="r.text"
+            label="Item text"
+            placeholder="Item text"
+          />
           <select
             :style="s.select"
             :value="r.kind"
@@ -397,3 +403,12 @@ const mergeNote = computed(() =>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Takes the room the other controls do not, and grows downwards rather than
+   truncating (section 20b). */
+.importrow__text {
+  flex: 1;
+  min-width: 160px;
+}
+</style>

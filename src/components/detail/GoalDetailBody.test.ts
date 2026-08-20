@@ -142,7 +142,7 @@ describe('points', () => {
     const app = setup()
     app.addChecklistItem(10, 'A point')
     const wrapper = mountBody()
-    await wrapper.find('.gdb__box').trigger('click')
+    await wrapper.find('.gpr__box').trigger('click')
     expect(app.checklistOf(10)[0].done).toBe(true)
   })
 
@@ -150,15 +150,31 @@ describe('points', () => {
     const app = setup()
     app.addChecklistItem(10, 'A point')
     const wrapper = mountBody()
-    await wrapper.find('.gdb__pointtext').setValue('A better point')
+    await wrapper.find('.gpr__text').setValue('A better point')
     expect(app.checklistOf(10)[0].text).toBe('A better point')
   })
 
-  it('takes a per-point estimate', async () => {
+  it('shows the whole point, however long, rather than cutting it off', () => {
+    const app = setup()
+    const long = 'truthiness, == vs ===, and the whole coercion table in one sitting'
+    app.addChecklistItem(10, long)
+    const field = mountBody().find('.gpr__text')
+    // A textarea holds its value; an input of fixed width hid the tail of it.
+    expect(field.element.tagName).toBe('TEXTAREA')
+    expect((field.element as HTMLTextAreaElement).value).toBe(long)
+  })
+
+  it('takes a per-point estimate once the estimate is clicked', async () => {
     const app = setup()
     app.addChecklistItem(10, 'A point')
     const wrapper = mountBody()
-    await wrapper.find('.gdb__mins').setValue('30')
+    // At rest it is plain text, not a field — that is the decluttering.
+    expect(wrapper.find('.gpr__mins').exists()).toBe(false)
+    await wrapper.find('.gpr__estimate').trigger('click')
+    await wrapper.vm.$nextTick()
+    const field = wrapper.find('.gpr__mins')
+    ;(field.element as HTMLInputElement).value = '30'
+    await field.trigger('blur')
     expect(app.checklistOf(10)[0].estimateMins).toBe(30)
   })
 

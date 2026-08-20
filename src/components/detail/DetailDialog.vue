@@ -418,7 +418,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   top: 0;
   z-index: 2;
   display: flex;
-  align-items: center;
+  /* Top-aligned so the arrows stay beside the title's first line when it
+     wraps to two. */
+  align-items: flex-start;
   gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--glass-border);
@@ -438,9 +440,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   min-width: 0;
   font-size: var(--text-lg);
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* The title wraps now rather than being clipped (section 20b), so the header
+     grows with it instead of hiding the end of a long name. */
+  min-height: 0;
 }
 .detail__headslot {
   display: flex;
