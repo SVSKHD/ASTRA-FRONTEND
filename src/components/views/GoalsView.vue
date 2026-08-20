@@ -3,18 +3,24 @@
 // checklist and can have existing tasks/todos attached by reference. This view is
 // the list (card grid / mobile list) with status filter, sort, and grip-drag
 // reorder; selecting a card opens GoalDetail in place.
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, defineAsyncComponent, ref, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import { debounce } from '@/utils/syncGuard'
 import { daysRemaining } from '@/utils/detailFields'
 import ListToolbar from '@/components/ListToolbar.vue'
-import GoalDetail from '@/components/GoalDetail.vue'
+// The wide page is heavy (the metric chart, a TreeList per attachment) and is
+// rendered only once a goal is opened on it, so it stays off the grid's first
+// paint (section 19d).
+const GoalDetail = defineAsyncComponent(() => import('@/components/GoalDetail.vue'))
 import GoalsEmptyState from '@/components/GoalsEmptyState.vue'
 import GoalCreateSlideOver from '@/components/GoalCreateSlideOver.vue'
 import GoalCard from '@/components/goals/GoalCard.vue'
+import GoalCardSkeleton from '@/components/goals/GoalCardSkeleton.vue'
+import GoalGrid from '@/components/goals/GoalGrid.vue'
 import { useTapOpen } from '@/composables/useTapOpen'
 import type { Goal, GoalStatus } from '@/types'
 
@@ -31,7 +37,34 @@ const selectedId = computed({
 })
 const statusFilter = ref<GoalStatus | 'all'>('all')
 const sortKey = ref<'order' | 'target' | 'progress'>('order')
+
+// Search is debounced (section 19d): `search` is what the field shows, `query`
+// is what the list filters by. Filtering a few hundred cards on every keystroke
+// is what made typing here feel heavy.
+const SEARCH_DEBOUNCE_MS = 200
 const search = ref('')
+const query = ref('')
+const searchWriter = debounce(() => {
+  query.value = search.value
+}, SEARCH_DEBOUNCE_MS)
+function onSearch(event: Event) {
+  search.value = (event.target as HTMLInputElement).value
+  searchWriter.schedule()
+}
+// Enter submits immediately rather than waiting out the debounce.
+function onSearchSubmit() {
+  searchWriter.flush()
+  query.value = search.value
+}
+onBeforeUnmount(() => searchWriter.cancel())
+
+// The workspace arrives as one document, so "loading" is simply "not here yet"
+// — one read for the whole page, however many goals it holds (acceptance 94).
+// Guarded by the goal count as well, so a local-only or offline session with
+// data in hand shows that data rather than skeletons forever.
+const loading = computed(() => !app.cloudReady && goals.value.length === 0)
+// Enough to fill the fold without promising rows that may not exist.
+const SKELETON_COUNT = 6
 
 defineExpose({ focus: () => onNew() })
 
@@ -120,7 +153,7 @@ const rows = computed<GoalRow[]>(() => {
   else list = list.filter((g) => g.status === statusFilter.value)
 
   // Free-text search over title + description.
-  const q = search.value.trim().toLowerCase()
+  const q = query.value.trim().toLowerCase()
   if (q)
     list = list.filter(
       (g) => g.title.toLowerCase().includes(q) || g.description.toLowerCase().includes(q),
@@ -180,6 +213,14 @@ const grid = computed(() =>
     alignContent: 'start',
   }),
 )
+// GoalGrid takes the goals themselves; the ratio and counts come from the
+// store's rollup index, which is O(1) per card (section 19d).
+const visibleGoals = computed(() => rows.value.map((r) => r.goal))
+
+// The card's position in the filtered list, for a drop that lands on it.
+function indexOf(goalId: number): number {
+  return rows.value.findIndex((r) => r.goal.id === goalId)
+}
 function cellStyle(id: number) {
   return pxify({ minWidth: 0, opacity: dragId.value === id ? 0.5 : 1 })
 }
@@ -222,7 +263,8 @@ const importBtn = computed(() =>
           :value="search"
           type="search"
           placeholder="Search goals…"
-          @input="search = ($event.target as HTMLInputElement).value"
+          @input="onSearch"
+          @keydown.enter.prevent="onSearchSubmit"
         />
         <select
           :style="s.select"
@@ -246,38 +288,47 @@ const importBtn = computed(() =>
         </select>
       </div>
 
+      <!-- Skeletons while the workspace is still arriving. Same box model as
+           the real card, so the swap moves nothing (acceptance 95). First,
+           because "nothing here" and "not here yet" are different answers. -->
+      <div v-if="loading" :style="grid" aria-busy="true" aria-label="Loading goals">
+        <GoalCardSkeleton v-for="n in SKELETON_COUNT" :key="n" />
+      </div>
+
       <GoalsEmptyState
-        v-if="goals.length === 0"
+        v-else-if="goals.length === 0"
         @new="onNew"
         @paste-json="goImport"
         @import-link="goImport"
       />
       <div v-else-if="rows.length === 0" :style="s.empty">No goals match this filter.</div>
 
-      <div v-else :style="grid">
-        <div
-          v-for="(r, i) in rows"
-          :key="r.goal.id"
-          :style="cellStyle(r.goal.id)"
-          :draggable="sortKey === 'order'"
-          @dragstart="onDragStart($event, r.goal.id)"
-          @dragover="onDragOver"
-          @drop="onDropOn(i)"
-          @pointerdown="onCardPointerDown($event, r.goal.id)"
-          @pointercancel="tap.onPointerCancel"
-          @click="tap.onClick"
-        >
-          <GoalCard
-            :goal="r.goal"
-            :ratio="r.ratio"
-            :counts="r.counts"
-            :days-chip="daysChip(r.goal.targetDate)"
-            :menu="CARD_MENU"
+      <GoalGrid v-else :items="visibleGoals" :mobile="isMobile">
+        <template #default="{ item }">
+          <div
+            :key="item.id"
+            v-memo="[item.id, item.updatedAt, sortKey, dragId === item.id]"
+            :style="cellStyle(item.id)"
             :draggable="sortKey === 'order'"
-            @menu="onCardMenu(r.goal.id, $event)"
-          />
-        </div>
-      </div>
+            @dragstart="onDragStart($event, item.id)"
+            @dragover="onDragOver"
+            @drop="onDropOn(indexOf(item.id))"
+            @pointerdown="onCardPointerDown($event, item.id)"
+            @pointercancel="tap.onPointerCancel"
+            @click="tap.onClick"
+          >
+            <GoalCard
+              :goal="item"
+              :ratio="app.goalProgress(item.id).ratio"
+              :counts="app.goalCounts(item.id)"
+              :days-chip="daysChip(item.targetDate)"
+              :menu="CARD_MENU"
+              :draggable="sortKey === 'order'"
+              @menu="onCardMenu(item.id, $event)"
+            />
+          </div>
+        </template>
+      </GoalGrid>
     </template>
 
     <GoalCreateSlideOver v-if="showCreate" @close="showCreate = false" @created="onCreated" />
