@@ -33,12 +33,16 @@ const autoActive = computed(() => themeSetting.value === 'auto')
 function isThemeActive(key: ThemeKey) {
   return !autoActive.value && themeSetting.value === key
 }
-// The picker groups, straight from the registry (dark, light, special).
-const darkThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.mode === 'dark' && !t.special))
+// The picker groups, straight from the registry (dark, light, special,
+// standalone).
+const darkThemes = computed(() =>
+  THEME_DESCRIPTORS.filter((t) => t.mode === 'dark' && !t.special && !t.standalone),
+)
 const lightThemes = computed(() =>
-  THEME_DESCRIPTORS.filter((t) => t.mode === 'light' && !t.special),
+  THEME_DESCRIPTORS.filter((t) => t.mode === 'light' && !t.special && !t.standalone),
 )
 const specialThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.special))
+const standaloneThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.standalone))
 function onAutoLockChange(e: Event) {
   lock.setAutoLock((e.target as HTMLInputElement).checked)
 }
@@ -427,6 +431,27 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
           <div :style="pickerGrid">
             <button
               v-for="t in specialThemes"
+              :key="t.id"
+              :style="themeCard(isThemeActive(t.id))"
+              :aria-pressed="isThemeActive(t.id)"
+              @click="ui.setTheme(t.id)"
+            >
+              <span :style="cardSwatchRow(t.preview)">
+                <span style="flex: 1" />
+                <span :style="{ flex: 1, background: t.preview[1] }" />
+                <span :style="{ flex: 1, background: t.preview[2] }" />
+              </span>
+              <span :style="cardName">{{ t.name }}</span>
+            </button>
+          </div>
+        </template>
+        <template v-if="standaloneThemes.length">
+          <!-- Its own group: a standalone theme is a whole look rather than a
+               variant of the current one (section 21d). -->
+          <span :style="groupLabel">Standalone</span>
+          <div :style="pickerGrid">
+            <button
+              v-for="t in standaloneThemes"
               :key="t.id"
               :style="themeCard(isThemeActive(t.id))"
               :aria-pressed="isThemeActive(t.id)"

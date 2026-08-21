@@ -38,7 +38,61 @@ const monoShared = {
   group: 'dark' as const,
 }
 
+// Kung Fu (section 21d). A standalone theme rather than another member of the
+// mono family, and the difference is not decoration: mono is greys with pure
+// black and white at the ends, this is only black and white. Every surface is
+// #000000 or #ffffff, every edge is a one-pixel line of the other, and the only
+// values that are not one of those two are white and black at reduced alpha —
+// still achromatic, and still the same two colours.
+//
+// Shadows are borders here. A drop shadow is a soft grey gradient, which is a
+// third value creeping in through the back door, so the shadow token is a 1px
+// ring instead.
+const kungfuShared = {
+  noGlass: true,
+  mono: true,
+  celestial: 'none',
+}
+
 export const EXTRA_THEMES: Record<string, Theme> = {
+  kungfu: {
+    ...kungfuShared,
+    group: 'dark' as const,
+    label: 'Kung Fu',
+    glass: '#000000',
+    card: '#000000',
+    input: '#000000',
+    border: '#ffffff',
+    text: '#ffffff',
+    // White at reduced alpha rather than a stored grey: the theme still names
+    // two colours, and secondary text still reads as secondary.
+    dim: 'rgba(255,255,255,0.72)',
+    onAccent: '#000000',
+    shadow: '0 0 0 1px #ffffff',
+    pageBg: '#000000',
+    bgSolid: '#000000',
+    accent: '#ffffff',
+    // 2px of white, held off the control by 2px of black, so the ring is
+    // visible against a white control and a black page alike.
+    focusRing: '0 0 0 2px #000000, 0 0 0 4px #ffffff',
+  },
+  kungfuLight: {
+    ...kungfuShared,
+    group: 'light' as const,
+    label: 'Kung Fu light',
+    glass: '#ffffff',
+    card: '#ffffff',
+    input: '#ffffff',
+    border: '#000000',
+    text: '#000000',
+    dim: 'rgba(0,0,0,0.72)',
+    onAccent: '#ffffff',
+    shadow: '0 0 0 1px #000000',
+    pageBg: '#ffffff',
+    bgSolid: '#ffffff',
+    accent: '#000000',
+    focusRing: '0 0 0 2px #ffffff, 0 0 0 4px #000000',
+  },
   monoDark: {
     ...monoShared,
     label: 'Mono dark',

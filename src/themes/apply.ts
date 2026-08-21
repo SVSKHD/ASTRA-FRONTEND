@@ -46,6 +46,11 @@ export function applyThemeToDom(key: ThemeKey, setting: ThemeSetting): void {
   root.style.setProperty('--accent-grad-to', gradient.to)
   root.style.setProperty('--surface-tint', surfaceTint(t))
   root.style.setProperty('--accent-glow', accentGlow(t))
+  // A theme may define its own focus ring instead of the accent glow
+  // (section 21d). Removed rather than blanked when it does not, so the
+  // stylesheet's own default is what applies.
+  if (t.focusRing) root.style.setProperty('--focus-ring', t.focusRing)
+  else root.style.removeProperty('--focus-ring')
 
   let meta = document.querySelector('meta[name="theme-color"]')
   if (!meta) {

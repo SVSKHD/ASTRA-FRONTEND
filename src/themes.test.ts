@@ -3,6 +3,7 @@ import {
   DARK_THEME_KEYS,
   LIGHT_THEME_KEYS,
   SPECIAL_THEME_KEYS,
+  STANDALONE_THEME_KEYS,
   THEMES,
   computeAutoTheme,
   isThemeSetting,
@@ -10,11 +11,16 @@ import {
 } from '@/themes'
 
 describe('THEMES', () => {
-  it('groups every key as light, dark, or special exactly once', () => {
+  it('groups every key as light, dark, special or standalone exactly once', () => {
     const keys = Object.keys(THEMES) as ThemeKey[]
-    expect([...LIGHT_THEME_KEYS, ...DARK_THEME_KEYS, ...SPECIAL_THEME_KEYS].sort()).toEqual(
-      keys.sort(),
-    )
+    expect(
+      [
+        ...LIGHT_THEME_KEYS,
+        ...DARK_THEME_KEYS,
+        ...SPECIAL_THEME_KEYS,
+        ...STANDALONE_THEME_KEYS,
+      ].sort(),
+    ).toEqual(keys.sort())
     for (const key of LIGHT_THEME_KEYS) expect(THEMES[key].group).toBe('light')
     for (const key of DARK_THEME_KEYS) expect(THEMES[key].group).toBe('dark')
   })
