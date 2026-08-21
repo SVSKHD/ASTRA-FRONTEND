@@ -15,6 +15,8 @@ import { useInlineField } from '@/composables/useInlineField'
 import AutoTextarea from '@/components/ui/AutoTextarea.vue'
 import DetailDialog from '@/components/detail/DetailDialog.vue'
 import DetailPeek from '@/components/detail/DetailPeek.vue'
+import { noteColumnMode, noteRowLabel } from '@/utils/noteColumn'
+import { useUiStore } from '@/stores/ui'
 import type { DetailKind } from '@/utils/detailUrl'
 
 // `delay: 0` so the stand-in is up on the first frame rather than after the
@@ -30,10 +32,28 @@ const GoalDetailBody = defineAsyncComponent({
   loadingComponent: DetailPeek,
   delay: 0,
 })
+// The note column carries the markdown editor with it, and most dialogs are
+// opened without ever attaching a note, so it loads the first time one is.
+const NoteColumn = defineAsyncComponent({
+  loader: () => import('@/components/detail/NoteColumn.vue'),
+  loadingComponent: DetailPeek,
+  delay: 0,
+})
 
 const app = useAppStore()
+const ui = useUiStore()
 const { isMobile } = useStyles()
-const { tasks, goals, detailFrame, detailDirty } = storeToRefs(app)
+const { vw } = storeToRefs(ui)
+const {
+  tasks,
+  goals,
+  notes,
+  detailFrame,
+  detailDirty,
+  noteColumnId,
+  noteColumnFocusTitle,
+  detailSplit,
+} = storeToRefs(app)
 
 useDetailRoute()
 
@@ -42,6 +62,19 @@ interface BodyHandle {
   revert?: () => void
 }
 const body = ref<BodyHandle | null>(null)
+const noteBody = ref<BodyHandle | null>(null)
+
+// --- the note extension column (section 21b) --------------------------------
+const noteOpen = computed(() => noteColumnId.value != null)
+const asideMode = computed(() => noteColumnMode(vw.value, isMobile.value))
+const openNote = computed(() => notes.value.find((n) => n.id === noteColumnId.value))
+const asideTitle = computed(() => (openNote.value ? noteRowLabel(openNote.value) : 'Note'))
+// The note's write goes out before the frame's, then the store's close ordering
+// drains what the guard held (section 21b, which is 18e with a note in front).
+function onCloseAside() {
+  noteBody.value?.flush?.()
+  app.closeNoteColumn()
+}
 
 const frame = computed(() => detailFrame.value)
 const open = computed(() => app.detailOpen)
@@ -98,6 +131,9 @@ const backLabel = computed(() => {
 // Every exit flushes what is in flight first: the header title, then whatever
 // the body still holds. Only then does the store run its own close ordering.
 function flushEverything() {
+  // Note first: it is the inner write, and the frame's flush is what releases
+  // the guard afterwards.
+  noteBody.value?.flush?.()
   title.flush()
   body.value?.flush?.()
 }
@@ -109,6 +145,7 @@ function onClose() {
 // is the difference between the two — a reader who said "discard" must not find
 // the edit saved anyway.
 function onDiscard() {
+  noteBody.value?.revert?.()
   title.revert()
   body.value?.revert?.()
   app.setDetailDirty(false)
@@ -145,11 +182,17 @@ function onOpen(target: { kind: DetailKind; id: number }) {
     :back-label="backLabel"
     :has-prev="app.detailSteps.prevId != null"
     :has-next="app.detailSteps.nextId != null"
+    :aside="noteOpen"
+    :aside-mode="asideMode"
+    :aside-title="asideTitle"
+    :split="detailSplit"
     @close="onClose"
     @discard="onDiscard"
     @back="onBack"
     @prev="onStep(app.detailSteps.prevId)"
     @next="onStep(app.detailSteps.nextId)"
+    @close-aside="onCloseAside"
+    @update:split="app.setDetailSplit"
   >
     <template #title>
       <!-- A textarea, not an input: a long title used to run out of the
@@ -188,6 +231,15 @@ function onOpen(target: { kind: DetailKind; id: number }) {
     <p v-else-if="frame" class="dhost__missing">
       This {{ frame.kind }} is not in your workspace. It may have been deleted, or still be loading.
     </p>
+
+    <template v-if="noteOpen" #aside>
+      <NoteColumn
+        ref="noteBody"
+        :key="noteColumnId!"
+        :note-id="noteColumnId!"
+        :autofocus="noteColumnFocusTitle"
+      />
+    </template>
   </DetailDialog>
 </template>
 

@@ -22,6 +22,7 @@ import {
   toLocalInput,
 } from '@/utils/detailFields'
 import DetailSection from '@/components/detail/DetailSection.vue'
+import NotesSection from '@/components/detail/NotesSection.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import IssueChip from '@/components/IssueChip.vue'
 import TagPicker from '@/components/TagPicker.vue'
@@ -545,6 +546,8 @@ defineExpose({
           <button v-else type="button" class="tdb__mini" @click="removeFromCalendar">Remove</button>
         </div>
       </DetailSection>
+
+      <NotesSection type="task" :item-id="taskId" />
 
       <DetailSection label="Activity" collapsible :start-open="false">
         <div class="tdb__muted">Created {{ relativeStamp(task.createdAt) }}</div>

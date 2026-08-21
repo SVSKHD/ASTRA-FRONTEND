@@ -84,6 +84,7 @@ import { useAuthStore } from '@/stores/auth'
 import { occurrences } from '@/utils/reminders'
 import { stampOnDay, ymd } from '@/utils/dayGroups'
 import { isBlankNote, isNoteEditorMode, type NoteEditorMode } from '@/utils/notes'
+import { SPLIT_DEFAULT, clampSplit } from '@/utils/noteColumn'
 import {
   NOTE_OWNER_TYPES,
   buildAttachmentIndex,
@@ -447,6 +448,15 @@ export const useAppStore = defineStore('app', () => {
   // clicking a subtask inside it swaps the content and must leave a back path.
   // The top frame is what is on screen; an empty stack is a closed dialog.
   const detailStack = ref<DetailFrame[]>([])
+  // The note extension column (section 21b): which note is open beside the
+  // frame, and how wide the reader has dragged the divider. The width is stored
+  // with the workspace, so it is the same on every device this account opens.
+  const noteColumnId = ref<number | null>(null)
+  const detailSplit = ref<number>(SPLIT_DEFAULT)
+  // Set only when the column was opened by "+ New note": that note wants the
+  // cursor in its title. A note opened from a row does not — the reader came to
+  // read it, not to rename it.
+  const noteColumnFocusTitle = ref(false)
   // The ids of the list the dialog was opened from, in the order the reader sees
   // them, so the header's prev/next arrows step through what they are looking at
   // rather than through the unfiltered collection.
@@ -4754,6 +4764,7 @@ export const useAppStore = defineStore('app', () => {
       return
     }
     acrossFrames(() => {
+      releaseNoteColumn()
       leaveFrame(detailFrame.value)
       detailSiblings.value = siblings.slice()
       detailStack.value = openStack(next)
@@ -4765,6 +4776,7 @@ export const useAppStore = defineStore('app', () => {
     const next = { kind, id: itemId }
     if (sameFrame(detailFrame.value, next)) return
     acrossFrames(() => {
+      releaseNoteColumn()
       leaveFrame(detailFrame.value)
       detailStack.value = pushFrame(detailStack.value, next)
       enterFrame(next)
@@ -4778,6 +4790,7 @@ export const useAppStore = defineStore('app', () => {
       return
     }
     acrossFrames(() => {
+      releaseNoteColumn()
       leaveFrame(detailFrame.value)
       const rest = popFrame(detailStack.value)
       detailStack.value = rest
@@ -4791,6 +4804,7 @@ export const useAppStore = defineStore('app', () => {
     if (!frame || frame.id === itemId) return
     const next = { kind: frame.kind, id: itemId }
     acrossFrames(() => {
+      releaseNoteColumn()
       leaveFrame(frame)
       detailStack.value = replaceTop(detailStack.value, next)
       enterFrame(next)
@@ -4802,6 +4816,10 @@ export const useAppStore = defineStore('app', () => {
     // its flush is the one that drains the held list — merged with the local
     // edit rather than applied over it.
     for (const frame of detailStack.value.slice(0, -1)) syncGuard.releaseHold(frame.id)
+    // The note goes before the frame it was open beside, so the frame's flush
+    // is still the last one out and the one that drains the held list
+    // (section 21b's ordering, which is section 18e's with a note in front).
+    releaseNoteColumn()
     leaveFrame(detailFrame.value)
     detailStack.value = []
     detailSiblings.value = []
@@ -4809,6 +4827,41 @@ export const useAppStore = defineStore('app', () => {
   }
   function setDetailDirty(value: boolean) {
     detailDirty.value = value
+  }
+
+  // --- the note extension column (section 21b) ------------------------------
+  // The note in the right-hand column is held by the same guard as the frame
+  // beside it, so a remote snapshot cannot rewrite either while both are being
+  // read. Ids come from one counter across the whole workspace, so a note id
+  // and a task id can never collide in that set.
+  const noteColumnOpen = computed(() => noteColumnId.value != null)
+  function releaseNoteColumn() {
+    if (noteColumnId.value == null) return
+    syncGuard.releaseHold(noteColumnId.value)
+    noteColumnId.value = null
+    noteColumnFocusTitle.value = false
+  }
+  function openNoteColumn(noteId: number, focusTitle = false) {
+    if (noteColumnId.value === noteId) return
+    releaseNoteColumn()
+    if (!notes.value.some((n) => n.id === noteId)) return
+    noteColumnId.value = noteId
+    noteColumnFocusTitle.value = focusTitle
+    syncGuard.beginHold(noteId)
+  }
+  function closeNoteColumn() {
+    releaseNoteColumn()
+  }
+  // "+ New note" in the left column: created, attached and opened in one move,
+  // so the reader lands in a note that is already filed rather than one they
+  // have to remember to attach.
+  function newNoteInColumn(type: NoteOwnerType, itemId: number): number | null {
+    const noteId = createNoteFor(type, itemId)
+    if (noteId != null) openNoteColumn(noteId, true)
+    return noteId
+  }
+  function setDetailSplit(pct: number) {
+    detailSplit.value = clampSplit(pct)
   }
   // The wide page. Opening one closes the dialog — they are two views of the
   // same goal, and leaving both up would leave the reader editing through a
@@ -5369,6 +5422,7 @@ export const useAppStore = defineStore('app', () => {
       ghIssues: ghIssues.value,
       wallets: wallets.value,
       noteEditorMode: noteEditorMode.value,
+      detailSplit: detailSplit.value,
       calendarView: calendarView.value,
       calendarFilters: calendarFilters.value,
     }
@@ -5418,6 +5472,7 @@ export const useAppStore = defineStore('app', () => {
     ghIssues.value = []
     wallets.value = []
     noteEditorMode.value = 'split'
+    detailSplit.value = SPLIT_DEFAULT
     calendarView.value = 'dayGridMonth'
     calendarFilters.value = defaultFilters()
     ghInstalled.value = null
@@ -5436,6 +5491,7 @@ export const useAppStore = defineStore('app', () => {
     detailStack.value = []
     detailSiblings.value = []
     detailDirty.value = false
+    noteColumnId.value = null
     goalPageId.value = null
     nid = 100
     setTimeout(() => {
@@ -5862,6 +5918,11 @@ export const useAppStore = defineStore('app', () => {
 
     // Calendar preferences: the last view and the filter chips.
     noteEditorMode.value = isNoteEditorMode(data.noteEditorMode) ? data.noteEditorMode : 'split'
+    // The detail dialog's divider position (section 21b), clamped on read so a
+    // hand-edited document cannot load a column nobody can see.
+    detailSplit.value = clampSplit(
+      typeof data.detailSplit === 'number' ? data.detailSplit : SPLIT_DEFAULT,
+    )
     calendarView.value = isCalendarView(data.calendarView) ? data.calendarView : 'dayGridMonth'
     calendarFilters.value =
       data.calendarFilters && typeof data.calendarFilters === 'object'
@@ -6258,6 +6319,14 @@ export const useAppStore = defineStore('app', () => {
     updateStock,
     attachNote,
     detachNote,
+    noteColumnId,
+    noteColumnOpen,
+    noteColumnFocusTitle,
+    detailSplit,
+    openNoteColumn,
+    closeNoteColumn,
+    newNoteInColumn,
+    setDetailSplit,
     notesFor,
     noteOwners,
     createNoteFor,

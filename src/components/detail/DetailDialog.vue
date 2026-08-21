@@ -10,6 +10,15 @@
 // whichever one the reader is looking at.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { clampOffset, offsetFor, snapFor, velocityOf, type SheetSnap } from '@/utils/sheetSnap'
+import {
+  SPLIT_DEFAULT,
+  SPLIT_MAX,
+  SPLIT_MIN,
+  columnTemplate,
+  panelWidth,
+  splitFromDrag,
+  type NoteColumnMode,
+} from '@/utils/noteColumn'
 
 const props = withDefaults(
   defineProps<{
@@ -22,6 +31,15 @@ const props = withDefaults(
     backLabel?: string
     hasPrev?: boolean
     hasNext?: boolean
+    // The note extension (section 21b). `aside` is what the second column
+    // holds; the shell only knows there is one, how wide it is, and what to
+    // call it.
+    aside?: boolean
+    // Computed by the host from the viewport, because the shell stays
+    // store-free and a phone is not a narrow desktop (see noteColumnMode).
+    asideMode?: NoteColumnMode
+    asideTitle?: string
+    split?: number
   }>(),
   {
     dirty: false,
@@ -30,13 +48,28 @@ const props = withDefaults(
     backLabel: 'Back',
     hasPrev: false,
     hasNext: false,
+    aside: false,
+    asideMode: 'split',
+    asideTitle: 'Note',
+    split: SPLIT_DEFAULT,
   },
 )
-const emit = defineEmits<{ close: []; discard: []; back: []; prev: []; next: [] }>()
+const emit = defineEmits<{
+  close: []
+  discard: []
+  back: []
+  prev: []
+  next: []
+  'close-aside': []
+  'update:split': [number]
+}>()
 
 const titleId = `detail-title-${useId()}`
 const panel = ref<HTMLElement | null>(null)
 const sheet = ref<HTMLElement | null>(null)
+// The phone's note sheet is a sibling of the panel, so the focus trap has to
+// know about it or Tab would walk out of the dialog into the page behind.
+const asidePanel = ref<HTMLElement | null>(null)
 let restoreTo: HTMLElement | null = null
 
 // --- the dirty guard --------------------------------------------------------
@@ -92,11 +125,13 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 function trapTab(event: KeyboardEvent) {
-  const root = panel.value
-  if (!root) return
-  const items = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (el) => el.offsetParent !== null || el === document.activeElement,
-  )
+  const roots = [panel.value, asidePanel.value].filter((el): el is HTMLElement => !!el)
+  if (!roots.length) return
+  const items = roots
+    .flatMap((root) => Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)))
+    // A slide-over hides the main column with display:none, which is what
+    // takes its controls out of the tab order too.
+    .filter((el) => el.offsetParent !== null || el === document.activeElement)
   if (!items.length) return
   const first = items[0]
   const last = items[items.length - 1]
@@ -229,12 +264,63 @@ const sheetStyle = computed(() =>
     : undefined,
 )
 
+// --- the note extension column (section 21b) --------------------------------
+// Two columns side by side on a wide screen, a slide-over on a narrow one, its
+// own sheet on a phone. The panel grows into the second column rather than the
+// second column being squeezed out of the first.
+const splitting = ref(false)
+let splitStart = 0
+let splitStartPct = SPLIT_DEFAULT
+
+const twoColumn = computed(() => props.aside && props.asideMode === 'split')
+const slideOver = computed(() => props.aside && props.asideMode === 'over')
+const asideSheet = computed(() => props.aside && props.asideMode === 'sheet')
+
+const panelStyle = computed(() => {
+  if (props.mobile) return sheetStyle.value
+  // A custom property rather than the width itself: the `min(94vw, …)` that
+  // keeps the panel inside a small window belongs in the stylesheet, and only
+  // the one number it is capped at changes here.
+  return { '--detail-w': `${panelWidth(props.aside, props.asideMode)}px` }
+})
+const columnsStyle = computed(() => ({
+  gridTemplateColumns: columnTemplate(props.aside, props.asideMode, props.split),
+}))
+
+function onSplitStart(event: PointerEvent) {
+  splitting.value = true
+  splitStart = event.clientX
+  splitStartPct = props.split
+  ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+}
+function onSplitMove(event: PointerEvent) {
+  if (!splitting.value) return
+  const width = panel.value?.offsetWidth || 0
+  emit('update:split', splitFromDrag(splitStartPct, event.clientX - splitStart, width))
+}
+function onSplitEnd() {
+  splitting.value = false
+}
+// The divider is a real control, so it moves from the keyboard too — dragging
+// is not the only way anybody sets a width.
+function onSplitKey(event: KeyboardEvent) {
+  const step = event.shiftKey ? 10 : 2
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault()
+    emit('update:split', props.split - step)
+  } else if (event.key === 'ArrowRight') {
+    event.preventDefault()
+    emit('update:split', props.split + step)
+  }
+}
+
 // Esc from anywhere in the document while open, so a click on the scrim area
 // (which holds no focus) still leaves the keyboard path working.
 function onDocumentKey(event: KeyboardEvent) {
   if (!props.open) return
   if (event.key !== 'Escape') return
   if (panel.value?.contains(event.target as Node)) return
+  if (asidePanel.value?.contains(event.target as Node)) return
   event.preventDefault()
   requestClose()
 }
@@ -249,7 +335,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
       ref="panel"
       class="detail"
       :class="mobile ? 'detail--sheet' : 'detail--modal'"
-      :style="sheetStyle"
+      :style="panelStyle"
       role="dialog"
       aria-modal="true"
       :aria-labelledby="titleId"
@@ -270,53 +356,112 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
           <span class="detail__gripbar"></span>
         </div>
 
-        <header class="detail__head">
-          <button
-            v-if="canGoBack"
-            type="button"
-            class="detail__icon"
-            :aria-label="backLabel"
-            :title="backLabel"
-            @click="emit('back')"
-          >
-            ‹
-          </button>
-          <!-- The dialog's accessible name is always the plain title text. The
+        <div class="detail__columns" :style="columnsStyle">
+          <!-- The main column. It stays mounted under a slide-over rather than
+               being torn down, so coming back lands on the same scroll
+               position with the same body already loaded. -->
+          <section class="detail__col" :class="{ 'detail__col--hidden': slideOver }">
+            <header class="detail__head">
+              <button
+                v-if="canGoBack"
+                type="button"
+                class="detail__icon"
+                :aria-label="backLabel"
+                :title="backLabel"
+                @click="emit('back')"
+              >
+                ‹
+              </button>
+              <!-- The dialog's accessible name is always the plain title text. The
                visible title is a slot because both bodies put an inline-editable
                input there, and an input makes a poor label for its own dialog. -->
-          <h2 :id="titleId" class="detail__srtitle">{{ title }}</h2>
-          <div class="detail__title">
-            <slot name="title">{{ title }}</slot>
+              <h2 :id="titleId" class="detail__srtitle">{{ title }}</h2>
+              <div class="detail__title">
+                <slot name="title">{{ title }}</slot>
+              </div>
+              <div class="detail__headslot"><slot name="header" /></div>
+              <button
+                type="button"
+                class="detail__icon"
+                aria-label="Previous"
+                title="Previous (k)"
+                :disabled="!hasPrev"
+                @click="emit('prev')"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                class="detail__icon"
+                aria-label="Next"
+                title="Next (j)"
+                :disabled="!hasNext"
+                @click="emit('next')"
+              >
+                ↓
+              </button>
+              <button type="button" class="detail__icon" aria-label="Close" @click="requestClose()">
+                ×
+              </button>
+            </header>
+
+            <div class="detail__body"><slot /></div>
+
+            <footer v-if="$slots.footer" class="detail__foot"><slot name="footer" /></footer>
+          </section>
+
+          <!-- A track of the grid, not something laid over the seam: the
+               dialog holds no absolutely positioned control (section 21c). -->
+          <div
+            v-if="twoColumn"
+            class="detail__divider"
+            :class="{ 'detail__divider--live': splitting }"
+            data-testid="detail-divider"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize note column"
+            :aria-valuenow="split"
+            :aria-valuemin="SPLIT_MIN"
+            :aria-valuemax="SPLIT_MAX"
+            tabindex="0"
+            @pointerdown="onSplitStart"
+            @pointermove="onSplitMove"
+            @pointerup="onSplitEnd"
+            @pointercancel="onSplitEnd"
+            @keydown="onSplitKey"
+          >
+            <span class="detail__dividerbar"></span>
           </div>
-          <div class="detail__headslot"><slot name="header" /></div>
-          <button
-            type="button"
-            class="detail__icon"
-            aria-label="Previous"
-            title="Previous (k)"
-            :disabled="!hasPrev"
-            @click="emit('prev')"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            class="detail__icon"
-            aria-label="Next"
-            title="Next (j)"
-            :disabled="!hasNext"
-            @click="emit('next')"
-          >
-            ↓
-          </button>
-          <button type="button" class="detail__icon" aria-label="Close" @click="requestClose()">
-            ×
-          </button>
-        </header>
 
-        <div class="detail__body"><slot /></div>
-
-        <footer v-if="$slots.footer" class="detail__foot"><slot name="footer" /></footer>
+          <section v-if="aside && !asideSheet" class="detail__col detail__col--aside">
+            <header class="detail__head">
+              <!-- The back arrow belongs to the slide-over, where the note is
+                   covering the thing it is attached to. Side by side there is
+                   nothing to go back to. -->
+              <button
+                v-if="slideOver"
+                type="button"
+                class="detail__icon"
+                aria-label="Back to details"
+                @click="emit('close-aside')"
+              >
+                ‹
+              </button>
+              <div class="detail__title detail__title--aside">
+                <slot name="aside-title">{{ asideTitle }}</slot>
+              </div>
+              <button
+                type="button"
+                class="detail__icon"
+                aria-label="Close note"
+                @click="emit('close-aside')"
+              >
+                ×
+              </button>
+            </header>
+            <div class="detail__body"><slot name="aside" /></div>
+          </section>
+        </div>
 
         <div
           v-if="confirming"
@@ -332,6 +477,45 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
             </button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- On a phone the note is its own sheet above the dialog's, never two
+         half-width columns (acceptance 108). It is a sibling rather than a
+         child because it covers the sheet it came from. -->
+    <div
+      v-if="asideSheet"
+      ref="asidePanel"
+      class="detail detail--sheet detail--aside"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="asideTitle"
+      tabindex="-1"
+      @keydown="onKeydown"
+    >
+      <div class="detail__inner">
+        <header class="detail__head">
+          <button
+            type="button"
+            class="detail__icon"
+            aria-label="Back to details"
+            @click="emit('close-aside')"
+          >
+            ‹
+          </button>
+          <div class="detail__title detail__title--aside">
+            <slot name="aside-title">{{ asideTitle }}</slot>
+          </div>
+          <button
+            type="button"
+            class="detail__icon"
+            aria-label="Close note"
+            @click="emit('close-aside')"
+          >
+            ×
+          </button>
+        </header>
+        <div class="detail__body"><slot name="aside" /></div>
       </div>
     </div>
   </template>
@@ -363,10 +547,24 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(94vw, 720px);
+  /* --detail-w is set inline: 720px for one column, 1180px for two. */
+  width: min(94vw, var(--detail-w, 720px));
   max-height: 85vh;
   border-radius: var(--radius-xl);
   animation: detailIn var(--dur-med) var(--spring) both;
+  /* The dialog grows a column rather than a second dialog appearing
+     (section 21b). 200ms is long enough to read as growth, short enough not
+     to be waited on. */
+  transition: width 0.2s var(--ease-out, ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .detail--modal {
+    transition: none;
+  }
+}
+/* The phone's note sheet sits above the dialog it came from. */
+.detail--aside {
+  z-index: 62;
 }
 .detail--sheet {
   inset: auto 0 0 0;
@@ -397,6 +595,55 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   display: flex;
   flex-direction: column;
   max-height: 85vh;
+}
+/* Two columns, or one, or one with the note over it. The divider is the middle
+   track (see columnTemplate) — the dialog holds nothing absolutely positioned,
+   so nothing here can end up laid over the text (section 21c). */
+.detail__columns {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+}
+.detail__col {
+  display: flex;
+  flex-direction: column;
+  /* Without this a long unbroken line in either column pushes the other one
+     off the panel instead of wrapping. */
+  min-width: 0;
+  min-height: 0;
+}
+.detail__col--hidden {
+  display: none;
+}
+/* Each column scrolls its own body under its own sticky header. */
+.detail__col--aside {
+  border-left: 1px solid var(--glass-border);
+}
+.detail__divider {
+  display: grid;
+  place-items: center;
+  width: 11px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+.detail__dividerbar {
+  width: 1px;
+  height: 100%;
+  background: var(--glass-border);
+}
+.detail__divider:hover .detail__dividerbar,
+.detail__divider:focus-visible .detail__dividerbar,
+.detail__divider--live .detail__dividerbar {
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--theme-accent);
+}
+.detail__divider:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: -2px;
 }
 .detail__grip {
   padding: var(--sp-2) 0;
@@ -443,6 +690,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   /* The title wraps now rather than being clipped (section 20b), so the header
      grows with it instead of hiding the end of a long name. */
   min-height: 0;
+}
+/* The note column's header is a heading, not the dialog's name — the dialog is
+   still named by the item the note is attached to. */
+.detail__title--aside {
+  font-size: var(--text-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .detail__headslot {
   display: flex;

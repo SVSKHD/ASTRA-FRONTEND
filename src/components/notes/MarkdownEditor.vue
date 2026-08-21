@@ -18,8 +18,16 @@ import { NOTE_EDITOR_MODES, type NoteEditorMode } from '@/utils/notes'
 import MarkdownView from '@/components/notes/MarkdownView.vue'
 
 const props = withDefaults(
-  defineProps<{ modelValue: string; placeholder?: string; autofocus?: boolean }>(),
-  { placeholder: 'Write in markdown — paste anything', autofocus: false },
+  defineProps<{
+    modelValue: string
+    placeholder?: string
+    autofocus?: boolean
+    // Set where the editor is already inside a column (the note extension,
+    // section 21b). A split view inside half a dialog is two columns of about
+    // twenty characters each.
+    narrow?: boolean
+  }>(),
+  { placeholder: 'Write in markdown — paste anything', autofocus: false, narrow: false },
 )
 const emit = defineEmits<{ 'update:modelValue': [string]; save: [] }>()
 
@@ -32,7 +40,9 @@ const area = ref<HTMLTextAreaElement | null>(null)
 // The mode the user chose, narrowed by what the viewport can actually show —
 // a split view on a phone is two useless columns, so it reads as edit there.
 const mode = computed<NoteEditorMode>(() =>
-  isMobile.value && noteEditorMode.value === 'split' ? 'edit' : noteEditorMode.value,
+  (isMobile.value || props.narrow) && noteEditorMode.value === 'split'
+    ? 'edit'
+    : noteEditorMode.value,
 )
 const showSource = computed(() => mode.value !== 'preview')
 const showPreview = computed(() => mode.value !== 'edit')
