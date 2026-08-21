@@ -6,7 +6,7 @@
 import { ref } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
-import IconFootball from '@/components/icons/IconFootball.vue'
+import Icon from '@/components/ui/Icon.vue'
 
 const emit = defineEmits<{
   (e: 'new'): void
@@ -172,7 +172,7 @@ const legend = () => pxify({ fontSize: 11, color: c.value.dim, marginTop: 6 })
 
 <template>
   <div :style="wrap">
-    <span :style="iconWrap()"><IconFootball :size="56" /></span>
+    <span :style="iconWrap()"><Icon name="football" size="xl" /></span>
     <div :style="heading()">Set your first goal</div>
     <div :style="sub()">Track targets, checklists and daily wins.</div>
 

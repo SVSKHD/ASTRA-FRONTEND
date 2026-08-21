@@ -17,6 +17,7 @@ import { useStyles } from '@/composables/useStyles'
 import { useInlineField } from '@/composables/useInlineField'
 import { daysRemaining, formatMinutes, relativeStamp } from '@/utils/detailFields'
 import DetailSection from '@/components/detail/DetailSection.vue'
+import NotesSection from '@/components/detail/NotesSection.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
@@ -346,6 +347,8 @@ defineExpose({
         @update:model-value="description.set"
       />
     </DetailSection>
+
+    <NotesSection type="goal" :item-id="goalId" />
 
     <DetailSection label="Activity" collapsible :start-open="false">
       <span class="gdb__muted">Created {{ relativeStamp(goal.createdAt) }}</span>

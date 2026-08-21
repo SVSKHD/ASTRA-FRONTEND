@@ -6,6 +6,7 @@
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import Icon from '@/components/ui/Icon.vue'
 
 defineProps<{ pending?: boolean }>()
 
@@ -31,19 +32,7 @@ const chipStyle = computed(() =>
 <template>
   <span v-if="pending" :style="chipStyle" title="Saved locally — will sync when back online">
     <!-- cloud with a slash -->
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      :stroke="c.dim"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M17.5 19H6a4 4 0 0 1-.9-7.9A5 5 0 0 1 15 9" />
-      <line x1="3" y1="3" x2="21" y2="21" />
-    </svg>
+    <Icon name="cloud-off" size="xs" :style="{ color: c.dim }" />
     Offline
   </span>
 </template>

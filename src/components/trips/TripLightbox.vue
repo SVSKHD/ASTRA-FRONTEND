@@ -6,6 +6,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
   defineProps<{ photos: string[]; index: number; captions?: string[] }>(),
@@ -236,21 +237,12 @@ const counter = pxify({
         @dblclick="go(0)"
       />
       <div v-else :style="placeholderStyle">
-        <svg
-          width="34"
-          height="34"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="rgba(255,255,255,0.6)"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+        <Icon
+          name="image"
+          size="xl"
           aria-hidden="true"
-        >
-          <rect x="3" y="3" width="18" height="18" rx="3" />
-          <circle cx="8.5" cy="8.5" r="1.6" />
-          <path d="M21 15l-5-5L5 21" />
-        </svg>
+          :style="{ color: 'rgba(255,255,255,0.6)' }"
+        />
         <span style="font-size: 13px; font-weight: 600">No image yet</span>
       </div>
 

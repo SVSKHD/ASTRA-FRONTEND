@@ -15,6 +15,8 @@ import { useShareLink } from '@/composables/useShareLink'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { pxify } from '@/styles'
 import type { ItemType, Shareable } from '@/types'
+import Icon from '@/components/ui/Icon.vue'
+import type { IconSize } from '@/components/ui/icons'
 
 const props = defineProps<{
   entityType: ItemType
@@ -62,7 +64,9 @@ const ariaLabel = computed(() =>
 )
 
 const hit = computed(() => (isMobile.value ? 40 : props.variant === 'dialog' ? 34 : 30))
-const iconSize = computed(() => (props.variant === 'dialog' ? 19 : 17))
+// A step, not a pixel count (section 21e): the dialog's globe is one size up
+// from the row's, and 19-versus-17 was never a distinction anybody could see.
+const iconStep = computed<IconSize>(() => (props.variant === 'dialog' ? 'md' : 'sm'))
 
 // --- menu (popover on desktop, bottom sheet on mobile) ----------------------
 function openMenu() {
@@ -257,27 +261,11 @@ const dangerColor = 'oklch(0.66 0.17 25)'
     >
       <span :key="popKey" :style="iconWrapStyle">
         <!-- Globe: circle + meridian ellipse + latitude line. Filled when ON. -->
-        <svg
-          :width="iconSize"
-          :height="iconSize"
-          viewBox="0 0 24 24"
-          fill="none"
-          :stroke="isShared ? c.accent : c.dim"
-          stroke-width="1.7"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle
-            cx="12"
-            cy="12"
-            r="9"
-            :fill="isShared ? c.accent : 'none'"
-            :fill-opacity="isShared ? 0.18 : 0"
-            :stroke="isShared ? c.accent : c.dim"
-          />
-          <line x1="3" y1="12" x2="21" y2="12" :stroke="isShared ? c.accent : c.dim" />
-          <ellipse cx="12" cy="12" rx="4" ry="9" :stroke="isShared ? c.accent : c.dim" />
-        </svg>
+        <Icon
+          :name="isShared ? 'globe' : 'globe-off'"
+          :size="iconStep"
+          :style="{ color: isShared ? c.accent : c.dim }"
+        />
       </span>
     </button>
 
@@ -292,18 +280,7 @@ const dangerColor = 'oklch(0.66 0.17 25)'
       aria-haspopup="menu"
       @click.stop="openMenu"
     >
-      <svg
-        width="10"
-        height="10"
-        viewBox="0 0 24 24"
-        fill="none"
-        :stroke="c.accent"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <polyline points="6 9 12 15 18 9" />
-      </svg>
+      <Icon name="chevron-down" size="xs" :style="{ color: c.accent }" />
     </button>
   </span>
 
@@ -318,19 +295,7 @@ const dangerColor = 'oklch(0.66 0.17 25)'
           v-hover-style="menuHover"
           @click="menuCopy"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            :stroke="c.text"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="9" y="9" width="12" height="12" rx="2" />
-            <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-          </svg>
+          <Icon name="copy" size="sm" :style="{ color: c.text }" />
           <span>Copy link</span>
         </button>
         <button
@@ -340,20 +305,7 @@ const dangerColor = 'oklch(0.66 0.17 25)'
           v-hover-style="menuHover"
           @click="menuOpenLink"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            :stroke="c.text"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M14 4h6v6" />
-            <path d="M20 4 10 14" />
-            <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
-          </svg>
+          <Icon name="external-link" size="sm" :style="{ color: c.text }" />
           <span>Open link</span>
         </button>
         <button
@@ -363,19 +315,7 @@ const dangerColor = 'oklch(0.66 0.17 25)'
           v-hover-style="menuHover"
           @click="menuStop"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            :stroke="dangerColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <line x1="5.6" y1="5.6" x2="18.4" y2="18.4" />
-          </svg>
+          <Icon name="globe-off" size="sm" :style="{ color: dangerColor }" />
           <span>Stop sharing</span>
         </button>
       </div>

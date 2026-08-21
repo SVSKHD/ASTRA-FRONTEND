@@ -7,12 +7,21 @@
 // Pinned to the top: a theme switcher (so every theme can be checked without
 // leaving), a density toggle and an RTL toggle. Those three are where layout
 // breaks hide.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
 import { contrastRatio } from '@/themes/contrast'
 import { UI_GROUPS, componentsIn, type ComponentDoc } from '@/components/ui/registry'
+import {
+  ICON_NAMES,
+  ICON_SIZES,
+  ICON_STROKE,
+  type IconName,
+  type IconSize,
+} from '@/components/ui/icons'
+import Icon from '@/components/ui/Icon.vue'
+
 import {
   Accordion,
   Avatar,
@@ -157,6 +166,33 @@ async function copySnippet(doc: ComponentDoc) {
     copied.value = ''
   }
 }
+
+// --- the icons page (section 21e) -------------------------------------------
+// Rendered from the set itself, like everything else here: an icon added to
+// icons.ts appears on this page without a second edit.
+const ICON_STEPS = Object.keys(ICON_SIZES) as IconSize[]
+const copiedIcon = ref<IconName | ''>('')
+let copyTimer: ReturnType<typeof setTimeout> | undefined
+async function copyIcon(name: IconName) {
+  const tag = `<Icon name="${name}" />`
+  try {
+    await navigator.clipboard?.writeText(tag)
+  } catch {
+    /* no clipboard permission — the tile still says which name it is */
+  }
+  copiedIcon.value = name
+  clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => (copiedIcon.value = ''), 1200)
+}
+onBeforeUnmount(() => clearTimeout(copyTimer))
+
+// The overlap detector (section 21c), loaded only in development. Behind a
+// constant branch and a dynamic import, so the production build folds the
+// branch away and never emits the chunk — the detector is a development tool
+// and has no business in anybody's download.
+const OverlapDetector = import.meta.env.DEV
+  ? defineAsyncComponent(() => import('@/components/dev/OverlapDetector.vue'))
+  : null
 </script>
 
 <template>
@@ -457,6 +493,53 @@ async function copySnippet(doc: ComponentDoc) {
       </article>
     </section>
 
+    <!-- ---- Layout check --------------------------------------------------- -->
+    <section class="ui-page__section">
+      <h2>Layout check</h2>
+      <p class="ui-page__note">
+        Section 21c's rules, measured rather than eyeballed. Resize the window with Watch on: a
+        layout is rarely broken at the width it was built at.
+      </p>
+      <component :is="OverlapDetector" v-if="OverlapDetector" root=".ui-page" />
+    </section>
+
+    <!-- ---- Icons --------------------------------------------------------- -->
+    <section class="ui-page__section">
+      <h2>Icons</h2>
+      <p class="ui-page__note">
+        One set, one weight ({{ ICON_STROKE }}), five sizes. Click a name to copy the tag. An icon
+        drawn by hand anywhere else fails the build.
+      </p>
+
+      <h3>The scale</h3>
+      <GlassPanel padding="sm">
+        <div class="ui-page__iconscale">
+          <div v-for="step in ICON_STEPS" :key="step" class="ui-page__iconstep">
+            <Icon name="bell" :size="step" />
+            <code>{{ step }}</code>
+            <span class="ui-page__note">{{ ICON_SIZES[step] }}px</span>
+          </div>
+        </div>
+      </GlassPanel>
+
+      <h3>The set — {{ ICON_NAMES.length }} icons</h3>
+      <GlassPanel padding="sm">
+        <div class="ui-page__icongrid">
+          <button
+            v-for="name in ICON_NAMES"
+            :key="name"
+            type="button"
+            class="ui-page__icontile"
+            :title="`Copy the ${name} tag`"
+            @click="copyIcon(name)"
+          >
+            <Icon :name="name" size="lg" />
+            <span class="ui-page__iconname">{{ copiedIcon === name ? 'copied' : name }}</span>
+          </button>
+        </div>
+      </GlassPanel>
+    </section>
+
     <!-- ---- Patterns ------------------------------------------------------ -->
     <section class="ui-page__section">
       <h2>Patterns</h2>
@@ -706,5 +789,46 @@ async function copySnippet(doc: ComponentDoc) {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+}
+.ui-page__iconscale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-4);
+}
+.ui-page__iconstep {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.ui-page__icongrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: var(--sp-2);
+}
+.ui-page__icontile {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  /* min-width: 0 so a long name ellipses rather than widening its cell. */
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--theme-text);
+  cursor: pointer;
+}
+.ui-page__icontile:hover {
+  border-color: var(--theme-accent);
+}
+.ui-page__iconname {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
 }
 </style>

@@ -127,9 +127,11 @@
 .ui-focus-ring:focus-visible {
   outline: none;
   /* The ring, plus the accent glow — the glow is a shadow, never a text colour,
-     which is how vibrancy stays away from anything contrast-critical. */
+     which is how vibrancy stays away from anything contrast-critical.
+     --focus-ring is set only by a theme that wants its own (section 21d); the
+     value here is what every other theme gets. */
   box-shadow:
-    0 0 0 3px color-mix(in oklch, var(--theme-accent) 32%, transparent),
+    var(--focus-ring, 0 0 0 3px color-mix(in oklch, var(--theme-accent) 32%, transparent)),
     var(--accent-glow, none);
 }
 .ui-sr-only {

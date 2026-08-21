@@ -256,6 +256,9 @@ export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical, Sc
   // todo stays in its own list and may belong to several goals at once. Absent
   // when unattached; backfilled to [] on read.
   goalIds?: number[]
+  // Notes attached to this todo (section 21a), referenced never copied. The
+  // note carries the matching entry in its own `attachedTo`. Absent = none.
+  noteIds?: number[]
 }
 
 export interface Task extends Timestamped, Linkable, Hierarchical, Schedulable {
@@ -305,6 +308,8 @@ export interface Task extends Timestamped, Linkable, Hierarchical, Schedulable {
   // written — this is a readable history, not an audit log, and it rides in the
   // one workspace document with everything else.
   statusLog?: StatusChange[]
+  // Notes attached to this task (section 21a). See Todo.noteIds.
+  noteIds?: number[]
 }
 
 // One entry in a task's status history (section 18c).
@@ -349,6 +354,8 @@ export interface Goal extends Timestamped, Hierarchical {
   // Reminder ids registered for a recurring goal (task 11): the daily fire time
   // reminder and the optional end-of-day nudge. Managed by syncGoalReminders.
   reminderIds?: number[]
+  // Notes attached to this goal (section 21a). See Todo.noteIds.
+  noteIds?: number[]
 }
 
 // One dated instance of a recurring goal (task 11). The doc id IS the local date
@@ -627,6 +634,19 @@ export interface GraphRef {
   relation: EdgeRelation | 'mirror'
 }
 
+// What a note can hang off (section 21a). Ideas, stocks and trips have carried
+// a one-way `noteIds` list since long before this; tasks, todos and goals are
+// what section 21 adds. They are all one type because the reference is the same
+// reference — the difference is only which list the owner lives in.
+export type NoteOwnerType = 'task' | 'todo' | 'goal' | 'idea' | 'stock' | 'trip'
+
+// One end of an attachment. Notes carry these; the owner carries the note id.
+// Both directions are stored so neither read has to scan the other list.
+export interface NoteRef {
+  type: NoteOwnerType
+  id: number
+}
+
 export interface Note extends Timestamped {
   id: number
   // Markdown source when `format` is 'md'. Notes written before section 17 hold
@@ -635,6 +655,17 @@ export interface Note extends Timestamped {
   text: string
   format?: 'md'
   ts: number
+  // ---- Attachment + filing (section 21a) ----------------------------------
+  // A given name, separate from the first line of the body. Empty means "use
+  // the first line", which is what every note written before this had, so an
+  // untitled note reads exactly as it always did.
+  title?: string
+  tags?: string[]
+  pinned?: boolean
+  // The items this note is attached to. Empty is the ordinary case — a note
+  // filed nowhere is still a note, and every note that existed before section
+  // 21 has an empty list rather than being forced into a home.
+  attachedTo?: NoteRef[]
 }
 
 export type TripStatus = 'tovisit' | 'done'

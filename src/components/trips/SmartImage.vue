@@ -8,6 +8,7 @@
 import { computed, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -98,21 +99,7 @@ const labelStyle = computed(() =>
       @error="errored = true"
     />
     <div v-if="!showImg" :style="placeholder">
-      <svg
-        :width="iconSize"
-        :height="iconSize"
-        viewBox="0 0 24 24"
-        fill="none"
-        :stroke="c.dim"
-        stroke-width="1.6"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <rect x="3" y="3" width="18" height="18" rx="3" />
-        <circle cx="8.5" cy="8.5" r="1.6" />
-        <path d="M21 15l-5-5L5 21" />
-      </svg>
+      <Icon name="image" size="md" :style="{ color: c.dim }" />
       <span :style="labelStyle">{{ label }}</span>
     </div>
   </div>

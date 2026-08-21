@@ -35,6 +35,28 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     snippet: '<Button variant="primary" size="md">Save</Button>',
   },
   {
+    name: 'Icon',
+    group: 'Display',
+    summary: 'Every icon in the app. One set, one weight, five sizes.',
+    props: [
+      { name: 'name', type: 'IconName', note: 'A name from the set — see the Icons page.' },
+      { name: 'size', type: "'xs' | 'sm' | 'md' | 'lg' | 'xl'", default: 'sm' },
+      {
+        name: 'label',
+        type: 'string',
+        note: 'Set only when the icon carries meaning on its own; otherwise it is hidden.',
+      },
+    ],
+    snippet: '<Icon name="bell" size="sm" />',
+  },
+  {
+    name: 'IconSprite',
+    group: 'Display',
+    summary: 'The set itself, mounted once at the app root. Never rendered anywhere else.',
+    props: [],
+    snippet: '<IconSprite />',
+  },
+  {
     name: 'IconButton',
     group: 'Actions',
     summary: 'Square glyph button. The label is required and becomes aria-label.',

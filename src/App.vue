@@ -7,6 +7,7 @@ import { useRoute } from 'vue-router'
 import Starfield from '@/components/Starfield.vue'
 import CursorTail from '@/components/CursorTail.vue'
 import SyncPill from '@/components/SyncPill.vue'
+import IconSprite from '@/components/ui/IconSprite.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAppStore } from '@/stores/app'
 import { firebaseEnabled, onPersistenceResolved } from '@/firebase'
@@ -33,6 +34,9 @@ onMounted(() => {
 </script>
 
 <template>
+  <!-- The icon set, once (section 21e). Every <Icon> in the app is a <use>
+       pointing into this. -->
+  <IconSprite />
   <Starfield />
   <CursorTail />
   <RouterView />

@@ -13,6 +13,7 @@ import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
+import Icon from '@/components/ui/Icon.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -33,12 +34,16 @@ const autoActive = computed(() => themeSetting.value === 'auto')
 function isThemeActive(key: ThemeKey) {
   return !autoActive.value && themeSetting.value === key
 }
-// The picker groups, straight from the registry (dark, light, special).
-const darkThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.mode === 'dark' && !t.special))
+// The picker groups, straight from the registry (dark, light, special,
+// standalone).
+const darkThemes = computed(() =>
+  THEME_DESCRIPTORS.filter((t) => t.mode === 'dark' && !t.special && !t.standalone),
+)
 const lightThemes = computed(() =>
-  THEME_DESCRIPTORS.filter((t) => t.mode === 'light' && !t.special),
+  THEME_DESCRIPTORS.filter((t) => t.mode === 'light' && !t.special && !t.standalone),
 )
 const specialThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.special))
+const standaloneThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.standalone))
 function onAutoLockChange(e: Event) {
   lock.setAutoLock((e.target as HTMLInputElement).checked)
 }
@@ -281,20 +286,7 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
   <!-- Notes + Settings orbs, bottom-left -->
   <div :style="leftStack">
     <button :style="orb" v-hover-style="orbHover" aria-label="Notes" @click="ui.toggleDrawer()">
-      <svg
-        width="19"
-        height="19"
-        viewBox="0 0 24 24"
-        fill="none"
-        :stroke="c.accent"
-        stroke-width="2"
-        stroke-linecap="round"
-      >
-        <rect x="4" y="3" width="16" height="18" rx="2" />
-        <line x1="7.5" y1="8" x2="16.5" y2="8" />
-        <line x1="7.5" y1="12" x2="16.5" y2="12" />
-        <line x1="7.5" y1="16" x2="13" y2="16" />
-      </svg>
+      <Icon name="notebook" size="md" :style="{ color: c.accent }" />
     </button>
     <button
       :style="orb"
@@ -302,21 +294,7 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
       aria-label="Settings"
       @click="auth.toggleAvatarMenu()"
     >
-      <svg
-        width="19"
-        height="19"
-        viewBox="0 0 24 24"
-        fill="none"
-        :stroke="c.accent"
-        stroke-width="1.9"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <circle cx="12" cy="12" r="3.2" />
-        <path
-          d="M12 3v2.2M12 18.8V21M4.2 7l1.9 1.1M17.9 15.9 19.8 17M3 13.5l2.2-.6M18.8 11.1 21 10.5M4.2 17l1.9-1.1M17.9 8.1 19.8 7"
-        />
-      </svg>
+      <Icon name="sun" size="md" :style="{ color: c.accent }" />
     </button>
   </div>
 
@@ -330,25 +308,8 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
       :aria-label="dark ? 'Switch to light theme' : 'Switch to dark theme'"
       @click="ui.toggleThemeMode()"
     >
-      <svg
-        v-if="dark"
-        width="19"
-        height="19"
-        viewBox="0 0 24 24"
-        fill="none"
-        :stroke="c.accent"
-        stroke-width="1.9"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <circle cx="12" cy="12" r="4.2" />
-        <path
-          d="M12 2.5v2.4M12 19.1v2.4M4.4 4.4l1.7 1.7M17.9 17.9l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.4 19.6l1.7-1.7M17.9 6.1l1.7-1.7"
-        />
-      </svg>
-      <svg v-else width="19" height="19" viewBox="0 0 24 24" :fill="c.accent" stroke="none">
-        <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z" />
-      </svg>
+      <Icon v-if="dark" name="sun" size="md" :style="{ color: c.accent }" />
+      <Icon v-else name="moon" size="md" :style="{ color: c.accent }" />
     </button>
     <div :style="orbRel">
       <button
@@ -358,23 +319,7 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
         :aria-expanded="themePanelOpen"
         @click="ui.toggleThemePanel()"
       >
-        <svg
-          width="19"
-          height="19"
-          viewBox="0 0 24 24"
-          fill="none"
-          :stroke="c.accent"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path
-            d="M12 3a9 9 0 1 0 0 18c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.5-1.1-.3-.3-.5-.7-.5-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-3.9-4-6.6-9-6.6z"
-          />
-          <circle cx="7.5" cy="11.5" r="1.1" :fill="c.accent" stroke="none" />
-          <circle cx="12" cy="8" r="1.1" :fill="c.accent" stroke="none" />
-          <circle cx="16.5" cy="11.5" r="1.1" :fill="c.accent" stroke="none" />
-        </svg>
+        <Icon name="palette" size="md" :style="{ color: c.accent }" />
       </button>
       <div v-if="themePanelOpen" :style="themePopover" role="menu">
         <button :style="themeRow(autoActive)" @click="ui.setTheme('auto')">
@@ -427,6 +372,27 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
           <div :style="pickerGrid">
             <button
               v-for="t in specialThemes"
+              :key="t.id"
+              :style="themeCard(isThemeActive(t.id))"
+              :aria-pressed="isThemeActive(t.id)"
+              @click="ui.setTheme(t.id)"
+            >
+              <span :style="cardSwatchRow(t.preview)">
+                <span style="flex: 1" />
+                <span :style="{ flex: 1, background: t.preview[1] }" />
+                <span :style="{ flex: 1, background: t.preview[2] }" />
+              </span>
+              <span :style="cardName">{{ t.name }}</span>
+            </button>
+          </div>
+        </template>
+        <template v-if="standaloneThemes.length">
+          <!-- Its own group: a standalone theme is a whole look rather than a
+               variant of the current one (section 21d). -->
+          <span :style="groupLabel">Standalone</span>
+          <div :style="pickerGrid">
+            <button
+              v-for="t in standaloneThemes"
               :key="t.id"
               :style="themeCard(isThemeActive(t.id))"
               :aria-pressed="isThemeActive(t.id)"
@@ -502,22 +468,7 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
       aria-label="GitHub"
       @click="auth.openGithubPanel()"
     >
-      <svg
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        :stroke="c.accent"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <circle cx="6" cy="6" r="2.4" />
-        <circle cx="6" cy="18" r="2.4" />
-        <circle cx="18" cy="8" r="2.4" />
-        <path d="M18 10.4v1.6a3 3 0 0 1-3 3H9" />
-        <line x1="6" y1="8.4" x2="6" y2="15.6" />
-      </svg>
+      <Icon name="share" size="md" :style="{ color: c.accent }" />
     </button>
   </div>
 </template>

@@ -41,6 +41,9 @@ export interface Theme {
   // underline and icon rather than by hue — and the two mono themes are the
   // reference surfaces for accessibility checks.
   mono?: boolean
+  // A theme that wants its own focus ring rather than the accent glow every
+  // other theme derives (section 21d). One box-shadow value, applied as-is.
+  focusRing?: string
 }
 
 export type ThemeKey =
@@ -61,6 +64,8 @@ export type ThemeKey =
   | 'contrast'
   | 'monoDark'
   | 'monoLight'
+  | 'kungfu'
+  | 'kungfuLight'
 
 const lightBase = {
   glass: 'rgba(255,255,255,0.55)',
@@ -171,11 +176,18 @@ export const THEMES = { ...baseThemes, ...EXTRA_THEMES } as Record<ThemeKey, The
 // picker (and are excluded from the clock-based auto rotation).
 export const SPECIAL_THEME_KEYS: ThemeKey[] = ['contrast', 'monoDark', 'monoLight']
 
+// Standalone themes (section 21d) are neither a member of the dark/light
+// families nor a variant of one: they are a whole look, listed on their own so
+// picking one reads as a choice rather than as a tweak to the current theme.
+export const STANDALONE_THEME_KEYS: ThemeKey[] = ['kungfu', 'kungfuLight']
+
+const GROUPED_APART = [...SPECIAL_THEME_KEYS, ...STANDALONE_THEME_KEYS]
+
 export const LIGHT_THEME_KEYS: ThemeKey[] = (Object.keys(THEMES) as ThemeKey[]).filter(
-  (k) => THEMES[k].group === 'light' && !SPECIAL_THEME_KEYS.includes(k),
+  (k) => THEMES[k].group === 'light' && !GROUPED_APART.includes(k),
 )
 export const DARK_THEME_KEYS: ThemeKey[] = (Object.keys(THEMES) as ThemeKey[]).filter(
-  (k) => THEMES[k].group === 'dark' && !SPECIAL_THEME_KEYS.includes(k),
+  (k) => THEMES[k].group === 'dark' && !GROUPED_APART.includes(k),
 )
 
 export type ThemeMode = 'dark' | 'light'
@@ -184,6 +196,7 @@ export interface ThemeDescriptor {
   name: string
   mode: ThemeMode
   special: boolean
+  standalone: boolean
   // Three swatches for the picker card, straight from the tokens.
   preview: [string, string, string]
 }
@@ -195,14 +208,17 @@ export function describeTheme(id: ThemeKey): ThemeDescriptor {
     name: t.label,
     mode: t.group,
     special: SPECIAL_THEME_KEYS.includes(id),
+    standalone: STANDALONE_THEME_KEYS.includes(id),
     preview: [t.bgSolid, t.accent, t.card],
   }
 }
-// The registry the picker renders, in a stable order (dark, light, special).
+// The registry the picker renders, in a stable order (dark, light, special,
+// standalone).
 export const THEME_DESCRIPTORS: ThemeDescriptor[] = [
   ...DARK_THEME_KEYS,
   ...LIGHT_THEME_KEYS,
   ...SPECIAL_THEME_KEYS,
+  ...STANDALONE_THEME_KEYS,
 ].map(describeTheme)
 
 // The user's stored choice: a fixed theme, or 'auto' to follow the clock.
