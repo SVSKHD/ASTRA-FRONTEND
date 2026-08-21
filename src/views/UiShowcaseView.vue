@@ -7,7 +7,7 @@
 // Pinned to the top: a theme switcher (so every theme can be checked without
 // leaving), a density toggle and an RTL toggle. Those three are where layout
 // breaks hide.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
@@ -21,6 +21,7 @@ import {
   type IconSize,
 } from '@/components/ui/icons'
 import Icon from '@/components/ui/Icon.vue'
+
 import {
   Accordion,
   Avatar,
@@ -184,6 +185,14 @@ async function copyIcon(name: IconName) {
   copyTimer = setTimeout(() => (copiedIcon.value = ''), 1200)
 }
 onBeforeUnmount(() => clearTimeout(copyTimer))
+
+// The overlap detector (section 21c), loaded only in development. Behind a
+// constant branch and a dynamic import, so the production build folds the
+// branch away and never emits the chunk — the detector is a development tool
+// and has no business in anybody's download.
+const OverlapDetector = import.meta.env.DEV
+  ? defineAsyncComponent(() => import('@/components/dev/OverlapDetector.vue'))
+  : null
 </script>
 
 <template>
@@ -482,6 +491,16 @@ onBeforeUnmount(() => clearTimeout(copyTimer))
           </Button>
         </details>
       </article>
+    </section>
+
+    <!-- ---- Layout check --------------------------------------------------- -->
+    <section class="ui-page__section">
+      <h2>Layout check</h2>
+      <p class="ui-page__note">
+        Section 21c's rules, measured rather than eyeballed. Resize the window with Watch on: a
+        layout is rarely broken at the width it was built at.
+      </p>
+      <component :is="OverlapDetector" v-if="OverlapDetector" root=".ui-page" />
     </section>
 
     <!-- ---- Icons --------------------------------------------------------- -->
