@@ -76,10 +76,15 @@ describe('the library is complete', () => {
     expect(undocumented).toEqual([])
   })
 
+  // A primitive with no props at all. Named rather than inferred: "documented
+  // as having no props" and "nobody wrote the props down" look identical to a
+  // length check, so the exception is a decision somebody made on purpose.
+  const PROPLESS = ['IconSprite']
+
   it('every registry entry has a summary, props and a copyable snippet', () => {
     for (const doc of UI_COMPONENTS) {
       expect(doc.summary.length, doc.name).toBeGreaterThan(10)
-      expect(doc.props.length, doc.name).toBeGreaterThan(0)
+      if (!PROPLESS.includes(doc.name)) expect(doc.props.length, doc.name).toBeGreaterThan(0)
       expect(doc.snippet, doc.name).toContain(`<${doc.name}`)
     }
   })

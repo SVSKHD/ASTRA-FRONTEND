@@ -16,6 +16,7 @@ import { useAccordionState } from '@/composables/useAccordionState'
 import { pxify } from '@/styles'
 import MovePendingButton from '@/components/MovePendingButton.vue'
 import type { ListKey } from '@/types'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = defineProps<{
   collection: ListKey
@@ -110,18 +111,7 @@ const bodyInner = pxify({
   <div :style="cardStyle">
     <div :style="headStyle" role="button" :aria-expanded="open" @click="toggle">
       <span :style="chevronStyle">
-        <svg
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          :stroke="c.dim"
-          stroke-width="3"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <polyline points="9 6 15 12 9 18" />
-        </svg>
+        <Icon name="chevron-right" size="xs" :style="{ color: c.dim }" />
       </span>
       <div :style="titleWrap">
         <span :style="titleStyle">Carried over · {{ count }}</span>

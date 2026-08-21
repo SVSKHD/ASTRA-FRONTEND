@@ -16,6 +16,7 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useMovePending, type CollectionKey } from '@/composables/useMovePending'
 import { pxify } from '@/styles'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = defineProps<{ collection: CollectionKey }>()
 
@@ -185,23 +186,7 @@ const showLabelText = computed(() => phase.value !== 'idle' || !isMobile.value)
     <span :style="fillStyle"></span>
     <span :style="contentStyle">
       <!-- calendar with a down arrow: "move into today" -->
-      <svg
-        width="15"
-        height="15"
-        viewBox="0 0 24 24"
-        fill="none"
-        :stroke="iconColor"
-        stroke-width="1.9"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <rect x="3" y="4" width="18" height="17" rx="2" />
-        <line x1="3" y1="9" x2="21" y2="9" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <polyline points="9 14 12 17 15 14" />
-        <line x1="12" y1="12" x2="12" y2="17" />
-      </svg>
+      <Icon name="calendar-down" size="sm" :style="{ color: iconColor }" />
       <span v-if="showLabelText">{{ label }}</span>
       <span v-if="phase === 'idle'" :style="badgeStyle">{{ count }}</span>
     </span>

@@ -14,6 +14,7 @@ import { MAX_LINK_DEPTH } from '@/utils/links'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import type { LinkRef, Task, Todo } from '@/types'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -214,35 +215,12 @@ const nodeWrap = pxify({ display: 'flex', flexDirection: 'column' })
         :aria-expanded="expanded"
         @click="toggleExpand"
       >
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          :stroke="c.dim"
-          stroke-width="3"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <polyline points="9 6 15 12 9 18" />
-        </svg>
+        <Icon name="chevron-right" size="xs" :style="{ color: c.dim }" />
       </button>
       <span v-else :style="chevronSpacer"></span>
 
       <button type="button" :style="boxStyle()" aria-label="Toggle done" @click="toggleDone">
-        <svg
-          v-if="done"
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          :stroke="c.onAccent"
-          stroke-width="3.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
+        <Icon v-if="done" name="check" size="xs" :style="{ color: c.onAccent }" />
       </button>
 
       <span :style="titleStyle" @click="openDetail">{{ title }}</span>

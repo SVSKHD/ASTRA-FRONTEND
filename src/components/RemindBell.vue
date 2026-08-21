@@ -14,6 +14,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { bellChipLabel, soonestFireAmong } from '@/utils/upcoming'
 import type { LinkCollection, Repeat, RepeatType } from '@/types'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
   defineProps<{ collection: LinkCollection; id: number; variant?: 'row' | 'detail' }>(),
@@ -217,19 +218,7 @@ const backdrop = pxify({ position: 'fixed', inset: 0, zIndex: 20 })
       title="Remind me"
       @click.stop="open = !open"
     >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        :stroke="chipLabel ? c.accent : c.dim"
-        stroke-width="1.9"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-      </svg>
+      <Icon name="bell" size="sm" :style="{ color: chipLabel ? c.accent : c.dim }" />
     </button>
 
     <template v-if="open">

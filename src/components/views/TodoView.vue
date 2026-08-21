@@ -27,6 +27,7 @@ import { useAccordionState } from '@/composables/useAccordionState'
 import { useLongList } from '@/composables/useLongList'
 import { useDragNest } from '@/composables/useDragNest'
 import type { LinkRef, Todo } from '@/types'
+import Icon from '@/components/ui/Icon.vue'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -266,20 +267,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
     >
       <div v-for="t in completedWindow.visible.value" :key="t.id" :style="rowStyle(true)">
         <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">
-          <svg
-            v-if="t.done"
-            :style="checkIcon"
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            :stroke="c.onAccent"
-            stroke-width="3.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+          <Icon v-if="t.done" name="check" size="xs" :style="[checkIcon, { color: c.onAccent }]" />
         </button>
         <div :style="s.taskMain" @click="app.openEdit('todo', t.id)">
           <span :style="textStyle(t)">{{ t.text }}</span>

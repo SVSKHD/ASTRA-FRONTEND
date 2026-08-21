@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import Icon from '@/components/ui/Icon.vue'
 
 const auth = useAuthStore()
 const lock = useLockStore()
@@ -74,20 +75,7 @@ async function submit() {
   <template v-if="visible">
     <div :style="s.dialogOverlay"></div>
     <form :style="s.authCard" @submit.prevent="submit">
-      <svg
-        width="30"
-        height="30"
-        viewBox="0 0 24 24"
-        fill="none"
-        :stroke="c.accent"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        style="align-self: center"
-      >
-        <rect x="4" y="10" width="16" height="11" rx="3" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-      </svg>
+      <Icon name="lock" size="xl" />
       <span :style="s.authLogo">{{ title }}</span>
       <span :style="s.finMeta">{{ subtitle }}</span>
 

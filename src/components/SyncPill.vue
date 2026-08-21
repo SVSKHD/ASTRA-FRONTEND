@@ -14,6 +14,7 @@ import { useStyles } from '@/composables/useStyles'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { pxify } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
+import Icon from '@/components/ui/Icon.vue'
 
 const ui = useUiStore()
 const { c, s } = useStyles()
@@ -185,51 +186,11 @@ function doRetry() {
       >
         <span :style="dotStyle">
           <!-- offline: cloud-slash -->
-          <svg
-            v-if="mode === 'offline'"
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            :stroke="accent"
-            stroke-width="1.9"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M17.5 19H6a4 4 0 0 1-.9-7.9A5 5 0 0 1 15 9" />
-            <line x1="3" y1="3" x2="21" y2="21" />
-          </svg>
+          <Icon name="cloud-off" size="xs" :style="{ color: c.dim }" />
           <!-- syncing: circular arrows -->
-          <svg
-            v-else-if="mode === 'syncing'"
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            :stroke="accent"
-            stroke-width="1.9"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3" />
-            <path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3" />
-            <polyline points="21 3 21 9 15 9" />
-            <polyline points="3 21 3 15 9 15" />
-          </svg>
+          <Icon name="refresh-cw" size="xs" :style="{ color: c.dim }" />
           <!-- synced: check -->
-          <svg
-            v-else
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            :stroke="accent"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+          <Icon name="check" size="xs" :style="{ color: c.dim }" />
         </span>
         <span :style="textStyle">{{ text }}</span>
         <span v-if="mode === 'syncing'" :style="progressLine"></span>

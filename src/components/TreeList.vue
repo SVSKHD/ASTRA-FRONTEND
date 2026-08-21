@@ -27,6 +27,7 @@ import IssueChip from '@/components/IssueChip.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import type { LinkRef, Task, Todo } from '@/types'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = defineProps<{ collection: TreeCollection; rootIds: number[] }>()
 
@@ -392,18 +393,7 @@ const rootStripStyle = computed(() =>
             :aria-expanded="expanded(row.id)"
             @click.stop="toggleExpand(row.id)"
           >
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              :stroke="c.dim"
-              stroke-width="3"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="9 6 15 12 9 18" />
-            </svg>
+            <Icon name="chevron-right" size="xs" :style="{ color: c.dim }" />
           </button>
           <span v-else :style="chevronSpacer"></span>
 
@@ -417,19 +407,7 @@ const rootStripStyle = computed(() =>
             aria-label="Toggle done"
             @click.stop="toggleDone(row.id)"
           >
-            <svg
-              v-if="done(row.id)"
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              :stroke="c.onAccent"
-              stroke-width="3.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
+            <Icon v-if="done(row.id)" name="check" size="xs" :style="{ color: c.onAccent }" />
           </button>
 
           <div

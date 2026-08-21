@@ -22,6 +22,8 @@ import GoalsDashboardCard from '@/components/GoalsDashboardCard.vue'
 import RepoDashboardCard from '@/components/RepoDashboardCard.vue'
 import WalletsDashboardCard from '@/components/WalletsDashboardCard.vue'
 import type { TabKey } from '@/types'
+import Icon from '@/components/ui/Icon.vue'
+import type { IconName } from '@/components/ui/icons'
 
 const ui = useUiStore()
 const { c, panelStyle } = useStyles()
@@ -317,6 +319,19 @@ function compareLineStyle(dir: 'up' | 'down' | 'flat') {
     color: dir === 'up' ? GREEN : dir === 'down' ? RED : c.value.dim,
   })
 }
+
+// Which icon each summary card carries. A lookup rather than a chain of
+// template branches: the icon set is one component now, so choosing an icon is
+// choosing a name (section 21e).
+const CARD_ICONS: Record<string, IconName> = {
+  tasks: 'list',
+  todos: 'check-square',
+  reminders: 'bell',
+  finances: 'rupee',
+}
+function cardIcon(key: string): IconName {
+  return CARD_ICONS[key] ?? 'list'
+}
 </script>
 
 <template>
@@ -348,37 +363,7 @@ function compareLineStyle(dir: 'up' | 'down' | 'flat') {
       >
         <div :style="cardTop">
           <span :style="iconWrap">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              :stroke="c.accent"
-              stroke-width="1.9"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <template v-if="card.key === 'tasks'">
-                <line x1="9" y1="6" x2="20" y2="6" />
-                <line x1="9" y1="12" x2="20" y2="12" />
-                <line x1="9" y1="18" x2="20" y2="18" />
-                <circle cx="4.5" cy="6" r="1.4" />
-                <circle cx="4.5" cy="12" r="1.4" />
-                <circle cx="4.5" cy="18" r="1.4" />
-              </template>
-              <template v-else-if="card.key === 'todos'">
-                <rect x="3" y="3" width="18" height="18" rx="5" />
-                <polyline points="8 12.4 11 15.2 16.4 9.1" />
-              </template>
-              <template v-else-if="card.key === 'reminders'">
-                <path d="M18 8.5a6 6 0 0 0-12 0c0 6.5-2.6 8.5-2.6 8.5h17.2s-2.6-2-2.6-8.5" />
-                <path d="M10.3 20.2a2 2 0 0 0 3.4 0" />
-              </template>
-              <template v-else>
-                <path d="M6 5h9a4 4 0 0 1 0 8H7l6 6" />
-                <line x1="6" y1="9" x2="16" y2="9" />
-              </template>
-            </svg>
+            <Icon :name="cardIcon(card.key)" size="sm" :style="{ color: c.accent }" />
           </span>
           <span :style="cardLabel">{{ card.label }}</span>
         </div>
@@ -417,21 +402,7 @@ function compareLineStyle(dir: 'up' | 'down' | 'flat') {
       >
         <div :style="cardTop">
           <span :style="iconWrap">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              :stroke="c.accent"
-              stroke-width="1.9"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="4.5" y="6.5" width="15" height="12.5" rx="4" />
-              <path d="M12 3v3.5" />
-              <circle cx="9" cy="12.6" r="1.3" />
-              <circle cx="15" cy="12.6" r="1.3" />
-            </svg>
+            <Icon name="bot" size="sm" :style="{ color: c.accent }" />
           </span>
           <span :style="cardLabel">Bots</span>
         </div>
