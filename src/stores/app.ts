@@ -85,6 +85,20 @@ import { occurrences } from '@/utils/reminders'
 import { stampOnDay, ymd } from '@/utils/dayGroups'
 import { isBlankNote, isNoteEditorMode, type NoteEditorMode } from '@/utils/notes'
 import {
+  NOTE_OWNER_TYPES,
+  buildAttachmentIndex,
+  isNoteOwnerType,
+  idsEqual,
+  hydrateNoteFields,
+  normaliseIds,
+  ownerKey,
+  refsEqual,
+  withId,
+  withRef,
+  withoutId,
+  withoutRef,
+} from '@/utils/noteRefs'
+import {
   DEFAULT_TAGS,
   normalizeTag,
   sameTag,
@@ -164,6 +178,8 @@ import type {
   LinkCollection,
   ListKey,
   Note,
+  NoteOwnerType,
+  NoteRef,
   Stock,
   Priority,
   StatusChange,
@@ -2447,30 +2463,122 @@ export const useAppStore = defineStore('app', () => {
     stocks.value = stocks.value.map((st) => (st.id === sid ? touched({ ...st, ...next }) : st))
   }
 
-  // ---- Note attachment (ideas + stocks) -----------------------------------
+  // ---- Note attachment (section 21a) --------------------------------------
   // Notes are referenced by id, never copied. One note can hang off many items;
   // detaching only drops the reference, the note itself lives on in the drawer.
-  function currentNoteIds(type: ItemType, itemId: number): number[] {
-    const list = type === 'idea' ? ideas.value : type === 'trip' ? trips.value : stocks.value
-    const found = list.find((i) => i.id === itemId)
-    return found ? ((found as { noteIds?: number[] }).noteIds?.slice() ?? []) : []
+  //
+  // Since section 21 the reference is stored at both ends — the owner lists the
+  // note, the note lists the owner — so "the notes on this task" and "where
+  // does this note live" are both a lookup rather than a scan of the other
+  // list. Every write below moves both ends in the same tick; the arithmetic
+  // itself is in utils/noteRefs so it can be reasoned about without a store.
+  const NOTE_OWNER_LISTS: Record<NoteOwnerType, Ref<{ id: number; noteIds?: number[] }[]>> = {
+    task: tasks as unknown as Ref<{ id: number; noteIds?: number[] }[]>,
+    todo: todos as unknown as Ref<{ id: number; noteIds?: number[] }[]>,
+    goal: goals as unknown as Ref<{ id: number; noteIds?: number[] }[]>,
+    idea: ideas as unknown as Ref<{ id: number; noteIds?: number[] }[]>,
+    stock: stocks as unknown as Ref<{ id: number; noteIds?: number[] }[]>,
+    trip: trips as unknown as Ref<{ id: number; noteIds?: number[] }[]>,
   }
-  function writeNoteIds(type: 'idea' | 'stock' | 'trip', itemId: number, noteIds: number[]) {
-    if (type === 'idea') updateIdea(itemId, { noteIds })
-    else if (type === 'trip') updateTrip(itemId, { noteIds })
-    else updateStock(itemId, { noteIds })
+
+  function currentNoteIds(type: NoteOwnerType, itemId: number): number[] {
+    const found = NOTE_OWNER_LISTS[type].value.find((i) => i.id === itemId)
+    return found ? (found.noteIds?.slice() ?? []) : []
   }
-  function attachNote(type: 'idea' | 'stock' | 'trip', itemId: number, noteId: number) {
+  function writeNoteIds(type: NoteOwnerType, itemId: number, noteIds: number[]) {
+    const listRef = NOTE_OWNER_LISTS[type]
+    listRef.value = listRef.value.map((it) => (it.id === itemId ? touched({ ...it, noteIds }) : it))
+  }
+  function writeNoteRefs(noteId: number, attachedTo: NoteRef[]) {
+    notes.value = notes.value.map((n) => (n.id === noteId ? touched({ ...n, attachedTo }) : n))
+  }
+  // Both ends, or neither: an owner that lists a note the note has never heard
+  // of is the bug this pair of writes exists to prevent.
+  function attachNote(type: NoteOwnerType, itemId: number, noteId: number) {
+    const note = notes.value.find((n) => n.id === noteId)
+    if (!note) return
+    if (!NOTE_OWNER_LISTS[type].value.some((i) => i.id === itemId)) return
+    writeNoteIds(type, itemId, withId(currentNoteIds(type, itemId), noteId))
+    writeNoteRefs(noteId, withRef(note.attachedTo, { type, id: itemId }))
+  }
+  function detachNote(type: NoteOwnerType, itemId: number, noteId: number) {
+    writeNoteIds(type, itemId, withoutId(currentNoteIds(type, itemId), noteId))
+    const note = notes.value.find((n) => n.id === noteId)
+    if (note) writeNoteRefs(noteId, withoutRef(note.attachedTo, { type, id: itemId }))
+  }
+  // The notes on one item, in the order that item holds them.
+  function notesFor(type: NoteOwnerType, itemId: number): Note[] {
     const ids = currentNoteIds(type, itemId)
-    if (ids.includes(noteId)) return
-    writeNoteIds(type, itemId, [...ids, noteId])
+    if (!ids.length) return []
+    const byId = new Map(notes.value.map((n) => [n.id, n]))
+    return ids.map((nid) => byId.get(nid)).filter((n): n is Note => !!n)
   }
-  function detachNote(type: 'idea' | 'stock' | 'trip', itemId: number, noteId: number) {
-    writeNoteIds(
-      type,
-      itemId,
-      currentNoteIds(type, itemId).filter((n) => n !== noteId),
+  // Where a note lives, for the note's own header.
+  function noteOwners(noteId: number): NoteRef[] {
+    return notes.value.find((n) => n.id === noteId)?.attachedTo?.slice() ?? []
+  }
+  // "+ New note" on an item: an empty note, already attached, ready to be typed
+  // into. It is created blank on purpose — the reader is about to write it, and
+  // a placeholder body would have to be deleted first.
+  function createNoteFor(type: NoteOwnerType, itemId: number, title = ''): number | null {
+    if (!NOTE_OWNER_LISTS[type].value.some((i) => i.id === itemId)) return null
+    const newId = id()
+    notes.value = [
+      ...notes.value,
+      {
+        id: newId,
+        text: '',
+        format: 'md' as const,
+        ts: Date.now(),
+        title,
+        tags: [],
+        pinned: false,
+        attachedTo: [{ type, id: itemId }],
+        ...stamps(),
+      },
+    ]
+    writeNoteIds(type, itemId, withId(currentNoteIds(type, itemId), newId))
+    return newId
+  }
+  // Rename without going through the editor: the title is its own field, not
+  // the first line of the body (section 21a).
+  function setNoteTitle(noteId: number, title: string) {
+    notes.value = notes.value.map((n) => (n.id === noteId ? touched({ ...n, title }) : n))
+  }
+  function setNotePinned(noteId: number, pinned: boolean) {
+    notes.value = notes.value.map((n) => (n.id === noteId ? touched({ ...n, pinned }) : n))
+  }
+  function setNoteTags(noteId: number, tags: string[]) {
+    notes.value = notes.value.map((n) => (n.id === noteId ? touched({ ...n, tags }) : n))
+  }
+  // Run after anything that can strand a pointer — a delete on either side, or
+  // a snapshot written by a device that predates the back-reference. Writes
+  // only where the rebuild actually differs, because every write here is a
+  // workspace save.
+  function reconcileNoteRefs() {
+    const index = buildAttachmentIndex(
+      notes.value,
+      NOTE_OWNER_TYPES.map((type) => ({ type, items: NOTE_OWNER_LISTS[type].value })),
     )
+    let noteChanged = false
+    const nextNotes = notes.value.map((n) => {
+      const refs = index.refsByNote.get(n.id) ?? []
+      if (refsEqual(n.attachedTo, refs)) return n
+      noteChanged = true
+      return { ...n, attachedTo: refs }
+    })
+    if (noteChanged) notes.value = nextNotes
+    for (const type of NOTE_OWNER_TYPES) {
+      const listRef = NOTE_OWNER_LISTS[type]
+      let changed = false
+      const next = listRef.value.map((it) => {
+        const ids = index.idsByOwner.get(ownerKey(type, it.id)) ?? []
+        if (idsEqual(it.noteIds, ids)) return it
+        changed = true
+        return { ...it, noteIds: ids }
+      })
+      if (changed) listRef.value = next
+    }
   }
 
   // ---- Editing / drafts ---------------------------------------------------
@@ -3068,6 +3176,10 @@ export const useAppStore = defineStore('app', () => {
         })
       }
     }
+    // Whichever end of a note attachment just went, the other end is now
+    // pointing at nothing. Undo puts both back, because the restored item
+    // carries its own half of the pair and the rebuild reads it (section 21a).
+    if (type === 'note' || isNoteOwnerType(type)) reconcileNoteRefs()
     // A delete undo runs through undoDelete, not a stored handler; clear any
     // handler a prior rollover toast left set.
     toastUndoHandler = null
@@ -3077,6 +3189,8 @@ export const useAppStore = defineStore('app', () => {
       if (toast.value) toast.value = null
     }, 5000)
   }
+  // The lists whose items can be either end of a note attachment.
+  const NOTE_LIST_KEYS = new Set<ListKey>(['notes', 'tasks', 'todos', 'ideas', 'stocks', 'trips'])
   function undoDelete() {
     const t = toast.value
     if (!t || t.listKey == null || t.item == null || t.idx == null) return
@@ -3091,6 +3205,11 @@ export const useAppStore = defineStore('app', () => {
       : t.item
     list.splice(Math.min(t.idx, list.length), 0, restored)
     accessor.set(list)
+    // The restored item still lists its notes, so the rebuild puts the other
+    // half of each attachment back (section 21a). A note restored this way
+    // rejoins its owner's list at the end rather than at its old position —
+    // the same trade Undo already makes for link pointers.
+    if (NOTE_LIST_KEYS.has(t.listKey)) reconcileNoteRefs()
     toast.value = null
     clearTimeout(toastTimer)
     if (wasSynced) void syncCalendar((restored as Reminder).id)
@@ -5391,6 +5510,8 @@ export const useAppStore = defineStore('app', () => {
       updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
       // Goal attachments (task 8), backfilled to [] for todos written before it.
       goalIds: Array.isArray(t.goalIds) ? t.goalIds.filter((n) => typeof n === 'number') : [],
+      // Attached notes (section 21a), backfilled to [].
+      noteIds: normaliseIds(t.noteIds),
       // Calendar scheduling (section 15), backfilled to unscheduled.
       ...scheduleFields(t),
     }))
@@ -5422,6 +5543,8 @@ export const useAppStore = defineStore('app', () => {
         updatedBy: typeof t.updatedBy === 'string' ? t.updatedBy : '',
         // Goal attachments (task 8), backfilled to [].
         goalIds: Array.isArray(t.goalIds) ? t.goalIds.filter((n) => typeof n === 'number') : [],
+        // Attached notes (section 21a), backfilled to [].
+        noteIds: normaliseIds(t.noteIds),
         // GitHub link (section 13c), backfilled to null for tasks written
         // before the integration existed.
         github: githubLinkOf(t.github),
@@ -5443,7 +5566,11 @@ export const useAppStore = defineStore('app', () => {
     tasks.value = syncGuard.reconcileTasks(tasks.value, incomingTasks)
     deadlines.value = stamped<Deadline>(data.deadlines)
     finances.value = stamped<Finance>(data.finances)
-    notes.value = stamped<Note>(data.notes)
+    // Notes gained a title, tags, a pin and the back-reference in section 21.
+    // A note written before that has none of them: it keeps its text, gets an
+    // empty attachment list, and goes on being exactly the standalone note it
+    // already was (acceptance 106).
+    notes.value = stamped<Note>(data.notes).map((n) => ({ ...n, ...hydrateNoteFields(n) }))
     // Reminders written before priority/calEventId existed lack those fields;
     // fill them in on read so the rest of the app can treat them as required.
     reminders.value = stamped<Reminder>(data.reminders).map((r) => ({
@@ -5482,7 +5609,7 @@ export const useAppStore = defineStore('app', () => {
         tag: typeof t.tag === 'string' ? t.tag : '',
         photos: Array.isArray(t.photos) ? t.photos.filter((x) => typeof x === 'string') : [],
         places,
-        noteIds: Array.isArray(t.noteIds) ? t.noteIds.filter((n) => typeof n === 'number') : [],
+        noteIds: normaliseIds(t.noteIds),
         location: legacyLoc,
       }
     })
@@ -5494,7 +5621,7 @@ export const useAppStore = defineStore('app', () => {
       deadline: typeof i.deadline === 'string' ? i.deadline : '',
       ideaType: typeof i.ideaType === 'string' && i.ideaType ? i.ideaType : 'feature',
       tag: typeof i.tag === 'string' ? i.tag : '',
-      noteIds: Array.isArray(i.noteIds) ? i.noteIds.filter((n) => typeof n === 'number') : [],
+      noteIds: normaliseIds(i.noteIds),
     }))
     stocks.value = stamped<Stock>(data.stocks).map((st) => ({
       ...st,
@@ -5503,7 +5630,7 @@ export const useAppStore = defineStore('app', () => {
       targetPrice: typeof st.targetPrice === 'number' ? st.targetPrice : 0,
       watchPrice: typeof st.watchPrice === 'number' ? st.watchPrice : 0,
       tag: typeof st.tag === 'string' ? st.tag : '',
-      noteIds: Array.isArray(st.noteIds) ? st.noteIds.filter((n) => typeof n === 'number') : [],
+      noteIds: normaliseIds(st.noteIds),
     }))
     // Planning boards — flat board/node/edge records. Nodes being dragged or
     // edited are protected by the planning board's own guard, not here (this only
@@ -5557,6 +5684,8 @@ export const useAppStore = defineStore('app', () => {
       rootId: typeof g.rootId === 'number' ? g.rootId : g.id,
       localRev: typeof g.localRev === 'number' ? g.localRev : 0,
       updatedBy: typeof g.updatedBy === 'string' ? g.updatedBy : '',
+      // Attached notes (section 21a), backfilled to [].
+      noteIds: normaliseIds(g.noteIds),
     }))
     const incomingChecklist = stamped<GoalChecklistItem>(data.goalChecklist).map((c, i) => ({
       ...c,
@@ -5742,6 +5871,13 @@ export const useAppStore = defineStore('app', () => {
     // A snapshot may carry issues a webhook mirrored while this client was
     // away; reconcile them with their tasks through the sync guard.
     syncIssuesToTasks()
+    // The note attachment migration (section 21a), run on every read rather
+    // than once: a snapshot written by a device that predates the
+    // back-reference carries only the forward one, and a delete on either
+    // device leaves the other end pointing at nothing. Rebuilding both from
+    // what is actually here is cheap and idempotent — it writes only where the
+    // two directions disagree.
+    reconcileNoteRefs()
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
@@ -6122,6 +6258,13 @@ export const useAppStore = defineStore('app', () => {
     updateStock,
     attachNote,
     detachNote,
+    notesFor,
+    noteOwners,
+    createNoteFor,
+    setNoteTitle,
+    setNotePinned,
+    setNoteTags,
+    reconcileNoteRefs,
     updateSecurity,
     startEdit,
     newNote,
