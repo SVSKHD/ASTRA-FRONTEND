@@ -45,10 +45,14 @@ const bodyId = `detail-section-${useId()}`
 </template>
 
 <style scoped>
+/* A child of the dialog's one scrolling column, so it may not set that
+   column's width: without this a wide table or a long unbroken line inside a
+   section pushes its neighbours off the dialog (section 22e). */
 .dsec {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
+  min-width: 0;
 }
 .dsec__head {
   display: flex;
@@ -96,5 +100,6 @@ const bodyId = `detail-section-${useId()}`
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
+  min-width: 0;
 }
 </style>

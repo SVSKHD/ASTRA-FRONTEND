@@ -8,7 +8,10 @@
 // behind a field, and there is nothing here that needs to escape the flow.
 //
 // Multi-select, because attaching three notes one at a time means reopening the
-// picker three times and losing the query each round.
+// picker three times and losing the query each round. That is also why it is
+// composed from SearchField, Checkbox and Button rather than being the
+// library's Combobox: that one owns a single string value, and every control
+// here still comes from src/components/ui (section 22e).
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -54,6 +57,7 @@ onMounted(async () => {
     role="group"
     aria-label="Attach an existing note"
     @keydown.esc.stop="emit('cancel')"
+    @keydown.enter.stop.prevent="confirm"
   >
     <SearchField
       ref="search"
