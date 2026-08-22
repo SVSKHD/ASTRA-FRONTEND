@@ -1,6 +1,13 @@
 <script setup lang="ts">
 // The note editor: markdown source on the left, the rendering on the right.
 //
+// One component for every surface that writes a note — the notes view, the
+// detail dialog's note column, and the draft note inside a create dialog
+// (section 22d). Only `compact` differs between them. A second editor "for
+// dialogs" would be a second set of keyboard shortcuts, a second paste path and
+// a second place for the toolbar to drift, which is exactly what this file
+// exists to prevent.
+//
 // The source of truth is the text in the textarea — always. The preview is a
 // derived view of it, never an input, which is what keeps the stored note plain
 // markdown and makes every transform in the toolbar a pure string operation.
@@ -14,8 +21,17 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { useMarkdownEditor, type EditorAction } from '@/composables/useMarkdownEditor'
 import { useMarkdownPaste } from '@/composables/useMarkdownPaste'
-import { NOTE_EDITOR_MODES, type NoteEditorMode } from '@/utils/notes'
+import { useAutoResizeTextarea } from '@/composables/useAutoResizeTextarea'
+import {
+  COMPACT_MAX_HEIGHT,
+  COMPACT_MIN_HEIGHT,
+  editorModes,
+  effectiveMode,
+  splitTools,
+} from '@/utils/noteTools'
+import type { NoteEditorMode } from '@/utils/notes'
 import MarkdownView from '@/components/notes/MarkdownView.vue'
+import Dropdown from '@/components/ui/Dropdown.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -26,8 +42,16 @@ const props = withDefaults(
     // section 21b). A split view inside half a dialog is two columns of about
     // twenty characters each.
     narrow?: boolean
+    // Set inside a dialog (section 22d): one row of toolbar, no Split, and a
+    // writing area that stops growing before it pushes the footer away.
+    compact?: boolean
   }>(),
-  { placeholder: 'Write in markdown — paste anything', autofocus: false, narrow: false },
+  {
+    placeholder: 'Write in markdown — paste anything',
+    autofocus: false,
+    narrow: false,
+    compact: false,
+  },
 )
 const emit = defineEmits<{ 'update:modelValue': [string]; save: [] }>()
 
@@ -36,19 +60,55 @@ const { noteEditorMode } = storeToRefs(app)
 const { c, isMobile } = useStyles()
 
 const area = ref<HTMLTextAreaElement | null>(null)
+// Compact mode grows the field with its content instead of sitting at a fixed
+// 300px, so a two-line note is not a wall of empty box. The cap is CSS, so past
+// it the field scrolls rather than the dialog (section 22d).
+const auto = useAutoResizeTextarea({
+  watch: () => (props.compact ? props.modelValue : null),
+  minHeight: COMPACT_MIN_HEIGHT,
+})
+// One element, two refs: the editing commands need it and so does the measure.
+function setArea(el: unknown) {
+  const node = (el as HTMLTextAreaElement | null) ?? null
+  area.value = node
+  auto.el.value = props.compact ? node : null
+}
 
-// The mode the user chose, narrowed by what the viewport can actually show —
-// a split view on a phone is two useless columns, so it reads as edit there.
+// The mode the user chose, narrowed by what the surface can actually show. In
+// compact mode the choice is local — a Preview toggle inside a dialog must not
+// rewrite the preference the notes view opens with.
+const compactMode = ref<NoteEditorMode>('edit')
+const chosen = computed<NoteEditorMode>(() =>
+  props.compact ? compactMode.value : noteEditorMode.value,
+)
 const mode = computed<NoteEditorMode>(() =>
-  (isMobile.value || props.narrow) && noteEditorMode.value === 'split'
-    ? 'edit'
-    : noteEditorMode.value,
+  effectiveMode(chosen.value, {
+    compact: props.compact,
+    narrow: props.narrow,
+    mobile: isMobile.value,
+  }),
 )
 const showSource = computed(() => mode.value !== 'preview')
 const showPreview = computed(() => mode.value !== 'edit')
 
+const modes = computed(() => editorModes(props.compact))
+const tools = computed(() => splitTools(props.compact))
+const overflowItems = computed(() =>
+  tools.value.overflow.map((tool) => ({ value: tool.action, label: tool.title })),
+)
+
+function onOverflow(action: string) {
+  editor.apply(action as EditorAction)
+}
+
 function setMode(next: NoteEditorMode) {
-  app.setNoteEditorMode(next)
+  if (props.compact) compactMode.value = next
+  else app.setNoteEditorMode(next)
+}
+// The compact bar carries one toggle rather than two radio-ish buttons: there
+// are only two states, and a toggle says which one you are in.
+function togglePreview() {
+  setMode(compactMode.value === 'preview' ? 'edit' : 'preview')
 }
 
 function value(): string {
@@ -103,6 +163,7 @@ function onKeydown(event: KeyboardEvent) {
 function onInput(event: Event) {
   emit('update:modelValue', (event.target as HTMLTextAreaElement).value)
   editor.onInput(event)
+  if (props.compact) auto.onInput()
 }
 
 function focus() {
@@ -118,29 +179,6 @@ watch(
   { immediate: true },
 )
 
-// --- toolbar ----------------------------------------------------------------
-interface ToolbarItem {
-  action: EditorAction
-  label: string
-  title: string
-}
-const TOOLS: ToolbarItem[] = [
-  { action: 'bold', label: 'B', title: 'Bold (Ctrl+B)' },
-  { action: 'italic', label: 'I', title: 'Italic (Ctrl+I)' },
-  { action: 'strike', label: 'S', title: 'Strikethrough (Ctrl+Shift+X)' },
-  { action: 'code', label: '‹›', title: 'Code (Ctrl+E)' },
-  { action: 'link', label: '🔗', title: 'Link (Ctrl+K)' },
-  { action: 'h1', label: 'H1', title: 'Heading 1 (Ctrl+1)' },
-  { action: 'h2', label: 'H2', title: 'Heading 2 (Ctrl+2)' },
-  { action: 'h3', label: 'H3', title: 'Heading 3 (Ctrl+3)' },
-  { action: 'bullet', label: '•', title: 'List (Ctrl+Shift+8)' },
-  { action: 'checklist', label: '☑', title: 'Checklist (Ctrl+Shift+9)' },
-  { action: 'ordered', label: '1.', title: 'Numbered list' },
-  { action: 'quote', label: '❝', title: 'Quote (Ctrl+Shift+.)' },
-  { action: 'fence', label: '{ }', title: 'Code block' },
-  { action: 'table', label: '▦', title: 'Table' },
-]
-
 const MODE_LABEL: Record<NoteEditorMode, string> = {
   edit: 'Edit',
   preview: 'Preview',
@@ -149,14 +187,23 @@ const MODE_LABEL: Record<NoteEditorMode, string> = {
 
 // --- styles -----------------------------------------------------------------
 const wrap = computed(() =>
-  pxify({ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, flex: 1 }),
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    minWidth: 0,
+    minHeight: 0,
+    flex: 1,
+  }),
 )
 const bar = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
     gap: 2,
-    flexWrap: 'wrap',
+    // One row in a dialog: the overflow menu is what the wrap used to be.
+    flexWrap: props.compact ? 'nowrap' : 'wrap',
+    minWidth: 0,
     padding: 4,
     borderRadius: 12,
     border: '1px solid ' + c.value.border,
@@ -178,7 +225,7 @@ const toolBtn = computed(() =>
   }),
 )
 const toolHover = computed(() => ({ background: c.value.card, borderColor: c.value.border }))
-const spacer = pxify({ flex: 1 })
+const spacer = pxify({ flex: 1, minWidth: 0 })
 const modeBtn = (active: boolean) =>
   pxify({
     padding: '4px 10px',
@@ -193,17 +240,23 @@ const modeBtn = (active: boolean) =>
 const panes = computed(() =>
   pxify({
     display: 'grid',
-    gridTemplateColumns: mode.value === 'split' ? '1fr 1fr' : '1fr',
+    gridTemplateColumns:
+      mode.value === 'split' ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
     gap: 10,
     flex: 1,
+    minWidth: 0,
     minHeight: 0,
   }),
 )
 const textareaStyle = computed(() =>
   pxify({
     width: '100%',
-    minHeight: isMobile.value ? 220 : 300,
-    resize: 'vertical',
+    minHeight: props.compact ? COMPACT_MIN_HEIGHT : isMobile.value ? 220 : 300,
+    // Compact grows to the cap and then scrolls inside itself; the full editor
+    // stays hand-resizable as it always was.
+    maxHeight: props.compact ? COMPACT_MAX_HEIGHT : undefined,
+    overflowY: props.compact ? 'auto' : undefined,
+    resize: props.compact ? 'none' : 'vertical',
     padding: 12,
     borderRadius: 12,
     border: '1px solid ' + c.value.border,
@@ -218,8 +271,8 @@ const textareaStyle = computed(() =>
 )
 const previewStyle = computed(() =>
   pxify({
-    minHeight: isMobile.value ? 220 : 300,
-    maxHeight: '60vh',
+    minHeight: props.compact ? COMPACT_MIN_HEIGHT : isMobile.value ? 220 : 300,
+    maxHeight: props.compact ? COMPACT_MAX_HEIGHT : '60vh',
     overflowY: 'auto',
     padding: 12,
     borderRadius: 12,
@@ -233,7 +286,7 @@ const previewStyle = computed(() =>
   <div :style="wrap">
     <div :style="bar">
       <button
-        v-for="tool in TOOLS"
+        v-for="tool in tools.primary"
         :key="tool.action"
         type="button"
         :style="toolBtn"
@@ -245,23 +298,44 @@ const previewStyle = computed(() =>
       >
         {{ tool.label }}
       </button>
+
+      <!-- Everything the compact bar could not fit, still reachable. -->
+      <Dropdown
+        v-if="tools.overflow.length"
+        label="⋯"
+        :items="overflowItems"
+        @select="onOverflow"
+      />
+
       <span :style="spacer"></span>
+
       <button
-        v-for="m in NOTE_EDITOR_MODES"
-        :key="m"
+        v-if="compact"
         type="button"
-        :style="modeBtn(noteEditorMode === m)"
-        :aria-pressed="noteEditorMode === m"
-        @click="setMode(m)"
+        :style="modeBtn(mode === 'preview')"
+        :aria-pressed="mode === 'preview'"
+        @click="togglePreview"
       >
-        {{ MODE_LABEL[m] }}
+        Preview
       </button>
+      <template v-else>
+        <button
+          v-for="m in modes"
+          :key="m"
+          type="button"
+          :style="modeBtn(noteEditorMode === m)"
+          :aria-pressed="noteEditorMode === m"
+          @click="setMode(m)"
+        >
+          {{ MODE_LABEL[m] }}
+        </button>
+      </template>
     </div>
 
     <div :style="panes">
       <textarea
         v-if="showSource"
-        ref="area"
+        :ref="setArea"
         :value="modelValue"
         :placeholder="placeholder"
         :style="textareaStyle"

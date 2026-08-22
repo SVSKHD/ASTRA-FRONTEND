@@ -28,7 +28,7 @@ import IssueChip from '@/components/IssueChip.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
-import MarkdownEditor from '@/components/notes/MarkdownEditor.vue'
+import NoteEditor from '@/components/notes/NoteEditor.vue'
 import { fullName } from '@/utils/githubModel'
 import { STATUS_LABEL, type ItemStatus, type Priority, type Task } from '@/types'
 
@@ -390,7 +390,7 @@ defineExpose({
       </DetailSection>
 
       <DetailSection label="Description">
-        <MarkdownEditor
+        <NoteEditor
           :model-value="description.draft.value"
           placeholder="Write in markdown — paste anything"
           @update:model-value="description.set"
