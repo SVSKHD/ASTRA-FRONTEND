@@ -104,7 +104,7 @@ const rawInput = computed(() => ({
 
 <template>
   <div :style="s.tagPicker">
-    <span :style="labelStyle">{{ label ?? 'Tag' }}</span>
+    <span class="field-label" :style="labelStyle">{{ label ?? 'Tag' }}</span>
     <div :style="s.tagRow">
       <span v-for="t in tags" :key="t" :style="chipStyle(t)" @click="pick(t)">
         {{ t }}

@@ -2423,13 +2423,16 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Ideas --------------------------------------------------------------
+  // Returns the new id so the caller can attach notes to it in the same pass
+  // (section 22b) — the same contract addTask and addTodo already had.
   function addIdea(title: string, tag: string, fields: Partial<Idea> = {}) {
     const t = title.trim()
     if (!t) return
+    const newId = id()
     ideas.value = [
       ...ideas.value,
       {
-        id: id(),
+        id: newId,
         title: t,
         description: '',
         deadline: '',
@@ -2440,6 +2443,7 @@ export const useAppStore = defineStore('app', () => {
         ...stamps(),
       },
     ]
+    return newId
   }
   function updateIdea(iid: number, fields: Partial<Idea>) {
     const next =
@@ -2451,10 +2455,11 @@ export const useAppStore = defineStore('app', () => {
   function addStock(symbol: string, tag: string, fields: Partial<Stock> = {}) {
     const s = symbol.trim().toUpperCase()
     if (!s) return
+    const newId = id()
     stocks.value = [
       ...stocks.value,
       {
-        id: id(),
+        id: newId,
         symbol: s,
         name: '',
         why: '',
@@ -2466,6 +2471,7 @@ export const useAppStore = defineStore('app', () => {
         ...stamps(),
       },
     ]
+    return newId
   }
   function updateStock(sid: number, fields: Partial<Stock>) {
     const next =
@@ -4547,8 +4553,10 @@ export const useAppStore = defineStore('app', () => {
   // Fields a create form starts from. Dates default to today so the common case
   // is one field away from valid.
   function blankDraft(type: ItemType): Record<string, unknown> {
-    if (type === 'todo') return { text: '', description: '', tag: '' }
-    if (type === 'task') return { title: '', tag: '', deadline: '', notes: '', repo: '' }
+    // `noteIds` rather than a `notes` string since section 22a: what a create
+    // dialog holds is a list of notes to attach, not a copy of their text.
+    if (type === 'todo') return { text: '', description: '', tag: '', noteIds: [] }
+    if (type === 'task') return { title: '', tag: '', deadline: '', repo: '', noteIds: [] }
     if (type === 'deadline') return { title: '', due: rel(0) }
     if (type === 'finance') return { amount: '', category: 'Food', note: '', date: rel(0) }
     if (type === 'trip')
@@ -4920,16 +4928,27 @@ export const useAppStore = defineStore('app', () => {
       return false
     }
 
+    // The notes a create dialog queued up. They are attached after the item
+    // exists, in the same synchronous pass — one debounced workspace save, so
+    // the item and both ends of every reference land together (section 22b).
+    const queuedNoteIds = Array.isArray(d.noteIds) ? (d.noteIds as number[]) : []
+    const attachQueued = (type: NoteOwnerType, itemId: number | undefined) => {
+      if (itemId == null) return
+      attachNotes(type, itemId, queuedNoteIds)
+    }
+
     if (state.type === 'todo') {
       if (!str('text')) return fail('Give the todo a title')
-      addTodo(str('text'), str('tag'), str('description'))
+      attachQueued('todo', addTodo(str('text'), str('tag'), str('description')))
     } else if (state.type === 'task') {
       if (!str('title')) return fail('Give the task a title')
-      addTask(str('title'), str('tag'), {
-        deadline: str('deadline'),
-        notes: str('notes'),
-        repo: str('repo'),
-      })
+      attachQueued(
+        'task',
+        addTask(str('title'), str('tag'), {
+          deadline: str('deadline'),
+          repo: str('repo'),
+        }),
+      )
     } else if (state.type === 'deadline') {
       if (!str('title')) return fail('Give the deadline a title')
       if (!str('due')) return fail('Pick a due date')
@@ -4955,21 +4974,28 @@ export const useAppStore = defineStore('app', () => {
       return true
     } else if (state.type === 'idea') {
       if (!str('title')) return fail('Give the idea a title')
-      addIdea(str('title'), str('tag'), {
-        description: str('description'),
-        deadline: str('deadline'),
-        ideaType: str('ideaType') || 'feature',
-        noteIds: Array.isArray(d.noteIds) ? (d.noteIds as number[]) : [],
-      })
+      // Through attachQueued rather than as a field: seeding `noteIds` alone
+      // writes one end of the reference and leaves the note not knowing where
+      // it lives until the next reconcile (section 21a).
+      attachQueued(
+        'idea',
+        addIdea(str('title'), str('tag'), {
+          description: str('description'),
+          deadline: str('deadline'),
+          ideaType: str('ideaType') || 'feature',
+        }),
+      )
     } else if (state.type === 'stock') {
       if (!str('symbol')) return fail('Give the stock a symbol')
-      addStock(str('symbol'), str('tag'), {
-        name: str('name'),
-        why: str('why'),
-        targetPrice: parseFloat(str('targetPrice')) || 0,
-        watchPrice: parseFloat(str('watchPrice')) || 0,
-        noteIds: Array.isArray(d.noteIds) ? (d.noteIds as number[]) : [],
-      })
+      attachQueued(
+        'stock',
+        addStock(str('symbol'), str('tag'), {
+          name: str('name'),
+          why: str('why'),
+          targetPrice: parseFloat(str('targetPrice')) || 0,
+          watchPrice: parseFloat(str('watchPrice')) || 0,
+        }),
+      )
     } else if (state.type === 'reminder') {
       if (!str('title')) return fail('Give the reminder a title')
       if (!str('start')) return fail('Pick a start date and time')
