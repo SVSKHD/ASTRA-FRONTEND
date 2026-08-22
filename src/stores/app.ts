@@ -85,7 +85,13 @@ import { occurrences } from '@/utils/reminders'
 import { stampOnDay, ymd } from '@/utils/dayGroups'
 import { isBlankNote, isNoteEditorMode, type NoteEditorMode } from '@/utils/notes'
 import { SPLIT_DEFAULT, clampSplit } from '@/utils/noteColumn'
-import { draftWorthSaving, type NoteDraft } from '@/utils/notesSection'
+import {
+  LEGACY_ROW_TITLE,
+  draftWorthSaving,
+  legacyNoteField,
+  legacyNoteText,
+  type NoteDraft,
+} from '@/utils/notesSection'
 import {
   NOTE_OWNER_TYPES,
   buildAttachmentIndex,
@@ -2563,6 +2569,33 @@ export const useAppStore = defineStore('app', () => {
     ]
     writeNoteIds(type, itemId, withId(currentNoteIds(type, itemId), newId))
     return newId
+  }
+  // The migration off the free-text notes field (section 22a).
+  //
+  // A task written before notes were documents carries its notes as a string.
+  // This turns that string into a real note — created, attached, and only then
+  // is the string cleared, in that order and in one synchronous pass, so the
+  // text is never briefly nowhere and a failure to create leaves it exactly
+  // where it was (acceptance 117).
+  //
+  // Nothing runs it in bulk. It happens when somebody asks for it on the item
+  // in front of them, which is the same bargain the HTML-to-markdown migration
+  // made: the workspace moves over as it is used, and a task nobody opens keeps
+  // reading exactly as it always did.
+  function convertLegacyNotes(type: NoteOwnerType, itemId: number): number | null {
+    const field = legacyNoteField(type)
+    // Only owners that actually carry one; the cast is safe past this line
+    // because every type that has a legacy field is also an ItemType.
+    if (!field) return null
+    const item = itemById(type as ItemType, itemId)
+    const text = legacyNoteText(type, item ?? null)
+    if (!text) return null
+    const noteId = createNoteFor(type, itemId, LEGACY_ROW_TITLE)
+    if (noteId == null) return null
+    setNoteText(noteId, text)
+    // Only now: the note holds the text, so clearing the field loses nothing.
+    updateItem(type as ItemType, itemId, field, '')
+    return noteId
   }
   // Rename without going through the editor: the title is its own field, not
   // the first line of the body (section 21a).
@@ -6385,6 +6418,7 @@ export const useAppStore = defineStore('app', () => {
     notesFor,
     noteOwners,
     createNoteFor,
+    convertLegacyNotes,
     setNoteTitle,
     setNotePinned,
     setNoteTags,

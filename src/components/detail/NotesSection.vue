@@ -2,9 +2,10 @@
 // The notes on a task, a todo or a goal (sections 22a–22c, 22f).
 //
 // One component for all three. It takes `{ type, id }` and works out the rest —
-// which notes are attached, and what "+ New note" means here. Forking it per
-// entity would be three copies of a surface whose whole point is that a note
-// attached to a task and a note attached to a goal are the same thing.
+// which notes are attached, whether there is a legacy string to offer up, and
+// what "+ New note" means here. Forking it per entity would be three copies of
+// a surface whose whole point is that a note attached to a task and a note
+// attached to a goal are the same thing.
 //
 // The two modes are not two designs, they are one design at two moments. In a
 // DETAIL dialog the item exists, so a new note is a document written now and
@@ -20,7 +21,11 @@ import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import {
+  LEGACY_ROW_ID,
   blankNoteDraft,
+  legacyNoteField,
+  legacyNoteText,
+  legacyRow,
   noteRow,
   overflowLabel,
   visibleRows,
@@ -32,7 +37,7 @@ import NotePicker from '@/components/detail/NotePicker.vue'
 import NoteDraftEditor from '@/components/detail/NoteDraftEditor.vue'
 import Icon from '@/components/ui/Icon.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
-import type { Note, NoteOwnerType } from '@/types'
+import type { ItemType, Note, NoteOwnerType } from '@/types'
 
 // The rendered note is only ever wanted once a row is actually opened, and it
 // drags the markdown pipeline and its highlighter in with it (section 22d's
@@ -78,7 +83,23 @@ const attached = computed<Note[]>(() => {
 })
 const attachedIds = computed(() => attached.value.map((n) => n.id))
 
-const rows = computed<NoteRowModel[]>(() => attached.value.map((note) => noteRow(note)))
+// The item's own free-text notes field, where it still holds anything
+// (section 22a). Create mode never has one: a new item starts blank.
+const owner = computed<Record<string, unknown> | null>(() => {
+  // Only an owner that actually has such a field is worth looking up; past the
+  // guard the cast is safe, because every one of them is also an ItemType.
+  if (isCreate.value || props.id == null || !legacyNoteField(props.type)) return null
+  return (app.itemById(props.type as ItemType, props.id) as Record<string, unknown>) ?? null
+})
+const legacyText = computed(() => legacyNoteText(props.type, owner.value))
+
+const rows = computed<NoteRowModel[]>(() => {
+  const list = attached.value.map((note) => noteRow(note))
+  if (!legacyText.value) return list
+  // First: it is the text that was already there, and burying it under notes
+  // written since would be the opposite of keeping it readable.
+  return [legacyRow((owner.value?.updatedAt as number) ?? null), ...list]
+})
 
 const expanded = ref(false)
 const shown = computed(() => visibleRows(rows.value, { expanded: expanded.value }))
@@ -102,7 +123,14 @@ const inlineNote = computed(() =>
   openInline.value == null ? null : (notes.value.find((n) => n.id === openInline.value) ?? null),
 )
 
-function rowMenu() {
+const inlineLegacy = computed(() => openInline.value === LEGACY_ROW_ID)
+
+function rowMenu(row: NoteRowModel) {
+  if (row.kind === 'legacy')
+    return [
+      { value: 'open', label: 'Read it' },
+      { value: 'convert', label: 'Convert to note' },
+    ]
   return [
     { value: 'open', label: isCreate.value ? 'Preview' : 'Open' },
     { value: 'detach', label: 'Detach' },
@@ -111,7 +139,7 @@ function rowMenu() {
 }
 
 function open(row: NoteRowModel) {
-  if (isCreate.value) {
+  if (row.kind === 'legacy' || isCreate.value) {
     // A create dialog never widens into two columns (section 22c): the row
     // expands where it is, read-only, and opens properly after saving.
     openInline.value = openInline.value === row.id ? null : row.id
@@ -121,6 +149,7 @@ function open(row: NoteRowModel) {
 }
 
 function detach(row: NoteRowModel) {
+  if (row.kind === 'legacy') return
   if (isCreate.value) {
     emit(
       'update:draftIds',
@@ -135,6 +164,7 @@ function detach(row: NoteRowModel) {
 }
 
 function remove(row: NoteRowModel) {
+  if (row.kind === 'legacy') return
   if (openInline.value === row.id) openInline.value = null
   if (isCreate.value)
     emit(
@@ -148,6 +178,17 @@ function onMenu(row: NoteRowModel, action: string) {
   if (action === 'open') open(row)
   else if (action === 'detach') detach(row)
   else if (action === 'delete') remove(row)
+  else if (action === 'convert') convert()
+}
+
+// Section 22a's promise: the old text becomes a real note and only then is the
+// string cleared, so nothing is ever briefly nowhere (acceptance 117).
+function convert() {
+  if (props.id == null) return
+  const noteId = app.convertLegacyNotes(props.type, props.id)
+  if (noteId == null) return
+  openInline.value = null
+  app.openNoteColumn(noteId)
 }
 
 // --- creating ----------------------------------------------------------------
@@ -212,9 +253,15 @@ function onAttach(ids: number[]) {
       <button type="button" class="nsec__open" :title="row.title" @click="open(row)">
         <Icon :name="row.pinned ? 'star' : 'notebook'" size="xs" />
         <span class="nsec__label">{{ row.title }}</span>
-        <span v-if="row.ago" class="nsec__ago">{{ row.ago }}</span>
+        <span v-if="row.kind === 'legacy'" class="nsec__tag">from a text field</span>
+        <span v-else-if="row.ago" class="nsec__ago">{{ row.ago }}</span>
       </button>
-      <Dropdown label="⋯" :items="rowMenu()" @select="onMenu(row, $event)" />
+      <!-- Convert sits on the row as well as in the menu: it is the one thing
+           a legacy row is for, and burying it is how it never happens. -->
+      <button v-if="row.kind === 'legacy'" type="button" class="nsec__ghost" @click.stop="convert">
+        Convert to note
+      </button>
+      <Dropdown label="⋯" :items="rowMenu(row)" @select="onMenu(row, $event)" />
     </div>
 
     <button v-if="shown.hidden" type="button" class="nsec__more" @click="expanded = true">
@@ -223,9 +270,13 @@ function onAttach(ids: number[]) {
 
     <!-- A row opened inside a create dialog: read-only, in the flow, no second
          column (section 22c). -->
-    <div v-if="inlineNote" class="nsec__read">
-      <MarkdownView :source="inlineNote.text ?? ''" />
-      <p v-if="isCreate" class="nsec__hint">
+    <div v-if="inlineNote || inlineLegacy" class="nsec__read">
+      <MarkdownView :source="inlineLegacy ? legacyText : (inlineNote?.text ?? '')" />
+      <p v-if="inlineLegacy" class="nsec__hint">
+        This was typed into the old notes field. Convert it and it becomes a note you can open
+        beside the task, search and attach elsewhere.
+      </p>
+      <p v-else-if="isCreate" class="nsec__hint">
         Open after saving — this note opens beside the item once it exists.
       </p>
     </div>
@@ -277,7 +328,12 @@ function onAttach(ids: number[]) {
 .nsec__row {
   color: var(--theme-text);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* One flexing track and then as many auto ones as the row happens to need:
+     a legacy row carries a Convert button the others do not, and an empty
+     third track would leave a gap on every ordinary row. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
   align-items: center;
   gap: var(--sp-2);
   min-width: 0;
@@ -310,7 +366,8 @@ function onAttach(ids: number[]) {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.nsec__ago {
+.nsec__ago,
+.nsec__tag {
   flex-shrink: 0;
   font-size: var(--text-xs);
   color: var(--theme-dim);

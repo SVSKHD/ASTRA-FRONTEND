@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The task side of the detail dialog (section 18c). Everything here is inline
-// editable — there is no edit mode and no Save button. Title and description
+// editable — there is no edit mode and no Save button. The free-text fields
 // autosave 600ms after typing stops (useInlineField); every other control writes
 // on change, because a picker or a select has no half-finished state to protect.
 //
@@ -28,7 +28,6 @@ import IssueChip from '@/components/IssueChip.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
-import NoteEditor from '@/components/notes/NoteEditor.vue'
 import { fullName } from '@/utils/githubModel'
 import { STATUS_LABEL, type ItemStatus, type Priority, type Task } from '@/types'
 
@@ -53,13 +52,11 @@ function fieldDirty(name: string) {
   }
 }
 
-// --- description -------------------------------------------------------------
-// The title is the shell header's, so the body owns only this one long field.
-const description = useInlineField({
-  value: () => task.value?.notes ?? '',
-  commit: (next) => app.updateTask(props.taskId, 'notes', next),
-  onDirty: fieldDirty('notes'),
-})
+// There is no description field here any more. `task.notes` was the free-text
+// notes box, and section 22a retired it: a note is a document now. The string
+// stays readable — the NOTES section below shows it as a row and offers to
+// convert it — but nothing on this dialog writes to it, so there is no second
+// surface for the same text to drift on.
 
 const goalChoices = computed(() => goals.value.filter((g) => g.status !== 'archived'))
 const menuItems = computed(() => [
@@ -235,13 +232,11 @@ const history = computed(() => [...(task.value?.statusLog ?? [])].reverse())
 // its 600ms window is not lost to the close.
 defineExpose({
   flush() {
-    description.flush()
     assignee.flush()
     if (estimateFocused.value) onEstimateBlur()
   },
   // The counterpart, for a reader who answered "discard" to the close guard.
   revert() {
-    description.revert()
     assignee.revert()
     estimateFocused.value = false
   },
@@ -387,14 +382,6 @@ defineExpose({
             </div>
           </div>
         </div>
-      </DetailSection>
-
-      <DetailSection label="Description">
-        <NoteEditor
-          :model-value="description.draft.value"
-          placeholder="Write in markdown — paste anything"
-          @update:model-value="description.set"
-        />
       </DetailSection>
 
       <DetailSection

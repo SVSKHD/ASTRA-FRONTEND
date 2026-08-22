@@ -1,9 +1,14 @@
 // Section 22a: what the notes surface reads as before anything renders it.
 import { describe, expect, it } from 'vitest'
 import {
+  LEGACY_ROW_ID,
+  LEGACY_ROW_TITLE,
   NOTES_ROW_LIMIT,
   blankNoteDraft,
   draftWorthSaving,
+  legacyNoteField,
+  legacyNoteText,
+  legacyRow,
   noteRow,
   overflowLabel,
   shortAgo,
@@ -55,6 +60,24 @@ describe('a row', () => {
   })
 })
 
+describe('the legacy row', () => {
+  it('is named for the field, not for its first line', () => {
+    // The point of the row is "this is the notes field", so a first line that
+    // happens to read like a title must not stand in for that.
+    expect(legacyRow(NOW, NOW).title).toBe(LEGACY_ROW_TITLE)
+  })
+
+  it('carries an id nothing real can collide with', () => {
+    expect(legacyRow(NOW, NOW).id).toBe(LEGACY_ROW_ID)
+    expect(LEGACY_ROW_ID).toBeLessThan(0)
+  })
+
+  it('is told apart from a real note by its kind, not by a nullable id', () => {
+    expect(legacyRow(NOW, NOW).kind).toBe('legacy')
+    expect(noteRow(note(), NOW).kind).toBe('note')
+  })
+})
+
 describe('how many rows are shown', () => {
   const rows = Array.from({ length: 6 }, (_, i) => noteRow(note({ id: i + 1 }), NOW))
 
@@ -90,5 +113,23 @@ describe('the draft note', () => {
 
   it('is not worth writing when both fields are only whitespace', () => {
     expect(draftWorthSaving({ title: '   ', text: '\n\n' })).toBe(false)
+  })
+})
+
+describe('the legacy string', () => {
+  it('is only the task notes field', () => {
+    expect(legacyNoteField('task')).toBe('notes')
+    // A todo's description and a goal's are their own labelled fields; this
+    // feature must not eat them.
+    expect(legacyNoteField('todo')).toBe(null)
+    expect(legacyNoteField('goal')).toBe(null)
+  })
+
+  it('is read off the item, and whitespace does not count as text', () => {
+    expect(legacyNoteText('task', { notes: 'the old text' })).toBe('the old text')
+    expect(legacyNoteText('task', { notes: '   \n ' })).toBe('')
+    expect(legacyNoteText('task', {})).toBe('')
+    expect(legacyNoteText('todo', { description: 'kept' })).toBe('')
+    expect(legacyNoteText('task', null)).toBe('')
   })
 })
