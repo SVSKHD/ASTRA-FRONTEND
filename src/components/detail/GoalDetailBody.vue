@@ -348,7 +348,7 @@ defineExpose({
       />
     </DetailSection>
 
-    <NotesSection type="goal" :item-id="goalId" />
+    <NotesSection type="goal" :id="goalId" />
 
     <DetailSection label="Activity" collapsible :start-open="false">
       <span class="gdb__muted">Created {{ relativeStamp(goal.createdAt) }}</span>

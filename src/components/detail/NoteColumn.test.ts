@@ -117,7 +117,13 @@ describe('the attached notes list', () => {
 
   it('detaching keeps the note and only drops the reference', async () => {
     const { app, wrapper } = await mountHost()
-    await wrapper.find('.nsec__detach').trigger('click')
+    // Detach moved onto the row's ⋯ menu when the section became an
+    // attachment surface (section 22a); the behaviour it guards has not.
+    wrapper
+      .findComponent({ name: 'NotesSection' })
+      .findComponent({ name: 'Dropdown' })
+      .vm.$emit('select', 'detach')
+    await wrapper.vm.$nextTick()
     expect(app.notes).toHaveLength(1)
     expect(app.tasks[0].noteIds).toEqual([])
     expect(wrapper.findAll('.nsec__open')).toHaveLength(0)
@@ -125,7 +131,10 @@ describe('the attached notes list', () => {
 
   it('+ New note creates one, attaches it and opens it', async () => {
     const { app, wrapper } = await mountHost()
-    await wrapper.find('.nsec__add').trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === '+ New note')!
+      .trigger('click')
     await settle(wrapper, '.ncol')
     expect(app.notes).toHaveLength(2)
     expect(app.noteColumnId).toBe(app.notes[1].id)

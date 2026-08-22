@@ -547,7 +547,7 @@ defineExpose({
         </div>
       </DetailSection>
 
-      <NotesSection type="task" :item-id="taskId" />
+      <NotesSection type="task" :id="taskId" />
 
       <DetailSection label="Activity" collapsible :start-open="false">
         <div class="tdb__muted">Created {{ relativeStamp(task.createdAt) }}</div>

@@ -2511,6 +2511,13 @@ export const useAppStore = defineStore('app', () => {
     writeNoteIds(type, itemId, withId(currentNoteIds(type, itemId), noteId))
     writeNoteRefs(noteId, withRef(note.attachedTo, { type, id: itemId }))
   }
+  // The picker's write (section 22b): several notes attached in one pass, so
+  // both ends of every pair move inside a single debounced workspace save —
+  // this app's writeBatch. Attaching them one at a time would be the same
+  // number of writes and one save per note.
+  function attachNotes(type: NoteOwnerType, itemId: number, noteIds: readonly number[]) {
+    for (const noteId of noteIds) attachNote(type, itemId, noteId)
+  }
   function detachNote(type: NoteOwnerType, itemId: number, noteId: number) {
     writeNoteIds(type, itemId, withoutId(currentNoteIds(type, itemId), noteId))
     const note = notes.value.find((n) => n.id === noteId)
@@ -6318,6 +6325,7 @@ export const useAppStore = defineStore('app', () => {
     addStock,
     updateStock,
     attachNote,
+    attachNotes,
     detachNote,
     noteColumnId,
     noteColumnOpen,
