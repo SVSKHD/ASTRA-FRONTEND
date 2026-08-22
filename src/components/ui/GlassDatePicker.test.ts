@@ -2,6 +2,7 @@
 // accessibility contract (dialog semantics, focus return, disabled days).
 import { beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
@@ -9,6 +10,10 @@ function mountPicker(props: Record<string, unknown> = {}) {
   return mount(GlassDatePicker, {
     props: { modelValue: '2024-06-12', ...props },
     attachTo: document.body,
+    // The panel is portalled to the body since acceptance 119, so it is stubbed
+    // in place here — these tests are about what the panel does, and the
+    // portal itself is asserted separately below.
+    global: { stubs: { teleport: true } },
   })
 }
 
@@ -195,5 +200,52 @@ describe('GlassDatePicker — modes', () => {
     const wrapper = mountPicker({ inline: true })
     expect(wrapper.find('.gdp__trigger').exists()).toBe(false)
     expect(wrapper.find('.gdp__panel').exists()).toBe(true)
+  })
+})
+
+// Acceptance 119: the panel is layered above every dialog rather than inside
+// the field that opened it.
+describe('GlassDatePicker — the portal', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('renders the panel outside its own field, on the body', async () => {
+    const wrapper = mount(GlassDatePicker, {
+      props: { modelValue: '2024-06-12' },
+      attachTo: document.body,
+    })
+    await wrapper.get('.gdp__trigger').trigger('click')
+    // Not inside the component's own subtree — that subtree is what a dialog's
+    // overflow and stacking context would clip it to.
+    expect(wrapper.find('.gdp__panel').exists()).toBe(false)
+    // Earlier tests in this file leave their stubbed-in-place panels attached,
+    // so the assertion is that one exists free of any field, not that every
+    // panel in the document does.
+    const panels = Array.from(document.body.querySelectorAll('.gdp__panel'))
+    expect(panels.some((el) => el.closest('.gdp') === null)).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('is positioned from the viewport rather than from its field', async () => {
+    const wrapper = mount(GlassDatePicker, {
+      props: { modelValue: '2024-06-12' },
+      attachTo: document.body,
+    })
+    await wrapper.get('.gdp__trigger').trigger('click')
+    await nextTick()
+    const panel = document.body.querySelector('.gdp__panel') as HTMLElement
+    expect(panel.classList.contains('gdp__panel--portal')).toBe(true)
+    expect(panel.style.top).not.toBe('')
+    expect(panel.style.left).not.toBe('')
+    wrapper.unmount()
+  })
+
+  it('stays in the flow when it is asked to render inline', () => {
+    const wrapper = mount(GlassDatePicker, {
+      props: { modelValue: '2024-06-12', inline: true },
+      attachTo: document.body,
+    })
+    expect(wrapper.find('.gdp__panel').exists()).toBe(true)
+    expect(wrapper.find('.gdp__panel--portal').exists()).toBe(false)
+    wrapper.unmount()
   })
 })

@@ -10,11 +10,21 @@
 //
 // Desktop opens a popover, mobile a bottom sheet. Both are role="dialog",
 // aria-modal, focus-trapped, and return focus to the trigger on close.
+//
+// Both are also portalled to the body (section 22e, acceptance 119). A panel
+// positioned inside its own field is clipped by the first ancestor that
+// scrolls, and `position: fixed` does not save it either: the detail dialog
+// carries a transform and a backdrop-filter, each of which makes it the
+// containing block for fixed children. So the panel leaves the flow entirely
+// and is handed coordinates, computed by utils/popoverPlace — which is also
+// what gives it collision detection, since something has to decide what
+// happens when there is no room below the field.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { storeToRefs } from 'pinia'
 import { useDatePicker } from '@/composables/useDatePicker'
 import { formatDisplay, type DateRange, type PickerMode } from '@/utils/datePicker'
+import { placePopover, type Placed } from '@/utils/popoverPlace'
 
 const props = withDefaults(
   defineProps<{
@@ -74,10 +84,44 @@ const displayText = computed(
 const showTimeColumn = computed(() => props.mode === 'datetime' || props.mode === 'time')
 const showGrid = computed(() => props.mode !== 'time')
 
+// --- where the portalled panel goes -----------------------------------------
+// Measured rather than guessed: the trigger's box and the panel's own are both
+// read from the DOM, so a panel that grew a time column lands differently from
+// one that did not.
+const placed = ref<Placed | null>(null)
+const portalled = computed(() => !props.inline && !asSheet.value)
+const panelStyle = computed(() =>
+  portalled.value && placed.value
+    ? {
+        top: `${placed.value.top}px`,
+        left: `${placed.value.left}px`,
+        maxHeight: `${placed.value.maxHeight}px`,
+      }
+    : undefined,
+)
+
+function reposition() {
+  if (!portalled.value || !picker.open.value) return
+  const anchor = trigger.value?.getBoundingClientRect()
+  if (!anchor) return
+  const box = panel.value?.getBoundingClientRect()
+  placed.value = placePopover(
+    { top: anchor.top, left: anchor.left, width: anchor.width, height: anchor.height },
+    { top: 0, left: 0, width: box?.width || 320, height: box?.height || 380 },
+    { width: window.innerWidth, height: window.innerHeight },
+  )
+}
+
 function openPanel() {
   if (props.disabled) return
   picker.open.value = true
-  void nextTick(() => gridEl.value?.focus())
+  void nextTick(() => {
+    // Twice: once against the fallback size so the panel is never painted at
+    // the top-left of the window, then again once it has a real height.
+    reposition()
+    void nextTick(reposition)
+    gridEl.value?.focus()
+  })
 }
 function closePanel(returnFocus = true) {
   picker.open.value = false
@@ -121,6 +165,21 @@ function onDocumentPointer(event: MouseEvent) {
 }
 onMounted(() => document.addEventListener('mousedown', onDocumentPointer))
 onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentPointer))
+
+// A portalled panel is no longer carried along by whatever scrolls under it, so
+// it has to be told. Capture-phase, because the scroller is usually an ancestor
+// of the trigger rather than the window.
+function onViewportChange() {
+  reposition()
+}
+onMounted(() => {
+  window.addEventListener('scroll', onViewportChange, true)
+  window.addEventListener('resize', onViewportChange)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onViewportChange, true)
+  window.removeEventListener('resize', onViewportChange)
+})
 
 // Scrolling the chosen time into view is what makes the column usable at all —
 // otherwise it opens at midnight every time.
@@ -169,154 +228,164 @@ function onClear() {
       >
     </button>
 
-    <!-- The scrim only exists for the sheet; a popover closes on outside click. -->
-    <div v-if="picker.open.value && asSheet" class="gdp__scrim" @click="closePanel()"></div>
+    <!-- Portalled unless it is inline, which renders in the flow on purpose.
+         `to="body"` puts it above every dialog in the app rather than inside
+         one of them (acceptance 119). -->
+    <Teleport to="body" :disabled="inline">
+      <!-- The scrim only exists for the sheet; a popover closes on outside click. -->
+      <div v-if="picker.open.value && asSheet" class="gdp__scrim" @click="closePanel()"></div>
 
-    <div
-      v-if="showPanel"
-      ref="panel"
-      class="gdp__panel"
-      :class="{ 'gdp__panel--sheet': asSheet, 'gdp__panel--inline': inline }"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="label || 'Choose a date'"
-      @keydown="onPanelKeydown"
-    >
-      <!-- Typed entry: "tmrw 6pm", "25/12", "in 3 days". -->
-      <div class="gdp__typed">
-        <input
-          v-model="picker.typed.value"
-          class="gdp__input"
-          type="text"
-          :placeholder="mode === 'time' ? '6pm, 18:30' : 'tomorrow, 25/12, in 3 days'"
-          :aria-invalid="!!picker.typedError.value"
-          @keydown.enter.prevent="picker.submitTyped()"
-        />
-      </div>
-      <p v-if="picker.typedError.value" class="gdp__error" role="alert">
-        {{ picker.typedError.value }}
-      </p>
-
-      <div v-if="showGrid" class="gdp__chips">
-        <button
-          v-for="preset in picker.presetChips.value"
-          :key="preset.label"
-          type="button"
-          class="gdp__chip"
-          @click="picker.applyPreset(preset.ymd)"
-        >
-          {{ preset.label }}
-        </button>
-      </div>
-
-      <div class="gdp__body">
-        <div v-if="showGrid" class="gdp__calendar">
-          <div class="gdp__nav">
-            <button
-              type="button"
-              class="gdp__navBtn"
-              aria-label="Previous year"
-              @click="picker.goYear(-1)"
-            >
-              «
-            </button>
-            <button
-              type="button"
-              class="gdp__navBtn"
-              aria-label="Previous month"
-              @click="picker.goMonth(-1)"
-            >
-              ‹
-            </button>
-            <span class="gdp__month" aria-live="polite">{{ picker.monthTitle.value }}</span>
-            <button
-              type="button"
-              class="gdp__navBtn"
-              aria-label="Next month"
-              @click="picker.goMonth(1)"
-            >
-              ›
-            </button>
-            <button
-              type="button"
-              class="gdp__navBtn"
-              aria-label="Next year"
-              @click="picker.goYear(1)"
-            >
-              »
-            </button>
-          </div>
-
-          <div class="gdp__weekdays" aria-hidden="true">
-            <span v-for="wd in picker.weekdays.value" :key="wd">{{ wd }}</span>
-          </div>
-
-          <div
-            ref="gridEl"
-            class="gdp__grid"
-            role="grid"
-            tabindex="0"
-            :aria-activedescendant="`gdp-day-${picker.focused.value}`"
-            @keydown="picker.onGridKeydown"
-          >
-            <div v-for="(week, wi) in picker.weeks.value" :key="wi" class="gdp__week" role="row">
-              <button
-                v-for="cell in week"
-                :id="`gdp-day-${cell.ymd}`"
-                :key="cell.ymd"
-                type="button"
-                role="gridcell"
-                class="gdp__day"
-                :class="{
-                  'is-out': !cell.inMonth,
-                  'is-today': cell.isToday,
-                  'is-selected': picker.isSelected(cell.ymd),
-                  'is-inrange': picker.inRange(cell.ymd),
-                  'is-focused': picker.focused.value === cell.ymd,
-                }"
-                :tabindex="-1"
-                :aria-selected="picker.isSelected(cell.ymd)"
-                :disabled="picker.disabled(cell.ymd)"
-                @click="picker.selectDate(cell.ymd)"
-              >
-                {{ cell.day }}
-              </button>
-            </div>
-          </div>
+      <div
+        v-if="showPanel"
+        ref="panel"
+        class="gdp__panel"
+        :class="{
+          'gdp__panel--sheet': asSheet,
+          'gdp__panel--inline': inline,
+          'gdp__panel--portal': portalled,
+        }"
+        :style="panelStyle"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="label || 'Choose a date'"
+        @keydown="onPanelKeydown"
+      >
+        <!-- Typed entry: "tmrw 6pm", "25/12", "in 3 days". -->
+        <div class="gdp__typed">
+          <input
+            v-model="picker.typed.value"
+            class="gdp__input"
+            type="text"
+            :placeholder="mode === 'time' ? '6pm, 18:30' : 'tomorrow, 25/12, in 3 days'"
+            :aria-invalid="!!picker.typedError.value"
+            @keydown.enter.prevent="picker.submitTyped()"
+          />
         </div>
+        <p v-if="picker.typedError.value" class="gdp__error" role="alert">
+          {{ picker.typedError.value }}
+        </p>
 
-        <!-- 15-minute steps; free entry lives in the typed field above. -->
-        <div
-          v-if="showTimeColumn"
-          ref="timeListEl"
-          class="gdp__times"
-          role="listbox"
-          aria-label="Time"
-        >
+        <div v-if="showGrid" class="gdp__chips">
           <button
-            v-for="time in picker.times.value"
-            :key="time"
+            v-for="preset in picker.presetChips.value"
+            :key="preset.label"
             type="button"
-            role="option"
-            class="gdp__time"
-            :data-selected="picker.selectedTime.value === time"
-            :aria-selected="picker.selectedTime.value === time"
-            :class="{ 'is-selected': picker.selectedTime.value === time }"
-            @click="(picker.selectTime(time), closePanel())"
+            class="gdp__chip"
+            @click="picker.applyPreset(preset.ymd)"
           >
-            {{ time }}
+            {{ preset.label }}
           </button>
         </div>
-      </div>
 
-      <!-- Announced as focus moves, so a screen reader follows the grid. -->
-      <p class="gdp__sr" aria-live="polite">{{ picker.announcement.value }}</p>
+        <div class="gdp__body">
+          <div v-if="showGrid" class="gdp__calendar">
+            <div class="gdp__nav">
+              <button
+                type="button"
+                class="gdp__navBtn"
+                aria-label="Previous year"
+                @click="picker.goYear(-1)"
+              >
+                «
+              </button>
+              <button
+                type="button"
+                class="gdp__navBtn"
+                aria-label="Previous month"
+                @click="picker.goMonth(-1)"
+              >
+                ‹
+              </button>
+              <span class="gdp__month" aria-live="polite">{{ picker.monthTitle.value }}</span>
+              <button
+                type="button"
+                class="gdp__navBtn"
+                aria-label="Next month"
+                @click="picker.goMonth(1)"
+              >
+                ›
+              </button>
+              <button
+                type="button"
+                class="gdp__navBtn"
+                aria-label="Next year"
+                @click="picker.goYear(1)"
+              >
+                »
+              </button>
+            </div>
 
-      <div v-if="!inline" class="gdp__foot">
-        <button v-if="clearable" type="button" class="gdp__chip" @click="onClear">Clear</button>
-        <button type="button" class="gdp__chip" @click="closePanel()">Done</button>
+            <div class="gdp__weekdays" aria-hidden="true">
+              <span v-for="wd in picker.weekdays.value" :key="wd">{{ wd }}</span>
+            </div>
+
+            <div
+              ref="gridEl"
+              class="gdp__grid"
+              role="grid"
+              tabindex="0"
+              :aria-activedescendant="`gdp-day-${picker.focused.value}`"
+              @keydown="picker.onGridKeydown"
+            >
+              <div v-for="(week, wi) in picker.weeks.value" :key="wi" class="gdp__week" role="row">
+                <button
+                  v-for="cell in week"
+                  :id="`gdp-day-${cell.ymd}`"
+                  :key="cell.ymd"
+                  type="button"
+                  role="gridcell"
+                  class="gdp__day"
+                  :class="{
+                    'is-out': !cell.inMonth,
+                    'is-today': cell.isToday,
+                    'is-selected': picker.isSelected(cell.ymd),
+                    'is-inrange': picker.inRange(cell.ymd),
+                    'is-focused': picker.focused.value === cell.ymd,
+                  }"
+                  :tabindex="-1"
+                  :aria-selected="picker.isSelected(cell.ymd)"
+                  :disabled="picker.disabled(cell.ymd)"
+                  @click="picker.selectDate(cell.ymd)"
+                >
+                  {{ cell.day }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 15-minute steps; free entry lives in the typed field above. -->
+          <div
+            v-if="showTimeColumn"
+            ref="timeListEl"
+            class="gdp__times"
+            role="listbox"
+            aria-label="Time"
+          >
+            <button
+              v-for="time in picker.times.value"
+              :key="time"
+              type="button"
+              role="option"
+              class="gdp__time"
+              :data-selected="picker.selectedTime.value === time"
+              :aria-selected="picker.selectedTime.value === time"
+              :class="{ 'is-selected': picker.selectedTime.value === time }"
+              @click="(picker.selectTime(time), closePanel())"
+            >
+              {{ time }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Announced as focus moves, so a screen reader follows the grid. -->
+        <p class="gdp__sr" aria-live="polite">{{ picker.announcement.value }}</p>
+
+        <div v-if="!inline" class="gdp__foot">
+          <button v-if="clearable" type="button" class="gdp__chip" @click="onClear">Clear</button>
+          <button type="button" class="gdp__chip" @click="closePanel()">Done</button>
+        </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -400,10 +469,13 @@ function onClear() {
   --gdp-font: 15px;
 }
 
+/* Above the detail dialog (z-index 61) and the note sheet above it (62): a
+   portalled panel that layered under the dialog it was opened from would be
+   exactly the bug section 22e is about. */
 .gdp__scrim {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 80;
   background: color-mix(in oklch, var(--glass-solid) 55%, transparent);
 }
 
@@ -411,7 +483,7 @@ function onClear() {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  z-index: 41;
+  z-index: 81;
   width: min(320px, 90vw);
   display: flex;
   flex-direction: column;
@@ -435,6 +507,15 @@ function onClear() {
 .gdp__panel--inline {
   position: static;
   width: 100%;
+}
+/* Portalled: the coordinates come from placePopover, and the panel scrolls
+   inside its own max-height rather than growing past the edge of the window. */
+.gdp__panel--portal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .gdp__panel--sheet {
   position: fixed;
