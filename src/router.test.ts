@@ -64,6 +64,15 @@ describe('routes', () => {
     expect(r.resolve('/trips/abc123').name).toBe('share-trips')
   })
 
+  it("routes a numeric /notes/:id to the note's own page, letters to the share", async () => {
+    const r = await makeRouter()
+    // Section 22c's "Open full". `notes` is a share plural too, so the numeric
+    // constraint is what keeps the two apart.
+    expect(r.resolve('/notes/10').name).toBe('note-page')
+    expect(r.resolve('/notes/10').params.noteId).toBe('10')
+    expect(r.resolve('/notes/abc123').name).toBe('share-notes')
+  })
+
   it('resolves the public /share/<type>/<id> route for every item type', async () => {
     const r = await makeRouter()
     for (const type of ALL_TYPES) {

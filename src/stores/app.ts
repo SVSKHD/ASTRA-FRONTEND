@@ -4925,6 +4925,15 @@ export const useAppStore = defineStore('app', () => {
   function setDetailSplit(pct: number) {
     detailSplit.value = clampSplit(pct)
   }
+  // A note's own page (section 22c's "Open full"). Opening one closes whatever
+  // dialog it was opened from, for the same reason the goal page does: a note
+  // read full-screen over a dialog showing the same note is one note edited in
+  // two places.
+  function openNotePage(noteId: number) {
+    if (detailStack.value.length) closeDetail()
+    if (itemDialog.value) closeItemDialog()
+    openNoteView(noteId)
+  }
   // The wide page. Opening one closes the dialog — they are two views of the
   // same goal, and leaving both up would leave the reader editing through a
   // dialog over a page showing the same fields.
@@ -6427,6 +6436,7 @@ export const useAppStore = defineStore('app', () => {
     startEdit,
     newNote,
     openNoteView,
+    openNotePage,
     editNoteView,
     saveNoteView,
     closeNoteView,

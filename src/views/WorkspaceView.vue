@@ -240,6 +240,20 @@ watch(
   { immediate: true },
 )
 
+// /notes/:noteId is the note's own page (section 22c's "Open full"). It is the
+// full-screen reader the notes drawer already opens, given a URL — so a note
+// read beside a task can be handed to somebody, or reopened tomorrow.
+watch(
+  () => (route.name === 'note-page' ? String(route.params.noteId ?? '') : ''),
+  (raw) => {
+    if (!raw) return
+    const parsed = Number.parseInt(raw, 10)
+    if (Number.isNaN(parsed)) return
+    app.openNotePage(parsed)
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
   lock.start()
   clockTimer = setInterval(() => ui.tick(), 60000)

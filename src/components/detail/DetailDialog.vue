@@ -450,6 +450,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
               <div class="detail__title detail__title--aside">
                 <slot name="aside-title">{{ asideTitle }}</slot>
               </div>
+              <div class="detail__headslot"><slot name="aside-header" /></div>
               <button
                 type="button"
                 class="detail__icon"
@@ -506,6 +507,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
           <div class="detail__title detail__title--aside">
             <slot name="aside-title">{{ asideTitle }}</slot>
           </div>
+          <div class="detail__headslot"><slot name="aside-header" /></div>
           <button
             type="button"
             class="detail__icon"

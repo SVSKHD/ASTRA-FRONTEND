@@ -7,6 +7,7 @@
 // dialog is a lot of machinery for a workspace that may never open one, and the
 // markdown editor it contains is the single heaviest thing in it.
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -15,6 +16,8 @@ import { useInlineField } from '@/composables/useInlineField'
 import AutoTextarea from '@/components/ui/AutoTextarea.vue'
 import DetailDialog from '@/components/detail/DetailDialog.vue'
 import DetailPeek from '@/components/detail/DetailPeek.vue'
+import Dropdown from '@/components/ui/Dropdown.vue'
+import { copyAsMarkdown } from '@/utils/noteExport'
 import { noteColumnMode, noteRowLabel } from '@/utils/noteColumn'
 import { useUiStore } from '@/stores/ui'
 import type { DetailKind } from '@/utils/detailUrl'
@@ -42,6 +45,7 @@ const NoteColumn = defineAsyncComponent({
 
 const app = useAppStore()
 const ui = useUiStore()
+const router = useRouter()
 const { isMobile } = useStyles()
 const { vw } = storeToRefs(ui)
 const {
@@ -74,6 +78,48 @@ const asideTitle = computed(() => (openNote.value ? noteRowLabel(openNote.value)
 function onCloseAside() {
   noteBody.value?.flush?.()
   app.closeNoteColumn()
+}
+
+// The note's own ⋯ (section 22c). Detach is only offered where there is
+// something to detach from — a note can be open in the column of a frame it
+// happens not to be attached to, after a step to the next task.
+const noteAttachedHere = computed(() => {
+  const current = detailFrame.value
+  if (!current || noteColumnId.value == null) return false
+  return app
+    .noteOwners(noteColumnId.value)
+    .some((ref) => ref.type === current.kind && ref.id === current.id)
+})
+const noteMenu = computed(() => [
+  { value: 'full', label: 'Open full' },
+  { value: 'copy', label: 'Copy as markdown' },
+  { value: 'detach', label: 'Detach', disabled: !noteAttachedHere.value },
+  { value: 'delete', label: 'Delete' },
+])
+
+async function onNoteMenu(action: string) {
+  const noteId = noteColumnId.value
+  if (noteId == null) return
+  // Whatever the action, what is in flight goes out first — including the one
+  // that closes this dialog underneath it.
+  noteBody.value?.flush?.()
+  if (action === 'full') {
+    void router.push(`/notes/${noteId}`)
+  } else if (action === 'copy') {
+    const source = notes.value.find((n) => n.id === noteId)?.text ?? ''
+    app.showToastMsg(
+      (await copyAsMarkdown(source)) ? 'Copied as markdown' : 'Could not reach the clipboard',
+    )
+  } else if (action === 'detach') {
+    const current = detailFrame.value
+    if (!current) return
+    // The reference only: the note stays in the notes view (acceptance 116).
+    app.detachNote(current.kind, current.id, noteId)
+    app.closeNoteColumn()
+  } else if (action === 'delete') {
+    app.closeNoteColumn()
+    app.deleteWithUndo('notes', 'note', noteId)
+  }
 }
 
 const frame = computed(() => detailFrame.value)
@@ -231,6 +277,10 @@ function onOpen(target: { kind: DetailKind; id: number }) {
     <p v-else-if="frame" class="dhost__missing">
       This {{ frame.kind }} is not in your workspace. It may have been deleted, or still be loading.
     </p>
+
+    <template v-if="noteOpen" #aside-header>
+      <Dropdown label="⋯" :items="noteMenu" @select="onNoteMenu" />
+    </template>
 
     <template v-if="noteOpen" #aside>
       <NoteColumn

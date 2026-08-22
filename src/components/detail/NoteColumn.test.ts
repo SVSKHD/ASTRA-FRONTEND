@@ -84,7 +84,11 @@ async function mountHost(viewportWidth = 1440) {
   app.attachNote('task', 1, 10)
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: Blank }],
+    routes: [
+      { path: '/', component: Blank },
+      // Section 22c's "Open full" target, so the menu has somewhere to push to.
+      { path: '/notes/:noteId', name: 'note-page', component: Blank },
+    ],
   })
   await router.push('/?task=1')
   await router.isReady()
@@ -264,5 +268,64 @@ describe('closing, in order (acceptance 109)', () => {
     await flushPromises()
     // The note was attached to the task that just left the screen.
     expect(app.noteColumnId).toBeNull()
+  })
+})
+
+// Section 22c: the note's own header carries its actions.
+describe('the note header menu', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  async function openColumn() {
+    const context = await mountHost()
+    context.app.openNoteColumn(10)
+    await settle(context.wrapper, '.ncol')
+    return context
+  }
+
+  const asideMenu = (wrapper: Wrapper) =>
+    wrapper
+      .findAllComponents({ name: 'Dropdown' })
+      .find((menu) =>
+        (menu.props('items') as { value: string }[]).some((item) => item.value === 'full'),
+      )!
+
+  it('offers open full, copy as markdown, detach and delete', async () => {
+    const { wrapper } = await openColumn()
+    const items = asideMenu(wrapper).props('items') as { value: string }[]
+    expect(items.map((i) => i.value)).toEqual(['full', 'copy', 'detach', 'delete'])
+  })
+
+  it('detaches without deleting (acceptance 116)', async () => {
+    const { app, wrapper } = await openColumn()
+    asideMenu(wrapper).vm.$emit('select', 'detach')
+    await flushPromises()
+    expect(app.notes).toHaveLength(1)
+    expect(app.tasks[0].noteIds).toEqual([])
+    expect(app.noteColumnId).toBe(null)
+  })
+
+  it('deletes the note and closes the column with it', async () => {
+    const { app, wrapper } = await openColumn()
+    asideMenu(wrapper).vm.$emit('select', 'delete')
+    await flushPromises()
+    expect(app.notes).toEqual([])
+    expect(app.noteColumnId).toBe(null)
+  })
+
+  it('opens the note on its own page', async () => {
+    const { wrapper } = await openColumn()
+    asideMenu(wrapper).vm.$emit('select', 'full')
+    await flushPromises()
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/notes/10')
+  })
+
+  it('offers no detach for a note that is not attached to what is open', async () => {
+    const { app, wrapper } = await openColumn()
+    app.detachNote('task', 1, 10)
+    await flushPromises()
+    const detach = (
+      asideMenu(wrapper).props('items') as { value: string; disabled?: boolean }[]
+    ).find((i) => i.value === 'detach')!
+    expect(detach.disabled).toBe(true)
   })
 })
