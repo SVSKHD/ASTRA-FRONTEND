@@ -3,7 +3,7 @@
 // checklist and can have existing tasks/todos attached by reference. This view is
 // the list (card grid / mobile list) with status filter, sort, and grip-drag
 // reorder; selecting a card opens GoalDetail in place.
-import { computed, defineAsyncComponent, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, defineAsyncComponent, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
@@ -89,6 +89,16 @@ function openGoal(goalId: number) {
 function goImport() {
   router.push('/import/goals')
 }
+
+// The one automatic open (section 23). Watched rather than done on mount: the
+// workspace arrives after the first paint, and the seen flag comes with it —
+// checking before it lands would open the panel for everybody, every load. The
+// store owns the decision so the guards are testable.
+watch(
+  () => [app.cloudReady, goals.value.length] as const,
+  () => app.maybeAutoOpenGoalHelp(),
+  { immediate: true },
+)
 
 // The whole card is the open target, so it has to distinguish a tap from the
 // press-and-hold that starts a reorder drag (section 18b) — otherwise every
@@ -243,6 +253,7 @@ function cellStyle(id: number) {
         @update:sort="sortKey = $event"
         @import="goImport"
         @new="onNew"
+        @help="app.openGoalHelp()"
       />
 
       <!-- Skeletons while the workspace is still arriving. Same box model as

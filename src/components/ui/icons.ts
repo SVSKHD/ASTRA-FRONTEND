@@ -48,6 +48,7 @@ export const ICONS = {
     '<path d="M14 4h6v6" /><path d="M20 4 10 14" /><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />',
   football:
     '<circle cx="12" cy="12" r="9" /><path d="M12 8.8 15 11 13.9 14.6 10.1 14.6 9 11Z" /><path d="M12 8.8V3.2" /><path d="M15 11 20.4 9.2" /><path d="M13.9 14.6 17.2 19.2" /><path d="M10.1 14.6 6.8 19.2" /><path d="M9 11 3.6 9.2" />',
+  help: '<circle cx="12" cy="12" r="9.25" /><path d="M9.4 9.3a2.7 2.7 0 0 1 5.25.9c0 1.8-2.65 2.7-2.65 2.7" /><path d="M12 17.1h.01" />',
   globe:
     '<circle cx="12" cy="12" r="9" /><line x1="3" y1="12" x2="21" y2="12" /><ellipse cx="12" cy="12" rx="4" ry="9" />',
   'globe-off': '<circle cx="12" cy="12" r="9" /><line x1="5.6" y1="5.6" x2="18.4" y2="18.4" />',

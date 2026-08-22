@@ -53,6 +53,15 @@ const dragActive = ref(false)
 // unsupported API fails silently — we never surface an error for this convenience.
 onMounted(async () => {
   if (raw.value) return
+  // A sample handed over by the help panel's "Load sample goal" (section 23).
+  // Taken rather than read, so re-opening this screen does not overwrite what
+  // the reader has since pasted themselves.
+  const seed = app.takeGoalImportSeed()
+  if (seed) {
+    raw.value = seed
+    doParse()
+    return
+  }
   try {
     const text = (await navigator.clipboard.readText())?.trim()
     if (text && /spasta\.online|[?&]project=/.test(text)) {
