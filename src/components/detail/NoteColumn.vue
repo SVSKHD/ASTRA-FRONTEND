@@ -14,7 +14,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useInlineField } from '@/composables/useInlineField'
 import AutoTextarea from '@/components/ui/AutoTextarea.vue'
-import MarkdownEditor from '@/components/notes/MarkdownEditor.vue'
+import NoteEditor from '@/components/notes/NoteEditor.vue'
 import { noteRowLabel } from '@/utils/noteColumn'
 
 const props = defineProps<{ noteId: number; autofocus?: boolean }>()
@@ -112,7 +112,7 @@ defineExpose({
 
     <!-- `narrow` because a half-width column split again is two useless
          columns; the editor falls back to source-only there. -->
-    <MarkdownEditor
+    <NoteEditor
       narrow
       :model-value="bodyText.draft.value"
       placeholder="Write in markdown"

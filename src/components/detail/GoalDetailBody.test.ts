@@ -232,7 +232,7 @@ describe('the description', () => {
     vi.useFakeTimers()
     const app = setup()
     const wrapper = mountBody()
-    wrapper.findComponent({ name: 'MarkdownEditor' }).vm.$emit('update:modelValue', 'What done is')
+    wrapper.findComponent({ name: 'NoteEditor' }).vm.$emit('update:modelValue', 'What done is')
     expect(app.goals[0].description).toBe('')
     vi.advanceTimersByTime(INLINE_SAVE_MS)
     expect(app.goals[0].description).toBe('What done is')

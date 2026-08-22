@@ -6,7 +6,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import TaskDetailBody from '@/components/detail/TaskDetailBody.vue'
 import { useAppStore } from '@/stores/app'
-import { INLINE_SAVE_MS } from '@/composables/useInlineField'
 import type { Task } from '@/types'
 
 vi.mock('vue-router', () => ({
@@ -62,7 +61,7 @@ describe('what the body shows', () => {
     void app
     const wrapper = mountBody(1)
     expect(wrapper.text()).toContain('Details')
-    expect(wrapper.text()).toContain('Description')
+    expect(wrapper.text()).toContain('Notes')
   })
 
   it('shows every section the spec names', () => {
@@ -70,7 +69,9 @@ describe('what the body shows', () => {
     const text = mountBody(1).text()
     for (const label of [
       'Details',
-      'Description',
+      // Description is gone: `task.notes` was the free-text notes box and
+      // section 22a retired it in favour of the notes section below.
+      'Notes',
       'Subtasks',
       'Goals',
       'GitHub',
@@ -151,30 +152,36 @@ describe('the meta row', () => {
   })
 })
 
-describe('the description', () => {
-  beforeEach(() => setup())
-
-  it('autosaves after typing stops rather than on every keystroke', async () => {
-    vi.useFakeTimers()
-    const app = setup()
+// Section 22a: `task.notes` is no longer an editing surface. The string stays
+// readable through the notes section, which offers to make it a real note.
+describe('a task carrying legacy notes text (acceptance 117)', () => {
+  it('shows it as a row rather than as a box to type in', () => {
+    setup([makeTask(1, { notes: '# The old plan' })])
     const wrapper = mountBody(1)
-    const editor = wrapper.findComponent({ name: 'MarkdownEditor' })
-    editor.vm.$emit('update:modelValue', '# A plan')
-    expect(app.tasks[0].notes).toBe('')
-    vi.advanceTimersByTime(INLINE_SAVE_MS)
-    expect(app.tasks[0].notes).toBe('# A plan')
-    vi.useRealTimers()
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Convert to note')
   })
 
-  it('tells the dialog it has unsaved edits while the write is pending', async () => {
-    vi.useFakeTimers()
-    const app = setup()
+  it('offers nothing to convert when there is no legacy text', () => {
+    setup([makeTask(1, { notes: '' })])
+    expect(mountBody(1).text()).not.toContain('Convert to note')
+  })
+
+  it('converts it into a note without losing a character', async () => {
+    const app = setup([makeTask(1, { notes: '# The old plan\n\nwith detail' })])
     const wrapper = mountBody(1)
-    wrapper.findComponent({ name: 'MarkdownEditor' }).vm.$emit('update:modelValue', 'draft')
-    expect(app.detailDirty).toBe(true)
-    vi.advanceTimersByTime(INLINE_SAVE_MS)
-    expect(app.detailDirty).toBe(false)
-    vi.useRealTimers()
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Convert to note')!
+      .trigger('click')
+    expect(app.notes).toHaveLength(1)
+    expect(app.notes[0].text).toBe('# The old plan\n\nwith detail')
+    expect(app.notes[0].title).toBe('Notes')
+    expect(app.tasks[0].noteIds).toEqual([app.notes[0].id])
+    expect(app.notes[0].attachedTo).toEqual([{ type: 'task', id: 1 }])
+    // Only now is the string cleared.
+    expect(app.tasks[0].notes).toBe('')
+    expect(wrapper.text()).not.toContain('Convert to note')
   })
 })
 

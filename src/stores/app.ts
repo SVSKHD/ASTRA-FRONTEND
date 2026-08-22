@@ -86,6 +86,13 @@ import { stampOnDay, ymd } from '@/utils/dayGroups'
 import { isBlankNote, isNoteEditorMode, type NoteEditorMode } from '@/utils/notes'
 import { SPLIT_DEFAULT, clampSplit } from '@/utils/noteColumn'
 import {
+  LEGACY_ROW_TITLE,
+  draftWorthSaving,
+  legacyNoteField,
+  legacyNoteText,
+  type NoteDraft,
+} from '@/utils/notesSection'
+import {
   NOTE_OWNER_TYPES,
   buildAttachmentIndex,
   isNoteOwnerType,
@@ -2423,13 +2430,16 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Ideas --------------------------------------------------------------
+  // Returns the new id so the caller can attach notes to it in the same pass
+  // (section 22b) — the same contract addTask and addTodo already had.
   function addIdea(title: string, tag: string, fields: Partial<Idea> = {}) {
     const t = title.trim()
     if (!t) return
+    const newId = id()
     ideas.value = [
       ...ideas.value,
       {
-        id: id(),
+        id: newId,
         title: t,
         description: '',
         deadline: '',
@@ -2440,6 +2450,7 @@ export const useAppStore = defineStore('app', () => {
         ...stamps(),
       },
     ]
+    return newId
   }
   function updateIdea(iid: number, fields: Partial<Idea>) {
     const next =
@@ -2451,10 +2462,11 @@ export const useAppStore = defineStore('app', () => {
   function addStock(symbol: string, tag: string, fields: Partial<Stock> = {}) {
     const s = symbol.trim().toUpperCase()
     if (!s) return
+    const newId = id()
     stocks.value = [
       ...stocks.value,
       {
-        id: id(),
+        id: newId,
         symbol: s,
         name: '',
         why: '',
@@ -2466,6 +2478,7 @@ export const useAppStore = defineStore('app', () => {
         ...stamps(),
       },
     ]
+    return newId
   }
   function updateStock(sid: number, fields: Partial<Stock>) {
     const next =
@@ -2511,6 +2524,13 @@ export const useAppStore = defineStore('app', () => {
     writeNoteIds(type, itemId, withId(currentNoteIds(type, itemId), noteId))
     writeNoteRefs(noteId, withRef(note.attachedTo, { type, id: itemId }))
   }
+  // The picker's write (section 22b): several notes attached in one pass, so
+  // both ends of every pair move inside a single debounced workspace save —
+  // this app's writeBatch. Attaching them one at a time would be the same
+  // number of writes and one save per note.
+  function attachNotes(type: NoteOwnerType, itemId: number, noteIds: readonly number[]) {
+    for (const noteId of noteIds) attachNote(type, itemId, noteId)
+  }
   function detachNote(type: NoteOwnerType, itemId: number, noteId: number) {
     writeNoteIds(type, itemId, withoutId(currentNoteIds(type, itemId), noteId))
     const note = notes.value.find((n) => n.id === noteId)
@@ -2549,6 +2569,33 @@ export const useAppStore = defineStore('app', () => {
     ]
     writeNoteIds(type, itemId, withId(currentNoteIds(type, itemId), newId))
     return newId
+  }
+  // The migration off the free-text notes field (section 22a).
+  //
+  // A task written before notes were documents carries its notes as a string.
+  // This turns that string into a real note — created, attached, and only then
+  // is the string cleared, in that order and in one synchronous pass, so the
+  // text is never briefly nowhere and a failure to create leaves it exactly
+  // where it was (acceptance 117).
+  //
+  // Nothing runs it in bulk. It happens when somebody asks for it on the item
+  // in front of them, which is the same bargain the HTML-to-markdown migration
+  // made: the workspace moves over as it is used, and a task nobody opens keeps
+  // reading exactly as it always did.
+  function convertLegacyNotes(type: NoteOwnerType, itemId: number): number | null {
+    const field = legacyNoteField(type)
+    // Only owners that actually carry one; the cast is safe past this line
+    // because every type that has a legacy field is also an ItemType.
+    if (!field) return null
+    const item = itemById(type as ItemType, itemId)
+    const text = legacyNoteText(type, item ?? null)
+    if (!text) return null
+    const noteId = createNoteFor(type, itemId, LEGACY_ROW_TITLE)
+    if (noteId == null) return null
+    setNoteText(noteId, text)
+    // Only now: the note holds the text, so clearing the field loses nothing.
+    updateItem(type as ItemType, itemId, field, '')
+    return noteId
   }
   // Rename without going through the editor: the title is its own field, not
   // the first line of the body (section 21a).
@@ -4540,14 +4587,28 @@ export const useAppStore = defineStore('app', () => {
   // Fields a create form starts from. Dates default to today so the common case
   // is one field away from valid.
   function blankDraft(type: ItemType): Record<string, unknown> {
-    if (type === 'todo') return { text: '', description: '', tag: '' }
-    if (type === 'task') return { title: '', tag: '', deadline: '', notes: '', repo: '' }
+    // `noteIds` rather than a `notes` string since section 22a: what a create
+    // dialog holds is a list of notes to attach, not a copy of their text.
+    // `noteDraft` is the one note being written inside the dialog — held here
+    // rather than created on the first keystroke, so cancelling writes nothing
+    // (section 22b). Null means the editor is closed.
+    if (type === 'todo') return { text: '', description: '', tag: '', noteIds: [], noteDraft: null }
+    if (type === 'task')
+      return { title: '', tag: '', deadline: '', repo: '', noteIds: [], noteDraft: null }
     if (type === 'deadline') return { title: '', due: rel(0) }
     if (type === 'finance') return { amount: '', category: 'Food', note: '', date: rel(0) }
     if (type === 'trip')
       return { title: '', date: rel(0), description: '', tag: '', status: 'tovisit' }
     if (type === 'idea')
-      return { title: '', description: '', deadline: '', ideaType: 'feature', tag: '', noteIds: [] }
+      return {
+        title: '',
+        description: '',
+        deadline: '',
+        ideaType: 'feature',
+        tag: '',
+        noteIds: [],
+        noteDraft: null,
+      }
     if (type === 'stock')
       return {
         symbol: '',
@@ -4557,6 +4618,7 @@ export const useAppStore = defineStore('app', () => {
         watchPrice: '',
         tag: '',
         noteIds: [],
+        noteDraft: null,
       }
     if (type === 'reminder')
       return {
@@ -4863,6 +4925,15 @@ export const useAppStore = defineStore('app', () => {
   function setDetailSplit(pct: number) {
     detailSplit.value = clampSplit(pct)
   }
+  // A note's own page (section 22c's "Open full"). Opening one closes whatever
+  // dialog it was opened from, for the same reason the goal page does: a note
+  // read full-screen over a dialog showing the same note is one note edited in
+  // two places.
+  function openNotePage(noteId: number) {
+    if (detailStack.value.length) closeDetail()
+    if (itemDialog.value) closeItemDialog()
+    openNoteView(noteId)
+  }
   // The wide page. Opening one closes the dialog — they are two views of the
   // same goal, and leaving both up would leave the reader editing through a
   // dialog over a page showing the same fields.
@@ -4913,16 +4984,34 @@ export const useAppStore = defineStore('app', () => {
       return false
     }
 
+    // The notes a create dialog queued up. They are attached after the item
+    // exists, in the same synchronous pass — one debounced workspace save, so
+    // the item and both ends of every reference land together (section 22b).
+    const queuedNoteIds = Array.isArray(d.noteIds) ? (d.noteIds as number[]) : []
+    const queuedNoteDraft = (d.noteDraft ?? null) as NoteDraft | null
+    const attachQueued = (type: NoteOwnerType, itemId: number | undefined) => {
+      if (itemId == null) return
+      attachNotes(type, itemId, queuedNoteIds)
+      // The draft note becomes a real document here and nowhere else: created,
+      // attached and filled in the same pass as the item, so ADD writes both
+      // and Cancel writes neither (acceptance 113).
+      if (!draftWorthSaving(queuedNoteDraft)) return
+      const noteId = createNoteFor(type, itemId, queuedNoteDraft!.title.trim())
+      if (noteId != null) setNoteText(noteId, queuedNoteDraft!.text)
+    }
+
     if (state.type === 'todo') {
       if (!str('text')) return fail('Give the todo a title')
-      addTodo(str('text'), str('tag'), str('description'))
+      attachQueued('todo', addTodo(str('text'), str('tag'), str('description')))
     } else if (state.type === 'task') {
       if (!str('title')) return fail('Give the task a title')
-      addTask(str('title'), str('tag'), {
-        deadline: str('deadline'),
-        notes: str('notes'),
-        repo: str('repo'),
-      })
+      attachQueued(
+        'task',
+        addTask(str('title'), str('tag'), {
+          deadline: str('deadline'),
+          repo: str('repo'),
+        }),
+      )
     } else if (state.type === 'deadline') {
       if (!str('title')) return fail('Give the deadline a title')
       if (!str('due')) return fail('Pick a due date')
@@ -4948,21 +5037,28 @@ export const useAppStore = defineStore('app', () => {
       return true
     } else if (state.type === 'idea') {
       if (!str('title')) return fail('Give the idea a title')
-      addIdea(str('title'), str('tag'), {
-        description: str('description'),
-        deadline: str('deadline'),
-        ideaType: str('ideaType') || 'feature',
-        noteIds: Array.isArray(d.noteIds) ? (d.noteIds as number[]) : [],
-      })
+      // Through attachQueued rather than as a field: seeding `noteIds` alone
+      // writes one end of the reference and leaves the note not knowing where
+      // it lives until the next reconcile (section 21a).
+      attachQueued(
+        'idea',
+        addIdea(str('title'), str('tag'), {
+          description: str('description'),
+          deadline: str('deadline'),
+          ideaType: str('ideaType') || 'feature',
+        }),
+      )
     } else if (state.type === 'stock') {
       if (!str('symbol')) return fail('Give the stock a symbol')
-      addStock(str('symbol'), str('tag'), {
-        name: str('name'),
-        why: str('why'),
-        targetPrice: parseFloat(str('targetPrice')) || 0,
-        watchPrice: parseFloat(str('watchPrice')) || 0,
-        noteIds: Array.isArray(d.noteIds) ? (d.noteIds as number[]) : [],
-      })
+      attachQueued(
+        'stock',
+        addStock(str('symbol'), str('tag'), {
+          name: str('name'),
+          why: str('why'),
+          targetPrice: parseFloat(str('targetPrice')) || 0,
+          watchPrice: parseFloat(str('watchPrice')) || 0,
+        }),
+      )
     } else if (state.type === 'reminder') {
       if (!str('title')) return fail('Give the reminder a title')
       if (!str('start')) return fail('Pick a start date and time')
@@ -6318,6 +6414,7 @@ export const useAppStore = defineStore('app', () => {
     addStock,
     updateStock,
     attachNote,
+    attachNotes,
     detachNote,
     noteColumnId,
     noteColumnOpen,
@@ -6330,6 +6427,7 @@ export const useAppStore = defineStore('app', () => {
     notesFor,
     noteOwners,
     createNoteFor,
+    convertLegacyNotes,
     setNoteTitle,
     setNotePinned,
     setNoteTags,
@@ -6338,6 +6436,7 @@ export const useAppStore = defineStore('app', () => {
     startEdit,
     newNote,
     openNoteView,
+    openNotePage,
     editNoteView,
     saveNoteView,
     closeNoteView,

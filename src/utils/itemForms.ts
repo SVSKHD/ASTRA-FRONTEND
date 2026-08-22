@@ -15,7 +15,9 @@ export type FieldKind =
   | 'tag'
   | 'weekdays'
   | 'checkbox'
-  // A picker over existing notes; the value is a number[] of attached note ids.
+  // The notes attachment surface (section 22a): attach an existing note or
+  // write a new one. The value is a number[] of attached note ids — notes are
+  // referenced, never copied, and never a string on the item.
   | 'notes'
 
 export interface FieldDef {
@@ -68,16 +70,20 @@ export const ITEM_FORMS: Record<ItemType, FormDef> = {
         placeholder: 'Optional detail',
       },
       { key: 'tag', label: 'Tag', kind: 'tag' },
+      { key: 'noteIds', label: 'Notes', kind: 'notes' },
     ],
   },
   task: {
     newTitle: 'New task',
     editTitle: 'Edit task',
     fields: [
+      // Section 22e's fixed order: TASK · DUE · PROJECT TAG · NOTES · REPO.
       { key: 'title', label: 'Task', kind: 'text', placeholder: 'Task title' },
       { key: 'deadline', label: 'Due', kind: 'date' },
       { key: 'tag', label: 'Project tag', kind: 'tag' },
-      { key: 'notes', label: 'Notes', kind: 'textarea', placeholder: 'Optional notes' },
+      // Was a free-text box writing to `task.notes` until section 22a. Notes are
+      // documents now, so this attaches them instead of holding a copy.
+      { key: 'noteIds', label: 'Notes', kind: 'notes' },
       { key: 'repo', label: 'Repo', kind: 'text', placeholder: 'owner/repo' },
     ],
   },

@@ -15,7 +15,7 @@ import { toMarkdown } from '@/utils/noteMigrate'
 import { toggleTaskAt } from '@/utils/mdTyping'
 import { copyAsMarkdown, copyAsRichText, downloadMarkdown } from '@/utils/noteExport'
 import { checklistItems } from '@/utils/mdTyping'
-import MarkdownEditor from '@/components/notes/MarkdownEditor.vue'
+import NoteEditor from '@/components/notes/NoteEditor.vue'
 import MarkdownView from '@/components/notes/MarkdownView.vue'
 import NoteToc from '@/components/notes/NoteToc.vue'
 import ChecklistToTasks from '@/components/notes/ChecklistToTasks.vue'
@@ -229,7 +229,7 @@ const spacer = pxify({ flex: 1 })
       </div>
 
       <template v-if="isEdit">
-        <MarkdownEditor
+        <NoteEditor
           ref="editorRef"
           :model-value="draftText()"
           @update:model-value="onDraft"

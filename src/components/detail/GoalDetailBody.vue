@@ -24,7 +24,7 @@ import Dropdown from '@/components/ui/Dropdown.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import GoalPointRow from '@/components/goals/GoalPointRow.vue'
-import MarkdownEditor from '@/components/notes/MarkdownEditor.vue'
+import NoteEditor from '@/components/notes/NoteEditor.vue'
 import ColorPicker from '@/components/ui/ColorPicker.vue'
 import { downloadText } from '@/utils/noteExport'
 import type { GoalStatus } from '@/types'
@@ -341,14 +341,14 @@ defineExpose({
     </DetailSection>
 
     <DetailSection label="Description">
-      <MarkdownEditor
+      <NoteEditor
         :model-value="description.draft.value"
         placeholder="What does done look like?"
         @update:model-value="description.set"
       />
     </DetailSection>
 
-    <NotesSection type="goal" :item-id="goalId" />
+    <NotesSection type="goal" :id="goalId" />
 
     <DetailSection label="Activity" collapsible :start-open="false">
       <span class="gdb__muted">Created {{ relativeStamp(goal.createdAt) }}</span>

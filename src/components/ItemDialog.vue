@@ -14,12 +14,13 @@ import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
 import { pxify, dialogCard } from '@/styles'
 import { ITEM_FORMS, type FieldDef } from '@/utils/itemForms'
-import { noteTitle } from '@/utils/notes'
 import TagPicker from '@/components/TagPicker.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import LinkedItemsPanel from '@/components/LinkedItemsPanel.vue'
 import DraftBanner from '@/components/DraftBanner.vue'
-import type { ItemType, Note, Todo } from '@/types'
+import NotesSection from '@/components/detail/NotesSection.vue'
+import type { NoteDraft } from '@/utils/notesSection'
+import type { ItemType, NoteOwnerType, Todo } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
@@ -130,37 +131,26 @@ function weekdayBtnStyle(f: FieldDef, i: number) {
   })
 }
 
-// --- attached-notes field (ideas / stocks) ---------------------------------
-// The value is a number[] of note ids; notes are referenced, never copied.
+// --- the notes section (section 22a) ---------------------------------------
+// The same component the detail dialogs use, in create mode: it holds the ids
+// the reader has queued up and the dialog writes them on ADD. In edit mode
+// there is a saved item, so it writes through to the store like any other
+// surface and this dialog only tells it which item it is looking at.
 function attachedIds(f: FieldDef): number[] {
   const v = values.value[f.key]
   return Array.isArray(v) ? (v as number[]) : []
 }
-function attachedNotes(f: FieldDef): Note[] {
-  const ids = attachedIds(f)
-  return app.notes.filter((n) => ids.includes(n.id))
-}
-function unattachedNotes(f: FieldDef): Note[] {
-  const ids = attachedIds(f)
-  return app.notes.filter((n) => !ids.includes(n.id))
-}
-function noteLabel(n: Note): string {
-  return noteTitle(n.text)
-}
-function attachNote(f: FieldDef, e: Event) {
-  const el = e.target as HTMLSelectElement
-  const nid = Number(el.value)
-  el.value = ''
-  if (!nid) return
-  const ids = attachedIds(f)
-  if (!ids.includes(nid)) set(f, [...ids, nid])
-}
-function detachNote(f: FieldDef, nid: number) {
-  set(
-    f,
-    attachedIds(f).filter((x) => x !== nid),
-  )
-}
+// Only these four carry a notes field; the rest never render the section.
+const noteOwnerType = computed<NoteOwnerType | null>(() => {
+  const t = active.value?.type
+  return t === 'task' || t === 'todo' || t === 'idea' || t === 'stock' ? t : null
+})
+// The draft note rides in the dialog's draft object rather than in state of its
+// own, so the section 8 resume covers it and Cancel drops it with everything
+// else — nothing is written until commitCreate writes the item.
+const noteDraft = computed<NoteDraft | null>(
+  () => (values.value.noteDraft as NoteDraft | null) ?? null,
+)
 
 function save() {
   if (isCreate.value) {
@@ -187,6 +177,9 @@ function onEnter(e: KeyboardEvent) {
 }
 
 const cardStyle = computed(() => pxify(dialogCard(c.value, dialogClosing.value)))
+// `field-label` carries no styling — the style below does. It is a structural
+// marker so "the sections are in this order" (section 22e) can be asserted
+// against the labels rather than against every span on the dialog.
 const labelStyle = computed(() =>
   pxify({
     fontSize: 10,
@@ -196,7 +189,16 @@ const labelStyle = computed(() =>
     color: c.value.dim,
   }),
 )
-const fieldStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6 })
+// Section 22e: one scrolling column, a consistent 20px between sections, and
+// `min-width: 0` on every child — without it a long tag or a wide picker sets
+// the column's width and pushes its neighbours off the dialog.
+const sectionsStyle = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 20,
+  minWidth: 0,
+})
+const fieldStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 })
 const prefixWrap = computed(() =>
   pxify({
     display: 'flex',
@@ -226,24 +228,6 @@ const prefixInput = computed(() =>
     fontSize: 14,
     outline: 'none',
   }),
-)
-const chipsRow = pxify({ display: 'flex', flexWrap: 'wrap', gap: 6 })
-const noteChip = computed(() =>
-  pxify({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    fontSize: 11,
-    padding: '4px 8px',
-    borderRadius: 8,
-    background: c.value.input,
-    border: '1px solid ' + c.value.border,
-    color: c.value.text,
-    cursor: 'pointer',
-  }),
-)
-const noteChipX = computed(() =>
-  pxify({ cursor: 'pointer', color: c.value.dim, fontSize: 13, lineHeight: 1 }),
 )
 const checkRow = computed(() =>
   pxify({ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: c.value.dim }),
@@ -275,99 +259,88 @@ const checkRow = computed(() =>
         @discard="draft.discard()"
       />
 
-      <div v-for="f in fields" :key="f.key" :style="fieldStyle">
-        <TagPicker
-          v-if="f.kind === 'tag'"
-          :model-value="val(f)"
-          :label="f.label"
-          @update:model-value="set(f, $event)"
-        />
-        <label v-else-if="f.kind === 'checkbox'" :style="checkRow">
-          <input type="checkbox" :checked="values[f.key] === true" @change="onCheck(f, $event)" />
-          <span>{{ f.label }}</span>
-        </label>
-        <template v-else-if="f.kind === 'notes'">
-          <span :style="labelStyle">{{ f.label }}</span>
-          <div v-if="attachedNotes(f).length" :style="chipsRow">
-            <span
-              v-for="n in attachedNotes(f)"
-              :key="n.id"
-              :style="noteChip"
-              :title="'Open note'"
-              @click="app.openNoteView(n.id)"
+      <div :style="sectionsStyle">
+        <div v-for="f in fields" :key="f.key" :style="fieldStyle">
+          <TagPicker
+            v-if="f.kind === 'tag'"
+            :model-value="val(f)"
+            :label="f.label"
+            @update:model-value="set(f, $event)"
+          />
+          <label v-else-if="f.kind === 'checkbox'" :style="checkRow">
+            <input type="checkbox" :checked="values[f.key] === true" @change="onCheck(f, $event)" />
+            <span>{{ f.label }}</span>
+          </label>
+          <NotesSection
+            v-else-if="f.kind === 'notes' && noteOwnerType"
+            :type="noteOwnerType"
+            :id="isCreate ? null : (active!.id ?? null)"
+            :mode="isCreate ? 'create' : 'detail'"
+            :draft-ids="attachedIds(f)"
+            :draft="noteDraft"
+            @update:draft-ids="set(f, $event)"
+            @update:draft="app.setDialogDraft('noteDraft', $event)"
+          />
+          <template v-else>
+            <span class="field-label" :style="labelStyle">{{ f.label }}</span>
+            <textarea
+              v-if="f.kind === 'textarea'"
+              :style="s.dialogNotes"
+              :placeholder="f.placeholder"
+              :value="val(f)"
+              @input="onInput(f, $event)"
+            ></textarea>
+            <select
+              v-else-if="f.kind === 'select'"
+              :style="s.select"
+              :value="val(f)"
+              @change="onInput(f, $event)"
             >
-              {{ noteLabel(n) }}
-              <span :style="noteChipX" title="Detach" @click.stop="detachNote(f, n.id)">×</span>
-            </span>
-          </div>
-          <select :style="s.select" @change="attachNote(f, $event)">
-            <option value="">
-              {{ unattachedNotes(f).length ? 'Attach a note…' : 'No more notes to attach' }}
-            </option>
-            <option v-for="n in unattachedNotes(f)" :key="n.id" :value="n.id">
-              {{ noteLabel(n) }}
-            </option>
-          </select>
-        </template>
-        <template v-else>
-          <span :style="labelStyle">{{ f.label }}</span>
-          <textarea
-            v-if="f.kind === 'textarea'"
-            :style="s.dialogNotes"
-            :placeholder="f.placeholder"
-            :value="val(f)"
-            @input="onInput(f, $event)"
-          ></textarea>
-          <select
-            v-else-if="f.kind === 'select'"
-            :style="s.select"
-            :value="val(f)"
-            @change="onInput(f, $event)"
-          >
-            <option v-for="o in f.options" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
-          <div v-else-if="f.kind === 'weekdays'" :style="s.weekdayRow">
-            <button
-              v-for="(nm, i) in weekdayNames"
-              :key="i"
-              :style="weekdayBtnStyle(f, i)"
-              @click="toggleWeekday(f, i)"
-            >
-              {{ nm }}
-            </button>
-          </div>
-          <!-- Prefixed input (e.g. a ₹ money field): the adornment sits inside
+              <option v-for="o in f.options" :key="o.value" :value="o.value">{{ o.label }}</option>
+            </select>
+            <div v-else-if="f.kind === 'weekdays'" :style="s.weekdayRow">
+              <button
+                v-for="(nm, i) in weekdayNames"
+                :key="i"
+                :style="weekdayBtnStyle(f, i)"
+                @click="toggleWeekday(f, i)"
+              >
+                {{ nm }}
+              </button>
+            </div>
+            <!-- Prefixed input (e.g. a ₹ money field): the adornment sits inside
                the same bordered box as the input for one seamless control. -->
-          <div v-else-if="f.prefix" :style="prefixWrap">
-            <span :style="prefixAdornment">{{ f.prefix }}</span>
+            <div v-else-if="f.prefix" :style="prefixWrap">
+              <span :style="prefixAdornment">{{ f.prefix }}</span>
+              <input
+                :style="prefixInput"
+                :type="f.kind === 'number' ? 'number' : 'text'"
+                :min="f.min"
+                :placeholder="f.placeholder"
+                :value="val(f)"
+                @input="onInput(f, $event)"
+              />
+            </div>
+            <!-- Dates go through the one picker; everything else stays a plain
+               input, so there is no native date field left in the app. -->
+            <GlassDatePicker
+              v-else-if="f.kind === 'date' || f.kind === 'datetime'"
+              :mode="f.kind === 'date' ? 'date' : 'datetime'"
+              :model-value="String(val(f) ?? '')"
+              :placeholder="f.placeholder || f.label"
+              @update:model-value="set(f, String($event ?? ''))"
+            />
             <input
-              :style="prefixInput"
+              v-else
+              :style="s.input"
               :type="f.kind === 'number' ? 'number' : 'text'"
               :min="f.min"
               :placeholder="f.placeholder"
               :value="val(f)"
               @input="onInput(f, $event)"
             />
-          </div>
-          <!-- Dates go through the one picker; everything else stays a plain
-               input, so there is no native date field left in the app. -->
-          <GlassDatePicker
-            v-else-if="f.kind === 'date' || f.kind === 'datetime'"
-            :mode="f.kind === 'date' ? 'date' : 'datetime'"
-            :model-value="String(val(f) ?? '')"
-            :placeholder="f.placeholder || f.label"
-            @update:model-value="set(f, String($event ?? ''))"
-          />
-          <input
-            v-else
-            :style="s.input"
-            :type="f.kind === 'number' ? 'number' : 'text'"
-            :min="f.min"
-            :placeholder="f.placeholder"
-            :value="val(f)"
-            @input="onInput(f, $event)"
-          />
-        </template>
+          </template>
+        </div>
       </div>
 
       <!-- Linked items — only for a saved todo (tasks use their own dialog). -->

@@ -41,6 +41,14 @@ const routes: RouteRecordRaw[] = [
     name: 'goal-page',
     component: () => import('@/views/WorkspaceView.vue'),
   },
+  // A note's own page (section 22c's "Open full"). Numeric like the two above
+  // and declared before the share routes, because `notes` IS a share plural —
+  // /notes/123 is the owner's note, /notes/<shareId> is a share.
+  {
+    path: '/notes/:noteId(\\d+)',
+    name: 'note-page',
+    component: () => import('@/views/WorkspaceView.vue'),
+  },
   ...sharePlurals.map((plural): RouteRecordRaw => ({
     path: `/${plural}/:shareId`,
     name: `share-${plural}`,

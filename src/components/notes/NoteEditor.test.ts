@@ -3,13 +3,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import MarkdownEditor from '@/components/notes/MarkdownEditor.vue'
+import NoteEditor from '@/components/notes/NoteEditor.vue'
 import { useAppStore } from '@/stores/app'
 
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 function mountEditor(modelValue = '') {
-  return mount(MarkdownEditor, {
+  return mount(NoteEditor, {
     props: { modelValue },
     attachTo: document.body,
     global: { directives: { 'hover-style': {} } },
@@ -136,5 +136,60 @@ describe('preview cost (acceptance 84)', () => {
     app.setNoteEditorMode('split')
     await wrapper.vm.$nextTick()
     expect(wrapper.find('.md h1').text()).toBe('Fresh')
+  })
+})
+
+// Section 22d: the same editor, inside a dialog.
+describe('compact mode', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  function mountCompact(modelValue = '') {
+    return mount(NoteEditor, {
+      props: { modelValue, compact: true },
+      attachTo: document.body,
+      global: { directives: { 'hover-style': {} } },
+    })
+  }
+
+  it('draws one row of tools and files the rest behind an overflow', () => {
+    const wrapper = mountCompact()
+    const titles = wrapper.findAll('button[title]').map((b) => b.attributes('title'))
+    expect(titles.some((t) => t?.startsWith('Bold'))).toBe(true)
+    // Table lives in the overflow menu, not on the bar.
+    expect(titles.some((t) => t?.startsWith('Table'))).toBe(false)
+    expect(wrapper.findComponent({ name: 'Dropdown' }).exists()).toBe(true)
+  })
+
+  it('still reaches every action through that overflow', async () => {
+    const wrapper = mountCompact('word')
+    const menu = wrapper.findComponent({ name: 'Dropdown' })
+    const labels = (menu.props('items') as { label: string }[]).map((i) => i.label)
+    expect(labels.some((l) => l.startsWith('Table'))).toBe(true)
+    wrapper.find('textarea').element.setSelectionRange(0, 4)
+    menu.vm.$emit('select', 'bold')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('update:modelValue')!.at(-1)).toEqual(['**word**'])
+  })
+
+  it('offers no Split — half of half a dialog is not a column', () => {
+    const labels = mountCompact()
+      .findAll('button')
+      .map((b) => b.text())
+    expect(labels).not.toContain('Split')
+    expect(labels).toContain('Preview')
+  })
+
+  it('never rewrites the notes view preference when previewing in a dialog', async () => {
+    const app = useAppStore()
+    app.setNoteEditorMode('split')
+    const wrapper = mountCompact('# Title')
+    // A stored Split is narrowed on the way out, not overwritten.
+    expect(wrapper.find('textarea').exists()).toBe(true)
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Preview')!
+      .trigger('click')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(app.noteEditorMode).toBe('split')
   })
 })
