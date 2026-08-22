@@ -85,6 +85,7 @@ import { occurrences } from '@/utils/reminders'
 import { stampOnDay, ymd } from '@/utils/dayGroups'
 import { isBlankNote, isNoteEditorMode, type NoteEditorMode } from '@/utils/notes'
 import { SPLIT_DEFAULT, clampSplit } from '@/utils/noteColumn'
+import { draftWorthSaving, type NoteDraft } from '@/utils/notesSection'
 import {
   NOTE_OWNER_TYPES,
   buildAttachmentIndex,
@@ -4555,14 +4556,26 @@ export const useAppStore = defineStore('app', () => {
   function blankDraft(type: ItemType): Record<string, unknown> {
     // `noteIds` rather than a `notes` string since section 22a: what a create
     // dialog holds is a list of notes to attach, not a copy of their text.
-    if (type === 'todo') return { text: '', description: '', tag: '', noteIds: [] }
-    if (type === 'task') return { title: '', tag: '', deadline: '', repo: '', noteIds: [] }
+    // `noteDraft` is the one note being written inside the dialog — held here
+    // rather than created on the first keystroke, so cancelling writes nothing
+    // (section 22b). Null means the editor is closed.
+    if (type === 'todo') return { text: '', description: '', tag: '', noteIds: [], noteDraft: null }
+    if (type === 'task')
+      return { title: '', tag: '', deadline: '', repo: '', noteIds: [], noteDraft: null }
     if (type === 'deadline') return { title: '', due: rel(0) }
     if (type === 'finance') return { amount: '', category: 'Food', note: '', date: rel(0) }
     if (type === 'trip')
       return { title: '', date: rel(0), description: '', tag: '', status: 'tovisit' }
     if (type === 'idea')
-      return { title: '', description: '', deadline: '', ideaType: 'feature', tag: '', noteIds: [] }
+      return {
+        title: '',
+        description: '',
+        deadline: '',
+        ideaType: 'feature',
+        tag: '',
+        noteIds: [],
+        noteDraft: null,
+      }
     if (type === 'stock')
       return {
         symbol: '',
@@ -4572,6 +4585,7 @@ export const useAppStore = defineStore('app', () => {
         watchPrice: '',
         tag: '',
         noteIds: [],
+        noteDraft: null,
       }
     if (type === 'reminder')
       return {
@@ -4932,9 +4946,16 @@ export const useAppStore = defineStore('app', () => {
     // exists, in the same synchronous pass — one debounced workspace save, so
     // the item and both ends of every reference land together (section 22b).
     const queuedNoteIds = Array.isArray(d.noteIds) ? (d.noteIds as number[]) : []
+    const queuedNoteDraft = (d.noteDraft ?? null) as NoteDraft | null
     const attachQueued = (type: NoteOwnerType, itemId: number | undefined) => {
       if (itemId == null) return
       attachNotes(type, itemId, queuedNoteIds)
+      // The draft note becomes a real document here and nowhere else: created,
+      // attached and filled in the same pass as the item, so ADD writes both
+      // and Cancel writes neither (acceptance 113).
+      if (!draftWorthSaving(queuedNoteDraft)) return
+      const noteId = createNoteFor(type, itemId, queuedNoteDraft!.title.trim())
+      if (noteId != null) setNoteText(noteId, queuedNoteDraft!.text)
     }
 
     if (state.type === 'todo') {

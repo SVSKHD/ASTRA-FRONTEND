@@ -1,7 +1,7 @@
 // Section 22a in the create dialog: there is no notes box to type into, and
 // what the reader queues up is written when the item is.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 import ItemDialog from '@/components/ItemDialog.vue'
@@ -124,5 +124,95 @@ describe('notes queued in a create dialog', () => {
 
     expect(app.tasks).toHaveLength(0)
     expect(app.notes[0].attachedTo).toEqual([])
+  })
+})
+
+// Section 22b: the note written inside a create dialog.
+describe('the draft note (acceptance 113)', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  async function openWithDraft() {
+    const app = useAppStore()
+    const wrapper = mountDialog()
+    app.openCreate('task')
+    await settle()
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === '+ New note')!
+      .trigger('click')
+    await settle()
+    return { app, wrapper }
+  }
+
+  it('expands inline rather than navigating away or opening a second modal', async () => {
+    const { wrapper } = await openWithDraft()
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'NoteDraftEditor' }).exists()).toBe(true)
+    // One dialog, still: the editor is inside the same panel.
+    expect(document.querySelectorAll('[role="dialog"]').length).toBeLessThanOrEqual(1)
+  })
+
+  it('holds the note in memory — nothing is written while it is being typed', async () => {
+    const { app, wrapper } = await openWithDraft()
+    wrapper
+      .findComponent({ name: 'NotesSection' })
+      .vm.$emit('update:draft', { title: 'Plan', text: 'step one' })
+    await settle()
+    expect(app.notes).toEqual([])
+    expect(app.tasks).toEqual([])
+  })
+
+  it('writes the note with the task and links them in one pass', async () => {
+    const { app, wrapper } = await openWithDraft()
+    wrapper
+      .findComponent({ name: 'NotesSection' })
+      .vm.$emit('update:draft', { title: 'Plan', text: 'step one' })
+    await settle()
+    app.setDialogDraft('title', 'Ship it')
+
+    expect(app.commitCreate()).toBe(true)
+    expect(app.tasks).toHaveLength(1)
+    expect(app.notes).toHaveLength(1)
+    expect(app.notes[0].title).toBe('Plan')
+    expect(app.notes[0].text).toBe('step one')
+    expect(app.tasks[0].noteIds).toEqual([app.notes[0].id])
+    expect(app.notes[0].attachedTo).toEqual([{ type: 'task', id: app.tasks[0].id }])
+  })
+
+  it('writes nothing at all when the dialog is cancelled', async () => {
+    const { app, wrapper } = await openWithDraft()
+    wrapper
+      .findComponent({ name: 'NotesSection' })
+      .vm.$emit('update:draft', { title: 'Plan', text: 'step one' })
+    await settle()
+    app.closeItemDialog()
+    await settle()
+    expect(app.notes).toEqual([])
+    expect(app.tasks).toEqual([])
+  })
+
+  it('does not write an editor that was opened and left empty', async () => {
+    const { app } = await openWithDraft()
+    app.setDialogDraft('title', 'Ship it')
+    expect(app.commitCreate()).toBe(true)
+    expect(app.tasks).toHaveLength(1)
+    expect(app.notes).toEqual([])
+  })
+
+  it('allows only one draft per creation flow', async () => {
+    const { wrapper } = await openWithDraft()
+    const again = wrapper.findAll('button').find((b) => b.text() === '+ New note')!
+    expect(again.attributes('disabled')).toBeDefined()
+  })
+
+  it('re-enables + New note once the draft is discarded', async () => {
+    const { app, wrapper } = await openWithDraft()
+    wrapper.findComponent({ name: 'NotesSection' }).vm.$emit('update:draft', null)
+    await settle()
+    const again = wrapper.findAll('button').find((b) => b.text() === '+ New note')!
+    expect(again.attributes('disabled')).toBeUndefined()
+    app.setDialogDraft('title', 'Ship it')
+    expect(app.commitCreate()).toBe(true)
+    expect(app.notes).toEqual([])
   })
 })

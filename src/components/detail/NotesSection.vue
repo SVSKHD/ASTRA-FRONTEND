@@ -19,9 +19,17 @@
 import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
-import { noteRow, overflowLabel, visibleRows, type NoteRowModel } from '@/utils/notesSection'
+import {
+  blankNoteDraft,
+  noteRow,
+  overflowLabel,
+  visibleRows,
+  type NoteDraft,
+  type NoteRowModel,
+} from '@/utils/notesSection'
 import DetailSection from '@/components/detail/DetailSection.vue'
 import NotePicker from '@/components/detail/NotePicker.vue'
+import NoteDraftEditor from '@/components/detail/NoteDraftEditor.vue'
 import Icon from '@/components/ui/Icon.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import type { Note, NoteOwnerType } from '@/types'
@@ -41,13 +49,16 @@ const props = withDefaults(
     // The ids a create dialog has queued up. Ignored in detail mode, where the
     // item itself is the record of what is attached.
     draftIds?: number[]
+    // The one note being written in this creation flow, or null. Owned by the
+    // dialog so that cancelling it writes nothing.
+    draft?: NoteDraft | null
   }>(),
-  { mode: 'detail', draftIds: () => [] },
+  { mode: 'detail', draftIds: () => [], draft: null },
 )
 const emit = defineEmits<{
-  // Create mode writes nothing itself; the dialog owns the draft.
+  // Create mode writes nothing itself; the dialog owns both of these.
   'update:draftIds': [number[]]
-  'new-note': []
+  'update:draft': [NoteDraft | null]
 }>()
 
 const app = useAppStore()
@@ -140,10 +151,15 @@ function onMenu(row: NoteRowModel, action: string) {
 }
 
 // --- creating ----------------------------------------------------------------
+// One draft per creation flow (section 22b): a second "+ New note" before the
+// first is saved or discarded would be two unsaved notes and one ADD.
+const draftOpen = computed(() => isCreate.value && props.draft != null)
+
 function newNote() {
   if (isCreate.value) {
-    // The create dialog owns the draft; this only asks for it.
-    emit('new-note')
+    // No navigation, no second modal: the editor expands below this section
+    // and the dialog keeps its width.
+    if (props.draft == null) emit('update:draft', blankNoteDraft())
     return
   }
   if (props.id == null) return
@@ -173,7 +189,9 @@ function onAttach(ids: number[]) {
 <template>
   <DetailSection label="Notes" :hint="rows.length ? String(rows.length) : ''">
     <template #actions>
-      <button type="button" class="nsec__ghost" @click="newNote">+ New note</button>
+      <button type="button" class="nsec__ghost" :disabled="draftOpen" @click="newNote">
+        + New note
+      </button>
       <button type="button" class="nsec__ghost" :disabled="picking" @click="startPicking">
         Attach existing
       </button>
@@ -181,7 +199,7 @@ function onAttach(ids: number[]) {
 
     <!-- Empty is two buttons and a sentence, never an empty box to type in
          (acceptance 112). -->
-    <p v-if="!rows.length && !picking" class="nsec__empty">
+    <p v-if="!rows.length && !picking && !draftOpen" class="nsec__empty">
       No notes yet. A note attached here stays in your notes list — attaching it does not move it.
     </p>
 
@@ -219,9 +237,14 @@ function onAttach(ids: number[]) {
       @cancel="picking = false"
     />
 
-    <!-- The draft editor, in a create dialog, goes here — the dialog owns it so
-         that cancelling writes nothing. -->
-    <slot name="draft" />
+    <!-- The note being written in this creation flow. It expands inline, below
+         the list, and becomes a document on ADD (section 22b). -->
+    <NoteDraftEditor
+      v-if="draftOpen && draft"
+      :model-value="draft"
+      @update:model-value="emit('update:draft', $event)"
+      @discard="emit('update:draft', null)"
+    />
   </DetailSection>
 </template>
 

@@ -19,6 +19,7 @@ import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import LinkedItemsPanel from '@/components/LinkedItemsPanel.vue'
 import DraftBanner from '@/components/DraftBanner.vue'
 import NotesSection from '@/components/detail/NotesSection.vue'
+import type { NoteDraft } from '@/utils/notesSection'
 import type { ItemType, NoteOwnerType, Todo } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
@@ -144,6 +145,12 @@ const noteOwnerType = computed<NoteOwnerType | null>(() => {
   const t = active.value?.type
   return t === 'task' || t === 'todo' || t === 'idea' || t === 'stock' ? t : null
 })
+// The draft note rides in the dialog's draft object rather than in state of its
+// own, so the section 8 resume covers it and Cancel drops it with everything
+// else — nothing is written until commitCreate writes the item.
+const noteDraft = computed<NoteDraft | null>(
+  () => (values.value.noteDraft as NoteDraft | null) ?? null,
+)
 
 function save() {
   if (isCreate.value) {
@@ -270,7 +277,9 @@ const checkRow = computed(() =>
             :id="isCreate ? null : (active!.id ?? null)"
             :mode="isCreate ? 'create' : 'detail'"
             :draft-ids="attachedIds(f)"
+            :draft="noteDraft"
             @update:draft-ids="set(f, $event)"
+            @update:draft="app.setDialogDraft('noteDraft', $event)"
           />
           <template v-else>
             <span class="field-label" :style="labelStyle">{{ f.label }}</span>
