@@ -227,6 +227,18 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     snippet: '<Radio v-model="mode" value="all" name="mode" label="All" />',
   },
   {
+    name: 'Alert',
+    group: 'Feedback',
+    summary:
+      'A message that stays. Unlike a Toast, which is for something that happened and is over, an alert is for something that is still true — a server rejection explaining why this form did not save.',
+    props: [
+      { name: 'tone', type: "'danger' | 'warning' | 'success' | 'info'", default: 'info' },
+      { name: 'title', type: 'string' },
+      { name: 'dismissible', type: 'boolean', default: 'false' },
+    ],
+    snippet: '<Alert tone="danger">The repository could not be reached.</Alert>',
+  },
+  {
     name: 'FormField',
     group: 'Inputs',
     summary:

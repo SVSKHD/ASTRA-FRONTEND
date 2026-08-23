@@ -23,9 +23,11 @@ import {
   type IconSize,
 } from '@/components/ui/icons'
 import Icon from '@/components/ui/Icon.vue'
+import UiFormsDemo from '@/views/UiFormsDemo.vue'
 
 import {
   Accordion,
+  Alert,
   Avatar,
   Badge,
   BottomSheet,
@@ -324,6 +326,19 @@ const OverlapDetector = import.meta.env.DEV
       </p>
     </section>
 
+    <!-- ---- Forms (section 25d) ---------------------------------------- -->
+    <section class="ui-page__section">
+      <h2>Forms</h2>
+      <p class="ui-page__note">
+        Every control in one shell, at one size scale, with one error pattern. The example below is
+        a real <code>useForm</code> over a real Zod schema rather than a mock-up, because the timing
+        is the thing worth documenting and a fake would document nothing: a field is silent until it
+        has been left once, then follows every keystroke, and submit checks the fields nobody
+        visited.
+      </p>
+      <UiFormsDemo />
+    </section>
+
     <!-- ---- Components --------------------------------------------------- -->
     <section v-for="group in UI_GROUPS" :key="group" class="ui-page__section">
       <h2>{{ group }}</h2>
@@ -416,6 +431,17 @@ const OverlapDetector = import.meta.env.DEV
               ]"
               aria-label="Type"
             />
+          </template>
+          <template v-else-if="doc.name === 'Alert'">
+            <div class="ui-page__stack">
+              <Alert tone="danger" title="Could not save"
+                >The repository astra/frontend could not be reached. Check the name and try
+                again.</Alert
+              >
+              <Alert tone="info"
+                >Goals imported from a link are editable before they are saved.</Alert
+              >
+            </div>
           </template>
           <template v-else-if="doc.name === 'FormField'">
             <div class="ui-page__stack">
