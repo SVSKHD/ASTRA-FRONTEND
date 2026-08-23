@@ -40,11 +40,12 @@ import {
   EmptyState,
   FormField,
   MultiSelect,
+  NumberInput,
   TagInput,
   GlassDatePicker,
   GlassPanel,
   IconButton,
-  Input,
+  TextInput,
   KeyboardShortcut,
   Modal,
   Pagination,
@@ -62,7 +63,7 @@ import {
   Switch,
   Table,
   Tabs,
-  Textarea,
+  TextArea,
   Toast,
   Tooltip,
 } from '@/components/ui'
@@ -121,6 +122,7 @@ const demo = ref({
   text: 'Ship the design system',
   multi: [] as string[],
   tags: ['work'] as string[],
+  number: 60,
   area: 'Two lines of context that the row cannot show.',
   select: 'all',
   combo: 'work',
@@ -355,15 +357,15 @@ const OverlapDetector = import.meta.env.DEV
           </template>
 
           <!-- Inputs -->
-          <template v-else-if="doc.name === 'Input'">
-            <Input v-model="demo.text" label="Title" hint="Shown under the field" />
-            <Input v-model="demo.text" label="Error" error="Required" />
-            <Input v-model="demo.text" label="Disabled" disabled />
-            <Input v-model="demo.count" label="Amount" prefix="₹" type="number" />
+          <template v-else-if="doc.name === 'TextInput'">
+            <TextInput v-model="demo.text" label="Title" hint="Shown under the field" />
+            <TextInput v-model="demo.text" label="Error" error="Required" />
+            <TextInput v-model="demo.text" label="Disabled" disabled />
+            <TextInput v-model="demo.count" label="Amount" prefix="₹" type="number" />
           </template>
-          <template v-else-if="doc.name === 'Textarea'">
-            <Textarea v-model="demo.area" label="Notes" :rows="3" />
-            <Textarea v-model="demo.area" label="Error" error="Too long" />
+          <template v-else-if="doc.name === 'TextArea'">
+            <TextArea v-model="demo.area" label="Notes" :rows="3" />
+            <TextArea v-model="demo.area" label="Error" error="Too long" />
           </template>
           <template v-else-if="doc.name === 'Select'">
             <Select v-model="demo.select" :options="selectOptions" label="Project" />
@@ -377,6 +379,11 @@ const OverlapDetector = import.meta.env.DEV
           <template v-else-if="doc.name === 'MultiSelect'">
             <FormField label="Projects" v-slot="f">
               <MultiSelect v-bind="f" v-model="demo.multi" :options="tagOptions" />
+            </FormField>
+          </template>
+          <template v-else-if="doc.name === 'NumberInput'">
+            <FormField label="Estimate" hint="Minutes" v-slot="f">
+              <NumberInput v-bind="f" v-model="demo.number" :min="0" :max="480" :step="15" />
             </FormField>
           </template>
           <template v-else-if="doc.name === 'TagInput'">
@@ -413,10 +420,10 @@ const OverlapDetector = import.meta.env.DEV
           <template v-else-if="doc.name === 'FormField'">
             <div class="ui-page__stack">
               <FormField label="Title" hint="What the task is called" required v-slot="f">
-                <Input v-bind="f" v-model="fieldDemo" placeholder="Ship the trading bot" />
+                <TextInput v-bind="f" v-model="fieldDemo" placeholder="Ship the trading bot" />
               </FormField>
               <FormField label="Title" error="Enter a title" required v-slot="f">
-                <Input v-bind="f" model-value="" placeholder="Ship the trading bot" />
+                <TextInput v-bind="f" model-value="" placeholder="Ship the trading bot" />
               </FormField>
               <p class="ui-page__note">
                 Both fields are the same height. The message row is reserved, so an error appearing

@@ -23,7 +23,7 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { durationLabel } from '@/utils/calendarEvents'
 import { placeCellPopover } from '@/utils/popoverPlace'
-import Input from '@/components/ui/Input.vue'
+import TextInput from '@/components/ui/TextInput.vue'
 import Select from '@/components/ui/Select.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Switch from '@/components/ui/Switch.vue'
@@ -120,7 +120,7 @@ const rangeLabel = computed(() => {
       @keydown.enter.prevent="save"
       @keydown.esc.prevent="emit('close')"
     >
-      <Input v-model="title" placeholder="What is it?" size="md" />
+      <TextInput v-model="title" placeholder="What is it?" size="md" />
       <SegmentedControl v-model="kind" :options="KINDS" size="md" aria-label="Type" />
       <Select v-model="project" :options="projectOptions" size="md" />
       <label class="cqc__row">
