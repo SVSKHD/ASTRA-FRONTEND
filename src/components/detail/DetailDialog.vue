@@ -696,6 +696,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
 /* The note column's header is a heading, not the dialog's name — the dialog is
    still named by the item the note is attached to. */
 .detail__title--aside {
+  min-width: 0;
   font-size: var(--text-sm);
   overflow: hidden;
   text-overflow: ellipsis;

@@ -443,6 +443,9 @@ function onClear() {
 }
 .gdp__value {
   flex: 1;
+  /* A flex child sizes to its longest word without this, so the ellipsis
+     works and the trigger still grows past its container. */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

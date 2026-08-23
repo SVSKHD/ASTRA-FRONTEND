@@ -228,6 +228,7 @@ const percent = computed(() => ringPercent(props.ratio))
   white-space: nowrap;
 }
 .gcard__desc {
+  min-width: 0;
   margin: 0;
   font-size: var(--text-xs);
   line-height: 1.4;

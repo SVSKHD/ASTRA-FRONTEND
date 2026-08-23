@@ -778,12 +778,14 @@ const hintStyle = computed(() =>
   cursor: grabbing;
 }
 .cal-title {
+  min-width: 0;
   font-weight: var(--weight-semibold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .cal-sub {
+  min-width: 0;
   color: var(--text-muted, var(--theme-dim));
   white-space: nowrap;
   overflow: hidden;

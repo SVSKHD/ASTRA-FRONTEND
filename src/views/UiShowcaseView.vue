@@ -1013,6 +1013,7 @@ const OverlapDetector = import.meta.env.DEV
   border-color: var(--theme-accent);
 }
 .ui-page__iconname {
+  min-width: 0;
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
