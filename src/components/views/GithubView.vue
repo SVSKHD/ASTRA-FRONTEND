@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // The GitHub tab (13d + 13e): a cross-repo Issues view and a Repos view.
 //
 // Issues: filter by repo, state, label, assignee and linked/unlinked; pull one
@@ -231,30 +234,45 @@ function progressInner(pct: number) {
     <!-- ---- Issues ------------------------------------------------------- -->
     <template v-if="pane === 'issues'">
       <div :style="filterRow">
-        <select :style="s.select" v-model="filter.repoId">
-          <option value="all">All repos</option>
-          <option v-for="r in repos" :key="r.id" :value="r.id">{{ r.fullName }}</option>
-        </select>
-        <select :style="s.select" v-model="filter.state">
-          <option value="open">Open</option>
-          <option value="closed">Closed</option>
-          <option value="all">Any state</option>
-        </select>
-        <select :style="s.select" v-model="filter.label">
-          <option value="all">Any label</option>
-          <option v-for="l in labels" :key="l" :value="l">{{ l }}</option>
-        </select>
-        <select :style="s.select" v-model="filter.assignee">
-          <option value="all">Anyone</option>
-          <option v-for="a in assignees" :key="a" :value="a">{{ a }}</option>
-        </select>
-        <select :style="s.select" v-model="filter.link">
-          <option value="all">Linked or not</option>
-          <option value="linked">Linked to a task</option>
-          <option value="unlinked">Not linked</option>
-        </select>
+        <Select
+          v-model="filter.repoId"
+          :options="[
+            { value: 'all', label: 'All repos' },
+            ...repos.map((r) => ({ value: String(r.id), label: `${r.fullName}` })),
+          ]"
+        />
+        <Select
+          v-model="filter.state"
+          :options="[
+            { value: 'open', label: 'Open' },
+            { value: 'closed', label: 'Closed' },
+            { value: 'all', label: 'Any state' },
+          ]"
+        />
+        <Select
+          v-model="filter.label"
+          :options="[
+            { value: 'all', label: 'Any label' },
+            ...labels.map((l) => ({ value: String(l), label: l })),
+          ]"
+        />
+        <Select
+          v-model="filter.assignee"
+          :options="[
+            { value: 'all', label: 'Anyone' },
+            ...assignees.map((a) => ({ value: String(a), label: a })),
+          ]"
+        />
+        <Select
+          v-model="filter.link"
+          :options="[
+            { value: 'all', label: 'Linked or not' },
+            { value: 'linked', label: 'Linked to a task' },
+            { value: 'unlinked', label: 'Not linked' },
+          ]"
+        />
       </div>
-      <input :style="s.input" placeholder="Search by number or title…" v-model="filter.query" />
+      <TextInput placeholder="Search by number or title…" v-model="filter.query" />
 
       <div v-if="selected.size" :style="bulkBar">
         <span>{{ selected.size }} selected</span>
@@ -273,11 +291,10 @@ function progressInner(pct: number) {
       <div class="stagger-in" v-else :style="s.list">
         <div v-for="issue in visibleIssues" :key="issue.id" :style="s.ghRepoCard">
           <div :style="rowStyle">
-            <input
+            <Checkbox
               v-if="!linked(issue)"
-              type="checkbox"
-              :checked="selected.has(issue.id)"
-              @change="toggleSelect(issue.id)"
+              :model-value="selected.has(issue.id)"
+              @update:model-value="toggleSelect(issue.id)"
             />
             <span :style="stateDot(issue.state)"></span>
             <div :style="s.taskMain" @click="toggleIssue(issue.id)">

@@ -47,8 +47,8 @@ const query = ref('')
 const searchWriter = debounce(() => {
   query.value = search.value
 }, SEARCH_DEBOUNCE_MS)
-function onSearch(event: Event) {
-  search.value = (event.target as HTMLInputElement).value
+function onSearch(value: string) {
+  search.value = value
   searchWriter.schedule()
 }
 // Enter submits immediately rather than waiting out the debounce.

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
@@ -24,19 +26,6 @@ const subtitle = computed(() =>
     : 'Enter your PIN to continue.',
 )
 
-const inputStyle = computed(() =>
-  pxify({
-    width: '100%',
-    padding: '13px 15px',
-    borderRadius: 'var(--radius-dialog)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    ...typeStep('md'),
-    textAlign: 'center',
-    letterSpacing: '0.35em',
-  }),
-)
 const checkRow = computed(() =>
   pxify({
     display: 'flex',
@@ -79,33 +68,31 @@ async function submit() {
       <span :style="s.authLogo">{{ title }}</span>
       <span :style="s.finMeta">{{ subtitle }}</span>
 
-      <input
+      <TextInput
         v-model="pin"
-        :style="inputStyle"
         type="password"
         inputmode="numeric"
         pattern="[0-9]*"
-        maxlength="8"
+        :maxlength="8"
         autocomplete="current-password"
         aria-label="PIN"
         placeholder="••••"
         autofocus
       />
-      <input
+      <TextInput
         v-if="pinSetupRequired"
         v-model="confirmation"
-        :style="inputStyle"
         type="password"
         inputmode="numeric"
         pattern="[0-9]*"
-        maxlength="8"
+        :maxlength="8"
         autocomplete="new-password"
         aria-label="Confirm PIN"
         placeholder="Confirm PIN"
       />
 
       <label v-if="pinSetupRequired" :style="checkRow">
-        <input v-model="neverLock" type="checkbox" />
+        <Checkbox v-model="neverLock" />
         <span>Do not auto-lock this app</span>
       </label>
 

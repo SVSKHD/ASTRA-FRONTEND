@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // Pick a tag from the shared vocabulary, or type one and create it. A created
 // tag joins the vocabulary immediately, so it is offered everywhere afterwards.
 // One tag per item for now — the field it feeds is a single string — but the
@@ -90,16 +91,6 @@ const labelStyle = computed(() =>
     color: c.value.dim,
   }),
 )
-const newInput = computed(() => pxify({ ...rawInput.value, flex: 'unset', width: 150 }))
-const rawInput = computed(() => ({
-  minWidth: 0,
-  padding: '7px 12px',
-  borderRadius: 'var(--radius-pill)',
-  border: '1px solid ' + c.value.border,
-  background: c.value.input,
-  color: c.value.text,
-  ...typeStep('xs'),
-}))
 </script>
 
 <template>
@@ -112,7 +103,7 @@ const rawInput = computed(() => ({
           ×
         </button>
       </span>
-      <input :style="newInput" placeholder="New tag…" v-model="creating" @keydown="onKey" />
+      <TextInput placeholder="New tag…" v-model="creating" @keydown="onKey" />
       <button v-if="isNew" :style="s.addBtn2" @click="create">Create</button>
     </div>
   </div>

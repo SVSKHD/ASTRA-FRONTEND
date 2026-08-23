@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
 // The "Remind me" bell on every todo/task row and detail page. Clicking opens a
 // compact popover of quick options (Later today +3h, Tonight 8pm, Tomorrow 9am,
 // In 2 days, Next week, Custom) plus an optional Repeat row. Choosing one creates
@@ -180,17 +181,6 @@ const quickBtn = computed(() =>
   }),
 )
 const rowFlex = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
-const selectStyle = computed(() =>
-  pxify({
-    flex: 1,
-    ...typeStep('xs'),
-    padding: '6px 8px',
-    borderRadius: 'var(--radius-control)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-  }),
-)
 const setBtn = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -234,11 +224,13 @@ const backdrop = pxify({ position: 'fixed', inset: 0, zIndex: 20 })
           {{ q.label }}
         </button>
         <div :style="rowFlex">
-          <select :style="selectStyle" v-model="repeat" aria-label="Repeat">
-            <option v-for="o in repeatOptions" :key="o.value" :value="o.value">
-              {{ o.label }}
-            </option>
-          </select>
+          <Select
+            v-model="repeat"
+            aria-label="Repeat"
+            :options="[
+              ...repeatOptions.map((o) => ({ value: String(o.value), label: `${o.label}` })),
+            ]"
+          />
         </div>
         <div :style="rowFlex">
           <GlassDatePicker

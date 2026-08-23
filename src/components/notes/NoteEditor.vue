@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextArea from '@/components/ui/TextArea.vue'
 // The note editor: markdown source on the left, the rendering on the right.
 //
 // One component for every surface that writes a note — the notes view, the
@@ -21,7 +22,6 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { useMarkdownEditor, type EditorAction } from '@/composables/useMarkdownEditor'
 import { useMarkdownPaste } from '@/composables/useMarkdownPaste'
-import { useAutoResizeTextarea } from '@/composables/useAutoResizeTextarea'
 import {
   COMPACT_MAX_HEIGHT,
   COMPACT_MIN_HEIGHT,
@@ -59,20 +59,20 @@ const app = useAppStore()
 const { noteEditorMode } = storeToRefs(app)
 const { c, isMobile } = useStyles()
 
-const area = ref<HTMLTextAreaElement | null>(null)
-// Compact mode grows the field with its content instead of sitting at a fixed
-// 300px, so a two-line note is not a wall of empty box. The cap is CSS, so past
-// it the field scrolls rather than the dialog (section 22d).
-const auto = useAutoResizeTextarea({
-  watch: () => (props.compact ? props.modelValue : null),
-  minHeight: COMPACT_MIN_HEIGHT,
-})
-// One element, two refs: the editing commands need it and so does the measure.
-function setArea(el: unknown) {
-  const node = (el as HTMLTextAreaElement | null) ?? null
-  area.value = node
-  auto.el.value = props.compact ? node : null
-}
+// The field is the library's TextArea, and it owns the growing — compact mode
+// asks it to grow with the content instead of sitting at a fixed 300px, so a
+// two-line note is not a wall of empty box (section 22d).
+//
+// What this editor still needs is the element itself: every toolbar action is a
+// selection replacement, and a selection lives on the textarea, not on a
+// component. TextArea exposes it, so the ref reaches through rather than the
+// editor keeping a raw textarea of its own.
+//
+// Read through on demand rather than snapshotted in the ref callback: the
+// exposed value is populated during the child's own mount, and a callback that
+// copies it out can run either side of that.
+const field = ref<InstanceType<typeof TextArea> | null>(null)
+const area = computed<HTMLTextAreaElement | null>(() => field.value?.el ?? null)
 
 // The mode the user chose, narrowed by what the surface can actually show. In
 // compact mode the choice is local — a Preview toggle inside a dialog must not
@@ -160,10 +160,11 @@ function onKeydown(event: KeyboardEvent) {
   editor.onKeydown(event)
 }
 
-function onInput(event: Event) {
-  emit('update:modelValue', (event.target as HTMLTextAreaElement).value)
-  editor.onInput(event)
-  if (props.compact) auto.onInput()
+function onInput(value: string) {
+  emit('update:modelValue', value)
+  // The editor's own handler still wants the element, for the caret; it reads
+  // it from the textarea rather than from an event it no longer receives.
+  if (area.value) editor.onInput({ target: area.value } as unknown as Event)
 }
 
 function focus() {
@@ -248,27 +249,6 @@ const panes = computed(() =>
     minHeight: 0,
   }),
 )
-const textareaStyle = computed(() =>
-  pxify({
-    width: '100%',
-    minHeight: props.compact ? COMPACT_MIN_HEIGHT : isMobile.value ? 220 : 300,
-    // Compact grows to the cap and then scrolls inside itself; the full editor
-    // stays hand-resizable as it always was.
-    maxHeight: props.compact ? COMPACT_MAX_HEIGHT : undefined,
-    overflowY: props.compact ? 'auto' : undefined,
-    resize: props.compact ? 'none' : 'vertical',
-    padding: 12,
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    fontFamily: 'inherit',
-    ...typeStep('sm'),
-    lineHeight: 1.6,
-    tabSize: 2,
-    outline: 'none',
-  }),
-)
 const previewStyle = computed(() =>
   pxify({
     minHeight: props.compact ? COMPACT_MIN_HEIGHT : isMobile.value ? 220 : 300,
@@ -333,18 +313,21 @@ const previewStyle = computed(() =>
     </div>
 
     <div :style="panes">
-      <textarea
+      <TextArea
         v-if="showSource"
-        :ref="setArea"
-        :value="modelValue"
+        ref="field"
+        class="ned__area"
+        :model-value="modelValue"
         :placeholder="placeholder"
-        :style="textareaStyle"
+        :auto-grow="compact"
+        :min-height="COMPACT_MIN_HEIGHT"
+        :max-height="COMPACT_MAX_HEIGHT"
         spellcheck="true"
         aria-label="Note source"
-        @input="onInput"
+        @update:model-value="onInput"
         @keydown="onKeydown"
         @paste="onPaste"
-      ></textarea>
+      />
       <MarkdownView v-if="showPreview" :source="previewSource" :style="previewStyle" />
     </div>
   </div>

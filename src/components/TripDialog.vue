@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
 // The trip's own dialog — it owns both create and edit (the generic ItemDialog
 // stands aside for trips). Create is a short form; saving it opens the trip here
 // in edit mode, where the map, the ordered places, the timeline and attached
@@ -77,8 +80,7 @@ function createTrip() {
 }
 
 // --- edit-mode write-throughs ----------------------------------------------
-function setTitle(e: Event) {
-  const v = (e.target as HTMLInputElement).value
+function setTitle(v: string) {
   if (trip.value) app.updateTrip(trip.value.id, { title: v, location: v })
 }
 function setField(field: keyof Trip, value: unknown) {
@@ -126,10 +128,13 @@ const attachedNotes = computed<Note[]>(() =>
 const unattachedNotes = computed<Note[]>(() =>
   trip.value ? app.notes.filter((n) => !trip.value!.noteIds.includes(n.id)) : [],
 )
-function attachNote(e: Event) {
-  const el = e.target as HTMLSelectElement
-  const nid = Number(el.value)
-  el.value = ''
+// A one-shot action wearing a Select. The model is cleared after every pick,
+// so the control keeps reading "Attach a note…" rather than showing the last
+// note attached, which is not a value anybody set.
+const attachChoice = ref('')
+function attachNote(value: string) {
+  const nid = Number(value)
+  attachChoice.value = ''
   if (nid && trip.value) app.attachNote('trip', trip.value.id, nid)
 }
 
@@ -167,17 +172,6 @@ const headerStyle = computed(() =>
     gap: 'var(--sp-3)',
     padding: isMobile.value ? '16px 16px 10px' : '20px 22px 12px',
     borderBottom: '1px solid ' + c.value.border,
-  }),
-)
-const titleInput = computed(() =>
-  pxify({
-    flex: 1,
-    minWidth: 0,
-    ...(isMobile.value ? typeStep('md') : typeStep('lg')),
-    fontWeight: 'var(--weight-semibold)',
-    background: 'transparent',
-    border: 'none',
-    color: c.value.text,
   }),
 )
 function statusBadge(done: boolean) {
@@ -286,19 +280,6 @@ const sectionTitle = computed(() =>
     marginTop: 4,
   }),
 )
-const inputRaw = computed<Style>(() => ({
-  padding: '10px 12px',
-  borderRadius: 'var(--radius-card)',
-  border: '1px solid ' + c.value.border,
-  background: c.value.input,
-  color: c.value.text,
-  ...typeStep('sm'),
-  width: '100%',
-}))
-const inputStyle = computed(() => pxify(inputRaw.value))
-const textareaStyle = computed(() =>
-  pxify({ ...inputRaw.value, minHeight: 64, resize: 'vertical', fontFamily: 'inherit' }),
-)
 const rowWrapRaw: Style = { display: 'flex', gap: 'var(--sp-3)', flexWrap: 'wrap' }
 const rowWrap = pxify(rowWrapRaw)
 const del = computed(() =>
@@ -374,12 +355,11 @@ const dangerBtn = computed(() =>
       <div :style="bodyStyle" @keydown.esc="app.closeItemDialog()">
         <div :style="field">
           <span :style="labelStyle">Trip name</span>
-          <input
-            :style="inputStyle"
-            :value="draftVal('title')"
+          <TextInput
+            :model-value="draftVal('title')"
             placeholder="Weekend in Lisbon…"
             autofocus
-            @input="setDraft('title', ($event.target as HTMLInputElement).value)"
+            @update:model-value="setDraft('title', $event)"
             @keydown.enter.prevent="createTrip()"
           />
         </div>
@@ -393,12 +373,11 @@ const dangerBtn = computed(() =>
         </div>
         <div :style="field">
           <span :style="labelStyle">Notes</span>
-          <textarea
-            :style="textareaStyle"
-            :value="draftVal('description')"
+          <TextArea
+            :model-value="draftVal('description')"
             placeholder="What's the plan?"
-            @input="setDraft('description', ($event.target as HTMLTextAreaElement).value)"
-          ></textarea>
+            @update:model-value="setDraft('description', $event)"
+          />
         </div>
         <TagPicker
           :model-value="draftVal('tag')"
@@ -415,7 +394,11 @@ const dangerBtn = computed(() =>
     <!-- Edit: the full trip. -->
     <div v-else-if="trip" :style="cardStyle">
       <div :style="headerStyle">
-        <input :style="titleInput" :value="trip.title" placeholder="Trip name" @input="setTitle" />
+        <TextInput
+          :model-value="trip.title"
+          placeholder="Trip name"
+          @update:model-value="setTitle"
+        />
         <span :style="statusBadge(trip.status === 'done')">
           {{ trip.status === 'done' ? 'Done' : 'To visit' }}
         </span>
@@ -463,12 +446,11 @@ const dangerBtn = computed(() =>
         <!-- Details -->
         <div :style="field">
           <span :style="labelStyle">Description</span>
-          <textarea
-            :style="textareaStyle"
-            :value="trip.description"
+          <TextArea
+            :model-value="trip.description"
             placeholder="Trip notes…"
-            @input="setField('description', ($event.target as HTMLTextAreaElement).value)"
-          ></textarea>
+            @update:model-value="setField('description', $event)"
+          />
         </div>
         <div :style="rowWrap">
           <div :style="pxify({ ...fieldRaw, flex: 1, minWidth: 150 })">
@@ -539,8 +521,7 @@ const dangerBtn = computed(() =>
           </span>
         </div>
         <div :style="rowWrap">
-          <input
-            :style="pxify({ ...inputRaw, flex: 1 })"
+          <TextInput
             type="url"
             placeholder="Paste an image URL…"
             v-model="photoDraft"
@@ -571,14 +552,17 @@ const dangerBtn = computed(() =>
             >
           </span>
         </div>
-        <select :style="inputStyle" @change="attachNote">
-          <option value="">
-            {{ unattachedNotes.length ? 'Attach a note…' : 'No more notes to attach' }}
-          </option>
-          <option v-for="n in unattachedNotes" :key="n.id" :value="n.id">
-            {{ noteTitle(n.text) }}
-          </option>
-        </select>
+        <Select
+          :model-value="attachChoice"
+          @update:model-value="attachNote"
+          :options="[
+            {
+              value: '',
+              label: `${unattachedNotes.length ? 'Attach a note…' : 'No more notes to attach'}`,
+            },
+            ...unattachedNotes.map((n) => ({ value: String(n.id), label: `${noteTitle(n.text)}` })),
+          ]"
+        />
 
         <button :style="dangerBtn" @click="removeTrip">Delete trip</button>
       </div>

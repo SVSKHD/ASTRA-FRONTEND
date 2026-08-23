@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // Settings → Integrations → GitHub (section 13a). "Connect GitHub", then a repo
 // picker listing the repos the App installation can see with a toggle per repo.
 //
@@ -188,7 +189,7 @@ const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShri
         </div>
         <div v-if="ghError" :style="bannerStyle('oklch(0.65 0.2 25)')">{{ ghError }}</div>
 
-        <input :style="s.input" placeholder="Search repositories…" v-model="search" />
+        <TextInput placeholder="Search repositories…" v-model="search" />
 
         <div v-if="ghBusy && !ghInstalled" :style="s.ghShimmer"></div>
         <div v-else-if="!pickerRepos.length" :style="s.empty">

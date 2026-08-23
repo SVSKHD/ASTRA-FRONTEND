@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
 // Finances — reworked around scopes (Personal / Business / All), a unified
 // income+expense transaction list, debts, and first-class tags. Sub-tabs inside
 // the stage: Overview · Transactions · Debts · Tags. Everything derives from the
@@ -32,7 +34,7 @@ import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
-const { c, s, panelStyle } = useStyles()
+const { c, panelStyle } = useStyles()
 const { transactions, debts, finScope } = storeToRefs(app)
 const { now } = storeToRefs(useUiStore())
 const route = useRoute()
@@ -145,7 +147,7 @@ function todayInMonth(): string {
 
 // --- add-transaction form ---------------------------------------------------
 const showTxnForm = ref(false)
-const txnForm = ref<Record<string, unknown>>({
+const txnForm = ref<Record<string, string>>({
   kind: 'expense',
   amount: '',
   date: CURRENT + '-01',
@@ -197,7 +199,7 @@ function submitTxn() {
 
 // --- add-debt form ----------------------------------------------------------
 const showDebtForm = ref(false)
-const debtForm = ref<Record<string, unknown>>({
+const debtForm = ref<Record<string, string>>({
   direction: 'owed_by_me',
   counterparty: '',
   principal: '',
@@ -355,7 +357,6 @@ const catColors = [
   RED,
 ]
 
-const inp = computed(() => s.value.input)
 const miniBtn = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -627,30 +628,26 @@ const debtCard = computed(() =>
         <div v-if="showTxnForm" :style="card">
           <div :style="label">New {{ txnForm.kind }}</div>
           <div :style="formGrid">
-            <input
-              :style="inp"
-              v-model="txnForm.amount"
-              placeholder="Amount ₹"
-              inputmode="decimal"
-            />
+            <TextInput v-model="txnForm.amount" placeholder="Amount ₹" inputmode="decimal" />
             <GlassDatePicker
               :model-value="String(txnForm.date ?? '')"
               size="sm"
               placeholder="Date"
               @update:model-value="txnForm.date = String($event ?? '')"
             />
-            <input
-              :style="inp"
+            <TextInput
               v-model="txnForm.category"
               :placeholder="txnForm.kind === 'income' ? 'Income' : 'Category'"
             />
-            <select v-if="txnForm.kind === 'income'" :style="inp" v-model="txnForm.source">
-              <option v-for="src in SOURCES" :key="src" :value="src">{{ src }}</option>
-            </select>
-            <input :style="inp" v-model="txnForm.party" placeholder="Party (optional)" />
-            <input :style="inp" v-model="txnForm.tags" placeholder="tags, comma-separated" />
+            <Select
+              v-if="txnForm.kind === 'income'"
+              v-model="txnForm.source"
+              :options="[...SOURCES.map((src) => ({ value: String(src), label: src }))]"
+            />
+            <TextInput v-model="txnForm.party" placeholder="Party (optional)" />
+            <TextInput v-model="txnForm.tags" placeholder="tags, comma-separated" />
           </div>
-          <input :style="inp" v-model="txnForm.note" placeholder="Note" />
+          <TextInput v-model="txnForm.note" placeholder="Note" />
           <div :style="{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }">
             <button :style="ghostBtn" @click="showTxnForm = false">Cancel</button>
             <button :style="miniBtn" @click="submitTxn">Add</button>
@@ -724,28 +721,28 @@ const debtCard = computed(() =>
 
         <div v-if="showDebtForm" :style="card">
           <div :style="formGrid">
-            <select :style="inp" v-model="debtForm.direction">
-              <option value="owed_by_me">I owe</option>
-              <option value="owed_to_me">Owed to me</option>
-            </select>
-            <input :style="inp" v-model="debtForm.counterparty" placeholder="Counterparty" />
-            <input
-              :style="inp"
-              v-model="debtForm.principal"
-              placeholder="Principal ₹"
-              inputmode="decimal"
+            <Select
+              v-model="debtForm.direction"
+              :options="[
+                { value: 'owed_by_me', label: 'I owe' },
+                { value: 'owed_to_me', label: 'Owed to me' },
+              ]"
             />
-            <input
-              :style="inp"
+            <TextInput v-model="debtForm.counterparty" placeholder="Counterparty" />
+            <TextInput v-model="debtForm.principal" placeholder="Principal ₹" inputmode="decimal" />
+            <TextInput
               v-model="debtForm.interestRatePct"
               placeholder="Interest % (opt)"
               inputmode="decimal"
             />
-            <select :style="inp" v-model="debtForm.interestType">
-              <option value="none">No interest</option>
-              <option value="simple">Simple</option>
-              <option value="compound">Compound</option>
-            </select>
+            <Select
+              v-model="debtForm.interestType"
+              :options="[
+                { value: 'none', label: 'No interest' },
+                { value: 'simple', label: 'Simple' },
+                { value: 'compound', label: 'Compound' },
+              ]"
+            />
             <GlassDatePicker
               :model-value="String(debtForm.startDate ?? '')"
               size="sm"
@@ -812,12 +809,7 @@ const debtCard = computed(() =>
               </div>
               <span :style="scopeChip">{{ effectiveDebtStatus(d, now) }}</span>
               <div :style="{ display: 'flex', gap: '6px' }">
-                <input
-                  :style="inp"
-                  v-model="payAmount[d.id]"
-                  placeholder="Payment ₹"
-                  inputmode="decimal"
-                />
+                <TextInput v-model="payAmount[d.id]" placeholder="Payment ₹" inputmode="decimal" />
                 <button :style="miniBtn" @click="recordPayment(d)">Pay</button>
                 <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
               </div>
@@ -844,12 +836,7 @@ const debtCard = computed(() =>
               <span :style="big">{{ formatINR(debtOutstanding(d, now)) }}</span>
               <span :style="sub">of {{ formatINR(d.principal) }}</span>
               <div :style="{ display: 'flex', gap: '6px' }">
-                <input
-                  :style="inp"
-                  v-model="payAmount[d.id]"
-                  placeholder="Received ₹"
-                  inputmode="decimal"
-                />
+                <TextInput v-model="payAmount[d.id]" placeholder="Received ₹" inputmode="decimal" />
                 <button :style="miniBtn" @click="recordPayment(d)">Receive</button>
                 <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
               </div>

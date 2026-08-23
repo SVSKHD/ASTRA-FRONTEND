@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
 // The task side of the detail dialog (section 18c). Everything here is inline
 // editable — there is no edit mode and no Save button. The free-text fields
 // autosave 600ms after typing stops (useInlineField); every other control writes
@@ -106,8 +108,8 @@ function onEstimateFocus() {
   estimateFocused.value = true
   estimateText.value = task.value?.estimateMins != null ? String(task.value.estimateMins) : ''
 }
-function onEstimateInput(event: Event) {
-  estimateText.value = (event.target as HTMLInputElement).value
+function onEstimateInput(value: string) {
+  estimateText.value = value
 }
 function onEstimateBlur() {
   estimateFocused.value = false
@@ -298,11 +300,10 @@ defineExpose({
           </label>
           <label class="tdb__field">
             <span class="tdb__key">Assignee</span>
-            <input
-              class="tdb__input"
+            <TextInput
               placeholder="Nobody"
-              :value="assignee.draft.value"
-              @input="assignee.onInput"
+              :model-value="assignee.draft.value"
+              @update:model-value="assignee.set"
               @focus="assignee.onFocus"
               @blur="assignee.onBlur"
               @keydown="assignee.onKeydown"
@@ -310,17 +311,12 @@ defineExpose({
           </label>
           <label class="tdb__field">
             <span class="tdb__key">Priority</span>
-            <select
+            <Select
               class="tdb__input"
-              :value="task.priority ?? 'normal'"
-              @change="
-                app.patchTask(task.id, {
-                  priority: ($event.target as HTMLSelectElement).value as Priority,
-                })
-              "
-            >
-              <option v-for="p in PRIORITIES" :key="p" :value="p">{{ p }}</option>
-            </select>
+              :model-value="task.priority ?? 'normal'"
+              @update:model-value="app.patchTask(task.id, { priority: $event as Priority })"
+              :options="[...PRIORITIES.map((p) => ({ value: String(p), label: p }))]"
+            />
           </label>
           <label class="tdb__field">
             <span class="tdb__key">Due</span>
@@ -356,12 +352,11 @@ defineExpose({
           </label>
           <label class="tdb__field">
             <span class="tdb__key">Estimate</span>
-            <input
-              class="tdb__input"
+            <TextInput
               placeholder="e.g. 1h 30m"
-              :value="estimateValue"
+              :model-value="estimateValue"
               @focus="onEstimateFocus"
-              @input="onEstimateInput"
+              @update:model-value="onEstimateInput"
               @blur="onEstimateBlur"
             />
           </label>
@@ -416,11 +411,10 @@ defineExpose({
           </button>
         </div>
         <div class="tdb__addrow">
-          <input
-            class="tdb__input"
+          <TextInput
             placeholder="Add a subtask…"
-            :value="subtaskDraft"
-            @input="subtaskDraft = ($event.target as HTMLInputElement).value"
+            :model-value="subtaskDraft"
+            @update:model-value="subtaskDraft = $event"
             @keydown.enter.prevent="addSubtask"
           />
           <button type="button" class="tdb__mini" @click="addSubtask">Add</button>
@@ -476,13 +470,12 @@ defineExpose({
         </div>
         <template v-else-if="connected && repos.length">
           <div class="tdb__row">
-            <select
+            <Select
               class="tdb__input"
-              :value="chosenRepo"
-              @change="targetRepo = ($event.target as HTMLSelectElement).value"
-            >
-              <option v-for="r in repos" :key="r.id" :value="r.id">{{ r.fullName }}</option>
-            </select>
+              :model-value="chosenRepo"
+              @update:model-value="targetRepo = $event"
+              :options="[...repos.map((r) => ({ value: String(r.id), label: `${r.fullName}` }))]"
+            />
             <button type="button" class="tdb__mini" :disabled="creating" @click="createIssue">
               {{ creating ? '…' : 'Create issue' }}
             </button>
@@ -491,11 +484,10 @@ defineExpose({
             </button>
           </div>
           <template v-if="linkMode">
-            <input
-              class="tdb__input"
+            <TextInput
               placeholder="Search by number or title…"
-              :value="linkQuery"
-              @input="linkQuery = ($event.target as HTMLInputElement).value"
+              :model-value="linkQuery"
+              @update:model-value="linkQuery = $event"
             />
             <div v-if="!candidates.length" class="tdb__muted">No unlinked issues match.</div>
             <div v-for="iss in candidates" :key="iss.id" class="tdb__row">

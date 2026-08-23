@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
 // The stock watchlist: a flat, filterable list of symbols with a thesis, price
 // targets, tags and attached notes. Create/edit both live in ItemDialog.
 import { computed, ref } from 'vue'
@@ -84,23 +85,23 @@ const filterBar = pxify({
     <ListToolbar title="Stocks" new-label="Track stock" @new="app.openCreate('stock')" />
 
     <div v-if="stocks.length" :style="filterBar">
-      <select
-        :style="s.select"
-        :value="tagFilter"
-        @change="tagFilter = ($event.target as HTMLSelectElement).value"
-      >
-        <option value="all">All tags</option>
-        <option v-for="t in tags" :key="t" :value="t">{{ t }}</option>
-      </select>
-      <select
-        :style="s.select"
-        :value="sortKey"
-        @change="sortKey = ($event.target as HTMLSelectElement).value as typeof sortKey"
-      >
-        <option value="symbol">By symbol</option>
-        <option value="target">By target price</option>
-        <option value="updated">Recently updated</option>
-      </select>
+      <Select
+        :model-value="tagFilter"
+        @update:model-value="tagFilter = $event"
+        :options="[
+          { value: 'all', label: 'All tags' },
+          ...tags.map((t) => ({ value: String(t), label: t })),
+        ]"
+      />
+      <Select
+        :model-value="sortKey"
+        @update:model-value="sortKey = $event as typeof sortKey"
+        :options="[
+          { value: 'symbol', label: 'By symbol' },
+          { value: 'target', label: 'By target price' },
+          { value: 'updated', label: 'Recently updated' },
+        ]"
+      />
     </div>
 
     <div v-if="stocks.length === 0" :style="s.empty">Your watchlist is empty.</div>

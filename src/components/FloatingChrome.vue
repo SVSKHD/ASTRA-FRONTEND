@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Checkbox from '@/components/ui/Checkbox.vue'
 // All the floating chrome that used to live docked in the rail/header, now
 // scattered as independent glass orbs over the starfield: the AUREON mark
 // (top-left), the Notes and Settings orbs (bottom-left), and the theme + account
@@ -44,8 +45,9 @@ const lightThemes = computed(() =>
 )
 const specialThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.special))
 const standaloneThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.standalone))
-function onAutoLockChange(e: Event) {
-  lock.setAutoLock((e.target as HTMLInputElement).checked)
+// The control hands over the value; there is no event to dig into any more.
+function onAutoLockChange(on: boolean) {
+  lock.setAutoLock(on)
 }
 function onLockNow() {
   auth.avatarMenuOpen = false
@@ -435,30 +437,27 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
           <div :style="subStyle">{{ avatarSub }}</div>
         </div>
         <label :style="menuToggle">
-          <input type="checkbox" :checked="security.autoLockEnabled" @change="onAutoLockChange" />
+          <Checkbox
+            :model-value="security.autoLockEnabled"
+            @update:model-value="onAutoLockChange"
+          />
           <span>Auto-lock after 50 min</span>
         </label>
         <label :style="menuToggle">
-          <input
-            type="checkbox"
-            :checked="autoRollover"
-            @change="app.setAutoRollover(($event.target as HTMLInputElement).checked)"
-          />
+          <Checkbox :model-value="autoRollover" @update:model-value="app.setAutoRollover($event)" />
           <span>Auto-roll overdue to today</span>
         </label>
         <label :style="menuToggle">
-          <input
-            type="checkbox"
-            :checked="hideCompleted"
-            @change="app.setHideCompleted(($event.target as HTMLInputElement).checked)"
+          <Checkbox
+            :model-value="hideCompleted"
+            @update:model-value="app.setHideCompleted($event)"
           />
           <span>Hide completed items</span>
         </label>
         <label :style="menuToggle">
-          <input
-            type="checkbox"
-            :checked="reminderSound"
-            @change="app.setReminderSound(($event.target as HTMLInputElement).checked)"
+          <Checkbox
+            :model-value="reminderSound"
+            @update:model-value="app.setReminderSound($event)"
           />
           <span>Reminder sound</span>
         </label>

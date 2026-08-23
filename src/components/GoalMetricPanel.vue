@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // Recurring-goal panel for the goal detail (task 11). Holds the recurrence +
 // metric config editor, and — when recurring — today's occurrence with a tick
 // control. Ticking a metric-enabled occurrence opens the capture popover
@@ -20,7 +23,7 @@ import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 // slide-over can reuse just the recurrence/metric editor for a brand-new goal.
 const props = defineProps<{ goalId: number; configOnly?: boolean }>()
 const app = useAppStore()
-const { c, s } = useStyles()
+const { c } = useStyles()
 const { goals } = storeToRefs(app)
 
 const goal = computed(() => goals.value.find((g) => g.id === props.goalId))
@@ -124,9 +127,6 @@ function dowBtn(active: boolean) {
     cursor: 'pointer',
   })
 }
-const miniInput = computed(() =>
-  pxify({ ...s.value.input, width: 90, padding: '5px 8px', ...typeStep('xs') }),
-)
 const todayRow = computed(() =>
   pxify({
     position: 'relative',
@@ -159,23 +159,17 @@ const pendingHint = computed(() =>
   <div v-if="goal" :style="box">
     <!-- recurring toggle -->
     <label :style="toggleLabel">
-      <input
-        type="checkbox"
-        :checked="recurring"
-        @change="toggleRecurring(($event.target as HTMLInputElement).checked)"
-      />
+      <Checkbox :model-value="recurring" @update:model-value="toggleRecurring($event)" />
       <span>Make it recurring</span>
     </label>
 
     <template v-if="recurring && goal.recurrence">
       <div :style="rowFlex">
-        <select
-          :style="s.select"
-          :value="goal.recurrence.freq"
-          @change="patchRec({ freq: ($event.target as HTMLSelectElement).value as RecurrenceFreq })"
-        >
-          <option v-for="f in FREQ_OPTS" :key="f.v" :value="f.v">{{ f.label }}</option>
-        </select>
+        <Select
+          :model-value="goal.recurrence.freq"
+          @update:model-value="patchRec({ freq: $event as RecurrenceFreq })"
+          :options="[...FREQ_OPTS.map((f) => ({ value: String(f.v), label: `${f.label}` }))]"
+        />
         <label :style="fieldLabel">at</label>
         <GlassDatePicker
           mode="time"
@@ -201,50 +195,35 @@ const pendingHint = computed(() =>
 
       <!-- metric config -->
       <label :style="toggleLabel">
-        <input
-          type="checkbox"
-          :checked="metricOn"
-          @change="toggleMetric(($event.target as HTMLInputElement).checked)"
-        />
+        <Checkbox :model-value="metricOn" @update:model-value="toggleMetric($event)" />
         <span>Track a number</span>
       </label>
       <div v-if="metricOn && goal.metric" :style="rowFlex">
-        <input
-          :style="miniInput"
+        <TextInput
           style="width: 120px"
-          :value="goal.metric.label"
+          :model-value="goal.metric.label"
           placeholder="Label"
-          @input="patchMetric({ label: ($event.target as HTMLInputElement).value })"
+          @update:model-value="patchMetric({ label: $event })"
         />
-        <select
-          :style="s.select"
-          :value="goal.metric.direction"
-          @change="
-            patchMetric({
-              direction: ($event.target as HTMLSelectElement).value as MetricDirection,
-            })
-          "
-        >
-          <option v-for="d in DIR_OPTS" :key="d.v" :value="d.v">{{ d.label }}</option>
-        </select>
-        <input
-          :style="miniInput"
+        <Select
+          :model-value="goal.metric.direction"
+          @update:model-value="patchMetric({ direction: $event as MetricDirection })"
+          :options="[...DIR_OPTS.map((d) => ({ value: String(d.v), label: `${d.label}` }))]"
+        />
+        <TextInput
           type="number"
-          :value="goal.metric.target"
-          @input="patchMetric({ target: Number(($event.target as HTMLInputElement).value) || 0 })"
+          :model-value="goal.metric.target"
+          @update:model-value="patchMetric({ target: Number($event) || 0 })"
         />
-        <select
-          :style="s.select"
-          :value="goal.metric.unit"
-          @change="patchMetric({ unit: ($event.target as HTMLSelectElement).value })"
-        >
-          <option v-for="u in UNIT_OPTS" :key="u" :value="u">{{ u }}</option>
-        </select>
+        <Select
+          :model-value="goal.metric.unit"
+          @update:model-value="patchMetric({ unit: $event })"
+          :options="[...UNIT_OPTS.map((u) => ({ value: String(u), label: u }))]"
+        />
         <label :style="toggleLabel">
-          <input
-            type="checkbox"
-            :checked="goal.metric.allowPartial"
-            @change="patchMetric({ allowPartial: ($event.target as HTMLInputElement).checked })"
+          <Checkbox
+            :model-value="goal.metric.allowPartial"
+            @update:model-value="patchMetric({ allowPartial: $event })"
           />
           <span :style="fieldLabel">allow partial</span>
         </label>
@@ -252,9 +231,8 @@ const pendingHint = computed(() =>
 
       <!-- today's occurrence -->
       <div v-if="todayOcc && !configOnly" :style="todayRow">
-        <input
-          type="checkbox"
-          :checked="todayOcc.status === 'done'"
+        <Checkbox
+          :model-value="todayOcc.status === 'done'"
           :aria-label="'Complete today'"
           @click.prevent="onTick"
         />

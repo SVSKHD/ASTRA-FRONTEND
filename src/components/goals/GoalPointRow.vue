@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NumberInput from '@/components/ui/NumberInput.vue'
 // One point on a goal (section 20b).
 //
 // It used to be a fixed-height single-line input, so a point like "truthiness,
@@ -46,23 +47,20 @@ function onRevert() {
 // Plain text until clicked. "180m" reads as information; a bordered number field
 // on every row reads as ten things to fill in.
 const editingEstimate = ref(false)
-const estimateField = ref<HTMLInputElement | null>(null)
+const draftEstimate = ref<number | null>(null)
+const estimateField = ref<InstanceType<typeof NumberInput> | null>(null)
 async function editEstimate() {
+  draftEstimate.value = props.point.estimateMins ?? null
   editingEstimate.value = true
   await nextTick()
   estimateField.value?.focus()
-  estimateField.value?.select()
 }
-function commitEstimate(event: Event) {
+// The control parses; this only decides what an empty field means. An emptied
+// estimate clears it, and anything unreadable never reaches here at all — the
+// number field holds the last good value rather than handing over a zero.
+function commitEstimate() {
   editingEstimate.value = false
-  const raw = (event.target as HTMLInputElement).value.trim()
-  if (!raw) {
-    emit('update:estimate', null)
-    return
-  }
-  const minutes = parseInt(raw, 10)
-  // Anything unreadable leaves the stored value alone rather than zeroing it.
-  if (Number.isFinite(minutes)) emit('update:estimate', Math.max(0, minutes))
+  emit('update:estimate', draftEstimate.value === null ? null : Math.max(0, draftEstimate.value))
 }
 
 const running = computed(() => props.point.timerStartedAt != null)
@@ -102,15 +100,15 @@ const showExtras = computed(() => !props.mobile || expanded.value)
 
     <div class="gpr__controls">
       <!-- Estimate: text at rest, field on click. -->
-      <input
+      <NumberInput
         v-if="editingEstimate"
         ref="estimateField"
         class="gpr__mins"
-        type="number"
-        min="0"
-        inputmode="numeric"
+        size="sm"
+        :min="0"
         aria-label="Estimate in minutes"
-        :value="point.estimateMins ?? ''"
+        :model-value="draftEstimate"
+        @update:model-value="draftEstimate = $event"
         @blur="commitEstimate"
         @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
       />
@@ -230,7 +228,7 @@ const showExtras = computed(() => !props.mobile || expanded.value)
   opacity: 0.7;
 }
 .gpr__mins {
-  width: 56px;
+  width: 72px;
   padding: 2px var(--sp-1);
   border-radius: var(--radius-sm);
   border: 1px solid var(--theme-accent);

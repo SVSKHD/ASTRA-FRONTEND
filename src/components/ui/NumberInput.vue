@@ -35,7 +35,16 @@ const props = withDefaults(
   }>(),
   { size: 'md', step: 1 },
 )
-const emit = defineEmits<{ 'update:modelValue': [number | null] }>()
+const emit = defineEmits<{
+  // focus and blur are forwarded explicitly rather than left to attribute
+  // fallthrough. Neither event bubbles, so a listener that lands on this
+  // component's root div — which is where a fallthrough listener goes — never
+  // fires. It fails silently, and only for those two events, which is the worst
+  // shape a bug can have.
+  'update:modelValue': [number | null]
+  focus: [FocusEvent]
+  blur: [FocusEvent]
+}>()
 
 const generated = useId()
 const fieldId = computed(() => props.id ?? generated)
@@ -62,7 +71,8 @@ function onInput(event: Event) {
 
 // Clamping happens on blur, not on input: clamping while typing turns "10" on
 // its way to "100" into "10" forever when the max is 50.
-function onBlur() {
+function onBlur(event: FocusEvent) {
+  emit('blur', event)
   if (props.modelValue === null) return
   const clamped = clamp(props.modelValue)
   if (clamped !== props.modelValue) emit('update:modelValue', clamped)
@@ -128,6 +138,7 @@ defineExpose({ focus: () => input.value?.focus() })
       :aria-describedby="describedBy"
       @input="onInput"
       @blur="onBlur"
+      @focus="emit('focus', $event)"
       @keydown="onKeydown"
     />
     <span v-if="suffix" class="ui-num__suffix">{{ suffix }}</span>

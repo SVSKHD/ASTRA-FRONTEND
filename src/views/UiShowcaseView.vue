@@ -217,19 +217,26 @@ const OverlapDetector = import.meta.env.DEV
       <strong class="ui-page__brand">Design system</strong>
       <label class="ui-page__ctl">
         Theme
-        <select v-model="themeChoice">
-          <option v-for="d in THEME_DESCRIPTORS" :key="d.id" :value="d.id">{{ d.name }}</option>
-        </select>
+        <Select
+          v-model="themeChoice"
+          :options="[
+            ...THEME_DESCRIPTORS.map((d) => ({ value: String(d.id), label: `${d.name}` })),
+          ]"
+        />
       </label>
       <label class="ui-page__ctl">
         Density
-        <select v-model="density" @change="applyChrome">
-          <option value="comfortable">Comfortable</option>
-          <option value="compact">Compact</option>
-        </select>
+        <Select
+          v-model="density"
+          @update:model-value="applyChrome"
+          :options="[
+            { value: 'comfortable', label: 'Comfortable' },
+            { value: 'compact', label: 'Compact' },
+          ]"
+        />
       </label>
       <label class="ui-page__ctl">
-        <input type="checkbox" v-model="rtl" @change="applyChrome" />
+        <Checkbox v-model="rtl" @update:model-value="applyChrome" />
         RTL
       </label>
       <span class="ui-page__count">{{ UI_GROUPS.length }} groups</span>

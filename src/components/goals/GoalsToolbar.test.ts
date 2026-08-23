@@ -1,6 +1,6 @@
 // The toolbar's density and its two shapes (section 19c).
 import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import GoalsToolbar from '@/components/goals/GoalsToolbar.vue'
@@ -19,12 +19,25 @@ function mountToolbar(over: Record<string, unknown> = {}) {
   })
 }
 
+// The listbox opens in a portal at body level — that is the point of it — so a
+// choice is made through the document rather than through the wrapper.
+function pickOption(label: string) {
+  const option = Array.from(document.querySelectorAll('.ui-lb__opt')).find(
+    (el) => el.querySelector('.ui-lb__label')?.textContent?.trim() === label,
+  )
+  if (!option) throw new Error(`no option labelled "${label}"`)
+  option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+}
+
 describe('the one-line layout', () => {
   it('puts search, status and sort on one row', () => {
     const wrapper = mountToolbar()
     const filters = wrapper.find('.gtb__filters')
     expect(filters.find('input[type="search"]').exists()).toBe(true)
-    expect(filters.findAll('select')).toHaveLength(2)
+    // Two listboxes, not two native selects: the toolbar is library controls
+    // now, so it is themed and portalled like everything beside it.
+    expect(filters.findAll('.ui-sel')).toHaveLength(2)
+    expect(filters.findAll('select')).toHaveLength(0)
   })
 
   it('sizes the controls to their content rather than to the screen', () => {
@@ -83,11 +96,16 @@ describe('the controls report changes', () => {
 
   it('reports a status and a sort choice', async () => {
     const wrapper = mountToolbar()
-    const [status, sort] = wrapper.findAll('select')
-    await status.setValue('paused')
-    await sort.setValue('progress')
+    const [status, sort] = wrapper.findAll('.ui-sel__trigger')
+    await status.trigger('click')
+    await flushPromises()
+    pickOption('Paused')
+    await sort.trigger('click')
+    await flushPromises()
+    pickOption('By progress')
     expect(wrapper.emitted('update:status')).toEqual([['paused']])
     expect(wrapper.emitted('update:sort')).toEqual([['progress']])
+    wrapper.unmount()
   })
 })
 
@@ -99,7 +117,7 @@ describe('on a phone', () => {
     expect(chips.map((c) => c.text())).toContain('Paused')
     // The status select is gone; sort keeps one, since it has no default worth
     // showing as a chip row of its own.
-    expect(wrapper.findAll('select')).toHaveLength(1)
+    expect(wrapper.findAll('.ui-sel')).toHaveLength(1)
   })
 
   it('marks the selected chip for assistive technology', () => {

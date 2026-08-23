@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // The capture prompt shown when a metric-enabled occurrence is ticked (task 11).
 // A compact inline popover, not a full dialog: a number input prefilled with the
 // target (focused + selected), the unit suffix, an optional note, and Save / Skip.
@@ -92,32 +93,7 @@ const inputWrap = computed(() =>
     padding: '4px 10px',
   }),
 )
-const numInput = computed(() =>
-  pxify({
-    flex: 1,
-    minWidth: 0,
-    ...typeStep('md'),
-    fontWeight: 'var(--weight-semibold)',
-    background: 'transparent',
-    border: 'none',
-    outline: 'none',
-    color: c.value.text,
-    fontFamily: 'inherit',
-  }),
-)
 const unitStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, flexShrink: 0 }))
-const noteInput = computed(() =>
-  pxify({
-    ...typeStep('xs'),
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    padding: '6px 10px',
-    color: c.value.text,
-    outline: 'none',
-    fontFamily: 'inherit',
-  }),
-)
 const outcomeStyle = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -170,9 +146,8 @@ const missedBtn = computed(() =>
   <div :style="pop" @click.stop @keydown.esc.stop.prevent="emit('cancel')">
     <div :style="promptStyle">{{ prompt || 'How much did you achieve today?' }}</div>
     <div :style="inputWrap">
-      <input
+      <TextInput
         ref="inputEl"
-        :style="numInput"
         v-model="value"
         type="text"
         inputmode="decimal"
@@ -184,8 +159,7 @@ const missedBtn = computed(() =>
       {{ num }} / {{ metric.target }} · {{ outcome.pct }}%
       <span v-if="outcome.hit"> ✓</span>
     </div>
-    <input
-      :style="noteInput"
+    <TextInput
       v-model="note"
       type="text"
       placeholder="Note (optional)"

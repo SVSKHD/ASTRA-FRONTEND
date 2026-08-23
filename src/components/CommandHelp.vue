@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // The Commands help: a compact, searchable glass panel that lists every slash
 // command and markdown shortcut with a one-line description and a tiny preview
 // of the result. Opened from the notes drawer header so the editor's shortcuts
@@ -138,16 +139,6 @@ const mdRow = computed(() =>
     background: c.value.input,
   }),
 )
-const searchStyle = computed(() =>
-  pxify({
-    padding: '9px 12px',
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    ...typeStep('sm'),
-  }),
-)
 const emptyStyle = computed(() =>
   pxify({ textAlign: 'center', color: c.value.dim, ...typeStep('xs'), padding: '18px 0' }),
 )
@@ -172,8 +163,7 @@ const closeBtn = computed(() =>
       <button :style="closeBtn" aria-label="Close commands help" @click="$emit('close')">×</button>
     </div>
 
-    <input
-      :style="searchStyle"
+    <TextInput
       type="search"
       placeholder="Search commands…"
       v-model="query"

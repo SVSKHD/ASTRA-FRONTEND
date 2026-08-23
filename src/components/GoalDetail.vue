@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // Goal detail (task 8): header (title/description/dates/status/progress + time
 // totals), an inline-CRUD checklist with per-item estimate/due and a start/stop
 // timer, and Tasks/Todos sections that reuse the existing TreeList row component
@@ -237,22 +241,6 @@ const header = computed(() =>
   }),
 )
 const headTop = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
-const titleInput = computed(() =>
-  pxify({
-    ...s.value.input,
-    ...typeStep('md'),
-    fontWeight: 'var(--weight-semibold)',
-    flex: 1,
-    minWidth: 0,
-    background: 'transparent',
-    border: 'none',
-    padding: 0,
-    color: c.value.text,
-  }),
-)
-const descInput = computed(() =>
-  pxify({ ...s.value.input, minHeight: 44, resize: 'vertical', width: '100%' }),
-)
 const dateRow = pxify({
   display: 'flex',
   gap: 'var(--sp-3)',
@@ -357,21 +345,16 @@ const pickRow = computed(() =>
     <div :style="header">
       <div :style="headTop">
         <ProgressRing :ratio="progress.ratio" :size="52" />
-        <input
-          :style="titleInput"
-          :value="goal.title"
+        <TextInput
+          :model-value="goal.title"
           placeholder="Goal title"
-          @input="app.updateGoal(goal.id, { title: ($event.target as HTMLInputElement).value })"
+          @update:model-value="app.updateGoal(goal.id, { title: $event })"
         />
-        <select
-          :style="s.select"
-          :value="goal.status"
-          @change="
-            app.setGoalStatus(goal.id, ($event.target as HTMLSelectElement).value as GoalStatus)
-          "
-        >
-          <option v-for="st in STATUS_OPTS" :key="st" :value="st">{{ st }}</option>
-        </select>
+        <Select
+          :model-value="goal.status"
+          @update:model-value="app.setGoalStatus(goal.id, $event as GoalStatus)"
+          :options="[...STATUS_OPTS.map((st) => ({ value: String(st), label: st }))]"
+        />
         <button :style="smallBtn" title="Duplicate goal" @click="onDuplicate">Duplicate</button>
         <button :style="smallBtn" title="Archive / unarchive" @click="onToggleArchive">
           {{ goal.status === 'archived' ? 'Unarchive' : 'Archive' }}
@@ -379,14 +362,11 @@ const pickRow = computed(() =>
         <button :style="smallBtn" title="Export as JSON" @click="onExport">Export</button>
         <button :style="smallBtn" @click="confirmDelete = true">Delete</button>
       </div>
-      <textarea
-        :style="descInput"
-        :value="goal.description"
+      <TextArea
+        :model-value="goal.description"
         placeholder="Description…"
-        @input="
-          app.updateGoal(goal.id, { description: ($event.target as HTMLTextAreaElement).value })
-        "
-      ></textarea>
+        @update:model-value="app.updateGoal(goal.id, { description: $event })"
+      />
       <div :style="dateRow">
         <label :style="fieldLabel">Start</label>
         <GlassDatePicker
@@ -419,8 +399,7 @@ const pickRow = computed(() =>
     <!-- Checklist -->
     <div :style="sectionTitle">Checklist</div>
     <div :style="addRow">
-      <input
-        :style="s.input"
+      <TextInput
         style="flex: 1"
         v-model="draft"
         placeholder="Add a checklist item…"
@@ -475,13 +454,12 @@ const pickRow = computed(() =>
     <div v-if="pickerFor" :style="overlay" @click.self="pickerFor = null">
       <div :style="modal">
         <div :style="sectionTitle">Attach {{ pickerFor }}</div>
-        <input :style="s.input" v-model="pickerSearch" placeholder="Search…" />
+        <TextInput v-model="pickerSearch" placeholder="Search…" />
         <div :style="pickList">
           <label v-for="row in pickerRows" :key="row.id" :style="pickRow">
-            <input
-              type="checkbox"
-              :checked="row.attached"
-              @change="togglePick(row.id, row.attached)"
+            <Checkbox
+              :model-value="row.attached"
+              @update:model-value="togglePick(row.id, row.attached)"
             />
             <span>{{ row.label }}</span>
           </label>

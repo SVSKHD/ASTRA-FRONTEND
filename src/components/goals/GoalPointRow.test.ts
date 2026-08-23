@@ -161,8 +161,11 @@ describe('the controls', () => {
     const wrapper = mountRow()
     await wrapper.find('.gpr__estimate').trigger('click')
     await wrapper.vm.$nextTick()
-    const field = wrapper.find('.gpr__mins')
-    ;(field.element as HTMLInputElement).value = '45'
+    // The estimate is a NumberInput now: the class is on the control, the field
+    // is inside it, and the value reaches the row through the model rather than
+    // being read back off the element on blur.
+    const field = wrapper.find('.gpr__mins input')
+    await field.setValue('45')
     await field.trigger('blur')
     expect(wrapper.emitted('update:estimate')).toEqual([[45]])
   })
@@ -171,8 +174,8 @@ describe('the controls', () => {
     const wrapper = mountRow(makePoint({ estimateMins: 45 }))
     await wrapper.find('.gpr__estimate').trigger('click')
     await wrapper.vm.$nextTick()
-    const field = wrapper.find('.gpr__mins')
-    ;(field.element as HTMLInputElement).value = ''
+    const field = wrapper.find('.gpr__mins input')
+    await field.setValue('')
     await field.trigger('blur')
     expect(wrapper.emitted('update:estimate')).toEqual([[null]])
   })

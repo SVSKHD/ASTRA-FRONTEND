@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
 // The Wallets tab (section 14). An address book of the user's own PUBLIC
 // receive addresses, grouped by chain: label, truncated address, copy, QR and
 // an explorer link.
@@ -244,30 +246,28 @@ const defaultChip = computed(() =>
     <!-- ---- add form ---------------------------------------------------- -->
     <div v-if="adding" :style="s.ghRepoCard">
       <div :style="s.inputRow">
-        <input :style="s.input" placeholder="Label (e.g. Cold storage)" v-model="form.label" />
-        <select :style="s.select" v-model="form.chain">
-          <option v-for="ch in CHAINS" :key="ch.key" :value="ch.key">
-            {{ ch.glyph }} {{ ch.name }}
-          </option>
-        </select>
-        <select :style="s.select" v-model="form.network">
-          <option value="mainnet">Mainnet</option>
-          <option value="testnet">Testnet</option>
-        </select>
+        <TextInput placeholder="Label (e.g. Cold storage)" v-model="form.label" />
+        <Select
+          v-model="form.chain"
+          :options="[
+            ...CHAINS.map((ch) => ({ value: String(ch.key), label: `${ch.glyph} ${ch.name}` })),
+          ]"
+        />
+        <Select
+          v-model="form.network"
+          :options="[
+            { value: 'mainnet', label: 'Mainnet' },
+            { value: 'testnet', label: 'Testnet' },
+          ]"
+        />
       </div>
-      <input
-        :style="s.input"
-        placeholder="Public address"
-        v-model="form.address"
-        spellcheck="false"
-      />
-      <input
+      <TextInput placeholder="Public address" v-model="form.address" spellcheck="false" />
+      <TextInput
         v-if="selectedDef?.memo"
-        :style="s.input"
         :placeholder="selectedDef.memo === 'tag' ? 'Destination tag' : 'Memo'"
         v-model="form.memoTag"
       />
-      <input :style="s.input" placeholder="Notes (optional)" v-model="form.notes" />
+      <TextInput placeholder="Notes (optional)" v-model="form.notes" />
 
       <div v-if="secretWarning" :style="warnBox('oklch(0.65 0.22 25)')">
         <strong>{{ secretWarning }}.</strong> Nothing you typed has been saved. This app only ever
@@ -344,20 +344,18 @@ const defaultChip = computed(() =>
 
           <!-- inline edit -->
           <template v-if="editingId === wallet.id">
-            <input :style="s.input" placeholder="Label" v-model="editDraft.label" />
-            <input
-              :style="s.input"
+            <TextInput placeholder="Label" v-model="editDraft.label" />
+            <TextInput
               placeholder="Public address"
               v-model="editDraft.address"
               spellcheck="false"
             />
-            <input
+            <TextInput
               v-if="group.def?.memo"
-              :style="s.input"
               :placeholder="group.def.memo === 'tag' ? 'Destination tag' : 'Memo'"
               v-model="editDraft.memoTag"
             />
-            <input :style="s.input" placeholder="Notes" v-model="editDraft.notes" />
+            <TextInput placeholder="Notes" v-model="editDraft.notes" />
             <div v-if="editError" :style="warnBox('oklch(0.65 0.22 25)')">{{ editError }}</div>
             <div :style="s.dialogActions">
               <button :style="s.saveBtn" @click="saveEdit(wallet)">Save</button>

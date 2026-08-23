@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // AI tab: a chat that knows your app. Two-pane inside the stage — a conversation
 // rail and the thread — with a pinned header (model, "Use my data", New chat) and
 // a pinned composer. The Anthropic key never touches the client: sends POST to a
@@ -19,7 +23,7 @@ import { noteTitle } from '@/utils/notes'
 import { currentMonthKey } from '@/utils/budget'
 
 const app = useAppStore()
-const { c, s, panelStyle } = useStyles()
+const { c, panelStyle } = useStyles()
 const { aiChats, activeAiChat, aiActiveChatId, aiUseData } = storeToRefs(app)
 const { now } = storeToRefs(useUiStore())
 const { isOnline } = useConnectivity()
@@ -367,22 +371,6 @@ const composerBar = computed(() =>
     borderTop: '1px solid ' + c.value.border,
   }),
 )
-const composerInput = computed(() =>
-  pxify({
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 140,
-    resize: 'none',
-    padding: '11px 14px',
-    borderRadius: 'var(--radius-dialog)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    ...typeStep('sm'),
-    outline: 'none',
-    fontFamily: 'inherit',
-  }),
-)
 const sendBtn = computed(() =>
   pxify({
     flexShrink: 0,
@@ -451,7 +439,7 @@ function onComposerKey(e: KeyboardEvent) {
       <!-- conversation rail -->
       <aside :style="rail">
         <div :style="railHeadRow">
-          <input :style="s.input" v-model="search" placeholder="Search chats" />
+          <TextInput v-model="search" placeholder="Search chats" />
           <button :style="newBtn" aria-label="New chat" @click="newChat">+</button>
         </div>
         <div :style="railScroll">
@@ -488,22 +476,14 @@ function onComposerKey(e: KeyboardEvent) {
       <!-- thread -->
       <section :style="main">
         <div :style="headerRow">
-          <select
+          <Select
             v-if="activeAiChat"
-            :style="s.select"
-            :value="activeAiChat.model"
-            @change="
-              app.setAiChatModel(activeAiChat.id, ($event.target as HTMLSelectElement).value)
-            "
-          >
-            <option v-for="m in AI_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </select>
+            :model-value="activeAiChat.model"
+            @update:model-value="app.setAiChatModel(activeAiChat.id, $event)"
+            :options="[...AI_MODELS.map((m) => ({ value: String(m.id), label: `${m.label}` }))]"
+          />
           <label :style="toggleLabel">
-            <input
-              type="checkbox"
-              :checked="aiUseData"
-              @change="app.setAiUseData(($event.target as HTMLInputElement).checked)"
-            />
+            <Checkbox :model-value="aiUseData" @update:model-value="app.setAiUseData($event)" />
             Use my data
           </label>
           <span v-if="tokenTotal" :style="tokenReadout">{{ tokenTotal }} tokens</span>
@@ -552,16 +532,15 @@ function onComposerKey(e: KeyboardEvent) {
 
         <!-- composer -->
         <div :style="composerBar">
-          <textarea
+          <TextArea
             ref="composerRef"
-            :style="composerInput"
-            :value="text"
+            :model-value="text"
             :disabled="!isOnline"
             :placeholder="isOnline ? 'Message…' : 'AI needs internet'"
-            rows="1"
-            @input="text = ($event.target as HTMLTextAreaElement).value"
+            :rows="1"
+            @update:model-value="text = $event"
             @keydown="onComposerKey"
-          ></textarea>
+          />
           <button v-if="streaming" :style="sendBtn" @click="stop">Stop</button>
           <button v-else :style="sendBtn" :disabled="!isOnline" @click="send()">Send</button>
         </div>

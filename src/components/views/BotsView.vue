@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // Bots tab: a control surface + dashboard for the trading bots. The app only
 // reads what the bot process writes and flips `enabled`; it never runs strategy
 // logic. One floating glass card per bot, a red "Stop all" kill switch, and a
@@ -463,7 +464,7 @@ const dialogCard = computed(() =>
           This is a <strong :style="{ color: RED }">live</strong> bot. Type its name
           <strong>{{ confirmBot.name }}</strong> to {{ confirmBot.enabled ? 'stop' : 'start' }} it.
         </div>
-        <input :style="s.input" v-model="confirmText" :placeholder="confirmBot.name" />
+        <TextInput v-model="confirmText" :placeholder="confirmBot.name" />
         <div :style="{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }">
           <button :style="s.cancelBtn" @click="confirmBot = null">Cancel</button>
           <button

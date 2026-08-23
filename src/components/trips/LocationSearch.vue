@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // A location search over OpenStreetMap's Nominatim. Type a place, pick a
 // suggestion, and the chosen lat/lng + formatted address are emitted for the
 // trip to store. The suggestion list is absolutely positioned so it overlays
@@ -33,8 +34,7 @@ watch(
   },
 )
 
-function onInput(e: Event) {
-  const v = (e.target as HTMLInputElement).value
+function onInput(v: string) {
   query.value = v
   emit('update:modelValue', v)
   clearTimeout(debounce)
@@ -72,17 +72,6 @@ onBeforeUnmount(() => {
 })
 
 const wrap = pxify({ position: 'relative', width: '100%' })
-const inputStyle = computed(() =>
-  pxify({
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    ...typeStep('sm'),
-  }),
-)
 const listStyle = computed(() =>
   pxify({
     position: 'absolute',
@@ -125,13 +114,12 @@ const hintStyle = computed(() =>
 
 <template>
   <div :style="wrap">
-    <input
-      :style="inputStyle"
-      :value="query"
+    <TextInput
+      :model-value="query"
       :placeholder="placeholder"
       type="text"
       autocomplete="off"
-      @input="onInput"
+      @update:model-value="onInput"
       @focus="open = results.length > 0"
       @blur="onBlur"
     />

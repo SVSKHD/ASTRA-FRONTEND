@@ -27,6 +27,8 @@ const props = withDefaults(
     autoGrow?: boolean
     /** Caps the growth; past this the field scrolls instead. */
     maxHeight?: string
+    /** A floor for the auto-grown height, in pixels. */
+    minHeight?: number
     size?: 'sm' | 'md' | 'lg'
     disabled?: boolean
     readonly?: boolean
@@ -38,7 +40,16 @@ const props = withDefaults(
   }>(),
   { rows: 3, autoGrow: true, size: 'md', maxHeight: '40vh' },
 )
-const emit = defineEmits<{ 'update:modelValue': [string] }>()
+const emit = defineEmits<{
+  // focus and blur are forwarded explicitly rather than left to attribute
+  // fallthrough. Neither event bubbles, so a listener that lands on this
+  // component's root div — which is where a fallthrough listener goes — never
+  // fires. It fails silently, and only for those two events, which is the worst
+  // shape a bug can have.
+  'update:modelValue': [string]
+  focus: [FocusEvent]
+  blur: [FocusEvent]
+}>()
 
 const generated = useId()
 const fieldId = computed(() => props.id ?? generated)
@@ -51,7 +62,10 @@ const describedBy = computed(
 )
 const isInvalid = computed(() => props.invalid || !!props.error)
 
-const auto = useAutoResizeTextarea({ watch: () => props.modelValue })
+const auto = useAutoResizeTextarea({
+  watch: () => props.modelValue,
+  minHeight: props.minHeight,
+})
 const area = ref<HTMLTextAreaElement | null>(null)
 
 // One function ref feeding both, so the local ref and the composable's cannot
@@ -105,6 +119,8 @@ defineExpose({ focus: () => area.value?.focus(), el: area })
         :aria-invalid="isInvalid"
         :aria-describedby="describedBy"
         @input="onInput"
+        @focus="emit('focus', $event)"
+        @blur="emit('blur', $event)"
       ></textarea>
     </div>
     <p v-if="error" :id="ownErrorId" class="ui-ta__msg is-error" role="alert">{{ error }}</p>

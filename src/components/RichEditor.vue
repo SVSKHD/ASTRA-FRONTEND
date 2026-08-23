@@ -98,9 +98,13 @@ function caretToBlockEnd() {
   sel.addRange(range)
 }
 function insertChecklist() {
+  // A real <input type="checkbox">, and the one place in the app that is
+  // correct. This HTML is inserted into a contenteditable and saved as the
+  // note's content: it is document markup, not a Vue template, so a component
+  // tag here would be four characters of literal text in somebody's note.
   insertHtml(
     '<div style="display:flex;align-items:flex-start;gap:8px;margin:3px 0">' +
-      '<input type="checkbox" style="margin-top:4px"><span>&nbsp;</span></div>',
+      '<input type="checkbox" style="margin-top:4px" /><span>&nbsp;</span></div>',
   )
 }
 function insertDivider() {

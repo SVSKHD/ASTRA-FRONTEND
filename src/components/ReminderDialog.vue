@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -86,35 +89,32 @@ const nextLabel = computed(() => {
     : 'elapsed'
 })
 
-function updTitle(e: Event) {
-  if (reminder.value)
-    app.updateReminder(reminder.value.id, 'title', (e.target as HTMLInputElement).value)
+function updTitle(value: string) {
+  if (reminder.value) app.updateReminder(reminder.value.id, 'title', value)
 }
-function updNote(e: Event) {
-  if (reminder.value)
-    app.updateReminder(reminder.value.id, 'note', (e.target as HTMLTextAreaElement).value)
+function updNote(value: string) {
+  if (reminder.value) app.updateReminder(reminder.value.id, 'note', value)
 }
 // The picker hands back the value itself rather than an event.
 function onStart(value: string) {
   if (reminder.value) app.updateReminder(reminder.value.id, 'start', value)
 }
-function updRepeatType(e: Event) {
+function updRepeatType(value: string) {
   if (!reminder.value) return
-  const type = (e.target as HTMLSelectElement).value as RepeatType
+  const type = value as RepeatType
   app.updateReminder(reminder.value.id, 'repeat', {
     type,
     n: rep.value.n || 1,
     weekdays: rep.value.weekdays || [],
   })
 }
-function updRepeatN(e: Event) {
+function updRepeatN(value: string) {
   if (!reminder.value) return
-  const n = parseInt((e.target as HTMLInputElement).value) || 1
+  const n = parseInt(value) || 1
   app.updateReminder(reminder.value.id, 'repeat', { ...rep.value, n })
 }
-function updPriority(e: Event) {
-  if (reminder.value)
-    app.updateReminder(reminder.value.id, 'priority', (e.target as HTMLSelectElement).value)
+function updPriority(value: string) {
+  if (reminder.value) app.updateReminder(reminder.value.id, 'priority', value)
 }
 function onCalLink() {
   if (reminder.value) window.open(buildGCalUrl(reminder.value), '_blank')
@@ -142,7 +142,7 @@ function onDelete() {
     <div :style="s.dialogOverlay" @click="app.closeReminderDialog()"></div>
     <div :style="dialogCardStyle" @keydown.enter="onEnter" @keydown.esc="app.closeReminderDialog()">
       <div :style="s.dialogHeader">
-        <input :style="s.dialogTitleInput" :value="reminder.title" @input="updTitle" />
+        <TextInput :model-value="reminder.title" @update:model-value="updTitle" />
         <button :style="s.del" @click="app.closeReminderDialog()">×</button>
       </div>
       <div :style="s.dialogRow">
@@ -153,24 +153,27 @@ function onDelete() {
           placeholder="When"
           @update:model-value="onStart(String($event ?? ''))"
         />
-        <select :style="s.select" :value="rep.type" @change="updRepeatType">
-          <option value="none">One-off</option>
-          <option value="minutes">Every N minutes</option>
-          <option value="hours">Every N hours</option>
-          <option value="days">Every N days</option>
-          <option value="weeks">Every N weeks</option>
-          <option value="months">Every N months</option>
-          <option value="years">Every N years</option>
-          <option value="weekdays">Specific weekdays</option>
-        </select>
+        <Select
+          :model-value="rep.type"
+          @update:model-value="updRepeatType"
+          :options="[
+            { value: 'none', label: 'One-off' },
+            { value: 'minutes', label: 'Every N minutes' },
+            { value: 'hours', label: 'Every N hours' },
+            { value: 'days', label: 'Every N days' },
+            { value: 'weeks', label: 'Every N weeks' },
+            { value: 'months', label: 'Every N months' },
+            { value: 'years', label: 'Every N years' },
+            { value: 'weekdays', label: 'Specific weekdays' },
+          ]"
+        />
       </div>
       <div v-if="isInterval" :style="s.dialogRow">
-        <input
-          :style="s.editInputSmall"
+        <TextInput
           type="number"
           min="1"
-          :value="rep.n || 1"
-          @input="updRepeatN"
+          :model-value="rep.n || 1"
+          @update:model-value="updRepeatN"
         />
       </div>
       <div v-if="isWeekdays" :style="s.weekdayRow">
@@ -183,18 +186,17 @@ function onDelete() {
           {{ nm }}
         </button>
       </div>
-      <textarea
-        :style="s.dialogNotes"
-        placeholder="Notes…"
-        :value="reminder.note"
-        @input="updNote"
-      ></textarea>
+      <TextArea placeholder="Notes…" :model-value="reminder.note" @update:model-value="updNote" />
       <div :style="s.dialogRow">
-        <select :style="s.select" :value="reminder.priority" @change="updPriority">
-          <option value="high">High priority</option>
-          <option value="normal">Normal priority</option>
-          <option value="low">Low priority</option>
-        </select>
+        <Select
+          :model-value="reminder.priority"
+          @update:model-value="updPriority"
+          :options="[
+            { value: 'high', label: 'High priority' },
+            { value: 'normal', label: 'Normal priority' },
+            { value: 'low', label: 'Low priority' },
+          ]"
+        />
       </div>
       <div :style="s.dialogGithub">
         <span :style="s.finMeta">Upcoming dates</span>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
 // Manual "new goal" slide-over (task 12c). A right-side panel (not a full page)
 // that creates a draft goal on open and edits it live: title, optional timeline,
 // colour, description, an optional "Make it recurring" block (the section-11
@@ -110,15 +112,6 @@ const h1 = computed(() =>
   pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text, flex: 1 }),
 )
 const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
-const titleField = computed(() =>
-  pxify({
-    ...s.value.input,
-    width: '100%',
-    ...typeStep('md'),
-    fontWeight: 'var(--weight-semibold)',
-    padding: '8px 10px',
-  }),
-)
 const dateRow = pxify({
   display: 'flex',
   gap: 'var(--sp-3)',
@@ -136,9 +129,6 @@ function swatch(color: string, active: boolean) {
     border: '2px solid ' + (active ? c.value.text : 'transparent'),
   })
 }
-const descField = computed(() =>
-  pxify({ ...s.value.input, width: '100%', minHeight: 52, resize: 'vertical' }),
-)
 const sectionTitle = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -213,12 +203,11 @@ const cancelBtn = computed(() =>
         <button :style="cancelBtn" @click="cancel">Close</button>
       </div>
 
-      <input
+      <TextInput
         ref="titleInput"
-        :style="titleField"
-        :value="goal?.title"
+        :model-value="goal?.title"
         placeholder="Goal title"
-        @input="set('title', ($event.target as HTMLInputElement).value)"
+        @update:model-value="set('title', $event)"
         @keydown.enter.prevent="create"
       />
 
@@ -247,12 +236,11 @@ const cancelBtn = computed(() =>
         ></span>
       </div>
 
-      <textarea
-        :style="descField"
-        :value="goal?.description"
+      <TextArea
+        :model-value="goal?.description ?? ''"
         placeholder="Description (optional)"
-        @input="set('description', ($event.target as HTMLTextAreaElement).value)"
-      ></textarea>
+        @update:model-value="set('description', $event)"
+      />
 
       <!-- Recurrence + metric block from section 11 (config only). -->
       <GoalMetricPanel v-if="draftId > 0" :goal-id="draftId" config-only />

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Checkbox from '@/components/ui/Checkbox.vue'
 // "Convert checklist to tasks": the task-list items in a note, previewed and
 // selected before anything is written.
 //
@@ -158,7 +159,7 @@ const primary = computed(() =>
           :aria-pressed="chosen.has(i)"
           @click="toggle(i)"
         >
-          <input type="checkbox" :checked="chosen.has(i)" tabindex="-1" aria-hidden="true" />
+          <Checkbox :model-value="chosen.has(i)" tabindex="-1" aria-hidden="true" />
           <span>{{ item.text }}</span>
           <span v-if="item.done" :style="doneTag">done</span>
         </button>

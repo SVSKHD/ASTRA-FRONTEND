@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // The ordered list of places inside a trip: add, edit, remove and drag to
 // reorder. Each place carries its own map location (via the Nominatim search),
 // its own visited date & time, rich notes (the slash-command editor) and photo
@@ -173,16 +174,15 @@ const labelStyle = () =>
     textTransform: 'uppercase',
     color: c.value.dim,
   })
-const inputStyle = () =>
-  pxify({
-    width: '100%',
-    padding: '9px 11px',
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    ...typeStep('sm'),
-  })
+pxify({
+  width: '100%',
+  padding: '9px 11px',
+  borderRadius: 'var(--radius-card)',
+  border: '1px solid ' + c.value.border,
+  background: c.value.input,
+  color: c.value.text,
+  ...typeStep('sm'),
+})
 const field = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' })
 const photoRow = pxify({
   display: 'flex',
@@ -310,15 +310,14 @@ const addBtn = () =>
             </span>
           </div>
           <div :style="photoRow">
-            <input
-              :style="inputStyle()"
+            <TextInput
               type="url"
               placeholder="Paste an image URL…"
-              :value="photoDraft[place.id] || ''"
-              @input="
+              :model-value="photoDraft[place.id] || ''"
+              @update:model-value="
                 photoDraft = {
                   ...photoDraft,
-                  [place.id]: ($event.target as HTMLInputElement).value,
+                  [place.id]: $event,
                 }
               "
               @keydown.enter.prevent="addPhoto(place)"

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
 // The goals tab's header strip (section 19c).
 //
 // It used to be three full-width controls stacked over a title row: a search
@@ -27,7 +29,7 @@ const props = defineProps<{
   showFilters?: boolean
 }>()
 const emit = defineEmits<{
-  'update:search': [Event]
+  'update:search': [string]
   'submit-search': []
   'update:status': [GoalStatus | 'all']
   'update:sort': ['order' | 'target' | 'progress']
@@ -83,39 +85,38 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
     </div>
 
     <div v-if="showFilters" class="gtb__filters">
-      <input
+      <TextInput
         class="gtb__search"
         type="search"
         placeholder="Search goals…"
-        :value="search"
-        @input="emit('update:search', $event)"
+        :model-value="search"
+        @update:model-value="emit('update:search', $event)"
         @keydown.enter.prevent="emit('submit-search')"
       />
 
       <!-- Desktop: two compact selects sized to their content. -->
       <template v-if="!mobile">
-        <select
+        <Select
           class="gtb__select"
           aria-label="Filter by status"
-          :value="status"
-          @change="
-            emit('update:status', ($event.target as HTMLSelectElement).value as GoalStatus | 'all')
-          "
-        >
-          <option v-for="option in STATUSES" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-        <select
+          :model-value="status"
+          @update:model-value="emit('update:status', $event as GoalStatus | 'all')"
+          :options="[
+            ...STATUSES.map((option) => ({
+              value: String(option.value),
+              label: `${option.label}`,
+            })),
+          ]"
+        />
+        <Select
           class="gtb__select"
           aria-label="Sort goals"
-          :value="sort"
-          @change="emit('update:sort', ($event.target as HTMLSelectElement).value as typeof sort)"
-        >
-          <option v-for="option in SORTS" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
+          :model-value="sort"
+          @update:model-value="emit('update:sort', $event as typeof sort)"
+          :options="[
+            ...SORTS.map((option) => ({ value: String(option.value), label: `${option.label}` })),
+          ]"
+        />
       </template>
     </div>
 
@@ -138,16 +139,15 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
       >
         {{ option.label }}
       </button>
-      <select
+      <Select
         class="gtb__select gtb__select--chip"
         aria-label="Sort goals"
-        :value="sort"
-        @change="emit('update:sort', ($event.target as HTMLSelectElement).value as typeof sort)"
-      >
-        <option v-for="option in SORTS" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
+        :model-value="sort"
+        @update:model-value="emit('update:sort', $event as typeof sort)"
+        :options="[
+          ...SORTS.map((option) => ({ value: String(option.value), label: `${option.label}` })),
+        ]"
+      />
     </div>
   </div>
 </template>

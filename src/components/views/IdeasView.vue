@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
 // Ideas are a flat, filterable list rather than a day accordion: they have no
 // lifecycle status, and their deadline (when set) also feeds the top ticker.
 // Create and edit both live in ItemDialog, so this tab carries no add-form.
@@ -122,33 +123,31 @@ const metaStyle = computed(() =>
     <ListToolbar title="Ideas" new-label="New idea" @new="app.openCreate('idea')" />
 
     <div v-if="ideas.length" :style="filterBar">
-      <select
-        :style="s.select"
-        :value="typeFilter"
-        @change="typeFilter = ($event.target as HTMLSelectElement).value"
-      >
-        <option value="all">All types</option>
-        <option v-for="o in IDEA_TYPE_OPTIONS" :key="o.value" :value="o.value">
-          {{ o.label }}
-        </option>
-      </select>
-      <select
-        :style="s.select"
-        :value="tagFilter"
-        @change="tagFilter = ($event.target as HTMLSelectElement).value"
-      >
-        <option value="all">All tags</option>
-        <option v-for="t in tags" :key="t" :value="t">{{ t }}</option>
-      </select>
-      <select
-        :style="s.select"
-        :value="sortKey"
-        @change="sortKey = ($event.target as HTMLSelectElement).value as typeof sortKey"
-      >
-        <option value="deadline">By deadline</option>
-        <option value="updated">Recently updated</option>
-        <option value="title">By title</option>
-      </select>
+      <Select
+        :model-value="typeFilter"
+        @update:model-value="typeFilter = $event"
+        :options="[
+          { value: 'all', label: 'All types' },
+          ...IDEA_TYPE_OPTIONS.map((o) => ({ value: String(o.value), label: `${o.label}` })),
+        ]"
+      />
+      <Select
+        :model-value="tagFilter"
+        @update:model-value="tagFilter = $event"
+        :options="[
+          { value: 'all', label: 'All tags' },
+          ...tags.map((t) => ({ value: String(t), label: t })),
+        ]"
+      />
+      <Select
+        :model-value="sortKey"
+        @update:model-value="sortKey = $event as typeof sortKey"
+        :options="[
+          { value: 'deadline', label: 'By deadline' },
+          { value: 'updated', label: 'Recently updated' },
+          { value: 'title', label: 'By title' },
+        ]"
+      />
     </div>
 
     <div v-if="ideas.length === 0" :style="s.empty">No ideas yet. Brainstorm one.</div>

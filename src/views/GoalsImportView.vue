@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // Goals URL import preview (task 8, route /import/goals). Paste a link shaped
 // like spasta.online/?project=<slug>&goals=<items> (or the legacy
 // ?project=slug=a|b|c form); it is parsed tolerantly, shown as an editable
@@ -137,8 +141,7 @@ function moveRow(i: number, dir: -1 | 1) {
   const arr = rows.value
   ;[arr[i], arr[j]] = [arr[j], arr[i]]
 }
-function onEstimate(i: number, e: Event) {
-  const v = (e.target as HTMLInputElement).value
+function onEstimate(i: number, v: string) {
   rows.value[i].estimateMins = v === '' ? null : Math.max(0, parseInt(v, 10) || 0)
 }
 
@@ -203,9 +206,6 @@ const rowStyle = computed(() =>
     background: c.value.card,
     flexWrap: 'wrap',
   }),
-)
-const mini = computed(() =>
-  pxify({ ...s.value.input, width: 78, padding: '4px 6px', ...typeStep('xs') }),
 )
 const btn = computed(() =>
   pxify({
@@ -286,11 +286,7 @@ const mergeNote = computed(() =>
         @dragleave.prevent="dragActive = false"
         @drop.prevent="onDrop"
       >
-        <textarea
-          :style="{ ...s.input, width: '100%', minHeight: 72, resize: 'vertical' }"
-          v-model="raw"
-          placeholder="Paste a link or JSON…"
-        ></textarea>
+        <TextArea v-model="raw" placeholder="Paste a link or JSON…" />
         <div :style="sub">Drag a .json file here, or</div>
         <label :style="btn">
           Choose file…
@@ -353,7 +349,7 @@ const mergeNote = computed(() =>
         </div>
 
         <label :style="sub">Goal title</label>
-        <input :style="{ ...s.input, width: '100%' }" v-model="title" placeholder="Goal title" />
+        <TextInput v-model="title" placeholder="Goal title" />
 
         <div v-if="overCap" :style="warn">
           Too many items — {{ parsed.items.length }} shown, the import cap is
@@ -361,7 +357,7 @@ const mergeNote = computed(() =>
         </div>
 
         <div v-if="mergeCandidate" :style="mergeNote">
-          <input type="checkbox" v-model="merge" />
+          <Checkbox v-model="merge" />
           <span>
             A goal already exists for this link (“{{ mergeCandidate.title }}”). Merge — appending
             only new checklist items — instead of creating a duplicate.
@@ -378,22 +374,21 @@ const mergeNote = computed(() =>
             label="Item text"
             placeholder="Item text"
           />
-          <select
-            :style="s.select"
-            :value="r.kind"
-            @change="r.kind = ($event.target as HTMLSelectElement).value as RowKind"
-          >
-            <option value="checklist">Checklist</option>
-            <option value="task">Task</option>
-            <option value="todo">Todo</option>
-          </select>
-          <input
-            :style="mini"
+          <Select
+            :model-value="r.kind"
+            @update:model-value="r.kind = $event as RowKind"
+            :options="[
+              { value: 'checklist', label: 'Checklist' },
+              { value: 'task', label: 'Task' },
+              { value: 'todo', label: 'Todo' },
+            ]"
+          />
+          <TextInput
             type="number"
             min="0"
-            :value="r.estimateMins ?? ''"
+            :model-value="r.estimateMins ?? ''"
             placeholder="est m"
-            @input="onEstimate(i, $event)"
+            @update:model-value="onEstimate(i, $event)"
           />
           <GlassDatePicker
             size="sm"

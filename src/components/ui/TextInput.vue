@@ -43,7 +43,17 @@ const props = withDefaults(
   }>(),
   { type: 'text', size: 'md' },
 )
-const emit = defineEmits<{ 'update:modelValue': [string]; clear: [] }>()
+const emit = defineEmits<{
+  // focus and blur are forwarded explicitly rather than left to attribute
+  // fallthrough. Neither event bubbles, so a listener that lands on this
+  // component's root div — which is where a fallthrough listener goes — never
+  // fires. It fails silently, and only for those two events, which is the worst
+  // shape a bug can have.
+  'update:modelValue': [string]
+  clear: []
+  focus: [FocusEvent]
+  blur: [FocusEvent]
+}>()
 
 const generated = useId()
 const fieldId = computed(() => props.id ?? generated)
@@ -102,6 +112,8 @@ defineExpose({ focus: () => input.value?.focus(), el: input })
         :aria-invalid="isInvalid"
         :aria-describedby="describedBy"
         @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+        @focus="emit('focus', $event)"
+        @blur="emit('blur', $event)"
       />
       <span v-if="suffix" class="ui-ti__affix">{{ suffix }}</span>
       <button v-if="showClear" type="button" class="ui-ti__clear" aria-label="Clear" @click="clear">

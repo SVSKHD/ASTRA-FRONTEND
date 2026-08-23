@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // "Linked items" section for an item's detail dialog — shared by todos and
 // tasks. Lists direct children with status + collection badge + unlink, shows a
 // derived-progress bar, an "all done — mark complete?" prompt at 100%, and a
@@ -152,17 +153,6 @@ const confirmBtn = computed(() =>
 const pickerWrap = computed(() =>
   pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }),
 )
-const searchStyle = computed(() =>
-  pxify({
-    padding: '9px 12px',
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.accent,
-    background: c.value.input,
-    color: c.value.text,
-    ...typeStep('sm'),
-    outline: 'none',
-  }),
-)
 const emptyStyle = computed(() =>
   pxify({ ...typeStep('xs'), color: c.value.dim, padding: '4px 2px' }),
 )
@@ -184,12 +174,11 @@ const emptyStyle = computed(() =>
 
     <!-- picker -->
     <div v-if="picking" :style="pickerWrap">
-      <input
+      <TextInput
         ref="searchEl"
-        :style="searchStyle"
         placeholder="Search todos and tasks…"
-        :value="query"
-        @input="query = ($event.target as HTMLInputElement).value"
+        :model-value="query"
+        @update:model-value="query = $event"
         @keydown.esc="picking = false"
       />
       <div v-if="results.length === 0" :style="emptyStyle">No matching items to link.</div>

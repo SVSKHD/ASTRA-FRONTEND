@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // The notes index. Each note is a card — title, two lines of preview, its
 // checklist progress — and opening one hands off to NoteView, which owns both
 // reading and the rich-text editing. The drawer no longer turns into an editor
@@ -117,13 +118,7 @@ function checkLabel(n: Note) {
     <button :style="s.addBtn2" v-hover-style="s.addBtnHover" @click="app.newNote()">
       + New Note
     </button>
-    <input
-      v-if="notes.length > 3"
-      :style="s.input"
-      type="search"
-      placeholder="Search notes…"
-      v-model="query"
-    />
+    <TextInput v-if="notes.length > 3" type="search" placeholder="Search notes…" v-model="query" />
 
     <div v-if="shown.length === 0" :style="s.empty">
       {{ notes.length === 0 ? 'No notes yet.' : 'No note matches that.' }}

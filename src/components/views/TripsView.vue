@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
 // The Trips tab. Two glass sub-tabs — To Visit and Done — over the same trip
 // list, each card showing the trip name, date, tags and a small static map of
 // its places. A trip is opened in its detail dialog (map, ordered places,
@@ -156,17 +157,6 @@ const toolbar = pxify({
   alignItems: 'center',
   flexWrap: 'wrap',
 })
-const selectStyle = computed(() =>
-  pxify({
-    padding: '8px 10px',
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    ...typeStep('xs'),
-    cursor: 'pointer',
-  }),
-)
 const scrollerStyle = pxify({ flex: 1, minHeight: 0, overflowY: 'auto', padding: 2 })
 const cardsWrap = pxify({
   display: 'flex',
@@ -296,14 +286,22 @@ const promptRow = computed(() =>
 
     <!-- Filter + sort -->
     <div :style="toolbar">
-      <select :style="selectStyle" v-model="filterTag" aria-label="Filter by tag">
-        <option value="">All tags</option>
-        <option v-for="t in allTags" :key="t" :value="t">{{ t }}</option>
-      </select>
-      <select :style="selectStyle" v-model="sortKey" aria-label="Sort trips">
-        <option value="date">By date</option>
-        <option value="name">By name</option>
-      </select>
+      <Select
+        v-model="filterTag"
+        aria-label="Filter by tag"
+        :options="[
+          { value: '', label: 'All tags' },
+          ...allTags.map((t) => ({ value: String(t), label: t })),
+        ]"
+      />
+      <Select
+        v-model="sortKey"
+        aria-label="Sort trips"
+        :options="[
+          { value: 'date', label: 'By date' },
+          { value: 'name', label: 'By name' },
+        ]"
+      />
     </div>
 
     <div v-if="list.length === 0" :style="s.empty">

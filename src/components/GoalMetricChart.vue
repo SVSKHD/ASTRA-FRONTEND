@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // Target-vs-actual view for a recurring metric goal (task 11). A stats header
 // (today, current/best streak, completion rate), a rolling window (7/30/90 days)
 // of totals/averages, a per-day bar chart with a dashed target line (bars
@@ -205,19 +206,6 @@ const histNote = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const editInput = computed(() =>
-  pxify({
-    width: 70,
-    ...typeStep('xs'),
-    padding: '2px 6px',
-    borderRadius: 'var(--radius-control)',
-    border: '1px solid ' + c.value.accent,
-    background: c.value.input,
-    color: c.value.text,
-    outline: 'none',
-    fontFamily: 'inherit',
-  }),
-)
 const emptyStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 </script>
 
@@ -280,8 +268,7 @@ const emptyStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim 
       <div v-for="o in history" :key="o.date" :style="histRow">
         <span :style="histDate">{{ o.date }}</span>
         <template v-if="editDate === o.date">
-          <input
-            :style="editInput"
+          <TextInput
             v-model="editVal"
             type="text"
             inputmode="decimal"

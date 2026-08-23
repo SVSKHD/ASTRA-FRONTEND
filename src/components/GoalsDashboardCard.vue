@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Checkbox from '@/components/ui/Checkbox.vue'
 // Dashboard Goals card (task 10c). A compact summary that matches the overview
 // cards' glass/token styling: header (active count + View all), up to three
 // active goals nearest their target date, and an aggregate ring of points done
@@ -345,9 +346,8 @@ function skeleton() {
         done today
       </div>
       <div v-for="d in dailies" :key="d.goal.id" :style="dailyRow">
-        <input
-          type="checkbox"
-          :checked="d.occ!.status === 'done'"
+        <Checkbox
+          :model-value="d.occ!.status === 'done'"
           :aria-label="'Complete ' + (d.goal.title || 'goal') + ' today'"
           @click.prevent="tickDaily(d.goal.id, !!d.goal.metric?.enabled, d.occ!.status)"
         />

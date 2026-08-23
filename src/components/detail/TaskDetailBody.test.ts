@@ -100,8 +100,15 @@ describe('the meta row', () => {
   it('writes a priority straight through', async () => {
     const app = setup()
     const wrapper = mountBody(1)
-    const select = wrapper.findAll('select')[0]
-    await select.setValue('high')
+    // A themed listbox rather than a native select, so the choice is made
+    // through the portalled panel.
+    await wrapper.findAll('.ui-sel__trigger')[0].trigger('click')
+    await flushPromises()
+    const high = Array.from(document.querySelectorAll('.ui-lb__opt')).find(
+      (el) => el.querySelector('.ui-lb__label')?.textContent?.trim() === 'high',
+    )!
+    high.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await flushPromises()
     expect(app.tasks[0].priority).toBe('high')
   })
 
