@@ -7,7 +7,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useDragNest } from '@/composables/useDragNest'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { LINK_REJECTION_MESSAGE, type LinkRejection } from '@/utils/links'
 
 const { c } = useStyles()
@@ -44,8 +44,8 @@ const pill = computed(() =>
     gap: 8,
     padding: '8px 12px',
     borderRadius: 12,
-    fontSize: 13,
-    fontWeight: 600,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.text,
     background: c.value.glass,
     backdropFilter: 'blur(20px) saturate(1.5)',
@@ -57,8 +57,8 @@ const pill = computed(() =>
 )
 const badge = computed(() =>
   pxify({
-    fontSize: 9,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
     borderRadius: 999,
     background: c.value.input,
@@ -69,8 +69,8 @@ const badge = computed(() =>
 const reasonPill = computed(() =>
   pxify({
     alignSelf: 'flex-start',
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '3px 8px',
     borderRadius: 999,
     background: 'oklch(0.64 0.22 25)',

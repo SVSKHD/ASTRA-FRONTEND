@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const auth = useAuthStore()
@@ -32,7 +32,7 @@ const inputStyle = computed(() =>
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
-    fontSize: 18,
+    ...typeStep('md'),
     textAlign: 'center',
     letterSpacing: '0.35em',
   }),
@@ -46,12 +46,12 @@ const checkRow = computed(() =>
     borderRadius: 14,
     background: c.value.input,
     color: c.value.text,
-    fontSize: 11,
+    ...typeStep('xs'),
     textAlign: 'left',
   }),
 )
 const errorStyle = computed(() =>
-  pxify({ fontSize: 11, color: 'oklch(0.68 0.2 25)', lineHeight: 1.45 }),
+  pxify({ ...typeStep('xs'), color: 'oklch(0.68 0.2 25)', lineHeight: 1.45 }),
 )
 
 watch(visible, () => {

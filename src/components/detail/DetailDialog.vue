@@ -688,7 +688,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   flex: 1;
   min-width: 0;
   font-size: var(--text-md);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   /* The title wraps now rather than being clipped (section 20b), so the header
      grows with it instead of hiding the end of a long name. */
   min-height: 0;

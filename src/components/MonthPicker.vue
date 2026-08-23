@@ -4,7 +4,7 @@
 // Controlled via v-model of a 'YYYY-MM' key; persistence lives in the parent.
 import { computed, nextTick, ref } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
 
 const props = defineProps<{ modelValue: string }>()
@@ -79,7 +79,7 @@ function arrowStyle(disabled: boolean) {
     color: disabled ? c.value.dim : c.value.text,
     opacity: disabled ? 0.4 : 1,
     cursor: disabled ? 'default' : 'pointer',
-    fontSize: 15,
+    ...typeStep('base'),
     lineHeight: 1,
     display: 'grid',
     placeItems: 'center',
@@ -89,8 +89,8 @@ const labelBtn = computed(() =>
   pxify({
     minWidth: 120,
     textAlign: 'center',
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.text,
     background: 'transparent',
     border: 'none',
@@ -121,7 +121,9 @@ const yearRow = pxify({
   justifyContent: 'space-between',
   marginBottom: 10,
 })
-const yearLabel = computed(() => pxify({ fontSize: 13, fontWeight: 700, color: c.value.text }))
+const yearLabel = computed(() =>
+  pxify({ ...typeStep('sm'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 const grid = pxify({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 })
 function cellStyle(monthIdx: number) {
   const selected = isSelected(monthIdx)
@@ -132,8 +134,8 @@ function cellStyle(monthIdx: number) {
     border: '1px solid ' + (selected ? c.value.accent : 'transparent'),
     background: selected ? c.value.accent : c.value.card,
     color: selected ? c.value.onAccent : future ? c.value.dim : c.value.text,
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: future ? 'default' : 'pointer',
     opacity: future ? 0.4 : 1,
     textAlign: 'center',

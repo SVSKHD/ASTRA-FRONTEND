@@ -59,7 +59,7 @@ const uid = useId()
   border: 1.5px solid var(--glass-border);
   background: var(--theme-input);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   color: var(--theme-on-accent);
   transition: background var(--dur-fast) var(--ease-out);
 }

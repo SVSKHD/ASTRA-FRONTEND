@@ -4,7 +4,7 @@ import { sanitize } from '@/utils/sanitizeHtml'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatINR } from '@/utils/currency'
 
 const app = useAppStore()
@@ -43,8 +43,8 @@ const summaryLines = computed<string[]>(() => {
 const isNote = computed(() => sharedView.value?.type === 'note')
 // Same as the share page: this is another user's content in your browser.
 const noteHtml = computed(() => sanitize((sharedView.value?.item?.text as string) || ''))
-const linesStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 })
-const noteStyle = computed(() => pxify({ fontSize: 13, lineHeight: 1.5, color: c.value.text }))
+const linesStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, ...typeStep('sm') })
+const noteStyle = computed(() => pxify({ ...typeStep('sm'), lineHeight: 1.5, color: c.value.text }))
 </script>
 
 <template>

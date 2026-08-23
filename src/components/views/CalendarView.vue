@@ -20,7 +20,7 @@ import type { DropArg, EventResizeDoneArg } from '@fullcalendar/interaction'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { useCalendar } from '@/composables/useCalendar'
 import CalEventCard from '@/components/CalEventCard.vue'
 import CalQuickCreate from '@/components/CalQuickCreate.vue'
@@ -407,8 +407,8 @@ const headerRow = computed(() =>
 )
 function segBtn(active: boolean) {
   return pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 12px',
     borderRadius: 9,
     cursor: 'pointer',
@@ -421,8 +421,8 @@ function segBtn(active: boolean) {
 }
 function chipBtn(active: boolean, color: string) {
   return pxify({
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 10px',
     borderRadius: 999,
     cursor: 'pointer',
@@ -432,7 +432,12 @@ function chipBtn(active: boolean, color: string) {
   })
 }
 const titleStyle = computed(() =>
-  pxify({ fontSize: 14, fontWeight: 600, color: c.value.text, whiteSpace: 'nowrap' }),
+  pxify({
+    ...typeStep('base'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    whiteSpace: 'nowrap',
+  }),
 )
 const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
 const bodyRow = pxify({ display: 'flex', gap: 10, flex: 1, minHeight: 0 })
@@ -455,7 +460,7 @@ const panelHead = computed(() =>
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    fontSize: 10,
+    ...typeStep('2xs'),
     letterSpacing: '0.1em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -463,7 +468,7 @@ const panelHead = computed(() =>
 )
 const unschedRow = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     padding: '6px 8px',
     borderRadius: 8,
     background: c.value.card,
@@ -481,8 +486,8 @@ const hintStyle = computed(() =>
     left: '50%',
     transform: 'translateX(-50%)',
     zIndex: 19,
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
     borderRadius: 10,
     background: c.value.glass,
@@ -657,7 +662,8 @@ const hintStyle = computed(() =>
   --fc-now-indicator-color: var(--theme-accent, #7aa2ff);
   --fc-highlight-color: color-mix(in oklch, var(--theme-accent, #7aa2ff) 18%, transparent);
   height: 100%;
-  font-size: 12px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   color: var(--theme-text, inherit);
 }
 .cal-host .fc {
@@ -677,7 +683,7 @@ const hintStyle = computed(() =>
 .cal-host .fc .fc-timegrid-slot-label-cushion,
 .cal-host .fc .fc-list-day-cushion {
   color: var(--theme-dim, inherit);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .cal-host .fc .fc-list-day-cushion,
 .cal-host .fc .fc-list-event:hover td {
@@ -704,7 +710,7 @@ const hintStyle = computed(() =>
   cursor: grabbing;
 }
 .cal-title {
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

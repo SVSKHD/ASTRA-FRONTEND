@@ -5,7 +5,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, rowBase, tagChip } from '@/styles'
+import { pxify, rowBase, tagChip, typeStep } from '@/styles'
 import ListToolbar from '@/components/ListToolbar.vue'
 import type { Stock } from '@/types'
 
@@ -38,8 +38,8 @@ const symBadge = computed(() =>
     flexShrink: 0,
     minWidth: 46,
     textAlign: 'center',
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.03em',
     padding: '6px 9px',
     borderRadius: 10,
@@ -54,7 +54,7 @@ function priceChip(kind: 'target' | 'watch') {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 4,
-    fontSize: 10,
+    ...typeStep('2xs'),
     padding: '3px 8px',
     borderRadius: 8,
     background: c.value.input,

@@ -11,7 +11,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatINR, parseINR } from '@/utils/currency'
 import { currentMonthKey } from '@/utils/budget'
 import {
@@ -282,8 +282,8 @@ const SOURCES = [
 const header = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
 function pill(active: boolean) {
   return pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
     borderRadius: 999,
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
@@ -316,13 +316,23 @@ const card = computed(() =>
   }),
 )
 const label = computed(() =>
-  pxify({ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.value.dim }),
+  pxify({
+    ...typeStep('2xs'),
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
 )
 const big = computed(() =>
-  pxify({ fontSize: 30, fontWeight: 700, color: c.value.text, lineHeight: 1 }),
+  pxify({
+    ...typeStep('2xl'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1,
+  }),
 )
-const sub = computed(() => pxify({ fontSize: 12, color: c.value.dim }))
-const strong = computed(() => pxify({ color: c.value.text, fontWeight: 600 }))
+const sub = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
+const strong = computed(() => pxify({ color: c.value.text, fontWeight: 'var(--weight-semibold)' }))
 const stackBar = pxify({
   display: 'flex',
   height: 10,
@@ -330,7 +340,7 @@ const stackBar = pxify({
   overflow: 'hidden',
   gap: 1,
 })
-const rowLine = pxify({ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13 })
+const rowLine = pxify({ display: 'flex', gap: 14, flexWrap: 'wrap', ...typeStep('sm') })
 const catColors = [
   GOOD,
   AMBER,
@@ -343,8 +353,8 @@ const catColors = [
 const inp = computed(() => s.value.input)
 const miniBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
     borderRadius: 999,
     border: 'none',
@@ -355,8 +365,8 @@ const miniBtn = computed(() =>
 )
 const ghostBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,
@@ -368,8 +378,8 @@ const ghostBtn = computed(() =>
 function tagChip(name: string) {
   const t = app.financeTags.find((x) => x.name === name)
   return pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 8px',
     borderRadius: 999,
     background: (t?.color || c.value.accent) + '22',
@@ -379,8 +389,8 @@ function tagChip(name: string) {
 }
 const scopeChip = computed(() =>
   pxify({
-    fontSize: 9,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
     borderRadius: 999,
     background: c.value.input,
@@ -396,7 +406,7 @@ const dayHead = computed(() =>
   pxify({
     display: 'flex',
     justifyContent: 'space-between',
-    fontSize: 11,
+    ...typeStep('xs'),
     color: c.value.dim,
     padding: '6px 2px 2px',
     borderBottom: '1px solid ' + c.value.border,
@@ -408,11 +418,11 @@ const txnRow = computed(() =>
     alignItems: 'center',
     gap: 10,
     padding: '8px 4px',
-    fontSize: 13,
+    ...typeStep('sm'),
     borderBottom: '1px solid ' + c.value.border,
   }),
 )
-const table = pxify({ width: '100%', borderCollapse: 'collapse', fontSize: 12 })
+const table = pxify({ width: '100%', borderCollapse: 'collapse', ...typeStep('xs') })
 const th = computed(() =>
   pxify({
     textAlign: 'left',
@@ -420,7 +430,7 @@ const th = computed(() =>
     color: c.value.dim,
     borderBottom: '1px solid ' + c.value.border,
     cursor: 'pointer',
-    fontWeight: 600,
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 const td = computed(() =>
@@ -440,7 +450,7 @@ const summaryStrip = computed(() =>
     padding: '12px 16px',
     borderRadius: 14,
     background: c.value.input,
-    fontSize: 13,
+    ...typeStep('sm'),
   }),
 )
 const debtCard = computed(() =>
@@ -556,9 +566,11 @@ const debtCard = computed(() =>
             <div
               v-for="t in extraIncomeList"
               :key="t.id"
-              :style="{ display: 'flex', gap: '10px', fontSize: '12px', alignItems: 'center' }"
+              :style="{ display: 'flex', gap: '10px', ...typeStep('xs'), alignItems: 'center' }"
             >
-              <span :style="{ color: GOOD, fontWeight: 600 }">{{ formatINR(t.amount) }}</span>
+              <span :style="{ color: GOOD, fontWeight: 'var(--weight-semibold)' }">{{
+                formatINR(t.amount)
+              }}</span>
               <span :style="scopeChip">{{ t.source || 'Other' }}</span>
               <span :style="sub">{{ t.note }}</span>
             </div>
@@ -580,7 +592,9 @@ const debtCard = computed(() =>
               fmtSigned(debtSum.net)
             }}</span></span
           >
-          <span v-if="debtSum.overdueCount" :style="{ color: RED, fontWeight: 700 }"
+          <span
+            v-if="debtSum.overdueCount"
+            :style="{ color: RED, fontWeight: 'var(--weight-semibold)' }"
             >{{ debtSum.overdueCount }} overdue</span
           >
         </div>
@@ -648,7 +662,7 @@ const debtCard = computed(() =>
             <span
               :style="{
                 color: t.kind === 'income' ? GOOD : c.text,
-                fontWeight: 600,
+                fontWeight: 'var(--weight-semibold)',
                 minWidth: '92px',
               }"
             >
@@ -694,7 +708,9 @@ const debtCard = computed(() =>
               fmtSigned(debtSum.net)
             }}</span></span
           >
-          <span v-if="debtSum.overdueCount" :style="{ color: RED, fontWeight: 700 }"
+          <span
+            v-if="debtSum.overdueCount"
+            :style="{ color: RED, fontWeight: 'var(--weight-semibold)' }"
             >{{ debtSum.overdueCount }} overdue</span
           >
           <span :style="spacer"></span>
@@ -757,8 +773,8 @@ const debtCard = computed(() =>
                 <span
                   v-if="d.dueDate"
                   :style="{
-                    fontSize: '11px',
-                    fontWeight: 700,
+                    ...typeStep('xs'),
+                    fontWeight: 'var(--weight-semibold)',
                     color: isOverdue(d, now) ? RED : c.dim,
                   }"
                 >
@@ -812,8 +828,8 @@ const debtCard = computed(() =>
                 <span
                   v-if="d.dueDate"
                   :style="{
-                    fontSize: '11px',
-                    fontWeight: 700,
+                    ...typeStep('xs'),
+                    fontWeight: 'var(--weight-semibold)',
                     color: isOverdue(d, now) ? RED : c.dim,
                   }"
                 >

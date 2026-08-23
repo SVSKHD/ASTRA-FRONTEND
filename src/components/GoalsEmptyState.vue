@@ -5,7 +5,7 @@
 // format" disclosure with a copyable sample and the inline-shorthand legend.
 import { ref } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const emit = defineEmits<{
@@ -78,8 +78,9 @@ function computedStyle(o: Record<string, string | number>) {
   return pxify(o)
 }
 const iconWrap = () => pxify({ color: c.value.dim, opacity: 0.6 })
-const heading = () => pxify({ fontSize: 20, fontWeight: 700, color: c.value.text })
-const sub = () => pxify({ fontSize: 13, color: c.value.dim })
+const heading = () =>
+  pxify({ ...typeStep('lg'), fontWeight: 'var(--weight-semibold)', color: c.value.text })
+const sub = () => pxify({ ...typeStep('sm'), color: c.value.dim })
 const grid = pxify({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
@@ -98,12 +99,13 @@ const cardStyle = () =>
     background: c.value.card,
     textAlign: 'left',
   })
-const cardTitle = () => pxify({ fontSize: 14, fontWeight: 700, color: c.value.text })
-const cardBody = () => pxify({ fontSize: 12, color: c.value.dim, lineHeight: 1.4, flex: 1 })
+const cardTitle = () =>
+  pxify({ ...typeStep('base'), fontWeight: 'var(--weight-semibold)', color: c.value.text })
+const cardBody = () => pxify({ ...typeStep('xs'), color: c.value.dim, lineHeight: 1.4, flex: 1 })
 const primaryBtn = () =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
     borderRadius: 999,
     border: 'none',
@@ -114,8 +116,8 @@ const primaryBtn = () =>
   })
 const ghostBtn = () =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,
@@ -126,8 +128,8 @@ const ghostBtn = () =>
   })
 const discBtn = () =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.dim,
     background: 'transparent',
     border: 'none',
@@ -147,10 +149,10 @@ const codeWrap = () =>
 const codeStyle = () =>
   pxify({
     margin: 0,
-    fontSize: 11.5,
+    ...typeStep('xs'),
     lineHeight: 1.5,
     color: c.value.text,
-    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+    fontFamily: 'var(--font-mono)',
     whiteSpace: 'pre',
   })
 const copyBtn = () =>
@@ -158,8 +160,8 @@ const copyBtn = () =>
     position: 'absolute',
     top: 8,
     right: 8,
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 8px',
     borderRadius: 8,
     border: '1px solid ' + c.value.border,
@@ -167,7 +169,7 @@ const copyBtn = () =>
     color: c.value.dim,
     cursor: 'pointer',
   })
-const legend = () => pxify({ fontSize: 11, color: c.value.dim, marginTop: 6 })
+const legend = () => pxify({ ...typeStep('xs'), color: c.value.dim, marginTop: 6 })
 </script>
 
 <template>

@@ -8,7 +8,7 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { fetchShare, type ShareDoc, type ShareLoad } from '@/utils/shares'
 import { TYPE_BY_PLURAL } from '@/utils/share'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
@@ -200,8 +200,8 @@ const sharedReminder = computed<Reminder | null>(() => {
 })
 const nowMs = Date.now()
 
-const linesStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 })
-const noteStyle = computed(() => pxify({ fontSize: 13, lineHeight: 1.5, color: c.value.text }))
+const linesStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, ...typeStep('sm') })
+const noteStyle = computed(() => pxify({ ...typeStep('sm'), lineHeight: 1.5, color: c.value.text }))
 const centeredPage = computed(() =>
   pxify({
     position: 'relative',
@@ -216,7 +216,7 @@ const centeredPage = computed(() =>
 const badgeStyle = computed(() =>
   pxify({
     alignSelf: 'flex-start',
-    fontSize: 10,
+    ...typeStep('2xs'),
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,

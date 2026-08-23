@@ -36,7 +36,7 @@ withDefaults(
   gap: var(--sp-2);
   border-radius: var(--radius-md);
   border: 1px solid transparent;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   cursor: pointer;
   white-space: nowrap;
   transition:

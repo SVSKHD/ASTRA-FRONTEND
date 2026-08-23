@@ -62,7 +62,7 @@ function numberedIcon(n: number, activeState: boolean, tint: string): L.DivIcon 
       fg +
       ';border:2px solid ' +
       tint +
-      ';box-shadow:0 3px 8px rgba(0,0,0,0.4);font-weight:700;font-size:12px">' +
+      ';box-shadow:0 3px 8px rgba(0,0,0,0.4);font-weight:var(--weight-semibold);font-size:var(--text-xs)">' +
       '<span style="transform:rotate(45deg)">' +
       n +
       '</span></div>',

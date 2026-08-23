@@ -10,7 +10,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import { pausedLabel, rateLimitLabel } from '@/utils/ghPoll'
 import type { LinkedRepo } from '@/types'
@@ -109,7 +109,7 @@ const bannerStyle = (col: string) =>
     borderRadius: 10,
     border: '1px solid ' + col,
     background: 'color-mix(in oklch, ' + col + ' 14%, transparent)',
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
   })
 const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShrink: 0 })

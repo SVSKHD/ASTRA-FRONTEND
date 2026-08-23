@@ -74,6 +74,6 @@ const uid = useId()
 }
 .ui-textarea__error {
   color: var(--theme-danger, var(--theme-text));
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 </style>

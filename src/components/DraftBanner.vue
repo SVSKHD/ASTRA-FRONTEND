@@ -8,7 +8,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useStyles } from '@/composables/useStyles'
 import { useUiStore } from '@/stores/ui'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { relativeTime } from '@/utils/drafts'
 
 const props = defineProps<{
@@ -40,7 +40,7 @@ const bar = computed(() =>
     flexWrap: 'wrap',
     padding: '8px 12px',
     borderRadius: 12,
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
     background: c.value.glass,
     border: '1px solid ' + (props.fromOtherDevice ? c.value.accent : c.value.border),
@@ -52,7 +52,7 @@ const bar = computed(() =>
 )
 const icon = computed(() =>
   pxify({
-    fontSize: 14,
+    ...typeStep('base'),
     flexShrink: 0,
     color: props.fromOtherDevice ? c.value.accent : c.value.dim,
   }),
@@ -65,8 +65,8 @@ const linkBtn = computed(() =>
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 10px',
     borderRadius: 8,
     // ≥40px-friendly on mobile without a media query: the padding + line-height
@@ -80,8 +80,8 @@ const primaryBtn = computed(() =>
     border: '1px solid ' + c.value.accent,
     background: c.value.accent,
     color: c.value.onAccent,
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 10px',
     borderRadius: 8,
     minHeight: 30,

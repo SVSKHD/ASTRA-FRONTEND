@@ -49,7 +49,7 @@ defineEmits<{ action: []; dismiss: [] }>()
   border: none;
   background: transparent;
   color: var(--theme-accent);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   font-size: var(--text-xs);
   cursor: pointer;
 }

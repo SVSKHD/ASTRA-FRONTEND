@@ -9,7 +9,7 @@
 // target — the same trade-off the toolbar version made.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { filterCommands, type BlockKind, type SlashCommand } from '@/utils/editorCommands'
 
 const props = withDefaults(
@@ -270,7 +270,7 @@ function handleInlineMarkdown() {
   }
 }
 function codeOpen() {
-  return '<code style="background:rgba(127,127,127,.22);padding:1px 5px;border-radius:4px;font-family:ui-monospace,monospace">'
+  return '<code style="background:rgba(127,127,127,.22);padding:1px 5px;border-radius:4px;font-family:var(--font-mono)">'
 }
 
 // --- selection bubble (bold / italic / link) --------------------------------
@@ -433,9 +433,14 @@ function itemStyle(active: boolean) {
   })
 }
 const itemLabel = computed(() =>
-  pxify({ fontSize: 12.5, fontWeight: 600, color: c.value.text, lineHeight: 1.2 }),
+  pxify({
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1.2,
+  }),
 )
-const itemHint = computed(() => pxify({ fontSize: 10, color: c.value.dim, lineHeight: 1.2 }))
+const itemHint = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim, lineHeight: 1.2 }))
 const itemGlyph = computed(() =>
   pxify({
     width: 30,
@@ -447,8 +452,8 @@ const itemGlyph = computed(() =>
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.accent,
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 const GLYPH: Record<BlockKind, string> = {
@@ -494,9 +499,9 @@ const bubbleBtn = computed(() =>
     border: 'none',
     background: 'transparent',
     color: c.value.text,
-    fontSize: 13,
+    ...typeStep('sm'),
     cursor: 'pointer',
-    fontWeight: 700,
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 // A smaller, mono-ish chip for the "Turn into" block options.
@@ -509,8 +514,8 @@ const turnBtn = computed(() =>
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
   }),
 )

@@ -12,7 +12,7 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
 import { useConnectivity } from '@/composables/useConnectivity'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { AI_MODELS, type AiChat } from '@/types'
 import { buildAiContext, SUGGESTION_CHIPS, type AiContextInput } from '@/utils/ai'
 import { noteTitle } from '@/utils/notes'
@@ -231,7 +231,7 @@ const newBtn = computed(() =>
     border: '1px solid ' + c.value.border,
     background: c.value.accent,
     color: c.value.onAccent,
-    fontSize: 18,
+    ...typeStep('md'),
     cursor: 'pointer',
   }),
 )
@@ -251,7 +251,7 @@ const chatTitle = computed(() =>
   pxify({
     flex: 1,
     minWidth: 0,
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -260,7 +260,7 @@ const chatTitle = computed(() =>
 )
 const groupLabel = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -273,7 +273,7 @@ const iconBtn = computed(() =>
     border: 'none',
     cursor: 'pointer',
     color: c.value.dim,
-    fontSize: 12,
+    ...typeStep('xs'),
   }),
 )
 
@@ -293,12 +293,14 @@ const toggleLabel = computed(() =>
     display: 'flex',
     alignItems: 'center',
     gap: 6,
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.dim,
     cursor: 'pointer',
   }),
 )
-const tokenReadout = computed(() => pxify({ fontSize: 11, color: c.value.dim, marginLeft: 'auto' }))
+const tokenReadout = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, marginLeft: 'auto' }),
+)
 
 const thread = pxify({
   flex: 1,
@@ -317,7 +319,7 @@ function bubble(role: string) {
     maxWidth: '78%',
     padding: '10px 14px',
     borderRadius: 16,
-    fontSize: 13.5,
+    ...typeStep('sm'),
     lineHeight: 1.5,
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
@@ -332,14 +334,14 @@ const msgMeta = computed(() =>
     gap: 8,
     alignItems: 'center',
     marginTop: 4,
-    fontSize: 11,
+    ...typeStep('xs'),
     color: c.value.dim,
   }),
 )
 const badge = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
     borderRadius: 999,
     background: c.value.input,
@@ -376,7 +378,7 @@ const composerInput = computed(() =>
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
-    fontSize: 13.5,
+    ...typeStep('sm'),
     outline: 'none',
     fontFamily: 'inherit',
   }),
@@ -389,8 +391,8 @@ const sendBtn = computed(() =>
     border: 'none',
     background: streaming.value ? 'transparent' : c.value.accent,
     color: streaming.value ? c.value.accent : c.value.onAccent,
-    fontWeight: 700,
-    fontSize: 13,
+    fontWeight: 'var(--weight-semibold)',
+    ...typeStep('sm'),
     cursor: 'pointer',
     boxShadow: streaming.value ? 'inset 0 0 0 1px ' + c.value.accent : 'none',
   }),
@@ -425,7 +427,7 @@ const chipRow = pxify({
 })
 const chipStyle = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     padding: '8px 14px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,
@@ -474,7 +476,10 @@ function onComposerKey(e: KeyboardEvent) {
               </button>
             </div>
           </template>
-          <div v-if="!aiChats.length" :style="{ fontSize: 12, color: c.dim, padding: '8px 4px' }">
+          <div
+            v-if="!aiChats.length"
+            :style="{ ...typeStep('xs'), color: c.dim, padding: '8px 4px' }"
+          >
             No chats yet.
           </div>
         </div>
@@ -506,7 +511,7 @@ function onComposerKey(e: KeyboardEvent) {
 
         <div v-if="!activeAiChat || !activeAiChat.messages.length" :style="emptyWrap">
           <span :style="emptyOrb"></span>
-          <div :style="{ color: c.dim, fontSize: 14 }">
+          <div :style="{ color: c.dim, ...typeStep('base') }">
             Ask about your todos, money, reminders, or bots.
           </div>
           <div :style="chipRow">

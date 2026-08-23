@@ -8,7 +8,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import {
   currentStreak,
   bestStreak,
@@ -121,15 +121,22 @@ const wrap = computed(() =>
 )
 const statRow = pxify({ display: 'flex', gap: 16, flexWrap: 'wrap' })
 const stat = pxify({ display: 'flex', flexDirection: 'column', gap: 2 })
-const statNum = computed(() => pxify({ fontSize: 18, fontWeight: 700, color: c.value.text }))
+const statNum = computed(() =>
+  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 const statLabel = computed(() =>
-  pxify({ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: c.value.dim }),
+  pxify({
+    ...typeStep('2xs'),
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
 )
 const winRow = pxify({ display: 'flex', gap: 6, alignItems: 'center' })
 function winBtn(active: boolean) {
   return pxify({
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 10px',
     borderRadius: 999,
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
@@ -182,12 +189,12 @@ const histRow = computed(() =>
     gap: 10,
     padding: '5px 6px',
     borderRadius: 8,
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
   }),
 )
 const histDate = computed(() => pxify({ color: c.value.dim, width: 92, flexShrink: 0 }))
-const histVal = computed(() => pxify({ fontWeight: 600, cursor: 'pointer' }))
+const histVal = computed(() => pxify({ fontWeight: 'var(--weight-semibold)', cursor: 'pointer' }))
 const histNote = computed(() =>
   pxify({
     color: c.value.dim,
@@ -201,7 +208,7 @@ const histNote = computed(() =>
 const editInput = computed(() =>
   pxify({
     width: 70,
-    fontSize: 12,
+    ...typeStep('xs'),
     padding: '2px 6px',
     borderRadius: 6,
     border: '1px solid ' + c.value.accent,
@@ -211,7 +218,7 @@ const editInput = computed(() =>
     fontFamily: 'inherit',
   }),
 )
-const emptyStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim }))
+const emptyStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 </script>
 
 <template>

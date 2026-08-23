@@ -9,7 +9,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useReminderClock } from '@/composables/useReminderClock'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import {
   upcomingReminders,
   nextBeyondWindow,
@@ -85,8 +85,8 @@ const bandHead = computed(() =>
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -114,8 +114,8 @@ function cardStyle(u: UpcomingReminder) {
 function countdownStyle(u: UpcomingReminder) {
   const col = u.overdue ? dangerColor.value : isSoon(u) ? accentColor.value : c.value.text
   return pxify({
-    fontSize: 22,
-    fontWeight: 700,
+    ...typeStep('lg'),
+    fontWeight: 'var(--weight-semibold)',
     fontVariantNumeric: 'tabular-nums',
     lineHeight: 1,
     minWidth: 78,
@@ -123,12 +123,12 @@ function countdownStyle(u: UpcomingReminder) {
     textShadow: dark.value && (u.overdue || isSoon(u)) ? '0 0 12px ' + col : 'none',
   })
 }
-const cdSub = computed(() => pxify({ fontSize: 10, color: c.value.dim, marginTop: 4 }))
+const cdSub = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim, marginTop: 4 }))
 const mainCol = pxify({ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 })
 const titleStyle = computed(() =>
   pxify({
-    fontSize: 14,
-    fontWeight: 600,
+    ...typeStep('base'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.text,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -139,7 +139,7 @@ const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: '
 function priorityChip(p: Priority) {
   const col = priorityColor(p)
   return pxify({
-    fontSize: 9,
+    ...typeStep('2xs'),
     padding: '2px 7px',
     borderRadius: 8,
     border: '1px solid ' + col,
@@ -149,7 +149,7 @@ function priorityChip(p: Priority) {
 }
 const sourceChip = computed(() =>
   pxify({
-    fontSize: 9,
+    ...typeStep('2xs'),
     padding: '2px 7px',
     borderRadius: 8,
     background: c.value.input,
@@ -171,8 +171,8 @@ const actionsCol = pxify({
 const actionRow = pxify({ display: 'flex', gap: 6 })
 function btn(kind: 'primary' | 'ghost') {
   return pxify({
-    fontSize: 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 9px',
     borderRadius: 999,
     cursor: 'pointer',
@@ -183,7 +183,7 @@ function btn(kind: 'primary' | 'ghost') {
   })
 }
 const emptyStyle = computed(() =>
-  pxify({ fontSize: 12, color: c.value.dim, padding: '6px 2px', textAlign: 'center' }),
+  pxify({ ...typeStep('xs'), color: c.value.dim, padding: '6px 2px', textAlign: 'center' }),
 )
 
 // The chip label + which collection a source-linked reminder points at.

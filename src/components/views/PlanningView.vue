@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { usePlanningBoard } from '@/composables/usePlanningBoard'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 
 const app = useAppStore()
 const { c, s, panelStyle } = useStyles()
@@ -77,8 +77,8 @@ const toolbar = computed(() =>
 )
 function btn(active = false) {
   return pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
     borderRadius: 999,
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
@@ -107,7 +107,7 @@ const hint = computed(() =>
     position: 'absolute',
     bottom: 12,
     left: 12,
-    fontSize: 11,
+    ...typeStep('xs'),
     color: c.value.dim,
     pointerEvents: 'none',
     background: c.value.glass,

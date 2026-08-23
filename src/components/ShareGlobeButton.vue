@@ -13,7 +13,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useShareLink } from '@/composables/useShareLink'
 import { useConnectivity } from '@/composables/useConnectivity'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import type { ItemType, Shareable } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 import type { IconSize } from '@/components/ui/icons'
@@ -231,7 +231,7 @@ function menuItemStyle() {
     border: 'none',
     background: 'transparent',
     color: c.value.text,
-    fontSize: isMobile.value ? 15 : 13,
+    ...(isMobile.value ? typeStep('base') : typeStep('sm')),
     textAlign: 'left',
     cursor: 'pointer',
   })

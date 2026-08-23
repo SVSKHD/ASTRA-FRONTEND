@@ -12,7 +12,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { internalPath, renderMarkdownResult } from '@/utils/mdRender'
 import { fenceLabel, highlightFences } from '@/utils/mdHighlight'
 import { blockCount, progressive } from '@/utils/mdChunks'
@@ -196,7 +196,7 @@ function markMatches() {
   }
 }
 
-const style = computed(() => pxify({ color: c.value.text, fontSize: 13, lineHeight: 1.6 }))
+const style = computed(() => pxify({ color: c.value.text, ...typeStep('sm'), lineHeight: 1.6 }))
 const moreBtn = computed(() =>
   pxify({
     width: '100%',
@@ -206,7 +206,7 @@ const moreBtn = computed(() =>
     border: '1px dashed ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
-    fontSize: 12,
+    ...typeStep('xs'),
     cursor: 'pointer',
   }),
 )

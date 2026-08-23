@@ -59,7 +59,7 @@ function move(delta: number) {
   background: transparent;
   color: var(--theme-dim);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   cursor: pointer;
 }
 .ui-tabs__tab.is-active {

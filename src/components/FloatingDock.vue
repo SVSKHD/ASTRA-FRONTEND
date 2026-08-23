@@ -11,7 +11,7 @@ import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { TABS, TAB_ORDER } from '@/tabs.config'
 import TabGlyph from '@/components/TabGlyph.vue'
 import type { TabKey } from '@/types'
@@ -229,8 +229,8 @@ const tip = computed(() =>
     transform: horizontal.value ? 'translateX(-50%)' : 'translateY(-50%)',
     padding: '5px 11px',
     borderRadius: 10,
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     whiteSpace: 'nowrap',
     color: c.value.text,
     background: c.value.glass,

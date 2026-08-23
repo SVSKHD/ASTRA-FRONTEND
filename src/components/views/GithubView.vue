@@ -13,7 +13,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import { fullName, issueStateColor } from '@/utils/githubModel'
 import { renderMarkdown } from '@/utils/markdown'
@@ -97,8 +97,8 @@ const repoRows = computed(() =>
 const segRow = pxify({ display: 'flex', gap: 8, alignItems: 'center' })
 function segBtn(active: boolean) {
   return pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 14px',
     borderRadius: 10,
     cursor: 'pointer',
@@ -130,8 +130,8 @@ function stateDot(state: 'open' | 'closed') {
 }
 function labelChip() {
   return pxify({
-    fontSize: 9,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
     borderRadius: 6,
     border: '1px solid ' + c.value.border,
@@ -141,7 +141,7 @@ function labelChip() {
 }
 const bodyStyle = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     lineHeight: 1.55,
     color: c.value.dim,
     padding: '8px 10px',
@@ -159,15 +159,15 @@ const bulkBar = computed(() =>
     borderRadius: 12,
     border: '1px solid ' + c.value.accent,
     background: 'color-mix(in oklch, ' + c.value.accent + ' 12%, transparent)',
-    fontSize: 12,
+    ...typeStep('xs'),
   }),
 )
 function ciChip(ci: string) {
   const col =
     ci === 'passing' ? 'oklch(0.7 0.15 145)' : ci === 'failing' ? 'oklch(0.65 0.2 25)' : c.value.dim
   return pxify({
-    fontSize: 9,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
     borderRadius: 6,
     color: col,

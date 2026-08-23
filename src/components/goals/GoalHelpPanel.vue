@@ -204,12 +204,12 @@ function loadSample() {
 }
 .ghelp__step::marker {
   color: var(--theme-accent);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 .ghelp__steptitle {
   margin: 0;
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .ghelp__stepbody {
   margin: 2px 0 var(--sp-2);
@@ -230,7 +230,7 @@ function loadSample() {
 }
 .ghelp__demotitle {
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .ghelp__demometa,
 .ghelp__demofield {
@@ -271,7 +271,7 @@ function loadSample() {
   min-width: 0;
   margin: 0;
   font-size: var(--text-2xs);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--theme-dim);
@@ -292,7 +292,7 @@ function loadSample() {
   border-bottom: 1px solid var(--glass-border);
 }
 .ghelp__token {
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   color: var(--theme-accent);
 }
 .ghelp__cheatmeans {
@@ -327,7 +327,7 @@ function loadSample() {
 .ghelp__scopetitle {
   margin: var(--sp-2) 0 0;
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .ghelp__tablewrap {
   min-width: 0;
@@ -348,11 +348,11 @@ function loadSample() {
 }
 .ghelp__table thead th {
   color: var(--theme-dim);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 .ghelp__table tbody th {
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 .ghelp__table td:last-child {

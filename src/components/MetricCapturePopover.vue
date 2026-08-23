@@ -8,7 +8,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useSyncGuard } from '@/composables/useSyncGuard'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { captureOutcome, type Metric } from '@/utils/goalMetrics'
 
 const props = defineProps<{
@@ -78,7 +78,9 @@ const pop = computed(() =>
     animation: 'fadeUp .16s ease both',
   }),
 )
-const promptStyle = computed(() => pxify({ fontSize: 13, fontWeight: 600, color: c.value.text }))
+const promptStyle = computed(() =>
+  pxify({ ...typeStep('sm'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 const inputWrap = computed(() =>
   pxify({
     display: 'flex',
@@ -94,8 +96,8 @@ const numInput = computed(() =>
   pxify({
     flex: 1,
     minWidth: 0,
-    fontSize: 18,
-    fontWeight: 700,
+    ...typeStep('md'),
+    fontWeight: 'var(--weight-semibold)',
     background: 'transparent',
     border: 'none',
     outline: 'none',
@@ -103,10 +105,10 @@ const numInput = computed(() =>
     fontFamily: 'inherit',
   }),
 )
-const unitStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim, flexShrink: 0 }))
+const unitStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, flexShrink: 0 }))
 const noteInput = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     borderRadius: 10,
     border: '1px solid ' + c.value.border,
     background: c.value.input,
@@ -118,8 +120,8 @@ const noteInput = computed(() =>
 )
 const outcomeStyle = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: outcome.value.hit ? 'oklch(0.72 0.15 150)' : 'oklch(0.8 0.16 72)',
   }),
 )
@@ -127,8 +129,8 @@ const rowBtns = pxify({ display: 'flex', gap: 8, alignItems: 'center' })
 const saveBtn = computed(() =>
   pxify({
     flex: 1,
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '7px 10px',
     borderRadius: 999,
     border: 'none',
@@ -139,8 +141,8 @@ const saveBtn = computed(() =>
 )
 const ghostBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '7px 10px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,
@@ -151,8 +153,8 @@ const ghostBtn = computed(() =>
 )
 const missedBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 8px',
     borderRadius: 999,
     border: '1px solid oklch(0.64 0.22 25)',

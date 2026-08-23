@@ -177,8 +177,9 @@ const percent = computed(() => ringPercent(props.ratio))
 }
 /* The percentage sits inside the ring, so no second label is needed. */
 .gcard__pct {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: var(--text-2xs);
+  line-height: var(--lh-2xs);
+  font-weight: var(--weight-semibold);
   color: var(--theme-dim);
 }
 /* Zero progress: a thin track, no number. */
@@ -207,7 +208,7 @@ const percent = computed(() => ringPercent(props.ratio))
   min-width: 0;
   margin: 0;
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   line-height: 1.3;
   /* Two lines, then an ellipsis. A title used to run to four lines and drag
      the rest of the header along with it. */
@@ -262,12 +263,12 @@ const percent = computed(() => ringPercent(props.ratio))
   border-radius: var(--radius-pill);
   border: 1px solid currentColor;
   font-size: var(--text-2xs);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 .gcard__chip {
   color: var(--theme-dim);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 .gcard__chip--overdue {
   color: oklch(0.64 0.22 25);

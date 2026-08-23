@@ -31,7 +31,7 @@ const initial = computed(() => (props.name || '?').trim().charAt(0).toUpperCase(
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   color: var(--theme-on-accent);
   background: var(--avatar-color, var(--theme-accent));
 }

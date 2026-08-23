@@ -18,7 +18,7 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { useMarkdownEditor, type EditorAction } from '@/composables/useMarkdownEditor'
 import { useMarkdownPaste } from '@/composables/useMarkdownPaste'
 import { useAutoResizeTextarea } from '@/composables/useAutoResizeTextarea'
@@ -219,8 +219,8 @@ const toolBtn = computed(() =>
     border: '1px solid transparent',
     background: 'transparent',
     color: c.value.text,
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
   }),
 )
@@ -233,8 +233,8 @@ const modeBtn = (active: boolean) =>
     border: '1px solid ' + (active ? c.value.accent : 'transparent'),
     background: active ? c.value.card : 'transparent',
     color: active ? c.value.accent : c.value.dim,
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
   })
 const panes = computed(() =>
@@ -263,7 +263,7 @@ const textareaStyle = computed(() =>
     background: c.value.input,
     color: c.value.text,
     fontFamily: 'inherit',
-    fontSize: 13,
+    ...typeStep('sm'),
     lineHeight: 1.6,
     tabSize: 2,
     outline: 'none',

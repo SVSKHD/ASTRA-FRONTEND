@@ -13,7 +13,7 @@
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import MovePendingButton from '@/components/MovePendingButton.vue'
 import type { ListKey } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
@@ -73,14 +73,19 @@ const chevronStyle = computed(() =>
 )
 const titleWrap = pxify({ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 })
 const titleStyle = computed(() =>
-  pxify({ fontSize: 13, fontWeight: 700, color: c.value.text, letterSpacing: '0.01em' }),
+  pxify({
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    letterSpacing: '0.01em',
+  }),
 )
-const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const actionsWrap = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
 const selectBtn = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.04em',
     padding: '5px 10px',
     borderRadius: 999,

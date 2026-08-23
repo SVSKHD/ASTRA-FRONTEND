@@ -45,7 +45,7 @@ defineEmits<{ remove: []; click: [] }>()
   color: var(--chip-color, var(--theme-dim));
   background: color-mix(in oklch, var(--chip-color, var(--theme-accent)) 12%, transparent);
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .ui-chip--sm {
   padding: 2px var(--sp-2);

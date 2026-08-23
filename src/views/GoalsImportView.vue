@@ -11,7 +11,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, rowBase } from '@/styles'
+import { pxify, rowBase, typeStep } from '@/styles'
 import {
   parseImportUrl,
   parseGoalsJson,
@@ -171,7 +171,7 @@ const page = computed(() =>
     display: 'flex',
     justifyContent: 'center',
     color: c.value.text,
-    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+    fontFamily: 'var(--font-mono)',
   }),
 )
 const card = computed(() =>
@@ -187,8 +187,10 @@ const card = computed(() =>
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
   }),
 )
-const h1 = computed(() => pxify({ fontSize: 18, fontWeight: 700, color: c.value.text }))
-const sub = computed(() => pxify({ fontSize: 12, color: c.value.dim, lineHeight: 1.5 }))
+const h1 = computed(() =>
+  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
+const sub = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, lineHeight: 1.5 }))
 const rowStyle = computed(() =>
   pxify({
     display: 'flex',
@@ -203,12 +205,12 @@ const rowStyle = computed(() =>
   }),
 )
 const mini = computed(() =>
-  pxify({ ...s.value.input, width: 78, padding: '4px 6px', fontSize: 12 }),
+  pxify({ ...s.value.input, width: 78, padding: '4px 6px', ...typeStep('xs') }),
 )
 const btn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,
@@ -220,8 +222,8 @@ const btn = computed(() =>
 )
 const primary = computed(() =>
   pxify({
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '9px 16px',
     borderRadius: 999,
     border: 'none',
@@ -249,10 +251,12 @@ const dropZone = computed(() =>
     transition: 'border-color .15s ease, background .15s ease',
   }),
 )
-const warn = computed(() => pxify({ fontSize: 12, color: 'oklch(0.64 0.22 25)', fontWeight: 600 }))
+const warn = computed(() =>
+  pxify({ ...typeStep('xs'), color: 'oklch(0.64 0.22 25)', fontWeight: 'var(--weight-semibold)' }),
+)
 const mergeNote = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
     padding: '8px 10px',
     borderRadius: 10,
@@ -319,7 +323,7 @@ const mergeNote = computed(() =>
             >.
           </div>
           <div v-for="(g, gi) in jsonDoc.goals" :key="gi" :style="rowStyle">
-            <span :style="{ flex: 1, fontWeight: 600, color: c.text }">
+            <span :style="{ flex: 1, fontWeight: 'var(--weight-semibold)', color: c.text }">
               {{ g.title || '(untitled)' }}
             </span>
             <span v-if="g.error" :style="warn">{{ g.error }}</span>

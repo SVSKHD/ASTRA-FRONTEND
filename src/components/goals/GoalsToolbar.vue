@@ -166,7 +166,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
 .gtb__title {
   margin: 0;
   font-size: var(--text-2xs);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--theme-dim);
@@ -204,7 +204,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
   background: var(--theme-accent);
   color: var(--theme-on-accent, #fff);
   font-size: var(--text-2xs);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   cursor: pointer;
   white-space: nowrap;
 }

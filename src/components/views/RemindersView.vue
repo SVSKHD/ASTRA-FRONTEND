@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, merge, rowBase } from '@/styles'
+import { merge, pxify, rowBase, typeStep } from '@/styles'
 import { occurrences, repFreqLabel } from '@/utils/reminders'
 import { splitList } from '@/utils/listSplit'
 import { useLongList } from '@/composables/useLongList'
@@ -134,7 +134,7 @@ function rowStyle(done = false) {
 }
 function priorityChipStyle(color: string) {
   return pxify({
-    fontSize: 9,
+    ...typeStep('2xs'),
     padding: '3px 8px',
     borderRadius: 8,
     background: 'transparent',
@@ -146,7 +146,7 @@ function priorityChipStyle(color: string) {
 }
 function syncChipStyle(color: string) {
   return pxify({
-    fontSize: 9,
+    ...typeStep('2xs'),
     padding: '3px 8px',
     borderRadius: 8,
     background: c.value.input,
@@ -157,7 +157,7 @@ function syncChipStyle(color: string) {
 }
 const doneChip = computed(() =>
   pxify({
-    fontSize: 9,
+    ...typeStep('2xs'),
     padding: '3px 8px',
     borderRadius: 8,
     background: c.value.input,
@@ -181,7 +181,7 @@ function chevronStyle(open: boolean) {
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
-    fontSize: 11,
+    ...typeStep('xs'),
     color: c.value.dim,
     padding: '2px 6px',
     transform: open ? 'rotate(180deg)' : 'none',

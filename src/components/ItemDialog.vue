@@ -12,7 +12,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
-import { pxify, dialogCard } from '@/styles'
+import { dialogCard, pxify, typeStep } from '@/styles'
 import { ITEM_FORMS, type FieldDef } from '@/utils/itemForms'
 import TagPicker from '@/components/TagPicker.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
@@ -124,7 +124,7 @@ function weekdayBtnStyle(f: FieldDef, i: number) {
     height: 26,
     borderRadius: '50%',
     border: '1px solid ' + c.value.border,
-    fontSize: 10,
+    ...typeStep('2xs'),
     cursor: 'pointer',
     background: on ? c.value.accent : 'transparent',
     color: on ? c.value.onAccent : c.value.dim,
@@ -182,8 +182,8 @@ const cardStyle = computed(() => pxify(dialogCard(c.value, dialogClosing.value))
 // against the labels rather than against every span on the dialog.
 const labelStyle = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -213,7 +213,7 @@ const prefixAdornment = computed(() =>
   pxify({
     padding: '9px 4px 9px 12px',
     color: c.value.dim,
-    fontSize: 14,
+    ...typeStep('base'),
     flexShrink: 0,
   }),
 )
@@ -225,12 +225,12 @@ const prefixInput = computed(() =>
     border: 'none',
     background: 'transparent',
     color: c.value.text,
-    fontSize: 14,
+    ...typeStep('base'),
     outline: 'none',
   }),
 )
 const checkRow = computed(() =>
-  pxify({ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: c.value.dim }),
+  pxify({ display: 'flex', alignItems: 'center', gap: 8, ...typeStep('xs'), color: c.value.dim }),
 )
 </script>
 

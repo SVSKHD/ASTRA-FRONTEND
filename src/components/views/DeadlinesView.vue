@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, rowBase } from '@/styles'
+import { pxify, rowBase, typeStep } from '@/styles'
 import { urg } from '@/utils/colors'
 import { splitList } from '@/utils/listSplit'
 import ListToolbar from '@/components/ListToolbar.vue'
@@ -73,8 +73,8 @@ function badgeStyle(col: string) {
     flexShrink: 0,
     minWidth: 46,
     textAlign: 'center',
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 9px',
     borderRadius: 10,
     background: 'transparent',

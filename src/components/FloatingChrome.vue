@@ -11,7 +11,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
 import Icon from '@/components/ui/Icon.vue'
 
@@ -129,8 +129,8 @@ const avatarDisc = computed(() =>
     borderRadius: '50%',
     display: 'grid',
     placeItems: 'center',
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: '#fff',
     background: avatarColor.value,
   }),
@@ -204,7 +204,7 @@ function swatch(bg: string, active: boolean) {
 }
 const groupLabel = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -244,14 +244,19 @@ function cardSwatchRow(preview: readonly [string, string, string]) {
   })
 }
 const cardName = computed(() =>
-  pxify({ fontSize: 11, fontWeight: 600, color: c.value.text, lineHeight: 1.1 }),
+  pxify({
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1.1,
+  }),
 )
-const rowText = computed(() => pxify({ fontSize: 12, color: c.value.text }))
+const rowText = computed(() => pxify({ ...typeStep('xs'), color: c.value.text }))
 const menuItem = computed(() =>
   pxify({
     padding: '9px 10px',
     borderRadius: 10,
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
     cursor: 'pointer',
     background: 'transparent',
@@ -267,14 +272,19 @@ const menuToggle = computed(() =>
     alignItems: 'center',
     gap: 8,
     padding: '9px 10px',
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.dim,
   }),
 )
 const nameStyle = computed(() =>
-  pxify({ fontSize: 12, fontWeight: 600, color: c.value.text, whiteSpace: 'nowrap' }),
+  pxify({
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    whiteSpace: 'nowrap',
+  }),
 )
-const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 </script>
 
 <template>

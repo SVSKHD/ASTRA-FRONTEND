@@ -6,7 +6,7 @@
 // dialog around.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { searchPlaces, type GeoResult } from '@/utils/geo'
 
 const props = withDefaults(defineProps<{ modelValue?: string; placeholder?: string }>(), {
@@ -80,7 +80,7 @@ const inputStyle = computed(() =>
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
-    fontSize: 13,
+    ...typeStep('sm'),
   }),
 )
 const listStyle = computed(() =>
@@ -112,13 +112,15 @@ const itemStyle = computed(() =>
     border: 'none',
     background: 'transparent',
     color: c.value.text,
-    fontSize: 12,
+    ...typeStep('xs'),
     lineHeight: 1.35,
     cursor: 'pointer',
     width: '100%',
   }),
 )
-const hintStyle = computed(() => pxify({ padding: '8px 10px', fontSize: 11.5, color: c.value.dim }))
+const hintStyle = computed(() =>
+  pxify({ padding: '8px 10px', ...typeStep('xs'), color: c.value.dim }),
+)
 </script>
 
 <template>
@@ -145,7 +147,7 @@ const hintStyle = computed(() => pxify({ padding: '8px 10px', fontSize: 11.5, co
         @click="choose(r)"
       >
         <strong>{{ r.name }}</strong>
-        <div :style="{ color: c.dim, fontSize: '10.5px' }">{{ r.address }}</div>
+        <div :style="{ color: c.dim, ...typeStep('2xs') }">{{ r.address }}</div>
       </button>
     </div>
   </div>

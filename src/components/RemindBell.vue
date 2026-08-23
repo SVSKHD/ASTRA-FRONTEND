@@ -11,7 +11,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { bellChipLabel, soonestFireAmong } from '@/utils/upcoming'
 import type { LinkCollection, Repeat, RepeatType } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
@@ -124,7 +124,7 @@ const bellBtn = computed(() =>
 )
 const chipStyle = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     padding: '2px 7px',
     borderRadius: 999,
     background: c.value.input,
@@ -154,8 +154,8 @@ const popStyle = computed(() =>
 )
 const popHead = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.1em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -165,7 +165,7 @@ const popHead = computed(() =>
 const quickBtn = computed(() =>
   pxify({
     textAlign: 'left',
-    fontSize: 12,
+    ...typeStep('xs'),
     padding: '7px 9px',
     borderRadius: 9,
     border: '1px solid ' + c.value.border,
@@ -178,7 +178,7 @@ const rowFlex = pxify({ display: 'flex', gap: 6, alignItems: 'center' })
 const selectStyle = computed(() =>
   pxify({
     flex: 1,
-    fontSize: 11,
+    ...typeStep('xs'),
     padding: '6px 8px',
     borderRadius: 9,
     border: '1px solid ' + c.value.border,
@@ -188,8 +188,8 @@ const selectStyle = computed(() =>
 )
 const setBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 10px',
     borderRadius: 9,
     border: '1px solid ' + c.value.accent,

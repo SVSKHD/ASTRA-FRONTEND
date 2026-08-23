@@ -6,7 +6,7 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { durationLabel } from '@/utils/calendarEvents'
 
 const props = defineProps<{
@@ -69,8 +69,8 @@ const card = computed(() =>
 function typeBtn(active: boolean) {
   return pxify({
     flex: 1,
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 8px',
     borderRadius: 8,
     cursor: 'pointer',
@@ -82,7 +82,7 @@ function typeBtn(active: boolean) {
   })
 }
 const rowStyle = pxify({ display: 'flex', gap: 6 })
-const metaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const metaStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 </script>
 
 <template>

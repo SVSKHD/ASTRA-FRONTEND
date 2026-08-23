@@ -16,7 +16,7 @@ import { useAccordionState } from '@/composables/useAccordionState'
 import { useTreeDrag, INDENT_PX, type TreeCollection } from '@/composables/useTreeDrag'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
-import { pxify, merge, rowBase, tagChip } from '@/styles'
+import { merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
 import TreeDropLine from '@/components/TreeDropLine.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -249,7 +249,7 @@ const rowStyle = computed(() =>
 )
 function textStyle(id: number) {
   return pxify({
-    fontSize: 14,
+    ...typeStep('base'),
     color: c.value.text,
     lineHeight: 1.3,
     textDecoration: done(id) ? 'line-through' : 'none',
@@ -257,7 +257,7 @@ function textStyle(id: number) {
   })
 }
 const descStyle = computed(() =>
-  pxify({ fontSize: 12, lineHeight: 1.4, color: c.value.dim, cursor: 'pointer' }),
+  pxify({ ...typeStep('xs'), lineHeight: 1.4, color: c.value.dim, cursor: 'pointer' }),
 )
 function chipStyle(tag: string) {
   return pxify(tagChip(c.value, tag, dark.value))
@@ -293,7 +293,7 @@ function boxStyle(id: number) {
 }
 const countChip = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     color: c.value.dim,
     padding: '1px 6px',
     borderRadius: 999,
@@ -302,12 +302,12 @@ const countChip = computed(() =>
     flexShrink: 0,
   }),
 )
-const dueChipStyle = computed(() => pxify({ fontSize: 10, color: c.value.dim }))
+const dueChipStyle = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim }))
 // Goal-attachment chip (task 8): a subtle accent-outlined pill on rows that
 // belong to one or more goals, so attachment is visible from the Tasks/Todos tab.
 const goalChip = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     color: c.value.accent,
     padding: '1px 6px',
     borderRadius: 999,
@@ -322,8 +322,8 @@ const goalChip = computed(() =>
 )
 const conflictBadge = computed(() =>
   pxify({
-    fontSize: 9,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
     padding: '2px 6px',
@@ -337,7 +337,7 @@ const conflictBadge = computed(() =>
 )
 const progressWrap = pxify({ padding: '4px 4px 0' })
 const breadcrumbStyle = computed(() =>
-  pxify({ fontSize: 10, color: c.value.dim, padding: '2px 0 2px 26px' }),
+  pxify({ ...typeStep('2xs'), color: c.value.dim, padding: '2px 0 2px 26px' }),
 )
 const linkBody = computed(() =>
   pxify({
@@ -357,7 +357,7 @@ const rootStripStyle = computed(() =>
       ? 'color-mix(in srgb, ' + c.value.accent + ' 12%, transparent)'
       : 'transparent',
     color: root.value.active ? c.value.accent : c.value.dim,
-    fontSize: 11,
+    ...typeStep('xs'),
     textAlign: 'center',
     letterSpacing: '0.04em',
     transition: 'border-color .15s ease, background .15s ease, color .15s ease',

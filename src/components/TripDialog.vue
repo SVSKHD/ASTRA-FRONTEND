@@ -9,7 +9,7 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, type Style } from '@/styles'
+import { pxify, typeStep, type Style } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import TagPicker from '@/components/TagPicker.vue'
 // Leaflet is ~43KB gzipped and only ever needed once a trip's map is on screen,
@@ -173,8 +173,8 @@ const titleInput = computed(() =>
   pxify({
     flex: 1,
     minWidth: 0,
-    fontSize: isMobile.value ? 17 : 20,
-    fontWeight: 700,
+    ...(isMobile.value ? typeStep('md') : typeStep('lg')),
+    fontWeight: 'var(--weight-semibold)',
     background: 'transparent',
     border: 'none',
     color: c.value.text,
@@ -183,8 +183,8 @@ const titleInput = computed(() =>
 function statusBadge(done: boolean) {
   return pxify({
     flexShrink: 0,
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     padding: '4px 9px',
@@ -237,16 +237,16 @@ function segBtn(activeState: boolean) {
     border: 'none',
     background: activeState ? c.value.card : 'transparent',
     color: activeState ? c.value.accent : c.value.dim,
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
     boxShadow: activeState ? 'inset 0 1px 0 rgba(255,255,255,0.25)' : 'none',
   })
 }
 const primaryBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
     borderRadius: 12,
     border: '1px solid ' + c.value.accent,
@@ -257,8 +257,8 @@ const primaryBtn = computed(() =>
 )
 const ghostBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
     borderRadius: 12,
     border: '1px solid ' + c.value.border,
@@ -269,8 +269,8 @@ const ghostBtn = computed(() =>
 )
 const labelStyle = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -279,7 +279,12 @@ const labelStyle = computed(() =>
 const fieldRaw: Style = { display: 'flex', flexDirection: 'column', gap: 6 }
 const field = pxify(fieldRaw)
 const sectionTitle = computed(() =>
-  pxify({ fontSize: 13, fontWeight: 700, color: c.value.text, marginTop: 4 }),
+  pxify({
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    marginTop: 4,
+  }),
 )
 const inputRaw = computed<Style>(() => ({
   padding: '10px 12px',
@@ -287,7 +292,7 @@ const inputRaw = computed<Style>(() => ({
   border: '1px solid ' + c.value.border,
   background: c.value.input,
   color: c.value.text,
-  fontSize: 13,
+  ...typeStep('sm'),
   width: '100%',
 }))
 const inputStyle = computed(() => pxify(inputRaw.value))
@@ -301,7 +306,7 @@ const del = computed(() =>
     background: 'none',
     border: 'none',
     color: c.value.dim,
-    fontSize: 20,
+    ...typeStep('lg'),
     cursor: 'pointer',
     flexShrink: 0,
   }),
@@ -316,7 +321,7 @@ const iconBtn = computed(() =>
     background: 'transparent',
     color: c.value.dim,
     cursor: 'pointer',
-    fontSize: 14,
+    ...typeStep('base'),
   }),
 )
 const noteChip = computed(() =>
@@ -324,7 +329,7 @@ const noteChip = computed(() =>
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    fontSize: 11,
+    ...typeStep('xs'),
     padding: '4px 8px',
     borderRadius: 8,
     background: c.value.input,
@@ -337,8 +342,8 @@ const photoThumb = pxify({ width: 60, height: 60, borderRadius: 10, objectFit: '
 const dangerBtn = computed(() =>
   pxify({
     alignSelf: 'flex-start',
-    fontSize: 11.5,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
     borderRadius: 11,
     border: '1px solid ' + c.value.border,
@@ -356,7 +361,9 @@ const dangerBtn = computed(() =>
     <!-- Create: a short form. Saving it opens the trip in edit mode below. -->
     <div v-if="isCreate" :style="createCardStyle">
       <div :style="headerStyle">
-        <span :style="pxify({ flex: 1, fontSize: 16, fontWeight: 700 })">New trip</span>
+        <span :style="pxify({ flex: 1, ...typeStep('md'), fontWeight: 'var(--weight-semibold)' })"
+          >New trip</span
+        >
         <button :style="del" aria-label="Close" @click="app.closeItemDialog()">×</button>
       </div>
       <div :style="bodyStyle" @keydown.esc="app.closeItemDialog()">
@@ -516,7 +523,7 @@ const dangerBtn = computed(() =>
                   background: c.card,
                   color: c.dim,
                   cursor: 'pointer',
-                  fontSize: 11,
+                  ...typeStep('xs'),
                 })
               "
               title="Remove photo"

@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { chainDef, chainName } from '@/utils/chains'
 import { copyVerification, truncateAddress } from '@/utils/address'
 import { copyText } from '@/utils/clipboard'
@@ -57,12 +57,17 @@ const card = computed(() =>
 )
 const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
 const label = computed(() =>
-  pxify({ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.value.dim }),
+  pxify({
+    ...typeStep('xs'),
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
 )
 const countChip = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.accent,
     padding: '1px 7px',
     borderRadius: 999,
@@ -72,8 +77,8 @@ const countChip = computed(() =>
 const viewAllBtn = computed(() =>
   pxify({
     marginLeft: 'auto',
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.dim,
     background: 'transparent',
     border: 'none',
@@ -90,14 +95,14 @@ function glyph(color: string) {
     height: 20,
     borderRadius: '50%',
     flexShrink: 0,
-    fontSize: 11,
+    ...typeStep('xs'),
     color,
     border: '1px solid ' + color,
   })
 }
 const nameStyle = computed(() =>
   pxify({
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -106,11 +111,13 @@ const nameStyle = computed(() =>
     flex: 1,
   }),
 )
-const metaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim, whiteSpace: 'nowrap' }))
+const metaStyle = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, whiteSpace: 'nowrap' }),
+)
 const addrStyle = computed(() =>
   pxify({
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-    fontSize: 11,
+    fontFamily: 'var(--font-mono)',
+    ...typeStep('xs'),
     color: c.value.dim,
     cursor: 'pointer',
   }),

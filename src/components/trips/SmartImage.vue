@@ -7,7 +7,7 @@
 // so an absent or dead image never shifts the layout.
 import { computed, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
@@ -83,7 +83,12 @@ const placeholder = computed(() =>
   }),
 )
 const labelStyle = computed(() =>
-  pxify({ fontSize: 10.5, fontWeight: 600, letterSpacing: '0.02em', color: c.value.dim }),
+  pxify({
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
+    letterSpacing: '0.02em',
+    color: c.value.dim,
+  }),
 )
 </script>
 

@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, merge, rowBase, tagChip } from '@/styles'
+import { merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import { todayKey, isOverdueTask } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
@@ -144,7 +144,7 @@ function rowStyle(t: Task, done = false) {
 }
 function textStyle(t: Task) {
   return pxify({
-    fontSize: 14,
+    ...typeStep('base'),
     color: c.value.text,
     lineHeight: 1.3,
     textDecoration: t.done ? 'line-through' : 'none',
@@ -157,7 +157,7 @@ function chipStyle(tag: string) {
 }
 const ageChipStyle = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     padding: '2px 7px',
     borderRadius: 999,
     background: c.value.input,
@@ -168,7 +168,7 @@ const ageChipStyle = computed(() =>
 )
 const rolloverChipStyle = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     padding: '2px 7px',
     borderRadius: 999,
     background: 'transparent',
@@ -177,12 +177,12 @@ const rolloverChipStyle = computed(() =>
     flexShrink: 0,
   }),
 )
-const doneMetaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const doneMetaStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const parentCardStyle = pxify({ display: 'flex', flexDirection: 'column' })
 const linkExpandBtn = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     padding: '5px 10px',

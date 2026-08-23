@@ -48,7 +48,7 @@ defineEmits<{ 'update:modelValue': [string] }>()
   background: var(--swatch);
   color: var(--theme-on-accent);
   font-size: var(--text-2xs);
-  font-weight: 900;
+  font-weight: var(--weight-semibold);
   cursor: pointer;
   display: inline-flex;
   align-items: center;

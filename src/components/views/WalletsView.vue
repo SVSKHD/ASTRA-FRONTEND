@@ -10,7 +10,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { copyText } from '@/utils/clipboard'
 import { CHAINS, chainDef, chainName, explorerUrl } from '@/utils/chains'
 import { chainMismatch, copyVerification, rejectSecret, truncateAddress } from '@/utils/address'
@@ -168,7 +168,7 @@ const groupHead = computed(() =>
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    fontSize: 11,
+    ...typeStep('xs'),
     letterSpacing: '0.1em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -184,7 +184,7 @@ function chainGlyph(color: string) {
     height: 22,
     borderRadius: '50%',
     flexShrink: 0,
-    fontSize: 12,
+    ...typeStep('xs'),
     color,
     border: '1px solid ' + color,
     background: 'color-mix(in oklch, ' + color + ' 14%, transparent)',
@@ -193,14 +193,14 @@ function chainGlyph(color: string) {
 const row = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
 const addrStyle = computed(() =>
   pxify({
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-    fontSize: 12,
+    fontFamily: 'var(--font-mono)',
+    ...typeStep('xs'),
     color: c.value.dim,
   }),
 )
 const warnBox = (col: string) =>
   pxify({
-    fontSize: 11,
+    ...typeStep('xs'),
     padding: '6px 9px',
     borderRadius: 9,
     border: '1px solid ' + col,
@@ -208,12 +208,18 @@ const warnBox = (col: string) =>
     color: c.value.text,
   })
 const gripStyle = computed(() =>
-  pxify({ cursor: 'grab', color: c.value.dim, fontSize: 12, flexShrink: 0, letterSpacing: '-2px' }),
+  pxify({
+    cursor: 'grab',
+    color: c.value.dim,
+    ...typeStep('xs'),
+    flexShrink: 0,
+    letterSpacing: '-2px',
+  }),
 )
 const defaultChip = computed(() =>
   pxify({
-    fontSize: 9,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
     borderRadius: 6,
     color: c.value.accent,

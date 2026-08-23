@@ -12,7 +12,7 @@ import { useUiStore } from '@/stores/ui'
 import { useGoals } from '@/composables/useGoals'
 import { useStyles } from '@/composables/useStyles'
 import { useSyncGuard } from '@/composables/useSyncGuard'
-import { pxify, rowBase } from '@/styles'
+import { pxify, rowBase, typeStep } from '@/styles'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import TreeList from '@/components/TreeList.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
@@ -218,8 +218,8 @@ const wrap = pxify({
 const backBtn = computed(() =>
   pxify({
     alignSelf: 'flex-start',
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,
@@ -235,8 +235,8 @@ const headTop = pxify({ display: 'flex', alignItems: 'center', gap: 12 })
 const titleInput = computed(() =>
   pxify({
     ...s.value.input,
-    fontSize: 18,
-    fontWeight: 700,
+    ...typeStep('md'),
+    fontWeight: 'var(--weight-semibold)',
     flex: 1,
     minWidth: 0,
     background: 'transparent',
@@ -249,7 +249,7 @@ const descInput = computed(() =>
   pxify({ ...s.value.input, minHeight: 44, resize: 'vertical', width: '100%' }),
 )
 const dateRow = pxify({ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' })
-const fieldLabel = computed(() => pxify({ fontSize: 11, color: c.value.dim, marginRight: 4 }))
+const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, marginRight: 4 }))
 const barTrack = computed(() =>
   pxify({ flex: 1, height: 8, borderRadius: 999, background: c.value.input, overflow: 'hidden' }),
 )
@@ -263,8 +263,8 @@ const barFill = computed(() =>
 )
 const sectionTitle = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
     color: c.value.dim,
@@ -276,8 +276,8 @@ const sectionTitle = computed(() =>
 )
 const smallBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,
@@ -321,7 +321,7 @@ const pickRow = computed(() =>
     padding: '8px 10px',
     borderRadius: 10,
     cursor: 'pointer',
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     border: '1px solid ' + c.value.border,
   }),

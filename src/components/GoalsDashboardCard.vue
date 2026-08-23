@@ -11,7 +11,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
 import { captureOutcome } from '@/utils/goalMetrics'
@@ -152,12 +152,17 @@ const card = computed(() =>
 )
 const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
 const label = computed(() =>
-  pxify({ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.value.dim }),
+  pxify({
+    ...typeStep('xs'),
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
 )
 const countChip = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.accent,
     padding: '1px 7px',
     borderRadius: 999,
@@ -167,8 +172,8 @@ const countChip = computed(() =>
 const viewAllBtn = computed(() =>
   pxify({
     marginLeft: 'auto',
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.dim,
     background: 'transparent',
     border: 'none',
@@ -190,7 +195,7 @@ const titleCol = pxify({ display: 'flex', flexDirection: 'column', gap: 4, flex:
 const titleRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
 const goalTitle = computed(() =>
   pxify({
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -200,7 +205,12 @@ const goalTitle = computed(() =>
   }),
 )
 function chipStyle(col: string) {
-  return pxify({ fontSize: 10, fontWeight: 600, color: col, flexShrink: 0 })
+  return pxify({
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
+    color: col,
+    flexShrink: 0,
+  })
 }
 const track = computed(() =>
   pxify({
@@ -224,7 +234,7 @@ function fill(ratio: number, color: string) {
   })
 }
 const pctText = computed(() =>
-  pxify({ fontSize: 10, color: c.value.dim, flexShrink: 0, width: 30, textAlign: 'right' }),
+  pxify({ ...typeStep('2xs'), color: c.value.dim, flexShrink: 0, width: 30, textAlign: 'right' }),
 )
 const footer = computed(() =>
   pxify({
@@ -236,7 +246,7 @@ const footer = computed(() =>
     borderTop: '1px solid ' + c.value.border,
   }),
 )
-const footerText = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const footerText = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 // --- daily strip ---
 const dailyStrip = computed(() =>
   pxify({
@@ -247,7 +257,9 @@ const dailyStrip = computed(() =>
     borderBottom: '1px solid ' + c.value.border,
   }),
 )
-const dailyHead = computed(() => pxify({ fontSize: 11, fontWeight: 700, color: c.value.text }))
+const dailyHead = computed(() =>
+  pxify({ ...typeStep('xs'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 const dailyRow = pxify({
   position: 'relative',
   display: 'flex',
@@ -257,7 +269,7 @@ const dailyRow = pxify({
 })
 const dailyTitle = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
     flex: 1,
     minWidth: 0,
@@ -267,14 +279,19 @@ const dailyTitle = computed(() =>
   }),
 )
 function dailyValue(col: string) {
-  return pxify({ fontSize: 11, fontWeight: 600, color: col, flexShrink: 0 })
+  return pxify({
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    color: col,
+    flexShrink: 0,
+  })
 }
-const emptyText = computed(() => pxify({ fontSize: 13, color: c.value.dim }))
+const emptyText = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim }))
 const btnRow = pxify({ display: 'flex', gap: 8, flexWrap: 'wrap' })
 const btn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 10px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,
@@ -285,8 +302,8 @@ const btn = computed(() =>
 )
 const primaryBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 10px',
     borderRadius: 999,
     border: 'none',

@@ -5,7 +5,7 @@
 // per-place galleries.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
@@ -163,7 +163,7 @@ function navBtn(side: 'left' | 'right') {
     border: '1px solid ' + c.value.border,
     background: 'rgba(0,0,0,0.4)',
     color: '#fff',
-    fontSize: 20,
+    ...typeStep('lg'),
     cursor: 'pointer',
     zIndex: 41,
     display: 'grid',
@@ -181,7 +181,7 @@ const closeBtn = computed(() =>
     border: '1px solid ' + c.value.border,
     background: 'rgba(0,0,0,0.4)',
     color: '#fff',
-    fontSize: 20,
+    ...typeStep('lg'),
     cursor: 'pointer',
     zIndex: 41,
   }),
@@ -194,8 +194,8 @@ const captionBar = pxify({
   zIndex: 41,
   maxWidth: '90vw',
   textAlign: 'center',
-  fontSize: 13,
-  fontWeight: 600,
+  ...typeStep('sm'),
+  fontWeight: 'var(--weight-semibold)',
   color: '#fff',
   background: 'rgba(0,0,0,0.5)',
   padding: '6px 14px',
@@ -207,7 +207,7 @@ const counter = pxify({
   left: '50%',
   transform: 'translateX(-50%)',
   zIndex: 41,
-  fontSize: 12,
+  ...typeStep('xs'),
   color: '#fff',
   background: 'rgba(0,0,0,0.45)',
   padding: '4px 12px',
@@ -243,7 +243,7 @@ const counter = pxify({
           aria-hidden="true"
           :style="{ color: 'rgba(255,255,255,0.6)' }"
         />
-        <span style="font-size: 13px; font-weight: 600">No image yet</span>
+        <span class="tlb__empty">No image yet</span>
       </div>
 
       <button :style="closeBtn" aria-label="Close" @click="emit('close')">×</button>
@@ -256,3 +256,12 @@ const counter = pxify({
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+/* Section 24a: the one place this file had a size, now on the scale. */
+.tlb__empty {
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  font-weight: var(--weight-semibold);
+}
+</style>

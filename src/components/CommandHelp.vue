@@ -6,7 +6,7 @@
 // on mobile exactly as it does on desktop.
 import { computed, ref } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { SLASH_COMMANDS, MARKDOWN_SHORTCUTS } from '@/utils/editorCommands'
 
 defineEmits<{ (e: 'close'): void }>()
@@ -55,8 +55,8 @@ const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
 const titleStyle = computed(() =>
   pxify({
     flex: 1,
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     color: c.value.text,
@@ -88,27 +88,29 @@ const rowStyle = computed(() =>
 const chipStyle = computed(() =>
   pxify({
     flexShrink: 0,
-    fontSize: 10.5,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '3px 8px',
     borderRadius: 8,
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.accent,
-    fontFamily: 'ui-monospace, monospace',
+    fontFamily: 'var(--font-mono)',
     whiteSpace: 'nowrap',
   }),
 )
 const rowMain = pxify({ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 })
-const rowLabel = computed(() => pxify({ fontSize: 12, fontWeight: 600, color: c.value.text }))
-const rowHint = computed(() => pxify({ fontSize: 10.5, color: c.value.dim, lineHeight: 1.3 }))
+const rowLabel = computed(() =>
+  pxify({ ...typeStep('xs'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
+const rowHint = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim, lineHeight: 1.3 }))
 const previewStyle = computed(() =>
   pxify({
     flexShrink: 0,
     width: 74,
     maxHeight: 40,
     overflow: 'hidden',
-    fontSize: 10,
+    ...typeStep('2xs'),
     lineHeight: 1.2,
     color: c.value.dim,
     opacity: 0.85,
@@ -118,8 +120,8 @@ const previewStyle = computed(() =>
 )
 const sectionLabel = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -143,17 +145,17 @@ const searchStyle = computed(() =>
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
-    fontSize: 12.5,
+    ...typeStep('sm'),
   }),
 )
 const emptyStyle = computed(() =>
-  pxify({ textAlign: 'center', color: c.value.dim, fontSize: 12, padding: '18px 0' }),
+  pxify({ textAlign: 'center', color: c.value.dim, ...typeStep('xs'), padding: '18px 0' }),
 )
 const closeBtn = computed(() =>
   pxify({
     cursor: 'pointer',
     color: c.value.dim,
-    fontSize: 19,
+    ...typeStep('lg'),
     background: 'none',
     border: 'none',
   }),

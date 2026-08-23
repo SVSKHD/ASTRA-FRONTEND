@@ -9,7 +9,7 @@ import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { MAX_LINK_DEPTH } from '@/utils/links'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -131,7 +131,7 @@ const titleStyle = computed(() =>
   pxify({
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     textDecoration: done.value ? 'line-through' : 'none',
     textDecorationColor: c.value.dim,
@@ -143,7 +143,7 @@ const titleStyle = computed(() =>
 )
 const badgeStyle = computed(() =>
   pxify({
-    fontSize: 9,
+    ...typeStep('2xs'),
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     padding: '2px 6px',
@@ -153,10 +153,10 @@ const badgeStyle = computed(() =>
     flexShrink: 0,
   }),
 )
-const dueStyle = computed(() => pxify({ fontSize: 10, color: c.value.dim, flexShrink: 0 }))
+const dueStyle = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim, flexShrink: 0 }))
 const countChip = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     color: c.value.dim,
     padding: '1px 6px',
     borderRadius: 999,
@@ -171,13 +171,13 @@ const unlinkBtn = computed(() =>
     background: 'transparent',
     color: c.value.dim,
     cursor: 'pointer',
-    fontSize: 15,
+    ...typeStep('base'),
     lineHeight: 1,
     flexShrink: 0,
   }),
 )
 const breadcrumbStyle = computed(() =>
-  pxify({ fontSize: 10, color: c.value.dim, padding: '2px 0 0 26px' }),
+  pxify({ ...typeStep('2xs'), color: c.value.dim, padding: '2px 0 0 26px' }),
 )
 const progressWrap = pxify({ padding: '4px 4px 0' })
 // The children body: a 0fr→1fr grid so height animates with no jump; the inner

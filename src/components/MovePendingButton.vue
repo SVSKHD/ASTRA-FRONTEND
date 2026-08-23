@@ -15,7 +15,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useMovePending, type CollectionKey } from '@/composables/useMovePending'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const props = defineProps<{ collection: CollectionKey }>()
@@ -145,8 +145,8 @@ const contentStyle = computed(() =>
     display: 'inline-flex',
     alignItems: 'center',
     gap: 7,
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.02em',
     color: pct.value > 55 ? c.value.onAccent : c.value.text,
     transition: 'color .2s ease',
@@ -161,8 +161,8 @@ const badgeStyle = computed(() =>
     borderRadius: 999,
     background: pct.value > 55 ? c.value.onAccent : c.value.accent,
     color: pct.value > 55 ? c.value.accent : c.value.onAccent,
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     display: 'grid',
     placeItems: 'center',
   }),

@@ -79,7 +79,8 @@ const {
   border: 1.5px solid var(--glass-border);
   background: transparent;
   color: var(--theme-on-accent, #fff);
-  font-size: 12px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   cursor: pointer;
 }
 .gct__box--on {

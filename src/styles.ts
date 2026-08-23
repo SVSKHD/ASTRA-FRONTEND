@@ -3,6 +3,7 @@ import type { Theme } from '@/themes'
 import type { ItemStatus } from '@/types'
 import { tagColor } from '@/utils/tags'
 import { monoPatternCss, monoPatternFor } from '@/utils/mono'
+import type { ShortStep, TypeStep } from '@/components/ui/type'
 
 // ---------------------------------------------------------------------------
 // pxify: the design's style objects use raw numbers for pixel values (React
@@ -54,6 +55,23 @@ export function merge(...styles: (Style | undefined)[]): CSSProperties {
   const combined: Style = {}
   for (const s of styles) if (s) Object.assign(combined, s)
   return pxify(combined)
+}
+
+// One step of the type scale as a style fragment (section 24a). Spread rather
+// than assigned, because a step is a size *and* its leading — writing only the
+// size is how "13px text" came to mean two different things in two components.
+export function typeStep(step: TypeStep['token'] | ShortStep): Style {
+  const name = step.startsWith('text-') ? step.slice(5) : step
+  return { fontSize: `var(--text-${name})`, lineHeight: `var(--lh-${name})` }
+}
+
+// Data, not prose (section 24a / acceptance 125). Dates, amounts, counts and
+// ids are set in the mono with equal-width digits: character width is
+// information there, and a column of proportional figures jitters as the
+// values change. Everything else stays in the sans.
+export const dataText: Style = {
+  fontFamily: 'var(--font-mono)',
+  fontVariantNumeric: 'tabular-nums',
 }
 
 // A gentle floating "bob" animation, parameterised like the design's bob().
@@ -143,9 +161,9 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       padding: '0 4px',
     },
     brand: {
-      fontSize: 15,
+      ...typeStep('base'),
       letterSpacing: '0.42em',
-      fontWeight: 600,
+      fontWeight: 'var(--weight-semibold)',
       color: c.text,
       textShadow: dark ? '0 0 16px rgba(255,255,255,0.15)' : 'none',
     },
@@ -192,7 +210,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       animation: 'fadeUp .25s ease both',
     },
     themeGroupLabel: {
-      fontSize: 10,
+      ...typeStep('2xs'),
       letterSpacing: '0.12em',
       textTransform: 'uppercase',
       color: c.dim,
@@ -222,7 +240,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       ...(isMobile ? {} : bob(1.2, 6.4)),
     },
     greetingText: {
-      fontSize: isMobile ? 13 : 14,
+      ...(isMobile ? typeStep('sm') : typeStep('base')),
       color: c.text,
       whiteSpace: 'nowrap',
       overflow: 'hidden',
@@ -263,14 +281,14 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     userPillHover: { transform: 'translateY(-1px)', background: c.card },
     userPillName: {
-      fontSize: 12,
-      fontWeight: 600,
+      ...typeStep('xs'),
+      fontWeight: 'var(--weight-semibold)',
       color: c.text,
       whiteSpace: 'nowrap',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
     },
-    userPillChevron: { fontSize: 9, color: c.dim, marginLeft: -3 },
+    userPillChevron: { ...typeStep('2xs'), color: c.dim, marginLeft: -3 },
     // Fills whatever the fixed-height card has left and scrolls inside it, so
     // the card's size is set by the card, never by how much is in the list.
     dayGroups: {
@@ -317,8 +335,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     // The one control that opens a create dialog, in place of the add-form each
     // tab used to carry.
     newBtn: {
-      fontSize: 11,
-      fontWeight: 700,
+      ...typeStep('xs'),
+      fontWeight: 'var(--weight-semibold)',
       padding: '6px 13px',
       borderRadius: 999,
       border: '1px solid ' + c.border,
@@ -330,8 +348,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       transition: 'transform .25s ease, box-shadow .25s ease',
     },
     foldBtn: {
-      fontSize: 10,
-      fontWeight: 600,
+      ...typeStep('2xs'),
+      fontWeight: 'var(--weight-semibold)',
       letterSpacing: '0.08em',
       textTransform: 'uppercase',
       padding: '5px 10px',
@@ -343,15 +361,20 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       whiteSpace: 'nowrap',
     },
     dayGroupLabelBase: {
-      fontSize: 10,
-      fontWeight: 700,
+      ...typeStep('2xs'),
+      fontWeight: 'var(--weight-semibold)',
       letterSpacing: '0.14em',
       textTransform: 'uppercase',
       color: c.accent,
     },
-    dayCount: { fontSize: 10, color: c.dim, fontWeight: 600 },
+    dayCount: {
+      ...dataText,
+      ...typeStep('2xs'),
+      color: c.dim,
+      fontWeight: 'var(--weight-semibold)',
+    },
     dayDropHint: {
-      fontSize: 11,
+      ...typeStep('xs'),
       color: c.dim,
       textAlign: 'center',
       padding: '12px 0',
@@ -372,7 +395,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     prLink: {
       flex: 1,
       minWidth: 0,
-      fontSize: 12,
+      ...typeStep('xs'),
       color: c.accent,
       textDecoration: 'none',
       overflow: 'hidden',
@@ -403,8 +426,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       display: 'flex',
       alignItems: 'center',
       gap: 6,
-      fontSize: 13,
-      fontWeight: 600,
+      ...typeStep('sm'),
+      fontWeight: 'var(--weight-semibold)',
       padding: '9px 16px',
       borderRadius: 14,
       border: B,
@@ -431,8 +454,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       animation: 'springIn .45s cubic-bezier(.34,1.56,.64,1) both',
     },
     taskViewTitle: {
-      fontSize: isMobile ? 26 : 34,
-      fontWeight: 700,
+      ...(isMobile ? typeStep('xl') : typeStep('2xl')),
+      fontWeight: 'var(--weight-semibold)',
       lineHeight: 1.15,
       letterSpacing: '-0.01em',
       color: c.text,
@@ -450,14 +473,14 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       minWidth: 110,
     },
     taskViewMetaLabel: {
-      fontSize: 9,
+      ...typeStep('2xs'),
       letterSpacing: '0.1em',
       textTransform: 'uppercase',
       color: c.dim,
     },
-    taskViewMetaVal: { fontSize: 13, color: c.text },
+    taskViewMetaVal: { ...dataText, ...typeStep('sm'), color: c.text },
     taskViewNotes: {
-      fontSize: 14,
+      ...typeStep('base'),
       lineHeight: 1.6,
       color: c.text,
       padding: '16px 18px',
@@ -520,7 +543,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: 'none',
       background: 'transparent',
       color: c.dim,
-      fontSize: isMobile ? 17 : 15,
+      ...(isMobile ? typeStep('md') : typeStep('base')),
       lineHeight: 1,
       cursor: 'pointer',
       transition: 'background .25s ease, color .25s ease, transform .2s ease',
@@ -542,8 +565,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     tabStageRow: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
     tabStageLabel: {
-      fontSize: 13,
-      fontWeight: 600,
+      ...typeStep('sm'),
+      fontWeight: 'var(--weight-semibold)',
       letterSpacing: '0.02em',
       color: c.text,
       whiteSpace: 'nowrap',
@@ -620,7 +643,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: B,
       background: c.input,
       color: c.text,
-      fontSize: 14,
+      ...typeStep('base'),
       transition: 'background .4s ease, border-color .4s ease',
     },
     amountInput: {
@@ -631,7 +654,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: B,
       background: c.input,
       color: c.text,
-      fontSize: 14,
+      ...typeStep('base'),
       transition: 'background .4s ease, border-color .4s ease',
     },
     select: {
@@ -642,7 +665,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: B,
       background: c.input,
       color: c.text,
-      fontSize: 14,
+      ...typeStep('base'),
       cursor: 'pointer',
       transition: 'background .4s ease, border-color .4s ease',
     },
@@ -653,24 +676,24 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: B,
       background: c.card,
       color: c.accent,
-      fontSize: 21,
+      ...typeStep('lg'),
       cursor: 'pointer',
       boxShadow: dark ? '0 0 16px ' + c.accent : 'none',
       transition: 'transform .25s ease, box-shadow .25s ease',
     },
     addBtn2: {
       alignSelf: 'flex-start',
-      fontSize: 12,
+      ...typeStep('xs'),
       padding: '8px 14px',
       borderRadius: 14,
       border: B,
       background: c.card,
       color: c.accent,
       cursor: 'pointer',
-      fontWeight: 600,
+      fontWeight: 'var(--weight-semibold)',
     },
     addBtnHover: { transform: 'translateY(-2px)', boxShadow: '0 8px 18px rgba(0,0,0,0.25)' },
-    empty: { textAlign: 'center', color: c.dim, fontSize: 13, padding: '18px 0' },
+    empty: { textAlign: 'center', color: c.dim, ...typeStep('sm'), padding: '18px 0' },
     list: {
       display: 'flex',
       flexDirection: 'column',
@@ -690,7 +713,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: 'none',
       background: 'transparent',
       color: c.dim,
-      fontSize: 19,
+      ...typeStep('lg'),
       cursor: 'pointer',
       lineHeight: 1,
       transition: 'color .2s ease',
@@ -703,7 +726,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: 'none',
       background: 'transparent',
       color: c.dim,
-      fontSize: 15,
+      ...typeStep('base'),
       cursor: 'pointer',
       display: 'grid',
       placeItems: 'center',
@@ -711,7 +734,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     editBtn: {
       flexShrink: 0,
-      fontSize: 10,
+      ...typeStep('2xs'),
       padding: '5px 10px',
       borderRadius: 11,
       border: B,
@@ -723,7 +746,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     saveBtn: {
       flexShrink: 0,
-      fontSize: 10,
+      ...typeStep('2xs'),
       padding: '6px 12px',
       borderRadius: 11,
       border: '1px solid ' + c.accent,
@@ -732,11 +755,11 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       cursor: 'pointer',
       letterSpacing: '0.05em',
       textTransform: 'uppercase',
-      fontWeight: 600,
+      fontWeight: 'var(--weight-semibold)',
     },
     cancelBtn: {
       flexShrink: 0,
-      fontSize: 10,
+      ...typeStep('2xs'),
       padding: '6px 12px',
       borderRadius: 11,
       border: B,
@@ -754,7 +777,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: '1px solid ' + c.accent,
       background: c.input,
       color: c.text,
-      fontSize: 13,
+      ...typeStep('sm'),
     },
     editInputSmall: {
       width: 96,
@@ -764,7 +787,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: '1px solid ' + c.accent,
       background: c.input,
       color: c.text,
-      fontSize: 13,
+      ...typeStep('sm'),
     },
     // The window-extension row at the foot of a long list (useLongList): the
     // only visible sign that a completed section is rendering in windows.
@@ -775,7 +798,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: '1px dashed ' + c.border,
       background: 'transparent',
       color: c.dim,
-      fontSize: 12,
+      ...typeStep('xs'),
       cursor: 'pointer',
       textAlign: 'center' as const,
     },
@@ -783,7 +806,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     chipRow: { display: 'flex', gap: 6, flexWrap: 'wrap' },
     chip: {
       alignSelf: 'flex-start',
-      fontSize: 10,
+      ...typeStep('2xs'),
       padding: '2px 8px',
       borderRadius: 10,
       background: c.input,
@@ -791,8 +814,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       color: c.dim,
       letterSpacing: '0.03em',
     },
-    dlTitle: { fontSize: 14, color: c.text, lineHeight: 1.3, cursor: 'pointer' },
-    dlDate: { fontSize: 10, color: c.dim, letterSpacing: '0.03em' },
+    dlTitle: { ...typeStep('base'), color: c.text, lineHeight: 1.3, cursor: 'pointer' },
+    dlDate: { ...dataText, ...typeStep('2xs'), color: c.dim, letterSpacing: '0.03em' },
     totalsRow: { display: 'flex', gap: 10 },
     totalCard: {
       flex: 1,
@@ -804,16 +827,32 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       flexDirection: 'column',
       gap: 4,
     },
-    totalLabel: { fontSize: 10, color: c.dim, letterSpacing: '0.1em', textTransform: 'uppercase' },
-    totalVal: { fontSize: 20, fontWeight: 600, color: c.text },
-    finNote: { fontSize: 14, color: c.text, lineHeight: 1.3, cursor: 'pointer' },
-    finMeta: { fontSize: 10, color: c.dim, letterSpacing: '0.03em' },
-    amount: { fontSize: 14, fontWeight: 600, color: c.text, whiteSpace: 'nowrap' },
+    totalLabel: {
+      ...typeStep('2xs'),
+      color: c.dim,
+      letterSpacing: '0.1em',
+      textTransform: 'uppercase',
+    },
+    totalVal: {
+      ...dataText,
+      ...typeStep('lg'),
+      fontWeight: 'var(--weight-semibold)',
+      color: c.text,
+    },
+    finNote: { ...typeStep('base'), color: c.text, lineHeight: 1.3, cursor: 'pointer' },
+    finMeta: { ...dataText, ...typeStep('2xs'), color: c.dim, letterSpacing: '0.03em' },
+    amount: {
+      ...dataText,
+      ...typeStep('base'),
+      fontWeight: 'var(--weight-semibold)',
+      color: c.text,
+      whiteSpace: 'nowrap',
+    },
     ticker,
     tickerDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
-    tickerLabel: { fontSize: 9, letterSpacing: '0.12em', color: c.dim, flexShrink: 0 },
+    tickerLabel: { ...typeStep('2xs'), letterSpacing: '0.12em', color: c.dim, flexShrink: 0 },
     tickerTitle: {
-      fontSize: 12,
+      ...typeStep('xs'),
       color: c.text,
       overflow: 'hidden',
       textOverflow: 'ellipsis',
@@ -821,7 +860,13 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       minWidth: 0,
       flex: 1,
     },
-    tickerTime: { fontSize: 12, fontWeight: 600, color: c.accent, flexShrink: 0 },
+    tickerTime: {
+      ...dataText,
+      ...typeStep('xs'),
+      fontWeight: 'var(--weight-semibold)',
+      color: c.accent,
+      flexShrink: 0,
+    },
     fab: {
       position: 'fixed',
       bottom: isMobile ? 88 : 24,
@@ -850,8 +895,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     drawerHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
     drawerTitle: {
-      fontSize: 15,
-      fontWeight: 600,
+      ...typeStep('base'),
+      fontWeight: 'var(--weight-semibold)',
       letterSpacing: '0.1em',
       textTransform: 'uppercase',
       color: c.text,
@@ -874,14 +919,14 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     toolBtn: {
       minWidth: 28,
-      fontSize: 11,
+      ...typeStep('xs'),
       padding: '6px 8px',
       borderRadius: 9,
       border: B,
       background: 'transparent',
       color: c.text,
       cursor: 'pointer',
-      fontWeight: 600,
+      fontWeight: 'var(--weight-semibold)',
       transition: 'background .2s ease, color .2s ease, border-color .2s ease',
     },
     toolBtnHover: { background: c.input, borderColor: c.accent },
@@ -894,11 +939,11 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: '1px solid ' + c.accent,
       background: c.input,
       color: c.text,
-      fontSize: 13,
+      ...typeStep('sm'),
       lineHeight: 1.6,
       outline: 'none',
     },
-    noteRendered: { fontSize: 13, lineHeight: 1.5, color: c.text },
+    noteRendered: { ...typeStep('sm'), lineHeight: 1.5, color: c.text },
     // --- note list cards + full view ----------------------------------------
     noteCard: {
       display: 'flex',
@@ -919,8 +964,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       boxShadow: '0 12px 22px rgba(0,0,0,0.22)',
     },
     noteCardTitle: {
-      fontSize: 13.5,
-      fontWeight: 600,
+      ...typeStep('sm'),
+      fontWeight: 'var(--weight-semibold)',
       color: c.text,
       lineHeight: 1.35,
       overflow: 'hidden',
@@ -930,7 +975,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     // Two lines of body text, then a fade-free clamp — enough to recognise the
     // note without the row growing with its content.
     noteCardPreview: {
-      fontSize: 11.5,
+      ...typeStep('xs'),
       lineHeight: 1.45,
       color: c.dim,
       display: '-webkit-box',
@@ -952,15 +997,15 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       flex: 1,
       minHeight: 0,
       overflowY: 'auto',
-      fontSize: 14,
+      ...typeStep('base'),
       lineHeight: 1.7,
       color: c.text,
       padding: '4px 2px',
       wordBreak: 'break-word',
     },
     noteViewTitle: {
-      fontSize: 16,
-      fontWeight: 700,
+      ...typeStep('md'),
+      fontWeight: 'var(--weight-semibold)',
       color: c.text,
       flex: 1,
       minWidth: 0,
@@ -993,8 +1038,13 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       borderRadius: 10,
       padding: '8px 10px',
     },
-    ghLabel: { fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: c.dim },
-    ghVal: { fontSize: 12, color: c.text },
+    ghLabel: {
+      ...typeStep('2xs'),
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      color: c.dim,
+    },
+    ghVal: { ...dataText, ...typeStep('xs'), color: c.text },
     dialogOverlay: {
       position: 'fixed',
       inset: 0,
@@ -1003,11 +1053,16 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       backdropFilter: 'blur(4px)',
     },
     dialogHeader: { display: 'flex', alignItems: 'center', gap: 10 },
-    dialogHeading: { flex: 1, fontSize: 15, fontWeight: 700, color: c.text },
+    dialogHeading: {
+      flex: 1,
+      ...typeStep('base'),
+      fontWeight: 'var(--weight-semibold)',
+      color: c.text,
+    },
     dialogTitleInput: {
       flex: 1,
-      fontSize: 16,
-      fontWeight: 600,
+      ...typeStep('md'),
+      fontWeight: 'var(--weight-semibold)',
       padding: '8px 12px',
       borderRadius: 14,
       border: B,
@@ -1022,7 +1077,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: B,
       background: c.input,
       color: c.text,
-      fontSize: 13,
+      ...typeStep('sm'),
       fontFamily: 'inherit',
       resize: 'vertical',
     },
@@ -1089,7 +1144,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       boxShadow: c.shadow,
       color: c.text,
     },
-    toastText: { fontSize: 12, color: c.text },
+    toastText: { ...typeStep('xs'), color: c.text },
     brandWrap: {
       position: 'fixed',
       top: isMobile ? 52 : 18,
@@ -1108,7 +1163,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     menuItem: {
       textAlign: 'left',
-      fontSize: 12,
+      ...typeStep('xs'),
       padding: '9px 8px',
       borderRadius: 12,
       border: 'none',
@@ -1123,7 +1178,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       padding: '9px 8px',
       borderRadius: 12,
       color: c.text,
-      fontSize: 11,
+      ...typeStep('xs'),
       cursor: 'pointer',
     },
     avatarMenu: {
@@ -1203,7 +1258,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       background: c.card,
       border: B,
     },
-    ghRepoMeta: { display: 'flex', gap: 14, fontSize: 10, color: c.dim, flexWrap: 'wrap' },
+    ghRepoMeta: { display: 'flex', gap: 14, ...typeStep('2xs'), color: c.dim, flexWrap: 'wrap' },
     ghProgressOuter: { height: 5, borderRadius: 3, background: c.input, overflow: 'hidden' },
     ghSection: {
       display: 'flex',
@@ -1225,7 +1280,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     ghIssueText: {
       flex: 1,
       minWidth: 0,
-      fontSize: 12,
+      ...typeStep('xs'),
       color: c.text,
       overflow: 'hidden',
       textOverflow: 'ellipsis',
@@ -1233,7 +1288,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     },
     importBtn: {
       flexShrink: 0,
-      fontSize: 9,
+      ...typeStep('2xs'),
       padding: '4px 9px',
       borderRadius: 10,
       border: '1px solid ' + c.accent,
@@ -1264,9 +1319,9 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       animation: 'springIn .4s cubic-bezier(.34,1.56,.64,1) both',
     },
     authLogo: {
-      fontSize: 20,
+      ...typeStep('lg'),
       letterSpacing: '0.4em',
-      fontWeight: 700,
+      fontWeight: 'var(--weight-semibold)',
       color: c.text,
       marginBottom: 2,
     },
@@ -1290,10 +1345,10 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       border: 'none',
       background: 'transparent',
       color: c.dim,
-      fontSize: 12,
+      ...typeStep('xs'),
       cursor: 'pointer',
     },
-    authError: { fontSize: 11, color: '#f87171', lineHeight: 1.45 },
+    authError: { ...typeStep('xs'), color: '#f87171', lineHeight: 1.45 },
     loadingOrbit: {
       width: 24,
       height: 24,
@@ -1382,7 +1437,7 @@ export function statusPill(c: Theme, status: ItemStatus): Style {
   const col = statusColor(c, status)
   return {
     flexShrink: 0,
-    fontSize: 10,
+    ...typeStep('2xs'),
     padding: '5px 10px',
     borderRadius: 8,
     border: '1px solid ' + (status === 'pending' ? c.border : col),
@@ -1402,7 +1457,7 @@ export function tagChip(c: Theme, tag: string, dark: boolean): Style {
   const col = tagColor(tag, dark, c.mono)
   return {
     alignSelf: 'flex-start',
-    fontSize: 10,
+    ...typeStep('2xs'),
     padding: '2px 8px',
     borderRadius: 10,
     // Under a mono theme the chip carries the tag's pattern instead of its hue:

@@ -10,7 +10,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { chainDef, chainName, explorerUrl, paymentUri } from '@/utils/chains'
 import type { Wallet } from '@/types'
 
@@ -91,15 +91,17 @@ const qrFrame = pxify({
 })
 const addressStyle = computed(() =>
   pxify({
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-    fontSize: 11,
+    fontFamily: 'var(--font-mono)',
+    ...typeStep('xs'),
     lineHeight: 1.5,
     wordBreak: 'break-all',
     textAlign: 'center',
     color: c.value.text,
   }),
 )
-const metaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim, textAlign: 'center' }))
+const metaStyle = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, textAlign: 'center' }),
+)
 </script>
 
 <template>

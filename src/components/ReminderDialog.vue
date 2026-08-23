@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { occurrences, buildGCalUrl } from '@/utils/reminders'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
 import type { Reminder, RepeatType } from '@/types'
@@ -66,7 +66,7 @@ function weekdayBtnStyle(i: number) {
     height: 26,
     borderRadius: '50%',
     border: '1px solid ' + c.value.border,
-    fontSize: 10,
+    ...typeStep('2xs'),
     cursor: 'pointer',
     background: active ? c.value.accent : 'transparent',
     color: active ? c.value.onAccent : c.value.dim,

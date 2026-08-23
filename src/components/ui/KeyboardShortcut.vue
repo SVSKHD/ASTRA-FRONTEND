@@ -37,7 +37,7 @@ const parts = computed(() =>
   color: var(--theme-dim);
   font-family: inherit;
   font-size: var(--text-2xs);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   text-align: center;
 }
 </style>

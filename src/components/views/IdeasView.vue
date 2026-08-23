@@ -6,7 +6,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, rowBase, tagChip } from '@/styles'
+import { pxify, rowBase, tagChip, typeStep } from '@/styles'
 import { urg } from '@/utils/colors'
 import ListToolbar from '@/components/ListToolbar.vue'
 import { IDEA_TYPE_OPTIONS } from '@/types'
@@ -75,8 +75,8 @@ function badgeStyle(col: string) {
     flexShrink: 0,
     minWidth: 46,
     textAlign: 'center',
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 9px',
     borderRadius: 10,
     background: 'transparent',
@@ -89,8 +89,8 @@ function badgeStyle(col: string) {
 const typeBadge = computed(() =>
   pxify({
     flexShrink: 0,
-    fontSize: 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
     padding: '3px 8px',

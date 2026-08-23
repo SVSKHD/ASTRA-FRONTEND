@@ -12,7 +12,7 @@ import { botDisplayStatus } from '@/utils/bots'
 import { debtSummary, monthTotals } from '@/utils/finance'
 import { useStyles } from '@/composables/useStyles'
 import { useMonthlyOverview } from '@/composables/useMonthlyOverview'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatINR } from '@/utils/currency'
 import { bucketPct, type Bucket, type MonthlyOverview } from '@/utils/overview'
 import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
@@ -226,8 +226,8 @@ const headerRow = pxify({
 })
 const resetChip = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
     borderRadius: 999,
     border: '1px solid ' + c.value.accent,
@@ -276,13 +276,23 @@ const cardHover = computed(() =>
 )
 const cardTop = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
 const cardLabel = computed(() =>
-  pxify({ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.value.dim }),
+  pxify({
+    ...typeStep('xs'),
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
 )
 const bigNum = computed(() =>
-  pxify({ fontSize: 26, fontWeight: 700, color: c.value.text, lineHeight: 1.05 }),
+  pxify({
+    ...typeStep('xl'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1.05,
+  }),
 )
-const ofStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim }))
-const zeroStyle = computed(() => pxify({ fontSize: 13, color: c.value.dim, padding: '6px 0' }))
+const ofStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
+const zeroStyle = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padding: '6px 0' }))
 function trackStyle() {
   return pxify({
     position: 'relative',
@@ -305,7 +315,9 @@ function fillStyle(pct: number, color: string) {
     transition: 'width .5s cubic-bezier(.4,1,.4,1), background .3s ease',
   })
 }
-const pctStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim, alignSelf: 'flex-end' }))
+const pctStyle = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, alignSelf: 'flex-end' }),
+)
 const iconWrap = computed(() =>
   pxify({ color: c.value.accent, display: 'grid', placeItems: 'center' }),
 )
@@ -315,7 +327,7 @@ const compareRow = computed(() =>
 )
 function compareLineStyle(dir: 'up' | 'down' | 'flat') {
   return pxify({
-    fontSize: 11,
+    ...typeStep('xs'),
     color: dir === 'up' ? GREEN : dir === 'down' ? RED : c.value.dim,
   })
 }

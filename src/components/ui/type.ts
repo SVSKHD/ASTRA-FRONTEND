@@ -20,7 +20,9 @@ export interface TypeStep {
   /** Set by the step itself rather than the caller (uppercase labels). */
   transform?: 'uppercase'
   tracking?: string
-  weight?: number
+  /** The weight the step is drawn at. Stated on every step, so no reader of
+      this table has to supply a default and get it subtly wrong. */
+  weight: number
 }
 
 export const TYPE_SCALE: TypeStep[] = [
@@ -33,13 +35,43 @@ export const TYPE_SCALE: TypeStep[] = [
     tracking: '0.08em',
     weight: 600,
   },
-  { token: 'text-xs', px: 11, lineHeight: 1.45, use: 'Meta, chips, calendar event text' },
-  { token: 'text-sm', px: 13, lineHeight: 1.5, use: 'Secondary body, table cells, list meta' },
-  { token: 'text-base', px: 14, lineHeight: 1.6, use: 'Body default, inputs, buttons' },
-  { token: 'text-md', px: 16, lineHeight: 1.5, use: 'Dialog section titles, card titles' },
-  { token: 'text-lg', px: 20, lineHeight: 1.35, use: 'Dialog titles, page section headings' },
-  { token: 'text-xl', px: 24, lineHeight: 1.3, use: 'Page titles' },
-  { token: 'text-2xl', px: 32, lineHeight: 1.2, use: 'Hero and empty-state headings' },
+  {
+    token: 'text-xs',
+    weight: 400,
+    px: 11,
+    lineHeight: 1.45,
+    use: 'Meta, chips, calendar event text',
+  },
+  {
+    token: 'text-sm',
+    weight: 400,
+    px: 13,
+    lineHeight: 1.5,
+    use: 'Secondary body, table cells, list meta',
+  },
+  {
+    token: 'text-base',
+    weight: 400,
+    px: 14,
+    lineHeight: 1.6,
+    use: 'Body default, inputs, buttons',
+  },
+  {
+    token: 'text-md',
+    weight: 400,
+    px: 16,
+    lineHeight: 1.5,
+    use: 'Dialog section titles, card titles',
+  },
+  {
+    token: 'text-lg',
+    weight: 600,
+    px: 20,
+    lineHeight: 1.35,
+    use: 'Dialog titles, page section headings',
+  },
+  { token: 'text-xl', weight: 600, px: 24, lineHeight: 1.3, use: 'Page titles' },
+  { token: 'text-2xl', weight: 600, px: 32, lineHeight: 1.2, use: 'Hero and empty-state headings' },
 ]
 
 /** Three weights. 400 reads, 500 emphasises, 600 titles — nothing else. */
@@ -65,6 +97,21 @@ export function nearestStep(px: number): TypeStep {
     Math.abs(step.px - px) < Math.abs(best.px - px) ? step : best,
   )
 }
+
+/**
+ * A step's raw pixel value. For the one place CSS cannot reach: SVG
+ * presentation attributes, which take a number and not a custom property. The
+ * planning board's JointJS canvas is drawn from these rather than from figures
+ * invented at the call site, so it stays on the scale even though it cannot
+ * use the tokens.
+ */
+export function typePx(step: ShortStep): number {
+  const found = TYPE_SCALE.find((s) => s.token === `text-${step}`)
+  if (!found) throw new Error(`unknown type step: ${step}`)
+  return found.px
+}
+
+export type ShortStep = '2xs' | 'xs' | 'sm' | 'base' | 'md' | 'lg' | 'xl' | '2xl'
 
 /** Every step's custom property name, e.g. `--text-sm`. */
 export const TYPE_TOKENS = TYPE_SCALE.map((s) => `--${s.token}`)

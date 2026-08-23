@@ -11,7 +11,7 @@
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { sanitize } from '@/utils/sanitizeHtml'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, tagChip, type Style } from '@/styles'
+import { pxify, tagChip, typeStep, type Style } from '@/styles'
 import { formatWhen, routeDistanceKm, formatDistance } from '@/utils/geo'
 import { groupPlacesByDay, dayColor } from '@/utils/tripDays'
 // Same as the trip dialog: the map (and Leaflet with it) loads when the trip
@@ -188,8 +188,8 @@ const navBtn = computed(() =>
     display: 'flex',
     alignItems: 'center',
     gap: 6,
-    fontSize: 13,
-    fontWeight: 600,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
     borderRadius: 12,
     border: '1px solid ' + c.value.border,
@@ -201,8 +201,8 @@ const navBtn = computed(() =>
 )
 const publicBadge = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 800,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.onAccent,
@@ -254,13 +254,17 @@ const heroInner = computed(() =>
   }),
 )
 const titleStyle = computed(() =>
-  pxify({ fontSize: isMobile.value ? 24 : 32, fontWeight: 800, lineHeight: 1.12 }),
+  pxify({
+    ...(isMobile.value ? typeStep('xl') : typeStep('2xl')),
+    fontWeight: 'var(--weight-semibold)',
+    lineHeight: 1.12,
+  }),
 )
 const metaRow = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
 function statusBadge(done: boolean) {
   return pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     padding: '4px 10px',
@@ -270,7 +274,9 @@ function statusBadge(done: boolean) {
     background: 'rgba(0,0,0,0.25)',
   })
 }
-const rangeStyle = computed(() => pxify({ fontSize: 13, fontWeight: 600, opacity: 0.92 }))
+const rangeStyle = computed(() =>
+  pxify({ ...typeStep('sm'), fontWeight: 'var(--weight-semibold)', opacity: 0.92 }),
+)
 function chip(tag: string) {
   return pxify(tagChip(c.value, tag, false))
 }
@@ -278,11 +284,13 @@ const statsRow = pxify({ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
 const statCard = computed(() =>
   glass({ padding: '12px 10px', borderRadius: 16, textAlign: 'center' }),
 )
-const statValue = computed(() => pxify({ fontSize: 18, fontWeight: 800, color: c.value.text }))
+const statValue = computed(() =>
+  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 const statLabel = computed(() =>
   pxify({
-    fontSize: 9.5,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.1em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -307,16 +315,16 @@ function segBtn(activeState: boolean) {
     border: 'none',
     background: activeState ? c.value.card : 'transparent',
     color: activeState ? c.value.accent : c.value.dim,
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
   })
 }
 const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap' })
 function dayChip(selected: boolean, tint: string) {
   return pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
     borderRadius: 999,
     border: '1px solid ' + (selected ? tint : c.value.border),
@@ -327,8 +335,8 @@ function dayChip(selected: boolean, tint: string) {
 }
 const sectionTitle = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -416,7 +424,7 @@ function safe(html: unknown): string {
         />
         <div
           v-else
-          :style="glass({ padding: '28px', textAlign: 'center', color: c.dim, fontSize: 13 })"
+          :style="glass({ padding: '28px', textAlign: 'center', color: c.dim, ...typeStep('sm') })"
         >
           No places have a location yet.
         </div>
@@ -437,12 +445,16 @@ function safe(html: unknown): string {
             glass({ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '8px' })
           "
         >
-          <span :style="pxify({ fontSize: 14, fontWeight: 700, color: c.text })">
+          <span
+            :style="
+              pxify({ ...typeStep('base'), fontWeight: 'var(--weight-semibold)', color: c.text })
+            "
+          >
             {{ noteTitleLine(n) }}
           </span>
           <div
             class="rich"
-            :style="pxify({ fontSize: 13, lineHeight: 1.6, color: c.text })"
+            :style="pxify({ ...typeStep('sm'), lineHeight: 1.6, color: c.text })"
             v-html="safe(n.text)"
           ></div>
         </div>

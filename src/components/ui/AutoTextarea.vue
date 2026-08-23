@@ -121,7 +121,7 @@ defineExpose({ focus: () => el.value?.focus() })
 }
 .atx--title {
   font-size: var(--text-md);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   line-height: 1.3;
 }
 /* Only the row being edited looks like a field. */

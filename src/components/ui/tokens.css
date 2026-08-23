@@ -47,6 +47,18 @@
   --text-2xl: 32px;
   --lh-2xl: 1.2;
 
+  /* The prose ramp (section 24a). Rendered markdown is content, not chrome: its
+     headings scale from whatever size the surrounding container sets, so a note
+     reads correctly in a 13px drawer preview and a 16px reader without being
+     re-specified. Relative, but declared once — the ratios were previously
+     written out twice, in .rich and again in .md, and had already drifted. */
+  --prose-h1: 1.5em;
+  --prose-h2: 1.25em;
+  --prose-h3: 1.08em;
+  --prose-h4: 1em;
+  --prose-small: 0.9em;
+  --prose-tiny: 0.72em;
+
   /* Weights. 400 reads, 500 emphasises, 600 titles. No 300, no 800 — a hairline
      weight fails on a low-DPI screen and an 800 is a different typeface. */
   --weight-normal: 400;

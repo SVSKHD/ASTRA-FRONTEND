@@ -56,7 +56,7 @@ const uid = useId()
 }
 .ui-slider__value {
   color: var(--theme-text);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .ui-slider__input {
   width: 100%;

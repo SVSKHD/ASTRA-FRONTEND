@@ -9,7 +9,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import AutoTextarea from '@/components/ui/AutoTextarea.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import { parseItemMetadata } from '@/utils/goals'
@@ -106,10 +106,18 @@ const panel = computed(() =>
   }),
 )
 const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
-const h1 = computed(() => pxify({ fontSize: 16, fontWeight: 700, color: c.value.text, flex: 1 }))
-const fieldLabel = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const h1 = computed(() =>
+  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text, flex: 1 }),
+)
+const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const titleField = computed(() =>
-  pxify({ ...s.value.input, width: '100%', fontSize: 16, fontWeight: 600, padding: '8px 10px' }),
+  pxify({
+    ...s.value.input,
+    width: '100%',
+    ...typeStep('md'),
+    fontWeight: 'var(--weight-semibold)',
+    padding: '8px 10px',
+  }),
 )
 const dateRow = pxify({ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' })
 const swatchRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap' })
@@ -128,8 +136,8 @@ const descField = computed(() =>
 )
 const sectionTitle = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
     color: c.value.dim,
@@ -141,7 +149,7 @@ const pointRow = pxify({ display: 'flex', alignItems: 'flex-start', gap: 8 })
 // Wraps rather than truncating — an added point is read back in full.
 const pointText = computed(() =>
   pxify({
-    fontSize: 13,
+    ...typeStep('sm'),
     lineHeight: 1.5,
     color: c.value.text,
     flex: 1,
@@ -153,8 +161,8 @@ const pointText = computed(() =>
 const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: -4 })
 const chip = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
     borderRadius: 999,
     color: c.value.accent,
@@ -162,14 +170,14 @@ const chip = computed(() =>
   }),
 )
 const delBtn = computed(() =>
-  pxify({ ...s.value.del, fontSize: 14, cursor: 'pointer', flexShrink: 0 }),
+  pxify({ ...s.value.del, ...typeStep('base'), cursor: 'pointer', flexShrink: 0 }),
 )
 const footer = pxify({ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 8 })
 const createBtn = computed(() =>
   pxify({
     flex: 1,
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '10px 16px',
     borderRadius: 999,
     border: 'none',
@@ -180,8 +188,8 @@ const createBtn = computed(() =>
 )
 const cancelBtn = computed(() =>
   pxify({
-    fontSize: 13,
-    fontWeight: 600,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '10px 16px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,

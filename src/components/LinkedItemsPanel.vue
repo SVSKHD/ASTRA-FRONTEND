@@ -8,7 +8,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useLinkedItems, type LinkedRow } from '@/composables/useLinkedItems'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import type { LinkCollection } from '@/types'
@@ -56,8 +56,8 @@ const header = pxify({
 })
 const labelStyle = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -65,8 +65,8 @@ const labelStyle = computed(() =>
 )
 const addBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
     borderRadius: 999,
     border: '1px solid ' + c.value.border,
@@ -101,7 +101,7 @@ function dotStyle(done: boolean) {
 }
 const badgeStyle = computed(() =>
   pxify({
-    fontSize: 9,
+    ...typeStep('2xs'),
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     padding: '2px 6px',
@@ -115,7 +115,7 @@ const titleStyle = computed(() =>
   pxify({
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -132,14 +132,14 @@ const promptStyle = computed(() =>
     borderRadius: 12,
     background: 'color-mix(in oklch, oklch(0.72 0.15 150) 14%, transparent)',
     border: '1px solid oklch(0.72 0.15 150)',
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
   }),
 )
 const confirmBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
     borderRadius: 999,
     border: 'none',
@@ -157,11 +157,13 @@ const searchStyle = computed(() =>
     border: '1px solid ' + c.value.accent,
     background: c.value.input,
     color: c.value.text,
-    fontSize: 13,
+    ...typeStep('sm'),
     outline: 'none',
   }),
 )
-const emptyStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim, padding: '4px 2px' }))
+const emptyStyle = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, padding: '4px 2px' }),
+)
 </script>
 
 <template>

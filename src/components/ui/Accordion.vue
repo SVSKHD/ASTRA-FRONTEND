@@ -32,7 +32,7 @@ defineEmits<{ toggle: [boolean] }>()
   gap: var(--sp-2);
   padding: var(--sp-3);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   color: var(--theme-text);
   cursor: pointer;
   list-style: none;

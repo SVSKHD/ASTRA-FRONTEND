@@ -10,7 +10,7 @@
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import type { ListKey } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 
@@ -62,13 +62,19 @@ const chevronStyle = computed(() =>
   }),
 )
 const titleStyle = computed(() =>
-  pxify({ fontSize: 13, fontWeight: 700, color: c.value.dim, flex: 1, letterSpacing: '0.01em' }),
+  pxify({
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.dim,
+    flex: 1,
+    letterSpacing: '0.01em',
+  }),
 )
 const actionsWrap = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
 function ghostBtn() {
   return pxify({
-    fontSize: 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.04em',
     padding: '5px 10px',
     borderRadius: 999,

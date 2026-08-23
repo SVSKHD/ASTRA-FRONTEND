@@ -8,7 +8,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
 import { useGoalToday } from '@/composables/useGoalToday'
 import GoalMetricChart from '@/components/GoalMetricChart.vue'
@@ -96,17 +96,17 @@ const box = computed(() =>
 )
 const rowFlex = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
 const toggleLabel = computed(() =>
-  pxify({ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: c.value.text }),
+  pxify({ display: 'flex', alignItems: 'center', gap: 8, ...typeStep('sm'), color: c.value.text }),
 )
-const fieldLabel = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const dowRow = pxify({ display: 'flex', gap: 4 })
 function dowBtn(active: boolean) {
   return pxify({
     width: 26,
     height: 26,
     borderRadius: '50%',
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active ? c.value.accent : 'transparent',
     color: active ? c.value.onAccent : c.value.dim,
@@ -114,7 +114,7 @@ function dowBtn(active: boolean) {
   })
 }
 const miniInput = computed(() =>
-  pxify({ ...s.value.input, width: 90, padding: '5px 8px', fontSize: 12 }),
+  pxify({ ...s.value.input, width: 90, padding: '5px 8px', ...typeStep('xs') }),
 )
 const todayRow = computed(() =>
   pxify({
@@ -128,16 +128,20 @@ const todayRow = computed(() =>
     background: c.value.input,
   }),
 )
-const todayTitle = computed(() => pxify({ fontSize: 13, fontWeight: 600, color: c.value.text }))
+const todayTitle = computed(() =>
+  pxify({ ...typeStep('sm'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 function outcomeText(hit: boolean, missed: boolean) {
   return pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     marginLeft: 'auto',
     color: missed ? 'oklch(0.64 0.22 25)' : hit ? 'oklch(0.72 0.15 150)' : 'oklch(0.8 0.16 72)',
   })
 }
-const pendingHint = computed(() => pxify({ fontSize: 12, color: c.value.dim, marginLeft: 'auto' }))
+const pendingHint = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, marginLeft: 'auto' }),
+)
 </script>
 
 <template>

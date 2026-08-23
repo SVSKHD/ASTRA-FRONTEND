@@ -31,11 +31,11 @@ const glyph = GLYPH[props.tone]
   border-radius: var(--radius-sm);
   border: 1px solid currentColor;
   font-size: var(--text-2xs);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   letter-spacing: 0.03em;
 }
 .ui-badge__glyph {
-  font-weight: 900;
+  font-weight: var(--weight-semibold);
 }
 .ui-badge--neutral {
   color: var(--theme-dim);

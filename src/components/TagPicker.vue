@@ -7,7 +7,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { normalizeTag, hasTag, sameTag, tagColor } from '@/utils/tags'
 
 const props = defineProps<{ modelValue: string; label?: string }>()
@@ -59,8 +59,8 @@ function chipStyle(tag: string) {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 5,
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
     borderRadius: 999,
     border: '1px solid ' + (on ? col : c.value.border),
@@ -75,7 +75,7 @@ const dropStyle = computed(() =>
     border: 'none',
     background: 'transparent',
     color: 'inherit',
-    fontSize: 12,
+    ...typeStep('xs'),
     lineHeight: 1,
     cursor: 'pointer',
     opacity: 0.6,
@@ -83,8 +83,8 @@ const dropStyle = computed(() =>
 )
 const labelStyle = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -98,7 +98,7 @@ const rawInput = computed(() => ({
   border: '1px solid ' + c.value.border,
   background: c.value.input,
   color: c.value.text,
-  fontSize: 12,
+  ...typeStep('xs'),
 }))
 </script>
 

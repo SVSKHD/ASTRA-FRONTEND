@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { noteChecks, notePreview, noteText, noteTitle } from '@/utils/notes'
 import CommandHelp from '@/components/CommandHelp.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -36,8 +36,8 @@ const helpBtn = computed(() =>
     background: helpOpen.value ? c.value.input : 'transparent',
     color: helpOpen.value ? c.value.accent : c.value.dim,
     cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 // Newest first, and searchable by the plain text behind the markup — the list

@@ -400,7 +400,8 @@ function onClear() {
   min-width: 0;
 }
 .gdp__label {
-  font-size: 11px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--theme-dim);
@@ -417,7 +418,8 @@ function onClear() {
   border: 1px solid var(--glass-border);
   background: var(--theme-input);
   color: var(--theme-text);
-  font-size: var(--gdp-font, 13px);
+  font-size: var(--gdp-font, var(--text-sm));
+  line-height: var(--gdp-lh, var(--lh-sm));
   cursor: pointer;
   text-align: left;
   transition:
@@ -458,15 +460,18 @@ function onClear() {
 
 .gdp--sm {
   --gdp-height: 32px;
-  --gdp-font: 12px;
+  --gdp-font: var(--text-xs);
+  --gdp-lh: var(--lh-xs);
 }
 .gdp--md {
   --gdp-height: 40px;
-  --gdp-font: 13px;
+  --gdp-font: var(--text-sm);
+  --gdp-lh: var(--lh-sm);
 }
 .gdp--lg {
   --gdp-height: 48px;
-  --gdp-font: 15px;
+  --gdp-font: var(--text-base);
+  --gdp-lh: var(--lh-base);
 }
 
 /* Above the detail dialog (z-index 61) and the note sheet above it (62): a
@@ -546,7 +551,8 @@ function onClear() {
   border: 1px solid var(--glass-border);
   background: var(--theme-input);
   color: var(--theme-text);
-  font-size: 13px;
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
 }
 .gdp__input:focus-visible {
   outline: none;
@@ -554,7 +560,8 @@ function onClear() {
 }
 .gdp__error {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   color: var(--theme-text);
 }
 .gdp__chips {
@@ -568,8 +575,9 @@ function onClear() {
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-dim);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-semibold);
   cursor: pointer;
   min-height: 32px;
 }
@@ -602,7 +610,8 @@ function onClear() {
   background: transparent;
   color: var(--theme-dim);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
 }
 .gdp__navBtn:hover,
 .gdp__navBtn:focus-visible {
@@ -613,8 +622,9 @@ function onClear() {
 .gdp__month {
   flex: 1;
   text-align: center;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-semibold);
 }
 .gdp__weekdays,
 .gdp__week {
@@ -623,7 +633,8 @@ function onClear() {
 }
 .gdp__weekdays span {
   text-align: center;
-  font-size: 10px;
+  font-size: var(--text-2xs);
+  line-height: var(--lh-2xs);
   color: var(--theme-dim);
   padding: 4px 0;
 }
@@ -637,7 +648,8 @@ function onClear() {
   border-radius: 9px;
   background: transparent;
   color: var(--theme-text);
-  font-size: 12px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   cursor: pointer;
   transition:
     background 150ms ease-out,
@@ -659,7 +671,7 @@ function onClear() {
 .gdp__day.is-selected {
   background: var(--theme-accent);
   color: var(--theme-on-accent);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 .gdp__day.is-focused {
   box-shadow: 0 0 0 2px color-mix(in oklch, var(--theme-accent) 55%, transparent);
@@ -685,7 +697,8 @@ function onClear() {
   border: 1px solid transparent;
   background: transparent;
   color: var(--theme-text);
-  font-size: 12px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   cursor: pointer;
 }
 .gdp__time:hover,
@@ -696,7 +709,7 @@ function onClear() {
 .gdp__time.is-selected {
   background: var(--theme-accent);
   color: var(--theme-on-accent);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 
 .gdp__foot {

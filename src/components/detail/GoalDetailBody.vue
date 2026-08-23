@@ -397,7 +397,7 @@ defineExpose({
   border-radius: var(--radius-pill);
   border: 1px solid currentColor;
   font-size: var(--text-2xs);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .gdb__chip--overdue {
   color: oklch(0.64 0.22 25);
@@ -474,7 +474,8 @@ defineExpose({
   border: 1.5px solid var(--glass-border);
   background: transparent;
   color: var(--theme-on-accent, #fff);
-  font-size: 11px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   cursor: pointer;
 }
 .gdb__box--on {

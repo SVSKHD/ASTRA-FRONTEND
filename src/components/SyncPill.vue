@@ -12,7 +12,7 @@ import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useConnectivity } from '@/composables/useConnectivity'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import Icon from '@/components/ui/Icon.vue'
 
@@ -107,8 +107,8 @@ const pillStyle = computed(() =>
     border: '1px solid ' + accent.value,
     boxShadow: '0 8px 24px rgba(0,0,0,0.28), 0 0 16px ' + accent.value + '55',
     color: c.value.text,
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
     overflow: 'hidden',
     userSelect: 'none',
@@ -159,7 +159,7 @@ const menuStyle = computed(() =>
     animation: 'sheetUp .2s ease',
   }),
 )
-const menuMeta = computed(() => pxify({ fontSize: 11, color: c.value.dim, lineHeight: 1.5 }))
+const menuMeta = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, lineHeight: 1.5 }))
 const overlayStyle = pxify({ position: 'fixed', inset: 0, zIndex: 8 })
 
 function togglePopover() {

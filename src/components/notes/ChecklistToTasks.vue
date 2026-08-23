@@ -9,7 +9,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { checklistItems } from '@/utils/mdTyping'
 
 const props = defineProps<{ source: string; open: boolean }>()
@@ -75,9 +75,14 @@ const card = computed(() =>
   }),
 )
 const heading = computed(() =>
-  pxify({ fontSize: 14, fontWeight: 700, color: c.value.text, margin: 0 }),
+  pxify({
+    ...typeStep('base'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    margin: 0,
+  }),
 )
-const sub = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const sub = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const list = pxify({ display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', flex: 1 })
 const row = computed(() =>
   pxify({
@@ -86,7 +91,7 @@ const row = computed(() =>
     gap: 8,
     padding: '7px 8px',
     borderRadius: 10,
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
     cursor: 'pointer',
     textAlign: 'left',
@@ -97,7 +102,12 @@ const row = computed(() =>
 )
 const rowHover = computed(() => ({ background: c.value.card }))
 const doneTag = computed(() =>
-  pxify({ fontSize: 9, color: c.value.dim, letterSpacing: '0.08em', textTransform: 'uppercase' }),
+  pxify({
+    ...typeStep('2xs'),
+    color: c.value.dim,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+  }),
 )
 const foot = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
 const spacer = pxify({ flex: 1 })
@@ -108,7 +118,7 @@ const ghost = computed(() =>
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
-    fontSize: 12,
+    ...typeStep('xs'),
     cursor: 'pointer',
   }),
 )
@@ -119,8 +129,8 @@ const primary = computed(() =>
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: count.value ? 'pointer' : 'not-allowed',
     opacity: count.value ? 1 : 0.5,
   }),

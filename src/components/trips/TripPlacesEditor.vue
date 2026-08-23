@@ -7,7 +7,7 @@
 import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import LocationSearch from '@/components/trips/LocationSearch.vue'
 import RichEditor from '@/components/RichEditor.vue'
 import type { GeoResult } from '@/utils/geo'
@@ -123,8 +123,8 @@ function numBadge(active: boolean) {
     borderRadius: '50%',
     display: 'grid',
     placeItems: 'center',
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     background: active ? c.value.accent : c.value.input,
     color: active ? c.value.onAccent : c.value.text,
     border: '1px solid ' + c.value.border,
@@ -135,7 +135,7 @@ const grip = pxify({
   cursor: 'grab',
   color: 'currentColor',
   opacity: 0.4,
-  fontSize: 14,
+  ...typeStep('base'),
   flexShrink: 0,
 })
 const nameBtn = () =>
@@ -146,8 +146,8 @@ const nameBtn = () =>
     background: 'none',
     border: 'none',
     color: c.value.text,
-    fontSize: 13.5,
-    fontWeight: 600,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -163,12 +163,12 @@ const iconBtn = () =>
     background: 'transparent',
     color: c.value.dim,
     cursor: 'pointer',
-    fontSize: 14,
+    ...typeStep('base'),
   })
 const labelStyle = () =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.1em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -181,7 +181,7 @@ const inputStyle = () =>
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
-    fontSize: 12.5,
+    ...typeStep('sm'),
   })
 const field = pxify({ display: 'flex', flexDirection: 'column', gap: 5 })
 const photoRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' })
@@ -190,8 +190,8 @@ const photoThumb = () =>
 const addBtn = () =>
   pxify({
     alignSelf: 'flex-start',
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '9px 14px',
     borderRadius: 12,
     border: '1px solid ' + c.value.border,
@@ -243,7 +243,7 @@ const addBtn = () =>
             @update:model-value="setField(place, 'name', $event)"
             @select="onLocation(place, $event)"
           />
-          <span v-if="place.address" :style="{ fontSize: '10.5px', color: c.dim }">
+          <span v-if="place.address" :style="{ ...typeStep('2xs'), color: c.dim }">
             📍 {{ place.address }}
           </span>
         </div>
@@ -289,7 +289,7 @@ const addBtn = () =>
                   background: c.card,
                   color: c.dim,
                   cursor: 'pointer',
-                  fontSize: '11px',
+                  ...typeStep('xs'),
                 }"
                 title="Remove photo"
                 @click="removePhoto(place, pi)"

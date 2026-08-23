@@ -31,7 +31,7 @@ defineProps<{ glyph?: string; title: string; description?: string }>()
 .ui-empty__title {
   margin: 0;
   font-size: var(--text-md);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   color: var(--theme-text);
 }
 .ui-empty__desc {

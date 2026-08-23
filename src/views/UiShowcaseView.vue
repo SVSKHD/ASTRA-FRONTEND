@@ -252,7 +252,7 @@ const OverlapDetector = import.meta.env.DEV
             :style="{
               fontSize: `var(--${step.token})`,
               lineHeight: `var(--lh-${step.token.replace('text-', '')})`,
-              fontWeight: step.weight ?? 400,
+              fontWeight: step.weight,
               letterSpacing: step.tracking ?? 'normal',
               textTransform: step.transform ?? 'none',
             }"
@@ -815,7 +815,7 @@ const OverlapDetector = import.meta.env.DEV
 }
 .ui-page__ratio.is-pass {
   color: var(--theme-text);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 .ui-page__stack {
   display: flex;

@@ -10,7 +10,7 @@ import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, tagChip } from '@/styles'
+import { pxify, tagChip, typeStep } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import SmartImage from '@/components/trips/SmartImage.vue'
 import type { Trip, TripStatus } from '@/types'
@@ -131,8 +131,8 @@ function segBtn(active: boolean) {
     border: 'none',
     background: active ? c.value.card : 'transparent',
     color: active ? c.value.accent : c.value.dim,
-    fontSize: 12.5,
-    fontWeight: 600,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
@@ -142,8 +142,8 @@ function segBtn(active: boolean) {
 }
 const segCount = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '1px 6px',
     borderRadius: 999,
     background: c.value.input,
@@ -158,7 +158,7 @@ const selectStyle = computed(() =>
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
-    fontSize: 12,
+    ...typeStep('xs'),
     cursor: 'pointer',
   }),
 )
@@ -183,16 +183,21 @@ const cardStyle = computed(() =>
 )
 const thumbWrap = pxify({ position: 'relative', width: '100%' })
 const titleStyle = computed(() =>
-  pxify({ fontSize: 15, fontWeight: 700, color: c.value.text, lineHeight: 1.3 }),
+  pxify({
+    ...typeStep('base'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1.3,
+  }),
 )
 const metaRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' })
-const dateStyle = computed(() => pxify({ fontSize: 11.5, color: c.value.dim }))
+const dateStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 function chip(tag: string) {
   return pxify(tagChip(c.value, tag, dark.value))
 }
 const placeCount = computed(() =>
   pxify({
-    fontSize: 10.5,
+    ...typeStep('2xs'),
     color: c.value.dim,
     display: 'inline-flex',
     alignItems: 'center',
@@ -202,8 +207,8 @@ const placeCount = computed(() =>
 const actionsRow = pxify({ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' })
 const visitBtn = computed(() =>
   pxify({
-    fontSize: 11.5,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '7px 12px',
     borderRadius: 11,
     border: '1px solid ' + c.value.accent,
@@ -214,8 +219,8 @@ const visitBtn = computed(() =>
 )
 const ghostBtn = computed(() =>
   pxify({
-    fontSize: 11.5,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '7px 12px',
     borderRadius: 11,
     border: '1px solid ' + c.value.border,
@@ -229,7 +234,7 @@ const del = computed(() =>
     background: 'none',
     border: 'none',
     color: c.value.dim,
-    fontSize: 18,
+    ...typeStep('md'),
     cursor: 'pointer',
   }),
 )
@@ -250,7 +255,17 @@ const promptRow = computed(() =>
   <div :style="panelStyle">
     <!-- Header + create -->
     <div :style="pxify({ display: 'flex', alignItems: 'center', gap: 10 })">
-      <span :style="pxify({ flex: 1, fontSize: 15, fontWeight: 700, color: c.text })">Trips</span>
+      <span
+        :style="
+          pxify({
+            flex: 1,
+            ...typeStep('base'),
+            fontWeight: 'var(--weight-semibold)',
+            color: c.text,
+          })
+        "
+        >Trips</span
+      >
       <button :style="s.newBtn" @click="app.openCreate('trip')">New trip</button>
     </div>
 
