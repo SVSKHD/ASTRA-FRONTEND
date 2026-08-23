@@ -2,6 +2,7 @@ import type { CSSProperties } from 'vue'
 import type { Theme } from '@/themes'
 import type { ItemStatus } from '@/types'
 import { tagColor } from '@/utils/tags'
+import { surfacePair } from '@/themes/surfacePair'
 import { monoPatternCss, monoPatternFor } from '@/utils/mono'
 import type { ShortStep, TypeStep } from '@/components/ui/type'
 
@@ -72,6 +73,20 @@ export function typeStep(step: TypeStep['token'] | ShortStep): Style {
 export const dataText: Style = {
   fontFamily: 'var(--font-mono)',
   fontVariantNumeric: 'tabular-nums',
+}
+
+// A completed row (section 24b). Full text colour, struck through, at 55%
+// opacity — one signal carried by two properties that agree.
+//
+// What this replaces is a strike stacked on a dimmed colour, which is two
+// signals and no legibility: the strike already says "done", and fading the
+// colour on top of it only makes the words harder to read while saying the same
+// thing again. Opacity fades the strike with the text, so the row recedes
+// evenly instead of leaving a hard line across pale words.
+export const DONE_OPACITY = 0.55
+
+export function doneText(done: boolean): Style {
+  return done ? { textDecoration: 'line-through', opacity: DONE_OPACITY } : {}
 }
 
 // A gentle floating "bob" animation, parameterised like the design's bob().
@@ -1455,6 +1470,11 @@ export function statusPill(c: Theme, status: ItemStatus): Style {
 // lists can be read by tag at a glance.
 export function tagChip(c: Theme, tag: string, dark: boolean): Style {
   const col = tagColor(tag, dark, c.mono)
+  // Section 24b: the chip's foreground is derived from the chip's own
+  // background, not inherited from the page and not taken from the tag colour.
+  // It used to set the tag's hue as the text on a neutral fill, which is a
+  // ratio nobody had measured and which failed outright on the pale themes.
+  const pair = surfacePair(col, c)
   return {
     alignSelf: 'flex-start',
     ...typeStep('2xs'),
@@ -1462,9 +1482,9 @@ export function tagChip(c: Theme, tag: string, dark: boolean): Style {
     borderRadius: 10,
     // Under a mono theme the chip carries the tag's pattern instead of its hue:
     // an outlined shape with a distinct fill, per section 16c.
-    background: c.mono ? monoPatternCss(monoPatternFor(tag), col) : c.input,
+    background: c.mono ? monoPatternCss(monoPatternFor(tag), col) : pair.background,
     border: '1px solid ' + col,
-    color: c.mono ? c.text : col,
+    color: c.mono ? c.text : pair.foreground,
     letterSpacing: '0.03em',
   }
 }

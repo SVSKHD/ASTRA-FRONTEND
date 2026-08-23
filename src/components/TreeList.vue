@@ -16,7 +16,7 @@ import { useAccordionState } from '@/composables/useAccordionState'
 import { useTreeDrag, INDENT_PX, type TreeCollection } from '@/composables/useTreeDrag'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
-import { merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
+import { doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
 import TreeDropLine from '@/components/TreeDropLine.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -252,8 +252,7 @@ function textStyle(id: number) {
     ...typeStep('base'),
     color: c.value.text,
     lineHeight: 1.3,
-    textDecoration: done(id) ? 'line-through' : 'none',
-    textDecorationColor: c.value.dim,
+    ...doneText(done(id)),
   })
 }
 const descStyle = computed(() =>

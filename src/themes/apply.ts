@@ -23,6 +23,18 @@ export function applyThemeToDom(key: ThemeKey, setting: ThemeSetting): void {
   root.style.setProperty('--theme-dim', t.dim)
   root.style.setProperty('--theme-border', t.border)
   root.style.setProperty('--theme-on-accent', t.onAccent)
+  // The semantic names section 24b works in. Aliases rather than a second set
+  // of values: --theme-* was named after where the colour came from, and these
+  // are named after what the colour is for, which is what a component needs to
+  // know when it is deciding whether text on a tint will read.
+  root.style.setProperty('--text-primary', t.text)
+  root.style.setProperty('--text-muted', t.dim)
+  root.style.setProperty('--bg-base', t.bgSolid)
+  root.style.setProperty('--bg-elevated', t.card)
+  root.style.setProperty('--border-subtle', t.border)
+  // The border two interactive surfaces meet along, and the hover state of a
+  // control. Derived from the theme's own border so no theme has to define it.
+  root.style.setProperty('--border-strong', `color-mix(in oklch, ${t.border} 55%, ${t.text})`)
   // Glass tokens (section 16a). Every ui/ component reads these rather than
   // writing an rgba of its own, so a theme change is a token change and the
   // "no hardcoded rgba" rule has somewhere to point.

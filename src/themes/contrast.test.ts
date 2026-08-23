@@ -1,7 +1,9 @@
-// Contrast assertion for every registry theme (acceptance 20). Per WCAG AA: body
-// text clears 4.5:1 against the theme's solid surface, and muted/secondary text
-// and the accent clear the 3:1 large-text/UI floor. A new or edited theme that
-// regresses readability fails here.
+// Contrast assertion for every registry theme (acceptances 20 and 121). Body
+// text and muted text both clear WCAG AA's 4.5:1 against the theme's solid
+// surface; the accent clears the 3:1 UI floor, which is the right floor for it
+// because the accent is a border, a fill and a ring — never body text. Text on
+// a *tinted* surface is a different question, and is asserted in
+// surfacePair.test.ts. A new or edited theme that regresses fails here.
 import { describe, expect, it } from 'vitest'
 import { THEMES, THEME_DESCRIPTORS } from '@/themes'
 import { contrastRatio } from '@/themes/contrast'
@@ -20,8 +22,11 @@ describe('every theme passes WCAG AA', () => {
     it(`${d.id}: body text ≥ 4.5:1 on its surface`, () => {
       expect(contrastRatio(t.text, t.bgSolid)).toBeGreaterThanOrEqual(4.5)
     })
-    it(`${d.id}: muted text ≥ 3:1 (large/secondary)`, () => {
-      expect(contrastRatio(t.dim, t.bgSolid)).toBeGreaterThanOrEqual(3)
+    it(`${d.id}: muted text ≥ 4.5:1 — it is text, not a border`, () => {
+      // Raised from the 3:1 large-text floor by section 24b. Muted was being
+      // used for real reading — meta lines, out-of-month day numbers — and 3:1
+      // is not a reading ratio.
+      expect(contrastRatio(t.dim, t.bgSolid)).toBeGreaterThanOrEqual(4.5)
     })
   }
 })

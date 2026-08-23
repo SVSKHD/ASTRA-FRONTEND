@@ -9,7 +9,7 @@ import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
-import { pxify, typeStep } from '@/styles'
+import { doneText, pxify, typeStep } from '@/styles'
 import { MAX_LINK_DEPTH } from '@/utils/links'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -133,8 +133,7 @@ const titleStyle = computed(() =>
     minWidth: 0,
     ...typeStep('sm'),
     color: c.value.text,
-    textDecoration: done.value ? 'line-through' : 'none',
-    textDecorationColor: c.value.dim,
+    ...doneText(done.value),
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',

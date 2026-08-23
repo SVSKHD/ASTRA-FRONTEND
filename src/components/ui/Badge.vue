@@ -23,33 +23,42 @@ const glyph = GLYPH[props.tone]
 </template>
 
 <style scoped>
+/* Section 24b: a badge is a tinted surface, so it names both halves of its
+   pair. The label sits at --text-primary on a tint of the tone colour; the tone
+   colour itself carries the border and the glyph, where it is a signal rather
+   than something that has to be read. Setting the tone as the *text* is what
+   put an info badge at 2.4:1 on the pale themes. */
 .ui-badge {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
   padding: 2px var(--sp-2);
   border-radius: var(--radius-sm);
-  border: 1px solid currentColor;
+  border: 1px solid var(--badge-tone);
+  background: color-mix(in oklch, var(--badge-tone) 12%, var(--bg-base, transparent));
+  color: var(--text-primary, var(--theme-text));
   font-size: var(--text-2xs);
+  line-height: var(--lh-2xs);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.03em;
 }
 .ui-badge__glyph {
+  color: var(--badge-tone);
   font-weight: var(--weight-semibold);
 }
 .ui-badge--neutral {
-  color: var(--theme-dim);
+  --badge-tone: var(--text-muted, var(--theme-dim));
 }
 .ui-badge--success {
-  color: var(--theme-success, var(--theme-text));
+  --badge-tone: var(--theme-success, var(--theme-text));
 }
 .ui-badge--warning {
-  color: var(--theme-warning, var(--theme-text));
+  --badge-tone: var(--theme-warning, var(--theme-text));
 }
 .ui-badge--danger {
-  color: var(--theme-danger, var(--theme-text));
+  --badge-tone: var(--theme-danger, var(--theme-text));
 }
 .ui-badge--info {
-  color: var(--theme-accent);
+  --badge-tone: var(--theme-accent);
 }
 </style>

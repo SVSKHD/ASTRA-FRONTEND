@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
+import { doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import { todayKey, isOverdueTask } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
@@ -147,8 +147,7 @@ function textStyle(t: Task) {
     ...typeStep('base'),
     color: c.value.text,
     lineHeight: 1.3,
-    textDecoration: t.done ? 'line-through' : 'none',
-    textDecorationColor: c.value.dim,
+    ...doneText(t.done),
   })
 }
 const gripDots = [0, 1, 2, 3, 4, 5]

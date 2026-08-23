@@ -9,7 +9,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
+import { doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import { todayKey, isOverdueTodo } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
@@ -141,8 +141,7 @@ function textStyle(t: Todo) {
     lineHeight: 1.4,
     color: c.value.text,
     cursor: 'pointer',
-    textDecoration: t.done ? 'line-through' : 'none',
-    textDecorationColor: c.value.dim,
+    ...doneText(t.done),
   })
 }
 const descStyle = computed(() =>
