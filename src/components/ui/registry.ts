@@ -142,6 +142,23 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     snippet: '<Radio v-model="mode" value="all" name="mode" label="All" />',
   },
   {
+    name: 'SegmentedControl',
+    group: 'Inputs',
+    summary: 'Two to four exclusive options, all visible at once. Replaces a short radio group.',
+    props: [
+      { name: 'modelValue', type: 'string' },
+      { name: 'options', type: 'Segment[]', note: '{ value, label } — two to four of them.' },
+      { name: 'size', type: "'sm' | 'md' | 'lg'", default: 'md' },
+      { name: 'disabled', type: 'boolean' },
+      {
+        name: 'ariaLabel',
+        type: 'string',
+        note: 'Names the group when there is no visible label.',
+      },
+    ],
+    snippet: '<SegmentedControl v-model="kind" :options="KINDS" />',
+  },
+  {
     name: 'Switch',
     group: 'Inputs',
     summary: 'Immediate binary toggle, role="switch".',

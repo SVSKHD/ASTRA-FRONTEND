@@ -15,12 +15,22 @@
   --sp-5: 24px;
   --sp-6: 32px;
 
-  /* Radii */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
+  /* Radii (section 24d). Three, by what a thing is rather than by how big it
+     is: controls, cards, dialogs. A scale of four sizes invites picking one by
+     eye, which is how a dialog and the card inside it ended up 4px apart and
+     looking like a mistake. The pill is a shape, not a step on this scale.
+
+     The old sm/md/lg/xl names remain as aliases onto the three, because a
+     radius is chosen at hundreds of call sites and renaming them all in one
+     commit would bury the change that matters. */
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-dialog: 14px;
   --radius-pill: 999px;
+  --radius-sm: var(--radius-control);
+  --radius-md: var(--radius-card);
+  --radius-lg: var(--radius-dialog);
+  --radius-xl: var(--radius-dialog);
 
   /* ---- Type (section 24a) -------------------------------------------------
      Eight steps and three weights. A component picks a step by name; it never
@@ -71,10 +81,16 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  /* Control heights, switched by density below. */
-  --control-sm: 32px;
-  --control-md: 40px;
-  --control-lg: 48px;
+  /* Control heights (section 25a). One field is one height whatever it
+     contains, so a row of a text input, a select and a button lines up without
+     anybody nudging a padding. */
+  --control-h-sm: 28px;
+  --control-h-md: 34px;
+  --control-h-lg: 40px;
+  /* The previous names, kept pointing at the same three values. */
+  --control-sm: var(--control-h-sm);
+  --control-md: var(--control-h-md);
+  --control-lg: var(--control-h-lg);
 
   /* Motion: 150–200ms ease-out on hover/press, a spring for drops. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -94,9 +110,9 @@
   --sp-3: 9px;
   --sp-4: 12px;
   --sp-5: 18px;
-  --control-sm: 28px;
-  --control-md: 34px;
-  --control-lg: 40px;
+  --control-h-sm: 26px;
+  --control-h-md: 30px;
+  --control-h-lg: 34px;
   /* Compact shrinks the body step only. The heading steps keep their size —
      density is about how much air a row gets, not about smaller titles. */
   --text-base: 13px;

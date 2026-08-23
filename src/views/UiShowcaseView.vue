@@ -50,6 +50,7 @@ import {
   ProgressRing,
   Radio,
   SearchField,
+  SegmentedControl,
   Select,
   Skeleton,
   SlideOver,
@@ -102,6 +103,7 @@ const tokens = computed(() => {
     { name: 'border', value: t.border, ratio: contrastRatio(t.border, t.bgSolid) },
   ]
 })
+const segment = ref('task')
 const spacing = ['--sp-1', '--sp-2', '--sp-3', '--sp-4', '--sp-5', '--sp-6']
 const radii = ['--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--radius-pill']
 
@@ -373,6 +375,17 @@ const OverlapDetector = import.meta.env.DEV
             <Switch v-model="demo.toggle" label="Sync enabled" />
             <Switch v-model="demo.toggle" size="sm" label="Small" />
             <Switch v-model="demo.toggle" label="Disabled" disabled />
+          </template>
+          <template v-else-if="doc.name === 'SegmentedControl'">
+            <SegmentedControl
+              v-model="segment"
+              :options="[
+                { value: 'task', label: 'Task' },
+                { value: 'todo', label: 'Todo' },
+                { value: 'reminder', label: 'Reminder' },
+              ]"
+              aria-label="Type"
+            />
           </template>
           <template v-else-if="doc.name === 'Slider'">
             <Slider v-model="demo.slider" :min="0" :max="10" label="Weight" />

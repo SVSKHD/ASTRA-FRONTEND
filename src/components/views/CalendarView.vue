@@ -192,29 +192,58 @@ function pointerOverPanel(event: MouseEvent | TouchEvent | null): boolean {
 }
 
 // --- quick create ------------------------------------------------------------
-const quick = ref<{ start: number; end: number; allDay: boolean; x: number; y: number } | null>(
-  null,
-)
+interface CellAnchor {
+  top: number
+  left: number
+  width: number
+  height: number
+}
+const quick = ref<{
+  start: number
+  end: number
+  allDay: boolean
+  anchor: CellAnchor
+} | null>(null)
+
+// The popover is anchored to the cell, not to the pointer. Anchoring to the
+// pointer is what let it open half a pixel from the right edge of the window
+// and then be clipped: the cell has a width, so "is there room beside this"
+// is a question with an answer.
+function anchorFor(jsEvent: MouseEvent | null): CellAnchor {
+  const cell = (jsEvent?.target as HTMLElement | null)?.closest?.(
+    '.fc-daygrid-day, .fc-timegrid-col, .fc-list-day',
+  )
+  if (cell) {
+    const r = cell.getBoundingClientRect()
+    return { top: r.top, left: r.left, width: r.width, height: r.height }
+  }
+  // Keyboard selection, or a drag that ended outside a cell: a zero-width box
+  // at the pointer still places correctly, it just cannot flip early.
+  return { top: jsEvent?.clientY ?? 80, left: jsEvent?.clientX ?? 80, width: 0, height: 0 }
+}
+
 function onSelect(arg: DateSelectArg) {
   quick.value = {
     start: arg.start.getTime(),
     end: arg.end.getTime(),
     allDay: arg.allDay,
-    x: (arg.jsEvent as MouseEvent | null)?.clientX ?? 80,
-    y: (arg.jsEvent as MouseEvent | null)?.clientY ?? 80,
+    anchor: anchorFor(arg.jsEvent as MouseEvent | null),
   }
 }
 function onQuickCreate(payload: {
   kind: 'task' | 'todo' | 'reminder'
   title: string
   project: string
+  allDay: boolean
 }) {
   const range = quick.value
   if (!range) return
   app.createScheduledItem(payload.kind, payload.title, payload.project, {
     startAt: range.start,
     endAt: range.end,
-    allDay: range.allDay,
+    // The popover's own All-day switch wins over what the drag implied: the
+    // reader has seen the range and said otherwise.
+    allDay: payload.allDay,
     durationMins: Math.max(1, Math.round((range.end - range.start) / 60_000)),
   })
   quick.value = null
@@ -237,8 +266,7 @@ function onDateClick(arg: {
     start: arg.date.getTime(),
     end: arg.date.getTime() + 24 * 60 * 60_000,
     allDay: true,
-    x: arg.jsEvent.clientX,
-    y: arg.jsEvent.clientY,
+    anchor: anchorFor(arg.jsEvent),
   }
 }
 
@@ -630,8 +658,7 @@ const hintStyle = computed(() =>
       :start="quick.start"
       :end="quick.end"
       :all-day="quick.allDay"
-      :x="quick.x"
-      :y="quick.y"
+      :anchor="quick.anchor"
       @close="quick = null"
       @create="onQuickCreate"
     />
