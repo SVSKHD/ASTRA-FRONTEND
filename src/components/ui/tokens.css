@@ -217,6 +217,84 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- the control shell (section 25b) --------------------------------------
+   Every control in the library wears this. States are declared once here rather
+   than in each component, which is the only way "hover looks like this" stays
+   true across fourteen controls — and the reason the old ones each had their
+   own focus treatment, three of which were the browser's default outline. */
+.ui-control {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-width: 0;
+  padding: 0 10px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-subtle, var(--glass-border));
+  background: var(--bg-elevated, var(--theme-input));
+  color: var(--text-primary, var(--theme-text));
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: var(--lh-base);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.ui-control--sm {
+  min-height: var(--control-h-sm);
+}
+.ui-control--md {
+  min-height: var(--control-h-md);
+}
+.ui-control--lg {
+  min-height: var(--control-h-lg);
+}
+.ui-control:hover:not(.is-disabled):not(.is-readonly) {
+  border-color: var(--border-strong, var(--theme-dim));
+}
+.ui-control:focus-within:not(.is-readonly) {
+  border-color: var(--theme-accent);
+  outline: 2px solid color-mix(in oklch, var(--theme-accent) 55%, transparent);
+  outline-offset: 1px;
+}
+.ui-control.is-invalid {
+  border-color: var(--theme-danger);
+}
+.ui-control.is-invalid:focus-within {
+  outline-color: color-mix(in oklch, var(--theme-danger) 55%, transparent);
+}
+.ui-control.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+/* Readonly is not disabled: the value is still text you can select and copy,
+   and it still reaches a screen reader in the normal way. It only stops looking
+   like something you can change. */
+.ui-control.is-readonly {
+  border-color: transparent;
+  background: color-mix(in oklch, var(--text-primary, currentColor) 6%, transparent);
+}
+/* The bare input inside the shell. The shell carries the border and the ring,
+   so the input carries neither — two focus rings on one field is a bug that
+   only shows up on keyboard. */
+.ui-control__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.ui-control__input:focus {
+  outline: none;
+}
+.ui-control__input::placeholder {
+  /* Placeholder text still has to clear the contrast floor: it routinely
+     carries the format ("YYYY-MM-DD"), which is not decoration. */
+  color: var(--text-muted, var(--theme-dim));
+  opacity: 1;
+}
+
 .ui-sr-only {
   position: absolute;
   width: 1px;

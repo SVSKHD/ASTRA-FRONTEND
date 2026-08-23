@@ -7,6 +7,7 @@
 
 import { THEMES, type ThemeKey, type ThemeSetting } from './index'
 import { accentGlow, accentGradient, surfaceTint } from '@/utils/gradient'
+import { statusTokens } from './status'
 
 export const LS_THEME_ID = 'aureon:themeId'
 export const LS_THEME_SETTING = 'aureon:themeSetting'
@@ -58,6 +59,11 @@ export function applyThemeToDom(key: ThemeKey, setting: ThemeSetting): void {
   root.style.setProperty('--accent-grad-to', gradient.to)
   root.style.setProperty('--surface-tint', surfaceTint(t))
   root.style.setProperty('--accent-glow', accentGlow(t))
+  // Danger, success and warning (section 25b). Derived rather than declared,
+  // so a twentieth theme gets them without remembering to.
+  for (const [name, value] of Object.entries(statusTokens(t))) {
+    root.style.setProperty(name, value)
+  }
   // A theme may define its own focus ring instead of the accent glow
   // (section 21d). Removed rather than blanked when it does not, so the
   // stylesheet's own default is what applies.

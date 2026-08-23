@@ -38,6 +38,7 @@ import {
   DragHandle,
   Dropdown,
   EmptyState,
+  FormField,
   GlassDatePicker,
   GlassPanel,
   IconButton,
@@ -104,6 +105,7 @@ const tokens = computed(() => {
   ]
 })
 const segment = ref('task')
+const fieldDemo = ref('')
 const spacing = ['--sp-1', '--sp-2', '--sp-3', '--sp-4', '--sp-5', '--sp-6']
 const radii = ['--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--radius-pill']
 
@@ -386,6 +388,20 @@ const OverlapDetector = import.meta.env.DEV
               ]"
               aria-label="Type"
             />
+          </template>
+          <template v-else-if="doc.name === 'FormField'">
+            <div class="ui-page__stack">
+              <FormField label="Title" hint="What the task is called" required v-slot="f">
+                <Input v-bind="f" v-model="fieldDemo" placeholder="Ship the trading bot" />
+              </FormField>
+              <FormField label="Title" error="Enter a title" required v-slot="f">
+                <Input v-bind="f" model-value="" placeholder="Ship the trading bot" />
+              </FormField>
+              <p class="ui-page__note">
+                Both fields are the same height. The message row is reserved, so an error appearing
+                does not move the form under the reader.
+              </p>
+            </div>
           </template>
           <template v-else-if="doc.name === 'Slider'">
             <Slider v-model="demo.slider" :min="0" :max="10" label="Weight" />

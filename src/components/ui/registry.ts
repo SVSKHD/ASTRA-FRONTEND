@@ -142,6 +142,26 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     snippet: '<Radio v-model="mode" value="all" name="mode" label="All" />',
   },
   {
+    name: 'FormField',
+    group: 'Inputs',
+    summary:
+      'The shell every control sits in: label, required marker, hint, error, counter and the aria wiring. Controls render none of it themselves.',
+    props: [
+      { name: 'label', type: 'string' },
+      { name: 'hint', type: 'string', note: 'Replaced by `error`, never stacked with it.' },
+      { name: 'error', type: 'string' },
+      { name: 'required', type: 'boolean' },
+      { name: 'size', type: "'sm' | 'md' | 'lg'", default: 'md' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'readonly', type: 'boolean' },
+      { name: 'id', type: 'string', note: 'Generated when omitted.' },
+      { name: 'length', type: 'number', note: 'With `maxLength`, renders a counter.' },
+      { name: 'maxLength', type: 'number' },
+    ],
+    snippet:
+      '<FormField label="Title" :error="err" v-slot="f"><TextInput v-bind="f" /></FormField>',
+  },
+  {
     name: 'SegmentedControl',
     group: 'Inputs',
     summary: 'Two to four exclusive options, all visible at once. Replaces a short radio group.',
