@@ -443,6 +443,7 @@ textarea:focus,
    chroma at all, still read correctly.
    --------------------------------------------------------------------------- */
 .md {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 .md > *:first-child {

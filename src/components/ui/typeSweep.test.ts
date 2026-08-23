@@ -132,3 +132,20 @@ describe('the scale is small enough to hold in one head', () => {
     expect(TYPE_SCALE).toHaveLength(8)
   })
 })
+
+describe('the source is text', () => {
+  it('carries no control characters', () => {
+    // A NUL in a source file is invisible in every editor, makes grep call the
+    // file binary, and survives review for exactly that reason. One shipped
+    // here as a sentinel value inside a string literal — and the fix for it was
+    // reverted by an unrelated `git checkout --` before it was ever committed,
+    // which is the other half of why this guard exists rather than a note.
+    const control = new RegExp('[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f]')
+    const offenders: string[] = []
+    for (const f of FILES) {
+      const m = control.exec(readFileSync(f, 'utf8'))
+      if (m) offenders.push(`${rel(f)} at ${m.index}`)
+    }
+    expect(offenders).toEqual([])
+  })
+})

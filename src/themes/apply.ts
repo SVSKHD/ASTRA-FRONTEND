@@ -30,6 +30,12 @@ export function applyThemeToDom(key: ThemeKey, setting: ThemeSetting): void {
   // know when it is deciding whether text on a tint will read.
   root.style.setProperty('--text-primary', t.text)
   root.style.setProperty('--text-muted', t.dim)
+  // Between primary and muted (section 26c). A label in a stat pair is not
+  // decoration — it is the half that says what the number means — so muting it
+  // to the level used for timestamps is what made those strips read as one grey
+  // line. Derived by mixing the theme's own text toward its muted value, so it
+  // sits above the muted floor on every theme without a nineteenth hand-pick.
+  root.style.setProperty('--text-secondary', `color-mix(in oklch, ${t.text} 72%, ${t.dim})`)
   root.style.setProperty('--bg-base', t.bgSolid)
   root.style.setProperty('--bg-elevated', t.card)
   root.style.setProperty('--border-subtle', t.border)

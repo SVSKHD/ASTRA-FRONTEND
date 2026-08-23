@@ -6,7 +6,7 @@
 // FullCalendar ships its own CSS variables; they are remapped to the section-7
 // theme tokens in the scoped block below, so the grid reads on every theme
 // rather than looking like a bolted-on widget.
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Select from '@/components/ui/Select.vue'
 import { storeToRefs } from 'pinia'
@@ -26,6 +26,7 @@ import { useCalendar } from '@/composables/useCalendar'
 import { surfacePair } from '@/themes/surfacePair'
 import CalEventCard from '@/components/CalEventCard.vue'
 import CalQuickCreate from '@/components/CalQuickCreate.vue'
+import UnscheduledPanel from '@/components/UnscheduledPanel.vue'
 import {
   CALENDAR_VIEWS,
   durationLabel,
@@ -155,19 +156,34 @@ async function onEventResize(arg: EventResizeDoneArg) {
 // disappears from the panel because it is no longer unscheduled); dragging an
 // event back over the panel unschedules it.
 const panelOpen = ref(true)
-const panelEl = ref<HTMLElement | null>(null)
+// The component instance, and the element inside it. Read through on demand
+// rather than snapshotted, since the panel is v-if'd and remounts.
+const panelRef = ref<InstanceType<typeof UnscheduledPanel> | null>(null)
+const panelEl = computed<HTMLElement | null>(() => panelRef.value?.el ?? null)
 let draggable: Draggable | null = null
 
-onMounted(() => {
-  if (panelEl.value) {
-    draggable = new Draggable(panelEl.value, {
-      itemSelector: '.unsched-item',
-      // The drop handler reads the real item off the element's dataset; this is
-      // only what the ghost shows while dragging.
-      eventData: (el) => ({ title: el.getAttribute('data-title') || '', duration: '00:30' }),
-    })
-  }
-})
+// Bound to the element whenever there is one, rather than once on mount: the
+// panel is v-if'd, so closing and reopening it produces a *new* node, and a
+// Draggable still holding the old one leaves the rows looking draggable and
+// doing nothing.
+watch(
+  panelEl,
+  (el) => {
+    draggable?.destroy()
+    draggable = el
+      ? new Draggable(el, {
+          itemSelector: '.unsched-item',
+          // The drop handler reads the real item off the element's dataset;
+          // this is only what the ghost shows while dragging.
+          eventData: (node) => ({
+            title: node.getAttribute('data-title') || '',
+            duration: '00:30',
+          }),
+        })
+      : null
+  },
+  { immediate: true, flush: 'post' },
+)
 onBeforeUnmount(() => draggable?.destroy())
 
 async function onExternalDrop(arg: DropArg) {
@@ -486,58 +502,13 @@ const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
 function bodyGrid(withPanel: boolean) {
   return pxify({
     display: 'grid',
-    gridTemplateColumns: withPanel ? '240px minmax(0, 1fr)' : 'auto minmax(0, 1fr)',
+    gridTemplateColumns: withPanel ? '260px minmax(0, 1fr)' : 'auto minmax(0, 1fr)',
     gap: 'var(--sp-3)',
     flex: 1,
     minHeight: 0,
     minWidth: 0,
   })
 }
-const panelStyleBox = computed(() =>
-  pxify({
-    minWidth: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--sp-2)',
-    overflowY: 'auto',
-    padding: 12,
-    borderRadius: 'var(--radius-card)',
-    // Section 24d: separated by elevation rather than by a border. The panel
-    // and the grid are not two interactive surfaces meeting, they are two
-    // regions, and a line between them is one more thing to look at.
-    background: 'color-mix(in oklch, ' + c.value.border + ' 18%, transparent)',
-  }),
-)
-const panelHead = computed(() =>
-  pxify({
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    ...typeStep('2xs'),
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-    color: c.value.dim,
-  }),
-)
-const unschedRow = computed(() =>
-  pxify({
-    ...typeStep('sm'),
-    minWidth: 0,
-    padding: '6px 8px',
-    borderRadius: 'var(--radius-control)',
-    background: c.value.card,
-    border: '1px solid ' + c.value.border,
-    cursor: 'grab',
-    // Two lines, then an ellipsis. A single truncated line of "Renew the
-    // domain regis…" is a row you have to open to identify, which defeats the
-    // point of a panel you are meant to drag from.
-    display: '-webkit-box',
-    WebkitBoxOrient: 'vertical',
-    WebkitLineClamp: 2,
-    overflow: 'hidden',
-    overflowWrap: 'anywhere',
-  }),
-)
 const hintStyle = computed(() =>
   pxify({
     position: 'fixed',
@@ -617,41 +588,13 @@ const hintStyle = computed(() =>
 
     <div :style="bodyGrid(panelOpen)">
       <!-- Unscheduled: drag onto the grid to schedule, drag back to unschedule -->
-      <div v-if="panelOpen" ref="panelEl" :style="panelStyleBox">
-        <div :style="panelHead">
-          <span>Unscheduled</span>
-          <button :style="s.editBtn" @click="panelOpen = false">×</button>
-        </div>
-        <div
-          v-for="item in calendar.unscheduled.value.tasks"
-          :key="'task-' + item.id"
-          class="unsched-item"
-          :style="unschedRow"
-          :data-type="'task'"
-          :data-id="item.id"
-          :data-title="item.title"
-        >
-          {{ item.title }}
-        </div>
-        <div
-          v-for="item in calendar.unscheduled.value.todos"
-          :key="'todo-' + item.id"
-          class="unsched-item"
-          :style="unschedRow"
-          :data-type="'todo'"
-          :data-id="item.id"
-          :data-title="item.text"
-        >
-          {{ item.text }}
-        </div>
-        <span
-          v-if="
-            !calendar.unscheduled.value.tasks.length && !calendar.unscheduled.value.todos.length
-          "
-          :style="s.finMeta"
-          >Everything is scheduled.</span
-        >
-      </div>
+      <UnscheduledPanel
+        v-if="panelOpen"
+        ref="panelRef"
+        :tasks="calendar.unscheduled.value.tasks"
+        :todos="calendar.unscheduled.value.todos"
+        @close="panelOpen = false"
+      />
       <button v-else :style="s.editBtn" @click="panelOpen = true">Unscheduled</button>
 
       <div :style="gridWrap" class="cal-host">
@@ -835,12 +778,14 @@ const hintStyle = computed(() =>
   cursor: grabbing;
 }
 .cal-title {
+  min-width: 0;
   font-weight: var(--weight-semibold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .cal-sub {
+  min-width: 0;
   color: var(--text-muted, var(--theme-dim));
   white-space: nowrap;
   overflow: hidden;

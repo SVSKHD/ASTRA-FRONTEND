@@ -60,6 +60,7 @@ import {
   Select,
   Skeleton,
   SlideOver,
+  StatRow,
   Slider,
   Stepper,
   Switch,
@@ -437,6 +438,15 @@ const OverlapDetector = import.meta.env.DEV
                 { value: 'reminder', label: 'Reminder' },
               ]"
               aria-label="Type"
+            />
+          </template>
+          <template v-else-if="doc.name === 'StatRow'">
+            <StatRow
+              :stats="[
+                { label: 'In', value: '₹1,20,000' },
+                { label: 'Out', value: '₹84,500' },
+                { label: 'Net', value: '+₹35,500', tone: 'positive' },
+              ]"
             />
           </template>
           <template v-else-if="doc.name === 'Alert'">
@@ -1003,6 +1013,7 @@ const OverlapDetector = import.meta.env.DEV
   border-color: var(--theme-accent);
 }
 .ui-page__iconname {
+  min-width: 0;
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;

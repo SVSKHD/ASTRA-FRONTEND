@@ -167,6 +167,7 @@ function onBlur(event: FocusEvent) {
 .ui-ms__chip {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
   gap: 2px;
   max-width: 140px;
   padding: 1px var(--sp-2);
