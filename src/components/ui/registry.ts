@@ -104,22 +104,73 @@ export const UI_COMPONENTS: ComponentDoc[] = [
   {
     name: 'Select',
     group: 'Inputs',
-    summary: 'Native select, themed — keeps the platform picker on mobile.',
+    summary:
+      'A themed listbox in a portal — not a native select. Type-ahead, arrows, Home/End, Esc; groups, icons per option, optional clear.',
     props: [
       { name: 'modelValue', type: 'string' },
-      { name: 'options', type: '{ value, label }[]' },
+      {
+        name: 'options',
+        type: 'SelectOption[]',
+        note: '{ value, label, group?, icon?, disabled? }',
+      },
+      { name: 'size', type: "'sm' | 'md' | 'lg'", default: 'md' },
+      { name: 'placeholder', type: 'string', default: 'Select…' },
+      { name: 'clearable', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'readonly', type: 'boolean' },
+      { name: 'invalid', type: 'boolean', note: 'Set by FormField; danger border and ring.' },
     ],
-    snippet: '<Select v-model="scope" :options="options" label="Scope" />',
+    snippet: '<Select v-model="project" :options="projects" />',
+  },
+  {
+    name: 'MultiSelect',
+    group: 'Inputs',
+    summary:
+      'The same list, with the chosen values as removable chips inside the control; overflow collapses to +N.',
+    props: [
+      { name: 'modelValue', type: 'string[]' },
+      { name: 'options', type: 'ListOption[]' },
+      { name: 'maxChips', type: 'number', default: '3', note: 'Beyond this, the rest become +N.' },
+      { name: 'size', type: "'sm' | 'md' | 'lg'", default: 'md' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'invalid', type: 'boolean' },
+    ],
+    snippet: '<MultiSelect v-model="tags" :options="allTags" />',
+  },
+  {
+    name: 'TagInput',
+    group: 'Inputs',
+    summary:
+      'An open set: Enter or comma adds, backspace removes the last, duplicates are refused case-insensitively.',
+    props: [
+      { name: 'modelValue', type: 'string[]' },
+      { name: 'suggestions', type: 'string[]', note: 'Offered beneath; typing still wins.' },
+      { name: 'max', type: 'number' },
+      { name: 'size', type: "'sm' | 'md' | 'lg'", default: 'md' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'readonly', type: 'boolean' },
+    ],
+    snippet: '<TagInput v-model="tags" :suggestions="known" />',
   },
   {
     name: 'Combobox',
     group: 'Inputs',
-    summary: 'Filtering text field that still allows a value not in the list.',
+    summary:
+      'Select plus a filter. The input owns the value, so a value not in the list is still a value; async loading and a create affordance are built in.',
     props: [
       { name: 'modelValue', type: 'string' },
-      { name: 'options', type: 'string[]' },
+      { name: 'options', type: 'ListOption[]' },
+      { name: 'creatable', type: 'boolean', note: 'Offers "Create …" when nothing matches.' },
+      {
+        name: 'loading',
+        type: 'boolean',
+        note: 'Spinner in the trailing slot, not over the text.',
+      },
+      { name: 'externalFilter', type: 'boolean', note: 'Set when the parent filters (async).' },
+      { name: 'emptyText', type: 'string', default: 'No results' },
+      { name: 'size', type: "'sm' | 'md' | 'lg'", default: 'md' },
     ],
-    snippet: '<Combobox v-model="tag" :options="tags" label="Tag" />',
+    snippet: '<Combobox v-model="tag" :options="tags" creatable />',
   },
   {
     name: 'Checkbox',

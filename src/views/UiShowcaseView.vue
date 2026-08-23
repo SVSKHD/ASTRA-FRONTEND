@@ -39,6 +39,8 @@ import {
   Dropdown,
   EmptyState,
   FormField,
+  MultiSelect,
+  TagInput,
   GlassDatePicker,
   GlassPanel,
   IconButton,
@@ -106,12 +108,19 @@ const tokens = computed(() => {
 })
 const segment = ref('task')
 const fieldDemo = ref('')
+const tagOptions = [
+  { value: 'work', label: 'work' },
+  { value: 'home', label: 'home' },
+  { value: 'errands', label: 'errands' },
+]
 const spacing = ['--sp-1', '--sp-2', '--sp-3', '--sp-4', '--sp-5', '--sp-6']
 const radii = ['--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--radius-pill']
 
 // ---- live models for the demos ---------------------------------------------
 const demo = ref({
   text: 'Ship the design system',
+  multi: [] as string[],
+  tags: ['work'] as string[],
   area: 'Two lines of context that the row cannot show.',
   select: 'all',
   combo: 'work',
@@ -361,7 +370,19 @@ const OverlapDetector = import.meta.env.DEV
             <Select v-model="demo.select" :options="selectOptions" label="Disabled" disabled />
           </template>
           <template v-else-if="doc.name === 'Combobox'">
-            <Combobox v-model="demo.combo" :options="['work', 'home', 'errands']" label="Tag" />
+            <FormField label="Tag" hint="Pick one, or name a new one" v-slot="f">
+              <Combobox v-bind="f" v-model="demo.combo" :options="tagOptions" creatable />
+            </FormField>
+          </template>
+          <template v-else-if="doc.name === 'MultiSelect'">
+            <FormField label="Projects" v-slot="f">
+              <MultiSelect v-bind="f" v-model="demo.multi" :options="tagOptions" />
+            </FormField>
+          </template>
+          <template v-else-if="doc.name === 'TagInput'">
+            <FormField label="Tags" hint="Enter or comma to add, backspace to remove" v-slot="f">
+              <TagInput v-bind="f" v-model="demo.tags" :suggestions="['work', 'home', 'errands']" />
+            </FormField>
           </template>
           <template v-else-if="doc.name === 'Checkbox'">
             <Checkbox v-model="demo.checked" label="Checked" />
