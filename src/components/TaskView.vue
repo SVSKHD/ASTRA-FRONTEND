@@ -30,7 +30,7 @@ const statusChip = computed(() => {
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '5px 13px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     background: status.value === 'done' ? col : 'transparent',

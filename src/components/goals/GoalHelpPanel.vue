@@ -221,7 +221,7 @@ function loadSample() {
 .ghelp__demo {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-1);
   min-width: 0;
   padding: var(--sp-2) var(--sp-3);
   border: 1px dashed var(--glass-border);

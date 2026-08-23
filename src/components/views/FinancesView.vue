@@ -279,20 +279,25 @@ const SOURCES = [
 ]
 
 // --- styles -----------------------------------------------------------------
-const header = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+const header = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
 function pill(active: boolean) {
   return pxify({
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active ? c.value.accent : 'transparent',
     color: active ? c.value.onAccent : c.value.dim,
     cursor: 'pointer',
   })
 }
-const pillRow = pxify({ display: 'flex', gap: 6 })
+const pillRow = pxify({ display: 'flex', gap: 'var(--sp-2)' })
 const spacer = pxify({ flex: 1 })
 const body = pxify({
   flex: 1,
@@ -300,19 +305,19 @@ const body = pxify({
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 16,
+  gap: 'var(--sp-4)',
   paddingTop: 14,
 })
 const card = computed(() =>
   pxify({
     padding: 18,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
   }),
 )
 const label = computed(() =>
@@ -336,11 +341,11 @@ const strong = computed(() => pxify({ color: c.value.text, fontWeight: 'var(--we
 const stackBar = pxify({
   display: 'flex',
   height: 10,
-  borderRadius: 999,
+  borderRadius: 'var(--radius-pill)',
   overflow: 'hidden',
   gap: 1,
 })
-const rowLine = pxify({ display: 'flex', gap: 14, flexWrap: 'wrap', ...typeStep('sm') })
+const rowLine = pxify({ display: 'flex', gap: 'var(--sp-4)', flexWrap: 'wrap', ...typeStep('sm') })
 const catColors = [
   GOOD,
   AMBER,
@@ -356,7 +361,7 @@ const miniBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
@@ -368,7 +373,7 @@ const ghostBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.text,
@@ -381,7 +386,7 @@ function tagChip(name: string) {
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '2px 8px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: (t?.color || c.value.accent) + '22',
     color: t?.color || c.value.accent,
     cursor: 'pointer',
@@ -392,7 +397,7 @@ const scopeChip = computed(() =>
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     color: c.value.dim,
   }),
@@ -400,7 +405,7 @@ const scopeChip = computed(() =>
 const formGrid = pxify({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-  gap: 8,
+  gap: 'var(--sp-2)',
 })
 const dayHead = computed(() =>
   pxify({
@@ -416,7 +421,7 @@ const txnRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '8px 4px',
     ...typeStep('sm'),
     borderBottom: '1px solid ' + c.value.border,
@@ -439,16 +444,16 @@ const td = computed(() =>
 const twoCol = pxify({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  gap: 14,
+  gap: 'var(--sp-4)',
 })
 const summaryStrip = computed(() =>
   pxify({
     display: 'flex',
-    gap: 16,
+    gap: 'var(--sp-4)',
     flexWrap: 'wrap',
     alignItems: 'center',
     padding: '12px 16px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.input,
     ...typeStep('sm'),
   }),
@@ -456,13 +461,13 @@ const summaryStrip = computed(() =>
 const debtCard = computed(() =>
   pxify({
     padding: 14,
-    borderRadius: 16,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
   }),
 )
 </script>

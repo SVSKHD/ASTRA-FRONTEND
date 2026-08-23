@@ -167,7 +167,7 @@ const groupHead = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     ...typeStep('xs'),
     letterSpacing: '0.1em',
     textTransform: 'uppercase',
@@ -190,7 +190,7 @@ function chainGlyph(color: string) {
     background: 'color-mix(in oklch, ' + color + ' 14%, transparent)',
   })
 }
-const row = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
+const row = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
 const addrStyle = computed(() =>
   pxify({
     fontFamily: 'var(--font-mono)',
@@ -202,7 +202,7 @@ const warnBox = (col: string) =>
   pxify({
     ...typeStep('xs'),
     padding: '6px 9px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + col,
     background: 'color-mix(in oklch, ' + col + ' 14%, transparent)',
     color: c.value.text,
@@ -221,7 +221,7 @@ const defaultChip = computed(() =>
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     color: c.value.accent,
     border: '1px solid ' + c.value.accent,
     whiteSpace: 'nowrap',

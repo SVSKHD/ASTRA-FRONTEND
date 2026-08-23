@@ -87,19 +87,30 @@ const box = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
   }),
 )
-const rowFlex = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+const rowFlex = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
 const toggleLabel = computed(() =>
-  pxify({ display: 'flex', alignItems: 'center', gap: 8, ...typeStep('sm'), color: c.value.text }),
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--sp-2)',
+    ...typeStep('sm'),
+    color: c.value.text,
+  }),
 )
 const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
-const dowRow = pxify({ display: 'flex', gap: 4 })
+const dowRow = pxify({ display: 'flex', gap: 'var(--sp-1)' })
 function dowBtn(active: boolean) {
   return pxify({
     width: 26,
@@ -121,9 +132,9 @@ const todayRow = computed(() =>
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
   }),

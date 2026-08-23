@@ -76,7 +76,7 @@ function badgeStyle(col: string) {
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 9px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: 'transparent',
     color: col,
     border: '1px solid ' + col,

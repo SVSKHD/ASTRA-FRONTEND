@@ -47,12 +47,12 @@ function markParentComplete() {
 }
 
 // --- styles -----------------------------------------------------------------
-const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 10 })
+const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' })
 const header = pxify({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: 8,
+  gap: 'var(--sp-2)',
 })
 const labelStyle = computed(() =>
   pxify({
@@ -68,7 +68,7 @@ const addBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     color: c.value.accent,
@@ -79,9 +79,9 @@ const rowStyle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: '7px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     cursor: 'pointer',
@@ -105,7 +105,7 @@ const badgeStyle = computed(() =>
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     padding: '2px 6px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     color: c.value.dim,
     flexShrink: 0,
@@ -127,9 +127,9 @@ const promptStyle = computed(() =>
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '10px 12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     background: 'color-mix(in oklch, oklch(0.72 0.15 150) 14%, transparent)',
     border: '1px solid oklch(0.72 0.15 150)',
     ...typeStep('xs'),
@@ -141,7 +141,7 @@ const confirmBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: 'oklch(0.72 0.15 150)',
     color: '#08130c',
@@ -149,11 +149,13 @@ const confirmBtn = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const pickerWrap = computed(() => pxify({ display: 'flex', flexDirection: 'column', gap: 6 }))
+const pickerWrap = computed(() =>
+  pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }),
+)
 const searchStyle = computed(() =>
   pxify({
     padding: '9px 12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.accent,
     background: c.value.input,
     color: c.value.text,

@@ -221,7 +221,7 @@ const headerRow = pxify({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 10,
+  gap: 'var(--sp-3)',
   flexWrap: 'wrap',
 })
 const resetChip = computed(() =>
@@ -229,7 +229,7 @@ const resetChip = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.accent,
     background: 'transparent',
     color: c.value.accent,
@@ -242,15 +242,15 @@ const gridStyle = computed(() =>
   pxify({
     display: 'grid',
     gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: 20,
+    gap: 'var(--sp-5)',
   }),
 )
 const cardBase = computed(() => ({
   display: 'flex',
   flexDirection: 'column' as const,
-  gap: 8,
+  gap: 'var(--sp-2)',
   padding: '18px 18px 15px',
-  borderRadius: 18,
+  borderRadius: 'var(--radius-dialog)',
   background: c.value.card,
   border: '1px solid ' + c.value.border,
   // Its own shadow so each tile floats separately from its neighbours.
@@ -274,7 +274,7 @@ const cardHover = computed(() =>
     borderColor: c.value.accent,
   }),
 )
-const cardTop = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const cardTop = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const cardLabel = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -297,7 +297,7 @@ function trackStyle() {
   return pxify({
     position: 'relative',
     height: 6,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     overflow: 'hidden',
   })
@@ -309,7 +309,7 @@ function fillStyle(pct: number, color: string) {
     top: 0,
     bottom: 0,
     width: Math.max(0, Math.min(100, pct)) + '%',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: color,
     boxShadow: '0 0 8px ' + color,
     transition: 'width .5s cubic-bezier(.4,1,.4,1), background .3s ease',
@@ -323,7 +323,7 @@ const iconWrap = computed(() =>
 )
 
 const compareRow = computed(() =>
-  pxify({ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }),
+  pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', marginTop: 4 }),
 )
 function compareLineStyle(dir: 'up' | 'down' | 'flat') {
   return pxify({

@@ -112,14 +112,14 @@ const wrap = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
   }),
 )
-const statRow = pxify({ display: 'flex', gap: 16, flexWrap: 'wrap' })
+const statRow = pxify({ display: 'flex', gap: 'var(--sp-4)', flexWrap: 'wrap' })
 const stat = pxify({ display: 'flex', flexDirection: 'column', gap: 2 })
 const statNum = computed(() =>
   pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
@@ -132,13 +132,13 @@ const statLabel = computed(() =>
     color: c.value.dim,
   }),
 )
-const winRow = pxify({ display: 'flex', gap: 6, alignItems: 'center' })
+const winRow = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
 function winBtn(active: boolean) {
   return pxify({
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '4px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active ? c.value.accent : 'transparent',
     color: active ? c.value.onAccent : c.value.dim,
@@ -186,9 +186,9 @@ const histRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '5px 6px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     ...typeStep('xs'),
     color: c.value.text,
   }),
@@ -210,7 +210,7 @@ const editInput = computed(() =>
     width: 70,
     ...typeStep('xs'),
     padding: '2px 6px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.accent,
     background: c.value.input,
     color: c.value.text,

@@ -67,9 +67,9 @@ const pop = computed(() =>
     width: 250,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: 12,
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.glass,
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
@@ -85,8 +85,8 @@ const inputWrap = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    borderRadius: 10,
+    gap: 'var(--sp-2)',
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     padding: '4px 10px',
@@ -109,7 +109,7 @@ const unitStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, 
 const noteInput = computed(() =>
   pxify({
     ...typeStep('xs'),
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     padding: '6px 10px',
@@ -125,14 +125,14 @@ const outcomeStyle = computed(() =>
     color: outcome.value.hit ? 'oklch(0.72 0.15 150)' : 'oklch(0.8 0.16 72)',
   }),
 )
-const rowBtns = pxify({ display: 'flex', gap: 8, alignItems: 'center' })
+const rowBtns = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
 const saveBtn = computed(() =>
   pxify({
     flex: 1,
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '7px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
@@ -144,7 +144,7 @@ const ghostBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '7px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -156,7 +156,7 @@ const missedBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '4px 8px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid oklch(0.64 0.22 25)',
     background: 'transparent',
     color: 'oklch(0.64 0.22 25)',

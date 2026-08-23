@@ -179,19 +179,24 @@ const shell = pxify({
   maxWidth: 820,
   display: 'flex',
   flexDirection: 'column',
-  gap: 16,
+  gap: 'var(--sp-4)',
 })
-const topBar = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+const topBar = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
 const spacer = pxify({ flex: 1 })
 const navBtn = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
+    gap: 'var(--sp-2)',
     ...typeStep('sm'),
     fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.glass,
     color: c.value.text,
@@ -208,7 +213,7 @@ const publicBadge = computed(() =>
     color: c.value.onAccent,
     background: c.value.accent,
     padding: '5px 11px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
   }),
 )
 const glass = (extra: Style = {}) =>
@@ -217,7 +222,7 @@ const glass = (extra: Style = {}) =>
     backdropFilter: 'blur(30px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 24,
+    borderRadius: 'var(--radius-dialog)',
     boxShadow: c.value.shadow,
     ...extra,
   })
@@ -225,7 +230,7 @@ const heroStyle = computed(() =>
   pxify({
     position: 'relative',
     minHeight: isMobile.value ? 200 : 280,
-    borderRadius: 24,
+    borderRadius: 'var(--radius-dialog)',
     overflow: 'hidden',
     border: '1px solid ' + c.value.border,
     display: 'flex',
@@ -248,7 +253,7 @@ const heroInner = computed(() =>
     padding: isMobile.value ? '18px' : '24px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
     width: '100%',
     color: '#fff',
   }),
@@ -260,7 +265,12 @@ const titleStyle = computed(() =>
     lineHeight: 1.12,
   }),
 )
-const metaRow = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+const metaRow = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
 function statusBadge(done: boolean) {
   return pxify({
     ...typeStep('2xs'),
@@ -268,7 +278,7 @@ function statusBadge(done: boolean) {
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     padding: '4px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (done ? c.value.accent : c.value.border),
     color: done ? c.value.accent : c.value.text,
     background: 'rgba(0,0,0,0.25)',
@@ -280,9 +290,13 @@ const rangeStyle = computed(() =>
 function chip(tag: string) {
   return pxify(tagChip(c.value, tag, false))
 }
-const statsRow = pxify({ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 })
+const statsRow = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: 'var(--sp-2)',
+})
 const statCard = computed(() =>
-  glass({ padding: '12px 10px', borderRadius: 16, textAlign: 'center' }),
+  glass({ padding: '12px 10px', borderRadius: 'var(--radius-dialog)', textAlign: 'center' }),
 )
 const statValue = computed(() =>
   pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
@@ -297,12 +311,17 @@ const statLabel = computed(() =>
     marginTop: 2,
   }),
 )
-const toolbar = pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' })
+const toolbar = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-2)',
+  flexWrap: 'wrap',
+})
 const segTrack = computed(() =>
   pxify({
     display: 'inline-flex',
     padding: 4,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     gap: 2,
@@ -311,7 +330,7 @@ const segTrack = computed(() =>
 function segBtn(activeState: boolean) {
   return pxify({
     padding: '6px 14px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: 'none',
     background: activeState ? c.value.card : 'transparent',
     color: activeState ? c.value.accent : c.value.dim,
@@ -320,13 +339,13 @@ function segBtn(activeState: boolean) {
     cursor: 'pointer',
   })
 }
-const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap' })
+const chipRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' })
 function dayChip(selected: boolean, tint: string) {
   return pxify({
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (selected ? tint : c.value.border),
     background: selected ? c.value.input : 'transparent',
     color: selected ? tint : c.value.dim,

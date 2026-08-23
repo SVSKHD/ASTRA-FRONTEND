@@ -106,15 +106,15 @@ function cardStyle(place: TripPlace) {
   return pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '10px 12px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + (place.id === props.active ? c.value.accent : c.value.border),
     background: c.value.card,
     opacity: dragId.value === place.id ? 0.5 : 1,
   })
 }
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
 function numBadge(active: boolean) {
   return pxify({
     width: 24,
@@ -158,7 +158,7 @@ const iconBtn = () =>
     flexShrink: 0,
     width: 26,
     height: 26,
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -177,23 +177,34 @@ const inputStyle = () =>
   pxify({
     width: '100%',
     padding: '9px 11px',
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
     ...typeStep('sm'),
   })
-const field = pxify({ display: 'flex', flexDirection: 'column', gap: 5 })
-const photoRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' })
+const field = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' })
+const photoRow = pxify({
+  display: 'flex',
+  gap: 'var(--sp-2)',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+})
 const photoThumb = () =>
-  pxify({ width: 46, height: 46, borderRadius: 8, objectFit: 'cover', position: 'relative' })
+  pxify({
+    width: 46,
+    height: 46,
+    borderRadius: 'var(--radius-control)',
+    objectFit: 'cover',
+    position: 'relative',
+  })
 const addBtn = () =>
   pxify({
     alignSelf: 'flex-start',
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '9px 14px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     color: c.value.accent,

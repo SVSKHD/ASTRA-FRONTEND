@@ -19,7 +19,7 @@ const heading = computed(() =>
 const optionNote = computed(() =>
   pxify({ ...typeStep('xs'), color: c.value.dim, lineHeight: 1.45, marginTop: 2 }),
 )
-const optionCol = pxify({ display: 'flex', flexDirection: 'column', gap: 14 })
+const optionCol = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' })
 const optionBlock = pxify({ display: 'flex', flexDirection: 'column', gap: 2 })
 </script>
 

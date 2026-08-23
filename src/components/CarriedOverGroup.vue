@@ -43,7 +43,7 @@ const moveCollection = computed<'todos' | 'tasks'>(() =>
 
 const cardStyle = computed(() =>
   pxify({
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: dark.value ? 'rgba(40,44,78,0.3)' : 'rgba(255,255,255,0.35)',
     overflow: 'hidden',
@@ -53,7 +53,7 @@ const headStyle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '10px 12px',
     cursor: 'pointer',
     userSelect: 'none',
@@ -81,14 +81,14 @@ const titleStyle = computed(() =>
   }),
 )
 const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
-const actionsWrap = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const actionsWrap = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const selectBtn = computed(() =>
   pxify({
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.04em',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -107,7 +107,7 @@ const bodyClip = pxify({ overflow: 'hidden', minHeight: 0 })
 const bodyInner = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 9,
+  gap: 'var(--sp-2)',
   padding: '4px 10px 12px',
 })
 </script>

@@ -49,10 +49,10 @@ function tint(day: DayGroup): string {
 }
 
 // --- styles -----------------------------------------------------------------
-const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 14 })
+const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' })
 function dayCard(day: DayGroup) {
   return pxify({
-    borderRadius: 20,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: 'rgba(255,255,255,0.015)',
     overflow: 'hidden',
@@ -66,7 +66,7 @@ function dayHeader() {
     zIndex: 3,
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     width: '100%',
     padding: '12px 14px',
     border: 'none',
@@ -84,7 +84,7 @@ function dayBadge(day: DayGroup) {
     minWidth: 30,
     height: 30,
     padding: '0 8px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     display: 'grid',
     placeItems: 'center',
     ...typeStep('xs'),
@@ -115,7 +115,7 @@ function node(i: number, total: number) {
   return pxify({
     display: 'grid',
     gridTemplateColumns: '26px 1fr',
-    gap: 12,
+    gap: 'var(--sp-3)',
     paddingBottom: i === total - 1 ? 0 : 4,
   })
 }
@@ -156,7 +156,7 @@ const placeName = () =>
   })
 const metaRow = pxify({
   display: 'flex',
-  gap: 8,
+  gap: 'var(--sp-2)',
   alignItems: 'center',
   flexWrap: 'wrap',
   marginTop: 2,
@@ -168,7 +168,7 @@ const gapChip = () =>
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.accent,
@@ -181,13 +181,13 @@ const notes = () =>
     color: c.value.text,
     marginTop: 7,
     padding: '9px 11px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
   })
 const photoGrid = pxify({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))',
-  gap: 6,
+  gap: 'var(--sp-2)',
   marginTop: 9,
 })
 const photoBtn = pxify({ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in' })

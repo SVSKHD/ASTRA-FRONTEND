@@ -37,7 +37,7 @@ function nodeStyle(i: number) {
   return pxify({
     display: 'grid',
     gridTemplateColumns: '34px 1fr',
-    gap: 12,
+    gap: 'var(--sp-3)',
     animation: 'fadeUp .35s ease both',
     animationDelay: i * 60 + 'ms',
   })
@@ -88,7 +88,13 @@ const nameStyle = computed(() =>
   }),
 )
 const metaStyle = computed(() =>
-  pxify({ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 3 }),
+  pxify({
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 'var(--sp-2)',
+    alignItems: 'center',
+    marginTop: 3,
+  }),
 )
 const whenStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const gapChip = computed(() =>
@@ -96,7 +102,7 @@ const gapChip = computed(() =>
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.accent,
@@ -112,11 +118,11 @@ const notesStyle = computed(() =>
     color: c.value.text,
     marginTop: 6,
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
   }),
 )
-const photoRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 })
+const photoRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap', marginTop: 8 })
 const photoCell = pxify({
   width: 54,
   padding: 0,

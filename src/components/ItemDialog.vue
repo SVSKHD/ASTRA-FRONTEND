@@ -195,15 +195,20 @@ const labelStyle = computed(() =>
 const sectionsStyle = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 20,
+  gap: 'var(--sp-5)',
   minWidth: 0,
 })
-const fieldStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 })
+const fieldStyle = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+  minWidth: 0,
+})
 const prefixWrap = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     overflow: 'hidden',
@@ -230,7 +235,13 @@ const prefixInput = computed(() =>
   }),
 )
 const checkRow = computed(() =>
-  pxify({ display: 'flex', alignItems: 'center', gap: 8, ...typeStep('xs'), color: c.value.dim }),
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--sp-2)',
+    ...typeStep('xs'),
+    color: c.value.dim,
+  }),
 )
 </script>
 

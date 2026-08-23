@@ -77,7 +77,7 @@ const placeholder = computed(() =>
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 'var(--sp-2)',
     color: c.value.dim,
     background: c.value.input,
   }),

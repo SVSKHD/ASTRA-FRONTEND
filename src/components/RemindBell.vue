@@ -107,13 +107,18 @@ function openChip() {
 }
 
 // --- styles -----------------------------------------------------------------
-const wrap = pxify({ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 6 })
+const wrap = pxify({
+  position: 'relative',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'var(--sp-2)',
+})
 const bellBtn = computed(() =>
   pxify({
     width: 26,
     height: 26,
     flexShrink: 0,
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     border: 'none',
     background: 'transparent',
     color: chipLabel.value ? c.value.accent : c.value.dim,
@@ -126,7 +131,7 @@ const chipStyle = computed(() =>
   pxify({
     ...typeStep('2xs'),
     padding: '2px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.accent,
@@ -142,14 +147,14 @@ const popStyle = computed(() =>
     zIndex: 30,
     width: 210,
     padding: 10,
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: dark.value ? '0 16px 40px rgba(0,0,0,0.5)' : '0 16px 40px rgba(80,90,160,0.2)',
     backdropFilter: 'blur(16px)',
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 'var(--sp-2)',
   }),
 )
 const popHead = computed(() =>
@@ -167,20 +172,20 @@ const quickBtn = computed(() =>
     textAlign: 'left',
     ...typeStep('xs'),
     padding: '7px 9px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.text,
     cursor: 'pointer',
   }),
 )
-const rowFlex = pxify({ display: 'flex', gap: 6, alignItems: 'center' })
+const rowFlex = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
 const selectStyle = computed(() =>
   pxify({
     flex: 1,
     ...typeStep('xs'),
     padding: '6px 8px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
@@ -191,7 +196,7 @@ const setBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 10px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.accent,
     background: c.value.accent,
     color: c.value.onAccent,

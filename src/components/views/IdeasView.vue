@@ -78,7 +78,7 @@ function badgeStyle(col: string) {
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 9px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: 'transparent',
     color: col,
     border: '1px solid ' + col,
@@ -94,7 +94,7 @@ const typeBadge = computed(() =>
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
     padding: '3px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     color: c.value.dim,
     border: '1px solid ' + c.value.border,
     background: c.value.input,
@@ -102,12 +102,18 @@ const typeBadge = computed(() =>
 )
 const filterBar = pxify({
   display: 'flex',
-  gap: 8,
+  gap: 'var(--sp-2)',
   flexWrap: 'wrap',
   padding: '0 2px 10px',
 })
 const metaStyle = computed(() =>
-  pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 3 }),
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--sp-2)',
+    flexWrap: 'wrap',
+    marginTop: 3,
+  }),
 )
 </script>
 

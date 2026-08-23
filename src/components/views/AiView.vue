@@ -201,14 +201,14 @@ const tokenTotal = computed(() => {
 })
 
 // --- styles -----------------------------------------------------------------
-const shell = pxify({ display: 'flex', gap: 14, flex: 1, minHeight: 0 })
+const shell = pxify({ display: 'flex', gap: 'var(--sp-4)', flex: 1, minHeight: 0 })
 const rail = computed(() =>
   pxify({
     width: 240,
     flexShrink: 0,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
     borderRight: '1px solid ' + c.value.border,
     paddingRight: 12,
     minHeight: 0,
@@ -220,14 +220,14 @@ const railScroll = pxify({
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 8,
+  gap: 'var(--sp-2)',
 })
-const railHeadRow = pxify({ display: 'flex', gap: 6 })
+const railHeadRow = pxify({ display: 'flex', gap: 'var(--sp-2)' })
 const newBtn = computed(() =>
   pxify({
     flexShrink: 0,
     width: 34,
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.accent,
     color: c.value.onAccent,
@@ -239,9 +239,9 @@ function chatRow(active: boolean) {
   return pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
+    gap: 'var(--sp-2)',
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     cursor: 'pointer',
     background: active ? c.value.card : 'transparent',
     border: '1px solid ' + (active ? c.value.border : 'transparent'),
@@ -282,7 +282,7 @@ const headerRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     paddingBottom: 10,
     borderBottom: '1px solid ' + c.value.border,
     flexWrap: 'wrap',
@@ -292,7 +292,7 @@ const toggleLabel = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
+    gap: 'var(--sp-2)',
     ...typeStep('xs'),
     color: c.value.dim,
     cursor: 'pointer',
@@ -308,7 +308,7 @@ const thread = pxify({
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 12,
+  gap: 'var(--sp-3)',
   padding: '12px 2px',
 })
 function bubbleWrap(role: string) {
@@ -318,7 +318,7 @@ function bubble(role: string) {
   return pxify({
     maxWidth: '78%',
     padding: '10px 14px',
-    borderRadius: 16,
+    borderRadius: 'var(--radius-dialog)',
     ...typeStep('sm'),
     lineHeight: 1.5,
     whiteSpace: 'pre-wrap',
@@ -331,7 +331,7 @@ function bubble(role: string) {
 const msgMeta = computed(() =>
   pxify({
     display: 'flex',
-    gap: 8,
+    gap: 'var(--sp-2)',
     alignItems: 'center',
     marginTop: 4,
     ...typeStep('xs'),
@@ -343,7 +343,7 @@ const badge = computed(() =>
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     color: c.value.accent,
   }),
@@ -361,7 +361,7 @@ const cursor = pxify({
 const composerBar = computed(() =>
   pxify({
     display: 'flex',
-    gap: 8,
+    gap: 'var(--sp-2)',
     alignItems: 'flex-end',
     paddingTop: 10,
     borderTop: '1px solid ' + c.value.border,
@@ -374,7 +374,7 @@ const composerInput = computed(() =>
     maxHeight: 140,
     resize: 'none',
     padding: '11px 14px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
@@ -387,7 +387,7 @@ const sendBtn = computed(() =>
   pxify({
     flexShrink: 0,
     padding: '11px 18px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: 'none',
     background: streaming.value ? 'transparent' : c.value.accent,
     color: streaming.value ? c.value.accent : c.value.onAccent,
@@ -406,7 +406,7 @@ const emptyWrap = pxify({
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 16,
+  gap: 'var(--sp-4)',
 })
 const emptyOrb = computed(() =>
   pxify({
@@ -421,7 +421,7 @@ const emptyOrb = computed(() =>
 const chipRow = pxify({
   display: 'flex',
   flexWrap: 'wrap',
-  gap: 8,
+  gap: 'var(--sp-2)',
   justifyContent: 'center',
   maxWidth: 420,
 })
@@ -429,7 +429,7 @@ const chipStyle = computed(() =>
   pxify({
     ...typeStep('xs'),
     padding: '8px 14px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     color: c.value.text,

@@ -94,13 +94,13 @@ const repoRows = computed(() =>
 )
 
 // ---- styles ---------------------------------------------------------------
-const segRow = pxify({ display: 'flex', gap: 8, alignItems: 'center' })
+const segRow = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
 function segBtn(active: boolean) {
   return pxify({
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 14px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     cursor: 'pointer',
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active
@@ -113,10 +113,10 @@ const filterRow = computed(() =>
   pxify({
     display: 'grid',
     gridTemplateColumns: isMobile.value ? '1fr 1fr' : 'repeat(5, minmax(0, 1fr))',
-    gap: 8,
+    gap: 'var(--sp-2)',
   }),
 )
-const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 10, width: '100%' })
+const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', width: '100%' })
 function stateDot(state: 'open' | 'closed') {
   const col = issueStateColor(state)
   return pxify({
@@ -133,7 +133,7 @@ function labelChip() {
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     color: c.value.dim,
     whiteSpace: 'nowrap',
@@ -145,7 +145,7 @@ const bodyStyle = computed(() =>
     lineHeight: 1.55,
     color: c.value.dim,
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: 'color-mix(in oklch, ' + c.value.border + ' 25%, transparent)',
     overflowX: 'auto',
   }),
@@ -154,9 +154,9 @@ const bulkBar = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '8px 10px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.accent,
     background: 'color-mix(in oklch, ' + c.value.accent + ' 12%, transparent)',
     ...typeStep('xs'),
@@ -169,7 +169,7 @@ function ciChip(ci: string) {
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     color: col,
     border: '1px solid ' + col,
     whiteSpace: 'nowrap',
@@ -180,7 +180,7 @@ function toggleTrack(on: boolean) {
     flexShrink: 0,
     width: 34,
     height: 20,
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: on ? 'oklch(0.68 0.16 150)' : c.value.border,
     border: '1px solid ' + c.value.border,
     cursor: 'pointer',

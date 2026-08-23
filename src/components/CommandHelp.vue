@@ -43,15 +43,15 @@ const panelStyle = computed(() =>
     background: c.value.glass,
     backdropFilter: 'blur(30px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
-    borderRadius: 26,
+    borderRadius: 'var(--radius-dialog)',
     padding: 16,
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     animation: 'fadeUp .25s ease both',
   }),
 )
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const titleStyle = computed(() =>
   pxify({
     flex: 1,
@@ -62,13 +62,13 @@ const titleStyle = computed(() =>
     color: c.value.text,
     display: 'flex',
     alignItems: 'center',
-    gap: 7,
+    gap: 'var(--sp-2)',
   }),
 )
 const listStyle = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 8,
+  gap: 'var(--sp-2)',
   overflowY: 'auto',
   flex: 1,
   minHeight: 0,
@@ -78,9 +78,9 @@ const rowStyle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '9px 10px',
-    borderRadius: 13,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
   }),
@@ -91,7 +91,7 @@ const chipStyle = computed(() =>
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '3px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.accent,
@@ -132,16 +132,16 @@ const mdRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '7px 10px',
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
   }),
 )
 const searchStyle = computed(() =>
   pxify({
     padding: '9px 12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,

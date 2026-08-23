@@ -130,12 +130,12 @@ defineExpose({ columns, virtualised })
   left: 0;
   width: 100%;
   display: grid;
-  gap: 16px;
+  gap: var(--sp-4);
 }
 .ggrid__plain {
   display: grid;
   grid-auto-rows: minmax(180px, 1fr);
-  gap: 16px;
+  gap: var(--sp-4);
   align-content: start;
 }
 </style>

@@ -8,6 +8,7 @@
 // rather than looking like a bolted-on widget.
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
+import Select from '@/components/ui/Select.vue'
 import { storeToRefs } from 'pinia'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -22,6 +23,7 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { useCalendar } from '@/composables/useCalendar'
+import { surfacePair } from '@/themes/surfacePair'
 import CalEventCard from '@/components/CalEventCard.vue'
 import CalQuickCreate from '@/components/CalQuickCreate.vue'
 import {
@@ -334,6 +336,11 @@ function toFcEvents(list: CalEvent[]) {
     extendedProps: {
       subtitle: event.subtitle,
       barColor: event.barColor,
+      // Section 24b: the fill is measured against the text that has to sit on
+      // it, here, once per event — not left to a color-mix in the stylesheet
+      // that nobody can check. When the tint cannot carry the text this comes
+      // back as a plain elevated surface, and the bar still says whose it is.
+      chipBg: surfacePair(event.barColor, c.value).background,
       completed: event.completed,
       source: event.source,
       refId: event.refId,
@@ -429,36 +436,39 @@ const headerRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     flexWrap: isMobile.value ? 'wrap' : 'nowrap',
   }),
 )
 function segBtn(active: boolean) {
   return pxify({
-    ...typeStep('xs'),
+    ...typeStep('sm'),
     fontWeight: 'var(--weight-semibold)',
-    padding: '5px 12px',
-    borderRadius: 9,
+    height: 32,
+    padding: '0 12px',
+    borderRadius: 'var(--radius-control)',
     cursor: 'pointer',
+    // Section 24d, one accent per surface: inactive is neutral. Four filter
+    // chips in four hues plus a purple active state plus coloured events left
+    // the eye with nothing to land on, so the hue withdraws to the events —
+    // the only place it carries information the label does not already give.
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active
       ? 'color-mix(in oklch, ' + c.value.accent + ' 18%, transparent)'
       : 'transparent',
-    color: active ? c.value.accent : c.value.dim,
+    color: active ? c.value.text : c.value.dim,
   })
 }
-function chipBtn(active: boolean, color: string) {
-  return pxify({
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    padding: '4px 10px',
-    borderRadius: 999,
-    cursor: 'pointer',
-    border: '1px solid ' + (active ? color : c.value.border),
-    background: active ? 'color-mix(in oklch, ' + color + ' 18%, transparent)' : 'transparent',
-    color: active ? color : c.value.dim,
-  })
-}
+const chipBtn = segBtn
+const projectOptions = computed(() => [
+  { value: '', label: 'All projects' },
+  ...tags.value.map((t) => ({ value: t, label: t })),
+])
+const projectSelectStyle = computed(() =>
+  // Capped rather than flexible. It was the only full-width control in the row
+  // and it dwarfed everything beside it.
+  pxify({ maxWidth: 240, minWidth: 0, flex: '1 1 140px' }),
+)
 const titleStyle = computed(() =>
   pxify({
     ...typeStep('base'),
@@ -468,18 +478,33 @@ const titleStyle = computed(() =>
   }),
 )
 const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
-const bodyRow = pxify({ display: 'flex', gap: 10, flex: 1, minHeight: 0 })
+// Section 24c, acceptance 124. A two-column grid with min-width: 0 on both
+// tracks. It was a flex row whose panel had a fixed width and no min-width, so
+// the grid — which can always shrink — pushed it past the left edge instead of
+// taking the squeeze itself. min-width: 0 is what lets a grid track actually
+// be as narrow as its column says, rather than as wide as its content.
+function bodyGrid(withPanel: boolean) {
+  return pxify({
+    display: 'grid',
+    gridTemplateColumns: withPanel ? '240px minmax(0, 1fr)' : 'auto minmax(0, 1fr)',
+    gap: 'var(--sp-3)',
+    flex: 1,
+    minHeight: 0,
+    minWidth: 0,
+  })
+}
 const panelStyleBox = computed(() =>
   pxify({
-    width: 170,
-    flexShrink: 0,
+    minWidth: 0,
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 'var(--sp-2)',
     overflowY: 'auto',
-    padding: 8,
-    borderRadius: 12,
-    border: '1px solid ' + c.value.border,
+    padding: 12,
+    borderRadius: 'var(--radius-card)',
+    // Section 24d: separated by elevation rather than by a border. The panel
+    // and the grid are not two interactive surfaces meeting, they are two
+    // regions, and a line between them is one more thing to look at.
     background: 'color-mix(in oklch, ' + c.value.border + ' 18%, transparent)',
   }),
 )
@@ -496,15 +521,21 @@ const panelHead = computed(() =>
 )
 const unschedRow = computed(() =>
   pxify({
-    ...typeStep('xs'),
+    ...typeStep('sm'),
+    minWidth: 0,
     padding: '6px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     cursor: 'grab',
-    whiteSpace: 'nowrap',
+    // Two lines, then an ellipsis. A single truncated line of "Renew the
+    // domain regis…" is a row you have to open to identify, which defeats the
+    // point of a panel you are meant to drag from.
+    display: '-webkit-box',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: 2,
     overflow: 'hidden',
-    textOverflow: 'ellipsis',
+    overflowWrap: 'anywhere',
   }),
 )
 const hintStyle = computed(() =>
@@ -517,7 +548,7 @@ const hintStyle = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: c.value.glass,
     border: '1px solid ' + c.value.border,
     color: c.value.text,
@@ -551,40 +582,40 @@ const hintStyle = computed(() =>
 
     <div :style="headerRow">
       <button
-        :style="chipBtn(filters.tasks, 'oklch(0.65 0.16 260)')"
+        :style="chipBtn(filters.tasks)"
         @click="calendar.setFilters({ tasks: !filters.tasks })"
       >
         Tasks
       </button>
       <button
-        :style="chipBtn(filters.todos, 'oklch(0.68 0.14 200)')"
+        :style="chipBtn(filters.todos)"
         @click="calendar.setFilters({ todos: !filters.todos })"
       >
         Todos
       </button>
       <button
-        :style="chipBtn(filters.goals, 'oklch(0.72 0.15 150)')"
+        :style="chipBtn(filters.goals)"
         @click="calendar.setFilters({ goals: !filters.goals })"
       >
         Goals
       </button>
       <button
-        :style="chipBtn(filters.reminders, 'oklch(0.75 0.16 60)')"
+        :style="chipBtn(filters.reminders)"
         @click="calendar.setFilters({ reminders: !filters.reminders })"
       >
         Reminders
       </button>
-      <select
-        :style="s.select"
-        :value="filters.project"
-        @change="calendar.setFilters({ project: ($event.target as HTMLSelectElement).value })"
-      >
-        <option value="">All projects</option>
-        <option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</option>
-      </select>
+      <div :style="projectSelectStyle">
+        <Select
+          :model-value="filters.project"
+          :options="projectOptions"
+          size="sm"
+          @update:model-value="calendar.setFilters({ project: $event })"
+        />
+      </div>
     </div>
 
-    <div :style="bodyRow">
+    <div :style="bodyGrid(panelOpen)">
       <!-- Unscheduled: drag onto the grid to schedule, drag back to unschedule -->
       <div v-if="panelOpen" ref="panelEl" :style="panelStyleBox">
         <div :style="panelHead">
@@ -629,7 +660,10 @@ const hintStyle = computed(() =>
             <div
               class="cal-event"
               :class="{ 'cal-done': arg.event.extendedProps.completed }"
-              :style="{ '--bar': arg.event.extendedProps.barColor }"
+              :style="{
+                '--bar': arg.event.extendedProps.barColor,
+                '--chip-bg': arg.event.extendedProps.chipBg,
+              }"
               @touchstart="onEventTouchStart(arg.event.id)"
               @touchend="cancelPress"
               @touchmove="cancelPress"
@@ -681,17 +715,23 @@ const hintStyle = computed(() =>
    belongs to the theme rather than sitting on top of it. Global (not scoped)
    because FullCalendar renders outside this component's scope attribute. */
 .cal-host {
-  --fc-border-color: var(--theme-border, rgba(255, 255, 255, 0.14));
+  --fc-border-color: var(--border-subtle, var(--theme-border, rgba(255, 255, 255, 0.14)));
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: transparent;
   --fc-list-event-hover-bg-color: transparent;
-  --fc-today-bg-color: color-mix(in oklch, var(--theme-accent, #7aa2ff) 10%, transparent);
-  --fc-now-indicator-color: var(--theme-accent, #7aa2ff);
-  --fc-highlight-color: color-mix(in oklch, var(--theme-accent, #7aa2ff) 18%, transparent);
+  /* Section 24c: today is a ring, not a fill. A filled cell competes with the
+     events inside it — the one day whose contents matter most is the one the
+     highlight was making hardest to read. */
+  --fc-today-bg-color: transparent;
+  --fc-now-indicator-color: var(--theme-accent);
+  /* Selection at 6% (section 24c). It used to be 18%, stronger than the event
+     chips at 12%, so dragging out a range hid what was already there. */
+  --fc-highlight-color: color-mix(in oklch, var(--theme-accent) 6%, transparent);
   height: 100%;
+  min-width: 0;
   font-size: var(--text-xs);
   line-height: var(--lh-xs);
-  color: var(--theme-text, inherit);
+  color: var(--text-primary, var(--theme-text));
 }
 .cal-host .fc {
   height: 100%;
@@ -706,32 +746,90 @@ const hintStyle = computed(() =>
   border-color: var(--fc-border-color);
 }
 .cal-host .fc .fc-col-header-cell-cushion,
-.cal-host .fc .fc-daygrid-day-number,
 .cal-host .fc .fc-timegrid-slot-label-cushion,
 .cal-host .fc .fc-list-day-cushion {
-  color: var(--theme-dim, inherit);
+  color: var(--text-muted, var(--theme-dim));
   font-weight: var(--weight-semibold);
 }
-.cal-host .fc .fc-list-day-cushion,
-.cal-host .fc .fc-list-event:hover td {
-  background: transparent;
+/* The day number: small, muted, tabular, top-right. Tabular because a column of
+   proportional figures shifts left and right as the month goes from 9 to 10. */
+.cal-host .fc .fc-daygrid-day-number {
+  color: var(--text-muted, var(--theme-dim));
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  padding: 4px 6px;
+}
+/* Out-of-month days (section 24b). The number keeps the muted colour, which now
+   clears 4.5:1; what marks the day as out of scope is the cell being recessed.
+   Dimming the text further was the old approach and it made those numbers
+   effectively invisible — the distinction was being carried by the one property
+   that also has to stay readable. */
+.cal-host .fc .fc-day-other {
+  background: color-mix(in oklch, var(--text-primary, currentColor) 5%, transparent);
+}
+.cal-host .fc .fc-day-other .fc-daygrid-day-number {
+  opacity: 0.75;
+}
+/* Today: a 1px accent ring drawn inside the cell. */
+.cal-host .fc .fc-day-today {
+  box-shadow: inset 0 0 0 1px var(--theme-accent);
+}
+.cal-host .fc .fc-day-today .fc-daygrid-day-number {
+  color: var(--theme-accent);
 }
 .cal-host .fc-event {
   background: transparent;
   border: none;
   box-shadow: none;
 }
-/* Events: a coloured left bar for the project/goal, title then description. */
+/* Month cells: three events at 20px with a 2px gap, then "+N more". */
+.cal-host .fc .fc-daygrid-day-events {
+  min-width: 0;
+  margin: 0;
+}
+.cal-host .fc .fc-daygrid-event-harness {
+  margin-top: 2px;
+  min-width: 0;
+}
+.cal-host .fc .fc-daygrid-more-link {
+  display: block;
+  padding: 0 4px;
+  font-size: var(--text-xs);
+  line-height: 20px;
+  color: var(--text-muted, var(--theme-dim));
+  font-weight: var(--weight-semibold);
+}
+/* ---- the event chip (section 24b) ----------------------------------------
+   A 12% tint of the source colour, a 3px bar of it at full strength down the
+   left edge, and the text at --text-primary.
+
+   --chip-bg is computed per event in script, by surfacePair, which measures the
+   tint against the text that will sit on it and substitutes a plain elevated
+   surface when the pair fails. That measurement cannot be done in CSS, which is
+   why the chip used to be a color-mix nobody had checked: on a dark theme with
+   a dark project colour it rendered dark text on a dark fill and the chip
+   became a coloured smudge.
+
+   The hue is never the text. Coloured text on a coloured fill of the same hue
+   is two values a few steps apart on one axis, and no ratio rescues it. */
 .cal-event {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 2px 5px;
+  min-width: 0;
+  padding: 2px 6px;
   border-left: 3px solid var(--bar);
-  border-radius: 5px;
-  background: color-mix(in oklch, var(--bar) 16%, transparent);
+  border-radius: var(--radius-control);
+  background: var(--chip-bg, color-mix(in oklch, var(--bar) 12%, transparent));
+  color: var(--text-primary, var(--theme-text));
   overflow: hidden;
   cursor: grab;
+}
+.cal-host .fc-daygrid-event .cal-event {
+  min-height: 20px;
+  justify-content: center;
 }
 .cal-event:active {
   cursor: grabbing;
@@ -743,7 +841,7 @@ const hintStyle = computed(() =>
   text-overflow: ellipsis;
 }
 .cal-sub {
-  opacity: 0.75;
+  color: var(--text-muted, var(--theme-dim));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -752,7 +850,8 @@ const hintStyle = computed(() =>
 .cal-row {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--sp-1);
+  min-width: 0;
   padding: 1px 3px;
   overflow: hidden;
   cursor: grab;
@@ -765,12 +864,15 @@ const hintStyle = computed(() =>
   background: var(--bar);
 }
 .cal-time {
-  opacity: 0.7;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, var(--theme-dim));
 }
-/* Completed items: half opacity, struck-through title. */
+/* Completed items (section 24b): full colour, struck through, at 55% — one
+   signal carried by two properties that agree, rather than a strike stacked on
+   a faded colour, which is two signals and no legibility. */
 .cal-done {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 .cal-done .cal-title {
   text-decoration: line-through;

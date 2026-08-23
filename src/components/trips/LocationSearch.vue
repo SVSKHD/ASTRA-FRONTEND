@@ -76,7 +76,7 @@ const inputStyle = computed(() =>
   pxify({
     width: '100%',
     padding: '10px 12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
@@ -96,7 +96,7 @@ const listStyle = computed(() =>
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     padding: 5,
     boxShadow: c.value.shadow,
     display: 'flex',
@@ -108,7 +108,7 @@ const itemStyle = computed(() =>
   pxify({
     textAlign: 'left',
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: 'none',
     background: 'transparent',
     color: c.value.text,

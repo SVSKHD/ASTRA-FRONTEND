@@ -202,7 +202,7 @@ const moreBtn = computed(() =>
     width: '100%',
     marginTop: 12,
     padding: '10px 12px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px dashed ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -221,7 +221,11 @@ const lightboxStyle = pxify({
   background: 'rgba(0,0,0,0.82)',
   cursor: 'zoom-out',
 })
-const lightboxImg = pxify({ maxWidth: '100%', maxHeight: '100%', borderRadius: 12 })
+const lightboxImg = pxify({
+  maxWidth: '100%',
+  maxHeight: '100%',
+  borderRadius: 'var(--radius-card)',
+})
 </script>
 
 <template>

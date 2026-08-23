@@ -117,7 +117,7 @@ const segTrack = computed(() =>
   pxify({
     display: 'flex',
     padding: 4,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     gap: 2,
@@ -127,7 +127,7 @@ function segBtn(active: boolean) {
   return pxify({
     flex: 1,
     padding: '8px 12px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: 'none',
     background: active ? c.value.card : 'transparent',
     color: active ? c.value.accent : c.value.dim,
@@ -137,7 +137,7 @@ function segBtn(active: boolean) {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 'var(--sp-2)',
   })
 }
 const segCount = computed(() =>
@@ -145,16 +145,21 @@ const segCount = computed(() =>
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '1px 6px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
   }),
 )
-const toolbar = pxify({ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' })
+const toolbar = pxify({
+  display: 'flex',
+  gap: 'var(--sp-2)',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+})
 const selectStyle = computed(() =>
   pxify({
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
@@ -166,16 +171,16 @@ const scrollerStyle = pxify({ flex: 1, minHeight: 0, overflowY: 'auto', padding:
 const cardsWrap = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 12,
+  gap: 'var(--sp-3)',
   position: 'relative',
 })
 const cardStyle = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: 12,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     cursor: 'pointer',
@@ -190,7 +195,12 @@ const titleStyle = computed(() =>
     lineHeight: 1.3,
   }),
 )
-const metaRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' })
+const metaRow = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-2)',
+  flexWrap: 'wrap',
+})
 const dateStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 function chip(tag: string) {
   return pxify(tagChip(c.value, tag, dark.value))
@@ -201,16 +211,21 @@ const placeCount = computed(() =>
     color: c.value.dim,
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 4,
+    gap: 'var(--sp-1)',
   }),
 )
-const actionsRow = pxify({ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' })
+const actionsRow = pxify({
+  display: 'flex',
+  gap: 'var(--sp-2)',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+})
 const visitBtn = computed(() =>
   pxify({
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '7px 12px',
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.accent,
     background: c.value.accent,
     color: c.value.onAccent,
@@ -222,7 +237,7 @@ const ghostBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '7px 12px',
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.text,
@@ -241,11 +256,11 @@ const del = computed(() =>
 const promptRow = computed(() =>
   pxify({
     display: 'flex',
-    gap: 8,
+    gap: 'var(--sp-2)',
     alignItems: 'center',
     flexWrap: 'wrap',
     padding: '8px 10px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
   }),
 )
@@ -254,7 +269,7 @@ const promptRow = computed(() =>
 <template>
   <div :style="panelStyle">
     <!-- Header + create -->
-    <div :style="pxify({ display: 'flex', alignItems: 'center', gap: 10 })">
+    <div :style="pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })">
       <span
         :style="
           pxify({

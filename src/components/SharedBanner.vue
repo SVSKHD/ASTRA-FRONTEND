@@ -43,7 +43,12 @@ const summaryLines = computed<string[]>(() => {
 const isNote = computed(() => sharedView.value?.type === 'note')
 // Same as the share page: this is another user's content in your browser.
 const noteHtml = computed(() => sanitize((sharedView.value?.item?.text as string) || ''))
-const linesStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, ...typeStep('sm') })
+const linesStyle = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+  ...typeStep('sm'),
+})
 const noteStyle = computed(() => pxify({ ...typeStep('sm'), lineHeight: 1.5, color: c.value.text }))
 </script>
 

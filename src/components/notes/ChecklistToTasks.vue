@@ -65,9 +65,9 @@ const card = computed(() =>
     maxHeight: '80vh',
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: 16,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.glass,
     backdropFilter: 'blur(28px) saturate(1.5)',
@@ -88,9 +88,9 @@ const row = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: '7px 8px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     ...typeStep('xs'),
     color: c.value.text,
     cursor: 'pointer',
@@ -109,12 +109,12 @@ const doneTag = computed(() =>
     textTransform: 'uppercase',
   }),
 )
-const foot = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const foot = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const spacer = pxify({ flex: 1 })
 const ghost = computed(() =>
   pxify({
     padding: '7px 12px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -125,7 +125,7 @@ const ghost = computed(() =>
 const primary = computed(() =>
   pxify({
     padding: '7px 14px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,

@@ -28,7 +28,7 @@ const base = computed(() => Math.min(...headings.value.map((h) => h.level), 6))
 const wrap = computed(() =>
   pxify({
     border: '1px solid ' + c.value.border,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
     overflow: 'hidden',
   }),
@@ -37,7 +37,7 @@ const head = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     width: '100%',
     padding: '8px 12px',
     border: 'none',
@@ -61,7 +61,7 @@ const entry = (level: number) =>
     color: level === base.value ? c.value.text : c.value.dim,
     ...typeStep('xs'),
     cursor: 'pointer',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
   })
 const entryHover = computed(() => ({ background: c.value.card, color: c.value.accent }))
 const caret = computed(() => pxify({ color: c.value.accent, ...typeStep('2xs') }))

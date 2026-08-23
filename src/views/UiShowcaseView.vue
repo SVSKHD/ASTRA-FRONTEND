@@ -845,7 +845,7 @@ const OverlapDetector = import.meta.env.DEV
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-1);
   font-size: var(--text-2xs);
 }
 .ui-page__spacer span {

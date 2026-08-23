@@ -276,7 +276,7 @@ textarea:focus,
   opacity: 0.35;
   cursor: grab;
   touch-action: none;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   transition: opacity 0.15s ease;
 }
 .tree-row:hover .drag-handle,
@@ -412,14 +412,14 @@ textarea:focus,
 .rich pre {
   margin: 0.5em 0;
   padding: 0.6em 0.8em;
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   background: rgba(127, 127, 127, 0.16);
   overflow-x: auto;
   white-space: pre-wrap;
 }
 .rich img {
   max-width: 100%;
-  border-radius: 10px;
+  border-radius: var(--radius-card);
 }
 .rich a {
   text-decoration: underline;
@@ -510,7 +510,7 @@ textarea:focus,
   font-family: inherit;
   font-size: var(--prose-small);
   padding: 0.1em 0.35em;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--theme-border);
   background: var(--theme-input);
 }
@@ -518,7 +518,7 @@ textarea:focus,
   position: relative;
   margin: 0.7em 0;
   padding: 0.75em 0.9em;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--theme-border);
   background: var(--theme-input);
   overflow-x: auto;
@@ -534,7 +534,7 @@ textarea:focus,
 .md .md-fence-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   justify-content: flex-end;
   margin-bottom: 0.35em;
   font-size: var(--prose-tiny);
@@ -544,7 +544,7 @@ textarea:focus,
 }
 .md .md-fence-copy {
   padding: 2px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--theme-border);
   background: transparent;
   color: var(--theme-dim);
@@ -563,7 +563,7 @@ textarea:focus,
   margin: 0.7em 0;
   overflow-x: auto;
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
 }
 .md table {
   border-collapse: collapse;
@@ -590,7 +590,7 @@ textarea:focus,
 .md img {
   max-width: 100%;
   height: auto;
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   cursor: zoom-in;
 }
 .md mark {
@@ -620,12 +620,12 @@ textarea:focus,
 .md .task-list-item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 .md .task-list-item label {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--sp-2);
   cursor: pointer;
 }
 .md input[type='checkbox'] {
@@ -647,7 +647,7 @@ textarea:focus,
   display: inline-block;
   padding: 4px 10px;
   border: 1px dashed var(--theme-border);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--theme-dim);
   font-size: var(--prose-small);
 }

@@ -396,7 +396,7 @@ function onClear() {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-1);
   min-width: 0;
 }
 .gdp__label {
@@ -409,12 +409,12 @@ function onClear() {
 .gdp__trigger {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   width: 100%;
   /* 44px on touch: the spec's target size, enforced by the size modifiers. */
   min-height: var(--gdp-height, 40px);
   padding: 0 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--glass-border);
   background: var(--theme-input);
   color: var(--theme-text);
@@ -492,9 +492,9 @@ function onClear() {
   width: min(320px, 90vw);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sp-2);
   padding: 12px;
-  border-radius: 16px;
+  border-radius: var(--radius-dialog);
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
@@ -528,7 +528,7 @@ function onClear() {
   width: 100%;
   max-height: 85vh;
   overflow-y: auto;
-  border-radius: 18px 18px 0 0;
+  border-radius: var(--radius-dialog) var(--radius-dialog) 0 0;
   animation: gdpSheetIn 200ms ease-out both;
 }
 @keyframes gdpSheetIn {
@@ -547,7 +547,7 @@ function onClear() {
   width: 100%;
   min-height: 36px;
   padding: 0 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--glass-border);
   background: var(--theme-input);
   color: var(--theme-text);
@@ -567,11 +567,11 @@ function onClear() {
 .gdp__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 .gdp__chip {
   padding: 5px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-dim);
@@ -590,7 +590,7 @@ function onClear() {
 
 .gdp__body {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-2);
   min-height: 0;
 }
 .gdp__calendar {
@@ -605,7 +605,7 @@ function onClear() {
 .gdp__navBtn {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   border: 1px solid transparent;
   background: transparent;
   color: var(--theme-dim);
@@ -645,7 +645,7 @@ function onClear() {
   aspect-ratio: 1;
   min-height: 32px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--theme-text);
   font-size: var(--text-xs);
@@ -693,7 +693,7 @@ function onClear() {
 }
 .gdp__time {
   min-height: 30px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   border: 1px solid transparent;
   background: transparent;
   color: var(--theme-text);
@@ -715,7 +715,7 @@ function onClear() {
 .gdp__foot {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 .gdp__sr {
   position: absolute;

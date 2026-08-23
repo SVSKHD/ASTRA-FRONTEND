@@ -28,7 +28,7 @@ const inputStyle = computed(() =>
   pxify({
     width: '100%',
     padding: '13px 15px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     color: c.value.text,
@@ -41,9 +41,9 @@ const checkRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 9,
+    gap: 'var(--sp-2)',
     padding: '10px 12px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.input,
     color: c.value.text,
     ...typeStep('xs'),

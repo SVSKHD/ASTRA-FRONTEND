@@ -217,7 +217,7 @@ const grid = computed(() =>
     gridTemplateColumns: isMobile.value ? '1fr' : 'repeat(auto-fill, minmax(300px, min(1fr, 25%)))',
     // Every card in a row gets the tallest card's height, so the row is level.
     gridAutoRows: 'minmax(180px, 1fr)',
-    gap: 16,
+    gap: 'var(--sp-4)',
     padding: '2px',
     overflowY: 'auto',
     alignContent: 'start',

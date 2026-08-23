@@ -35,9 +35,9 @@ const tileStyle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: '12px 14px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     cursor: 'pointer',
     background: c.value.card,
     border:

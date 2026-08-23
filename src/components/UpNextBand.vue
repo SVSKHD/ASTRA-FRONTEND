@@ -71,9 +71,9 @@ const bandStyle = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: 12,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     background: dark.value ? 'rgba(30,34,64,0.4)' : 'rgba(255,255,255,0.4)',
     border: '1px solid ' + c.value.border,
     boxShadow: dark.value ? '0 10px 30px rgba(0,0,0,0.35)' : '0 10px 30px rgba(80,90,160,0.12)',
@@ -84,7 +84,7 @@ const bandHead = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.12em',
@@ -92,16 +92,16 @@ const bandHead = computed(() =>
     color: c.value.dim,
   }),
 )
-const cardsWrap = pxify({ display: 'flex', flexDirection: 'column', gap: 10 })
+const cardsWrap = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' })
 
 function cardStyle(u: UpcomingReminder) {
   const border = u.overdue ? dangerColor.value : isSoon(u) ? accentColor.value : c.value.border
   const base = pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: '12px 14px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + border,
     boxShadow: u.overdue
@@ -124,7 +124,13 @@ function countdownStyle(u: UpcomingReminder) {
   })
 }
 const cdSub = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim, marginTop: 4 }))
-const mainCol = pxify({ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 5 })
+const mainCol = pxify({
+  flex: 1,
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-1)',
+})
 const titleStyle = computed(() =>
   pxify({
     ...typeStep('base'),
@@ -135,13 +141,18 @@ const titleStyle = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' })
+const chipRow = pxify({
+  display: 'flex',
+  gap: 'var(--sp-2)',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+})
 function priorityChip(p: Priority) {
   const col = priorityColor(p)
   return pxify({
     ...typeStep('2xs'),
     padding: '2px 7px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + col,
     color: col,
     letterSpacing: '0.04em',
@@ -151,7 +162,7 @@ const sourceChip = computed(() =>
   pxify({
     ...typeStep('2xs'),
     padding: '2px 7px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.dim,
@@ -165,16 +176,16 @@ const sourceChip = computed(() =>
 const actionsCol = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 6,
+  gap: 'var(--sp-2)',
   alignItems: 'flex-end',
 })
-const actionRow = pxify({ display: 'flex', gap: 6 })
+const actionRow = pxify({ display: 'flex', gap: 'var(--sp-2)' })
 function btn(kind: 'primary' | 'ghost') {
   return pxify({
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '5px 9px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     border: '1px solid ' + (kind === 'primary' ? c.value.accent : c.value.border),

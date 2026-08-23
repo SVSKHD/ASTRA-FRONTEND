@@ -135,7 +135,7 @@ const capsule = computed(() => {
       height: 60,
       maxWidth: '86vw',
       padding: '0 10px',
-      borderRadius: 999,
+      borderRadius: 'var(--radius-pill)',
     })
   }
   return pxify({
@@ -146,7 +146,7 @@ const capsule = computed(() => {
     width: isTablet.value ? 56 : 64,
     maxHeight: '62vh',
     padding: '10px 0',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     flexDirection: 'column' as const,
   })
 })
@@ -228,7 +228,7 @@ const tip = computed(() =>
     top: horizontal.value ? 'auto' : '50%',
     transform: horizontal.value ? 'translateX(-50%)' : 'translateY(-50%)',
     padding: '5px 11px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     whiteSpace: 'nowrap',

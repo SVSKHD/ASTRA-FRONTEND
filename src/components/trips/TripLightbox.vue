@@ -116,12 +116,12 @@ const caption = computed(() => props.captions[current.value] || '')
 const placeholderStyle = pxify({
   width: 'min(80vw, 360px)',
   height: 'min(60vh, 300px)',
-  borderRadius: 16,
+  borderRadius: 'var(--radius-dialog)',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 10,
+  gap: 'var(--sp-3)',
   color: 'rgba(255,255,255,0.7)',
   border: '1px solid rgba(255,255,255,0.18)',
   background: 'rgba(255,255,255,0.06)',
@@ -144,7 +144,7 @@ const imgStyle = computed(() =>
   pxify({
     maxWidth: '94vw',
     maxHeight: '86vh',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     transform: 'translate(' + tx.value + 'px,' + ty.value + 'px) scale(' + scale.value + ')',
     transition: mode === 'none' ? 'transform .18s ease' : 'none',
     userSelect: 'none',
@@ -199,7 +199,7 @@ const captionBar = pxify({
   color: '#fff',
   background: 'rgba(0,0,0,0.5)',
   padding: '6px 14px',
-  borderRadius: 12,
+  borderRadius: 'var(--radius-card)',
 })
 const counter = pxify({
   position: 'fixed',
@@ -211,7 +211,7 @@ const counter = pxify({
   color: '#fff',
   background: 'rgba(0,0,0,0.45)',
   padding: '4px 12px',
-  borderRadius: 999,
+  borderRadius: 'var(--radius-pill)',
 })
 </script>
 

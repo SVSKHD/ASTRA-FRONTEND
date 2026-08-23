@@ -210,7 +210,7 @@ function doDelete(checklistOnly: boolean) {
 const wrap = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 14,
+  gap: 'var(--sp-4)',
   overflowY: 'auto',
   flex: 1,
   minHeight: 0,
@@ -221,7 +221,7 @@ const backBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -229,9 +229,14 @@ const backBtn = computed(() =>
   }),
 )
 const header = computed(() =>
-  pxify({ ...rowBase(c.value), flexDirection: 'column', gap: 12, alignItems: 'stretch' }),
+  pxify({
+    ...rowBase(c.value),
+    flexDirection: 'column',
+    gap: 'var(--sp-3)',
+    alignItems: 'stretch',
+  }),
 )
-const headTop = pxify({ display: 'flex', alignItems: 'center', gap: 12 })
+const headTop = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
 const titleInput = computed(() =>
   pxify({
     ...s.value.input,
@@ -248,15 +253,26 @@ const titleInput = computed(() =>
 const descInput = computed(() =>
   pxify({ ...s.value.input, minHeight: 44, resize: 'vertical', width: '100%' }),
 )
-const dateRow = pxify({ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' })
+const dateRow = pxify({
+  display: 'flex',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+})
 const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, marginRight: 4 }))
 const barTrack = computed(() =>
-  pxify({ flex: 1, height: 8, borderRadius: 999, background: c.value.input, overflow: 'hidden' }),
+  pxify({
+    flex: 1,
+    height: 8,
+    borderRadius: 'var(--radius-pill)',
+    background: c.value.input,
+    overflow: 'hidden',
+  }),
 )
 const barFill = computed(() =>
   pxify({
     height: '100%',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.accent,
     transition: 'width .35s ease',
   }),
@@ -270,7 +286,7 @@ const sectionTitle = computed(() =>
     color: c.value.dim,
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     marginTop: 6,
   }),
 )
@@ -279,7 +295,7 @@ const smallBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -288,7 +304,7 @@ const smallBtn = computed(() =>
   }),
 )
 const addRow = computed(() =>
-  pxify({ display: 'flex', gap: 8, alignItems: 'center', padding: '2px 0' }),
+  pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', padding: '2px 0' }),
 )
 const overlay = pxify({
   position: 'fixed',
@@ -304,7 +320,7 @@ const modal = computed(() =>
     ...rowBase(c.value),
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: 10,
+    gap: 'var(--sp-3)',
     width: 'min(520px, 100%)',
     maxHeight: '80vh',
     background: c.value.glass,
@@ -312,14 +328,19 @@ const modal = computed(() =>
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
   }),
 )
-const pickList = pxify({ display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' })
+const pickList = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-1)',
+  overflowY: 'auto',
+})
 const pickRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     cursor: 'pointer',
     ...typeStep('sm'),
     color: c.value.text,

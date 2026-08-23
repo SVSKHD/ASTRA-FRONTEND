@@ -136,7 +136,7 @@ function priorityChipStyle(color: string) {
   return pxify({
     ...typeStep('2xs'),
     padding: '3px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: 'transparent',
     border: '1px solid ' + color,
     color,
@@ -148,7 +148,7 @@ function syncChipStyle(color: string) {
   return pxify({
     ...typeStep('2xs'),
     padding: '3px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color,
@@ -159,7 +159,7 @@ const doneChip = computed(() =>
   pxify({
     ...typeStep('2xs'),
     padding: '3px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.dim,

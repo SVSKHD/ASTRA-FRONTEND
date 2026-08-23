@@ -58,11 +58,11 @@ function chipStyle(tag: string) {
   return pxify({
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 5,
+    gap: 'var(--sp-1)',
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (on ? col : c.value.border),
     background: on ? c.value.input : 'transparent',
     color: on ? col : c.value.dim,
@@ -94,7 +94,7 @@ const newInput = computed(() => pxify({ ...rawInput.value, flex: 'unset', width:
 const rawInput = computed(() => ({
   minWidth: 0,
   padding: '7px 12px',
-  borderRadius: 999,
+  borderRadius: 'var(--radius-pill)',
   border: '1px solid ' + c.value.border,
   background: c.value.input,
   color: c.value.text,

@@ -141,16 +141,16 @@ const card = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '18px 18px 15px',
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
     minWidth: 0,
   }),
 )
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const label = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -165,7 +165,7 @@ const countChip = computed(() =>
     fontWeight: 'var(--weight-semibold)',
     color: c.value.accent,
     padding: '1px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.accent,
   }),
 )
@@ -180,8 +180,8 @@ const viewAllBtn = computed(() =>
     cursor: 'pointer',
   }),
 )
-const body = pxify({ display: 'flex', flexDirection: 'column', gap: 10 })
-const goalRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
+const body = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' })
+const goalRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 })
 function dot(color: string) {
   return pxify({
     width: 9,
@@ -191,8 +191,14 @@ function dot(color: string) {
     background: color || c.value.accent,
   })
 }
-const titleCol = pxify({ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 })
-const titleRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
+const titleCol = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-1)',
+  flex: 1,
+  minWidth: 0,
+})
+const titleRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 })
 const goalTitle = computed(() =>
   pxify({
     ...typeStep('sm'),
@@ -216,7 +222,7 @@ const track = computed(() =>
   pxify({
     position: 'relative',
     height: 4,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     overflow: 'hidden',
   }),
@@ -228,7 +234,7 @@ function fill(ratio: number, color: string) {
     top: 0,
     bottom: 0,
     width: Math.round(ratio * 100) + '%',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: color || c.value.accent,
     transition: 'width .4s ease',
   })
@@ -240,7 +246,7 @@ const footer = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     marginTop: 'auto',
     paddingTop: 8,
     borderTop: '1px solid ' + c.value.border,
@@ -252,7 +258,7 @@ const dailyStrip = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 'var(--sp-2)',
     paddingBottom: 8,
     borderBottom: '1px solid ' + c.value.border,
   }),
@@ -264,7 +270,7 @@ const dailyRow = pxify({
   position: 'relative',
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
+  gap: 'var(--sp-2)',
   minWidth: 0,
 })
 const dailyTitle = computed(() =>
@@ -287,13 +293,13 @@ function dailyValue(col: string) {
   })
 }
 const emptyText = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim }))
-const btnRow = pxify({ display: 'flex', gap: 8, flexWrap: 'wrap' })
+const btnRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' })
 const btn = computed(() =>
   pxify({
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -305,7 +311,7 @@ const primaryBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '6px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
@@ -315,7 +321,7 @@ const primaryBtn = computed(() =>
 function skeleton() {
   return pxify({
     height: 12,
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     animation: 'shimmer 1.4s ease-in-out infinite',
     backgroundImage: `linear-gradient(90deg, ${c.value.input} 0%, ${c.value.border} 50%, ${c.value.input} 100%)`,

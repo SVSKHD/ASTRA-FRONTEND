@@ -46,16 +46,16 @@ const card = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '18px 18px 15px',
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
     minWidth: 0,
   }),
 )
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const label = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -70,7 +70,7 @@ const countChip = computed(() =>
     fontWeight: 'var(--weight-semibold)',
     color: c.value.accent,
     padding: '1px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.accent,
   }),
 )
@@ -85,7 +85,7 @@ const viewAllBtn = computed(() =>
     cursor: 'pointer',
   }),
 )
-const walletRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
+const walletRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 })
 function glyph(color: string) {
   return pxify({
     display: 'inline-flex',

@@ -106,7 +106,7 @@ const leftStack = computed(() =>
     zIndex: 6,
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
   }),
 )
 const rightCluster = computed(() =>
@@ -117,7 +117,7 @@ const rightCluster = computed(() =>
     zIndex: 6,
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 'var(--sp-3)',
   }),
 )
 const orbRel = pxify({ position: 'relative' })
@@ -147,7 +147,7 @@ const popover = computed(() =>
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
     border: B.value,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     padding: 10,
     boxShadow: c.value.shadow,
     display: 'flex',
@@ -171,7 +171,7 @@ const themePopover = computed(() =>
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
     border: B.value,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     padding: 10,
     boxShadow: c.value.shadow,
     zIndex: 20,
@@ -182,9 +182,9 @@ function themeRow(active: boolean) {
   return pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '7px 8px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + (active ? c.value.border : 'transparent'),
     background: active ? c.value.card : 'transparent',
     cursor: 'pointer',
@@ -215,16 +215,16 @@ const groupLabel = computed(() =>
 const pickerGrid = pxify({
   display: 'grid',
   gridTemplateColumns: '1fr 1fr',
-  gap: 6,
+  gap: 'var(--sp-2)',
   padding: '2px 2px 4px',
 })
 function themeCard(active: boolean) {
   return pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 'var(--sp-2)',
     padding: 8,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '2px solid ' + (active ? c.value.accent : 'transparent'),
     background: active ? c.value.card : 'transparent',
     cursor: 'pointer',
@@ -237,7 +237,7 @@ function cardSwatchRow(preview: readonly [string, string, string]) {
   return pxify({
     display: 'flex',
     height: 22,
-    borderRadius: 7,
+    borderRadius: 'var(--radius-control)',
     overflow: 'hidden',
     border: '1px solid ' + c.value.border,
     background: preview[0],
@@ -255,7 +255,7 @@ const rowText = computed(() => pxify({ ...typeStep('xs'), color: c.value.text })
 const menuItem = computed(() =>
   pxify({
     padding: '9px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     ...typeStep('xs'),
     color: c.value.text,
     cursor: 'pointer',
@@ -270,7 +270,7 @@ const menuToggle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: '9px 10px',
     ...typeStep('xs'),
     color: c.value.dim,

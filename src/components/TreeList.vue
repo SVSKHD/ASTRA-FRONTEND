@@ -239,7 +239,12 @@ function sourceStyle(id: number) {
 const root = computed(() => rootState(props.collection))
 
 // --- styles -----------------------------------------------------------------
-const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 8, position: 'relative' })
+const wrap = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+  position: 'relative',
+})
 function nodeWrap(depth: number) {
   return pxify({ paddingLeft: depth * INDENT_PX, display: 'flex', flexDirection: 'column' })
 }
@@ -282,7 +287,7 @@ function boxStyle(id: number) {
     width: 22,
     height: 22,
     flexShrink: 0,
-    borderRadius: 7,
+    borderRadius: 'var(--radius-control)',
     border: '1.5px solid ' + (done(id) ? c.value.accent : c.value.border),
     background: done(id) ? c.value.accent : 'transparent',
     display: 'grid',
@@ -295,7 +300,7 @@ const countChip = computed(() =>
     ...typeStep('2xs'),
     color: c.value.dim,
     padding: '1px 6px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     flexShrink: 0,
@@ -309,7 +314,7 @@ const goalChip = computed(() =>
     ...typeStep('2xs'),
     color: c.value.accent,
     padding: '1px 6px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: 'transparent',
     border: '1px solid ' + c.value.accent,
     flexShrink: 0,
@@ -326,7 +331,7 @@ const conflictBadge = computed(() =>
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
     padding: '2px 6px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     color: 'oklch(0.7 0.18 60)',
     border: '1px solid oklch(0.7 0.18 60)',
     background: 'transparent',
@@ -342,7 +347,7 @@ const linkBody = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 'var(--sp-2)',
     padding: '6px 4px 2px 26px',
   }),
 )
@@ -350,7 +355,7 @@ const rootStripStyle = computed(() =>
   pxify({
     marginTop: 6,
     padding: '12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1.5px dashed ' + (root.value.active ? c.value.accent : c.value.border),
     background: root.value.active
       ? 'color-mix(in srgb, ' + c.value.accent + ' 12%, transparent)'

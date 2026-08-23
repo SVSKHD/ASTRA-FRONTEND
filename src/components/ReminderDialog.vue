@@ -45,13 +45,13 @@ const dialogCardStyle = computed(() =>
     background: c.value.glass,
     backdropFilter: 'blur(30px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 26,
+    borderRadius: 'var(--radius-dialog)',
     padding: 22,
     boxShadow: c.value.shadow,
     color: c.value.text,
     display: 'flex',
     flexDirection: 'column',
-    gap: 14,
+    gap: 'var(--sp-4)',
     animation: dialogClosing.value
       ? 'springOut .22s ease forwards'
       : 'springIn .4s cubic-bezier(.34,1.56,.64,1) both',

@@ -42,7 +42,7 @@ const symBadge = computed(() =>
     fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.03em',
     padding: '6px 9px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     color: c.value.accent,
     border: '1px solid ' + c.value.border,
     background: c.value.input,
@@ -53,19 +53,30 @@ function priceChip(kind: 'target' | 'watch') {
   return pxify({
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 4,
+    gap: 'var(--sp-1)',
     ...typeStep('2xs'),
     padding: '3px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: col,
   })
 }
 const metaStyle = computed(() =>
-  pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 3 }),
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--sp-2)',
+    flexWrap: 'wrap',
+    marginTop: 3,
+  }),
 )
-const filterBar = pxify({ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 2px 10px' })
+const filterBar = pxify({
+  display: 'flex',
+  gap: 'var(--sp-2)',
+  flexWrap: 'wrap',
+  padding: '0 2px 10px',
+})
 </script>
 
 <template>

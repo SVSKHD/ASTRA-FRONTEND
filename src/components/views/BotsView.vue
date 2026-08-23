@@ -70,7 +70,7 @@ const header = pxify({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: 12,
+  gap: 'var(--sp-3)',
   flexWrap: 'wrap',
 })
 const title = computed(() =>
@@ -80,7 +80,7 @@ const killBtn = pxify({
   ...typeStep('xs'),
   fontWeight: 'var(--weight-semibold)',
   padding: '8px 14px',
-  borderRadius: 999,
+  borderRadius: 'var(--radius-pill)',
   border: '1px solid ' + RED,
   background: 'transparent',
   color: RED,
@@ -89,7 +89,7 @@ const killBtn = pxify({
 const list = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 14,
+  gap: 'var(--sp-4)',
   flex: 1,
   minHeight: 0,
   overflowY: 'auto',
@@ -99,15 +99,20 @@ const card = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: 16,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
   }),
 )
-const cardHead = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+const cardHead = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
 const botName = computed(() =>
   pxify({ ...typeStep('base'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
 )
@@ -117,7 +122,7 @@ function chip(bg: string, fg: string) {
     fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.04em',
     padding: '3px 8px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: bg,
     color: fg,
   })
@@ -139,7 +144,7 @@ function toggleTrack(on: boolean, pending: boolean) {
     position: 'relative',
     width: 46,
     height: 26,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: pending ? AMBER : on ? c.value.accent : c.value.input,
     border: '1px solid ' + c.value.border,
     cursor: pending ? 'default' : 'pointer',
@@ -162,14 +167,20 @@ function toggleKnob(on: boolean) {
   })
 }
 const metaRow = computed(() =>
-  pxify({ display: 'flex', gap: 16, flexWrap: 'wrap', ...typeStep('xs'), color: c.value.dim }),
+  pxify({
+    display: 'flex',
+    gap: 'var(--sp-4)',
+    flexWrap: 'wrap',
+    ...typeStep('xs'),
+    color: c.value.dim,
+  }),
 )
 const strong = computed(() => pxify({ color: c.value.text, fontWeight: 'var(--weight-semibold)' }))
 const barTrack = computed(() =>
   pxify({
     position: 'relative',
     height: 8,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     overflow: 'hidden',
   }),
@@ -209,12 +220,12 @@ const td = computed(() => pxify({ padding: '4px 6px', color: c.value.text, white
 const basketBox = computed(() =>
   pxify({
     display: 'flex',
-    gap: 16,
+    gap: 'var(--sp-4)',
     flexWrap: 'wrap',
     ...typeStep('xs'),
     color: c.value.dim,
     padding: '10px 12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
   }),
 )
@@ -248,7 +259,7 @@ const emptyWrap = pxify({
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 14,
+  gap: 'var(--sp-4)',
   textAlign: 'center',
 })
 const emptyOrb = computed(() =>
@@ -275,12 +286,12 @@ const dialogCard = computed(() =>
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 20,
+    borderRadius: 'var(--radius-dialog)',
     padding: 20,
     boxShadow: c.value.shadow,
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     color: c.value.text,
   }),
 )

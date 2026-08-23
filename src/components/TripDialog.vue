@@ -164,7 +164,7 @@ const headerStyle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: isMobile.value ? '16px 16px 10px' : '20px 22px 12px',
     borderBottom: '1px solid ' + c.value.border,
   }),
@@ -188,7 +188,7 @@ function statusBadge(done: boolean) {
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     padding: '4px 9px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (done ? c.value.accent : c.value.border),
     color: done ? c.value.accent : c.value.dim,
     background: done ? c.value.input : 'transparent',
@@ -200,7 +200,7 @@ const bodyStyle = pxify({
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 14,
+  gap: 'var(--sp-4)',
   padding: '14px 18px 20px',
 })
 const stickyBar = computed(() =>
@@ -212,7 +212,7 @@ const stickyBar = computed(() =>
     padding: '10px 18px',
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     flexWrap: 'wrap',
     background: c.value.glass,
     backdropFilter: 'blur(24px) saturate(1.6)',
@@ -224,7 +224,7 @@ const segTrack = computed(() =>
   pxify({
     display: 'inline-flex',
     padding: 4,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     gap: 2,
@@ -233,7 +233,7 @@ const segTrack = computed(() =>
 function segBtn(activeState: boolean) {
   return pxify({
     padding: '6px 14px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: 'none',
     background: activeState ? c.value.card : 'transparent',
     color: activeState ? c.value.accent : c.value.dim,
@@ -248,7 +248,7 @@ const primaryBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.accent,
     background: c.value.accent,
     color: c.value.onAccent,
@@ -260,7 +260,7 @@ const ghostBtn = computed(() =>
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.text,
@@ -276,7 +276,7 @@ const labelStyle = computed(() =>
     color: c.value.dim,
   }),
 )
-const fieldRaw: Style = { display: 'flex', flexDirection: 'column', gap: 6 }
+const fieldRaw: Style = { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }
 const field = pxify(fieldRaw)
 const sectionTitle = computed(() =>
   pxify({
@@ -288,7 +288,7 @@ const sectionTitle = computed(() =>
 )
 const inputRaw = computed<Style>(() => ({
   padding: '10px 12px',
-  borderRadius: 12,
+  borderRadius: 'var(--radius-card)',
   border: '1px solid ' + c.value.border,
   background: c.value.input,
   color: c.value.text,
@@ -299,7 +299,7 @@ const inputStyle = computed(() => pxify(inputRaw.value))
 const textareaStyle = computed(() =>
   pxify({ ...inputRaw.value, minHeight: 64, resize: 'vertical', fontFamily: 'inherit' }),
 )
-const rowWrapRaw: Style = { display: 'flex', gap: 10, flexWrap: 'wrap' }
+const rowWrapRaw: Style = { display: 'flex', gap: 'var(--sp-3)', flexWrap: 'wrap' }
 const rowWrap = pxify(rowWrapRaw)
 const del = computed(() =>
   pxify({
@@ -316,7 +316,7 @@ const iconBtn = computed(() =>
     width: 30,
     height: 30,
     flexShrink: 0,
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -328,24 +328,29 @@ const noteChip = computed(() =>
   pxify({
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 6,
+    gap: 'var(--sp-2)',
     ...typeStep('xs'),
     padding: '4px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.text,
     cursor: 'pointer',
   }),
 )
-const photoThumb = pxify({ width: 60, height: 60, borderRadius: 10, objectFit: 'cover' })
+const photoThumb = pxify({
+  width: 60,
+  height: 60,
+  borderRadius: 'var(--radius-card)',
+  objectFit: 'cover',
+})
 const dangerBtn = computed(() =>
   pxify({
     alignSelf: 'flex-start',
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: '#f87171',
@@ -400,7 +405,7 @@ const dangerBtn = computed(() =>
           label="Tag"
           @update:model-value="setDraft('tag', $event)"
         />
-        <div :style="pxify({ display: 'flex', gap: 8, justifyContent: 'flex-end' })">
+        <div :style="pxify({ display: 'flex', gap: 'var(--sp-2)', justifyContent: 'flex-end' })">
           <button :style="ghostBtn" @click="app.closeItemDialog()">Cancel</button>
           <button :style="primaryBtn" @click="createTrip()">Create trip</button>
         </div>
@@ -548,7 +553,7 @@ const dangerBtn = computed(() =>
         <span :style="sectionTitle">Notes</span>
         <div
           v-if="attachedNotes.length"
-          :style="pxify({ display: 'flex', flexWrap: 'wrap', gap: 6 })"
+          :style="pxify({ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)' })"
         >
           <span
             v-for="n in attachedNotes"

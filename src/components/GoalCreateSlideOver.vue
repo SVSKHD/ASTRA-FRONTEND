@@ -94,7 +94,7 @@ const panel = computed(() =>
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: 18,
     overflowY: 'auto',
     background: c.value.glass,
@@ -105,7 +105,7 @@ const panel = computed(() =>
     animation: 'slideInR .22s ease both',
   }),
 )
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
 const h1 = computed(() =>
   pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text, flex: 1 }),
 )
@@ -119,8 +119,13 @@ const titleField = computed(() =>
     padding: '8px 10px',
   }),
 )
-const dateRow = pxify({ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' })
-const swatchRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap' })
+const dateRow = pxify({
+  display: 'flex',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+})
+const swatchRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' })
 function swatch(color: string, active: boolean) {
   return pxify({
     width: 22,
@@ -145,7 +150,7 @@ const sectionTitle = computed(() =>
   }),
 )
 // Top-aligned: a point that wraps keeps its delete button beside the first line.
-const pointRow = pxify({ display: 'flex', alignItems: 'flex-start', gap: 8 })
+const pointRow = pxify({ display: 'flex', alignItems: 'flex-start', gap: 'var(--sp-2)' })
 // Wraps rather than truncating — an added point is read back in full.
 const pointText = computed(() =>
   pxify({
@@ -158,13 +163,13 @@ const pointText = computed(() =>
     overflowWrap: 'anywhere',
   }),
 )
-const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: -4 })
+const chipRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap', marginTop: -4 })
 const chip = computed(() =>
   pxify({
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     color: c.value.accent,
     border: '1px solid ' + c.value.accent,
   }),
@@ -172,14 +177,14 @@ const chip = computed(() =>
 const delBtn = computed(() =>
   pxify({ ...s.value.del, ...typeStep('base'), cursor: 'pointer', flexShrink: 0 }),
 )
-const footer = pxify({ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 8 })
+const footer = pxify({ display: 'flex', gap: 'var(--sp-3)', marginTop: 'auto', paddingTop: 8 })
 const createBtn = computed(() =>
   pxify({
     flex: 1,
     ...typeStep('sm'),
     fontWeight: 'var(--weight-semibold)',
     padding: '10px 16px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: canCreate.value ? c.value.accent : c.value.border,
     color: canCreate.value ? c.value.onAccent : c.value.dim,
@@ -191,7 +196,7 @@ const cancelBtn = computed(() =>
     ...typeStep('sm'),
     fontWeight: 'var(--weight-semibold)',
     padding: '10px 16px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,

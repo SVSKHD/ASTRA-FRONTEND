@@ -200,7 +200,12 @@ const sharedReminder = computed<Reminder | null>(() => {
 })
 const nowMs = Date.now()
 
-const linesStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, ...typeStep('sm') })
+const linesStyle = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+  ...typeStep('sm'),
+})
 const noteStyle = computed(() => pxify({ ...typeStep('sm'), lineHeight: 1.5, color: c.value.text }))
 const centeredPage = computed(() =>
   pxify({
@@ -221,7 +226,7 @@ const badgeStyle = computed(() =>
     textTransform: 'uppercase',
     color: c.value.dim,
     border: '1px solid ' + c.value.border,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     padding: '3px 9px',
   }),
 )

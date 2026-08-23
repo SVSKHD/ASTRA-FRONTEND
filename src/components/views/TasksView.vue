@@ -158,7 +158,7 @@ const ageChipStyle = computed(() =>
   pxify({
     ...typeStep('2xs'),
     padding: '2px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.dim,
@@ -169,7 +169,7 @@ const rolloverChipStyle = computed(() =>
   pxify({
     ...typeStep('2xs'),
     padding: '2px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: 'transparent',
     border: '1px solid ' + (dark.value ? 'oklch(0.72 0.18 55)' : 'oklch(0.6 0.18 55)'),
     color: dark.value ? 'oklch(0.78 0.16 62)' : 'oklch(0.55 0.18 55)',
@@ -185,7 +185,7 @@ const linkExpandBtn = computed(() =>
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
