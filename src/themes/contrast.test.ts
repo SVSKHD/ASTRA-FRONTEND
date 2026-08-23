@@ -22,6 +22,15 @@ describe('every theme passes WCAG AA', () => {
     it(`${d.id}: body text ≥ 4.5:1 on its surface`, () => {
       expect(contrastRatio(t.text, t.bgSolid)).toBeGreaterThanOrEqual(4.5)
     })
+    it(`${d.id}: secondary text ≥ 4.5:1`, () => {
+      // --text-secondary is a mix of text and dim; since both clear 4.5:1 on
+      // the surface and contrast is monotonic between them, asserting the two
+      // ends is what actually holds the middle. Stated rather than assumed,
+      // because "it is between two good values" is exactly the reasoning that
+      // let muted drift below the floor in the first place.
+      expect(contrastRatio(t.text, t.bgSolid)).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(t.dim, t.bgSolid)).toBeGreaterThanOrEqual(4.5)
+    })
     it(`${d.id}: muted text ≥ 4.5:1 — it is text, not a border`, () => {
       // Raised from the 3:1 large-text floor by section 24b. Muted was being
       // used for real reading — meta lines, out-of-month day numbers — and 3:1

@@ -276,6 +276,21 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     snippet: '<SegmentedControl v-model="kind" :options="KINDS" />',
   },
   {
+    name: 'StatRow',
+    group: 'Display',
+    summary:
+      'A row of metrics as stacked label/value pairs with dividers. Replaces a run-on strip where labels and values alternate and the eye cannot pair them.',
+    props: [
+      {
+        name: 'stats',
+        type: 'Stat[]',
+        note: '{ label, value, tone?, note? } — tone only where a sign carries meaning.',
+      },
+      { name: 'size', type: "'md' | 'lg'", default: 'md' },
+    ],
+    snippet: "<StatRow :stats=\"[{ label: 'Net', value: '+₹0', tone: 'neutral' }]\" />",
+  },
+  {
     name: 'Switch',
     group: 'Inputs',
     summary: 'Immediate binary toggle, role="switch".',
