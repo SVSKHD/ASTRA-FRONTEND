@@ -59,7 +59,7 @@ const describedBy = computed(() =>
   min-width: 0;
 }
 .ui-field__label {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--theme-dim);
@@ -91,7 +91,7 @@ const describedBy = computed(() =>
 }
 .ui-field__prefix {
   color: var(--theme-dim);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 .ui-field__input {
   flex: 1;
@@ -99,7 +99,7 @@ const describedBy = computed(() =>
   border: none;
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-family: inherit;
 }
 .ui-field__input:focus {
@@ -112,7 +112,7 @@ const describedBy = computed(() =>
 .ui-field__hint,
 .ui-field__error {
   margin: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .ui-field__error {

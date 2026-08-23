@@ -581,11 +581,11 @@ defineExpose({
   min-width: 0;
 }
 .tdb__key {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .tdb__value {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-text);
 }
 .tdb__input {
@@ -595,7 +595,7 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: var(--theme-input, transparent);
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-family: inherit;
 }
 .tdb__spent {
@@ -609,7 +609,7 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -620,7 +620,7 @@ defineExpose({
   padding: 2px var(--sp-2);
   border-radius: var(--radius-pill);
   border: 1px solid currentColor;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: 600;
 }
 .tdb__chip--overdue {
@@ -637,7 +637,7 @@ defineExpose({
   align-items: center;
   gap: var(--sp-1);
   flex-wrap: wrap;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .tdb__crumb {
@@ -683,7 +683,7 @@ defineExpose({
   border: none;
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   text-align: left;
   cursor: pointer;
 }
@@ -713,7 +713,7 @@ defineExpose({
   border: 1px solid var(--theme-accent);
   background: transparent;
   color: var(--theme-accent);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
 }
 .tdb__x {
@@ -729,7 +729,7 @@ defineExpose({
   border: 1px dashed var(--glass-border);
 }
 .tdb__pickerlabel {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
   width: 100%;
 }
@@ -739,11 +739,11 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
 }
 .tdb__muted {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 </style>

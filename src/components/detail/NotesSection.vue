@@ -306,7 +306,7 @@ function onAttach(ids: number[]) {
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -320,7 +320,7 @@ function onAttach(ids: number[]) {
 }
 .nsec__empty {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 /* Grid, not flex-with-margins: the label is the only track that flexes, and it
@@ -349,7 +349,7 @@ function onAttach(ids: number[]) {
   border: none;
   background: transparent;
   color: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   text-align: left;
   cursor: pointer;
 }
@@ -369,7 +369,7 @@ function onAttach(ids: number[]) {
 .nsec__ago,
 .nsec__tag {
   flex-shrink: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
   white-space: nowrap;
 }
@@ -379,7 +379,7 @@ function onAttach(ids: number[]) {
   border: none;
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
 }
 .nsec__more:hover {
@@ -397,7 +397,7 @@ function onAttach(ids: number[]) {
 }
 .nsec__hint {
   margin: var(--sp-2) 0 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 </style>

@@ -77,7 +77,7 @@ function onKey(event: KeyboardEvent) {
   min-width: 0;
 }
 .ui-combo__label {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--theme-dim);
@@ -89,7 +89,7 @@ function onKey(event: KeyboardEvent) {
   border: 1px solid var(--glass-border);
   background: var(--theme-input);
   color: var(--theme-text);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-family: inherit;
 }
 .ui-combo__list {
@@ -114,7 +114,7 @@ function onKey(event: KeyboardEvent) {
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .ui-combo__option.is-active,

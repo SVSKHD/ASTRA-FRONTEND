@@ -31,7 +31,7 @@ defineEmits<{ toggle: [boolean] }>()
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-3);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--theme-text);
   cursor: pointer;
@@ -50,6 +50,6 @@ defineEmits<{ toggle: [boolean] }>()
 .ui-accordion__body {
   padding: 0 var(--sp-3) var(--sp-3);
   color: var(--theme-dim);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 </style>

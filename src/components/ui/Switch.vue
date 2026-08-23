@@ -79,7 +79,7 @@ const uid = useId()
   transform: translateX(14px);
 }
 .ui-switch__label {
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--theme-text);
   cursor: pointer;
 }

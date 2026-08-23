@@ -49,11 +49,11 @@ defineEmits<{ remove: []; click: [] }>()
 }
 .ui-chip--sm {
   padding: 2px var(--sp-2);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
 }
 .ui-chip--md {
   padding: var(--sp-1) var(--sp-3);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .ui-chip.is-selected {
   border-color: var(--theme-accent);
@@ -70,7 +70,7 @@ defineEmits<{ remove: []; click: [] }>()
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   line-height: 1;
   padding: 0 2px;
 }

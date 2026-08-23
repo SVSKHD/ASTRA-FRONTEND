@@ -39,7 +39,7 @@ withDefaults(defineProps<{ label?: string; dragging?: boolean }>(), { label: 'Dr
   color: var(--theme-accent);
 }
 .ui-grip__dots {
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   line-height: 1;
 }
 </style>

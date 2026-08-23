@@ -213,7 +213,7 @@ const showExtras = computed(() => !props.mobile || expanded.value)
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-family: inherit;
   cursor: pointer;
 }
@@ -235,7 +235,7 @@ const showExtras = computed(() => !props.mobile || expanded.value)
   border: 1px solid var(--theme-accent);
   background: color-mix(in oklch, var(--theme-accent) 8%, transparent);
   color: var(--theme-text);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-family: inherit;
 }
 .gpr__more {
@@ -243,7 +243,7 @@ const showExtras = computed(() => !props.mobile || expanded.value)
   border: none;
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   line-height: 1;
   cursor: pointer;
 }
@@ -273,7 +273,7 @@ const showExtras = computed(() => !props.mobile || expanded.value)
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
   white-space: nowrap;
 }

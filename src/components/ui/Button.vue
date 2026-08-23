@@ -57,17 +57,17 @@ withDefaults(
 .ui-btn--sm {
   min-height: var(--control-sm);
   padding: 0 var(--sp-3);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .ui-btn--md {
   min-height: var(--control-md);
   padding: 0 var(--sp-4);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 .ui-btn--lg {
   min-height: var(--control-lg);
   padding: 0 var(--sp-5);
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
 }
 /* The accent gradient is a token pair, so a theme that has no gradient still
    renders a solid accent rather than a broken background. */

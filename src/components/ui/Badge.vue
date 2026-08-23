@@ -30,7 +30,7 @@ const glyph = GLYPH[props.tone]
   padding: 2px var(--sp-2);
   border-radius: var(--radius-sm);
   border: 1px solid currentColor;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.03em;
 }

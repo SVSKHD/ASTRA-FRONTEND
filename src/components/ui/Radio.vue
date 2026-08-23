@@ -37,7 +37,7 @@ const uid = useId()
   align-items: center;
   gap: var(--sp-2);
   cursor: pointer;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--theme-text);
 }
 .ui-radio.is-disabled {

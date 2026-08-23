@@ -165,7 +165,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
 }
 .gtb__title {
   margin: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -203,7 +203,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
   border: 1px solid var(--theme-accent);
   background: var(--theme-accent);
   color: var(--theme-on-accent, #fff);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -223,7 +223,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
   border: 1px solid var(--glass-border);
   background: var(--theme-input, transparent);
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-family: inherit;
 }
 .gtb__select {
@@ -233,7 +233,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
   border: 1px solid var(--glass-border);
   background: var(--theme-input, transparent);
   color: var(--theme-text);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-family: inherit;
   cursor: pointer;
 }
@@ -261,7 +261,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   white-space: nowrap;
   cursor: pointer;
 }

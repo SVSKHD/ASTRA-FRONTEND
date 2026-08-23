@@ -38,17 +38,17 @@ const initial = computed(() => (props.name || '?').trim().charAt(0).toUpperCase(
 .ui-avatar--sm {
   width: 22px;
   height: 22px;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
 }
 .ui-avatar--md {
   width: 32px;
   height: 32px;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .ui-avatar--lg {
   width: 44px;
   height: 44px;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
 }
 .ui-avatar__img {
   width: 100%;

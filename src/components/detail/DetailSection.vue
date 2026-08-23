@@ -69,7 +69,7 @@ const bodyId = `detail-section-${useId()}`
   border: none;
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;

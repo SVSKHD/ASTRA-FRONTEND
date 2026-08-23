@@ -58,7 +58,7 @@ function move(delta: number) {
   border: none;
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
 }

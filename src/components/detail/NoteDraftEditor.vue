@@ -93,7 +93,7 @@ onMounted(async () => {
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
 }
 .ndraft__discard:hover {
@@ -102,7 +102,7 @@ onMounted(async () => {
 }
 .ndraft__hint {
   margin: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 </style>

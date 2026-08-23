@@ -41,7 +41,7 @@ const uid = useId()
   align-items: center;
   gap: var(--sp-2);
   cursor: pointer;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--theme-text);
 }
 .ui-check.is-disabled {
@@ -58,7 +58,7 @@ const uid = useId()
   border-radius: 5px;
   border: 1.5px solid var(--glass-border);
   background: var(--theme-input);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 700;
   color: var(--theme-on-accent);
   transition: background var(--dur-fast) var(--ease-out);

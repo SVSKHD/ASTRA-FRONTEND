@@ -57,7 +57,7 @@ defineEmits<{ click: [] }>()
   gap: var(--sp-2);
 }
 .ui-card__title {
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   font-weight: 700;
 }
 .ui-card__body {

@@ -37,7 +37,7 @@ const shown = ref(false)
   border: 1px solid var(--glass-border);
   background: var(--glass-solid);
   color: var(--theme-text);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   white-space: nowrap;
   pointer-events: none;
   box-shadow: var(--elev-1);

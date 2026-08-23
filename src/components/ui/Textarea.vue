@@ -45,7 +45,7 @@ const uid = useId()
   min-width: 0;
 }
 .ui-textarea__label {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--theme-dim);
@@ -57,7 +57,7 @@ const uid = useId()
   background: var(--theme-input);
   color: var(--theme-text);
   font-family: inherit;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   resize: vertical;
 }
 .ui-textarea__input:focus-visible {
@@ -69,7 +69,7 @@ const uid = useId()
 .ui-textarea__hint,
 .ui-textarea__error {
   margin: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .ui-textarea__error {

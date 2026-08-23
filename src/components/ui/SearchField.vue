@@ -64,7 +64,7 @@ const uid = useId()
   border: none;
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-family: inherit;
 }
 .ui-search__input:focus {
@@ -78,7 +78,7 @@ const uid = useId()
   background: transparent;
   color: var(--theme-dim);
   cursor: pointer;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   line-height: 1;
 }
 .ui-search__clear:hover {

@@ -49,7 +49,7 @@ const uid = useId()
 .ui-slider__head {
   display: flex;
   justify-content: space-between;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;

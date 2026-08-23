@@ -78,13 +78,13 @@ void props
 .ui-sheet__title {
   flex: 1;
   margin: 0;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
 }
 .ui-sheet__x {
   border: none;
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   cursor: pointer;
   line-height: 1;
 }

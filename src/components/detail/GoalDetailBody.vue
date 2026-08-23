@@ -396,7 +396,7 @@ defineExpose({
   padding: 2px var(--sp-2);
   border-radius: var(--radius-pill);
   border: 1px solid currentColor;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: 600;
 }
 .gdb__chip--overdue {
@@ -432,7 +432,7 @@ defineExpose({
   min-width: 0;
 }
 .gdb__key {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .gdb__input {
@@ -442,7 +442,7 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: var(--theme-input, transparent);
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-family: inherit;
 }
 .gdb__point,
@@ -488,7 +488,7 @@ defineExpose({
   border: none;
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   text-align: left;
   cursor: pointer;
 }
@@ -502,7 +502,7 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -517,7 +517,7 @@ defineExpose({
   flex: 1;
 }
 .gdb__muted {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .gdb__footer {

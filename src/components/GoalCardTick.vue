@@ -87,7 +87,7 @@ const {
   border-color: var(--theme-accent);
 }
 .gct__label {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
   white-space: nowrap;
 }

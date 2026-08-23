@@ -117,10 +117,10 @@ defineExpose({ focus: () => el.value?.focus() })
   display: block;
 }
 .atx--body {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .atx--title {
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   font-weight: 600;
   line-height: 1.3;
 }

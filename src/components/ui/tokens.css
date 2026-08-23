@@ -22,13 +22,42 @@
   --radius-xl: 22px;
   --radius-pill: 999px;
 
-  /* Type scale */
-  --text-xs: 10px;
-  --text-sm: 12px;
-  --text-md: 13px;
-  --text-lg: 15px;
-  --text-xl: 19px;
-  --text-2xl: 24px;
+  /* ---- Type (section 24a) -------------------------------------------------
+     Eight steps and three weights. A component picks a step by name; it never
+     picks a number, because a number is a decision made twice. The mirror of
+     this table lives in ui/type.ts, which the /ui Typography page and the lint
+     rule both read — a step added in one place and not the other fails a test.
+
+     Each step carries its own line-height, so "13px text" and "13px text with
+     the wrong leading" cannot be different things in different components. */
+  --text-2xs: 10px;
+  --lh-2xs: 1.4;
+  --text-xs: 11px;
+  --lh-xs: 1.45;
+  --text-sm: 13px;
+  --lh-sm: 1.5;
+  --text-base: 14px;
+  --lh-base: 1.6;
+  --text-md: 16px;
+  --lh-md: 1.5;
+  --text-lg: 20px;
+  --lh-lg: 1.35;
+  --text-xl: 24px;
+  --lh-xl: 1.3;
+  --text-2xl: 32px;
+  --lh-2xl: 1.2;
+
+  /* Weights. 400 reads, 500 emphasises, 600 titles. No 300, no 800 — a hairline
+     weight fails on a low-DPI screen and an 800 is a different typeface. */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* Two families. The sans carries the interface; the mono carries data —
+     dates, ids, counts, code — where character width is information. Setting
+     mono on body text is what made the app read as a terminal. */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Control heights, switched by density below. */
   --control-sm: 32px;
@@ -56,7 +85,9 @@
   --control-sm: 28px;
   --control-md: 34px;
   --control-lg: 40px;
-  --text-md: 12px;
+  /* Compact shrinks the body step only. The heading steps keep their size —
+     density is about how much air a row gets, not about smaller titles. */
+  --text-base: 13px;
 }
 
 /* Every animation in the system is gated on this, in one place. */
@@ -134,6 +165,30 @@
     var(--focus-ring, 0 0 0 3px color-mix(in oklch, var(--theme-accent) 32%, transparent)),
     var(--accent-glow, none);
 }
+/* The uppercase label step. Its size, tracking, weight and casing travel
+   together — a label that picks the size and forgets the tracking is the
+   commonest way a "system" stops looking like one. */
+.ui-label {
+  font-size: var(--text-2xs);
+  line-height: var(--lh-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-dim);
+}
+
+/* Numbers that sit in a column — calendar day numbers, estimates, counts —
+   need equal-width digits or the column jitters as values change. */
+.ui-tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.ui-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .ui-sr-only {
   position: absolute;
   width: 1px;

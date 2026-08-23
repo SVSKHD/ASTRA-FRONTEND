@@ -687,7 +687,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
 .detail__title {
   flex: 1;
   min-width: 0;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   font-weight: 600;
   /* The title wraps now rather than being clipped (section 20b), so the header
      grows with it instead of hiding the end of a long name. */
@@ -696,7 +696,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
 /* The note column's header is a heading, not the dialog's name — the dialog is
    still named by the item the note is attached to. */
 .detail__title--aside {
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -713,7 +713,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   line-height: 1;
   cursor: pointer;
 }
@@ -761,7 +761,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
 }
 .detail__confirmtext {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 .detail__confirmrow {
@@ -775,7 +775,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 .detail__btn--danger {

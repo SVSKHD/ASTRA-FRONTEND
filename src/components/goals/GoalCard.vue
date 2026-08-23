@@ -206,7 +206,7 @@ const percent = computed(() => ringPercent(props.ratio))
 .gcard__title {
   min-width: 0;
   margin: 0;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-weight: 600;
   line-height: 1.3;
   /* Two lines, then an ellipsis. A title used to run to four lines and drag
@@ -228,7 +228,7 @@ const percent = computed(() => ringPercent(props.ratio))
 }
 .gcard__desc {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   line-height: 1.4;
   color: var(--theme-dim);
   display: -webkit-box;
@@ -250,7 +250,7 @@ const percent = computed(() => ringPercent(props.ratio))
   min-width: 0;
 }
 .gcard__none {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
   opacity: 0.75;
   white-space: nowrap;
@@ -261,7 +261,7 @@ const percent = computed(() => ringPercent(props.ratio))
   padding: 2px var(--sp-2);
   border-radius: var(--radius-pill);
   border: 1px solid currentColor;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: 600;
   white-space: nowrap;
 }

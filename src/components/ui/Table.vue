@@ -46,7 +46,7 @@ defineProps<{ columns: Column[]; rows: Record<string, unknown>[]; caption?: stri
 .ui-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--theme-text);
 }
 .ui-table th,
@@ -56,7 +56,7 @@ defineProps<{ columns: Column[]; rows: Record<string, unknown>[]; caption?: stri
   white-space: nowrap;
 }
 .ui-table th {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--theme-dim);

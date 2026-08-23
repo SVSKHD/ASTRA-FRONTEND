@@ -6,8 +6,21 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  /* Section 24a: the interface is set in the sans. Mono is for data — dates,
+     ids, counts, code — and is applied by .ui-mono where the characters carry
+     information. Setting it on <body> is what made every label read as output
+     from a program. */
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--lh-base);
+  font-weight: var(--weight-normal);
   -webkit-font-smoothing: antialiased;
+}
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
 }
 #app {
   min-height: 100vh;

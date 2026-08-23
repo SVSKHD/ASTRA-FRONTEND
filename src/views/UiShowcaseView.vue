@@ -14,6 +14,7 @@ import { useAppStore } from '@/stores/app'
 import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
 import { contrastRatio } from '@/themes/contrast'
 import { UI_GROUPS, componentsIn, type ComponentDoc } from '@/components/ui/registry'
+import { TYPE_SCALE, WEIGHTS } from '@/components/ui/type'
 import {
   ICON_NAMES,
   ICON_SIZES,
@@ -101,14 +102,6 @@ const tokens = computed(() => {
     { name: 'border', value: t.border, ratio: contrastRatio(t.border, t.bgSolid) },
   ]
 })
-const typeScale = [
-  { name: '2xl', size: 'var(--text-2xl)' },
-  { name: 'xl', size: 'var(--text-xl)' },
-  { name: 'lg', size: 'var(--text-lg)' },
-  { name: 'md', size: 'var(--text-md)' },
-  { name: 'sm', size: 'var(--text-sm)' },
-  { name: 'xs', size: 'var(--text-xs)' },
-]
 const spacing = ['--sp-1', '--sp-2', '--sp-3', '--sp-4', '--sp-5', '--sp-6']
 const radii = ['--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--radius-pill']
 
@@ -242,10 +235,52 @@ const OverlapDetector = import.meta.env.DEV
         </div>
       </div>
 
-      <h3>Type scale</h3>
+      <h3>Typography — eight steps, and nothing between them</h3>
+      <p class="ui-page__note">
+        Rendered from <code>ui/type.ts</code>, the same table the lint rule reads. A component picks
+        a step by name; a raw <code>font-size</code> outside the token file fails the build.
+      </p>
+      <div class="ui-page__type">
+        <div v-for="step in TYPE_SCALE" :key="step.token" class="ui-page__typeRow">
+          <div class="ui-page__typeMeta">
+            <code>--{{ step.token }}</code>
+            <span class="ui-page__typePx">{{ step.px }}px / {{ step.lineHeight }}</span>
+            <span class="ui-page__typeUse">{{ step.use }}</span>
+          </div>
+          <p
+            class="ui-page__typeSample"
+            :style="{
+              fontSize: `var(--${step.token})`,
+              lineHeight: `var(--lh-${step.token.replace('text-', '')})`,
+              fontWeight: step.weight ?? 400,
+              letterSpacing: step.tracking ?? 'normal',
+              textTransform: step.transform ?? 'none',
+            }"
+          >
+            The quick brown fox jumps
+          </p>
+        </div>
+      </div>
+
+      <h3>Weights — three, so emphasis means something</h3>
       <div class="ui-page__stack">
-        <p v-for="step in typeScale" :key="step.name" :style="{ fontSize: step.size, margin: 0 }">
-          {{ step.name }} — The quick brown fox
+        <p
+          v-for="w in WEIGHTS"
+          :key="w.token"
+          class="ui-page__weightRow"
+          :style="{ fontWeight: w.value }"
+        >
+          <code>--{{ w.token }}</code> {{ w.value }} — {{ w.use }}
+        </p>
+      </div>
+
+      <h3>Families — sans for the interface, mono for data</h3>
+      <div class="ui-page__stack">
+        <p class="ui-page__famRow">Deploy the backtest harness before Friday</p>
+        <p class="ui-page__famRow ui-mono ui-tabular">2026-11-30 · 1,204 · #a83f19b · 90m</p>
+        <p class="ui-page__note">
+          Mono is for dates, ids, counts and code, where character width is information. Numbers in
+          a column also take <code>.ui-tabular</code>, or the column jitters as the values change.
         </p>
       </div>
 
@@ -626,13 +661,13 @@ const OverlapDetector = import.meta.env.DEV
   background: var(--glass-solid);
 }
 .ui-page__brand {
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
 }
 .ui-page__ctl {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 .ui-page__ctl select {
@@ -644,8 +679,48 @@ const OverlapDetector = import.meta.env.DEV
 }
 .ui-page__count {
   margin-inline-start: auto;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
+}
+.ui-page__type {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.ui-page__typeRow {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: baseline;
+  min-width: 0;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--glass-border);
+}
+.ui-page__typeMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ui-page__typePx,
+.ui-page__typeUse {
+  font-size: var(--text-2xs);
+  color: var(--theme-dim);
+}
+.ui-page__typeSample {
+  margin: 0;
+  min-width: 0;
+}
+.ui-page__weightRow,
+.ui-page__famRow {
+  margin: 0;
+  font-size: var(--text-base);
+}
+@media (max-width: 640px) {
+  .ui-page__typeRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .ui-page__section {
   display: flex;
@@ -654,13 +729,13 @@ const OverlapDetector = import.meta.env.DEV
 }
 .ui-page__section h2 {
   margin: 0;
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   border-bottom: 1px solid var(--glass-border);
   padding-bottom: var(--sp-2);
 }
 .ui-page__section h3 {
   margin: var(--sp-2) 0 0;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   color: var(--theme-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -675,14 +750,14 @@ const OverlapDetector = import.meta.env.DEV
 }
 .ui-page__componentHead h3 {
   margin: 0;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   color: var(--theme-text);
   text-transform: none;
   letter-spacing: 0;
 }
 .ui-page__componentHead p {
   margin: 2px 0 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 .ui-page__demo {
@@ -695,7 +770,7 @@ const OverlapDetector = import.meta.env.DEV
   background: color-mix(in oklch, var(--glass-border) 18%, transparent);
 }
 .ui-page__props {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .ui-page__props table {
   width: 100%;
@@ -714,7 +789,7 @@ const OverlapDetector = import.meta.env.DEV
   padding: var(--sp-2);
   border-radius: var(--radius-sm);
   background: color-mix(in oklch, var(--glass-border) 25%, transparent);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
 }
 .ui-page__grid {
   display: grid;
@@ -725,7 +800,7 @@ const OverlapDetector = import.meta.env.DEV
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .ui-page__swatch {
   width: 28px;
@@ -735,7 +810,7 @@ const OverlapDetector = import.meta.env.DEV
 }
 .ui-page__ratio {
   display: block;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .ui-page__ratio.is-pass {
@@ -758,7 +833,7 @@ const OverlapDetector = import.meta.env.DEV
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
 }
 .ui-page__spacer span {
   display: block;
@@ -771,11 +846,11 @@ const OverlapDetector = import.meta.env.DEV
   width: 64px;
   height: 44px;
   border: 1px solid var(--glass-border);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
 }
 .ui-page__note {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 .ui-page__listrow {
@@ -789,10 +864,10 @@ const OverlapDetector = import.meta.env.DEV
   gap: 2px;
   flex: 1;
   min-width: 0;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 .ui-page__listmain span {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 .ui-page__chips {
@@ -842,7 +917,7 @@ const OverlapDetector = import.meta.env.DEV
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 </style>
