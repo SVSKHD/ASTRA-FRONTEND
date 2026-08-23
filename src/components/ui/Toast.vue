@@ -35,7 +35,7 @@ defineEmits<{ action: []; dismiss: [] }>()
   -webkit-backdrop-filter: blur(var(--glass-blur));
   box-shadow: var(--elev-1);
   color: var(--theme-text);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .ui-toast {
@@ -49,8 +49,8 @@ defineEmits<{ action: []; dismiss: [] }>()
   border: none;
   background: transparent;
   color: var(--theme-accent);
-  font-weight: 700;
-  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 .ui-toast__x {

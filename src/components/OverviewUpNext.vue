@@ -9,7 +9,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useReminderClock } from '@/composables/useReminderClock'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { upcomingReminders, countdownClock, relLabel, SOON_MS } from '@/utils/upcoming'
 
 const app = useAppStore()
@@ -35,9 +35,9 @@ const tileStyle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: '12px 14px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     cursor: 'pointer',
     background: c.value.card,
     border:
@@ -47,8 +47,8 @@ const tileStyle = computed(() =>
 )
 const label = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -56,22 +56,22 @@ const label = computed(() =>
 )
 const bigStyle = computed(() =>
   pxify({
-    fontSize: 20,
-    fontWeight: 700,
+    ...typeStep('lg'),
+    fontWeight: 'var(--weight-semibold)',
     fontVariantNumeric: 'tabular-nums',
     color: overdue.value ? danger.value : soon.value ? accent.value : c.value.text,
   }),
 )
 const titleStyle = computed(() =>
   pxify({
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   }),
 )
-const metaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const metaStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const mainCol = pxify({ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 })
 </script>
 

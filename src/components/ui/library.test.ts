@@ -20,8 +20,8 @@ const COMPONENT_FILES = readdirSync(UI_DIR).filter((f) => f.endsWith('.vue'))
 const REQUIRED = [
   'Button',
   'IconButton',
-  'Input',
-  'Textarea',
+  'TextInput',
+  'TextArea',
   'Select',
   'Combobox',
   'Checkbox',

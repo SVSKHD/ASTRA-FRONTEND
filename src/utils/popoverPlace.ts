@@ -70,3 +70,59 @@ export function placePopover(anchor: Box, panel: Box, viewport: Viewport): Place
 
   return { top, left, placement, maxHeight }
 }
+
+// ---------------------------------------------------------------------------
+// A popover anchored to a *cell* rather than to a field (section 24c).
+//
+// The difference matters. A field's panel wants to be under the field, because
+// that is where the eye already is. A calendar cell's panel wants to be beside
+// the cell, because the cell is the thing being talked about and covering it
+// with the panel that describes it is no help — and because a month grid puts
+// the anchor hard against the right edge of the window one week in four.
+//
+// So this one flips horizontally, not vertically, and slides rather than
+// flipping when it runs out of room at the bottom: a quick-create form is short
+// enough that shifting it up a hundred pixels keeps it fully on screen, where
+// flipping it above the cell would put it somewhere the reader is not looking.
+
+/**
+ * How close to the right edge the anchor has to be before the panel opens to
+ * its left. Section 24c fixes this at 340px: wide enough that the panel is
+ * never squeezed, narrow enough that it does not flip on a cell that had room.
+ */
+export const CELL_FLIP_MARGIN = 340
+
+export type Side = 'right' | 'left'
+
+export interface PlacedCell {
+  top: number
+  left: number
+  side: Side
+}
+
+export function placeCellPopover(anchor: Box, panel: Box, viewport: Viewport): PlacedCell {
+  // Room measured from the anchor's own right edge, which is where the panel
+  // would start — measuring from its left would flip a wide cell too early.
+  const roomRight = viewport.width - (anchor.left + anchor.width)
+  const side: Side = roomRight >= CELL_FLIP_MARGIN ? 'right' : 'left'
+
+  const wanted =
+    side === 'right'
+      ? anchor.left + anchor.width + POPOVER_GAP
+      : anchor.left - POPOVER_GAP - panel.width
+
+  // Even the flipped side can run out of room on a narrow window, so the
+  // result is clamped either way rather than trusted.
+  const left = clamp(wanted, VIEWPORT_MARGIN, viewport.width - panel.width - VIEWPORT_MARGIN)
+
+  // Top-aligned with the cell, then shifted up by exactly as much as it takes
+  // to fit. Never below the top margin: a panel taller than the window pins to
+  // the top and scrolls internally rather than losing its own header.
+  const top = clamp(
+    anchor.top,
+    VIEWPORT_MARGIN,
+    Math.max(VIEWPORT_MARGIN, viewport.height - panel.height - VIEWPORT_MARGIN),
+  )
+
+  return { top, left, side }
+}

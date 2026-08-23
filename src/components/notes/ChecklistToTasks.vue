@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Checkbox from '@/components/ui/Checkbox.vue'
 // "Convert checklist to tasks": the task-list items in a note, previewed and
 // selected before anything is written.
 //
@@ -9,7 +10,7 @@
 import { computed, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { checklistItems } from '@/utils/mdTyping'
 
 const props = defineProps<{ source: string; open: boolean }>()
@@ -65,9 +66,9 @@ const card = computed(() =>
     maxHeight: '80vh',
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: 16,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.glass,
     backdropFilter: 'blur(28px) saturate(1.5)',
@@ -75,18 +76,23 @@ const card = computed(() =>
   }),
 )
 const heading = computed(() =>
-  pxify({ fontSize: 14, fontWeight: 700, color: c.value.text, margin: 0 }),
+  pxify({
+    ...typeStep('base'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    margin: 0,
+  }),
 )
-const sub = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const sub = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const list = pxify({ display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', flex: 1 })
 const row = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: '7px 8px',
-    borderRadius: 10,
-    fontSize: 12,
+    borderRadius: 'var(--radius-card)',
+    ...typeStep('xs'),
     color: c.value.text,
     cursor: 'pointer',
     textAlign: 'left',
@@ -97,30 +103,35 @@ const row = computed(() =>
 )
 const rowHover = computed(() => ({ background: c.value.card }))
 const doneTag = computed(() =>
-  pxify({ fontSize: 9, color: c.value.dim, letterSpacing: '0.08em', textTransform: 'uppercase' }),
+  pxify({
+    ...typeStep('2xs'),
+    color: c.value.dim,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+  }),
 )
-const foot = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const foot = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const spacer = pxify({ flex: 1 })
 const ghost = computed(() =>
   pxify({
     padding: '7px 12px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
-    fontSize: 12,
+    ...typeStep('xs'),
     cursor: 'pointer',
   }),
 )
 const primary = computed(() =>
   pxify({
     padding: '7px 14px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: count.value ? 'pointer' : 'not-allowed',
     opacity: count.value ? 1 : 0.5,
   }),
@@ -148,7 +159,7 @@ const primary = computed(() =>
           :aria-pressed="chosen.has(i)"
           @click="toggle(i)"
         >
-          <input type="checkbox" :checked="chosen.has(i)" tabindex="-1" aria-hidden="true" />
+          <Checkbox :model-value="chosen.has(i)" tabindex="-1" aria-hidden="true" />
           <span>{{ item.text }}</span>
           <span v-if="item.done" :style="doneTag">done</span>
         </button>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // "Linked items" section for an item's detail dialog — shared by todos and
 // tasks. Lists direct children with status + collection badge + unlink, shows a
 // derived-progress bar, an "all done — mark complete?" prompt at 100%, and a
@@ -8,7 +9,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useLinkedItems, type LinkedRow } from '@/composables/useLinkedItems'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import type { LinkCollection } from '@/types'
@@ -47,17 +48,17 @@ function markParentComplete() {
 }
 
 // --- styles -----------------------------------------------------------------
-const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 10 })
+const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' })
 const header = pxify({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: 8,
+  gap: 'var(--sp-2)',
 })
 const labelStyle = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -65,10 +66,10 @@ const labelStyle = computed(() =>
 )
 const addBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     color: c.value.accent,
@@ -79,9 +80,9 @@ const rowStyle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: '7px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     cursor: 'pointer',
@@ -101,11 +102,11 @@ function dotStyle(done: boolean) {
 }
 const badgeStyle = computed(() =>
   pxify({
-    fontSize: 9,
+    ...typeStep('2xs'),
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     padding: '2px 6px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     color: c.value.dim,
     flexShrink: 0,
@@ -115,7 +116,7 @@ const titleStyle = computed(() =>
   pxify({
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -127,21 +128,21 @@ const promptStyle = computed(() =>
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '10px 12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     background: 'color-mix(in oklch, oklch(0.72 0.15 150) 14%, transparent)',
     border: '1px solid oklch(0.72 0.15 150)',
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
   }),
 )
 const confirmBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: 'oklch(0.72 0.15 150)',
     color: '#08130c',
@@ -149,19 +150,12 @@ const confirmBtn = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const pickerWrap = computed(() => pxify({ display: 'flex', flexDirection: 'column', gap: 6 }))
-const searchStyle = computed(() =>
-  pxify({
-    padding: '9px 12px',
-    borderRadius: 12,
-    border: '1px solid ' + c.value.accent,
-    background: c.value.input,
-    color: c.value.text,
-    fontSize: 13,
-    outline: 'none',
-  }),
+const pickerWrap = computed(() =>
+  pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }),
 )
-const emptyStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim, padding: '4px 2px' }))
+const emptyStyle = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, padding: '4px 2px' }),
+)
 </script>
 
 <template>
@@ -180,12 +174,11 @@ const emptyStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim, padd
 
     <!-- picker -->
     <div v-if="picking" :style="pickerWrap">
-      <input
+      <TextInput
         ref="searchEl"
-        :style="searchStyle"
         placeholder="Search todos and tasks…"
-        :value="query"
-        @input="query = ($event.target as HTMLInputElement).value"
+        :model-value="query"
+        @update:model-value="query = $event"
         @keydown.esc="picking = false"
       />
       <div v-if="results.length === 0" :style="emptyStyle">No matching items to link.</div>

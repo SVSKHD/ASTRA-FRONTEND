@@ -188,7 +188,7 @@ function loadSample() {
 .ghelp__lede,
 .ghelp__note {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 .ghelp__steps {
@@ -204,16 +204,16 @@ function loadSample() {
 }
 .ghelp__step::marker {
   color: var(--theme-accent);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 .ghelp__steptitle {
   margin: 0;
-  font-size: var(--text-md);
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
 }
 .ghelp__stepbody {
   margin: 2px 0 var(--sp-2);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 /* The miniature. Deliberately flatter than a real card — it is an illustration
@@ -221,7 +221,7 @@ function loadSample() {
 .ghelp__demo {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-1);
   min-width: 0;
   padding: var(--sp-2) var(--sp-3);
   border: 1px dashed var(--glass-border);
@@ -229,12 +229,12 @@ function loadSample() {
   background: color-mix(in oklch, var(--theme-text) 3%, transparent);
 }
 .ghelp__demotitle {
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
 }
 .ghelp__demometa,
 .ghelp__demofield {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .ghelp__demopoint {
@@ -243,13 +243,13 @@ function loadSample() {
   align-items: center;
   gap: var(--sp-2);
   min-width: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .ghelp__democode {
   min-width: 0;
   overflow-x: auto;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
   white-space: pre;
 }
@@ -270,8 +270,8 @@ function loadSample() {
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: var(--text-xs);
-  font-weight: 600;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--theme-dim);
@@ -292,17 +292,17 @@ function loadSample() {
   border-bottom: 1px solid var(--glass-border);
 }
 .ghelp__token {
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   color: var(--theme-accent);
 }
 .ghelp__cheatmeans {
   min-width: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .ghelp__cheatex {
   grid-column: 2;
   min-width: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .ghelp__sample {
@@ -315,7 +315,7 @@ function loadSample() {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   background: color-mix(in oklch, var(--theme-text) 4%, transparent);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   line-height: 1.6;
 }
 .ghelp__scope {
@@ -326,8 +326,8 @@ function loadSample() {
 }
 .ghelp__scopetitle {
   margin: var(--sp-2) 0 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
 }
 .ghelp__tablewrap {
   min-width: 0;
@@ -337,7 +337,7 @@ function loadSample() {
 .ghelp__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
 }
 .ghelp__table th,
 .ghelp__table td {
@@ -348,11 +348,11 @@ function loadSample() {
 }
 .ghelp__table thead th {
   color: var(--theme-dim);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 .ghelp__table tbody th {
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 .ghelp__table td:last-child {
@@ -366,7 +366,7 @@ function loadSample() {
   border-radius: var(--radius-pill);
   border: 1px solid var(--theme-accent);
   color: var(--theme-accent);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   white-space: nowrap;
 }
 </style>

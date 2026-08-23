@@ -11,7 +11,7 @@
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { sanitize } from '@/utils/sanitizeHtml'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, tagChip, type Style } from '@/styles'
+import { pxify, tagChip, typeStep, type Style } from '@/styles'
 import { formatWhen, routeDistanceKm, formatDistance } from '@/utils/geo'
 import { groupPlacesByDay, dayColor } from '@/utils/tripDays'
 // Same as the trip dialog: the map (and Leaflet with it) loads when the trip
@@ -179,19 +179,24 @@ const shell = pxify({
   maxWidth: 820,
   display: 'flex',
   flexDirection: 'column',
-  gap: 16,
+  gap: 'var(--sp-4)',
 })
-const topBar = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+const topBar = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
 const spacer = pxify({ flex: 1 })
 const navBtn = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    fontSize: 13,
-    fontWeight: 600,
+    gap: 'var(--sp-2)',
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.glass,
     color: c.value.text,
@@ -201,14 +206,14 @@ const navBtn = computed(() =>
 )
 const publicBadge = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 800,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.onAccent,
     background: c.value.accent,
     padding: '5px 11px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
   }),
 )
 const glass = (extra: Style = {}) =>
@@ -217,7 +222,7 @@ const glass = (extra: Style = {}) =>
     backdropFilter: 'blur(30px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 24,
+    borderRadius: 'var(--radius-dialog)',
     boxShadow: c.value.shadow,
     ...extra,
   })
@@ -225,7 +230,7 @@ const heroStyle = computed(() =>
   pxify({
     position: 'relative',
     minHeight: isMobile.value ? 200 : 280,
-    borderRadius: 24,
+    borderRadius: 'var(--radius-dialog)',
     overflow: 'hidden',
     border: '1px solid ' + c.value.border,
     display: 'flex',
@@ -248,53 +253,75 @@ const heroInner = computed(() =>
     padding: isMobile.value ? '18px' : '24px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
     width: '100%',
     color: '#fff',
   }),
 )
 const titleStyle = computed(() =>
-  pxify({ fontSize: isMobile.value ? 24 : 32, fontWeight: 800, lineHeight: 1.12 }),
+  pxify({
+    ...(isMobile.value ? typeStep('xl') : typeStep('2xl')),
+    fontWeight: 'var(--weight-semibold)',
+    lineHeight: 1.12,
+  }),
 )
-const metaRow = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+const metaRow = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
 function statusBadge(done: boolean) {
   return pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     padding: '4px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (done ? c.value.accent : c.value.border),
     color: done ? c.value.accent : c.value.text,
     background: 'rgba(0,0,0,0.25)',
   })
 }
-const rangeStyle = computed(() => pxify({ fontSize: 13, fontWeight: 600, opacity: 0.92 }))
+const rangeStyle = computed(() =>
+  pxify({ ...typeStep('sm'), fontWeight: 'var(--weight-semibold)', opacity: 0.92 }),
+)
 function chip(tag: string) {
   return pxify(tagChip(c.value, tag, false))
 }
-const statsRow = pxify({ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 })
+const statsRow = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: 'var(--sp-2)',
+})
 const statCard = computed(() =>
-  glass({ padding: '12px 10px', borderRadius: 16, textAlign: 'center' }),
+  glass({ padding: '12px 10px', borderRadius: 'var(--radius-dialog)', textAlign: 'center' }),
 )
-const statValue = computed(() => pxify({ fontSize: 18, fontWeight: 800, color: c.value.text }))
+const statValue = computed(() =>
+  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 const statLabel = computed(() =>
   pxify({
-    fontSize: 9.5,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.1em',
     textTransform: 'uppercase',
     color: c.value.dim,
     marginTop: 2,
   }),
 )
-const toolbar = pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' })
+const toolbar = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-2)',
+  flexWrap: 'wrap',
+})
 const segTrack = computed(() =>
   pxify({
     display: 'inline-flex',
     padding: 4,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     gap: 2,
@@ -303,22 +330,22 @@ const segTrack = computed(() =>
 function segBtn(activeState: boolean) {
   return pxify({
     padding: '6px 14px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: 'none',
     background: activeState ? c.value.card : 'transparent',
     color: activeState ? c.value.accent : c.value.dim,
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
   })
 }
-const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap' })
+const chipRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' })
 function dayChip(selected: boolean, tint: string) {
   return pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (selected ? tint : c.value.border),
     background: selected ? c.value.input : 'transparent',
     color: selected ? tint : c.value.dim,
@@ -327,8 +354,8 @@ function dayChip(selected: boolean, tint: string) {
 }
 const sectionTitle = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -416,7 +443,7 @@ function safe(html: unknown): string {
         />
         <div
           v-else
-          :style="glass({ padding: '28px', textAlign: 'center', color: c.dim, fontSize: 13 })"
+          :style="glass({ padding: '28px', textAlign: 'center', color: c.dim, ...typeStep('sm') })"
         >
           No places have a location yet.
         </div>
@@ -437,12 +464,16 @@ function safe(html: unknown): string {
             glass({ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '8px' })
           "
         >
-          <span :style="pxify({ fontSize: 14, fontWeight: 700, color: c.text })">
+          <span
+            :style="
+              pxify({ ...typeStep('base'), fontWeight: 'var(--weight-semibold)', color: c.text })
+            "
+          >
             {{ noteTitleLine(n) }}
           </span>
           <div
             class="rich"
-            :style="pxify({ fontSize: 13, lineHeight: 1.6, color: c.text })"
+            :style="pxify({ ...typeStep('sm'), lineHeight: 1.6, color: c.text })"
             v-html="safe(n.text)"
           ></div>
         </div>

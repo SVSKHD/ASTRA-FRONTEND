@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
 // Finances — reworked around scopes (Personal / Business / All), a unified
 // income+expense transaction list, debts, and first-class tags. Sub-tabs inside
 // the stage: Overview · Transactions · Debts · Tags. Everything derives from the
@@ -11,7 +13,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatINR, parseINR } from '@/utils/currency'
 import { currentMonthKey } from '@/utils/budget'
 import {
@@ -32,7 +34,7 @@ import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
-const { c, s, panelStyle } = useStyles()
+const { c, panelStyle } = useStyles()
 const { transactions, debts, finScope } = storeToRefs(app)
 const { now } = storeToRefs(useUiStore())
 const route = useRoute()
@@ -145,7 +147,7 @@ function todayInMonth(): string {
 
 // --- add-transaction form ---------------------------------------------------
 const showTxnForm = ref(false)
-const txnForm = ref<Record<string, unknown>>({
+const txnForm = ref<Record<string, string>>({
   kind: 'expense',
   amount: '',
   date: CURRENT + '-01',
@@ -197,7 +199,7 @@ function submitTxn() {
 
 // --- add-debt form ----------------------------------------------------------
 const showDebtForm = ref(false)
-const debtForm = ref<Record<string, unknown>>({
+const debtForm = ref<Record<string, string>>({
   direction: 'owed_by_me',
   counterparty: '',
   principal: '',
@@ -279,20 +281,25 @@ const SOURCES = [
 ]
 
 // --- styles -----------------------------------------------------------------
-const header = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+const header = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
 function pill(active: boolean) {
   return pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active ? c.value.accent : 'transparent',
     color: active ? c.value.onAccent : c.value.dim,
     cursor: 'pointer',
   })
 }
-const pillRow = pxify({ display: 'flex', gap: 6 })
+const pillRow = pxify({ display: 'flex', gap: 'var(--sp-2)' })
 const spacer = pxify({ flex: 1 })
 const body = pxify({
   flex: 1,
@@ -300,37 +307,47 @@ const body = pxify({
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 16,
+  gap: 'var(--sp-4)',
   paddingTop: 14,
 })
 const card = computed(() =>
   pxify({
     padding: 18,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
   }),
 )
 const label = computed(() =>
-  pxify({ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.value.dim }),
+  pxify({
+    ...typeStep('2xs'),
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
 )
 const big = computed(() =>
-  pxify({ fontSize: 30, fontWeight: 700, color: c.value.text, lineHeight: 1 }),
+  pxify({
+    ...typeStep('2xl'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1,
+  }),
 )
-const sub = computed(() => pxify({ fontSize: 12, color: c.value.dim }))
-const strong = computed(() => pxify({ color: c.value.text, fontWeight: 600 }))
+const sub = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
+const strong = computed(() => pxify({ color: c.value.text, fontWeight: 'var(--weight-semibold)' }))
 const stackBar = pxify({
   display: 'flex',
   height: 10,
-  borderRadius: 999,
+  borderRadius: 'var(--radius-pill)',
   overflow: 'hidden',
   gap: 1,
 })
-const rowLine = pxify({ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13 })
+const rowLine = pxify({ display: 'flex', gap: 'var(--sp-4)', flexWrap: 'wrap', ...typeStep('sm') })
 const catColors = [
   GOOD,
   AMBER,
@@ -340,13 +357,12 @@ const catColors = [
   RED,
 ]
 
-const inp = computed(() => s.value.input)
 const miniBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
@@ -355,10 +371,10 @@ const miniBtn = computed(() =>
 )
 const ghostBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.text,
@@ -368,10 +384,10 @@ const ghostBtn = computed(() =>
 function tagChip(name: string) {
   const t = app.financeTags.find((x) => x.name === name)
   return pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 8px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: (t?.color || c.value.accent) + '22',
     color: t?.color || c.value.accent,
     cursor: 'pointer',
@@ -379,10 +395,10 @@ function tagChip(name: string) {
 }
 const scopeChip = computed(() =>
   pxify({
-    fontSize: 9,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     color: c.value.dim,
   }),
@@ -390,13 +406,13 @@ const scopeChip = computed(() =>
 const formGrid = pxify({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-  gap: 8,
+  gap: 'var(--sp-2)',
 })
 const dayHead = computed(() =>
   pxify({
     display: 'flex',
     justifyContent: 'space-between',
-    fontSize: 11,
+    ...typeStep('xs'),
     color: c.value.dim,
     padding: '6px 2px 2px',
     borderBottom: '1px solid ' + c.value.border,
@@ -406,13 +422,13 @@ const txnRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '8px 4px',
-    fontSize: 13,
+    ...typeStep('sm'),
     borderBottom: '1px solid ' + c.value.border,
   }),
 )
-const table = pxify({ width: '100%', borderCollapse: 'collapse', fontSize: 12 })
+const table = pxify({ width: '100%', borderCollapse: 'collapse', ...typeStep('xs') })
 const th = computed(() =>
   pxify({
     textAlign: 'left',
@@ -420,7 +436,7 @@ const th = computed(() =>
     color: c.value.dim,
     borderBottom: '1px solid ' + c.value.border,
     cursor: 'pointer',
-    fontWeight: 600,
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 const td = computed(() =>
@@ -429,30 +445,30 @@ const td = computed(() =>
 const twoCol = pxify({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  gap: 14,
+  gap: 'var(--sp-4)',
 })
 const summaryStrip = computed(() =>
   pxify({
     display: 'flex',
-    gap: 16,
+    gap: 'var(--sp-4)',
     flexWrap: 'wrap',
     alignItems: 'center',
     padding: '12px 16px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.input,
-    fontSize: 13,
+    ...typeStep('sm'),
   }),
 )
 const debtCard = computed(() =>
   pxify({
     padding: 14,
-    borderRadius: 16,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
   }),
 )
 </script>
@@ -556,9 +572,11 @@ const debtCard = computed(() =>
             <div
               v-for="t in extraIncomeList"
               :key="t.id"
-              :style="{ display: 'flex', gap: '10px', fontSize: '12px', alignItems: 'center' }"
+              :style="{ display: 'flex', gap: '10px', ...typeStep('xs'), alignItems: 'center' }"
             >
-              <span :style="{ color: GOOD, fontWeight: 600 }">{{ formatINR(t.amount) }}</span>
+              <span :style="{ color: GOOD, fontWeight: 'var(--weight-semibold)' }">{{
+                formatINR(t.amount)
+              }}</span>
               <span :style="scopeChip">{{ t.source || 'Other' }}</span>
               <span :style="sub">{{ t.note }}</span>
             </div>
@@ -580,7 +598,9 @@ const debtCard = computed(() =>
               fmtSigned(debtSum.net)
             }}</span></span
           >
-          <span v-if="debtSum.overdueCount" :style="{ color: RED, fontWeight: 700 }"
+          <span
+            v-if="debtSum.overdueCount"
+            :style="{ color: RED, fontWeight: 'var(--weight-semibold)' }"
             >{{ debtSum.overdueCount }} overdue</span
           >
         </div>
@@ -608,30 +628,26 @@ const debtCard = computed(() =>
         <div v-if="showTxnForm" :style="card">
           <div :style="label">New {{ txnForm.kind }}</div>
           <div :style="formGrid">
-            <input
-              :style="inp"
-              v-model="txnForm.amount"
-              placeholder="Amount ₹"
-              inputmode="decimal"
-            />
+            <TextInput v-model="txnForm.amount" placeholder="Amount ₹" inputmode="decimal" />
             <GlassDatePicker
               :model-value="String(txnForm.date ?? '')"
               size="sm"
               placeholder="Date"
               @update:model-value="txnForm.date = String($event ?? '')"
             />
-            <input
-              :style="inp"
+            <TextInput
               v-model="txnForm.category"
               :placeholder="txnForm.kind === 'income' ? 'Income' : 'Category'"
             />
-            <select v-if="txnForm.kind === 'income'" :style="inp" v-model="txnForm.source">
-              <option v-for="src in SOURCES" :key="src" :value="src">{{ src }}</option>
-            </select>
-            <input :style="inp" v-model="txnForm.party" placeholder="Party (optional)" />
-            <input :style="inp" v-model="txnForm.tags" placeholder="tags, comma-separated" />
+            <Select
+              v-if="txnForm.kind === 'income'"
+              v-model="txnForm.source"
+              :options="[...SOURCES.map((src) => ({ value: String(src), label: src }))]"
+            />
+            <TextInput v-model="txnForm.party" placeholder="Party (optional)" />
+            <TextInput v-model="txnForm.tags" placeholder="tags, comma-separated" />
           </div>
-          <input :style="inp" v-model="txnForm.note" placeholder="Note" />
+          <TextInput v-model="txnForm.note" placeholder="Note" />
           <div :style="{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }">
             <button :style="ghostBtn" @click="showTxnForm = false">Cancel</button>
             <button :style="miniBtn" @click="submitTxn">Add</button>
@@ -648,7 +664,7 @@ const debtCard = computed(() =>
             <span
               :style="{
                 color: t.kind === 'income' ? GOOD : c.text,
-                fontWeight: 600,
+                fontWeight: 'var(--weight-semibold)',
                 minWidth: '92px',
               }"
             >
@@ -694,7 +710,9 @@ const debtCard = computed(() =>
               fmtSigned(debtSum.net)
             }}</span></span
           >
-          <span v-if="debtSum.overdueCount" :style="{ color: RED, fontWeight: 700 }"
+          <span
+            v-if="debtSum.overdueCount"
+            :style="{ color: RED, fontWeight: 'var(--weight-semibold)' }"
             >{{ debtSum.overdueCount }} overdue</span
           >
           <span :style="spacer"></span>
@@ -703,28 +721,28 @@ const debtCard = computed(() =>
 
         <div v-if="showDebtForm" :style="card">
           <div :style="formGrid">
-            <select :style="inp" v-model="debtForm.direction">
-              <option value="owed_by_me">I owe</option>
-              <option value="owed_to_me">Owed to me</option>
-            </select>
-            <input :style="inp" v-model="debtForm.counterparty" placeholder="Counterparty" />
-            <input
-              :style="inp"
-              v-model="debtForm.principal"
-              placeholder="Principal ₹"
-              inputmode="decimal"
+            <Select
+              v-model="debtForm.direction"
+              :options="[
+                { value: 'owed_by_me', label: 'I owe' },
+                { value: 'owed_to_me', label: 'Owed to me' },
+              ]"
             />
-            <input
-              :style="inp"
+            <TextInput v-model="debtForm.counterparty" placeholder="Counterparty" />
+            <TextInput v-model="debtForm.principal" placeholder="Principal ₹" inputmode="decimal" />
+            <TextInput
               v-model="debtForm.interestRatePct"
               placeholder="Interest % (opt)"
               inputmode="decimal"
             />
-            <select :style="inp" v-model="debtForm.interestType">
-              <option value="none">No interest</option>
-              <option value="simple">Simple</option>
-              <option value="compound">Compound</option>
-            </select>
+            <Select
+              v-model="debtForm.interestType"
+              :options="[
+                { value: 'none', label: 'No interest' },
+                { value: 'simple', label: 'Simple' },
+                { value: 'compound', label: 'Compound' },
+              ]"
+            />
             <GlassDatePicker
               :model-value="String(debtForm.startDate ?? '')"
               size="sm"
@@ -757,8 +775,8 @@ const debtCard = computed(() =>
                 <span
                   v-if="d.dueDate"
                   :style="{
-                    fontSize: '11px',
-                    fontWeight: 700,
+                    ...typeStep('xs'),
+                    fontWeight: 'var(--weight-semibold)',
                     color: isOverdue(d, now) ? RED : c.dim,
                   }"
                 >
@@ -791,12 +809,7 @@ const debtCard = computed(() =>
               </div>
               <span :style="scopeChip">{{ effectiveDebtStatus(d, now) }}</span>
               <div :style="{ display: 'flex', gap: '6px' }">
-                <input
-                  :style="inp"
-                  v-model="payAmount[d.id]"
-                  placeholder="Payment ₹"
-                  inputmode="decimal"
-                />
+                <TextInput v-model="payAmount[d.id]" placeholder="Payment ₹" inputmode="decimal" />
                 <button :style="miniBtn" @click="recordPayment(d)">Pay</button>
                 <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
               </div>
@@ -812,8 +825,8 @@ const debtCard = computed(() =>
                 <span
                   v-if="d.dueDate"
                   :style="{
-                    fontSize: '11px',
-                    fontWeight: 700,
+                    ...typeStep('xs'),
+                    fontWeight: 'var(--weight-semibold)',
                     color: isOverdue(d, now) ? RED : c.dim,
                   }"
                 >
@@ -823,12 +836,7 @@ const debtCard = computed(() =>
               <span :style="big">{{ formatINR(debtOutstanding(d, now)) }}</span>
               <span :style="sub">of {{ formatINR(d.principal) }}</span>
               <div :style="{ display: 'flex', gap: '6px' }">
-                <input
-                  :style="inp"
-                  v-model="payAmount[d.id]"
-                  placeholder="Received ₹"
-                  inputmode="decimal"
-                />
+                <TextInput v-model="payAmount[d.id]" placeholder="Received ₹" inputmode="decimal" />
                 <button :style="miniBtn" @click="recordPayment(d)">Receive</button>
                 <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
               </div>

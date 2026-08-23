@@ -5,7 +5,7 @@
 // format" disclosure with a copyable sample and the inline-shorthand legend.
 import { ref } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const emit = defineEmits<{
@@ -68,7 +68,7 @@ const wrap = computedStyle({
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  gap: 14,
+  gap: 'var(--sp-4)',
   padding: '32px 16px',
   textAlign: 'center',
   maxWidth: 760,
@@ -78,12 +78,13 @@ function computedStyle(o: Record<string, string | number>) {
   return pxify(o)
 }
 const iconWrap = () => pxify({ color: c.value.dim, opacity: 0.6 })
-const heading = () => pxify({ fontSize: 20, fontWeight: 700, color: c.value.text })
-const sub = () => pxify({ fontSize: 13, color: c.value.dim })
+const heading = () =>
+  pxify({ ...typeStep('lg'), fontWeight: 'var(--weight-semibold)', color: c.value.text })
+const sub = () => pxify({ ...typeStep('sm'), color: c.value.dim })
 const grid = pxify({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-  gap: 12,
+  gap: 'var(--sp-3)',
   width: '100%',
   marginTop: 6,
 })
@@ -91,21 +92,22 @@ const cardStyle = () =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     textAlign: 'left',
   })
-const cardTitle = () => pxify({ fontSize: 14, fontWeight: 700, color: c.value.text })
-const cardBody = () => pxify({ fontSize: 12, color: c.value.dim, lineHeight: 1.4, flex: 1 })
+const cardTitle = () =>
+  pxify({ ...typeStep('base'), fontWeight: 'var(--weight-semibold)', color: c.value.text })
+const cardBody = () => pxify({ ...typeStep('xs'), color: c.value.dim, lineHeight: 1.4, flex: 1 })
 const primaryBtn = () =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
@@ -114,10 +116,10 @@ const primaryBtn = () =>
   })
 const ghostBtn = () =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.text,
@@ -126,8 +128,8 @@ const ghostBtn = () =>
   })
 const discBtn = () =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.dim,
     background: 'transparent',
     border: 'none',
@@ -138,7 +140,7 @@ const codeWrap = () =>
     position: 'relative',
     width: '100%',
     textAlign: 'left',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     padding: '12px 14px',
@@ -147,10 +149,10 @@ const codeWrap = () =>
 const codeStyle = () =>
   pxify({
     margin: 0,
-    fontSize: 11.5,
+    ...typeStep('xs'),
     lineHeight: 1.5,
     color: c.value.text,
-    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+    fontFamily: 'var(--font-mono)',
     whiteSpace: 'pre',
   })
 const copyBtn = () =>
@@ -158,16 +160,16 @@ const copyBtn = () =>
     position: 'absolute',
     top: 8,
     right: 8,
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     color: c.value.dim,
     cursor: 'pointer',
   })
-const legend = () => pxify({ fontSize: 11, color: c.value.dim, marginTop: 6 })
+const legend = () => pxify({ ...typeStep('xs'), color: c.value.dim, marginTop: 6 })
 </script>
 
 <template>

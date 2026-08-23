@@ -52,12 +52,12 @@ const shell = pxify({
   maxWidth: 820,
   display: 'flex',
   flexDirection: 'column',
-  gap: 16,
+  gap: 'var(--sp-4)',
 })
 const skeleton = (h: number) =>
   pxify({
     height: h,
-    borderRadius: 20,
+    borderRadius: 'var(--radius-dialog)',
     background:
       'linear-gradient(90deg,' +
       c.value.input +

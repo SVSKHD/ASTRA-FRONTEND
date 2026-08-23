@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // Goal detail (task 8): header (title/description/dates/status/progress + time
 // totals), an inline-CRUD checklist with per-item estimate/due and a start/stop
 // timer, and Tasks/Todos sections that reuse the existing TreeList row component
@@ -12,7 +16,7 @@ import { useUiStore } from '@/stores/ui'
 import { useGoals } from '@/composables/useGoals'
 import { useStyles } from '@/composables/useStyles'
 import { useSyncGuard } from '@/composables/useSyncGuard'
-import { pxify, rowBase } from '@/styles'
+import { pxify, rowBase, typeStep } from '@/styles'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import TreeList from '@/components/TreeList.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
@@ -210,7 +214,7 @@ function doDelete(checklistOnly: boolean) {
 const wrap = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 14,
+  gap: 'var(--sp-4)',
   overflowY: 'auto',
   flex: 1,
   minHeight: 0,
@@ -218,10 +222,10 @@ const wrap = pxify({
 const backBtn = computed(() =>
   pxify({
     alignSelf: 'flex-start',
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -229,57 +233,57 @@ const backBtn = computed(() =>
   }),
 )
 const header = computed(() =>
-  pxify({ ...rowBase(c.value), flexDirection: 'column', gap: 12, alignItems: 'stretch' }),
-)
-const headTop = pxify({ display: 'flex', alignItems: 'center', gap: 12 })
-const titleInput = computed(() =>
   pxify({
-    ...s.value.input,
-    fontSize: 18,
-    fontWeight: 700,
-    flex: 1,
-    minWidth: 0,
-    background: 'transparent',
-    border: 'none',
-    padding: 0,
-    color: c.value.text,
+    ...rowBase(c.value),
+    flexDirection: 'column',
+    gap: 'var(--sp-3)',
+    alignItems: 'stretch',
   }),
 )
-const descInput = computed(() =>
-  pxify({ ...s.value.input, minHeight: 44, resize: 'vertical', width: '100%' }),
-)
-const dateRow = pxify({ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' })
-const fieldLabel = computed(() => pxify({ fontSize: 11, color: c.value.dim, marginRight: 4 }))
+const headTop = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
+const dateRow = pxify({
+  display: 'flex',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+})
+const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, marginRight: 4 }))
 const barTrack = computed(() =>
-  pxify({ flex: 1, height: 8, borderRadius: 999, background: c.value.input, overflow: 'hidden' }),
+  pxify({
+    flex: 1,
+    height: 8,
+    borderRadius: 'var(--radius-pill)',
+    background: c.value.input,
+    overflow: 'hidden',
+  }),
 )
 const barFill = computed(() =>
   pxify({
     height: '100%',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.accent,
     transition: 'width .35s ease',
   }),
 )
 const sectionTitle = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
     color: c.value.dim,
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     marginTop: 6,
   }),
 )
 const smallBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -288,7 +292,7 @@ const smallBtn = computed(() =>
   }),
 )
 const addRow = computed(() =>
-  pxify({ display: 'flex', gap: 8, alignItems: 'center', padding: '2px 0' }),
+  pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', padding: '2px 0' }),
 )
 const overlay = pxify({
   position: 'fixed',
@@ -304,7 +308,7 @@ const modal = computed(() =>
     ...rowBase(c.value),
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: 10,
+    gap: 'var(--sp-3)',
     width: 'min(520px, 100%)',
     maxHeight: '80vh',
     background: c.value.glass,
@@ -312,16 +316,21 @@ const modal = computed(() =>
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
   }),
 )
-const pickList = pxify({ display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' })
+const pickList = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-1)',
+  overflowY: 'auto',
+})
 const pickRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     cursor: 'pointer',
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     border: '1px solid ' + c.value.border,
   }),
@@ -336,21 +345,16 @@ const pickRow = computed(() =>
     <div :style="header">
       <div :style="headTop">
         <ProgressRing :ratio="progress.ratio" :size="52" />
-        <input
-          :style="titleInput"
-          :value="goal.title"
+        <TextInput
+          :model-value="goal.title"
           placeholder="Goal title"
-          @input="app.updateGoal(goal.id, { title: ($event.target as HTMLInputElement).value })"
+          @update:model-value="app.updateGoal(goal.id, { title: $event })"
         />
-        <select
-          :style="s.select"
-          :value="goal.status"
-          @change="
-            app.setGoalStatus(goal.id, ($event.target as HTMLSelectElement).value as GoalStatus)
-          "
-        >
-          <option v-for="st in STATUS_OPTS" :key="st" :value="st">{{ st }}</option>
-        </select>
+        <Select
+          :model-value="goal.status"
+          @update:model-value="app.setGoalStatus(goal.id, $event as GoalStatus)"
+          :options="[...STATUS_OPTS.map((st) => ({ value: String(st), label: st }))]"
+        />
         <button :style="smallBtn" title="Duplicate goal" @click="onDuplicate">Duplicate</button>
         <button :style="smallBtn" title="Archive / unarchive" @click="onToggleArchive">
           {{ goal.status === 'archived' ? 'Unarchive' : 'Archive' }}
@@ -358,14 +362,11 @@ const pickRow = computed(() =>
         <button :style="smallBtn" title="Export as JSON" @click="onExport">Export</button>
         <button :style="smallBtn" @click="confirmDelete = true">Delete</button>
       </div>
-      <textarea
-        :style="descInput"
-        :value="goal.description"
+      <TextArea
+        :model-value="goal.description"
         placeholder="Description…"
-        @input="
-          app.updateGoal(goal.id, { description: ($event.target as HTMLTextAreaElement).value })
-        "
-      ></textarea>
+        @update:model-value="app.updateGoal(goal.id, { description: $event })"
+      />
       <div :style="dateRow">
         <label :style="fieldLabel">Start</label>
         <GlassDatePicker
@@ -398,8 +399,7 @@ const pickRow = computed(() =>
     <!-- Checklist -->
     <div :style="sectionTitle">Checklist</div>
     <div :style="addRow">
-      <input
-        :style="s.input"
+      <TextInput
         style="flex: 1"
         v-model="draft"
         placeholder="Add a checklist item…"
@@ -454,13 +454,12 @@ const pickRow = computed(() =>
     <div v-if="pickerFor" :style="overlay" @click.self="pickerFor = null">
       <div :style="modal">
         <div :style="sectionTitle">Attach {{ pickerFor }}</div>
-        <input :style="s.input" v-model="pickerSearch" placeholder="Search…" />
+        <TextInput v-model="pickerSearch" placeholder="Search…" />
         <div :style="pickList">
           <label v-for="row in pickerRows" :key="row.id" :style="pickRow">
-            <input
-              type="checkbox"
-              :checked="row.attached"
-              @change="togglePick(row.id, row.attached)"
+            <Checkbox
+              :model-value="row.attached"
+              @update:model-value="togglePick(row.id, row.attached)"
             />
             <span>{{ row.label }}</span>
           </label>

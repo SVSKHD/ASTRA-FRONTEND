@@ -7,7 +7,7 @@
 // reason someone opens a contents list in the first place.
 import { computed, ref } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { headingsOf } from '@/utils/mdRender'
 
 const props = withDefaults(defineProps<{ source: string; minHeadings?: number }>(), {
@@ -28,7 +28,7 @@ const base = computed(() => Math.min(...headings.value.map((h) => h.level), 6))
 const wrap = computed(() =>
   pxify({
     border: '1px solid ' + c.value.border,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
     overflow: 'hidden',
   }),
@@ -37,14 +37,14 @@ const head = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     width: '100%',
     padding: '8px 12px',
     border: 'none',
     background: 'transparent',
     color: c.value.dim,
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     cursor: 'pointer',
@@ -59,12 +59,12 @@ const entry = (level: number) =>
     border: 'none',
     background: 'transparent',
     color: level === base.value ? c.value.text : c.value.dim,
-    fontSize: 12,
+    ...typeStep('xs'),
     cursor: 'pointer',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
   })
 const entryHover = computed(() => ({ background: c.value.card, color: c.value.accent }))
-const caret = computed(() => pxify({ color: c.value.accent, fontSize: 10 }))
+const caret = computed(() => pxify({ color: c.value.accent, ...typeStep('2xs') }))
 </script>
 
 <template>

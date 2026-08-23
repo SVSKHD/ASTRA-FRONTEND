@@ -11,7 +11,7 @@ import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { TABS, TAB_ORDER } from '@/tabs.config'
 import TabGlyph from '@/components/TabGlyph.vue'
 import type { TabKey } from '@/types'
@@ -135,7 +135,7 @@ const capsule = computed(() => {
       height: 60,
       maxWidth: '86vw',
       padding: '0 10px',
-      borderRadius: 999,
+      borderRadius: 'var(--radius-pill)',
     })
   }
   return pxify({
@@ -146,7 +146,7 @@ const capsule = computed(() => {
     width: isTablet.value ? 56 : 64,
     maxHeight: '62vh',
     padding: '10px 0',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     flexDirection: 'column' as const,
   })
 })
@@ -228,9 +228,9 @@ const tip = computed(() =>
     top: horizontal.value ? 'auto' : '50%',
     transform: horizontal.value ? 'translateX(-50%)' : 'translateY(-50%)',
     padding: '5px 11px',
-    borderRadius: 10,
-    fontSize: 11,
-    fontWeight: 600,
+    borderRadius: 'var(--radius-card)',
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     whiteSpace: 'nowrap',
     color: c.value.text,
     background: c.value.glass,

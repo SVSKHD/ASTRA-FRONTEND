@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
 // Manual "new goal" slide-over (task 12c). A right-side panel (not a full page)
 // that creates a draft goal on open and edits it live: title, optional timeline,
 // colour, description, an optional "Make it recurring" block (the section-11
@@ -9,7 +11,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import AutoTextarea from '@/components/ui/AutoTextarea.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import { parseItemMetadata } from '@/utils/goals'
@@ -94,7 +96,7 @@ const panel = computed(() =>
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: 18,
     overflowY: 'auto',
     background: c.value.glass,
@@ -105,14 +107,18 @@ const panel = computed(() =>
     animation: 'slideInR .22s ease both',
   }),
 )
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
-const h1 = computed(() => pxify({ fontSize: 16, fontWeight: 700, color: c.value.text, flex: 1 }))
-const fieldLabel = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
-const titleField = computed(() =>
-  pxify({ ...s.value.input, width: '100%', fontSize: 16, fontWeight: 600, padding: '8px 10px' }),
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
+const h1 = computed(() =>
+  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text, flex: 1 }),
 )
-const dateRow = pxify({ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' })
-const swatchRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap' })
+const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
+const dateRow = pxify({
+  display: 'flex',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+})
+const swatchRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' })
 function swatch(color: string, active: boolean) {
   return pxify({
     width: 22,
@@ -123,13 +129,10 @@ function swatch(color: string, active: boolean) {
     border: '2px solid ' + (active ? c.value.text : 'transparent'),
   })
 }
-const descField = computed(() =>
-  pxify({ ...s.value.input, width: '100%', minHeight: 52, resize: 'vertical' }),
-)
 const sectionTitle = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
     color: c.value.dim,
@@ -137,11 +140,11 @@ const sectionTitle = computed(() =>
   }),
 )
 // Top-aligned: a point that wraps keeps its delete button beside the first line.
-const pointRow = pxify({ display: 'flex', alignItems: 'flex-start', gap: 8 })
+const pointRow = pxify({ display: 'flex', alignItems: 'flex-start', gap: 'var(--sp-2)' })
 // Wraps rather than truncating — an added point is read back in full.
 const pointText = computed(() =>
   pxify({
-    fontSize: 13,
+    ...typeStep('sm'),
     lineHeight: 1.5,
     color: c.value.text,
     flex: 1,
@@ -150,28 +153,28 @@ const pointText = computed(() =>
     overflowWrap: 'anywhere',
   }),
 )
-const chipRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: -4 })
+const chipRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap', marginTop: -4 })
 const chip = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     color: c.value.accent,
     border: '1px solid ' + c.value.accent,
   }),
 )
 const delBtn = computed(() =>
-  pxify({ ...s.value.del, fontSize: 14, cursor: 'pointer', flexShrink: 0 }),
+  pxify({ ...s.value.del, ...typeStep('base'), cursor: 'pointer', flexShrink: 0 }),
 )
-const footer = pxify({ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 8 })
+const footer = pxify({ display: 'flex', gap: 'var(--sp-3)', marginTop: 'auto', paddingTop: 8 })
 const createBtn = computed(() =>
   pxify({
     flex: 1,
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '10px 16px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: canCreate.value ? c.value.accent : c.value.border,
     color: canCreate.value ? c.value.onAccent : c.value.dim,
@@ -180,10 +183,10 @@ const createBtn = computed(() =>
 )
 const cancelBtn = computed(() =>
   pxify({
-    fontSize: 13,
-    fontWeight: 600,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '10px 16px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -200,12 +203,11 @@ const cancelBtn = computed(() =>
         <button :style="cancelBtn" @click="cancel">Close</button>
       </div>
 
-      <input
+      <TextInput
         ref="titleInput"
-        :style="titleField"
-        :value="goal?.title"
+        :model-value="goal?.title"
         placeholder="Goal title"
-        @input="set('title', ($event.target as HTMLInputElement).value)"
+        @update:model-value="set('title', $event)"
         @keydown.enter.prevent="create"
       />
 
@@ -234,12 +236,11 @@ const cancelBtn = computed(() =>
         ></span>
       </div>
 
-      <textarea
-        :style="descField"
-        :value="goal?.description"
+      <TextArea
+        :model-value="goal?.description ?? ''"
         placeholder="Description (optional)"
-        @input="set('description', ($event.target as HTMLTextAreaElement).value)"
-      ></textarea>
+        @update:model-value="set('description', $event)"
+      />
 
       <!-- Recurrence + metric block from section 11 (config only). -->
       <GoalMetricPanel v-if="draftId > 0" :goal-id="draftId" config-only />

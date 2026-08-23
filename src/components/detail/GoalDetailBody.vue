@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
 // The goal side of the detail dialog (section 18d). The same rules as the task
 // body — inline everything, no Save button — over a different set of blocks:
 // progress, timeline, the recurring/metric panel, the points checklist, the
@@ -194,16 +196,13 @@ defineExpose({
         :model-value="goal.color"
         @update:model-value="app.setGoalColor(goal.id, $event)"
       />
-      <select
+      <Select
         class="gdb__input gdb__status"
         aria-label="Goal status"
-        :value="goal.status"
-        @change="
-          app.setGoalStatus(goal.id, ($event.target as HTMLSelectElement).value as GoalStatus)
-        "
-      >
-        <option v-for="st in STATUSES" :key="st" :value="st">{{ st }}</option>
-      </select>
+        :model-value="goal.status"
+        @update:model-value="app.setGoalStatus(goal.id, $event as GoalStatus)"
+        :options="[...STATUSES.map((st) => ({ value: String(st), label: st }))]"
+      />
       <span v-if="daysChip" class="gdb__chip" :class="`gdb__chip--${daysChip.tone}`">
         {{ daysChip.text }}
       </span>
@@ -283,11 +282,10 @@ defineExpose({
         />
       </div>
       <div class="gdb__addrow">
-        <input
-          class="gdb__input"
+        <TextInput
           placeholder="Add a point…"
-          :value="pointDraft"
-          @input="pointDraft = ($event.target as HTMLInputElement).value"
+          :model-value="pointDraft"
+          @update:model-value="pointDraft = $event"
           @keydown.enter.prevent="addPoint"
         />
         <button type="button" class="gdb__mini" @click="addPoint">Add</button>
@@ -396,8 +394,8 @@ defineExpose({
   padding: 2px var(--sp-2);
   border-radius: var(--radius-pill);
   border: 1px solid currentColor;
-  font-size: var(--text-xs);
-  font-weight: 600;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
 }
 .gdb__chip--overdue {
   color: oklch(0.64 0.22 25);
@@ -432,7 +430,7 @@ defineExpose({
   min-width: 0;
 }
 .gdb__key {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .gdb__input {
@@ -442,7 +440,7 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: var(--theme-input, transparent);
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-family: inherit;
 }
 .gdb__point,
@@ -474,7 +472,8 @@ defineExpose({
   border: 1.5px solid var(--glass-border);
   background: transparent;
   color: var(--theme-on-accent, #fff);
-  font-size: 11px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   cursor: pointer;
 }
 .gdb__box--on {
@@ -488,7 +487,7 @@ defineExpose({
   border: none;
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   text-align: left;
   cursor: pointer;
 }
@@ -502,7 +501,7 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -517,7 +516,7 @@ defineExpose({
   flex: 1;
 }
 .gdb__muted {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .gdb__footer {

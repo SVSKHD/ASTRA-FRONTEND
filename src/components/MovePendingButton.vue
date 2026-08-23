@@ -15,7 +15,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useMovePending, type CollectionKey } from '@/composables/useMovePending'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const props = defineProps<{ collection: CollectionKey }>()
@@ -100,12 +100,12 @@ const shellStyle = computed(() =>
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 'var(--sp-2)',
     minHeight: isMobile.value ? 36 : 32,
     // Icon-only on mobile is a compact square; the labelled pill sizes to text.
     minWidth: isMobile.value ? 44 : undefined,
     padding: isMobile.value ? '0 10px' : '0 13px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (running.value ? c.value.accent : c.value.border),
     background: c.value.card,
     color: c.value.text,
@@ -144,9 +144,9 @@ const contentStyle = computed(() =>
     zIndex: 1,
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 7,
-    fontSize: 12,
-    fontWeight: 700,
+    gap: 'var(--sp-2)',
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.02em',
     color: pct.value > 55 ? c.value.onAccent : c.value.text,
     transition: 'color .2s ease',
@@ -158,11 +158,11 @@ const badgeStyle = computed(() =>
     minWidth: 18,
     height: 18,
     padding: '0 5px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: pct.value > 55 ? c.value.onAccent : c.value.accent,
     color: pct.value > 55 ? c.value.accent : c.value.onAccent,
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     display: 'grid',
     placeItems: 'center',
   }),

@@ -31,24 +31,24 @@ const initial = computed(() => (props.name || '?').trim().charAt(0).toUpperCase(
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   color: var(--theme-on-accent);
   background: var(--avatar-color, var(--theme-accent));
 }
 .ui-avatar--sm {
   width: 22px;
   height: 22px;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
 }
 .ui-avatar--md {
   width: 32px;
   height: 32px;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .ui-avatar--lg {
   width: 44px;
   height: 44px;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
 }
 .ui-avatar__img {
   width: 100%;

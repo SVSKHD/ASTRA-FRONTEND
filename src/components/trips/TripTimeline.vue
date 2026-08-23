@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import { sanitize } from '@/utils/sanitizeHtml'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatGap, formatWhen } from '@/utils/geo'
 import SmartImage from '@/components/trips/SmartImage.vue'
 import type { TripPlace } from '@/types'
@@ -37,7 +37,7 @@ function nodeStyle(i: number) {
   return pxify({
     display: 'grid',
     gridTemplateColumns: '34px 1fr',
-    gap: 12,
+    gap: 'var(--sp-3)',
     animation: 'fadeUp .35s ease both',
     animationDelay: i * 60 + 'ms',
   })
@@ -61,8 +61,8 @@ function dotStyle(activeState: boolean) {
     borderRadius: '50%',
     display: 'grid',
     placeItems: 'center',
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     background: activeState ? c.value.accent : c.value.card,
     color: activeState ? c.value.onAccent : c.value.text,
     border: '2px solid ' + c.value.accent,
@@ -80,38 +80,49 @@ function lineStyle(last: boolean) {
 }
 const bodyStyle = pxify({ paddingBottom: 18, minWidth: 0 })
 const nameStyle = computed(() =>
-  pxify({ fontSize: 14, fontWeight: 600, color: c.value.text, cursor: 'pointer' }),
+  pxify({
+    ...typeStep('base'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    cursor: 'pointer',
+  }),
 )
 const metaStyle = computed(() =>
-  pxify({ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 3 }),
+  pxify({
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 'var(--sp-2)',
+    alignItems: 'center',
+    marginTop: 3,
+  }),
 )
-const whenStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const whenStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const gapChip = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.accent,
   }),
 )
 const addrStyle = computed(() =>
-  pxify({ fontSize: 11, color: c.value.dim, marginTop: 3, lineHeight: 1.35 }),
+  pxify({ ...typeStep('xs'), color: c.value.dim, marginTop: 3, lineHeight: 1.35 }),
 )
 const notesStyle = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     lineHeight: 1.5,
     color: c.value.text,
     marginTop: 6,
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
   }),
 )
-const photoRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 })
+const photoRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap', marginTop: 8 })
 const photoCell = pxify({
   width: 54,
   padding: 0,
@@ -120,7 +131,7 @@ const photoCell = pxify({
   cursor: 'zoom-in',
 })
 const emptyStyle = computed(() =>
-  pxify({ textAlign: 'center', color: c.value.dim, fontSize: 12.5, padding: '24px 0' }),
+  pxify({ textAlign: 'center', color: c.value.dim, ...typeStep('sm'), padding: '24px 0' }),
 )
 
 // Trip notes are rich text the owner wrote, but this same component renders a

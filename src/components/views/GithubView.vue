@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // The GitHub tab (13d + 13e): a cross-repo Issues view and a Repos view.
 //
 // Issues: filter by repo, state, label, assignee and linked/unlinked; pull one
@@ -13,7 +16,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import { fullName, issueStateColor } from '@/utils/githubModel'
 import { renderMarkdown } from '@/utils/markdown'
@@ -94,13 +97,13 @@ const repoRows = computed(() =>
 )
 
 // ---- styles ---------------------------------------------------------------
-const segRow = pxify({ display: 'flex', gap: 8, alignItems: 'center' })
+const segRow = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
 function segBtn(active: boolean) {
   return pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 14px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     cursor: 'pointer',
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active
@@ -113,10 +116,10 @@ const filterRow = computed(() =>
   pxify({
     display: 'grid',
     gridTemplateColumns: isMobile.value ? '1fr 1fr' : 'repeat(5, minmax(0, 1fr))',
-    gap: 8,
+    gap: 'var(--sp-2)',
   }),
 )
-const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 10, width: '100%' })
+const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', width: '100%' })
 function stateDot(state: 'open' | 'closed') {
   const col = issueStateColor(state)
   return pxify({
@@ -130,10 +133,10 @@ function stateDot(state: 'open' | 'closed') {
 }
 function labelChip() {
   return pxify({
-    fontSize: 9,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     color: c.value.dim,
     whiteSpace: 'nowrap',
@@ -141,11 +144,11 @@ function labelChip() {
 }
 const bodyStyle = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     lineHeight: 1.55,
     color: c.value.dim,
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: 'color-mix(in oklch, ' + c.value.border + ' 25%, transparent)',
     overflowX: 'auto',
   }),
@@ -154,22 +157,22 @@ const bulkBar = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '8px 10px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.accent,
     background: 'color-mix(in oklch, ' + c.value.accent + ' 12%, transparent)',
-    fontSize: 12,
+    ...typeStep('xs'),
   }),
 )
 function ciChip(ci: string) {
   const col =
     ci === 'passing' ? 'oklch(0.7 0.15 145)' : ci === 'failing' ? 'oklch(0.65 0.2 25)' : c.value.dim
   return pxify({
-    fontSize: 9,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     color: col,
     border: '1px solid ' + col,
     whiteSpace: 'nowrap',
@@ -180,7 +183,7 @@ function toggleTrack(on: boolean) {
     flexShrink: 0,
     width: 34,
     height: 20,
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: on ? 'oklch(0.68 0.16 150)' : c.value.border,
     border: '1px solid ' + c.value.border,
     cursor: 'pointer',
@@ -231,30 +234,45 @@ function progressInner(pct: number) {
     <!-- ---- Issues ------------------------------------------------------- -->
     <template v-if="pane === 'issues'">
       <div :style="filterRow">
-        <select :style="s.select" v-model="filter.repoId">
-          <option value="all">All repos</option>
-          <option v-for="r in repos" :key="r.id" :value="r.id">{{ r.fullName }}</option>
-        </select>
-        <select :style="s.select" v-model="filter.state">
-          <option value="open">Open</option>
-          <option value="closed">Closed</option>
-          <option value="all">Any state</option>
-        </select>
-        <select :style="s.select" v-model="filter.label">
-          <option value="all">Any label</option>
-          <option v-for="l in labels" :key="l" :value="l">{{ l }}</option>
-        </select>
-        <select :style="s.select" v-model="filter.assignee">
-          <option value="all">Anyone</option>
-          <option v-for="a in assignees" :key="a" :value="a">{{ a }}</option>
-        </select>
-        <select :style="s.select" v-model="filter.link">
-          <option value="all">Linked or not</option>
-          <option value="linked">Linked to a task</option>
-          <option value="unlinked">Not linked</option>
-        </select>
+        <Select
+          v-model="filter.repoId"
+          :options="[
+            { value: 'all', label: 'All repos' },
+            ...repos.map((r) => ({ value: String(r.id), label: `${r.fullName}` })),
+          ]"
+        />
+        <Select
+          v-model="filter.state"
+          :options="[
+            { value: 'open', label: 'Open' },
+            { value: 'closed', label: 'Closed' },
+            { value: 'all', label: 'Any state' },
+          ]"
+        />
+        <Select
+          v-model="filter.label"
+          :options="[
+            { value: 'all', label: 'Any label' },
+            ...labels.map((l) => ({ value: String(l), label: l })),
+          ]"
+        />
+        <Select
+          v-model="filter.assignee"
+          :options="[
+            { value: 'all', label: 'Anyone' },
+            ...assignees.map((a) => ({ value: String(a), label: a })),
+          ]"
+        />
+        <Select
+          v-model="filter.link"
+          :options="[
+            { value: 'all', label: 'Linked or not' },
+            { value: 'linked', label: 'Linked to a task' },
+            { value: 'unlinked', label: 'Not linked' },
+          ]"
+        />
       </div>
-      <input :style="s.input" placeholder="Search by number or title…" v-model="filter.query" />
+      <TextInput placeholder="Search by number or title…" v-model="filter.query" />
 
       <div v-if="selected.size" :style="bulkBar">
         <span>{{ selected.size }} selected</span>
@@ -273,11 +291,10 @@ function progressInner(pct: number) {
       <div class="stagger-in" v-else :style="s.list">
         <div v-for="issue in visibleIssues" :key="issue.id" :style="s.ghRepoCard">
           <div :style="rowStyle">
-            <input
+            <Checkbox
               v-if="!linked(issue)"
-              type="checkbox"
-              :checked="selected.has(issue.id)"
-              @change="toggleSelect(issue.id)"
+              :model-value="selected.has(issue.id)"
+              @update:model-value="toggleSelect(issue.id)"
             />
             <span :style="stateDot(issue.state)"></span>
             <div :style="s.taskMain" @click="toggleIssue(issue.id)">

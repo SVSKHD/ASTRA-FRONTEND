@@ -79,7 +79,8 @@ const {
   border: 1.5px solid var(--glass-border);
   background: transparent;
   color: var(--theme-on-accent, #fff);
-  font-size: 12px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   cursor: pointer;
 }
 .gct__box--on {
@@ -87,7 +88,7 @@ const {
   border-color: var(--theme-accent);
 }
 .gct__label {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
   white-space: nowrap;
 }

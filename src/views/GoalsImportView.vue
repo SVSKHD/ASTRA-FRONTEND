@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // Goals URL import preview (task 8, route /import/goals). Paste a link shaped
 // like spasta.online/?project=<slug>&goals=<items> (or the legacy
 // ?project=slug=a|b|c form); it is parsed tolerantly, shown as an editable
@@ -11,7 +15,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, rowBase } from '@/styles'
+import { pxify, rowBase, typeStep } from '@/styles'
 import {
   parseImportUrl,
   parseGoalsJson,
@@ -137,8 +141,7 @@ function moveRow(i: number, dir: -1 | 1) {
   const arr = rows.value
   ;[arr[i], arr[j]] = [arr[j], arr[i]]
 }
-function onEstimate(i: number, e: Event) {
-  const v = (e.target as HTMLInputElement).value
+function onEstimate(i: number, v: string) {
   rows.value[i].estimateMins = v === '' ? null : Math.max(0, parseInt(v, 10) || 0)
 }
 
@@ -171,7 +174,7 @@ const page = computed(() =>
     display: 'flex',
     justifyContent: 'center',
     color: c.value.text,
-    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+    fontFamily: 'var(--font-mono)',
   }),
 )
 const card = computed(() =>
@@ -179,7 +182,7 @@ const card = computed(() =>
     ...rowBase(c.value),
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: 14,
+    gap: 'var(--sp-4)',
     width: 'min(720px, 100%)',
     height: 'fit-content',
     background: c.value.glass,
@@ -187,30 +190,29 @@ const card = computed(() =>
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
   }),
 )
-const h1 = computed(() => pxify({ fontSize: 18, fontWeight: 700, color: c.value.text }))
-const sub = computed(() => pxify({ fontSize: 12, color: c.value.dim, lineHeight: 1.5 }))
+const h1 = computed(() =>
+  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
+const sub = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, lineHeight: 1.5 }))
 const rowStyle = computed(() =>
   pxify({
     display: 'flex',
     // Top-aligned, so the controls stay beside a wrapped row's first line.
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: '6px 8px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     flexWrap: 'wrap',
   }),
 )
-const mini = computed(() =>
-  pxify({ ...s.value.input, width: 78, padding: '4px 6px', fontSize: 12 }),
-)
 const btn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -220,10 +222,10 @@ const btn = computed(() =>
 )
 const primary = computed(() =>
   pxify({
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '9px 16px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
@@ -232,7 +234,7 @@ const primary = computed(() =>
 )
 const actions = pxify({
   display: 'flex',
-  gap: 10,
+  gap: 'var(--sp-3)',
   alignItems: 'center',
   marginTop: 4,
   flexWrap: 'wrap',
@@ -241,24 +243,26 @@ const dropZone = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: 10,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1.5px dashed ' + (dragActive.value ? c.value.accent : c.value.border),
     background: dragActive.value ? c.value.card : 'transparent',
     transition: 'border-color .15s ease, background .15s ease',
   }),
 )
-const warn = computed(() => pxify({ fontSize: 12, color: 'oklch(0.64 0.22 25)', fontWeight: 600 }))
+const warn = computed(() =>
+  pxify({ ...typeStep('xs'), color: 'oklch(0.64 0.22 25)', fontWeight: 'var(--weight-semibold)' }),
+)
 const mergeNote = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.accent,
     display: 'flex',
-    gap: 8,
+    gap: 'var(--sp-2)',
     alignItems: 'center',
   }),
 )
@@ -282,11 +286,7 @@ const mergeNote = computed(() =>
         @dragleave.prevent="dragActive = false"
         @drop.prevent="onDrop"
       >
-        <textarea
-          :style="{ ...s.input, width: '100%', minHeight: 72, resize: 'vertical' }"
-          v-model="raw"
-          placeholder="Paste a link or JSON…"
-        ></textarea>
+        <TextArea v-model="raw" placeholder="Paste a link or JSON…" />
         <div :style="sub">Drag a .json file here, or</div>
         <label :style="btn">
           Choose file…
@@ -319,7 +319,7 @@ const mergeNote = computed(() =>
             >.
           </div>
           <div v-for="(g, gi) in jsonDoc.goals" :key="gi" :style="rowStyle">
-            <span :style="{ flex: 1, fontWeight: 600, color: c.text }">
+            <span :style="{ flex: 1, fontWeight: 'var(--weight-semibold)', color: c.text }">
               {{ g.title || '(untitled)' }}
             </span>
             <span v-if="g.error" :style="warn">{{ g.error }}</span>
@@ -349,7 +349,7 @@ const mergeNote = computed(() =>
         </div>
 
         <label :style="sub">Goal title</label>
-        <input :style="{ ...s.input, width: '100%' }" v-model="title" placeholder="Goal title" />
+        <TextInput v-model="title" placeholder="Goal title" />
 
         <div v-if="overCap" :style="warn">
           Too many items — {{ parsed.items.length }} shown, the import cap is
@@ -357,7 +357,7 @@ const mergeNote = computed(() =>
         </div>
 
         <div v-if="mergeCandidate" :style="mergeNote">
-          <input type="checkbox" v-model="merge" />
+          <Checkbox v-model="merge" />
           <span>
             A goal already exists for this link (“{{ mergeCandidate.title }}”). Merge — appending
             only new checklist items — instead of creating a duplicate.
@@ -374,22 +374,21 @@ const mergeNote = computed(() =>
             label="Item text"
             placeholder="Item text"
           />
-          <select
-            :style="s.select"
-            :value="r.kind"
-            @change="r.kind = ($event.target as HTMLSelectElement).value as RowKind"
-          >
-            <option value="checklist">Checklist</option>
-            <option value="task">Task</option>
-            <option value="todo">Todo</option>
-          </select>
-          <input
-            :style="mini"
+          <Select
+            :model-value="r.kind"
+            @update:model-value="r.kind = $event as RowKind"
+            :options="[
+              { value: 'checklist', label: 'Checklist' },
+              { value: 'task', label: 'Task' },
+              { value: 'todo', label: 'Todo' },
+            ]"
+          />
+          <TextInput
             type="number"
             min="0"
-            :value="r.estimateMins ?? ''"
+            :model-value="r.estimateMins ?? ''"
             placeholder="est m"
-            @input="onEstimate(i, $event)"
+            @update:model-value="onEstimate(i, $event)"
           />
           <GlassDatePicker
             size="sm"

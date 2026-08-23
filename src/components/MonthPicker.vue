@@ -4,7 +4,7 @@
 // Controlled via v-model of a 'YYYY-MM' key; persistence lives in the parent.
 import { computed, nextTick, ref } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
 
 const props = defineProps<{ modelValue: string }>()
@@ -60,9 +60,9 @@ const pill = computed(() =>
   pxify({
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 4,
+    gap: 'var(--sp-1)',
     padding: '6px 8px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.glass,
     backdropFilter: 'blur(20px) saturate(1.5)',
     border: '1px solid ' + c.value.border,
@@ -73,13 +73,13 @@ function arrowStyle(disabled: boolean) {
   return pxify({
     width: 26,
     height: 26,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: 'transparent',
     color: disabled ? c.value.dim : c.value.text,
     opacity: disabled ? 0.4 : 1,
     cursor: disabled ? 'default' : 'pointer',
-    fontSize: 15,
+    ...typeStep('base'),
     lineHeight: 1,
     display: 'grid',
     placeItems: 'center',
@@ -89,8 +89,8 @@ const labelBtn = computed(() =>
   pxify({
     minWidth: 120,
     textAlign: 'center',
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.text,
     background: 'transparent',
     border: 'none',
@@ -107,7 +107,7 @@ const panel = computed(() =>
     zIndex: 13,
     width: 244,
     padding: 12,
-    borderRadius: 16,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.glass,
     backdropFilter: 'blur(28px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
@@ -121,19 +121,21 @@ const yearRow = pxify({
   justifyContent: 'space-between',
   marginBottom: 10,
 })
-const yearLabel = computed(() => pxify({ fontSize: 13, fontWeight: 700, color: c.value.text }))
-const grid = pxify({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 })
+const yearLabel = computed(() =>
+  pxify({ ...typeStep('sm'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
+const grid = pxify({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--sp-2)' })
 function cellStyle(monthIdx: number) {
   const selected = isSelected(monthIdx)
   const future = isFuture(monthIdx)
   return pxify({
     padding: '9px 0',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + (selected ? c.value.accent : 'transparent'),
     background: selected ? c.value.accent : c.value.card,
     color: selected ? c.value.onAccent : future ? c.value.dim : c.value.text,
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: future ? 'default' : 'pointer',
     opacity: future ? 0.4 : 1,
     textAlign: 'center',

@@ -26,7 +26,7 @@ export function useStyles() {
         (tabDir.value === -1 ? 'slideInL' : 'slideInR') + ' .35s cubic-bezier(.4,1.3,.4,1) both',
       display: 'flex',
       flexDirection: 'column',
-      gap: 14,
+      gap: 'var(--sp-4)',
       // The card has a fixed height; the panel fills it and lets its own list
       // do the scrolling, so no tab is taller or shorter than any other.
       flex: 1,

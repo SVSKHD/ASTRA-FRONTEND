@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // The ordered list of places inside a trip: add, edit, remove and drag to
 // reorder. Each place carries its own map location (via the Nominatim search),
 // its own visited date & time, rich notes (the slash-command editor) and photo
@@ -7,7 +8,7 @@
 import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import LocationSearch from '@/components/trips/LocationSearch.vue'
 import RichEditor from '@/components/RichEditor.vue'
 import type { GeoResult } from '@/utils/geo'
@@ -106,15 +107,15 @@ function cardStyle(place: TripPlace) {
   return pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '10px 12px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + (place.id === props.active ? c.value.accent : c.value.border),
     background: c.value.card,
     opacity: dragId.value === place.id ? 0.5 : 1,
   })
 }
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
 function numBadge(active: boolean) {
   return pxify({
     width: 24,
@@ -123,8 +124,8 @@ function numBadge(active: boolean) {
     borderRadius: '50%',
     display: 'grid',
     placeItems: 'center',
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     background: active ? c.value.accent : c.value.input,
     color: active ? c.value.onAccent : c.value.text,
     border: '1px solid ' + c.value.border,
@@ -135,7 +136,7 @@ const grip = pxify({
   cursor: 'grab',
   color: 'currentColor',
   opacity: 0.4,
-  fontSize: 14,
+  ...typeStep('base'),
   flexShrink: 0,
 })
 const nameBtn = () =>
@@ -146,8 +147,8 @@ const nameBtn = () =>
     background: 'none',
     border: 'none',
     color: c.value.text,
-    fontSize: 13.5,
-    fontWeight: 600,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -158,42 +159,52 @@ const iconBtn = () =>
     flexShrink: 0,
     width: 26,
     height: 26,
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
     cursor: 'pointer',
-    fontSize: 14,
+    ...typeStep('base'),
   })
 const labelStyle = () =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.1em',
     textTransform: 'uppercase',
     color: c.value.dim,
   })
-const inputStyle = () =>
-  pxify({
-    width: '100%',
-    padding: '9px 11px',
-    borderRadius: 11,
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    fontSize: 12.5,
-  })
-const field = pxify({ display: 'flex', flexDirection: 'column', gap: 5 })
-const photoRow = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' })
+pxify({
+  width: '100%',
+  padding: '9px 11px',
+  borderRadius: 'var(--radius-card)',
+  border: '1px solid ' + c.value.border,
+  background: c.value.input,
+  color: c.value.text,
+  ...typeStep('sm'),
+})
+const field = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' })
+const photoRow = pxify({
+  display: 'flex',
+  gap: 'var(--sp-2)',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+})
 const photoThumb = () =>
-  pxify({ width: 46, height: 46, borderRadius: 8, objectFit: 'cover', position: 'relative' })
+  pxify({
+    width: 46,
+    height: 46,
+    borderRadius: 'var(--radius-control)',
+    objectFit: 'cover',
+    position: 'relative',
+  })
 const addBtn = () =>
   pxify({
     alignSelf: 'flex-start',
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '9px 14px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     color: c.value.accent,
@@ -243,7 +254,7 @@ const addBtn = () =>
             @update:model-value="setField(place, 'name', $event)"
             @select="onLocation(place, $event)"
           />
-          <span v-if="place.address" :style="{ fontSize: '10.5px', color: c.dim }">
+          <span v-if="place.address" :style="{ ...typeStep('2xs'), color: c.dim }">
             📍 {{ place.address }}
           </span>
         </div>
@@ -289,7 +300,7 @@ const addBtn = () =>
                   background: c.card,
                   color: c.dim,
                   cursor: 'pointer',
-                  fontSize: '11px',
+                  ...typeStep('xs'),
                 }"
                 title="Remove photo"
                 @click="removePhoto(place, pi)"
@@ -299,15 +310,14 @@ const addBtn = () =>
             </span>
           </div>
           <div :style="photoRow">
-            <input
-              :style="inputStyle()"
+            <TextInput
               type="url"
               placeholder="Paste an image URL…"
-              :value="photoDraft[place.id] || ''"
-              @input="
+              :model-value="photoDraft[place.id] || ''"
+              @update:model-value="
                 photoDraft = {
                   ...photoDraft,
-                  [place.id]: ($event.target as HTMLInputElement).value,
+                  [place.id]: $event,
                 }
               "
               @keydown.enter.prevent="addPhoto(place)"

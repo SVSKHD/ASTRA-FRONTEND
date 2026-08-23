@@ -53,7 +53,7 @@ const canNext = computed(() => props.page < props.pageCount)
   cursor: not-allowed;
 }
 .ui-pager__label {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
   font-variant-numeric: tabular-nums;
 }

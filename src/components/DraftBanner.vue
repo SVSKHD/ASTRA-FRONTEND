@@ -8,7 +8,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useStyles } from '@/composables/useStyles'
 import { useUiStore } from '@/stores/ui'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { relativeTime } from '@/utils/drafts'
 
 const props = defineProps<{
@@ -36,11 +36,11 @@ const bar = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     flexWrap: 'wrap',
     padding: '8px 12px',
-    borderRadius: 12,
-    fontSize: 12,
+    borderRadius: 'var(--radius-card)',
+    ...typeStep('xs'),
     color: c.value.text,
     background: c.value.glass,
     border: '1px solid ' + (props.fromOtherDevice ? c.value.accent : c.value.border),
@@ -52,23 +52,23 @@ const bar = computed(() =>
 )
 const icon = computed(() =>
   pxify({
-    fontSize: 14,
+    ...typeStep('base'),
     flexShrink: 0,
     color: props.fromOtherDevice ? c.value.accent : c.value.dim,
   }),
 )
 const label = pxify({ flex: 1, minWidth: 0 })
-const actionsWrap = pxify({ display: 'flex', gap: 6, flexShrink: 0 })
+const actionsWrap = pxify({ display: 'flex', gap: 'var(--sp-2)', flexShrink: 0 })
 const linkBtn = computed(() =>
   pxify({
     cursor: 'pointer',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 10px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     // ≥40px-friendly on mobile without a media query: the padding + line-height
     // keeps the hit area comfortable.
     minHeight: 30,
@@ -80,10 +80,10 @@ const primaryBtn = computed(() =>
     border: '1px solid ' + c.value.accent,
     background: c.value.accent,
     color: c.value.onAccent,
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 10px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     minHeight: 30,
   }),
 )

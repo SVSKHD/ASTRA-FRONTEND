@@ -12,7 +12,7 @@ import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useConnectivity } from '@/composables/useConnectivity'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import Icon from '@/components/ui/Icon.vue'
 
@@ -98,17 +98,17 @@ const pillStyle = computed(() =>
     position: 'relative',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     maxWidth: isMobile.value ? 'calc(100vw - 24px)' : 360,
     padding: '8px 13px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.glass,
     backdropFilter: 'blur(24px) saturate(1.5)',
     border: '1px solid ' + accent.value,
     boxShadow: '0 8px 24px rgba(0,0,0,0.28), 0 0 16px ' + accent.value + '55',
     color: c.value.text,
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
     overflow: 'hidden',
     userSelect: 'none',
@@ -147,7 +147,7 @@ const menuStyle = computed(() =>
     bottom: 'calc(100% + 8px)',
     minWidth: 220,
     padding: 12,
-    borderRadius: 16,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.glass,
     backdropFilter: 'blur(28px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
@@ -155,11 +155,11 @@ const menuStyle = computed(() =>
     color: c.value.text,
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     animation: 'sheetUp .2s ease',
   }),
 )
-const menuMeta = computed(() => pxify({ fontSize: 11, color: c.value.dim, lineHeight: 1.5 }))
+const menuMeta = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, lineHeight: 1.5 }))
 const overlayStyle = pxify({ position: 'fixed', inset: 0, zIndex: 8 })
 
 function togglePopover() {

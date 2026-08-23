@@ -49,14 +49,14 @@ const uid = useId()
 .ui-slider__head {
   display: flex;
   justify-content: space-between;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 .ui-slider__value {
   color: var(--theme-text);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .ui-slider__input {
   width: 100%;

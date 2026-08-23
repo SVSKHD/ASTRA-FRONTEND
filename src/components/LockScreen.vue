@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const auth = useAuthStore()
@@ -24,34 +26,21 @@ const subtitle = computed(() =>
     : 'Enter your PIN to continue.',
 )
 
-const inputStyle = computed(() =>
-  pxify({
-    width: '100%',
-    padding: '13px 15px',
-    borderRadius: 14,
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    fontSize: 18,
-    textAlign: 'center',
-    letterSpacing: '0.35em',
-  }),
-)
 const checkRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 9,
+    gap: 'var(--sp-2)',
     padding: '10px 12px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.input,
     color: c.value.text,
-    fontSize: 11,
+    ...typeStep('xs'),
     textAlign: 'left',
   }),
 )
 const errorStyle = computed(() =>
-  pxify({ fontSize: 11, color: 'oklch(0.68 0.2 25)', lineHeight: 1.45 }),
+  pxify({ ...typeStep('xs'), color: 'oklch(0.68 0.2 25)', lineHeight: 1.45 }),
 )
 
 watch(visible, () => {
@@ -79,33 +68,31 @@ async function submit() {
       <span :style="s.authLogo">{{ title }}</span>
       <span :style="s.finMeta">{{ subtitle }}</span>
 
-      <input
+      <TextInput
         v-model="pin"
-        :style="inputStyle"
         type="password"
         inputmode="numeric"
         pattern="[0-9]*"
-        maxlength="8"
+        :maxlength="8"
         autocomplete="current-password"
         aria-label="PIN"
         placeholder="••••"
         autofocus
       />
-      <input
+      <TextInput
         v-if="pinSetupRequired"
         v-model="confirmation"
-        :style="inputStyle"
         type="password"
         inputmode="numeric"
         pattern="[0-9]*"
-        maxlength="8"
+        :maxlength="8"
         autocomplete="new-password"
         aria-label="Confirm PIN"
         placeholder="Confirm PIN"
       />
 
       <label v-if="pinSetupRequired" :style="checkRow">
-        <input v-model="neverLock" type="checkbox" />
+        <Checkbox v-model="neverLock" />
         <span>Do not auto-lock this app</span>
       </label>
 

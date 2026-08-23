@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // The capture prompt shown when a metric-enabled occurrence is ticked (task 11).
 // A compact inline popover, not a full dialog: a number input prefilled with the
 // target (focused + selected), the unit suffix, an optional note, and Save / Skip.
@@ -8,7 +9,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useSyncGuard } from '@/composables/useSyncGuard'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { captureOutcome, type Metric } from '@/utils/goalMetrics'
 
 const props = defineProps<{
@@ -67,9 +68,9 @@ const pop = computed(() =>
     width: 250,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: 12,
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.glass,
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
@@ -78,59 +79,36 @@ const pop = computed(() =>
     animation: 'fadeUp .16s ease both',
   }),
 )
-const promptStyle = computed(() => pxify({ fontSize: 13, fontWeight: 600, color: c.value.text }))
+const promptStyle = computed(() =>
+  pxify({ ...typeStep('sm'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 const inputWrap = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    borderRadius: 10,
+    gap: 'var(--sp-2)',
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     padding: '4px 10px',
   }),
 )
-const numInput = computed(() =>
-  pxify({
-    flex: 1,
-    minWidth: 0,
-    fontSize: 18,
-    fontWeight: 700,
-    background: 'transparent',
-    border: 'none',
-    outline: 'none',
-    color: c.value.text,
-    fontFamily: 'inherit',
-  }),
-)
-const unitStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim, flexShrink: 0 }))
-const noteInput = computed(() =>
-  pxify({
-    fontSize: 12,
-    borderRadius: 10,
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    padding: '6px 10px',
-    color: c.value.text,
-    outline: 'none',
-    fontFamily: 'inherit',
-  }),
-)
+const unitStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, flexShrink: 0 }))
 const outcomeStyle = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: outcome.value.hit ? 'oklch(0.72 0.15 150)' : 'oklch(0.8 0.16 72)',
   }),
 )
-const rowBtns = pxify({ display: 'flex', gap: 8, alignItems: 'center' })
+const rowBtns = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
 const saveBtn = computed(() =>
   pxify({
     flex: 1,
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '7px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
@@ -139,10 +117,10 @@ const saveBtn = computed(() =>
 )
 const ghostBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '7px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -151,10 +129,10 @@ const ghostBtn = computed(() =>
 )
 const missedBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 8px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid oklch(0.64 0.22 25)',
     background: 'transparent',
     color: 'oklch(0.64 0.22 25)',
@@ -168,9 +146,8 @@ const missedBtn = computed(() =>
   <div :style="pop" @click.stop @keydown.esc.stop.prevent="emit('cancel')">
     <div :style="promptStyle">{{ prompt || 'How much did you achieve today?' }}</div>
     <div :style="inputWrap">
-      <input
+      <TextInput
         ref="inputEl"
-        :style="numInput"
         v-model="value"
         type="text"
         inputmode="decimal"
@@ -182,8 +159,7 @@ const missedBtn = computed(() =>
       {{ num }} / {{ metric.target }} · {{ outcome.pct }}%
       <span v-if="outcome.hit"> ✓</span>
     </div>
-    <input
-      :style="noteInput"
+    <TextInput
       v-model="note"
       type="text"
       placeholder="Note (optional)"

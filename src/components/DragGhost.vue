@@ -7,7 +7,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useDragNest } from '@/composables/useDragNest'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { LINK_REJECTION_MESSAGE, type LinkRejection } from '@/utils/links'
 
 const { c } = useStyles()
@@ -33,7 +33,7 @@ const ghost = computed(() =>
     pointerEvents: 'none',
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 'var(--sp-2)',
     maxWidth: 260,
   }),
 )
@@ -41,11 +41,11 @@ const pill = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: '8px 12px',
-    borderRadius: 12,
-    fontSize: 13,
-    fontWeight: 600,
+    borderRadius: 'var(--radius-card)',
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.text,
     background: c.value.glass,
     backdropFilter: 'blur(20px) saturate(1.5)',
@@ -57,10 +57,10 @@ const pill = computed(() =>
 )
 const badge = computed(() =>
   pxify({
-    fontSize: 9,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 6px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     color: c.value.dim,
     flexShrink: 0,
@@ -69,10 +69,10 @@ const badge = computed(() =>
 const reasonPill = computed(() =>
   pxify({
     alignSelf: 'flex-start',
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '3px 8px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: 'oklch(0.64 0.22 25)',
     color: '#fff',
   }),

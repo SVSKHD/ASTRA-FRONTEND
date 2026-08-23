@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // Target-vs-actual view for a recurring metric goal (task 11). A stats header
 // (today, current/best streak, completion rate), a rolling window (7/30/90 days)
 // of totals/averages, a per-day bar chart with a dashed target line (bars
@@ -8,7 +9,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import {
   currentStreak,
   bestStreak,
@@ -112,26 +113,33 @@ const wrap = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
   }),
 )
-const statRow = pxify({ display: 'flex', gap: 16, flexWrap: 'wrap' })
+const statRow = pxify({ display: 'flex', gap: 'var(--sp-4)', flexWrap: 'wrap' })
 const stat = pxify({ display: 'flex', flexDirection: 'column', gap: 2 })
-const statNum = computed(() => pxify({ fontSize: 18, fontWeight: 700, color: c.value.text }))
-const statLabel = computed(() =>
-  pxify({ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: c.value.dim }),
+const statNum = computed(() =>
+  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
 )
-const winRow = pxify({ display: 'flex', gap: 6, alignItems: 'center' })
+const statLabel = computed(() =>
+  pxify({
+    ...typeStep('2xs'),
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
+)
+const winRow = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
 function winBtn(active: boolean) {
   return pxify({
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '4px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active ? c.value.accent : 'transparent',
     color: active ? c.value.onAccent : c.value.dim,
@@ -179,15 +187,15 @@ const histRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '5px 6px',
-    borderRadius: 8,
-    fontSize: 12,
+    borderRadius: 'var(--radius-control)',
+    ...typeStep('xs'),
     color: c.value.text,
   }),
 )
 const histDate = computed(() => pxify({ color: c.value.dim, width: 92, flexShrink: 0 }))
-const histVal = computed(() => pxify({ fontWeight: 600, cursor: 'pointer' }))
+const histVal = computed(() => pxify({ fontWeight: 'var(--weight-semibold)', cursor: 'pointer' }))
 const histNote = computed(() =>
   pxify({
     color: c.value.dim,
@@ -198,20 +206,7 @@ const histNote = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const editInput = computed(() =>
-  pxify({
-    width: 70,
-    fontSize: 12,
-    padding: '2px 6px',
-    borderRadius: 6,
-    border: '1px solid ' + c.value.accent,
-    background: c.value.input,
-    color: c.value.text,
-    outline: 'none',
-    fontFamily: 'inherit',
-  }),
-)
-const emptyStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim }))
+const emptyStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 </script>
 
 <template>
@@ -273,8 +268,7 @@ const emptyStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim }))
       <div v-for="o in history" :key="o.date" :style="histRow">
         <span :style="histDate">{{ o.date }}</span>
         <template v-if="editDate === o.date">
-          <input
-            :style="editInput"
+          <TextInput
             v-model="editVal"
             type="text"
             inputmode="decimal"

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // Recurring-goal panel for the goal detail (task 11). Holds the recurrence +
 // metric config editor, and — when recurring — today's occurrence with a tick
 // control. Ticking a metric-enabled occurrence opens the capture popover
@@ -8,7 +11,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
 import { useGoalToday } from '@/composables/useGoalToday'
 import GoalMetricChart from '@/components/GoalMetricChart.vue'
@@ -20,7 +23,7 @@ import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 // slide-over can reuse just the recurrence/metric editor for a brand-new goal.
 const props = defineProps<{ goalId: number; configOnly?: boolean }>()
 const app = useAppStore()
-const { c, s } = useStyles()
+const { c } = useStyles()
 const { goals } = storeToRefs(app)
 
 const goal = computed(() => goals.value.find((g) => g.id === props.goalId))
@@ -87,80 +90,86 @@ const box = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
   }),
 )
-const rowFlex = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
+const rowFlex = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
 const toggleLabel = computed(() =>
-  pxify({ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: c.value.text }),
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--sp-2)',
+    ...typeStep('sm'),
+    color: c.value.text,
+  }),
 )
-const fieldLabel = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
-const dowRow = pxify({ display: 'flex', gap: 4 })
+const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
+const dowRow = pxify({ display: 'flex', gap: 'var(--sp-1)' })
 function dowBtn(active: boolean) {
   return pxify({
     width: 26,
     height: 26,
     borderRadius: '50%',
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active ? c.value.accent : 'transparent',
     color: active ? c.value.onAccent : c.value.dim,
     cursor: 'pointer',
   })
 }
-const miniInput = computed(() =>
-  pxify({ ...s.value.input, width: 90, padding: '5px 8px', fontSize: 12 }),
-)
 const todayRow = computed(() =>
   pxify({
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
   }),
 )
-const todayTitle = computed(() => pxify({ fontSize: 13, fontWeight: 600, color: c.value.text }))
+const todayTitle = computed(() =>
+  pxify({ ...typeStep('sm'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 function outcomeText(hit: boolean, missed: boolean) {
   return pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     marginLeft: 'auto',
     color: missed ? 'oklch(0.64 0.22 25)' : hit ? 'oklch(0.72 0.15 150)' : 'oklch(0.8 0.16 72)',
   })
 }
-const pendingHint = computed(() => pxify({ fontSize: 12, color: c.value.dim, marginLeft: 'auto' }))
+const pendingHint = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, marginLeft: 'auto' }),
+)
 </script>
 
 <template>
   <div v-if="goal" :style="box">
     <!-- recurring toggle -->
     <label :style="toggleLabel">
-      <input
-        type="checkbox"
-        :checked="recurring"
-        @change="toggleRecurring(($event.target as HTMLInputElement).checked)"
-      />
+      <Checkbox :model-value="recurring" @update:model-value="toggleRecurring($event)" />
       <span>Make it recurring</span>
     </label>
 
     <template v-if="recurring && goal.recurrence">
       <div :style="rowFlex">
-        <select
-          :style="s.select"
-          :value="goal.recurrence.freq"
-          @change="patchRec({ freq: ($event.target as HTMLSelectElement).value as RecurrenceFreq })"
-        >
-          <option v-for="f in FREQ_OPTS" :key="f.v" :value="f.v">{{ f.label }}</option>
-        </select>
+        <Select
+          :model-value="goal.recurrence.freq"
+          @update:model-value="patchRec({ freq: $event as RecurrenceFreq })"
+          :options="[...FREQ_OPTS.map((f) => ({ value: String(f.v), label: `${f.label}` }))]"
+        />
         <label :style="fieldLabel">at</label>
         <GlassDatePicker
           mode="time"
@@ -186,50 +195,35 @@ const pendingHint = computed(() => pxify({ fontSize: 12, color: c.value.dim, mar
 
       <!-- metric config -->
       <label :style="toggleLabel">
-        <input
-          type="checkbox"
-          :checked="metricOn"
-          @change="toggleMetric(($event.target as HTMLInputElement).checked)"
-        />
+        <Checkbox :model-value="metricOn" @update:model-value="toggleMetric($event)" />
         <span>Track a number</span>
       </label>
       <div v-if="metricOn && goal.metric" :style="rowFlex">
-        <input
-          :style="miniInput"
+        <TextInput
           style="width: 120px"
-          :value="goal.metric.label"
+          :model-value="goal.metric.label"
           placeholder="Label"
-          @input="patchMetric({ label: ($event.target as HTMLInputElement).value })"
+          @update:model-value="patchMetric({ label: $event })"
         />
-        <select
-          :style="s.select"
-          :value="goal.metric.direction"
-          @change="
-            patchMetric({
-              direction: ($event.target as HTMLSelectElement).value as MetricDirection,
-            })
-          "
-        >
-          <option v-for="d in DIR_OPTS" :key="d.v" :value="d.v">{{ d.label }}</option>
-        </select>
-        <input
-          :style="miniInput"
+        <Select
+          :model-value="goal.metric.direction"
+          @update:model-value="patchMetric({ direction: $event as MetricDirection })"
+          :options="[...DIR_OPTS.map((d) => ({ value: String(d.v), label: `${d.label}` }))]"
+        />
+        <TextInput
           type="number"
-          :value="goal.metric.target"
-          @input="patchMetric({ target: Number(($event.target as HTMLInputElement).value) || 0 })"
+          :model-value="goal.metric.target"
+          @update:model-value="patchMetric({ target: Number($event) || 0 })"
         />
-        <select
-          :style="s.select"
-          :value="goal.metric.unit"
-          @change="patchMetric({ unit: ($event.target as HTMLSelectElement).value })"
-        >
-          <option v-for="u in UNIT_OPTS" :key="u" :value="u">{{ u }}</option>
-        </select>
+        <Select
+          :model-value="goal.metric.unit"
+          @update:model-value="patchMetric({ unit: $event })"
+          :options="[...UNIT_OPTS.map((u) => ({ value: String(u), label: u }))]"
+        />
         <label :style="toggleLabel">
-          <input
-            type="checkbox"
-            :checked="goal.metric.allowPartial"
-            @change="patchMetric({ allowPartial: ($event.target as HTMLInputElement).checked })"
+          <Checkbox
+            :model-value="goal.metric.allowPartial"
+            @update:model-value="patchMetric({ allowPartial: $event })"
           />
           <span :style="fieldLabel">allow partial</span>
         </label>
@@ -237,9 +231,8 @@ const pendingHint = computed(() => pxify({ fontSize: 12, color: c.value.dim, mar
 
       <!-- today's occurrence -->
       <div v-if="todayOcc && !configOnly" :style="todayRow">
-        <input
-          type="checkbox"
-          :checked="todayOcc.status === 'done'"
+        <Checkbox
+          :model-value="todayOcc.status === 'done'"
           :aria-label="'Complete today'"
           @click.prevent="onTick"
         />

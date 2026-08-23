@@ -74,7 +74,8 @@ const gradientId = `ui-ring-${useId()}`
 }
 .ui-ring__text {
   fill: var(--theme-text);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-semibold);
 }
 </style>

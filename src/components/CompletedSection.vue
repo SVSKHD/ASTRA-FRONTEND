@@ -10,7 +10,7 @@
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import type { ListKey } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 
@@ -33,7 +33,7 @@ function toggle() {
 
 const cardStyle = computed(() =>
   pxify({
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: dark.value ? 'rgba(30,32,58,0.28)' : 'rgba(255,255,255,0.3)',
     overflow: 'hidden',
@@ -43,7 +43,7 @@ const headStyle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '10px 12px',
     cursor: 'pointer',
     userSelect: 'none',
@@ -62,16 +62,22 @@ const chevronStyle = computed(() =>
   }),
 )
 const titleStyle = computed(() =>
-  pxify({ fontSize: 13, fontWeight: 700, color: c.value.dim, flex: 1, letterSpacing: '0.01em' }),
+  pxify({
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.dim,
+    flex: 1,
+    letterSpacing: '0.01em',
+  }),
 )
-const actionsWrap = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const actionsWrap = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 function ghostBtn() {
   return pxify({
-    fontSize: 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.04em',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -90,7 +96,7 @@ const bodyClip = pxify({ overflow: 'hidden', minHeight: 0 })
 const bodyInner = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 9,
+  gap: 'var(--sp-2)',
   padding: '4px 10px 12px',
 })
 const sortLabel = computed(() =>

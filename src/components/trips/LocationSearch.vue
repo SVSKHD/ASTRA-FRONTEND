@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // A location search over OpenStreetMap's Nominatim. Type a place, pick a
 // suggestion, and the chosen lat/lng + formatted address are emitted for the
 // trip to store. The suggestion list is absolutely positioned so it overlays
@@ -6,7 +7,7 @@
 // dialog around.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { searchPlaces, type GeoResult } from '@/utils/geo'
 
 const props = withDefaults(defineProps<{ modelValue?: string; placeholder?: string }>(), {
@@ -33,8 +34,7 @@ watch(
   },
 )
 
-function onInput(e: Event) {
-  const v = (e.target as HTMLInputElement).value
+function onInput(v: string) {
   query.value = v
   emit('update:modelValue', v)
   clearTimeout(debounce)
@@ -72,17 +72,6 @@ onBeforeUnmount(() => {
 })
 
 const wrap = pxify({ position: 'relative', width: '100%' })
-const inputStyle = computed(() =>
-  pxify({
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: 12,
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    fontSize: 13,
-  }),
-)
 const listStyle = computed(() =>
   pxify({
     position: 'absolute',
@@ -96,7 +85,7 @@ const listStyle = computed(() =>
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     padding: 5,
     boxShadow: c.value.shadow,
     display: 'flex',
@@ -108,28 +97,29 @@ const itemStyle = computed(() =>
   pxify({
     textAlign: 'left',
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: 'none',
     background: 'transparent',
     color: c.value.text,
-    fontSize: 12,
+    ...typeStep('xs'),
     lineHeight: 1.35,
     cursor: 'pointer',
     width: '100%',
   }),
 )
-const hintStyle = computed(() => pxify({ padding: '8px 10px', fontSize: 11.5, color: c.value.dim }))
+const hintStyle = computed(() =>
+  pxify({ padding: '8px 10px', ...typeStep('xs'), color: c.value.dim }),
+)
 </script>
 
 <template>
   <div :style="wrap">
-    <input
-      :style="inputStyle"
-      :value="query"
+    <TextInput
+      :model-value="query"
       :placeholder="placeholder"
       type="text"
       autocomplete="off"
-      @input="onInput"
+      @update:model-value="onInput"
       @focus="open = results.length > 0"
       @blur="onBlur"
     />
@@ -145,7 +135,7 @@ const hintStyle = computed(() => pxify({ padding: '8px 10px', fontSize: 11.5, co
         @click="choose(r)"
       >
         <strong>{{ r.name }}</strong>
-        <div :style="{ color: c.dim, fontSize: '10.5px' }">{{ r.address }}</div>
+        <div :style="{ color: c.dim, ...typeStep('2xs') }">{{ r.address }}</div>
       </button>
     </div>
   </div>

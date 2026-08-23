@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Checkbox from '@/components/ui/Checkbox.vue'
 // Dashboard Goals card (task 10c). A compact summary that matches the overview
 // cards' glass/token styling: header (active count + View all), up to three
 // active goals nearest their target date, and an aggregate ring of points done
@@ -11,7 +12,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
 import { captureOutcome } from '@/utils/goalMetrics'
@@ -141,42 +142,47 @@ const card = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '18px 18px 15px',
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
     minWidth: 0,
   }),
 )
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const label = computed(() =>
-  pxify({ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.value.dim }),
+  pxify({
+    ...typeStep('xs'),
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
 )
 const countChip = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.accent,
     padding: '1px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.accent,
   }),
 )
 const viewAllBtn = computed(() =>
   pxify({
     marginLeft: 'auto',
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.dim,
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
   }),
 )
-const body = pxify({ display: 'flex', flexDirection: 'column', gap: 10 })
-const goalRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
+const body = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' })
+const goalRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 })
 function dot(color: string) {
   return pxify({
     width: 9,
@@ -186,11 +192,17 @@ function dot(color: string) {
     background: color || c.value.accent,
   })
 }
-const titleCol = pxify({ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 })
-const titleRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
+const titleCol = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-1)',
+  flex: 1,
+  minWidth: 0,
+})
+const titleRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 })
 const goalTitle = computed(() =>
   pxify({
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -200,13 +212,18 @@ const goalTitle = computed(() =>
   }),
 )
 function chipStyle(col: string) {
-  return pxify({ fontSize: 10, fontWeight: 600, color: col, flexShrink: 0 })
+  return pxify({
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
+    color: col,
+    flexShrink: 0,
+  })
 }
 const track = computed(() =>
   pxify({
     position: 'relative',
     height: 4,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     overflow: 'hidden',
   }),
@@ -218,46 +235,48 @@ function fill(ratio: number, color: string) {
     top: 0,
     bottom: 0,
     width: Math.round(ratio * 100) + '%',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: color || c.value.accent,
     transition: 'width .4s ease',
   })
 }
 const pctText = computed(() =>
-  pxify({ fontSize: 10, color: c.value.dim, flexShrink: 0, width: 30, textAlign: 'right' }),
+  pxify({ ...typeStep('2xs'), color: c.value.dim, flexShrink: 0, width: 30, textAlign: 'right' }),
 )
 const footer = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     marginTop: 'auto',
     paddingTop: 8,
     borderTop: '1px solid ' + c.value.border,
   }),
 )
-const footerText = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const footerText = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 // --- daily strip ---
 const dailyStrip = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 'var(--sp-2)',
     paddingBottom: 8,
     borderBottom: '1px solid ' + c.value.border,
   }),
 )
-const dailyHead = computed(() => pxify({ fontSize: 11, fontWeight: 700, color: c.value.text }))
+const dailyHead = computed(() =>
+  pxify({ ...typeStep('xs'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 const dailyRow = pxify({
   position: 'relative',
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
+  gap: 'var(--sp-2)',
   minWidth: 0,
 })
 const dailyTitle = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
     flex: 1,
     minWidth: 0,
@@ -267,16 +286,21 @@ const dailyTitle = computed(() =>
   }),
 )
 function dailyValue(col: string) {
-  return pxify({ fontSize: 11, fontWeight: 600, color: col, flexShrink: 0 })
+  return pxify({
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    color: col,
+    flexShrink: 0,
+  })
 }
-const emptyText = computed(() => pxify({ fontSize: 13, color: c.value.dim }))
-const btnRow = pxify({ display: 'flex', gap: 8, flexWrap: 'wrap' })
+const emptyText = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim }))
+const btnRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' })
 const btn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
@@ -285,10 +309,10 @@ const btn = computed(() =>
 )
 const primaryBtn = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: 'none',
     background: c.value.accent,
     color: c.value.onAccent,
@@ -298,7 +322,7 @@ const primaryBtn = computed(() =>
 function skeleton() {
   return pxify({
     height: 12,
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     animation: 'shimmer 1.4s ease-in-out infinite',
     backgroundImage: `linear-gradient(90deg, ${c.value.input} 0%, ${c.value.border} 50%, ${c.value.input} 100%)`,
@@ -322,9 +346,8 @@ function skeleton() {
         done today
       </div>
       <div v-for="d in dailies" :key="d.goal.id" :style="dailyRow">
-        <input
-          type="checkbox"
-          :checked="d.occ!.status === 'done'"
+        <Checkbox
+          :model-value="d.occ!.status === 'done'"
           :aria-label="'Complete ' + (d.goal.title || 'goal') + ' today'"
           @click.prevent="tickDaily(d.goal.id, !!d.goal.metric?.enabled, d.occ!.status)"
         />

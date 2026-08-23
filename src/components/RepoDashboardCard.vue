@@ -11,7 +11,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import { repoTaskProgress } from '@/utils/issueFilters'
 
@@ -45,45 +45,50 @@ const card = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '18px 18px 15px',
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
     minWidth: 0,
   }),
 )
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const label = computed(() =>
-  pxify({ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.value.dim }),
+  pxify({
+    ...typeStep('xs'),
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
 )
 const countChip = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.accent,
     padding: '1px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.accent,
   }),
 )
 const viewAllBtn = computed(() =>
   pxify({
     marginLeft: 'auto',
-    fontSize: 11,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.dim,
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
   }),
 )
-const repoRow = pxify({ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 })
-const nameRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
+const repoRow = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', minWidth: 0 })
+const nameRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 })
 const nameStyle = computed(() =>
   pxify({
-    fontSize: 13,
+    ...typeStep('sm'),
     color: c.value.text,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -93,7 +98,7 @@ const nameStyle = computed(() =>
 )
 const meta = computed(() =>
   pxify({
-    fontSize: 11,
+    ...typeStep('xs'),
     color: c.value.dim,
     whiteSpace: 'nowrap',
     overflow: 'hidden',

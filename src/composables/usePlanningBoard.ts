@@ -16,6 +16,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useSyncGuard } from '@/composables/useSyncGuard'
 import { KIND_TOKEN } from '@/utils/planning'
+import { typePx } from '@/components/ui/type'
 import type { PlanningEdge, PlanningNode } from '@/types'
 
 const ZOOM_MIN = 0.25
@@ -54,7 +55,7 @@ const PlanNode = dia.Element.define(
         y: 'calc(h/2)',
         textVerticalAnchor: 'middle',
         textAnchor: 'start',
-        fontSize: 13,
+        fontSize: typePx('sm'),
         fontFamily: 'inherit',
         cursor: 'grab',
       },
@@ -62,7 +63,7 @@ const PlanNode = dia.Element.define(
         x: 'calc(w-12)',
         y: 12,
         textAnchor: 'end',
-        fontSize: 10,
+        fontSize: typePx('2xs'),
         opacity: 0.85,
       },
     },
@@ -163,7 +164,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
     return util.breakText(
       title,
       { width: NODE_W - LABEL_PAD * 2, height: NODE_H2 },
-      { 'font-size': 13, 'font-family': 'inherit' },
+      { 'font-size': typePx('sm'), 'font-family': 'inherit' },
       { ellipsis: true, maxLineCount: 2 },
     )
   }
@@ -274,7 +275,7 @@ export function usePlanningBoard(elRef: Ref<HTMLElement | null>, boardId: Ref<nu
         text: {
           text: e.relation,
           fill: color('text'),
-          fontSize: 11,
+          fontSize: typePx('xs'),
           textAnchor: 'middle',
           textVerticalAnchor: 'middle',
         },

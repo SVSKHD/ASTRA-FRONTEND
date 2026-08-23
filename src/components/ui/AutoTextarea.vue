@@ -117,11 +117,11 @@ defineExpose({ focus: () => el.value?.focus() })
   display: block;
 }
 .atx--body {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .atx--title {
-  font-size: var(--text-lg);
-  font-weight: 600;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
   line-height: 1.3;
 }
 /* Only the row being edited looks like a field. */

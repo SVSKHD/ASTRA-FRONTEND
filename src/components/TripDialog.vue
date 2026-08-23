@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
 // The trip's own dialog — it owns both create and edit (the generic ItemDialog
 // stands aside for trips). Create is a short form; saving it opens the trip here
 // in edit mode, where the map, the ordered places, the timeline and attached
@@ -9,7 +12,7 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, type Style } from '@/styles'
+import { pxify, typeStep, type Style } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import TagPicker from '@/components/TagPicker.vue'
 // Leaflet is ~43KB gzipped and only ever needed once a trip's map is on screen,
@@ -77,8 +80,7 @@ function createTrip() {
 }
 
 // --- edit-mode write-throughs ----------------------------------------------
-function setTitle(e: Event) {
-  const v = (e.target as HTMLInputElement).value
+function setTitle(v: string) {
   if (trip.value) app.updateTrip(trip.value.id, { title: v, location: v })
 }
 function setField(field: keyof Trip, value: unknown) {
@@ -126,10 +128,13 @@ const attachedNotes = computed<Note[]>(() =>
 const unattachedNotes = computed<Note[]>(() =>
   trip.value ? app.notes.filter((n) => !trip.value!.noteIds.includes(n.id)) : [],
 )
-function attachNote(e: Event) {
-  const el = e.target as HTMLSelectElement
-  const nid = Number(el.value)
-  el.value = ''
+// A one-shot action wearing a Select. The model is cleared after every pick,
+// so the control keeps reading "Attach a note…" rather than showing the last
+// note attached, which is not a value anybody set.
+const attachChoice = ref('')
+function attachNote(value: string) {
+  const nid = Number(value)
+  attachChoice.value = ''
   if (nid && trip.value) app.attachNote('trip', trip.value.id, nid)
 }
 
@@ -164,31 +169,20 @@ const headerStyle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: isMobile.value ? '16px 16px 10px' : '20px 22px 12px',
     borderBottom: '1px solid ' + c.value.border,
-  }),
-)
-const titleInput = computed(() =>
-  pxify({
-    flex: 1,
-    minWidth: 0,
-    fontSize: isMobile.value ? 17 : 20,
-    fontWeight: 700,
-    background: 'transparent',
-    border: 'none',
-    color: c.value.text,
   }),
 )
 function statusBadge(done: boolean) {
   return pxify({
     flexShrink: 0,
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     padding: '4px 9px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (done ? c.value.accent : c.value.border),
     color: done ? c.value.accent : c.value.dim,
     background: done ? c.value.input : 'transparent',
@@ -200,7 +194,7 @@ const bodyStyle = pxify({
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 14,
+  gap: 'var(--sp-4)',
   padding: '14px 18px 20px',
 })
 const stickyBar = computed(() =>
@@ -212,7 +206,7 @@ const stickyBar = computed(() =>
     padding: '10px 18px',
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     flexWrap: 'wrap',
     background: c.value.glass,
     backdropFilter: 'blur(24px) saturate(1.6)',
@@ -224,7 +218,7 @@ const segTrack = computed(() =>
   pxify({
     display: 'inline-flex',
     padding: 4,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     gap: 2,
@@ -233,22 +227,22 @@ const segTrack = computed(() =>
 function segBtn(activeState: boolean) {
   return pxify({
     padding: '6px 14px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: 'none',
     background: activeState ? c.value.card : 'transparent',
     color: activeState ? c.value.accent : c.value.dim,
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
     boxShadow: activeState ? 'inset 0 1px 0 rgba(255,255,255,0.25)' : 'none',
   })
 }
 const primaryBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 14px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.accent,
     background: c.value.accent,
     color: c.value.onAccent,
@@ -257,10 +251,10 @@ const primaryBtn = computed(() =>
 )
 const ghostBtn = computed(() =>
   pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.text,
@@ -269,39 +263,31 @@ const ghostBtn = computed(() =>
 )
 const labelStyle = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
   }),
 )
-const fieldRaw: Style = { display: 'flex', flexDirection: 'column', gap: 6 }
+const fieldRaw: Style = { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }
 const field = pxify(fieldRaw)
 const sectionTitle = computed(() =>
-  pxify({ fontSize: 13, fontWeight: 700, color: c.value.text, marginTop: 4 }),
+  pxify({
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    marginTop: 4,
+  }),
 )
-const inputRaw = computed<Style>(() => ({
-  padding: '10px 12px',
-  borderRadius: 12,
-  border: '1px solid ' + c.value.border,
-  background: c.value.input,
-  color: c.value.text,
-  fontSize: 13,
-  width: '100%',
-}))
-const inputStyle = computed(() => pxify(inputRaw.value))
-const textareaStyle = computed(() =>
-  pxify({ ...inputRaw.value, minHeight: 64, resize: 'vertical', fontFamily: 'inherit' }),
-)
-const rowWrapRaw: Style = { display: 'flex', gap: 10, flexWrap: 'wrap' }
+const rowWrapRaw: Style = { display: 'flex', gap: 'var(--sp-3)', flexWrap: 'wrap' }
 const rowWrap = pxify(rowWrapRaw)
 const del = computed(() =>
   pxify({
     background: 'none',
     border: 'none',
     color: c.value.dim,
-    fontSize: 20,
+    ...typeStep('lg'),
     cursor: 'pointer',
     flexShrink: 0,
   }),
@@ -311,36 +297,41 @@ const iconBtn = computed(() =>
     width: 30,
     height: 30,
     flexShrink: 0,
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
     cursor: 'pointer',
-    fontSize: 14,
+    ...typeStep('base'),
   }),
 )
 const noteChip = computed(() =>
   pxify({
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 6,
-    fontSize: 11,
+    gap: 'var(--sp-2)',
+    ...typeStep('xs'),
     padding: '4px 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.text,
     cursor: 'pointer',
   }),
 )
-const photoThumb = pxify({ width: 60, height: 60, borderRadius: 10, objectFit: 'cover' })
+const photoThumb = pxify({
+  width: 60,
+  height: 60,
+  borderRadius: 'var(--radius-card)',
+  objectFit: 'cover',
+})
 const dangerBtn = computed(() =>
   pxify({
     alignSelf: 'flex-start',
-    fontSize: 11.5,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '8px 12px',
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: '#f87171',
@@ -356,18 +347,19 @@ const dangerBtn = computed(() =>
     <!-- Create: a short form. Saving it opens the trip in edit mode below. -->
     <div v-if="isCreate" :style="createCardStyle">
       <div :style="headerStyle">
-        <span :style="pxify({ flex: 1, fontSize: 16, fontWeight: 700 })">New trip</span>
+        <span :style="pxify({ flex: 1, ...typeStep('md'), fontWeight: 'var(--weight-semibold)' })"
+          >New trip</span
+        >
         <button :style="del" aria-label="Close" @click="app.closeItemDialog()">×</button>
       </div>
       <div :style="bodyStyle" @keydown.esc="app.closeItemDialog()">
         <div :style="field">
           <span :style="labelStyle">Trip name</span>
-          <input
-            :style="inputStyle"
-            :value="draftVal('title')"
+          <TextInput
+            :model-value="draftVal('title')"
             placeholder="Weekend in Lisbon…"
             autofocus
-            @input="setDraft('title', ($event.target as HTMLInputElement).value)"
+            @update:model-value="setDraft('title', $event)"
             @keydown.enter.prevent="createTrip()"
           />
         </div>
@@ -381,19 +373,18 @@ const dangerBtn = computed(() =>
         </div>
         <div :style="field">
           <span :style="labelStyle">Notes</span>
-          <textarea
-            :style="textareaStyle"
-            :value="draftVal('description')"
+          <TextArea
+            :model-value="draftVal('description')"
             placeholder="What's the plan?"
-            @input="setDraft('description', ($event.target as HTMLTextAreaElement).value)"
-          ></textarea>
+            @update:model-value="setDraft('description', $event)"
+          />
         </div>
         <TagPicker
           :model-value="draftVal('tag')"
           label="Tag"
           @update:model-value="setDraft('tag', $event)"
         />
-        <div :style="pxify({ display: 'flex', gap: 8, justifyContent: 'flex-end' })">
+        <div :style="pxify({ display: 'flex', gap: 'var(--sp-2)', justifyContent: 'flex-end' })">
           <button :style="ghostBtn" @click="app.closeItemDialog()">Cancel</button>
           <button :style="primaryBtn" @click="createTrip()">Create trip</button>
         </div>
@@ -403,7 +394,11 @@ const dangerBtn = computed(() =>
     <!-- Edit: the full trip. -->
     <div v-else-if="trip" :style="cardStyle">
       <div :style="headerStyle">
-        <input :style="titleInput" :value="trip.title" placeholder="Trip name" @input="setTitle" />
+        <TextInput
+          :model-value="trip.title"
+          placeholder="Trip name"
+          @update:model-value="setTitle"
+        />
         <span :style="statusBadge(trip.status === 'done')">
           {{ trip.status === 'done' ? 'Done' : 'To visit' }}
         </span>
@@ -451,12 +446,11 @@ const dangerBtn = computed(() =>
         <!-- Details -->
         <div :style="field">
           <span :style="labelStyle">Description</span>
-          <textarea
-            :style="textareaStyle"
-            :value="trip.description"
+          <TextArea
+            :model-value="trip.description"
             placeholder="Trip notes…"
-            @input="setField('description', ($event.target as HTMLTextAreaElement).value)"
-          ></textarea>
+            @update:model-value="setField('description', $event)"
+          />
         </div>
         <div :style="rowWrap">
           <div :style="pxify({ ...fieldRaw, flex: 1, minWidth: 150 })">
@@ -516,7 +510,7 @@ const dangerBtn = computed(() =>
                   background: c.card,
                   color: c.dim,
                   cursor: 'pointer',
-                  fontSize: 11,
+                  ...typeStep('xs'),
                 })
               "
               title="Remove photo"
@@ -527,8 +521,7 @@ const dangerBtn = computed(() =>
           </span>
         </div>
         <div :style="rowWrap">
-          <input
-            :style="pxify({ ...inputRaw, flex: 1 })"
+          <TextInput
             type="url"
             placeholder="Paste an image URL…"
             v-model="photoDraft"
@@ -541,7 +534,7 @@ const dangerBtn = computed(() =>
         <span :style="sectionTitle">Notes</span>
         <div
           v-if="attachedNotes.length"
-          :style="pxify({ display: 'flex', flexWrap: 'wrap', gap: 6 })"
+          :style="pxify({ display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)' })"
         >
           <span
             v-for="n in attachedNotes"
@@ -559,14 +552,17 @@ const dangerBtn = computed(() =>
             >
           </span>
         </div>
-        <select :style="inputStyle" @change="attachNote">
-          <option value="">
-            {{ unattachedNotes.length ? 'Attach a note…' : 'No more notes to attach' }}
-          </option>
-          <option v-for="n in unattachedNotes" :key="n.id" :value="n.id">
-            {{ noteTitle(n.text) }}
-          </option>
-        </select>
+        <Select
+          :model-value="attachChoice"
+          @update:model-value="attachNote"
+          :options="[
+            {
+              value: '',
+              label: `${unattachedNotes.length ? 'Attach a note…' : 'No more notes to attach'}`,
+            },
+            ...unattachedNotes.map((n) => ({ value: String(n.id), label: `${noteTitle(n.text)}` })),
+          ]"
+        />
 
         <button :style="dangerBtn" @click="removeTrip">Delete trip</button>
       </div>

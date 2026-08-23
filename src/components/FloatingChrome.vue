@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Checkbox from '@/components/ui/Checkbox.vue'
 // All the floating chrome that used to live docked in the rail/header, now
 // scattered as independent glass orbs over the starfield: the AUREON mark
 // (top-left), the Notes and Settings orbs (bottom-left), and the theme + account
@@ -11,7 +12,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
 import Icon from '@/components/ui/Icon.vue'
 
@@ -44,8 +45,9 @@ const lightThemes = computed(() =>
 )
 const specialThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.special))
 const standaloneThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.standalone))
-function onAutoLockChange(e: Event) {
-  lock.setAutoLock((e.target as HTMLInputElement).checked)
+// The control hands over the value; there is no event to dig into any more.
+function onAutoLockChange(on: boolean) {
+  lock.setAutoLock(on)
 }
 function onLockNow() {
   auth.avatarMenuOpen = false
@@ -106,7 +108,7 @@ const leftStack = computed(() =>
     zIndex: 6,
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
   }),
 )
 const rightCluster = computed(() =>
@@ -117,7 +119,7 @@ const rightCluster = computed(() =>
     zIndex: 6,
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 'var(--sp-3)',
   }),
 )
 const orbRel = pxify({ position: 'relative' })
@@ -129,8 +131,8 @@ const avatarDisc = computed(() =>
     borderRadius: '50%',
     display: 'grid',
     placeItems: 'center',
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: '#fff',
     background: avatarColor.value,
   }),
@@ -147,7 +149,7 @@ const popover = computed(() =>
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
     border: B.value,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     padding: 10,
     boxShadow: c.value.shadow,
     display: 'flex',
@@ -171,7 +173,7 @@ const themePopover = computed(() =>
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
     border: B.value,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     padding: 10,
     boxShadow: c.value.shadow,
     zIndex: 20,
@@ -182,9 +184,9 @@ function themeRow(active: boolean) {
   return pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '7px 8px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + (active ? c.value.border : 'transparent'),
     background: active ? c.value.card : 'transparent',
     cursor: 'pointer',
@@ -204,7 +206,7 @@ function swatch(bg: string, active: boolean) {
 }
 const groupLabel = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -215,16 +217,16 @@ const groupLabel = computed(() =>
 const pickerGrid = pxify({
   display: 'grid',
   gridTemplateColumns: '1fr 1fr',
-  gap: 6,
+  gap: 'var(--sp-2)',
   padding: '2px 2px 4px',
 })
 function themeCard(active: boolean) {
   return pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 'var(--sp-2)',
     padding: 8,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '2px solid ' + (active ? c.value.accent : 'transparent'),
     background: active ? c.value.card : 'transparent',
     cursor: 'pointer',
@@ -237,21 +239,26 @@ function cardSwatchRow(preview: readonly [string, string, string]) {
   return pxify({
     display: 'flex',
     height: 22,
-    borderRadius: 7,
+    borderRadius: 'var(--radius-control)',
     overflow: 'hidden',
     border: '1px solid ' + c.value.border,
     background: preview[0],
   })
 }
 const cardName = computed(() =>
-  pxify({ fontSize: 11, fontWeight: 600, color: c.value.text, lineHeight: 1.1 }),
+  pxify({
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1.1,
+  }),
 )
-const rowText = computed(() => pxify({ fontSize: 12, color: c.value.text }))
+const rowText = computed(() => pxify({ ...typeStep('xs'), color: c.value.text }))
 const menuItem = computed(() =>
   pxify({
     padding: '9px 10px',
-    borderRadius: 10,
-    fontSize: 12,
+    borderRadius: 'var(--radius-card)',
+    ...typeStep('xs'),
     color: c.value.text,
     cursor: 'pointer',
     background: 'transparent',
@@ -265,16 +272,21 @@ const menuToggle = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     padding: '9px 10px',
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.dim,
   }),
 )
 const nameStyle = computed(() =>
-  pxify({ fontSize: 12, fontWeight: 600, color: c.value.text, whiteSpace: 'nowrap' }),
+  pxify({
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    whiteSpace: 'nowrap',
+  }),
 )
-const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 </script>
 
 <template>
@@ -425,30 +437,27 @@ const subStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
           <div :style="subStyle">{{ avatarSub }}</div>
         </div>
         <label :style="menuToggle">
-          <input type="checkbox" :checked="security.autoLockEnabled" @change="onAutoLockChange" />
+          <Checkbox
+            :model-value="security.autoLockEnabled"
+            @update:model-value="onAutoLockChange"
+          />
           <span>Auto-lock after 50 min</span>
         </label>
         <label :style="menuToggle">
-          <input
-            type="checkbox"
-            :checked="autoRollover"
-            @change="app.setAutoRollover(($event.target as HTMLInputElement).checked)"
-          />
+          <Checkbox :model-value="autoRollover" @update:model-value="app.setAutoRollover($event)" />
           <span>Auto-roll overdue to today</span>
         </label>
         <label :style="menuToggle">
-          <input
-            type="checkbox"
-            :checked="hideCompleted"
-            @change="app.setHideCompleted(($event.target as HTMLInputElement).checked)"
+          <Checkbox
+            :model-value="hideCompleted"
+            @update:model-value="app.setHideCompleted($event)"
           />
           <span>Hide completed items</span>
         </label>
         <label :style="menuToggle">
-          <input
-            type="checkbox"
-            :checked="reminderSound"
-            @change="app.setReminderSound(($event.target as HTMLInputElement).checked)"
+          <Checkbox
+            :model-value="reminderSound"
+            @update:model-value="app.setReminderSound($event)"
           />
           <span>Reminder sound</span>
         </label>

@@ -4,7 +4,7 @@
 // view, so the colour rule lives in exactly one place.
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { issueChipLabel, issueStateColor } from '@/utils/githubModel'
 import type { GithubLink } from '@/types'
 
@@ -18,12 +18,12 @@ const chipStyle = computed(() =>
   pxify({
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 5,
+    gap: 'var(--sp-1)',
     flexShrink: 0,
-    fontSize: props.compact ? 9 : 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: props.compact ? '2px 6px' : '3px 8px',
-    borderRadius: 7,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + col.value,
     background: 'color-mix(in oklch, ' + col.value + ' 16%, transparent)',
     color: col.value,

@@ -11,7 +11,7 @@
 import { ref } from 'vue'
 import { sanitize } from '@/utils/sanitizeHtml'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatGap } from '@/utils/geo'
 import { dayColor, type DayGroup } from '@/utils/tripDays'
 import SmartImage from '@/components/trips/SmartImage.vue'
@@ -49,10 +49,10 @@ function tint(day: DayGroup): string {
 }
 
 // --- styles -----------------------------------------------------------------
-const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 14 })
+const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' })
 function dayCard(day: DayGroup) {
   return pxify({
-    borderRadius: 20,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: 'rgba(255,255,255,0.015)',
     overflow: 'hidden',
@@ -66,7 +66,7 @@ function dayHeader() {
     zIndex: 3,
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     width: '100%',
     padding: '12px 14px',
     border: 'none',
@@ -84,11 +84,11 @@ function dayBadge(day: DayGroup) {
     minWidth: 30,
     height: 30,
     padding: '0 8px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     display: 'grid',
     placeItems: 'center',
-    fontSize: 12,
-    fontWeight: 800,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     color: '#fff',
     background: tint(day),
   })
@@ -100,11 +100,12 @@ const dayTitleWrap = pxify({
   flex: 1,
   minWidth: 0,
 })
-const dayTitle = () => pxify({ fontSize: 14, fontWeight: 700, color: c.value.text })
-const daySub = () => pxify({ fontSize: 11, color: c.value.dim })
+const dayTitle = () =>
+  pxify({ ...typeStep('base'), fontWeight: 'var(--weight-semibold)', color: c.value.text })
+const daySub = () => pxify({ ...typeStep('xs'), color: c.value.dim })
 const chevron = (open: boolean) =>
   pxify({
-    fontSize: 11,
+    ...typeStep('xs'),
     color: c.value.dim,
     transform: open ? 'rotate(90deg)' : 'none',
     transition: 'transform .3s ease',
@@ -114,7 +115,7 @@ function node(i: number, total: number) {
   return pxify({
     display: 'grid',
     gridTemplateColumns: '26px 1fr',
-    gap: 12,
+    gap: 'var(--sp-3)',
     paddingBottom: i === total - 1 ? 0 : 4,
   })
 }
@@ -127,8 +128,8 @@ function dot(day: DayGroup, activeState: boolean) {
     borderRadius: '50%',
     display: 'grid',
     placeItems: 'center',
-    fontSize: 10.5,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     marginTop: 2,
     color: '#fff',
     background: tint(day),
@@ -147,45 +148,51 @@ function line(last: boolean) {
 }
 const placeBody = pxify({ minWidth: 0, paddingBottom: 14 })
 const placeName = () =>
-  pxify({ fontSize: 14, fontWeight: 600, color: c.value.text, cursor: 'pointer' })
+  pxify({
+    ...typeStep('base'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    cursor: 'pointer',
+  })
 const metaRow = pxify({
   display: 'flex',
-  gap: 8,
+  gap: 'var(--sp-2)',
   alignItems: 'center',
   flexWrap: 'wrap',
   marginTop: 2,
 })
-const timePill = () => pxify({ fontSize: 11, fontWeight: 600, color: c.value.text })
+const timePill = () =>
+  pxify({ ...typeStep('xs'), fontWeight: 'var(--weight-semibold)', color: c.value.text })
 const gapChip = () =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.accent,
   })
-const addr = () => pxify({ fontSize: 11.5, color: c.value.dim, marginTop: 3, lineHeight: 1.4 })
+const addr = () => pxify({ ...typeStep('xs'), color: c.value.dim, marginTop: 3, lineHeight: 1.4 })
 const notes = () =>
   pxify({
-    fontSize: 12.5,
+    ...typeStep('sm'),
     lineHeight: 1.55,
     color: c.value.text,
     marginTop: 7,
     padding: '9px 11px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
   })
 const photoGrid = pxify({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))',
-  gap: 6,
+  gap: 'var(--sp-2)',
   marginTop: 9,
 })
 const photoBtn = pxify({ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in' })
 const emptyStyle = () =>
-  pxify({ textAlign: 'center', color: c.value.dim, fontSize: 12.5, padding: '24px 0' })
+  pxify({ textAlign: 'center', color: c.value.dim, ...typeStep('sm'), padding: '24px 0' })
 
 function placeTime(p: TripPlace): string {
   return timeOf(p.visitedAt)

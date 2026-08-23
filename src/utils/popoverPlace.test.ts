@@ -1,7 +1,7 @@
 // Acceptance 119, as arithmetic: the popover opens where there is room for it,
 // and never off the edge of the window.
 import { describe, expect, it } from 'vitest'
-import { POPOVER_GAP, VIEWPORT_MARGIN, placePopover } from '@/utils/popoverPlace'
+import { POPOVER_GAP, VIEWPORT_MARGIN, placeCellPopover, placePopover } from '@/utils/popoverPlace'
 
 const VIEW = { width: 1280, height: 720 }
 const field = (top: number, left = 100) => ({ top, left, width: 240, height: 40 })
@@ -55,5 +55,71 @@ describe('horizontal placement', () => {
   it('pins to the margin when the panel is wider than the window itself', () => {
     const placed = placePopover(field(100, 20), panel, { width: 300, height: 720 })
     expect(placed.left).toBe(VIEWPORT_MARGIN)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The cell-anchored variant (section 24c, acceptance 123).
+describe('a popover anchored to a calendar cell', () => {
+  const VIEW = { width: 1280, height: 800 }
+  const PANEL = { top: 0, left: 0, width: 300, height: 260 }
+  const cell = (left: number, top: number) => ({ top, left, width: 160, height: 110 })
+
+  it('opens to the right of a cell with room, clear of the cell itself', () => {
+    const p = placeCellPopover(cell(200, 200), PANEL, VIEW)
+    expect(p.side).toBe('right')
+    expect(p.left).toBe(200 + 160 + POPOVER_GAP)
+  })
+
+  it('flips to the left when the cell is against the right edge', () => {
+    // A month grid puts a cell here one week in four, which is the whole bug:
+    // the panel used to hang off the window and be clipped by the grid.
+    const p = placeCellPopover(cell(1080, 200), PANEL, VIEW)
+    expect(p.side).toBe('left')
+    expect(p.left).toBe(1080 - POPOVER_GAP - 300)
+  })
+
+  it('flips at the 340px threshold and not before', () => {
+    // Right edge of the cell at exactly 340px of room: still opens right.
+    const onThreshold = placeCellPopover(cell(1280 - 340 - 160, 100), PANEL, VIEW)
+    expect(onThreshold.side).toBe('right')
+    const justInside = placeCellPopover(cell(1280 - 339 - 160, 100), PANEL, VIEW)
+    expect(justInside.side).toBe('left')
+  })
+
+  it('shifts up rather than flipping when the cell is near the bottom', () => {
+    // Vertically it slides: a short form moved up stays where the reader is
+    // looking, where flipping it above the cell would not.
+    const p = placeCellPopover(cell(200, 700), PANEL, VIEW)
+    expect(p.top).toBe(800 - 260 - VIEWPORT_MARGIN)
+  })
+
+  it('leaves a cell with room where it is, vertically', () => {
+    expect(placeCellPopover(cell(200, 120), PANEL, VIEW).top).toBe(120)
+  })
+
+  it('stays inside the window on both axes whatever the cell', () => {
+    for (const left of [0, 400, 900, 1200, 1279]) {
+      for (const top of [0, 300, 799]) {
+        const p = placeCellPopover(cell(left, top), PANEL, VIEW)
+        expect(p.left, `${left},${top}`).toBeGreaterThanOrEqual(VIEWPORT_MARGIN)
+        expect(p.left + PANEL.width, `${left},${top}`).toBeLessThanOrEqual(VIEW.width)
+        expect(p.top, `${left},${top}`).toBeGreaterThanOrEqual(VIEWPORT_MARGIN)
+        expect(p.top + PANEL.height, `${left},${top}`).toBeLessThanOrEqual(VIEW.height)
+      }
+    }
+  })
+
+  it('pins to the top margin rather than losing its header off-screen', () => {
+    // A window shorter than the panel has no good answer; the least bad one is
+    // to keep the top, where the title and the first field are.
+    const tall = { top: 0, left: 0, width: 300, height: 900 }
+    expect(placeCellPopover(cell(200, 400), tall, VIEW).top).toBe(VIEWPORT_MARGIN)
+  })
+
+  it('pins to the left margin when the window is narrower than the panel', () => {
+    const narrow = { width: 280, height: 800 }
+    const p = placeCellPopover(cell(10, 10), PANEL, narrow)
+    expect(p.left).toBe(VIEWPORT_MARGIN)
   })
 })

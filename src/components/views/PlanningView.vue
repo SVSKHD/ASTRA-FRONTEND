@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { usePlanningBoard } from '@/composables/usePlanningBoard'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 
 const app = useAppStore()
 const { c, s, panelStyle } = useStyles()
@@ -70,17 +70,17 @@ const toolbar = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 'var(--sp-2)',
     flexWrap: 'wrap',
     marginBottom: 10,
   }),
 )
 function btn(active = false) {
   return pxify({
-    fontSize: 12,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (active ? c.value.accent : c.value.border),
     background: active ? c.value.accent : 'transparent',
     color: active ? c.value.onAccent : c.value.text,
@@ -94,7 +94,7 @@ const canvasWrap = computed(() =>
     flex: 1,
     minHeight: 0,
     position: 'relative',
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     overflow: 'hidden',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
@@ -107,12 +107,12 @@ const hint = computed(() =>
     position: 'absolute',
     bottom: 12,
     left: 12,
-    fontSize: 11,
+    ...typeStep('xs'),
     color: c.value.dim,
     pointerEvents: 'none',
     background: c.value.glass,
     padding: '4px 10px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
   }),
 )
 </script>

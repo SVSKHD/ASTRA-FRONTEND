@@ -57,16 +57,16 @@ withDefaults(
 .ui-iconbtn--sm {
   width: var(--control-sm);
   height: var(--control-sm);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 .ui-iconbtn--md {
   width: var(--control-md);
   height: var(--control-md);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 .ui-iconbtn--lg {
   width: var(--control-lg);
   height: var(--control-lg);
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
 }
 </style>

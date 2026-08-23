@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
 // The task side of the detail dialog (section 18c). Everything here is inline
 // editable — there is no edit mode and no Save button. The free-text fields
 // autosave 600ms after typing stops (useInlineField); every other control writes
@@ -106,8 +108,8 @@ function onEstimateFocus() {
   estimateFocused.value = true
   estimateText.value = task.value?.estimateMins != null ? String(task.value.estimateMins) : ''
 }
-function onEstimateInput(event: Event) {
-  estimateText.value = (event.target as HTMLInputElement).value
+function onEstimateInput(value: string) {
+  estimateText.value = value
 }
 function onEstimateBlur() {
   estimateFocused.value = false
@@ -298,11 +300,10 @@ defineExpose({
           </label>
           <label class="tdb__field">
             <span class="tdb__key">Assignee</span>
-            <input
-              class="tdb__input"
+            <TextInput
               placeholder="Nobody"
-              :value="assignee.draft.value"
-              @input="assignee.onInput"
+              :model-value="assignee.draft.value"
+              @update:model-value="assignee.set"
               @focus="assignee.onFocus"
               @blur="assignee.onBlur"
               @keydown="assignee.onKeydown"
@@ -310,17 +311,12 @@ defineExpose({
           </label>
           <label class="tdb__field">
             <span class="tdb__key">Priority</span>
-            <select
+            <Select
               class="tdb__input"
-              :value="task.priority ?? 'normal'"
-              @change="
-                app.patchTask(task.id, {
-                  priority: ($event.target as HTMLSelectElement).value as Priority,
-                })
-              "
-            >
-              <option v-for="p in PRIORITIES" :key="p" :value="p">{{ p }}</option>
-            </select>
+              :model-value="task.priority ?? 'normal'"
+              @update:model-value="app.patchTask(task.id, { priority: $event as Priority })"
+              :options="[...PRIORITIES.map((p) => ({ value: String(p), label: p }))]"
+            />
           </label>
           <label class="tdb__field">
             <span class="tdb__key">Due</span>
@@ -356,12 +352,11 @@ defineExpose({
           </label>
           <label class="tdb__field">
             <span class="tdb__key">Estimate</span>
-            <input
-              class="tdb__input"
+            <TextInput
               placeholder="e.g. 1h 30m"
-              :value="estimateValue"
+              :model-value="estimateValue"
               @focus="onEstimateFocus"
-              @input="onEstimateInput"
+              @update:model-value="onEstimateInput"
               @blur="onEstimateBlur"
             />
           </label>
@@ -416,11 +411,10 @@ defineExpose({
           </button>
         </div>
         <div class="tdb__addrow">
-          <input
-            class="tdb__input"
+          <TextInput
             placeholder="Add a subtask…"
-            :value="subtaskDraft"
-            @input="subtaskDraft = ($event.target as HTMLInputElement).value"
+            :model-value="subtaskDraft"
+            @update:model-value="subtaskDraft = $event"
             @keydown.enter.prevent="addSubtask"
           />
           <button type="button" class="tdb__mini" @click="addSubtask">Add</button>
@@ -476,13 +470,12 @@ defineExpose({
         </div>
         <template v-else-if="connected && repos.length">
           <div class="tdb__row">
-            <select
+            <Select
               class="tdb__input"
-              :value="chosenRepo"
-              @change="targetRepo = ($event.target as HTMLSelectElement).value"
-            >
-              <option v-for="r in repos" :key="r.id" :value="r.id">{{ r.fullName }}</option>
-            </select>
+              :model-value="chosenRepo"
+              @update:model-value="targetRepo = $event"
+              :options="[...repos.map((r) => ({ value: String(r.id), label: `${r.fullName}` }))]"
+            />
             <button type="button" class="tdb__mini" :disabled="creating" @click="createIssue">
               {{ creating ? '…' : 'Create issue' }}
             </button>
@@ -491,11 +484,10 @@ defineExpose({
             </button>
           </div>
           <template v-if="linkMode">
-            <input
-              class="tdb__input"
+            <TextInput
               placeholder="Search by number or title…"
-              :value="linkQuery"
-              @input="linkQuery = ($event.target as HTMLInputElement).value"
+              :model-value="linkQuery"
+              @update:model-value="linkQuery = $event"
             />
             <div v-if="!candidates.length" class="tdb__muted">No unlinked issues match.</div>
             <div v-for="iss in candidates" :key="iss.id" class="tdb__row">
@@ -581,11 +573,11 @@ defineExpose({
   min-width: 0;
 }
 .tdb__key {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .tdb__value {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-text);
 }
 .tdb__input {
@@ -595,7 +587,7 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: var(--theme-input, transparent);
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-family: inherit;
 }
 .tdb__spent {
@@ -609,7 +601,7 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -620,8 +612,8 @@ defineExpose({
   padding: 2px var(--sp-2);
   border-radius: var(--radius-pill);
   border: 1px solid currentColor;
-  font-size: var(--text-xs);
-  font-weight: 600;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
 }
 .tdb__chip--overdue {
   color: oklch(0.64 0.22 25);
@@ -637,7 +629,7 @@ defineExpose({
   align-items: center;
   gap: var(--sp-1);
   flex-wrap: wrap;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .tdb__crumb {
@@ -669,7 +661,8 @@ defineExpose({
   border: 1.5px solid var(--glass-border);
   background: transparent;
   color: var(--theme-on-accent, #fff);
-  font-size: 11px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
   cursor: pointer;
 }
 .tdb__box--on {
@@ -683,7 +676,7 @@ defineExpose({
   border: none;
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   text-align: left;
   cursor: pointer;
 }
@@ -713,7 +706,7 @@ defineExpose({
   border: 1px solid var(--theme-accent);
   background: transparent;
   color: var(--theme-accent);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
 }
 .tdb__x {
@@ -729,7 +722,7 @@ defineExpose({
   border: 1px dashed var(--glass-border);
 }
 .tdb__pickerlabel {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
   width: 100%;
 }
@@ -739,11 +732,11 @@ defineExpose({
   border: 1px solid var(--glass-border);
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
 }
 .tdb__muted {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 </style>

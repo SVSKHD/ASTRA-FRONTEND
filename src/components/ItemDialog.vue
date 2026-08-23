@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // One dialog for creating — and, for the simpler types, editing — every kind of
 // item. It renders whatever ITEM_FORMS says the type's fields are, which is why
 // the tab views no longer carry an add-form of their own: that space now
@@ -12,7 +16,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
-import { pxify, dialogCard } from '@/styles'
+import { dialogCard, pxify, typeStep } from '@/styles'
 import { ITEM_FORMS, type FieldDef } from '@/utils/itemForms'
 import TagPicker from '@/components/TagPicker.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
@@ -97,12 +101,11 @@ function set(f: FieldDef, value: unknown) {
   if (d.mode === 'create') app.setDialogDraft(f.key, value)
   else if (d.id != null) app.updateItem(d.type, d.id, f.key, value)
 }
-function onInput(f: FieldDef, e: Event) {
-  const el = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-  set(f, f.kind === 'number' ? (el.value === '' ? '' : Number(el.value)) : el.value)
+function onInput(f: FieldDef, value: string) {
+  set(f, f.kind === 'number' ? (value === '' ? '' : Number(value)) : value)
 }
-function onCheck(f: FieldDef, e: Event) {
-  set(f, (e.target as HTMLInputElement).checked)
+function onCheck(f: FieldDef, checked: boolean) {
+  set(f, checked)
 }
 
 const weekdayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -124,7 +127,7 @@ function weekdayBtnStyle(f: FieldDef, i: number) {
     height: 26,
     borderRadius: '50%',
     border: '1px solid ' + c.value.border,
-    fontSize: 10,
+    ...typeStep('2xs'),
     cursor: 'pointer',
     background: on ? c.value.accent : 'transparent',
     color: on ? c.value.onAccent : c.value.dim,
@@ -182,8 +185,8 @@ const cardStyle = computed(() => pxify(dialogCard(c.value, dialogClosing.value))
 // against the labels rather than against every span on the dialog.
 const labelStyle = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -195,15 +198,20 @@ const labelStyle = computed(() =>
 const sectionsStyle = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 20,
+  gap: 'var(--sp-5)',
   minWidth: 0,
 })
-const fieldStyle = pxify({ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 })
+const fieldStyle = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+  minWidth: 0,
+})
 const prefixWrap = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     overflow: 'hidden',
@@ -213,24 +221,18 @@ const prefixAdornment = computed(() =>
   pxify({
     padding: '9px 4px 9px 12px',
     color: c.value.dim,
-    fontSize: 14,
+    ...typeStep('base'),
     flexShrink: 0,
   }),
 )
-const prefixInput = computed(() =>
-  pxify({
-    flex: 1,
-    minWidth: 0,
-    padding: '9px 12px 9px 4px',
-    border: 'none',
-    background: 'transparent',
-    color: c.value.text,
-    fontSize: 14,
-    outline: 'none',
-  }),
-)
 const checkRow = computed(() =>
-  pxify({ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: c.value.dim }),
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--sp-2)',
+    ...typeStep('xs'),
+    color: c.value.dim,
+  }),
 )
 </script>
 
@@ -268,7 +270,10 @@ const checkRow = computed(() =>
             @update:model-value="set(f, $event)"
           />
           <label v-else-if="f.kind === 'checkbox'" :style="checkRow">
-            <input type="checkbox" :checked="values[f.key] === true" @change="onCheck(f, $event)" />
+            <Checkbox
+              :model-value="values[f.key] === true"
+              @update:model-value="onCheck(f, $event)"
+            />
             <span>{{ f.label }}</span>
           </label>
           <NotesSection
@@ -283,21 +288,20 @@ const checkRow = computed(() =>
           />
           <template v-else>
             <span class="field-label" :style="labelStyle">{{ f.label }}</span>
-            <textarea
+            <TextArea
               v-if="f.kind === 'textarea'"
-              :style="s.dialogNotes"
               :placeholder="f.placeholder"
-              :value="val(f)"
-              @input="onInput(f, $event)"
-            ></textarea>
-            <select
+              :model-value="val(f)"
+              @update:model-value="onInput(f, $event)"
+            />
+            <Select
               v-else-if="f.kind === 'select'"
-              :style="s.select"
-              :value="val(f)"
-              @change="onInput(f, $event)"
-            >
-              <option v-for="o in f.options" :key="o.value" :value="o.value">{{ o.label }}</option>
-            </select>
+              :model-value="val(f)"
+              @update:model-value="onInput(f, $event)"
+              :options="[
+                ...(f.options ?? []).map((o) => ({ value: String(o.value), label: `${o.label}` })),
+              ]"
+            />
             <div v-else-if="f.kind === 'weekdays'" :style="s.weekdayRow">
               <button
                 v-for="(nm, i) in weekdayNames"
@@ -312,13 +316,12 @@ const checkRow = computed(() =>
                the same bordered box as the input for one seamless control. -->
             <div v-else-if="f.prefix" :style="prefixWrap">
               <span :style="prefixAdornment">{{ f.prefix }}</span>
-              <input
-                :style="prefixInput"
+              <TextInput
                 :type="f.kind === 'number' ? 'number' : 'text'"
                 :min="f.min"
                 :placeholder="f.placeholder"
-                :value="val(f)"
-                @input="onInput(f, $event)"
+                :model-value="val(f)"
+                @update:model-value="onInput(f, $event)"
               />
             </div>
             <!-- Dates go through the one picker; everything else stays a plain
@@ -330,14 +333,13 @@ const checkRow = computed(() =>
               :placeholder="f.placeholder || f.label"
               @update:model-value="set(f, String($event ?? ''))"
             />
-            <input
+            <TextInput
               v-else
-              :style="s.input"
               :type="f.kind === 'number' ? 'number' : 'text'"
               :min="f.min"
               :placeholder="f.placeholder"
-              :value="val(f)"
-              @input="onInput(f, $event)"
+              :model-value="val(f)"
+              @update:model-value="onInput(f, $event)"
             />
           </template>
         </div>

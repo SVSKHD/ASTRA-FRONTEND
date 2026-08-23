@@ -89,7 +89,7 @@ const stageStyle = computed(() => {
     backdropFilter: 'blur(30px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 24,
+    borderRadius: 'var(--radius-dialog)',
     boxShadow: c.value.shadow + ', inset 0 1px 0 rgba(255,255,255,0.16)',
     padding: isPhone.value ? '16px' : '22px 24px',
     overflow: 'hidden',

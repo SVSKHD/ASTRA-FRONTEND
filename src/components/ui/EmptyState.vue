@@ -25,18 +25,18 @@ defineProps<{ glyph?: string; title: string; description?: string }>()
   color: var(--theme-dim);
 }
 .ui-empty__glyph {
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   opacity: 0.8;
 }
 .ui-empty__title {
   margin: 0;
-  font-size: var(--text-lg);
-  font-weight: 700;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
   color: var(--theme-text);
 }
 .ui-empty__desc {
   margin: 0;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   max-width: 40ch;
 }
 </style>

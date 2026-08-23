@@ -10,7 +10,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import IssueChip from '@/components/IssueChip.vue'
 import { durationLabel, type CalEvent } from '@/utils/calendarEvents'
 import { STATUS_LABEL } from '@/types'
@@ -116,7 +116,7 @@ const card = computed(() =>
           color: c.value.text,
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
+          gap: 'var(--sp-2)',
           animation: 'slideInR .2s ease both',
         }
       : {
@@ -134,36 +134,36 @@ const card = computed(() =>
           background: c.value.glass,
           backdropFilter: 'blur(30px) saturate(1.6)',
           border: '1px solid ' + c.value.border,
-          borderRadius: 14,
+          borderRadius: 'var(--radius-dialog)',
           padding: 12,
           boxShadow: c.value.shadow,
           color: c.value.text,
           display: 'flex',
           flexDirection: 'column',
-          gap: 6,
+          gap: 'var(--sp-2)',
           pointerEvents: 'auto',
         },
   ),
 )
 const titleStyle = computed(() =>
   pxify({
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.text,
     borderLeft: '3px solid ' + props.event.barColor,
     paddingLeft: 8,
   }),
 )
-const metaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const metaStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const descStyle = computed(() =>
-  pxify({ fontSize: 12, color: c.value.dim, maxHeight: 90, overflowY: 'auto' }),
+  pxify({ ...typeStep('xs'), color: c.value.dim, maxHeight: 90, overflowY: 'auto' }),
 )
 const chip = computed(() =>
   pxify({
-    fontSize: 9,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 6,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     color: c.value.dim,
     whiteSpace: 'nowrap',

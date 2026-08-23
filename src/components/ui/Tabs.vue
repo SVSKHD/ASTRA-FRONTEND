@@ -58,8 +58,8 @@ function move(delta: number) {
   border: none;
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-md);
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
   cursor: pointer;
 }
 .ui-tabs__tab.is-active {

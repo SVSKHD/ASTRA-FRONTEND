@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // Settings → Integrations → GitHub (section 13a). "Connect GitHub", then a repo
 // picker listing the repos the App installation can see with a toggle per repo.
 //
@@ -10,7 +11,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import { pausedLabel, rateLimitLabel } from '@/utils/ghPoll'
 import type { LinkedRepo } from '@/types'
@@ -76,13 +77,13 @@ async function syncNow() {
   for (const repo of repos.value) await app.refreshRepoIssues(repo.id, true)
 }
 
-const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 10 })
+const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
 const toggleTrack = (on: boolean) =>
   pxify({
     flexShrink: 0,
     width: 38,
     height: 22,
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     background: on ? 'oklch(0.68 0.16 150)' : c.value.border,
     border: '1px solid ' + c.value.border,
     cursor: 'pointer',
@@ -104,12 +105,12 @@ const bannerStyle = (col: string) =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 4,
+    gap: 'var(--sp-1)',
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + col,
     background: 'color-mix(in oklch, ' + col + ' 14%, transparent)',
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
   })
 const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShrink: 0 })
@@ -188,7 +189,7 @@ const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShri
         </div>
         <div v-if="ghError" :style="bannerStyle('oklch(0.65 0.2 25)')">{{ ghError }}</div>
 
-        <input :style="s.input" placeholder="Search repositories…" v-model="search" />
+        <TextInput placeholder="Search repositories…" v-model="search" />
 
         <div v-if="ghBusy && !ghInstalled" :style="s.ghShimmer"></div>
         <div v-else-if="!pickerRepos.length" :style="s.empty">

@@ -154,7 +154,7 @@ onMounted(async () => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-text);
 }
 .npick__preview {
@@ -162,7 +162,7 @@ onMounted(async () => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .npick__badge {
@@ -170,12 +170,12 @@ onMounted(async () => {
   padding: 1px var(--sp-2);
   border-radius: var(--radius-pill);
   border: 1px solid var(--glass-border);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .npick__empty {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 .npick__actions {

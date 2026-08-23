@@ -10,7 +10,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { chainDef, chainName, explorerUrl, paymentUri } from '@/utils/chains'
 import type { Wallet } from '@/types'
 
@@ -72,34 +72,36 @@ const card = computed(() =>
     background: c.value.glass,
     backdropFilter: 'blur(30px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 24,
+    borderRadius: 'var(--radius-dialog)',
     padding: 20,
     boxShadow: c.value.shadow,
     color: c.value.text,
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     alignItems: 'center',
   }),
 )
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, width: '100%' })
+const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', width: '100%' })
 const qrFrame = pxify({
   background: '#fff',
   padding: 10,
-  borderRadius: 14,
+  borderRadius: 'var(--radius-dialog)',
   lineHeight: 0,
 })
 const addressStyle = computed(() =>
   pxify({
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-    fontSize: 11,
+    fontFamily: 'var(--font-mono)',
+    ...typeStep('xs'),
     lineHeight: 1.5,
     wordBreak: 'break-all',
     textAlign: 'center',
     color: c.value.text,
   }),
 )
-const metaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim, textAlign: 'center' }))
+const metaStyle = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, textAlign: 'center' }),
+)
 </script>
 
 <template>

@@ -6,7 +6,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 
 const app = useAppStore()
 const { c, s } = useStyles()
@@ -17,9 +17,9 @@ const heading = computed(() =>
 )
 
 const optionNote = computed(() =>
-  pxify({ fontSize: 11, color: c.value.dim, lineHeight: 1.45, marginTop: 2 }),
+  pxify({ ...typeStep('xs'), color: c.value.dim, lineHeight: 1.45, marginTop: 2 }),
 )
-const optionCol = pxify({ display: 'flex', flexDirection: 'column', gap: 14 })
+const optionCol = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' })
 const optionBlock = pxify({ display: 'flex', flexDirection: 'column', gap: 2 })
 </script>
 

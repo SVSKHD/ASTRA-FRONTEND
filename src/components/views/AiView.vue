@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 // AI tab: a chat that knows your app. Two-pane inside the stage — a conversation
 // rail and the thread — with a pinned header (model, "Use my data", New chat) and
 // a pinned composer. The Anthropic key never touches the client: sends POST to a
@@ -12,14 +16,14 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
 import { useConnectivity } from '@/composables/useConnectivity'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { AI_MODELS, type AiChat } from '@/types'
 import { buildAiContext, SUGGESTION_CHIPS, type AiContextInput } from '@/utils/ai'
 import { noteTitle } from '@/utils/notes'
 import { currentMonthKey } from '@/utils/budget'
 
 const app = useAppStore()
-const { c, s, panelStyle } = useStyles()
+const { c, panelStyle } = useStyles()
 const { aiChats, activeAiChat, aiActiveChatId, aiUseData } = storeToRefs(app)
 const { now } = storeToRefs(useUiStore())
 const { isOnline } = useConnectivity()
@@ -201,14 +205,14 @@ const tokenTotal = computed(() => {
 })
 
 // --- styles -----------------------------------------------------------------
-const shell = pxify({ display: 'flex', gap: 14, flex: 1, minHeight: 0 })
+const shell = pxify({ display: 'flex', gap: 'var(--sp-4)', flex: 1, minHeight: 0 })
 const rail = computed(() =>
   pxify({
     width: 240,
     flexShrink: 0,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 'var(--sp-2)',
     borderRight: '1px solid ' + c.value.border,
     paddingRight: 12,
     minHeight: 0,
@@ -220,18 +224,18 @@ const railScroll = pxify({
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 8,
+  gap: 'var(--sp-2)',
 })
-const railHeadRow = pxify({ display: 'flex', gap: 6 })
+const railHeadRow = pxify({ display: 'flex', gap: 'var(--sp-2)' })
 const newBtn = computed(() =>
   pxify({
     flexShrink: 0,
     width: 34,
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.accent,
     color: c.value.onAccent,
-    fontSize: 18,
+    ...typeStep('md'),
     cursor: 'pointer',
   }),
 )
@@ -239,9 +243,9 @@ function chatRow(active: boolean) {
   return pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
+    gap: 'var(--sp-2)',
     padding: '8px 10px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     cursor: 'pointer',
     background: active ? c.value.card : 'transparent',
     border: '1px solid ' + (active ? c.value.border : 'transparent'),
@@ -251,7 +255,7 @@ const chatTitle = computed(() =>
   pxify({
     flex: 1,
     minWidth: 0,
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.text,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -260,7 +264,7 @@ const chatTitle = computed(() =>
 )
 const groupLabel = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -273,7 +277,7 @@ const iconBtn = computed(() =>
     border: 'none',
     cursor: 'pointer',
     color: c.value.dim,
-    fontSize: 12,
+    ...typeStep('xs'),
   }),
 )
 
@@ -282,7 +286,7 @@ const headerRow = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     paddingBottom: 10,
     borderBottom: '1px solid ' + c.value.border,
     flexWrap: 'wrap',
@@ -292,13 +296,15 @@ const toggleLabel = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    fontSize: 12,
+    gap: 'var(--sp-2)',
+    ...typeStep('xs'),
     color: c.value.dim,
     cursor: 'pointer',
   }),
 )
-const tokenReadout = computed(() => pxify({ fontSize: 11, color: c.value.dim, marginLeft: 'auto' }))
+const tokenReadout = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, marginLeft: 'auto' }),
+)
 
 const thread = pxify({
   flex: 1,
@@ -306,7 +312,7 @@ const thread = pxify({
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: 12,
+  gap: 'var(--sp-3)',
   padding: '12px 2px',
 })
 function bubbleWrap(role: string) {
@@ -316,8 +322,8 @@ function bubble(role: string) {
   return pxify({
     maxWidth: '78%',
     padding: '10px 14px',
-    borderRadius: 16,
-    fontSize: 13.5,
+    borderRadius: 'var(--radius-dialog)',
+    ...typeStep('sm'),
     lineHeight: 1.5,
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
@@ -329,19 +335,19 @@ function bubble(role: string) {
 const msgMeta = computed(() =>
   pxify({
     display: 'flex',
-    gap: 8,
+    gap: 'var(--sp-2)',
     alignItems: 'center',
     marginTop: 4,
-    fontSize: 11,
+    ...typeStep('xs'),
     color: c.value.dim,
   }),
 )
 const badge = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '2px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     color: c.value.accent,
   }),
@@ -359,38 +365,22 @@ const cursor = pxify({
 const composerBar = computed(() =>
   pxify({
     display: 'flex',
-    gap: 8,
+    gap: 'var(--sp-2)',
     alignItems: 'flex-end',
     paddingTop: 10,
     borderTop: '1px solid ' + c.value.border,
-  }),
-)
-const composerInput = computed(() =>
-  pxify({
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 140,
-    resize: 'none',
-    padding: '11px 14px',
-    borderRadius: 14,
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    fontSize: 13.5,
-    outline: 'none',
-    fontFamily: 'inherit',
   }),
 )
 const sendBtn = computed(() =>
   pxify({
     flexShrink: 0,
     padding: '11px 18px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: 'none',
     background: streaming.value ? 'transparent' : c.value.accent,
     color: streaming.value ? c.value.accent : c.value.onAccent,
-    fontWeight: 700,
-    fontSize: 13,
+    fontWeight: 'var(--weight-semibold)',
+    ...typeStep('sm'),
     cursor: 'pointer',
     boxShadow: streaming.value ? 'inset 0 0 0 1px ' + c.value.accent : 'none',
   }),
@@ -404,7 +394,7 @@ const emptyWrap = pxify({
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 16,
+  gap: 'var(--sp-4)',
 })
 const emptyOrb = computed(() =>
   pxify({
@@ -419,15 +409,15 @@ const emptyOrb = computed(() =>
 const chipRow = pxify({
   display: 'flex',
   flexWrap: 'wrap',
-  gap: 8,
+  gap: 'var(--sp-2)',
   justifyContent: 'center',
   maxWidth: 420,
 })
 const chipStyle = computed(() =>
   pxify({
-    fontSize: 12,
+    ...typeStep('xs'),
     padding: '8px 14px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     color: c.value.text,
@@ -449,7 +439,7 @@ function onComposerKey(e: KeyboardEvent) {
       <!-- conversation rail -->
       <aside :style="rail">
         <div :style="railHeadRow">
-          <input :style="s.input" v-model="search" placeholder="Search chats" />
+          <TextInput v-model="search" placeholder="Search chats" />
           <button :style="newBtn" aria-label="New chat" @click="newChat">+</button>
         </div>
         <div :style="railScroll">
@@ -474,7 +464,10 @@ function onComposerKey(e: KeyboardEvent) {
               </button>
             </div>
           </template>
-          <div v-if="!aiChats.length" :style="{ fontSize: 12, color: c.dim, padding: '8px 4px' }">
+          <div
+            v-if="!aiChats.length"
+            :style="{ ...typeStep('xs'), color: c.dim, padding: '8px 4px' }"
+          >
             No chats yet.
           </div>
         </div>
@@ -483,22 +476,14 @@ function onComposerKey(e: KeyboardEvent) {
       <!-- thread -->
       <section :style="main">
         <div :style="headerRow">
-          <select
+          <Select
             v-if="activeAiChat"
-            :style="s.select"
-            :value="activeAiChat.model"
-            @change="
-              app.setAiChatModel(activeAiChat.id, ($event.target as HTMLSelectElement).value)
-            "
-          >
-            <option v-for="m in AI_MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </select>
+            :model-value="activeAiChat.model"
+            @update:model-value="app.setAiChatModel(activeAiChat.id, $event)"
+            :options="[...AI_MODELS.map((m) => ({ value: String(m.id), label: `${m.label}` }))]"
+          />
           <label :style="toggleLabel">
-            <input
-              type="checkbox"
-              :checked="aiUseData"
-              @change="app.setAiUseData(($event.target as HTMLInputElement).checked)"
-            />
+            <Checkbox :model-value="aiUseData" @update:model-value="app.setAiUseData($event)" />
             Use my data
           </label>
           <span v-if="tokenTotal" :style="tokenReadout">{{ tokenTotal }} tokens</span>
@@ -506,7 +491,7 @@ function onComposerKey(e: KeyboardEvent) {
 
         <div v-if="!activeAiChat || !activeAiChat.messages.length" :style="emptyWrap">
           <span :style="emptyOrb"></span>
-          <div :style="{ color: c.dim, fontSize: 14 }">
+          <div :style="{ color: c.dim, ...typeStep('base') }">
             Ask about your todos, money, reminders, or bots.
           </div>
           <div :style="chipRow">
@@ -547,16 +532,15 @@ function onComposerKey(e: KeyboardEvent) {
 
         <!-- composer -->
         <div :style="composerBar">
-          <textarea
+          <TextArea
             ref="composerRef"
-            :style="composerInput"
-            :value="text"
+            :model-value="text"
             :disabled="!isOnline"
             :placeholder="isOnline ? 'Message…' : 'AI needs internet'"
-            rows="1"
-            @input="text = ($event.target as HTMLTextAreaElement).value"
+            :rows="1"
+            @update:model-value="text = $event"
             @keydown="onComposerKey"
-          ></textarea>
+          />
           <button v-if="streaming" :style="sendBtn" @click="stop">Stop</button>
           <button v-else :style="sendBtn" :disabled="!isOnline" @click="send()">Send</button>
         </div>

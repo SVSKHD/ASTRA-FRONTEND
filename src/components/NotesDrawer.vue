@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // The notes index. Each note is a card — title, two lines of preview, its
 // checklist progress — and opening one hands off to NoteView, which owns both
 // reading and the rich-text editing. The drawer no longer turns into an editor
@@ -8,7 +9,7 @@ import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { noteChecks, notePreview, noteText, noteTitle } from '@/utils/notes'
 import CommandHelp from '@/components/CommandHelp.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -31,13 +32,13 @@ const helpBtn = computed(() =>
     flexShrink: 0,
     display: 'grid',
     placeItems: 'center',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     background: helpOpen.value ? c.value.input : 'transparent',
     color: helpOpen.value ? c.value.accent : c.value.dim,
     cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 700,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 // Newest first, and searchable by the plain text behind the markup — the list
@@ -60,12 +61,12 @@ const drawerStyle = computed(() =>
     background: c.value.glass,
     backdropFilter: 'blur(30px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 26,
+    borderRadius: 'var(--radius-dialog)',
     boxShadow: c.value.shadow,
     padding: 20,
     display: 'flex',
     flexDirection: 'column',
-    gap: 14,
+    gap: 'var(--sp-4)',
     transform: 'translateX(' + (drawerOpen.value ? '0' : '150%') + ')',
     opacity: drawerOpen.value ? 1 : 0,
     pointerEvents: drawerOpen.value ? 'auto' : 'none',
@@ -77,7 +78,7 @@ const drawerStyle = computed(() =>
 const listStyle = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 9,
+  gap: 'var(--sp-2)',
   overflowY: 'auto',
   flex: 1,
   minHeight: 0,
@@ -117,13 +118,7 @@ function checkLabel(n: Note) {
     <button :style="s.addBtn2" v-hover-style="s.addBtnHover" @click="app.newNote()">
       + New Note
     </button>
-    <input
-      v-if="notes.length > 3"
-      :style="s.input"
-      type="search"
-      placeholder="Search notes…"
-      v-model="query"
-    />
+    <TextInput v-if="notes.length > 3" type="search" placeholder="Search notes…" v-model="query" />
 
     <div v-if="shown.length === 0" :style="s.empty">
       {{ notes.length === 0 ? 'No notes yet.' : 'No note matches that.' }}

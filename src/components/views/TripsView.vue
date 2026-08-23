@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Select from '@/components/ui/Select.vue'
 // The Trips tab. Two glass sub-tabs — To Visit and Done — over the same trip
 // list, each card showing the trip name, date, tags and a small static map of
 // its places. A trip is opened in its detail dialog (map, ordered places,
@@ -10,7 +11,7 @@ import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, tagChip } from '@/styles'
+import { pxify, tagChip, typeStep } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import SmartImage from '@/components/trips/SmartImage.vue'
 import type { Trip, TripStatus } from '@/types'
@@ -117,7 +118,7 @@ const segTrack = computed(() =>
   pxify({
     display: 'flex',
     padding: 4,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: c.value.input,
     gap: 2,
@@ -127,55 +128,49 @@ function segBtn(active: boolean) {
   return pxify({
     flex: 1,
     padding: '8px 12px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: 'none',
     background: active ? c.value.card : 'transparent',
     color: active ? c.value.accent : c.value.dim,
-    fontSize: 12.5,
-    fontWeight: 600,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 'var(--sp-2)',
   })
 }
 const segCount = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '1px 6px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
   }),
 )
-const toolbar = pxify({ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' })
-const selectStyle = computed(() =>
-  pxify({
-    padding: '8px 10px',
-    borderRadius: 10,
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    color: c.value.text,
-    fontSize: 12,
-    cursor: 'pointer',
-  }),
-)
+const toolbar = pxify({
+  display: 'flex',
+  gap: 'var(--sp-2)',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+})
 const scrollerStyle = pxify({ flex: 1, minHeight: 0, overflowY: 'auto', padding: 2 })
 const cardsWrap = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 12,
+  gap: 'var(--sp-3)',
   position: 'relative',
 })
 const cardStyle = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: 12,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.card,
     cursor: 'pointer',
@@ -183,29 +178,44 @@ const cardStyle = computed(() =>
 )
 const thumbWrap = pxify({ position: 'relative', width: '100%' })
 const titleStyle = computed(() =>
-  pxify({ fontSize: 15, fontWeight: 700, color: c.value.text, lineHeight: 1.3 }),
+  pxify({
+    ...typeStep('base'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1.3,
+  }),
 )
-const metaRow = pxify({ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' })
-const dateStyle = computed(() => pxify({ fontSize: 11.5, color: c.value.dim }))
+const metaRow = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-2)',
+  flexWrap: 'wrap',
+})
+const dateStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 function chip(tag: string) {
   return pxify(tagChip(c.value, tag, dark.value))
 }
 const placeCount = computed(() =>
   pxify({
-    fontSize: 10.5,
+    ...typeStep('2xs'),
     color: c.value.dim,
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 4,
+    gap: 'var(--sp-1)',
   }),
 )
-const actionsRow = pxify({ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' })
+const actionsRow = pxify({
+  display: 'flex',
+  gap: 'var(--sp-2)',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+})
 const visitBtn = computed(() =>
   pxify({
-    fontSize: 11.5,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '7px 12px',
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.accent,
     background: c.value.accent,
     color: c.value.onAccent,
@@ -214,10 +224,10 @@ const visitBtn = computed(() =>
 )
 const ghostBtn = computed(() =>
   pxify({
-    fontSize: 11.5,
-    fontWeight: 600,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '7px 12px',
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.text,
@@ -229,18 +239,18 @@ const del = computed(() =>
     background: 'none',
     border: 'none',
     color: c.value.dim,
-    fontSize: 18,
+    ...typeStep('md'),
     cursor: 'pointer',
   }),
 )
 const promptRow = computed(() =>
   pxify({
     display: 'flex',
-    gap: 8,
+    gap: 'var(--sp-2)',
     alignItems: 'center',
     flexWrap: 'wrap',
     padding: '8px 10px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
   }),
 )
@@ -249,8 +259,18 @@ const promptRow = computed(() =>
 <template>
   <div :style="panelStyle">
     <!-- Header + create -->
-    <div :style="pxify({ display: 'flex', alignItems: 'center', gap: 10 })">
-      <span :style="pxify({ flex: 1, fontSize: 15, fontWeight: 700, color: c.text })">Trips</span>
+    <div :style="pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })">
+      <span
+        :style="
+          pxify({
+            flex: 1,
+            ...typeStep('base'),
+            fontWeight: 'var(--weight-semibold)',
+            color: c.text,
+          })
+        "
+        >Trips</span
+      >
       <button :style="s.newBtn" @click="app.openCreate('trip')">New trip</button>
     </div>
 
@@ -266,14 +286,22 @@ const promptRow = computed(() =>
 
     <!-- Filter + sort -->
     <div :style="toolbar">
-      <select :style="selectStyle" v-model="filterTag" aria-label="Filter by tag">
-        <option value="">All tags</option>
-        <option v-for="t in allTags" :key="t" :value="t">{{ t }}</option>
-      </select>
-      <select :style="selectStyle" v-model="sortKey" aria-label="Sort trips">
-        <option value="date">By date</option>
-        <option value="name">By name</option>
-      </select>
+      <Select
+        v-model="filterTag"
+        aria-label="Filter by tag"
+        :options="[
+          { value: '', label: 'All tags' },
+          ...allTags.map((t) => ({ value: String(t), label: t })),
+        ]"
+      />
+      <Select
+        v-model="sortKey"
+        aria-label="Sort trips"
+        :options="[
+          { value: 'date', label: 'By date' },
+          { value: 'name', label: 'By name' },
+        ]"
+      />
     </div>
 
     <div v-if="list.length === 0" :style="s.empty">

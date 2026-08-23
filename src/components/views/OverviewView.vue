@@ -12,7 +12,7 @@ import { botDisplayStatus } from '@/utils/bots'
 import { debtSummary, monthTotals } from '@/utils/finance'
 import { useStyles } from '@/composables/useStyles'
 import { useMonthlyOverview } from '@/composables/useMonthlyOverview'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { formatINR } from '@/utils/currency'
 import { bucketPct, type Bucket, type MonthlyOverview } from '@/utils/overview'
 import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
@@ -221,15 +221,15 @@ const headerRow = pxify({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 10,
+  gap: 'var(--sp-3)',
   flexWrap: 'wrap',
 })
 const resetChip = computed(() =>
   pxify({
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '6px 12px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.accent,
     background: 'transparent',
     color: c.value.accent,
@@ -242,15 +242,15 @@ const gridStyle = computed(() =>
   pxify({
     display: 'grid',
     gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: 20,
+    gap: 'var(--sp-5)',
   }),
 )
 const cardBase = computed(() => ({
   display: 'flex',
   flexDirection: 'column' as const,
-  gap: 8,
+  gap: 'var(--sp-2)',
   padding: '18px 18px 15px',
-  borderRadius: 18,
+  borderRadius: 'var(--radius-dialog)',
   background: c.value.card,
   border: '1px solid ' + c.value.border,
   // Its own shadow so each tile floats separately from its neighbours.
@@ -274,20 +274,30 @@ const cardHover = computed(() =>
     borderColor: c.value.accent,
   }),
 )
-const cardTop = pxify({ display: 'flex', alignItems: 'center', gap: 8 })
+const cardTop = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const cardLabel = computed(() =>
-  pxify({ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: c.value.dim }),
+  pxify({
+    ...typeStep('xs'),
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
 )
 const bigNum = computed(() =>
-  pxify({ fontSize: 26, fontWeight: 700, color: c.value.text, lineHeight: 1.05 }),
+  pxify({
+    ...typeStep('xl'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1.05,
+  }),
 )
-const ofStyle = computed(() => pxify({ fontSize: 12, color: c.value.dim }))
-const zeroStyle = computed(() => pxify({ fontSize: 13, color: c.value.dim, padding: '6px 0' }))
+const ofStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
+const zeroStyle = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padding: '6px 0' }))
 function trackStyle() {
   return pxify({
     position: 'relative',
     height: 6,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     overflow: 'hidden',
   })
@@ -299,23 +309,25 @@ function fillStyle(pct: number, color: string) {
     top: 0,
     bottom: 0,
     width: Math.max(0, Math.min(100, pct)) + '%',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: color,
     boxShadow: '0 0 8px ' + color,
     transition: 'width .5s cubic-bezier(.4,1,.4,1), background .3s ease',
   })
 }
-const pctStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim, alignSelf: 'flex-end' }))
+const pctStyle = computed(() =>
+  pxify({ ...typeStep('xs'), color: c.value.dim, alignSelf: 'flex-end' }),
+)
 const iconWrap = computed(() =>
   pxify({ color: c.value.accent, display: 'grid', placeItems: 'center' }),
 )
 
 const compareRow = computed(() =>
-  pxify({ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }),
+  pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', marginTop: 4 }),
 )
 function compareLineStyle(dir: 'up' | 'down' | 'flat') {
   return pxify({
-    fontSize: 11,
+    ...typeStep('xs'),
     color: dir === 'up' ? GREEN : dir === 'down' ? RED : c.value.dim,
   })
 }

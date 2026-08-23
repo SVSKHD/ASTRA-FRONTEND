@@ -69,8 +69,8 @@ const bodyId = `detail-section-${useId()}`
   border: none;
   background: transparent;
   color: var(--theme-dim);
-  font-size: var(--text-xs);
-  font-weight: 600;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   text-align: left;
@@ -86,7 +86,7 @@ const bodyId = `detail-section-${useId()}`
   transform: rotate(90deg);
 }
 .dsec__hint {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   letter-spacing: 0;
   text-transform: none;
   opacity: 0.8;

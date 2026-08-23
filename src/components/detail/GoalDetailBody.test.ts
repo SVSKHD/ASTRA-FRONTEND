@@ -172,8 +172,10 @@ describe('points', () => {
     expect(wrapper.find('.gpr__mins').exists()).toBe(false)
     await wrapper.find('.gpr__estimate').trigger('click')
     await wrapper.vm.$nextTick()
-    const field = wrapper.find('.gpr__mins')
-    ;(field.element as HTMLInputElement).value = '30'
+    // The estimate is a NumberInput now, so the class is on the control and the
+    // field is inside it.
+    const field = wrapper.find('.gpr__mins input')
+    await field.setValue('30')
     await field.trigger('blur')
     expect(app.checklistOf(10)[0].estimateMins).toBe(30)
   })
@@ -256,7 +258,7 @@ describe('the ⋯ menu', () => {
   it('archives and closes', async () => {
     const app = setup()
     const wrapper = mountBody()
-    await wrapper.find('[aria-haspopup]').trigger('click')
+    await wrapper.find('[aria-haspopup="menu"]').trigger('click')
     await wrapper
       .findAll('button')
       .find((b) => b.text() === 'Archive')!
@@ -271,7 +273,7 @@ describe('the ⋯ menu', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL: vi.fn() })
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     const wrapper = mountBody()
-    await wrapper.find('[aria-haspopup]').trigger('click')
+    await wrapper.find('[aria-haspopup="menu"]').trigger('click')
     await wrapper
       .findAll('button')
       .find((b) => b.text() === 'Export JSON')!

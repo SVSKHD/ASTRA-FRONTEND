@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // Pick a tag from the shared vocabulary, or type one and create it. A created
 // tag joins the vocabulary immediately, so it is offered everywhere afterwards.
 // One tag per item for now — the field it feeds is a single string — but the
@@ -7,7 +8,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { normalizeTag, hasTag, sameTag, tagColor } from '@/utils/tags'
 
 const props = defineProps<{ modelValue: string; label?: string }>()
@@ -58,11 +59,11 @@ function chipStyle(tag: string) {
   return pxify({
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 5,
-    fontSize: 11,
-    fontWeight: 600,
+    gap: 'var(--sp-1)',
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (on ? col : c.value.border),
     background: on ? c.value.input : 'transparent',
     color: on ? col : c.value.dim,
@@ -75,7 +76,7 @@ const dropStyle = computed(() =>
     border: 'none',
     background: 'transparent',
     color: 'inherit',
-    fontSize: 12,
+    ...typeStep('xs'),
     lineHeight: 1,
     cursor: 'pointer',
     opacity: 0.6,
@@ -83,23 +84,13 @@ const dropStyle = computed(() =>
 )
 const labelStyle = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
     color: c.value.dim,
   }),
 )
-const newInput = computed(() => pxify({ ...rawInput.value, flex: 'unset', width: 150 }))
-const rawInput = computed(() => ({
-  minWidth: 0,
-  padding: '7px 12px',
-  borderRadius: 999,
-  border: '1px solid ' + c.value.border,
-  background: c.value.input,
-  color: c.value.text,
-  fontSize: 12,
-}))
 </script>
 
 <template>
@@ -112,7 +103,7 @@ const rawInput = computed(() => ({
           ×
         </button>
       </span>
-      <input :style="newInput" placeholder="New tag…" v-model="creating" @keydown="onKey" />
+      <TextInput placeholder="New tag…" v-model="creating" @keydown="onKey" />
       <button v-if="isNew" :style="s.addBtn2" @click="create">Create</button>
     </div>
   </div>

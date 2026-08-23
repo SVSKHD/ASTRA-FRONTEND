@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, noteViewCard } from '@/styles'
+import { noteViewCard, pxify, typeStep } from '@/styles'
 import { isHtmlNote, noteChecks, noteTitle } from '@/utils/notes'
 import { sanitize } from '@/utils/sanitizeHtml'
 import { toMarkdown } from '@/utils/noteMigrate'
@@ -183,7 +183,7 @@ const menuPanel = computed(() =>
     display: 'flex',
     flexDirection: 'column',
     padding: 6,
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     border: '1px solid ' + c.value.border,
     background: c.value.glass,
     backdropFilter: 'blur(24px) saturate(1.5)',
@@ -193,11 +193,11 @@ const menuPanel = computed(() =>
 const menuItem = computed(() =>
   pxify({
     padding: '8px 10px',
-    borderRadius: 9,
+    borderRadius: 'var(--radius-control)',
     border: 'none',
     background: 'transparent',
     color: c.value.text,
-    fontSize: 12,
+    ...typeStep('xs'),
     textAlign: 'left',
     cursor: 'pointer',
   }),
@@ -208,9 +208,9 @@ const cardStyle = computed(() =>
   pxify(noteViewCard(c.value, isMobile.value, noteViewClosing.value)),
 )
 const metaStyle = computed(() =>
-  pxify({ fontSize: 10, color: c.value.dim, letterSpacing: '0.03em', whiteSpace: 'nowrap' }),
+  pxify({ ...typeStep('2xs'), color: c.value.dim, letterSpacing: '0.03em', whiteSpace: 'nowrap' }),
 )
-const headStyle = pxify({ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 })
+const headStyle = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', minWidth: 0 })
 const spacer = pxify({ flex: 1 })
 </script>
 

@@ -74,7 +74,7 @@ const lightBase = {
   text: '#2b2c46',
   // Muted/secondary text. Kept opaque enough to clear the WCAG 3:1 large-text
   // floor against the light surfaces (see contrast.test).
-  dim: 'rgba(43,44,70,0.66)',
+  dim: 'rgba(43,44,70,0.7)',
   input: 'rgba(255,255,255,0.5)',
   onAccent: '#2b2c46',
   shadow:
@@ -87,7 +87,7 @@ const darkBase = {
   card: 'rgba(40,44,78,0.42)',
   border: 'rgba(150,170,255,0.28)',
   text: '#ecefff',
-  dim: 'rgba(236,239,255,0.46)',
+  dim: 'rgba(236,239,255,0.5)',
   input: 'rgba(255,255,255,0.06)',
   onAccent: '#181022',
   shadow:

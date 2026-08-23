@@ -299,7 +299,7 @@ function onOpen(target: { kind: DetailKind; id: number }) {
 }
 .dhost__missing {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--theme-dim);
 }
 </style>

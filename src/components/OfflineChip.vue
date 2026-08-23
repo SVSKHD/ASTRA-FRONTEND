@@ -5,7 +5,7 @@
 // `pending` flips to false). It never blocks or greys the card.
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 defineProps<{ pending?: boolean }>()
@@ -16,12 +16,12 @@ const chipStyle = computed(() =>
   pxify({
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 5,
+    gap: 'var(--sp-1)',
     alignSelf: 'flex-start',
-    fontSize: 11,
+    ...typeStep('xs'),
     lineHeight: 1,
     padding: '3px 8px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     color: c.value.dim,
     background: c.value.input,
     border: '1px solid ' + c.value.border,

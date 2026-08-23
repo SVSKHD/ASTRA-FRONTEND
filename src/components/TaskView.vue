@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, statusColor } from '@/styles'
+import { pxify, statusColor, typeStep } from '@/styles'
 import IssueChip from '@/components/IssueChip.vue'
 import { fullName } from '@/utils/githubModel'
 import { STATUS_LABEL, type ItemStatus, type Task } from '@/types'
@@ -27,10 +27,10 @@ const statusChip = computed(() => {
   const col = statusColor(c.value, status.value)
   return pxify({
     alignSelf: 'flex-start',
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     padding: '5px 13px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     background: status.value === 'done' ? col : 'transparent',

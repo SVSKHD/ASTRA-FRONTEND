@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, merge, rowBase, tagChip } from '@/styles'
+import { doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import { todayKey, isOverdueTask } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
@@ -144,11 +144,10 @@ function rowStyle(t: Task, done = false) {
 }
 function textStyle(t: Task) {
   return pxify({
-    fontSize: 14,
+    ...typeStep('base'),
     color: c.value.text,
     lineHeight: 1.3,
-    textDecoration: t.done ? 'line-through' : 'none',
-    textDecorationColor: c.value.dim,
+    ...doneText(t.done),
   })
 }
 const gripDots = [0, 1, 2, 3, 4, 5]
@@ -157,9 +156,9 @@ function chipStyle(tag: string) {
 }
 const ageChipStyle = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     padding: '2px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.dim,
@@ -168,25 +167,25 @@ const ageChipStyle = computed(() =>
 )
 const rolloverChipStyle = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     padding: '2px 7px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: 'transparent',
     border: '1px solid ' + (dark.value ? 'oklch(0.72 0.18 55)' : 'oklch(0.6 0.18 55)'),
     color: dark.value ? 'oklch(0.78 0.16 62)' : 'oklch(0.55 0.18 55)',
     flexShrink: 0,
   }),
 )
-const doneMetaStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const doneMetaStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const parentCardStyle = pxify({ display: 'flex', flexDirection: 'column' })
 const linkExpandBtn = computed(() =>
   pxify({
-    fontSize: 10,
-    fontWeight: 600,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     padding: '5px 10px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,

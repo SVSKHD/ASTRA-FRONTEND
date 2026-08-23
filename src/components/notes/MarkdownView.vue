@@ -12,7 +12,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { internalPath, renderMarkdownResult } from '@/utils/mdRender'
 import { fenceLabel, highlightFences } from '@/utils/mdHighlight'
 import { blockCount, progressive } from '@/utils/mdChunks'
@@ -196,17 +196,17 @@ function markMatches() {
   }
 }
 
-const style = computed(() => pxify({ color: c.value.text, fontSize: 13, lineHeight: 1.6 }))
+const style = computed(() => pxify({ color: c.value.text, ...typeStep('sm'), lineHeight: 1.6 }))
 const moreBtn = computed(() =>
   pxify({
     width: '100%',
     marginTop: 12,
     padding: '10px 12px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-card)',
     border: '1px dashed ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
-    fontSize: 12,
+    ...typeStep('xs'),
     cursor: 'pointer',
   }),
 )
@@ -221,7 +221,11 @@ const lightboxStyle = pxify({
   background: 'rgba(0,0,0,0.82)',
   cursor: 'zoom-out',
 })
-const lightboxImg = pxify({ maxWidth: '100%', maxHeight: '100%', borderRadius: 12 })
+const lightboxImg = pxify({
+  maxWidth: '100%',
+  maxHeight: '100%',
+  borderRadius: 'var(--radius-card)',
+})
 </script>
 
 <template>

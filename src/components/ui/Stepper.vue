@@ -64,7 +64,7 @@ function nudge(delta: number) {
   background: transparent;
   color: var(--theme-text);
   cursor: pointer;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 .ui-stepper__btn:disabled {
   opacity: 0.4;
@@ -76,7 +76,7 @@ function nudge(delta: number) {
   background: transparent;
   color: var(--theme-text);
   text-align: center;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
   -moz-appearance: textfield;
 }

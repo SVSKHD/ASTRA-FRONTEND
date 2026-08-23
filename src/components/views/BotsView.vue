@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from '@/components/ui/TextInput.vue'
 // Bots tab: a control surface + dashboard for the trading bots. The app only
 // reads what the bot process writes and flips `enabled`; it never runs strategy
 // logic. One floating glass card per bot, a red "Stop all" kill switch, and a
@@ -8,7 +9,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import {
   botDisplayStatus,
   dailyLossColor,
@@ -70,15 +71,17 @@ const header = pxify({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: 12,
+  gap: 'var(--sp-3)',
   flexWrap: 'wrap',
 })
-const title = computed(() => pxify({ fontSize: 18, fontWeight: 700, color: c.value.text }))
+const title = computed(() =>
+  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 const killBtn = pxify({
-  fontSize: 12,
-  fontWeight: 700,
+  ...typeStep('xs'),
+  fontWeight: 'var(--weight-semibold)',
   padding: '8px 14px',
-  borderRadius: 999,
+  borderRadius: 'var(--radius-pill)',
   border: '1px solid ' + RED,
   background: 'transparent',
   color: RED,
@@ -87,7 +90,7 @@ const killBtn = pxify({
 const list = pxify({
   display: 'flex',
   flexDirection: 'column',
-  gap: 14,
+  gap: 'var(--sp-4)',
   flex: 1,
   minHeight: 0,
   overflowY: 'auto',
@@ -97,23 +100,30 @@ const card = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: 16,
-    borderRadius: 18,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
     boxShadow: c.value.shadow,
   }),
 )
-const cardHead = pxify({ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' })
-const botName = computed(() => pxify({ fontSize: 15, fontWeight: 700, color: c.value.text }))
+const cardHead = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-3)',
+  flexWrap: 'wrap',
+})
+const botName = computed(() =>
+  pxify({ ...typeStep('base'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
+)
 function chip(bg: string, fg: string) {
   return pxify({
-    fontSize: 10,
-    fontWeight: 700,
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
     letterSpacing: '0.04em',
     padding: '3px 8px',
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: bg,
     color: fg,
   })
@@ -135,7 +145,7 @@ function toggleTrack(on: boolean, pending: boolean) {
     position: 'relative',
     width: 46,
     height: 26,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: pending ? AMBER : on ? c.value.accent : c.value.input,
     border: '1px solid ' + c.value.border,
     cursor: pending ? 'default' : 'pointer',
@@ -158,14 +168,20 @@ function toggleKnob(on: boolean) {
   })
 }
 const metaRow = computed(() =>
-  pxify({ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: c.value.dim }),
+  pxify({
+    display: 'flex',
+    gap: 'var(--sp-4)',
+    flexWrap: 'wrap',
+    ...typeStep('xs'),
+    color: c.value.dim,
+  }),
 )
-const strong = computed(() => pxify({ color: c.value.text, fontWeight: 600 }))
+const strong = computed(() => pxify({ color: c.value.text, fontWeight: 'var(--weight-semibold)' }))
 const barTrack = computed(() =>
   pxify({
     position: 'relative',
     height: 8,
-    borderRadius: 999,
+    borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     overflow: 'hidden',
   }),
@@ -184,33 +200,33 @@ function barFill(pct: number, color: string) {
 }
 const sectionLabel = computed(() =>
   pxify({
-    fontSize: 10,
+    ...typeStep('2xs'),
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
     marginBottom: 2,
   }),
 )
-const table = pxify({ width: '100%', borderCollapse: 'collapse', fontSize: 11 })
+const table = pxify({ width: '100%', borderCollapse: 'collapse', ...typeStep('xs') })
 const th = computed(() =>
   pxify({
     textAlign: 'left',
     padding: '4px 6px',
     color: c.value.dim,
     borderBottom: '1px solid ' + c.value.border,
-    fontWeight: 600,
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 const td = computed(() => pxify({ padding: '4px 6px', color: c.value.text, whiteSpace: 'nowrap' }))
 const basketBox = computed(() =>
   pxify({
     display: 'flex',
-    gap: 16,
+    gap: 'var(--sp-4)',
     flexWrap: 'wrap',
-    fontSize: 12,
+    ...typeStep('xs'),
     color: c.value.dim,
     padding: '10px 12px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     background: c.value.input,
   }),
 )
@@ -244,7 +260,7 @@ const emptyWrap = pxify({
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 14,
+  gap: 'var(--sp-4)',
   textAlign: 'center',
 })
 const emptyOrb = computed(() =>
@@ -271,12 +287,12 @@ const dialogCard = computed(() =>
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 20,
+    borderRadius: 'var(--radius-dialog)',
     padding: 20,
     boxShadow: c.value.shadow,
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 'var(--sp-3)',
     color: c.value.text,
   }),
 )
@@ -293,7 +309,7 @@ const dialogCard = computed(() =>
       <span :style="emptyOrb"></span>
       <div>
         <div :style="strong">No bots connected</div>
-        <div :style="{ color: c.dim, fontSize: 13, maxWidth: '320px', marginTop: '4px' }">
+        <div :style="{ color: c.dim, ...typeStep('sm'), maxWidth: '320px', marginTop: '4px' }">
           Point your trading bot's service account at
           <code>users/&lt;uid&gt;/bots/&lt;botId&gt;</code> and it will appear here. See the write
           contract in the README.
@@ -321,7 +337,10 @@ const dialogCard = computed(() =>
           >
           <span :style="softChip">{{ b.lot }} lot</span>
           <span :style="spacer"></span>
-          <span v-if="b.pending" :style="{ fontSize: 11, color: AMBER, fontWeight: 700 }">
+          <span
+            v-if="b.pending"
+            :style="{ ...typeStep('xs'), color: AMBER, fontWeight: 'var(--weight-semibold)' }"
+          >
             {{ b.enabled ? 'Starting…' : 'Stopping…' }}
           </span>
           <div
@@ -348,7 +367,7 @@ const dialogCard = computed(() =>
               "
             ></span>
           </div>
-          <div :style="{ fontSize: 11, color: c.dim, marginTop: '4px' }">
+          <div :style="{ ...typeStep('xs'), color: c.dim, marginTop: '4px' }">
             {{ fmtUsd(-Math.abs(b.dailyLossUsed)) }} of {{ fmtUsd(-Math.abs(b.dailyLossCap)) }}
           </div>
         </div>
@@ -440,12 +459,12 @@ const dialogCard = computed(() =>
     <!-- live-toggle confirm -->
     <div v-if="confirmBot" :style="dialogOverlay" @click.self="confirmBot = null">
       <div :style="dialogCard">
-        <div :style="{ fontWeight: 700 }">Confirm live toggle</div>
-        <div :style="{ fontSize: 13, color: c.dim }">
+        <div :style="{ fontWeight: 'var(--weight-semibold)' }">Confirm live toggle</div>
+        <div :style="{ ...typeStep('sm'), color: c.dim }">
           This is a <strong :style="{ color: RED }">live</strong> bot. Type its name
           <strong>{{ confirmBot.name }}</strong> to {{ confirmBot.enabled ? 'stop' : 'start' }} it.
         </div>
-        <input :style="s.input" v-model="confirmText" :placeholder="confirmBot.name" />
+        <TextInput v-model="confirmText" :placeholder="confirmBot.name" />
         <div :style="{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }">
           <button :style="s.cancelBtn" @click="confirmBot = null">Cancel</button>
           <button

@@ -60,7 +60,7 @@ const goalProgress = computed(() => (goal.value ? app.goalProgress(goal.value.id
   border-radius: var(--radius-pill);
   border: 1px solid var(--glass-border);
   color: var(--theme-dim);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   text-transform: capitalize;
 }
 .peek__bar {

@@ -75,7 +75,7 @@ function choose(value: string) {
   border: 1px solid var(--glass-border);
   background: var(--theme-input);
   color: var(--theme-text);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .ui-dropdown__items {
@@ -90,7 +90,7 @@ function choose(value: string) {
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .ui-dropdown__item:hover:not(:disabled),

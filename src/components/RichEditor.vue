@@ -9,7 +9,7 @@
 // target — the same trade-off the toolbar version made.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { filterCommands, type BlockKind, type SlashCommand } from '@/utils/editorCommands'
 
 const props = withDefaults(
@@ -98,9 +98,13 @@ function caretToBlockEnd() {
   sel.addRange(range)
 }
 function insertChecklist() {
+  // A real <input type="checkbox">, and the one place in the app that is
+  // correct. This HTML is inserted into a contenteditable and saved as the
+  // note's content: it is document markup, not a Vue template, so a component
+  // tag here would be four characters of literal text in somebody's note.
   insertHtml(
     '<div style="display:flex;align-items:flex-start;gap:8px;margin:3px 0">' +
-      '<input type="checkbox" style="margin-top:4px"><span>&nbsp;</span></div>',
+      '<input type="checkbox" style="margin-top:4px" /><span>&nbsp;</span></div>',
   )
 }
 function insertDivider() {
@@ -270,7 +274,7 @@ function handleInlineMarkdown() {
   }
 }
 function codeOpen() {
-  return '<code style="background:rgba(127,127,127,.22);padding:1px 5px;border-radius:4px;font-family:ui-monospace,monospace">'
+  return '<code style="background:rgba(127,127,127,.22);padding:1px 5px;border-radius:4px;font-family:var(--font-mono)">'
 }
 
 // --- selection bubble (bold / italic / link) --------------------------------
@@ -410,7 +414,7 @@ const menuStyle = computed(() =>
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 16,
+    borderRadius: 'var(--radius-dialog)',
     padding: 6,
     boxShadow: c.value.shadow,
     display: 'flex',
@@ -422,9 +426,9 @@ function itemStyle(active: boolean) {
   return pxify({
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '8px 10px',
-    borderRadius: 11,
+    borderRadius: 'var(--radius-card)',
     cursor: 'pointer',
     background: active ? c.value.input : 'transparent',
     border: '1px solid ' + (active ? c.value.border : 'transparent'),
@@ -433,9 +437,14 @@ function itemStyle(active: boolean) {
   })
 }
 const itemLabel = computed(() =>
-  pxify({ fontSize: 12.5, fontWeight: 600, color: c.value.text, lineHeight: 1.2 }),
+  pxify({
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-semibold)',
+    color: c.value.text,
+    lineHeight: 1.2,
+  }),
 )
-const itemHint = computed(() => pxify({ fontSize: 10, color: c.value.dim, lineHeight: 1.2 }))
+const itemHint = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim, lineHeight: 1.2 }))
 const itemGlyph = computed(() =>
   pxify({
     width: 30,
@@ -443,12 +452,12 @@ const itemGlyph = computed(() =>
     flexShrink: 0,
     display: 'grid',
     placeItems: 'center',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
     color: c.value.accent,
-    fontSize: 12,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 const GLYPH: Record<BlockKind, string> = {
@@ -481,7 +490,7 @@ const bubbleStyle = computed(() =>
     backdropFilter: 'blur(24px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(24px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    borderRadius: 12,
+    borderRadius: 'var(--radius-card)',
     boxShadow: c.value.shadow,
   }),
 )
@@ -490,13 +499,13 @@ const bubbleBtn = computed(() =>
     minWidth: 30,
     height: 28,
     padding: '0 8px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-control)',
     border: 'none',
     background: 'transparent',
     color: c.value.text,
-    fontSize: 13,
+    ...typeStep('sm'),
     cursor: 'pointer',
-    fontWeight: 700,
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 // A smaller, mono-ish chip for the "Turn into" block options.
@@ -505,12 +514,12 @@ const turnBtn = computed(() =>
     minWidth: 26,
     height: 26,
     padding: '0 7px',
-    borderRadius: 7,
+    borderRadius: 'var(--radius-control)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
     color: c.value.dim,
-    fontSize: 11,
-    fontWeight: 700,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
   }),
 )

@@ -169,14 +169,14 @@ onBeforeUnmount(() => clearInterval(liveTimer))
 }
 .odet__title {
   margin: 0;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 }
 .odet__note,
 .odet__summary,
 .odet__clean {
   margin: 0;
   min-width: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
 .odet__btn {
@@ -185,7 +185,7 @@ onBeforeUnmount(() => clearInterval(liveTimer))
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--theme-text);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   cursor: pointer;
 }
 .odet__list {
@@ -205,7 +205,7 @@ onBeforeUnmount(() => clearInterval(liveTimer))
   grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--sp-2);
   align-items: baseline;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
 }
 .odet__amount {
   color: var(--theme-accent);

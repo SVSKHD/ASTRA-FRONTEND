@@ -9,7 +9,7 @@
 // that happens to be short when the year is nearly over.
 import { computed, nextTick, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { occurrencesBetween, upcomingOccurrences } from '@/utils/reminders'
 import type { Reminder } from '@/types'
 
@@ -121,14 +121,14 @@ const scrollerStyle = computed(() =>
     gap: 2,
     marginTop: 8,
     padding: '6px 8px',
-    borderRadius: 14,
+    borderRadius: 'var(--radius-dialog)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
   }),
 )
 const monthLabelStyle = computed(() =>
   pxify({
-    fontSize: 9,
+    ...typeStep('2xs'),
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: c.value.dim,
@@ -140,22 +140,22 @@ function rowStyle(row: Row) {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 'var(--sp-3)',
     padding: '5px 8px',
-    borderRadius: 9,
-    fontSize: 12,
+    borderRadius: 'var(--radius-control)',
+    ...typeStep('xs'),
     opacity: row.isPast ? 0.42 : 1,
     color: c.value.text,
     background: row.isNext ? c.value.card : 'transparent',
     border: '1px solid ' + (row.isNext ? c.value.border : 'transparent'),
   })
 }
-const timeStyle = computed(() => pxify({ fontSize: 11, color: c.value.dim }))
+const timeStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const hintStyle = computed(() =>
-  pxify({ fontSize: 10, color: c.value.dim, textAlign: 'center', padding: '4px 0' }),
+  pxify({ ...typeStep('2xs'), color: c.value.dim, textAlign: 'center', padding: '4px 0' }),
 )
 const emptyStyle = computed(() =>
-  pxify({ fontSize: 11, color: c.value.dim, padding: '10px 4px', textAlign: 'center' }),
+  pxify({ ...typeStep('xs'), color: c.value.dim, padding: '10px 4px', textAlign: 'center' }),
 )
 
 // A one-off whose date has passed produces nothing, which otherwise reads as a
