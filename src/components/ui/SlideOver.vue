@@ -1,9 +1,20 @@
 <script setup lang="ts">
 // A side drawer for secondary flows that should not take the whole screen.
+//
+// Two widths, because the two things a drawer holds are different shapes: a
+// short form fits in 380px, and a reference table does not. `lg` is still a
+// drawer rather than a modal — it stays attached to the edge and leaves the
+// page it came from visible beside it.
 const props = withDefaults(
-  defineProps<{ open: boolean; title: string; side?: 'left' | 'right' }>(),
+  defineProps<{
+    open: boolean
+    title: string
+    side?: 'left' | 'right'
+    size?: 'md' | 'lg'
+  }>(),
   {
     side: 'right',
+    size: 'md',
   },
 )
 const emit = defineEmits<{ close: [] }>()
@@ -15,7 +26,7 @@ void props
     <div class="ui-drawer__scrim" @click="emit('close')"></div>
     <aside
       class="ui-drawer"
-      :class="`ui-drawer--${side}`"
+      :class="[`ui-drawer--${side}`, `ui-drawer--${size}`]"
       role="dialog"
       aria-modal="true"
       :aria-label="title"
@@ -44,7 +55,7 @@ void props
   top: 0;
   bottom: 0;
   z-index: 51;
-  width: min(92vw, 380px);
+  width: min(92vw, var(--drawer-w, 380px));
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
@@ -60,6 +71,12 @@ void props
   .ui-drawer {
     background: var(--glass-solid);
   }
+}
+.ui-drawer--md {
+  --drawer-w: 380px;
+}
+.ui-drawer--lg {
+  --drawer-w: 560px;
 }
 .ui-drawer--right {
   right: 0;

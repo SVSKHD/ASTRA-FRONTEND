@@ -85,6 +85,7 @@ import { occurrences } from '@/utils/reminders'
 import { stampOnDay, ymd } from '@/utils/dayGroups'
 import { isBlankNote, isNoteEditorMode, type NoteEditorMode } from '@/utils/notes'
 import { SPLIT_DEFAULT, clampSplit } from '@/utils/noteColumn'
+import { shouldAutoOpenGoalHelp, type GoalHelpTab } from '@/utils/goalHelp'
 import {
   LEGACY_ROW_TITLE,
   draftWorthSaving,
@@ -368,6 +369,20 @@ export const useAppStore = defineStore('app', () => {
   // Records the last local day recurring-goal occurrences were generated, so the
   // lazy generator does its horizon pass at most once per day per device.
   const lastGoalGenDay = ref('')
+  // "How to add a goal" (section 23). The panel is opened from the goals
+  // toolbar, the goal dialog and /ui, so which tab it is on lives here rather
+  // than in whichever surface happened to open it.
+  const goalHelpTab = ref<GoalHelpTab>('manual')
+  const goalHelpOpen = ref(false)
+  // Whether this user has met the panel. On the user document rather than in
+  // local storage, so a first-timer is offered it once per person and not once
+  // per browser they happen to sign in from.
+  const goalsHelpSeen = ref(false)
+  // A document the help panel has handed to the import screen, waiting to be
+  // picked up on mount. Not persisted: it is a hand-off between two views in
+  // the same session, and a sample left in the workspace doc would be a
+  // surprise on the next device.
+  const goalImportSeed = ref('')
   // Done/Not-done split preferences. hideCompleted collapses the Completed
   // section entirely for users who never want it; reminderSound plays a short
   // tone alongside the browser notification when a reminder fires.
@@ -4925,6 +4940,52 @@ export const useAppStore = defineStore('app', () => {
   function setDetailSplit(pct: number) {
     detailSplit.value = clampSplit(pct)
   }
+  // --- "How to add a goal" (section 23) --------------------------------------
+  // Opening it is also what marks it seen: a reader who was shown the panel has
+  // been shown it, whether they read it or closed it immediately. Marking on
+  // dismissal instead would re-offer it to anybody who navigated away, which is
+  // the same nag the flag exists to prevent.
+  function openGoalHelp(tab: GoalHelpTab = 'manual') {
+    goalHelpTab.value = tab
+    goalHelpOpen.value = true
+    goalsHelpSeen.value = true
+  }
+  function closeGoalHelp() {
+    goalHelpOpen.value = false
+  }
+  function setGoalHelpTab(tab: GoalHelpTab) {
+    goalHelpTab.value = tab
+  }
+  // The one automatic open, decided by utils/goalHelp so the guards can be
+  // argued with in a test rather than inferred from a template condition.
+  function maybeAutoOpenGoalHelp() {
+    if (
+      !shouldAutoOpenGoalHelp({
+        cloudReady: cloudReady.value,
+        goalCount: goals.value.length,
+        seen: goalsHelpSeen.value,
+        alreadyOpen: goalHelpOpen.value,
+      })
+    )
+      return false
+    openGoalHelp('manual')
+    return true
+  }
+  // "Load sample goal": the document is handed to the import screen rather than
+  // imported from here, so the reader lands in the box with it in front of them
+  // and can edit it before anything is written.
+  function seedGoalImport(json: string) {
+    goalImportSeed.value = json
+    goalHelpOpen.value = false
+  }
+  // Read once. Leaving it set would re-seed the box every time the import
+  // screen is opened, overwriting whatever the reader had pasted themselves.
+  function takeGoalImportSeed(): string {
+    const seed = goalImportSeed.value
+    goalImportSeed.value = ''
+    return seed
+  }
+
   // A note's own page (section 22c's "Open full"). Opening one closes whatever
   // dialog it was opened from, for the same reason the goal page does: a note
   // read full-screen over a dialog showing the same note is one note edited in
@@ -5492,6 +5553,7 @@ export const useAppStore = defineStore('app', () => {
       goalChecklist: goalChecklist.value,
       goalOccurrences: goalOccurrences.value,
       lastGoalGenDay: lastGoalGenDay.value,
+      goalsHelpSeen: goalsHelpSeen.value,
       tags: tags.value,
       security: security.value,
       themeSetting: themeSetting.value,
@@ -5547,6 +5609,7 @@ export const useAppStore = defineStore('app', () => {
     preferredDark.value = 'deepSpace'
     preferredLight.value = 'daylight'
     railCollapsed.value = false
+    goalsHelpSeen.value = false
     autoRollover.value = false
     lastAutoRolloverDay.value = ''
     hideCompleted.value = false
@@ -5929,6 +5992,7 @@ export const useAppStore = defineStore('app', () => {
     lastAutoRolloverDay.value =
       typeof data.lastAutoRolloverDay === 'string' ? data.lastAutoRolloverDay : ''
     lastGoalGenDay.value = typeof data.lastGoalGenDay === 'string' ? data.lastGoalGenDay : ''
+    goalsHelpSeen.value = data.goalsHelpSeen === true
     hideCompleted.value = data.hideCompleted === true
     reminderSound.value = data.reminderSound === true
     // Finance settings: merge onto the empty shape so a partial or legacy doc
@@ -6193,6 +6257,7 @@ export const useAppStore = defineStore('app', () => {
         preferredDark,
         preferredLight,
         railCollapsed,
+        goalsHelpSeen,
         autoRollover,
         lastAutoRolloverDay,
         hideCompleted,
@@ -6437,6 +6502,16 @@ export const useAppStore = defineStore('app', () => {
     newNote,
     openNoteView,
     openNotePage,
+    goalHelpOpen,
+    goalHelpTab,
+    goalsHelpSeen,
+    goalImportSeed,
+    openGoalHelp,
+    closeGoalHelp,
+    setGoalHelpTab,
+    maybeAutoOpenGoalHelp,
+    seedGoalImport,
+    takeGoalImportSeed,
     editNoteView,
     saveNoteView,
     closeNoteView,

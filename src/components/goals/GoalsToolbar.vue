@@ -15,6 +15,7 @@
 // wheel and a chip is one tap.
 import { computed } from 'vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
+import Icon from '@/components/ui/Icon.vue'
 import type { GoalStatus } from '@/types'
 
 const props = defineProps<{
@@ -32,6 +33,7 @@ const emit = defineEmits<{
   'update:sort': ['order' | 'target' | 'progress']
   import: []
   new: []
+  help: []
 }>()
 
 const STATUSES: { value: GoalStatus | 'all'; label: string }[] = [
@@ -62,6 +64,19 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
       <h2 class="gtb__title">Goals</h2>
       <div class="gtb__spacer"></div>
       <div class="gtb__actions">
+        <!-- Persistent, not tucked into the empty state: the question "how do I
+             get a goal in from JSON again?" is asked most often by somebody who
+             already has goals, which is exactly when an empty-state hint is
+             gone (section 23). -->
+        <button
+          type="button"
+          class="gtb__help"
+          aria-label="How to add a goal"
+          title="How to add a goal"
+          @click="emit('help')"
+        >
+          <Icon name="help" size="sm" />
+        </button>
         <Dropdown label="Import ▾" :items="IMPORT_ITEMS" @select="emit('import')" />
         <button type="button" class="gtb__new" @click="emit('new')">+ New goal</button>
       </div>
@@ -164,6 +179,23 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
   align-items: center;
   gap: var(--sp-2);
   flex-shrink: 0;
+}
+.gtb__help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--theme-dim);
+  cursor: pointer;
+}
+.gtb__help:hover {
+  color: var(--theme-accent);
+  border-color: var(--theme-accent);
 }
 .gtb__new {
   padding: var(--sp-2) var(--sp-3);

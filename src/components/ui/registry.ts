@@ -340,7 +340,13 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     summary: 'Side drawer for secondary flows.',
     props: [
       { name: 'open', type: 'boolean' },
-      { name: 'side', type: "'left' | 'right'" },
+      { name: 'side', type: "'left' | 'right'", default: 'right' },
+      {
+        name: 'size',
+        type: "'md' | 'lg'",
+        default: 'md',
+        note: 'lg (560px) for a drawer that carries a reference table.',
+      },
     ],
     snippet: '<SlideOver :open="open" title="Details" @close="open = false">…</SlideOver>',
   },

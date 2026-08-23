@@ -10,6 +10,7 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
+import { useAppStore } from '@/stores/app'
 import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
 import { contrastRatio } from '@/themes/contrast'
 import { UI_GROUPS, componentsIn, type ComponentDoc } from '@/components/ui/registry'
@@ -62,6 +63,9 @@ import {
 } from '@/components/ui'
 
 const ui = useUiStore()
+// Section 23's help drawer is opened from a store flag, so the showcase reaches
+// it the same way the goals toolbar does rather than mounting a second copy.
+const app = useAppStore()
 const { theme, effectiveThemeKey } = storeToRefs(ui)
 // The picker writes through setTheme so the choice persists exactly as it does
 // from the header — the showcase is not a separate theme system.
@@ -583,6 +587,16 @@ const OverlapDetector = import.meta.env.DEV
         <EmptyState glyph="◇" title="Nothing here yet" description="Create the first one.">
           <template #action><Button size="sm">Create</Button></template>
         </EmptyState>
+      </GlassPanel>
+
+      <h3>How to add a goal</h3>
+      <p class="ui-page__note">
+        Section 23's help drawer — the walkthroughs, the shorthand and the JSON schema reference. It
+        is the same panel the goals toolbar's ? and the goal dialog's ⋯ open, mounted once at the
+        app root, so this button only sets the flag.
+      </p>
+      <GlassPanel padding="sm">
+        <Button size="sm" @click="app.openGoalHelp()">Open the goal help panel</Button>
       </GlassPanel>
     </section>
   </div>

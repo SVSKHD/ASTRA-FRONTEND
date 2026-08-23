@@ -63,9 +63,18 @@ const menuItems = [
   { value: 'duplicate', label: 'Duplicate' },
   { value: 'archive', label: 'Archive' },
   { value: 'export', label: 'Export JSON' },
+  // Section 23: the schema is most wanted right after Export JSON, by somebody
+  // looking at a document and wondering what else they could have put in it.
+  { value: 'help', label: 'Help' },
   { value: 'delete', label: 'Delete' },
 ]
 function onMenu(action: string) {
+  // Help is about goals in general, not about this one, so it works whether or
+  // not the goal behind the dialog has finished loading.
+  if (action === 'help') {
+    app.openGoalHelp('json')
+    return
+  }
   if (!goal.value) return
   if (action === 'duplicate') {
     const copy = app.duplicateGoal(props.goalId)

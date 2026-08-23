@@ -120,3 +120,25 @@ describe('on a phone', () => {
     expect(wrapper.emitted('update:status')).toEqual([['paused']])
   })
 })
+
+// Section 23: the way back into the help, once the empty state is gone.
+describe('the help button', () => {
+  it('is in the toolbar, named for what it opens', () => {
+    const button = mountToolbar().find('.gtb__help')
+    expect(button.exists()).toBe(true)
+    expect(button.attributes('aria-label')).toBe('How to add a goal')
+  })
+
+  it('is there whether or not the tab has any goals', () => {
+    // The question is asked most often by somebody who already has goals —
+    // exactly when an empty-state hint has gone.
+    expect(mountToolbar({ showFilters: false }).find('.gtb__help').exists()).toBe(true)
+    expect(mountToolbar({ showFilters: true }).find('.gtb__help').exists()).toBe(true)
+  })
+
+  it('asks its host to open the panel rather than owning one', async () => {
+    const wrapper = mountToolbar()
+    await wrapper.find('.gtb__help').trigger('click')
+    expect(wrapper.emitted('help')).toHaveLength(1)
+  })
+})

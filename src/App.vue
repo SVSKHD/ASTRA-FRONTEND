@@ -2,12 +2,17 @@
 // Shell only. The starfield and brand mark are shared chrome across every
 // route — the workspace, a share page and the 404 all sit on the same sky.
 // The sync pill also lives here so it floats above every route.
-import { computed, onMounted } from 'vue'
+import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Starfield from '@/components/Starfield.vue'
 import CursorTail from '@/components/CursorTail.vue'
 import SyncPill from '@/components/SyncPill.vue'
 import IconSprite from '@/components/ui/IconSprite.vue'
+// "How to add a goal" (section 23). Mounted once, here, because it is opened
+// from the goals toolbar, from the goal dialog and from /ui — three surfaces on
+// two routes, and a panel mounted in each would be three of them. Loaded on
+// demand: most sessions never ask for it.
+const GoalHelpPanel = defineAsyncComponent(() => import('@/components/goals/GoalHelpPanel.vue'))
 import { useStyles } from '@/composables/useStyles'
 import { useAppStore } from '@/stores/app'
 import { firebaseEnabled, onPersistenceResolved } from '@/firebase'
@@ -40,6 +45,7 @@ onMounted(() => {
   <Starfield />
   <CursorTail />
   <RouterView />
+  <GoalHelpPanel v-if="app.goalHelpOpen" />
   <SyncPill />
   <div v-if="showBrand" :style="s.brandWrap"><span :style="s.brand">AUREON</span></div>
 </template>
