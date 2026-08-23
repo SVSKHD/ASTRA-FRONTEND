@@ -74,6 +74,33 @@ describe('families', () => {
   })
 })
 
+// The lint rule runs outside Vite and cannot resolve the `@/` alias, so it
+// carries its own copy of the scale. This is what stops the copy drifting: the
+// rule that enforces the scale being wrong about what the scale is would be the
+// worst of the available failures, because it would enforce the old one.
+describe('the lint rule agrees with the token file', () => {
+  const plugin = readFileSync(resolve(__dirname, '../../../stylelint-plugin-type-scale.js'), 'utf8')
+
+  it('lists the same eight steps at the same sizes', () => {
+    for (const step of TYPE_SCALE) {
+      expect(plugin, step.token).toContain(`{ token: '${step.token}', px: ${step.px} }`)
+    }
+  })
+
+  it('lists no step the scale does not have', () => {
+    const declared = [...plugin.matchAll(/\{ token: '([^']+)', px: (\d+) \}/g)].map((m) => m[1])
+    expect(declared).toEqual(TYPE_SCALE.map((s) => s.token))
+  })
+
+  it('knows the same three weights', () => {
+    for (const w of WEIGHTS) expect(plugin).toContain(`--${w.token}`)
+  })
+
+  it('exempts the token file, where a raw value is the definition', () => {
+    expect(plugin).toContain("file.endsWith('tokens.css')")
+  })
+})
+
 describe('nearestStep', () => {
   it('maps a raw value to the step it should have been written as', () => {
     expect(nearestStep(12).token).toBe('text-xs')

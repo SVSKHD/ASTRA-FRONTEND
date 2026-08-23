@@ -1,0 +1,13 @@
+{
+  "plugins": ["./stylelint-plugin-type-scale.js"],
+  "overrides": [
+    {
+      "files": ["**/*.vue"],
+      "customSyntax": "postcss-html"
+    }
+  ],
+  "rules": {
+    "aureon/no-raw-font-size": true,
+    "aureon/no-raw-font-weight": true
+  }
+}
