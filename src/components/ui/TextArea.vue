@@ -90,7 +90,11 @@ function onInput(event: Event) {
   if (props.autoGrow) auto.onInput()
 }
 
-defineExpose({ focus: () => area.value?.focus(), el: area })
+defineExpose({
+  focus: () => area.value?.focus(),
+  select: () => area.value?.select(),
+  el: area,
+})
 </script>
 
 <template>

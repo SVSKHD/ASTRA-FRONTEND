@@ -65,9 +65,12 @@ watch(
   async (i) => {
     if (!props.open) return
     await nextTick()
-    panel.value?.querySelector<HTMLElement>(`[data-index="${i}"]`)?.scrollIntoView({
-      block: 'nearest',
-    })
+    const row = panel.value?.querySelector<HTMLElement>(`[data-index="${i}"]`)
+    // Optional call: this is a convenience, and it runs inside an async watcher,
+    // so an environment that does not implement it (jsdom) would otherwise turn
+    // a missing scroll into an unhandled rejection — which fails the entire test
+    // run rather than the one test that touched it.
+    row?.scrollIntoView?.({ block: 'nearest' })
   },
 )
 

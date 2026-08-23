@@ -108,7 +108,10 @@ const atMax = computed(
   () => props.max !== undefined && (props.modelValue ?? props.max) >= props.max,
 )
 
-defineExpose({ focus: () => input.value?.focus() })
+defineExpose({
+  focus: () => input.value?.focus(),
+  select: () => input.value?.select(),
+})
 </script>
 
 <template>
