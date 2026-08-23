@@ -88,8 +88,8 @@ describe('the shell (acceptance 124)', () => {
   it('is a grid with a named panel track, not a flex row', () => {
     // A flex row with a fixed-width panel and no min-width lets the grid — which
     // can always shrink — push the panel off the left edge instead of taking
-    // the squeeze itself.
-    expect(view).toContain("gridTemplateColumns: withPanel ? '240px minmax(0, 1fr)'")
+    // the squeeze itself. Widened to 260px by section 26b.
+    expect(view).toContain("gridTemplateColumns: withPanel ? '260px minmax(0, 1fr)'")
   })
 
   it('sets min-width: 0 on both tracks', () => {
@@ -98,10 +98,12 @@ describe('the shell (acceptance 124)', () => {
     expect(grid).toContain('minmax(0, 1fr)')
   })
 
-  it('clamps a panel row to two lines rather than truncating mid-word', () => {
-    const row = view.slice(view.indexOf('const unschedRow'), view.indexOf('const hintStyle'))
-    expect(row).toContain('WebkitLineClamp: 2')
-    expect(row).not.toContain("whiteSpace: 'nowrap'")
+  it('hands the panel to a component that owns its own rows', () => {
+    // The row treatment moved to UnscheduledPanel in section 26b, along with
+    // the clamp and the colour rules; UnscheduledPanel.test.ts asserts them
+    // where they now live rather than through this file.
+    expect(view).toContain('<UnscheduledPanel')
+    expect(view).not.toContain('const unschedRow')
   })
 })
 
