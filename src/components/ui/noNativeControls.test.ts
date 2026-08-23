@@ -79,6 +79,35 @@ describe('no native form control outside the library', () => {
   })
 })
 
+describe('the controls that must never be native (section 26a)', () => {
+  // The bug this is really about: a native <select> renders its popup list
+  // through the operating system. background, color and every token set on an
+  // <option> are ignored on most platforms, so on a dark theme the list flashes
+  // white. There is no CSS fix — the element has to be replaced, which means
+  // the regression to guard is not "a select appeared in a view" but "the
+  // library's own Select went back to being one".
+  const MUST_BE_CUSTOM = ['Select', 'MultiSelect', 'Combobox', 'SegmentedControl']
+
+  for (const name of MUST_BE_CUSTOM) {
+    it(`${name} renders no <select> of its own`, () => {
+      const src = readFileSync(resolve(SRC, `components/ui/${name}.vue`), 'utf8')
+      // The template half only: these files explain in a comment what they are
+      // not, and a prose mention of <select> is the opposite of a violation.
+      const template = src.slice(src.indexOf('<template>'))
+      expect(template).not.toMatch(/<select[\s/>]/)
+      expect(template).not.toMatch(/<option[\s/>]/)
+    })
+  }
+
+  it('opens its list in a portal, which a native select cannot do', () => {
+    // The other half of why native had to go: a native popup cannot be
+    // portalled out of a dialog, so inside one it renders wherever the platform
+    // decides.
+    const panel = readFileSync(resolve(SRC, 'components/ui/internal/ListboxPanel.vue'), 'utf8')
+    expect(panel).toContain('<Teleport to="body">')
+  })
+})
+
 describe('the library owns the native elements', () => {
   it('keeps every one of them inside ui/', () => {
     const inLibrary = walk(resolve(SRC, 'components/ui')).filter((f) => {
