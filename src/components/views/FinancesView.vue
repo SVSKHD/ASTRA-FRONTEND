@@ -30,6 +30,7 @@ import {
   effectiveDebtStatus,
   extraIncome,
   filterTxns,
+  monthOf,
   isOverdue,
   monthTotals,
   principalMinor,
@@ -38,12 +39,15 @@ import {
 } from '@/utils/finance'
 import MonthPicker from '@/components/MonthPicker.vue'
 import QuickAddRow, { type QuickAddDraft } from '@/components/finance/QuickAddRow.vue'
+import TransactionList from '@/components/finance/TransactionList.vue'
+import TxnFilters from '@/components/finance/TxnFilters.vue'
+import { applyFilters, isFiltered, signedMinor } from '@/utils/txnList'
 import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
 const { c, panelStyle } = useStyles()
-const { transactions, debts, finScope, txnCategories } = storeToRefs(app)
+const { transactions, debts, finScope, txnCategories, txnFilters, financeTags } = storeToRefs(app)
 const { now } = storeToRefs(useUiStore())
 const route = useRoute()
 const router = useRouter()
@@ -117,28 +121,37 @@ const extraIncomeList = computed(() =>
     .sort((a, b) => txnMinor(b) - txnMinor(a)),
 )
 
-const kindFilter = ref<'all' | 'income' | 'expense'>('all')
-const monthTxns = computed(() => {
-  let list = filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value })
-  if (tagFilter.value) list = list.filter((t) => t.tags.includes(tagFilter.value))
-  if (kindFilter.value !== 'all') list = list.filter((t) => t.kind === kindFilter.value)
-  return [...list].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id))
-})
+// The list is the month, narrowed by the saved filters. The tab's own scope
+// switch still wins over the filter's scope — a filter should not be able to
+// contradict the control the reader is looking at.
+const listTxns = computed(() =>
+  applyFilters(filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value }), {
+    ...txnFilters.value,
+    scope: scope.value,
+    tags: activeTags.value,
+  }),
+)
 
-// Group transactions by day with a per-day net subtotal.
-const txnDays = computed(() => {
-  const groups = new Map<string, Txn[]>()
-  for (const t of monthTxns.value) {
-    const arr = groups.get(t.date) || []
-    arr.push(t)
-    groups.set(t.date, arr)
-  }
-  return [...groups.entries()].map(([date, items]) => ({
-    date,
-    items,
-    net: items.reduce((sum, t) => sum + (t.kind === 'income' ? txnMinor(t) : -txnMinor(t)), 0),
-  }))
-})
+const activeTags = computed(() =>
+  tagFilter.value && !txnFilters.value.tags.includes(tagFilter.value)
+    ? [...txnFilters.value.tags, tagFilter.value]
+    : txnFilters.value.tags,
+)
+
+const listIsFiltered = computed(
+  () => isFiltered({ ...txnFilters.value, scope: 'all' }) || Boolean(tagFilter.value),
+)
+
+/**
+ * Everything before this month, netted — so the running balance in a month view
+ * continues from where the account actually stood rather than restarting at
+ * zero and implying it was empty on the 1st.
+ */
+const openingBalance = computed(() =>
+  filterTxns(transactions.value, { scope: scope.value })
+    .filter((t) => monthOf(t.date) < monthKey.value)
+    .reduce((sum, t) => sum + signedMinor(t), 0),
+)
 
 const monthDebts = computed(() =>
   debts.value.filter((d) => scope.value === 'all' || d.scope === scope.value),
@@ -319,18 +332,6 @@ const header = pxify({
   gap: 'var(--sp-3)',
   flexWrap: 'wrap',
 })
-function pill(active: boolean) {
-  return pxify({
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    padding: '6px 12px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + (active ? c.value.accent : c.value.border),
-    background: active ? c.value.accent : 'transparent',
-    color: active ? c.value.onAccent : c.value.dim,
-    cursor: 'pointer',
-  })
-}
 const spacer = pxify({ flex: 1 })
 const body = pxify({
   flex: 1,
@@ -534,26 +535,6 @@ const formGrid = pxify({
   gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
   gap: 'var(--sp-2)',
 })
-const dayHead = computed(() =>
-  pxify({
-    display: 'flex',
-    justifyContent: 'space-between',
-    ...typeStep('xs'),
-    color: c.value.dim,
-    padding: '6px 2px 2px',
-    borderBottom: '1px solid ' + c.value.border,
-  }),
-)
-const txnRow = computed(() =>
-  pxify({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--sp-3)',
-    padding: '8px 4px',
-    ...typeStep('sm'),
-    borderBottom: '1px solid ' + c.value.border,
-  }),
-)
 const table = pxify({ width: '100%', borderCollapse: 'collapse', ...typeStep('xs') })
 const th = computed(() =>
   pxify({
@@ -726,20 +707,17 @@ const debtCard = computed(() =>
           @create-category="app.ensureTxnCategory($event)"
         />
 
+        <TxnFilters
+          :model-value="txnFilters"
+          :categories="txnCategories"
+          :tags="financeTags.map((t) => t.name)"
+          :show-scope="false"
+          @update:model-value="app.setTxnFilters($event)"
+          @clear="app.clearTxnFilters()"
+        />
+
         <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }">
           <button :style="ghostBtn" @click="openTxnForm('expense')">More fields…</button>
-          <span :style="spacer"></span>
-          <button
-            v-for="k in ['all', 'income', 'expense']"
-            :key="k"
-            :style="pill(kindFilter === k)"
-            @click="kindFilter = k as typeof kindFilter"
-          >
-            {{ k[0].toUpperCase() + k.slice(1) }}
-          </button>
-          <span v-if="tagFilter" :style="tagChip(tagFilter)" @click="tagFilter = ''"
-            >#{{ tagFilter }} ✕</span
-          >
         </div>
 
         <div v-if="showTxnForm" :style="card">
@@ -771,43 +749,18 @@ const debtCard = computed(() =>
           </div>
         </div>
 
-        <div v-if="!txnDays.length" :style="sub">No transactions in this month.</div>
-        <div v-for="day in txnDays" :key="day.date">
-          <div :style="dayHead">
-            <span>{{ day.date }}</span>
-            <span :style="{ color: valueColor(day.net) }">{{ fmtSigned(day.net) }}</span>
-          </div>
-          <div v-for="t in day.items" :key="t.id" :style="txnRow">
-            <span
-              :style="{
-                color: t.kind === 'income' ? GOOD : c.text,
-                fontWeight: 'var(--weight-semibold)',
-                minWidth: '92px',
-              }"
-            >
-              {{ money(t.kind === 'income' ? txnMinor(t) : -txnMinor(t), true) }}
-            </span>
-            <span :style="{ flex: 1, minWidth: 0 }">
-              {{ t.note || t.category }}<span v-if="t.party" :style="sub"> · {{ t.party }}</span>
-            </span>
-            <span :style="scopeChip">{{ t.category }}</span>
-            <span v-for="tg in t.tags" :key="tg" :style="tagChip(tg)" @click="filterByTag(tg)"
-              >#{{ tg }}</span
-            >
-            <span v-if="scope === 'all'" :style="scopeChip">{{ t.scope }}</span>
-            <button
-              :style="{
-                background: 'transparent',
-                border: 'none',
-                color: c.dim,
-                cursor: 'pointer',
-              }"
-              @click="app.deleteTxn(t.id)"
-            >
-              ×
-            </button>
-          </div>
-        </div>
+        <TransactionList
+          :transactions="listTxns"
+          :categories="txnCategories"
+          :opening-minor="openingBalance"
+          :filtered="listIsFiltered"
+          :show-scope="scope === 'all'"
+          @edit="openTxnForm('expense')"
+          @remove="app.deleteTxn($event)"
+          @tag="filterByTag"
+          @clear-filters="app.clearTxnFilters()"
+          @add="openTxnForm('expense')"
+        />
       </template>
 
       <!-- ============ DEBTS ============ -->

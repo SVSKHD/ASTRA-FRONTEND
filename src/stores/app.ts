@@ -147,6 +147,7 @@ import {
 } from '@/utils/finance'
 import { migrateFinanceSettings, resolveIncome } from '@/utils/budget'
 import { CATEGORY_SEEDS, findCategory, seedCategories } from '@/utils/txnCategories'
+import { emptyFilters, type TxnFilters } from '@/utils/txnList'
 import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
 import { nestSummary, planNest } from '@/utils/dragNest'
 import {
@@ -458,6 +459,10 @@ export const useAppStore = defineStore('app', () => {
   // Seeded on first load rather than left empty — a picker with nothing in it
   // asks a new user to invent a taxonomy before they have recorded a rupee.
   const txnCategories = ref<TxnCategory[]>([])
+  // Transaction filters (section 27b). Stored in the workspace document rather
+  // than localStorage so they survive a device change — the spec's "persisted
+  // per user and restored on refresh" means per USER, not per browser.
+  const txnFilters = ref<TxnFilters>(emptyFilters())
   const businessFinance = ref<FinanceSettings>(emptyFinanceSettings())
   const finScope = ref<ScopeFilter>('personal')
   const finMigrated = ref(false)
@@ -3292,6 +3297,13 @@ export const useAppStore = defineStore('app', () => {
     return findCategory(txnCategories.value, nm)?.name ?? addTxnCategory({ name: nm, kind })
   }
 
+  function setTxnFilters(next: TxnFilters) {
+    txnFilters.value = { ...next }
+  }
+  function clearTxnFilters() {
+    txnFilters.value = emptyFilters()
+  }
+
   // ---- Delete + undo ------------------------------------------------------
   const LIST_MAP: Record<ListKey, () => { get: () => unknown[]; set: (v: unknown[]) => void }> = {
     todos: () => ({ get: () => todos.value, set: (v) => (todos.value = v as Todo[]) }),
@@ -5698,6 +5710,7 @@ export const useAppStore = defineStore('app', () => {
       debts: debts.value,
       financeTags: financeTags.value,
       txnCategories: txnCategories.value,
+      txnFilters: txnFilters.value,
       businessFinance: businessFinance.value,
       finScope: finScope.value,
       finMigrated: finMigrated.value,
@@ -5750,6 +5763,7 @@ export const useAppStore = defineStore('app', () => {
     debts.value = []
     financeTags.value = []
     txnCategories.value = []
+    txnFilters.value = emptyFilters()
     businessFinance.value = emptyFinanceSettings()
     finScope.value = 'personal'
     finMigrated.value = false
@@ -6150,6 +6164,13 @@ export const useAppStore = defineStore('app', () => {
     txnCategories.value = Array.isArray(data.txnCategories)
       ? (data.txnCategories as TxnCategory[])
       : seedCategories(id())
+    // Merged onto the empty shape, so a document saved before a filter existed
+    // still yields a complete object rather than an undefined the list then
+    // indexes into.
+    txnFilters.value =
+      data.txnFilters && typeof data.txnFilters === 'object'
+        ? { ...emptyFilters(), ...(data.txnFilters as Partial<TxnFilters>) }
+        : emptyFilters()
     businessFinance.value = readFinanceSettings(data.businessFinance)
     finScope.value =
       data.finScope === 'business' || data.finScope === 'all' ? data.finScope : 'personal'
@@ -6675,6 +6696,9 @@ export const useAppStore = defineStore('app', () => {
     updateTxnCategory,
     archiveTxnCategory,
     ensureTxnCategory,
+    txnFilters,
+    setTxnFilters,
+    clearTxnFilters,
     deleteWithUndo,
     undoDelete,
     showToastMsg,
