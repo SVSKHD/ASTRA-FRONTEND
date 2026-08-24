@@ -37,6 +37,14 @@ const props = withDefaults(
     loading?: boolean
     id?: string
     describedBy?: string
+    /**
+     * Names the input when there is no visible label — a compact toolbar row, a
+     * quick-add strip. It is a PROP rather than a fallthrough attribute because
+     * fallthrough lands on this component's root div, where a screen reader
+     * reads it as the name of a group rather than of the field, and the input
+     * itself stays anonymous.
+     */
+    ariaLabel?: string
     maxlength?: number
     autocomplete?: string
     inputmode?: 'text' | 'numeric' | 'decimal' | 'email' | 'url' | 'search' | 'tel'
@@ -113,6 +121,7 @@ defineExpose({
         :maxlength="maxlength"
         :autocomplete="autocomplete"
         :inputmode="inputmode"
+        :aria-label="ariaLabel || undefined"
         :aria-invalid="isInvalid"
         :aria-describedby="describedBy"
         @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"

@@ -13,15 +13,22 @@ import {
   tagBreakdown,
   UNTAGGED,
 } from '@/utils/finance'
+import { toMinor } from '@/utils/money'
 import type { Debt, Txn } from '@/types'
 
+// Every figure these functions return is an integer count of paise (acceptance
+// 143). The factories below still take rupees, because a test that reads
+// `amount: 85000` is a test about a salary and one that reads
+// `amountMinor: 8500000` is a test about arithmetic — but the EXPECTATIONS are
+// written in toMinor(), so the unit is stated at every assertion rather than
+// assumed.
 let seq = 0
-function txn(over: Partial<Txn>): Txn {
+function txn({ amount, ...over }: Partial<Txn> & { amount?: number }): Txn {
   return {
     id: ++seq,
     kind: 'expense',
     scope: 'personal',
-    amount: 100,
+    amountMinor: toMinor(amount ?? 100),
     date: '2026-07-10',
     note: '',
     category: 'Food',
@@ -56,11 +63,11 @@ describe('monthTotals + extra income', () => {
   ]
   it('separates received from expected and sums outflow incl. debt repayments', () => {
     const t = monthTotals(txns, 'personal', '2026-07')
-    expect(t.incomeReceived).toBe(97000)
-    expect(t.incomeExpected).toBe(5000)
-    expect(t.out).toBe(23000)
-    expect(t.debtRepay).toBe(3000)
-    expect(t.net).toBe(74000)
+    expect(t.incomeReceived).toBe(toMinor(97000))
+    expect(t.incomeExpected).toBe(toMinor(5000))
+    expect(t.out).toBe(toMinor(23000))
+    expect(t.debtRepay).toBe(toMinor(3000))
+    expect(t.net).toBe(toMinor(74000))
   })
   it('extra income is receipts beyond the baseline', () => {
     expect(extraIncome(97000, 85000)).toBe(12000)
@@ -90,26 +97,26 @@ describe('tagBreakdown', () => {
     const rows = tagBreakdown(txns, 'personal', '2026-07')
     const byName = Object.fromEntries(rows.map((r) => [r.name, r]))
     // 'a' gets 300/3 + 100 = 200 spent, and appears in the 3-tag txn.
-    expect(byName['a'].spent).toBe(200)
-    expect(byName['a'].earned).toBe(90)
+    expect(byName['a'].spent).toBe(toMinor(200))
+    expect(byName['a'].earned).toBe(toMinor(90))
     expect(byName['a'].count).toBe(3) // three txns carry 'a'
-    expect(byName['b'].spent).toBe(100)
-    expect(byName[UNTAGGED].spent).toBe(50)
+    expect(byName['b'].spent).toBe(toMinor(100))
+    expect(byName[UNTAGGED].spent).toBe(toMinor(50))
     // Spend column reconciles to the month's total expense (450), no double count.
     const totalSpent = rows.reduce((s, r) => s + r.spent, 0)
-    expect(Math.round(totalSpent)).toBe(450)
+    expect(totalSpent).toBe(toMinor(450))
   })
 })
 
 describe('debts', () => {
   let dseq = 0
-  function debt(over: Partial<Debt>): Debt {
+  function debt({ principal, ...over }: Partial<Debt> & { principal?: number }): Debt {
     return {
       id: ++dseq,
       direction: 'owed_by_me',
       scope: 'personal',
       counterparty: 'Bank',
-      principal: 10000,
+      principalMinor: toMinor(principal ?? 10000),
       currency: 'INR',
       interestType: 'none',
       startDate: '2026-01-01',
@@ -126,21 +133,35 @@ describe('debts', () => {
 
   it('simple interest and outstanding after payments', () => {
     const d = debt({ principal: 10000, interestRatePct: 12, interestType: 'simple' })
-    // ~12% of 10000 over ~one year (365 / 365.25 ≈ 1199).
-    expect(accruedInterest(d, NOW)).toBeCloseTo(1200, -1)
-    d.payments = [{ id: 1, amount: 4000, date: '2026-06-01', note: '' }]
-    expect(debtOutstanding(d, NOW)).toBeCloseTo(7200, -1) // 10000 + ~1200 − 4000
+    // ~12% of ₹10,000 over ~one year (365 / 365.25 ≈ ₹1,199), in paise.
+    expect(accruedInterest(d, NOW)).toBeCloseTo(toMinor(1200), -3)
+    d.payments = [{ id: 1, amountMinor: toMinor(4000), date: '2026-06-01', note: '' }]
+    expect(debtOutstanding(d, NOW)).toBeCloseTo(toMinor(7200), -3) // 10000 + ~1200 − 4000
   })
-  it('compound interest exceeds simple over a year+', () => {
+  it('compound interest exceeds simple once more than a year has passed', () => {
+    // The horizon matters and this test used to hide it. NOW is 365 days after
+    // the start date, which is 0.9993 of a year against a 365.25-day year — and
+    // BELOW one year compound is less than simple, not more. The old assertion
+    // read `toBeGreaterThan(simple - 1)`, and that ₹1 of slack was the only
+    // reason it passed; in paise the same slack is a hundredth as wide and the
+    // test failed, which is the useful thing about storing integers.
+    const twoYears = Date.parse('2028-01-01T00:00:00')
     const simple = debt({ interestRatePct: 12, interestType: 'simple' })
     const comp = debt({ interestRatePct: 12, interestType: 'compound' })
-    expect(accruedInterest(comp, NOW)).toBeGreaterThan(accruedInterest(simple, NOW) - 1)
+    expect(accruedInterest(comp, twoYears)).toBeGreaterThan(accruedInterest(simple, twoYears))
+  })
+
+  it('compound is BELOW simple inside the first year, as the maths says', () => {
+    const simple = debt({ interestRatePct: 12, interestType: 'simple' })
+    const comp = debt({ interestRatePct: 12, interestType: 'compound' })
+    const sixMonths = Date.parse('2026-07-01T00:00:00')
+    expect(accruedInterest(comp, sixMonths)).toBeLessThan(accruedInterest(simple, sixMonths))
   })
   it('overdue only past the due date with a balance', () => {
     const d = debt({ dueDate: '2026-12-01' })
     expect(isOverdue(d, NOW)).toBe(true)
     expect(effectiveDebtStatus(d, NOW)).toBe('overdue')
-    d.payments = [{ id: 1, amount: 10000, date: '2026-11-01', note: '' }]
+    d.payments = [{ id: 1, amountMinor: toMinor(10000), date: '2026-11-01', note: '' }]
     expect(isOverdue(d, NOW)).toBe(false)
     expect(effectiveDebtStatus(d, NOW)).toBe('settled')
   })
@@ -151,9 +172,9 @@ describe('debts', () => {
       debt({ direction: 'owed_by_me', principal: 3000, status: 'written_off' }), // excluded
     ]
     const s = debtSummary(debts, 'personal', NOW)
-    expect(s.iOwe).toBe(5000)
-    expect(s.owedToMe).toBe(8000)
-    expect(s.net).toBe(3000)
+    expect(s.iOwe).toBe(toMinor(5000))
+    expect(s.owedToMe).toBe(toMinor(8000))
+    expect(s.net).toBe(toMinor(3000))
     expect(s.overdueCount).toBe(1)
   })
 })
@@ -167,7 +188,9 @@ describe('migrateExpenses', () => {
       id: 5,
       kind: 'expense',
       scope: 'personal',
-      amount: 250,
+      // Lifted into paise on the way through: the legacy array is the last
+      // place in the app a rupee float exists.
+      amountMinor: toMinor(250),
       category: 'Food',
       note: 'lunch',
       date: '2026-07-02',

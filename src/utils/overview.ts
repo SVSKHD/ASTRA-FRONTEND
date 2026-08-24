@@ -9,6 +9,7 @@
 // done ⊆ total and never leaves a completed item uncounted.
 
 import { monthKeyOf, resolveIncome } from '@/utils/budget'
+import { toMinor } from '@/utils/money'
 import type { Finance, FinanceSettings, Reminder, Task, Todo } from '@/types'
 
 export interface Bucket {
@@ -19,6 +20,7 @@ export interface MonthlyOverview {
   tasks: Bucket
   todos: Bucket
   reminders: Bucket
+  /** Both in integer minor units (paise), matching every money figure since 27b. */
   finance: { spent: number; income: number }
 }
 
@@ -84,7 +86,9 @@ export function computeMonthlyOverview(input: OverviewInput, monthKey: string): 
   )
   let spent = 0
   for (const f of input.finances) {
-    if (strMonth(f.date) === monthKey) spent += Number.isFinite(f.amount) ? f.amount : 0
+    // The legacy `finances` array is still rupee floats; converted on read so
+    // `spent` and `income` are in the same unit.
+    if (strMonth(f.date) === monthKey) spent += toMinor(Number.isFinite(f.amount) ? f.amount : 0)
   }
   return {
     tasks,

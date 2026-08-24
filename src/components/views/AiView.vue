@@ -20,7 +20,8 @@ import { pxify, typeStep } from '@/styles'
 import { AI_MODELS, type AiChat } from '@/types'
 import { buildAiContext, SUGGESTION_CHIPS, type AiContextInput } from '@/utils/ai'
 import { noteTitle } from '@/utils/notes'
-import { currentMonthKey } from '@/utils/budget'
+import { currentMonthKey, resolveIncome } from '@/utils/budget'
+import { toMinor } from '@/utils/money'
 
 const app = useAppStore()
 const { c, panelStyle } = useStyles()
@@ -97,9 +98,13 @@ watch(
 // Assemble the live-data context block fresh each turn.
 function contextInput(): AiContextInput {
   const monthKey = currentMonthKey()
+  // In integer paise, like everything else since 27b. The legacy `finances`
+  // array is still rupee floats, so it converts on the way in — and the income
+  // comes through resolveIncome rather than by reaching into the settings map,
+  // which is what kept this line from noticing the unit change.
   const monthExpenses = app.finances.filter((f) => (f.date || '').startsWith(monthKey))
-  const spent = monthExpenses.reduce((sum, f) => sum + (f.amount || 0), 0)
-  const income = app.financeSettings.incomeByMonth[monthKey] ?? app.financeSettings.monthlyIncome
+  const spent = monthExpenses.reduce((sum, f) => sum + toMinor(f.amount || 0), 0)
+  const income = resolveIncome(app.financeSettings, monthKey)
   return {
     overdueTodos: app.pendingOverdue('todos').map((t) => (t as { text: string }).text),
     todayTodos: [],

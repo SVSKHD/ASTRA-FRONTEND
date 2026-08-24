@@ -7,7 +7,13 @@ import {
   resolveIncome,
   shiftMonth,
 } from '@/utils/budget'
+import { toMinor } from '@/utils/money'
 import { emptyFinanceSettings, type Finance, type FinanceSettings } from '@/types'
+
+// resolveIncome and computeBudget both answer in integer paise since 27b. The
+// fixtures below deliberately keep the LEGACY rupee fields, because that is the
+// shape a pre-27b workspace has on disk and reading it correctly is the point;
+// the expectations are written in toMinor() so the unit is stated, not assumed.
 
 function fin(over: Partial<Finance>): Finance {
   return {
@@ -46,7 +52,7 @@ describe('month key helpers', () => {
 describe('resolveIncome', () => {
   it('uses an explicit month entry when present', () => {
     const s = settings({ monthlyIncome: 90000, incomeByMonth: { '2026-07': 85000 } })
-    expect(resolveIncome(s, '2026-07')).toBe(85000)
+    expect(resolveIncome(s, '2026-07')).toBe(toMinor(85000))
   })
 
   it('carries forward the most recent earlier month', () => {
@@ -54,13 +60,13 @@ describe('resolveIncome', () => {
       monthlyIncome: 90000,
       incomeByMonth: { '2026-05': 80000, '2026-07': 85000 },
     })
-    expect(resolveIncome(s, '2026-06')).toBe(80000) // carries May forward
-    expect(resolveIncome(s, '2026-08')).toBe(85000) // carries July forward
+    expect(resolveIncome(s, '2026-06')).toBe(toMinor(80000)) // carries May forward
+    expect(resolveIncome(s, '2026-08')).toBe(toMinor(85000)) // carries July forward
   })
 
   it('falls back to the latest income when nothing is at or before the month', () => {
     const s = settings({ monthlyIncome: 90000, incomeByMonth: { '2026-07': 85000 } })
-    expect(resolveIncome(s, '2026-01')).toBe(90000)
+    expect(resolveIncome(s, '2026-01')).toBe(toMinor(90000))
   })
 
   it('is 0 when no income is set at all', () => {
@@ -79,24 +85,24 @@ describe('computeBudget', () => {
 
   it('sums only the target month and computes remaining', () => {
     const b = computeBudget(finances, s, '2026-07')
-    expect(b.spent).toBe(28000)
-    expect(b.income).toBe(85000)
-    expect(b.remaining).toBe(57000)
+    expect(b.spent).toBe(toMinor(28000))
+    expect(b.income).toBe(toMinor(85000))
+    expect(b.remaining).toBe(toMinor(57000))
     expect(Math.round(b.percentUsed)).toBe(33)
   })
 
   it('groups by category, share-of-income, sorted by total desc', () => {
     const b = computeBudget(finances, s, '2026-07')
     expect(b.byCategory.map((c) => [c.category, c.total])).toEqual([
-      ['Bills', 20000],
-      ['Food', 8000],
+      ['Bills', toMinor(20000)],
+      ['Food', toMinor(8000)],
     ])
     expect(Math.round(b.byCategory[0].pct)).toBe(24) // 20000 / 85000
   })
 
   it('goes negative when overspent', () => {
     const b = computeBudget([fin({ amount: 90000, date: '2026-07-05' })], s, '2026-07')
-    expect(b.remaining).toBe(-5000)
+    expect(b.remaining).toBe(toMinor(-5000))
   })
 
   it('reads 100% used when there is spend but no income', () => {
@@ -106,6 +112,6 @@ describe('computeBudget', () => {
       '2026-07',
     )
     expect(b.percentUsed).toBe(100)
-    expect(b.remaining).toBe(-500)
+    expect(b.remaining).toBe(toMinor(-500))
   })
 })

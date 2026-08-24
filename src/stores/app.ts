@@ -137,10 +137,16 @@ import {
 } from '@/utils/calendarEvents'
 import { reportError } from '@/utils/scrub'
 import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
-import type { Debt, DebtPayment, FinScope, FinTag, ScopeFilter, Txn } from '@/types'
+import type { Debt, DebtPayment, FinScope, FinTag, ScopeFilter, Txn, TxnCategory } from '@/types'
 import { titleFromMessage } from '@/utils/ai'
-import { debtOutstanding, migrateExpenses } from '@/utils/finance'
-import { resolveIncome } from '@/utils/budget'
+import {
+  debtOutstanding,
+  migrateDebtAmounts,
+  migrateExpenses,
+  migrateTxnAmounts,
+} from '@/utils/finance'
+import { migrateFinanceSettings, resolveIncome } from '@/utils/budget'
+import { CATEGORY_SEEDS, findCategory, seedCategories } from '@/utils/txnCategories'
 import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
 import { nestSummary, planNest } from '@/utils/dragNest'
 import {
@@ -319,6 +325,46 @@ function emptySecurity(): SecuritySettings {
   }
 }
 
+/**
+ * Hydrate one scope's income settings from a stored document.
+ *
+ * Two shapes arrive here. A workspace saved before 27b holds rupee floats under
+ * `monthlyIncome` / `incomeByMonth`; one saved after holds integer paise under
+ * the `...Minor` names. Reading both in one place is what lets everything
+ * downstream — resolveIncome, baselineIncome, the Overview card — know exactly
+ * one unit. A partial or malformed document still yields a well-formed object,
+ * and a non-numeric month value is dropped rather than trusted into arithmetic.
+ */
+function readFinanceSettings(raw: unknown): FinanceSettings {
+  if (!raw || typeof raw !== 'object') return emptyFinanceSettings()
+  const stored = raw as Partial<FinanceSettings>
+  const numbersOnly = (map: Record<string, number> | undefined): Record<string, number> => {
+    const out: Record<string, number> = {}
+    for (const [k, v] of Object.entries(map ?? {})) {
+      if (typeof v === 'number' && Number.isFinite(v)) out[k] = v
+    }
+    return out
+  }
+  // Already-migrated values are taken as-is; legacy ones go through
+  // migrateFinanceSettings, which is the single place the ×100 happens.
+  if (typeof stored.monthlyIncomeMinor === 'number' || stored.incomeByMonthMinor) {
+    return {
+      currency: 'INR',
+      monthlyIncomeMinor: stored.monthlyIncomeMinor ?? 0,
+      incomeByMonthMinor: numbersOnly(stored.incomeByMonthMinor),
+      incomeUpdatedAt: typeof stored.incomeUpdatedAt === 'number' ? stored.incomeUpdatedAt : 0,
+    }
+  }
+  return migrateFinanceSettings({
+    currency: 'INR',
+    monthlyIncomeMinor: 0,
+    incomeByMonthMinor: {},
+    monthlyIncome: typeof stored.monthlyIncome === 'number' ? stored.monthlyIncome : 0,
+    incomeByMonth: numbersOnly(stored.incomeByMonth),
+    incomeUpdatedAt: typeof stored.incomeUpdatedAt === 'number' ? stored.incomeUpdatedAt : 0,
+  }).settings
+}
+
 export const useAppStore = defineStore('app', () => {
   const todos = ref<Todo[]>([])
   const tasks = ref<Task[]>([])
@@ -408,6 +454,10 @@ export const useAppStore = defineStore('app', () => {
   const transactions = ref<Txn[]>([])
   const debts = ref<Debt[]>([])
   const financeTags = ref<FinTag[]>([])
+  // Spend categories (section 27b): user-editable, with an icon and a colour.
+  // Seeded on first load rather than left empty — a picker with nothing in it
+  // asks a new user to invent a taxonomy before they have recorded a rupee.
+  const txnCategories = ref<TxnCategory[]>([])
   const businessFinance = ref<FinanceSettings>(emptyFinanceSettings())
   const finScope = ref<ScopeFilter>('personal')
   const finMigrated = ref(false)
@@ -1984,12 +2034,12 @@ export const useAppStore = defineStore('app', () => {
   // ---- Monthly income (INR) ----------------------------------------------
   // Income is set per month; writing a month also updates monthlyIncome so it
   // becomes the fallback for later months that have no explicit value.
-  function setMonthlyIncome(monthKey: string, amount: number) {
-    const val = Number.isFinite(amount) && amount > 0 ? amount : 0
+  function setMonthlyIncome(monthKey: string, amountMinor: number) {
+    const val = Number.isFinite(amountMinor) && amountMinor > 0 ? Math.round(amountMinor) : 0
     financeSettings.value = {
       ...financeSettings.value,
-      monthlyIncome: val,
-      incomeByMonth: { ...financeSettings.value.incomeByMonth, [monthKey]: val },
+      monthlyIncomeMinor: val,
+      incomeByMonthMinor: { ...financeSettings.value.incomeByMonthMinor, [monthKey]: val },
       incomeUpdatedAt: Date.now(),
     }
   }
@@ -2945,13 +2995,13 @@ export const useAppStore = defineStore('app', () => {
       resolveIncome(businessFinance.value, monthKey)
     )
   }
-  function setScopeIncome(scope: FinScope, monthKey: string, amount: number) {
-    const val = Number.isFinite(amount) && amount > 0 ? amount : 0
+  function setScopeIncome(scope: FinScope, monthKey: string, amountMinor: number) {
+    const val = Number.isFinite(amountMinor) && amountMinor > 0 ? Math.round(amountMinor) : 0
     if (scope === 'business') {
       businessFinance.value = {
         ...businessFinance.value,
-        monthlyIncome: val,
-        incomeByMonth: { ...businessFinance.value.incomeByMonth, [monthKey]: val },
+        monthlyIncomeMinor: val,
+        incomeByMonthMinor: { ...businessFinance.value.incomeByMonthMinor, [monthKey]: val },
         incomeUpdatedAt: Date.now(),
       }
     } else {
@@ -2959,7 +3009,14 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  function addTxn(fields: Partial<Txn> & { kind: Txn['kind']; amount: number }): number {
+  /**
+   * Amounts arrive in INTEGER minor units (paise) and are stored that way — see
+   * acceptance 143 and the note at the top of utils/finance.ts. Callers that
+   * hold a rupee figure convert with `toMinor()` at their own edge rather than
+   * here, so there is exactly one place in the app where a float becomes an
+   * integer and it is the one nearest the user's keystrokes.
+   */
+  function addTxn(fields: Partial<Txn> & { kind: Txn['kind']; amountMinor: number }): number {
     const newId = id()
     transactions.value = [
       ...transactions.value,
@@ -2967,19 +3024,22 @@ export const useAppStore = defineStore('app', () => {
         id: newId,
         kind: fields.kind,
         scope: fields.scope ?? (finScope.value === 'all' ? 'personal' : finScope.value),
-        amount: Number(fields.amount) || 0,
+        amountMinor: Math.round(Number(fields.amountMinor)) || 0,
         date: fields.date || rel(0),
         note: (fields.note ?? '').trim(),
         category: fields.category ?? (fields.kind === 'income' ? 'Income' : 'Other'),
         tags: Array.isArray(fields.tags) ? fields.tags : [],
+        method: fields.method,
         source: fields.source,
         party: fields.party,
         isRecurring: fields.isRecurring === true,
         recurrenceRule: fields.recurrenceRule,
+        recurringId: fields.recurringId ?? null,
         confirmed: fields.confirmed,
         gst: fields.gst,
         debtId: fields.debtId ?? null,
         attachmentUrl: fields.attachmentUrl,
+        attachmentIds: fields.attachmentIds,
         ...stamps(),
       },
     ]
@@ -3012,7 +3072,8 @@ export const useAppStore = defineStore('app', () => {
     fields: Partial<Debt> & {
       direction: Debt['direction']
       counterparty: string
-      principal: number
+      /** Integer minor units, like every other money field (acceptance 143). */
+      principalMinor: number
     },
   ): number {
     const newId = id()
@@ -3023,7 +3084,7 @@ export const useAppStore = defineStore('app', () => {
         direction: fields.direction,
         scope: fields.scope ?? (finScope.value === 'all' ? 'personal' : finScope.value),
         counterparty: fields.counterparty.trim(),
-        principal: Number(fields.principal) || 0,
+        principalMinor: Math.round(Number(fields.principalMinor)) || 0,
         currency: 'INR',
         interestRatePct: fields.interestRatePct,
         interestType: fields.interestType ?? 'none',
@@ -3058,16 +3119,20 @@ export const useAppStore = defineStore('app', () => {
   // Record a payment against a debt: creates a linked transaction (expense for
   // money I pay out, income for money coming back to me) so it flows into the
   // month's totals, then files the payment referencing that transaction.
-  function recordDebtPayment(debtId: number, p: { amount: number; date?: string; note?: string }) {
+  function recordDebtPayment(
+    debtId: number,
+    p: { amountMinor: number; date?: string; note?: string; method?: Txn['method'] },
+  ) {
     const debt = debts.value.find((d) => d.id === debtId)
     if (!debt) return
-    const amount = Number(p.amount) || 0
-    if (amount <= 0) return
+    const amountMinor = Math.round(Number(p.amountMinor)) || 0
+    if (amountMinor <= 0) return
     const txnId = addTxn({
       kind: debt.direction === 'owed_by_me' ? 'expense' : 'income',
       scope: debt.scope,
-      amount,
+      amountMinor,
       date: p.date || rel(0),
+      method: p.method,
       note:
         p.note ||
         `Debt ${debt.direction === 'owed_by_me' ? 'payment to' : 'received from'} ${debt.counterparty}`,
@@ -3077,7 +3142,7 @@ export const useAppStore = defineStore('app', () => {
     })
     const payment: DebtPayment = {
       id: id(),
-      amount,
+      amountMinor,
       date: p.date || rel(0),
       note: p.note || '',
       transactionId: txnId,
@@ -3165,6 +3230,66 @@ export const useAppStore = defineStore('app', () => {
     if (!nm) return ''
     addFinTag(nm)
     return financeTags.value.find((t) => t.name.toLowerCase() === nm.toLowerCase())?.name ?? nm
+  }
+
+  // ---- Spend categories (section 27b) --------------------------------------
+  function addTxnCategory(fields: {
+    name: string
+    icon?: string
+    color?: string
+    kind?: TxnCategory['kind']
+  }): string {
+    const nm = fields.name.trim()
+    if (!nm) return ''
+    const existing = findCategory(txnCategories.value, nm)
+    if (existing) return existing.name
+    const seedIndex = txnCategories.value.length % CATEGORY_SEEDS.length
+    txnCategories.value = [
+      ...txnCategories.value,
+      {
+        id: id(),
+        name: nm,
+        icon: fields.icon || 'tag',
+        color: fields.color || CATEGORY_SEEDS[seedIndex].color,
+        kind: fields.kind ?? 'expense',
+      },
+    ]
+    return nm
+  }
+
+  function updateTxnCategory(categoryId: number, patch: Partial<TxnCategory>) {
+    const before = txnCategories.value.find((c) => c.id === categoryId)
+    if (!before) return
+    txnCategories.value = txnCategories.value.map((c) =>
+      c.id === categoryId ? { ...c, ...patch, id: c.id } : c,
+    )
+    // A rename cascades to every transaction carrying the old name, in the same
+    // synchronous pass. Categories are referenced by NAME on a transaction, so a
+    // rename that did not cascade would orphan every historic row at once.
+    const after = patch.name?.trim()
+    if (after && after !== before.name) {
+      transactions.value = transactions.value.map((t) =>
+        t.category === before.name ? { ...t, category: after } : t,
+      )
+    }
+  }
+
+  /**
+   * Archive, never delete. Every transaction that used this category references
+   * it by name, so deleting would either orphan those rows or silently rewrite
+   * history. Archiving takes it out of the picker and leaves the past intact.
+   */
+  function archiveTxnCategory(categoryId: number) {
+    txnCategories.value = txnCategories.value.map((c) =>
+      c.id === categoryId ? { ...c, archived: true } : c,
+    )
+  }
+
+  /** Returns the canonical spelling, creating the category if it is new. */
+  function ensureTxnCategory(name: string, kind: TxnCategory['kind'] = 'expense'): string {
+    const nm = name.trim()
+    if (!nm) return ''
+    return findCategory(txnCategories.value, nm)?.name ?? addTxnCategory({ name: nm, kind })
   }
 
   // ---- Delete + undo ------------------------------------------------------
@@ -5572,6 +5697,7 @@ export const useAppStore = defineStore('app', () => {
       transactions: transactions.value,
       debts: debts.value,
       financeTags: financeTags.value,
+      txnCategories: txnCategories.value,
       businessFinance: businessFinance.value,
       finScope: finScope.value,
       finMigrated: finMigrated.value,
@@ -5623,6 +5749,7 @@ export const useAppStore = defineStore('app', () => {
     transactions.value = []
     debts.value = []
     financeTags.value = []
+    txnCategories.value = []
     businessFinance.value = emptyFinanceSettings()
     finScope.value = 'personal'
     finMigrated.value = false
@@ -5998,24 +6125,7 @@ export const useAppStore = defineStore('app', () => {
     // Finance settings: merge onto the empty shape so a partial or legacy doc
     // still yields a well-formed object, and coerce the income map's values to
     // numbers.
-    const fs = data.financeSettings
-    if (fs && typeof fs === 'object') {
-      const raw = fs as Partial<FinanceSettings>
-      const byMonth: Record<string, number> = {}
-      if (raw.incomeByMonth && typeof raw.incomeByMonth === 'object') {
-        for (const [k, v] of Object.entries(raw.incomeByMonth)) {
-          if (typeof v === 'number' && Number.isFinite(v)) byMonth[k] = v
-        }
-      }
-      financeSettings.value = {
-        currency: 'INR',
-        monthlyIncome: typeof raw.monthlyIncome === 'number' ? raw.monthlyIncome : 0,
-        incomeByMonth: byMonth,
-        incomeUpdatedAt: typeof raw.incomeUpdatedAt === 'number' ? raw.incomeUpdatedAt : 0,
-      }
-    } else {
-      financeSettings.value = emptyFinanceSettings()
-    }
+    financeSettings.value = readFinanceSettings(data.financeSettings)
     // Drafts are newer than the first release, so a legacy doc has none; a
     // malformed entry is dropped rather than trusted.
     drafts.value = sanitizeDrafts(data.drafts)
@@ -6029,22 +6139,25 @@ export const useAppStore = defineStore('app', () => {
     // Finances rework state + one-time migration of the legacy expenses array
     // into the unified transactions collection (personal scope, no tags). The
     // guard makes it idempotent: it runs once, then finMigrated stays true.
-    debts.value = Array.isArray(data.debts) ? (data.debts as Debt[]) : []
+    // Money floats lifted into integer paise on the way in (acceptance 143).
+    // Both migrations report whether they changed anything, so a workspace that
+    // is already migrated is not rewritten — and therefore does not dirty
+    // itself and trigger a save on every open.
+    debts.value = migrateDebtAmounts(Array.isArray(data.debts) ? (data.debts as Debt[]) : []).debts
     financeTags.value = Array.isArray(data.financeTags) ? (data.financeTags as FinTag[]) : []
-    businessFinance.value =
-      data.businessFinance && typeof data.businessFinance === 'object'
-        ? {
-            ...emptyFinanceSettings(),
-            ...(data.businessFinance as Partial<FinanceSettings>),
-            currency: 'INR',
-          }
-        : emptyFinanceSettings()
+    // Seeded only when there is nothing stored. An empty stored array means the
+    // user archived everything, which is their choice, so it is not re-seeded.
+    txnCategories.value = Array.isArray(data.txnCategories)
+      ? (data.txnCategories as TxnCategory[])
+      : seedCategories(id())
+    businessFinance.value = readFinanceSettings(data.businessFinance)
     finScope.value =
       data.finScope === 'business' || data.finScope === 'all' ? data.finScope : 'personal'
     finMigrated.value = data.finMigrated === true
     if (Array.isArray(data.transactions)) {
-      transactions.value = data.transactions as Txn[]
+      transactions.value = migrateTxnAmounts(data.transactions as Txn[]).txns
     } else if (!finMigrated.value) {
+      // migrateExpenses already emits minor units, so nothing further to do.
       transactions.value = migrateExpenses(finances.value)
       finMigrated.value = true
     } else {
@@ -6557,6 +6670,11 @@ export const useAppStore = defineStore('app', () => {
     setFinTagColor,
     archiveFinTag,
     ensureFinTag,
+    txnCategories,
+    addTxnCategory,
+    updateTxnCategory,
+    archiveTxnCategory,
+    ensureTxnCategory,
     deleteWithUndo,
     undoDelete,
     showToastMsg,

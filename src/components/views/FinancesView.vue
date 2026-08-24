@@ -14,8 +14,7 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
 import { pxify, typeStep } from '@/styles'
-import { parseINR } from '@/utils/currency'
-import { formatCurrency, signTone, valueColor } from '@/utils/money'
+import { formatMinor, parseMoney, signTone, valueColor } from '@/utils/money'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import StatRow from '@/components/ui/StatRow.vue'
@@ -33,15 +32,18 @@ import {
   filterTxns,
   isOverdue,
   monthTotals,
+  principalMinor,
   tagBreakdown,
+  txnMinor,
 } from '@/utils/finance'
 import MonthPicker from '@/components/MonthPicker.vue'
+import QuickAddRow, { type QuickAddDraft } from '@/components/finance/QuickAddRow.vue'
 import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
 const { c, panelStyle } = useStyles()
-const { transactions, debts, finScope } = storeToRefs(app)
+const { transactions, debts, finScope, txnCategories } = storeToRefs(app)
 const { now } = storeToRefs(useUiStore())
 const route = useRoute()
 const router = useRouter()
@@ -112,7 +114,7 @@ const marginPct = computed(() =>
 const extraIncomeList = computed(() =>
   filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value, kind: 'income' })
     .filter((t) => t.confirmed !== false)
-    .sort((a, b) => b.amount - a.amount),
+    .sort((a, b) => txnMinor(b) - txnMinor(a)),
 )
 
 const kindFilter = ref<'all' | 'income' | 'expense'>('all')
@@ -134,7 +136,7 @@ const txnDays = computed(() => {
   return [...groups.entries()].map(([date, items]) => ({
     date,
     items,
-    net: items.reduce((sum, t) => sum + (t.kind === 'income' ? t.amount : -t.amount), 0),
+    net: items.reduce((sum, t) => sum + (t.kind === 'income' ? txnMinor(t) : -txnMinor(t)), 0),
   }))
 })
 
@@ -170,15 +172,17 @@ function openTxnForm(kind: 'income' | 'expense') {
   showTxnForm.value = true
 }
 function submitTxn() {
-  const amount = parseINR(String(txnForm.value.amount ?? ''))
-  if (!amount || amount <= 0) return
+  // Parsed straight to integer paise: the rupee float exists only as the string
+  // the user typed, and never as a stored number (acceptance 143).
+  const amountMinor = parseMoney(String(txnForm.value.amount ?? ''))
+  if (!amountMinor || amountMinor <= 0) return
   const tags = String(txnForm.value.tags ?? '')
     .split(',')
     .map((x) => app.ensureFinTag(x))
     .filter(Boolean)
   app.addTxn({
     kind: txnForm.value.kind as Txn['kind'],
-    amount,
+    amountMinor,
     date: String(txnForm.value.date || todayInMonth()),
     note: String(txnForm.value.note ?? ''),
     category: String(
@@ -202,6 +206,29 @@ function submitTxn() {
   showTxnForm.value = false
 }
 
+// --- quick add (section 27b) -------------------------------------------------
+// The last category and method are remembered so the common case needs no
+// choosing. They live here rather than in the row because the row is
+// stateless — it is handed its defaults and hands back a draft.
+const lastCategory = ref('')
+const lastMethod = ref<Txn['method']>(undefined)
+
+function quickAdd(draft: QuickAddDraft): void {
+  if (draft.amountMinor <= 0) return
+  app.addTxn({
+    kind: draft.kind,
+    amountMinor: draft.amountMinor,
+    date: draft.date,
+    note: draft.note,
+    category: draft.category || (draft.kind === 'income' ? 'Income' : 'Other'),
+    method: draft.method ?? undefined,
+    tags: draft.tags.map((t) => app.ensureFinTag(t)).filter(Boolean),
+    scope: scope.value === 'all' ? 'personal' : (scope.value as FinScope),
+  })
+  if (draft.category) lastCategory.value = draft.category
+  if (draft.method) lastMethod.value = draft.method
+}
+
 // --- add-debt form ----------------------------------------------------------
 const showDebtForm = ref(false)
 const debtForm = ref<Record<string, string>>({
@@ -218,13 +245,13 @@ useDraft('debt', null, debtForm, {
   isEmpty: (p) => !String(p.counterparty ?? '').trim() && !String(p.principal ?? '').trim(),
 })
 function submitDebt() {
-  const principal = parseINR(String(debtForm.value.principal ?? ''))
-  if (!String(debtForm.value.counterparty ?? '').trim() || !principal) return
+  const principalMinor = parseMoney(String(debtForm.value.principal ?? ''))
+  if (!String(debtForm.value.counterparty ?? '').trim() || !principalMinor) return
   app.addDebt({
     direction: debtForm.value.direction as Debt['direction'],
     counterparty: String(debtForm.value.counterparty),
-    principal,
-    interestRatePct: parseINR(String(debtForm.value.interestRatePct ?? '')) || undefined,
+    principalMinor,
+    interestRatePct: Number(debtForm.value.interestRatePct) || undefined,
     interestType: debtForm.value.interestType as Debt['interestType'],
     startDate: String(debtForm.value.startDate || todayInMonth()),
     dueDate: String(debtForm.value.dueDate ?? '') || undefined,
@@ -247,9 +274,9 @@ function submitDebt() {
 // Per-debt payment input.
 const payAmount = ref<Record<number, string>>({})
 function recordPayment(d: Debt) {
-  const amt = parseINR(payAmount.value[d.id] || '')
-  if (!amt || amt <= 0) return
-  app.recordDebtPayment(d.id, { amount: amt, date: todayInMonth() })
+  const amountMinor = parseMoney(payAmount.value[d.id] || '')
+  if (!amountMinor || amountMinor <= 0) return
+  app.recordDebtPayment(d.id, { amountMinor, date: todayInMonth() })
   payAmount.value = { ...payAmount.value, [d.id]: '' }
 }
 
@@ -370,7 +397,10 @@ const debtStats = computed<Stat[]>(() => [
   { label: 'Net', value: money(debtSum.value.net, true), tone: signTone(debtSum.value.net) },
 ])
 
-const money = (n: number, signed = false) => formatCurrency(n, { signed })
+// Every figure on this tab is an integer count of paise, so there is exactly
+// one formatter and it takes minor units. A call site that divided by 100 first
+// would be the float back again, just later.
+const money = (n: number, signed = false) => formatMinor(n, { signed })
 
 // The hero. Its colour follows the sign of what it shows and nothing else:
 // "over budget" is a negative remaining, so the sign already carries it, and
@@ -661,7 +691,7 @@ const debtCard = computed(() =>
                   alignItems: 'center',
                 }"
               >
-                <span :style="strong">{{ money(t.amount) }}</span>
+                <span :style="strong">{{ money(txnMinor(t)) }}</span>
                 <span :style="scopeChip">{{ t.source || 'Other' }}</span>
                 <span :style="sub">{{ t.note }}</span>
               </div>
@@ -685,9 +715,19 @@ const debtCard = computed(() =>
 
       <!-- ============ TRANSACTIONS ============ -->
       <template v-else-if="subtab === 'transactions'">
+        <!-- Always visible, at the top, autofocused (section 27b). The point is
+             one number and Enter: the detailed form below is for the row that
+             needs a source or a counterparty, not for the ₹40 chai. -->
+        <QuickAddRow
+          :categories="txnCategories"
+          :last-category="lastCategory"
+          :last-method="lastMethod"
+          @add="quickAdd"
+          @create-category="app.ensureTxnCategory($event)"
+        />
+
         <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }">
-          <button :style="miniBtn" @click="openTxnForm('expense')">＋ Add expense</button>
-          <button :style="ghostBtn" @click="openTxnForm('income')">＋ Add income</button>
+          <button :style="ghostBtn" @click="openTxnForm('expense')">More fields…</button>
           <span :style="spacer"></span>
           <button
             v-for="k in ['all', 'income', 'expense']"
@@ -745,7 +785,7 @@ const debtCard = computed(() =>
                 minWidth: '92px',
               }"
             >
-              {{ money(t.kind === 'income' ? t.amount : -t.amount, true) }}
+              {{ money(t.kind === 'income' ? txnMinor(t) : -txnMinor(t), true) }}
             </span>
             <span :style="{ flex: 1, minWidth: 0 }">
               {{ t.note || t.category }}<span v-if="t.party" :style="sub"> · {{ t.party }}</span>
@@ -858,7 +898,7 @@ const debtCard = computed(() =>
               </div>
               <span :style="big">{{ money(debtOutstanding(d, now)) }}</span>
               <span :style="sub"
-                >of {{ money(d.principal)
+                >of {{ money(principalMinor(d))
                 }}<span v-if="d.interestRatePct">
                   · {{ d.interestRatePct }}% {{ d.interestType }}</span
                 ></span
@@ -907,7 +947,7 @@ const debtCard = computed(() =>
                 </span>
               </div>
               <span :style="big">{{ money(debtOutstanding(d, now)) }}</span>
-              <span :style="sub">of {{ money(d.principal) }}</span>
+              <span :style="sub">of {{ money(principalMinor(d)) }}</span>
               <div :style="{ display: 'flex', gap: '6px' }">
                 <TextInput v-model="payAmount[d.id]" placeholder="Received ₹" inputmode="decimal" />
                 <button :style="miniBtn" @click="recordPayment(d)">Receive</button>

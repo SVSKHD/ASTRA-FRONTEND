@@ -4,9 +4,37 @@
 // it is testable without a store and can never drift from a stored running total
 // (there isn't one).
 
-import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
+import type { Debt, DebtPayment, FinScope, ScopeFilter, Txn } from '@/types'
+import { toMinor } from '@/utils/money'
 
 export const UNTAGGED = 'Untagged'
+
+// ---- minor units (section 27b, acceptance 143) ------------------------------
+// Every figure below is an INTEGER count of paise. It was rupees-as-a-float
+// until 27b, and the change is not cosmetic: these functions sum long lists and
+// feed a running balance, which is a chain of additions shown to the user, so a
+// float drifts visibly and with no bad row to blame.
+//
+// Rows written before the change carry `amount` (rupees, float) and no
+// `amountMinor`. Rather than requiring a migration to have run before anything
+// can be read, the accessors below convert on read, and `migrateTxnAmounts`
+// makes it permanent the first time the workspace loads.
+
+/** A transaction's amount in paise, converting a legacy float row on the fly. */
+export function txnMinor(t: Pick<Txn, 'amountMinor' | 'amount'>): number {
+  if (Number.isFinite(t.amountMinor)) return t.amountMinor as number
+  return Number.isFinite(t.amount) ? toMinor(t.amount as number) : 0
+}
+
+export function paymentMinor(p: Pick<DebtPayment, 'amountMinor' | 'amount'>): number {
+  if (Number.isFinite(p.amountMinor)) return p.amountMinor as number
+  return Number.isFinite(p.amount) ? toMinor(p.amount as number) : 0
+}
+
+export function principalMinor(d: Pick<Debt, 'principalMinor' | 'principal'>): number {
+  if (Number.isFinite(d.principalMinor)) return d.principalMinor as number
+  return Number.isFinite(d.principal) ? toMinor(d.principal as number) : 0
+}
 
 // A scope filter of 'all' matches both; otherwise it must match exactly. Nothing
 // leaks across scopes.
@@ -48,7 +76,7 @@ export function monthTotals(txns: Txn[], scope: ScopeFilter, monthKey: string): 
   let out = 0
   let debtRepay = 0
   for (const t of month) {
-    const amt = Number.isFinite(t.amount) ? t.amount : 0
+    const amt = txnMinor(t)
     if (t.kind === 'income') {
       if (t.confirmed === false) incomeExpected += amt
       else incomeReceived += amt
@@ -99,7 +127,7 @@ export function categoryOutflow(
   const totals = new Map<string, number>()
   let sum = 0
   for (const t of expenses) {
-    const amt = Number.isFinite(t.amount) ? t.amount : 0
+    const amt = txnMinor(t)
     totals.set(t.category || 'Other', (totals.get(t.category || 'Other') || 0) + amt)
     sum += amt
   }
@@ -133,9 +161,13 @@ export function tagBreakdown(txns: Txn[], scope: ScopeFilter, monthKey: string):
     return r
   }
   for (const t of month) {
-    const amt = Number.isFinite(t.amount) ? t.amount : 0
+    const amt = txnMinor(t)
     const tags = t.tags && t.tags.length ? t.tags : [UNTAGGED]
-    const share = amt / tags.length
+    // Rounded, so the per-tag columns stay whole paise. The rounding error is
+    // at most one paisa per tag on a multi-tag row, which is invisible against
+    // a figure a person would notice and is the price of not reintroducing a
+    // float into a column that gets summed.
+    const share = Math.round(amt / tags.length)
     for (const name of tags) {
       const r = row(name)
       if (t.kind === 'expense') r.spent += share
@@ -155,7 +187,7 @@ function yearsBetween(startDate: string, asOf: number): number {
 }
 
 export function debtPaid(debt: Debt): number {
-  return (debt.payments || []).reduce((s, p) => s + (Number.isFinite(p.amount) ? p.amount : 0), 0)
+  return (debt.payments || []).reduce((sum, p) => sum + paymentMinor(p), 0)
 }
 
 // Interest accrued to `asOf`, simple or compound per the debt's interestType.
@@ -165,14 +197,14 @@ export function accruedInterest(debt: Debt, asOf: number): number {
   const t = yearsBetween(debt.startDate, asOf)
   if (t <= 0) return 0
   if (debt.interestType === 'compound') {
-    return debt.principal * (Math.pow(1 + rate / 100, t) - 1)
+    return Math.round(principalMinor(debt) * (Math.pow(1 + rate / 100, t) - 1))
   }
-  return debt.principal * (rate / 100) * t
+  return Math.round(principalMinor(debt) * (rate / 100) * t)
 }
 
 // What is still outstanding: principal + accrued interest − payments, floored at 0.
 export function debtOutstanding(debt: Debt, asOf: number): number {
-  return Math.max(0, debt.principal + accruedInterest(debt, asOf) - debtPaid(debt))
+  return Math.max(0, principalMinor(debt) + accruedInterest(debt, asOf) - debtPaid(debt))
 }
 
 export function isOverdue(debt: Debt, now: number): boolean {
@@ -215,7 +247,8 @@ export function debtSummary(debts: Debt[], scope: ScopeFilter, now: number): Deb
 
 // ---- migration ------------------------------------------------------------
 // One-time lift of the legacy `finances` (expense-only) array into the unified
-// transactions collection: personal scope, no tags, keeping id/amount/date/note.
+// transactions collection: personal scope, no tags, keeping id/date/note and
+// lifting the rupee float into integer paise on the way through.
 export function migrateExpenses(
   finances: {
     id: number
@@ -231,7 +264,7 @@ export function migrateExpenses(
     id: f.id,
     kind: 'expense' as const,
     scope: 'personal' as const,
-    amount: f.amount,
+    amountMinor: toMinor(f.amount),
     date: f.date,
     note: f.note || '',
     category: f.category || 'Other',
@@ -240,4 +273,43 @@ export function migrateExpenses(
     createdAt: f.createdAt ?? Date.now(),
     updatedAt: f.updatedAt ?? Date.now(),
   }))
+}
+
+// One-time lift of pre-27b money floats into integer minor units.
+//
+// It runs on load and returns NEW objects only where something changed, so a
+// workspace whose rows are already migrated does not dirty itself and trigger a
+// save on every open. The legacy `amount` is dropped rather than kept in sync:
+// two fields holding the same number is how they end up holding two numbers.
+export function migrateTxnAmounts(txns: Txn[]): { txns: Txn[]; changed: boolean } {
+  let changed = false
+  const migrated = txns.map((t) => {
+    if (Number.isFinite(t.amountMinor) && t.amount === undefined) return t
+    changed = true
+    const { amount: _legacy, ...rest } = t
+    return { ...rest, amountMinor: txnMinor(t) }
+  })
+  return { txns: changed ? migrated : txns, changed }
+}
+
+export function migrateDebtAmounts(debts: Debt[]): { debts: Debt[]; changed: boolean } {
+  let changed = false
+  const migrated = debts.map((d) => {
+    const paymentsNeedWork = (d.payments || []).some(
+      (p) => !Number.isFinite(p.amountMinor) || p.amount !== undefined,
+    )
+    if (Number.isFinite(d.principalMinor) && d.principal === undefined && !paymentsNeedWork)
+      return d
+    changed = true
+    const { principal: _legacyPrincipal, ...rest } = d
+    return {
+      ...rest,
+      principalMinor: principalMinor(d),
+      payments: (d.payments || []).map((p) => {
+        const { amount: _legacyAmount, ...pRest } = p
+        return { ...pRest, amountMinor: paymentMinor(p) }
+      }),
+    }
+  })
+  return { debts: changed ? migrated : debts, changed }
 }

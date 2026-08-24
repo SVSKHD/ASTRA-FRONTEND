@@ -496,13 +496,18 @@ export interface Finance extends Timestamped {
 // whole/decimal rupees — the app is INR-only for now.
 export interface FinanceSettings {
   currency: 'INR'
-  monthlyIncome: number
-  incomeByMonth: Record<string, number>
+  /** Integer minor units (section 27b). See Txn.amountMinor. */
+  monthlyIncomeMinor: number
+  incomeByMonthMinor: Record<string, number>
+  /** @deprecated Pre-27b rupee floats. Migrated on load, then dropped. */
+  monthlyIncome?: number
+  /** @deprecated Pre-27b rupee floats. Migrated on load, then dropped. */
+  incomeByMonth?: Record<string, number>
   incomeUpdatedAt: number
 }
 
 export function emptyFinanceSettings(): FinanceSettings {
-  return { currency: 'INR', monthlyIncome: 0, incomeByMonth: {}, incomeUpdatedAt: 0 }
+  return { currency: 'INR', monthlyIncomeMinor: 0, incomeByMonthMinor: {}, incomeUpdatedAt: 0 }
 }
 
 // ---- Finances rework: scopes, transactions, debts, tags -------------------
@@ -520,25 +525,62 @@ export interface FinGst {
 
 // The unified money record — income and expenses in one collection so the
 // month's In/Out/Net all derive from a single query.
+// How the money moved. `method` is not decoration: "was that on the card or in
+// cash" is the question that makes a row identifiable a month later, and it is
+// the one people reliably remember.
+export type TxnMethod = 'cash' | 'upi' | 'card' | 'bank' | 'other'
+export const TXN_METHODS: readonly TxnMethod[] = ['cash', 'upi', 'card', 'bank', 'other']
+
 export interface Txn extends Timestamped {
   id: number
+  // `kind` is this app's name for the spec's `direction`: 'expense' is out,
+  // 'income' is in. Kept rather than renamed because it is the discriminator on
+  // every existing row, and a rename would be a data migration that buys a
+  // synonym.
   kind: TxnKind
   scope: FinScope
-  amount: number
+  /**
+   * An INTEGER count of paise (section 27b, acceptance 143). Never a float:
+   * a ledger is a long chain of additions and a running balance is that chain
+   * shown to the user, so a float drifts visibly. Read it through
+   * `txnMinor()`, which also covers rows written before this field existed.
+   */
+  amountMinor: number
+  /**
+   * @deprecated The pre-27b float, in rupees. Present only on rows that have not
+   * been migrated yet; `migrateTxnAmounts` fills `amountMinor` from it on load
+   * and drops it. Nothing new should read or write this.
+   */
+  amount?: number
   date: string // YYYY-MM-DD
   note: string
   category: string // single primary bucket
   tags: string[] // many, cross-cutting
+  method?: TxnMethod
   source?: string // income only: Salary / Client / Interest / …
-  party?: string // client / vendor / person
+  party?: string // client / vendor / person — the spec's `counterparty`
   isRecurring?: boolean
   recurrenceRule?: string
+  /** Set on each occurrence materialised from a recurring rule. */
+  recurringId?: number | null
   // Recurring income materialises as "expected" until confirmed received.
   confirmed?: boolean
   gst?: FinGst
   // Set when this txn is a debt repayment/borrowing, linking it to the debt.
   debtId?: number | null
   attachmentUrl?: string
+  attachmentIds?: string[]
+}
+
+// A spend category, user-editable, with an icon and a colour (section 27b).
+export interface TxnCategory {
+  id: number
+  name: string
+  /** A name from the app's one icon set. */
+  icon: string
+  color: string
+  kind?: TxnKind | 'both'
+  archived?: boolean
 }
 
 export type DebtDirection = 'owed_by_me' | 'owed_to_me'
@@ -547,7 +589,10 @@ export type InterestType = 'simple' | 'compound' | 'none'
 
 export interface DebtPayment {
   id: number
-  amount: number
+  /** Integer minor units. See Txn.amountMinor. */
+  amountMinor: number
+  /** @deprecated Pre-27b float, in rupees. Migrated on load. */
+  amount?: number
   date: string
   note: string
   transactionId?: number | null
@@ -558,7 +603,10 @@ export interface Debt extends Timestamped {
   direction: DebtDirection
   scope: FinScope
   counterparty: string
-  principal: number
+  /** Integer minor units. See Txn.amountMinor. */
+  principalMinor: number
+  /** @deprecated Pre-27b float, in rupees. Migrated on load. */
+  principal?: number
   currency: 'INR'
   interestRatePct?: number
   interestType?: InterestType
