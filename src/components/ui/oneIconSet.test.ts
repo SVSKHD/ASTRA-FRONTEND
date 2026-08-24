@@ -43,6 +43,10 @@ const ALLOWED = new Set([
   'components/ui/ProgressRing.vue',
   'components/views/BotsView.vue',
   'components/AuthDialog.vue',
+  //   SessionMap          a dot plot of sign-in coordinates on a graticule —
+  //                       geometry projected from data, like the sparkline, and
+  //                       deliberately not a map library (see the component)
+  'components/security/SessionMap.vue',
 ])
 
 describe('one set, drawn once', () => {

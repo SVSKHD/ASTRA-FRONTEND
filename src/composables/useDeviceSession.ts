@@ -16,6 +16,7 @@
 // something tells it to stop. The heartbeat's return value is that something.
 
 import { onScopeDispose, ref, type Ref } from 'vue'
+import { firebaseEnabled } from '@/firebase'
 import { heartbeat, registerSession, type RegisterResult } from '@/services/deviceSessions'
 import { clearSessionId, HEARTBEAT_INTERVAL_MS, shouldHeartbeat } from '@/utils/sessionId'
 
@@ -113,7 +114,11 @@ export function useDeviceSession(options: DeviceSessionOptions): DeviceSessionHa
     document.removeEventListener('visibilitychange', onFocus)
   }
 
-  void start()
+  // With Firebase off — the test runner, or a build with no config — there is
+  // nothing to register against. Bailing here rather than letting the callable
+  // fail keeps a mounted component in a unit test from installing a five-minute
+  // interval and two window listeners it will never use.
+  if (firebaseEnabled) void start()
   onScopeDispose(stop)
 
   return { registering, ping, stop }

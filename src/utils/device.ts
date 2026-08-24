@@ -10,6 +10,8 @@
 // macOS" to be right; it does not need to distinguish Chromium 121 from 122, and
 // the 200KB of regexes that would buy is 200KB on every page load.
 
+import type { IconName } from '@/components/ui/icons'
+
 export type DeviceType = 'desktop' | 'mobile' | 'tablet'
 
 export interface DeviceInfo {
@@ -76,7 +78,7 @@ export function describeDevice(ua: string): DeviceInfo {
 }
 
 /** The icon name (from the app's one sprite) for a device type. */
-export function deviceIcon(type: DeviceType): string {
+export function deviceIcon(type: DeviceType): IconName {
   return type === 'mobile' ? 'smartphone' : type === 'tablet' ? 'tablet' : 'monitor'
 }
 

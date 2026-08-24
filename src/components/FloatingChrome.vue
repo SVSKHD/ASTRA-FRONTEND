@@ -462,6 +462,9 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
           <span>Reminder sound</span>
         </label>
         <button :style="menuItem" v-hover-style="menuHover" @click="onLockNow">Lock now</button>
+        <button :style="menuItem" v-hover-style="menuHover" @click="auth.openSecurityPanel()">
+          Security &amp; devices
+        </button>
         <button :style="menuItem" v-hover-style="menuHover" @click="auth.openGithubPanel()">
           {{ ghMenuLabel }}
         </button>

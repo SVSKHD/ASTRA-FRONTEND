@@ -15,6 +15,8 @@ import {
 } from 'firebase/auth'
 import { auth, firebaseEnabled } from '@/firebase'
 import { CALENDAR_SCOPE, hasCalendarToken, setCalendarToken } from '@/utils/gcal'
+// Section 27a: sign-out must forget the device's session identity.
+import { clearSessionId } from '@/utils/sessionId'
 import type { AureonUser } from '@/types'
 
 const GOOGLE_COLOR = 'oklch(0.62 0.15 255)'
@@ -96,6 +98,9 @@ export const useAuthStore = defineStore('auth', () => {
   const githubLinked = ref(false)
   const avatarMenuOpen = ref(false)
   const githubPanelOpen = ref(false)
+  // Settings → Security → Devices (section 27a). Panel state rather than a route
+  // because it is a settings surface, and settings here live in the account menu.
+  const securityPanelOpen = ref(false)
 
   const isSignedIn = computed(() => !!user.value)
   const hasAllowlist = computed(() => allowedUids.length > 0 || allowedEmails.length > 0)
@@ -222,6 +227,12 @@ export const useAuthStore = defineStore('auth', () => {
     setCalendarToken(null)
     avatarMenuOpen.value = false
     githubPanelOpen.value = false
+    securityPanelOpen.value = false
+    // Forget this install's session id (section 27a). Without this, signing back
+    // in on a machine someone deliberately revoked would reuse the killed id —
+    // which the server refuses to resurrect, leaving the user signed in to
+    // nothing. A fresh sign-in is honestly a new session, so it gets a new id.
+    clearSessionId()
     authOpen.value = true
   }
 
@@ -251,6 +262,15 @@ export const useAuthStore = defineStore('auth', () => {
   function closeGithubPanel() {
     githubPanelOpen.value = false
   }
+
+  function openSecurityPanel() {
+    if (!user.value) return
+    securityPanelOpen.value = true
+    avatarMenuOpen.value = false
+  }
+  function closeSecurityPanel() {
+    securityPanelOpen.value = false
+  }
   return {
     user,
     authOpen,
@@ -260,6 +280,7 @@ export const useAuthStore = defineStore('auth', () => {
     githubLinked,
     avatarMenuOpen,
     githubPanelOpen,
+    securityPanelOpen,
     isSignedIn,
     configurationReady,
     avatarInitial,
@@ -276,5 +297,7 @@ export const useAuthStore = defineStore('auth', () => {
     linkGithub,
     openGithubPanel,
     closeGithubPanel,
+    openSecurityPanel,
+    closeSecurityPanel,
   }
 })

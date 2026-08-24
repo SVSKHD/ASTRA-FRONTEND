@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
+import { useDeviceSession } from '@/composables/useDeviceSession'
 
 import FloatingDock from '@/components/FloatingDock.vue'
 import FloatingChrome from '@/components/FloatingChrome.vue'
@@ -21,6 +22,7 @@ import TripDialog from '@/components/TripDialog.vue'
 import ReminderDialog from '@/components/ReminderDialog.vue'
 import TaskView from '@/components/TaskView.vue'
 import GithubPanel from '@/components/GithubPanel.vue'
+import SecurityPanel from '@/components/security/SecurityPanel.vue'
 import AuthDialog from '@/components/AuthDialog.vue'
 import ToastHost from '@/components/ToastHost.vue'
 import NotifBanner from '@/components/NotifBanner.vue'
@@ -129,6 +131,12 @@ function focusPrimaryInput() {
   activeView.value?.focus()
 }
 
+// Device session tracking (section 27a). Set up once here, in setup scope, and
+// NOT in a router hook: the spec's rule is "on app focus, not per route change",
+// and a per-route hook is exactly the shape that turns a keyboard-navigated
+// workspace into thousands of writes a day. It no-ops when Firebase is off.
+useDeviceSession({ onRevoked: () => auth.signOut() })
+
 // --- global keyboard --------------------------------------------------------
 function onKey(e: KeyboardEvent) {
   if (!showWorkspace.value) return
@@ -147,6 +155,10 @@ function onKey(e: KeyboardEvent) {
     if (app.detailOpen) return
     // One slot now backs every dialog, so one check closes whichever is open.
     if (app.itemDialog) return app.closeItemDialog()
+    if (auth.securityPanelOpen) {
+      auth.closeSecurityPanel()
+      return
+    }
     if (auth.githubPanelOpen) {
       auth.closeGithubPanel()
       return
@@ -298,6 +310,7 @@ onBeforeUnmount(() => {
     <ReminderDialog />
     <TaskView />
     <GithubPanel />
+    <SecurityPanel :open="auth.securityPanelOpen" @close="auth.closeSecurityPanel()" />
     <NotifBanner />
     <SharedBanner />
     <ShareDialog />
