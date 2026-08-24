@@ -135,4 +135,37 @@ export function onPersistenceResolved(listener: PersistenceListener): void {
   persistenceListeners.add(listener)
 }
 
+// ---- Cloud Functions (section 27a) -----------------------------------------
+// Loaded on demand for the same reason Firestore is: the callables it reaches
+// are used on the Security page and once per app load, and nothing on the first
+// paint needs them.
+//
+// Region matters and is not guessable — a callable deployed to us-central1 and
+// invoked with the default region returns a CORS error that says nothing about
+// regions. It is therefore configurable, defaulting to the Firebase default.
+export type FunctionsModule = typeof import('firebase/functions')
+export interface FunctionsHandle {
+  functions: import('firebase/functions').Functions
+  fx: FunctionsModule
+}
+
+let functionsLoad: Promise<FunctionsHandle | null> | null = null
+
+export function loadFunctions(): Promise<FunctionsHandle | null> {
+  if (!firebaseEnabled || !app) return Promise.resolve(null)
+  if (!functionsLoad) {
+    functionsLoad = (async () => {
+      try {
+        const fx = await import('firebase/functions')
+        const region = import.meta.env.VITE_FUNCTIONS_REGION || 'us-central1'
+        return { functions: fx.getFunctions(app!, region), fx }
+      } catch (err) {
+        console.error('[Aureon] Cloud Functions initialisation failed:', err)
+        return null
+      }
+    })()
+  }
+  return functionsLoad
+}
+
 export { app, auth }

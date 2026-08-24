@@ -72,6 +72,31 @@ export const ICONS = {
   sun: '<circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M4.4 4.4l1.7 1.7M17.9 17.9l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.4 19.6l1.7-1.7M17.9 6.1l1.7-1.7" />',
   trash:
     '<polyline points="4 6 20 6" /><path d="M9 6V4.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 4.5V6" /><path d="M6.5 6l.8 13a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-13" />',
+
+  // ---- section 27: devices, security, money movement --------------------
+  // Same Lucide grid, same weight. Added as a block rather than sprinkled in
+  // alphabetically so it is obvious at a glance which feature brought them and
+  // which can go if it ever leaves.
+  monitor:
+    '<rect x="2.5" y="3.5" width="19" height="13" rx="2" /><line x1="8" y1="20.5" x2="16" y2="20.5" /><line x1="12" y1="16.5" x2="12" y2="20.5" />',
+  smartphone:
+    '<rect x="6" y="2.5" width="12" height="19" rx="2.5" /><line x1="12" y1="18" x2="12.01" y2="18" />',
+  tablet:
+    '<rect x="4" y="2.5" width="16" height="19" rx="2.5" /><line x1="12" y1="18" x2="12.01" y2="18" />',
+  'map-pin':
+    '<path d="M19.5 10.5c0 5-5.2 9.6-7 11a0.9 0.9 0 0 1-1 0c-1.8-1.4-7-6-7-11a7.5 7.5 0 0 1 15 0z" /><circle cx="12" cy="10.4" r="2.6" />',
+  shield:
+    '<path d="M12 2.6c2 1.5 4.4 2.6 6.4 2.6a0.9 0.9 0 0 1 0.9 0.9V13c0 4.8-3.4 7.2-7 8.4a0.9 0.9 0 0 1-0.6 0C8.1 20.2 4.7 17.8 4.7 13V6.1a0.9 0.9 0 0 1 0.9-0.9c2 0 4.4-1.1 6.4-2.6z" />',
+  'log-out':
+    '<path d="M9.5 21H5.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 16.5 20.5 12 16 7.5" /><line x1="20.5" y1="12" x2="9.5" y2="12" />',
+  repeat:
+    '<polyline points="16.5 2.5 20.5 6.5 16.5 10.5" /><path d="M3.5 11.5v-1a4 4 0 0 1 4-4h13" /><polyline points="7.5 21.5 3.5 17.5 7.5 13.5" /><path d="M20.5 12.5v1a4 4 0 0 1-4 4h-13" />',
+  filter: '<polygon points="21 4 3 4 10.2 12.5 10.2 19.5 13.8 21 13.8 12.5 21 4" />',
+  download:
+    '<path d="M20.5 15.5v3.5a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5v-3.5" /><polyline points="7.5 10.5 12 15 16.5 10.5" /><line x1="12" y1="15" x2="12" y2="3.5" />',
+  paperclip:
+    '<path d="M20 11.5l-7.9 7.9a5 5 0 0 1-7.1-7.1l8.4-8.4a3.3 3.3 0 0 1 4.7 4.7l-8.3 8.3a1.6 1.6 0 0 1-2.3-2.3l7.6-7.6" />',
+  tag: '<path d="M20.5 12.9l-7.6 7.6a1.8 1.8 0 0 1-2.5 0l-7-7A1.8 1.8 0 0 1 3 12.2V4.6A1.6 1.6 0 0 1 4.6 3h7.6a1.8 1.8 0 0 1 1.3 0.5l7 7a1.8 1.8 0 0 1 0 2.5z" /><circle cx="8" cy="8" r="1.4" />',
 } as const
 
 export type IconName = keyof typeof ICONS

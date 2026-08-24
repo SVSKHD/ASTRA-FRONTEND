@@ -580,6 +580,50 @@ export interface FinTag {
   archived?: boolean
 }
 
+// ---- Devices, sessions and activity (section 27a) --------------------------
+// Unlike everything above, these do NOT live in the workspace document. They are
+// a real Firestore subtree under /users/{uid}, because two of their fields are
+// security controls — `revokedAt` and `lastActiveAt` — and a security control
+// the client can write is not a control. Every write happens in a Cloud
+// Function; the client reads and nothing more.
+
+export type DeviceKind = 'desktop' | 'mobile' | 'tablet'
+
+export interface DeviceSession {
+  id: string
+  deviceLabel: string
+  deviceType: DeviceKind
+  os: string
+  browser: string
+  /** A salted SHA-256 prefix. The address itself is never stored. */
+  ipHash: string | null
+  city: string | null
+  region: string | null
+  country: string | null
+  /** One decimal place — city scale, deliberately not street scale. */
+  approxLat: number | null
+  approxLng: number | null
+  createdAt: number
+  lastActiveAt: number
+  revokedAt: number | null
+  userAgent: string
+  /** Not stored: derived by comparing against this install's own id. */
+  current?: boolean
+}
+
+export type ActivityKind =
+  'login' | 'logout' | 'revoke' | 'password-change' | 'new-device' | 'new-country'
+
+export interface ActivityEvent {
+  id: string
+  type: ActivityKind
+  sessionId: string
+  city: string | null
+  country: string | null
+  detail: string | null
+  at: number
+}
+
 // ---- Planning boards (JointJS node graphs) --------------------------------
 // A board is a node-graph canvas for thinking a plan out visually; its nodes can
 // become — or link to — real tasks/todos. Adapted to this app's single-workspace
