@@ -148,6 +148,7 @@ import {
 import { migrateFinanceSettings, resolveIncome } from '@/utils/budget'
 import { CATEGORY_SEEDS, findCategory, seedCategories } from '@/utils/txnCategories'
 import { emptyFilters, type TxnFilters } from '@/utils/txnList'
+import { parseTxnRecurrence, pendingOccurrences } from '@/utils/txnRecurring'
 import { checkLink, hasRef, sameRef, type Graph, type LinkCheck } from '@/utils/links'
 import { nestSummary, planNest } from '@/utils/dragNest'
 import {
@@ -1374,6 +1375,12 @@ export const useAppStore = defineStore('app', () => {
       case 'weekly':
       case 'custom':
         return { type: 'weekdays', weekdays: rec.daysOfWeek.slice() }
+      // Added when 'monthly' arrived for recurring transactions (section 27b).
+      // The reminders module already has a months repeat, so a monthly goal
+      // schedules like any other rather than silently never firing — which is
+      // what this switch falling through would have produced.
+      case 'monthly':
+        return { type: 'months', n: 1 }
     }
   }
   // Remove any reminders registered for a goal (silently — no undo toast), taking
@@ -3295,6 +3302,40 @@ export const useAppStore = defineStore('app', () => {
     const nm = name.trim()
     if (!nm) return ''
     return findCategory(txnCategories.value, nm)?.name ?? addTxnCategory({ name: nm, kind })
+  }
+
+  /**
+   * Materialise every occurrence a recurring transaction still owes, up to
+   * today.
+   *
+   * Idempotent by construction: `pendingOccurrences` skips any date that
+   * already has a row for this template, so calling it on every app load, on
+   * two devices at once, cannot double-post. That matters more here than it
+   * does for goals — a duplicated occurrence is not a cosmetic repeat, it is a
+   * month that says the rent was paid twice.
+   *
+   * All the writes land in one synchronous pass, so the deep watcher's single
+   * debounced save covers them atomically rather than saving a half-generated
+   * series.
+   */
+  function generateRecurringTxns(todayStr: string = rel(0)): number {
+    const templates = transactions.value.filter((t) => t.isRecurring === true)
+    if (!templates.length) return 0
+    const created: Txn[] = []
+    for (const template of templates) {
+      const rec = template.recurrenceRule ? parseTxnRecurrence(template.recurrenceRule) : null
+      if (!rec) continue
+      for (const occurrence of pendingOccurrences(
+        template,
+        rec,
+        [...transactions.value, ...created],
+        todayStr,
+      )) {
+        created.push({ id: id(), ...occurrence.fields, ...stamps() } as Txn)
+      }
+    }
+    if (created.length) transactions.value = [...transactions.value, ...created]
+    return created.length
   }
 
   function setTxnFilters(next: TxnFilters) {
@@ -6324,6 +6365,11 @@ export const useAppStore = defineStore('app', () => {
       setTimeout(() => {
         void runAutoRolloverIfDue()
         runGoalGenerationIfDue()
+        // Recurring transactions, in the same window and for the same reason:
+        // hydration has settled, so a generated row is written against the
+        // real list rather than an empty one. It is idempotent, so a second
+        // device doing this at the same moment posts nothing.
+        generateRecurringTxns()
         // Webhooks are primary; this is the every-10-minutes conditional
         // fallback for a delivery that never arrived.
         startGithubPolling()
@@ -6697,6 +6743,7 @@ export const useAppStore = defineStore('app', () => {
     archiveTxnCategory,
     ensureTxnCategory,
     txnFilters,
+    generateRecurringTxns,
     setTxnFilters,
     clearTxnFilters,
     deleteWithUndo,

@@ -22,6 +22,7 @@ import Button from '@/components/ui/Button.vue'
 import type { Stat } from '@/components/ui/StatRow.vue'
 import { currentMonthKey } from '@/utils/budget'
 import {
+  accruedInterest,
   balanceState,
   categoryOutflow,
   debtOutstanding,
@@ -42,6 +43,9 @@ import QuickAddRow, { type QuickAddDraft } from '@/components/finance/QuickAddRo
 import TransactionList from '@/components/finance/TransactionList.vue'
 import TxnFilters from '@/components/finance/TxnFilters.vue'
 import { applyFilters, isFiltered, signedMinor } from '@/utils/txnList'
+import { csvFilename, monthSummaryMarkdown, transactionsToCsv } from '@/utils/financeExport'
+import { downloadText } from '@/utils/noteExport'
+import { copyText } from '@/utils/clipboard'
 import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
@@ -242,6 +246,32 @@ function quickAdd(draft: QuickAddDraft): void {
   if (draft.method) lastMethod.value = draft.method
 }
 
+// --- export (section 27b) ----------------------------------------------------
+// Reuses the note exporter's download helper rather than building a second
+// anchor-and-revoke dance: it already handles the object-URL lifecycle, and two
+// of those in one app is one too many to keep correct.
+function exportCsv(): void {
+  const from = `${monthKey.value}-01`
+  const to = `${monthKey.value}-31`
+  const csv = transactionsToCsv(
+    filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value }),
+    { from, to },
+  )
+  downloadText(csv, csvFilename(from, to), 'text/csv;charset=utf-8')
+}
+
+async function copySummary(): Promise<void> {
+  const md = monthSummaryMarkdown({
+    monthKey: monthKey.value,
+    transactions: filterTxns(transactions.value, { scope: scope.value }),
+    categories: txnCategories.value,
+    debts: monthDebts.value,
+    now: now.value,
+  })
+  const ok = await copyText(md)
+  app.showToastMsg(ok ? 'Summary copied' : 'Could not copy the summary')
+}
+
 // --- add-debt form ----------------------------------------------------------
 const showDebtForm = ref(false)
 const debtForm = ref<Record<string, string>>({
@@ -289,8 +319,25 @@ const payAmount = ref<Record<number, string>>({})
 function recordPayment(d: Debt) {
   const amountMinor = parseMoney(payAmount.value[d.id] || '')
   if (!amountMinor || amountMinor <= 0) return
+  // recordDebtPayment writes the linked transaction AND files the payment, so
+  // the money shows up in the month's totals and the outstanding decrements in
+  // one pass. Deleting either side later unlinks the other.
   app.recordDebtPayment(d.id, { amountMinor, date: todayInMonth() })
   payAmount.value = { ...payAmount.value, [d.id]: '' }
+}
+
+/**
+ * How much of the debt is repaid, as a percentage.
+ *
+ * Against principal + accrued interest rather than principal alone: on an
+ * interest-bearing debt, paying the principal exactly does not clear it, and a
+ * bar reading 100% beside a non-zero outstanding is the kind of contradiction
+ * that makes a reader distrust the whole page.
+ */
+function paidPct(d: Debt): number {
+  const owedTotal = principalMinor(d) + accruedInterest(d, now.value)
+  if (owedTotal <= 0) return 0
+  return Math.min(100, Math.round((debtPaid(d) / owedTotal) * 100))
 }
 
 function daysUntil(due: string): number {
@@ -718,6 +765,9 @@ const debtCard = computed(() =>
 
         <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }">
           <button :style="ghostBtn" @click="openTxnForm('expense')">More fields…</button>
+          <span :style="spacer"></span>
+          <Button size="sm" variant="ghost" @click="exportCsv">Export CSV</Button>
+          <Button size="sm" variant="ghost" @click="copySummary">Copy summary</Button>
         </div>
 
         <div v-if="showTxnForm" :style="card">
@@ -867,16 +917,21 @@ const debtCard = computed(() =>
                 <div
                   :style="{
                     height: '100%',
-                    width:
-                      Math.min(100, Math.round((debtPaid(d) / (d.principal || 1)) * 100)) + '%',
+                    width: paidPct(d) + '%',
                     background: c.accent,
                   }"
                 ></div>
               </div>
               <span :style="scopeChip">{{ effectiveDebtStatus(d, now) }}</span>
               <div :style="{ display: 'flex', gap: '6px' }">
-                <TextInput v-model="payAmount[d.id]" placeholder="Payment ₹" inputmode="decimal" />
-                <button :style="miniBtn" @click="recordPayment(d)">Pay</button>
+                <TextInput
+                  v-model="payAmount[d.id]"
+                  size="sm"
+                  placeholder="Amount ₹"
+                  aria-label="Settlement amount"
+                  inputmode="decimal"
+                />
+                <button :style="miniBtn" @click="recordPayment(d)">Record settlement</button>
                 <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
               </div>
             </div>
@@ -902,8 +957,14 @@ const debtCard = computed(() =>
               <span :style="big">{{ money(debtOutstanding(d, now)) }}</span>
               <span :style="sub">of {{ money(principalMinor(d)) }}</span>
               <div :style="{ display: 'flex', gap: '6px' }">
-                <TextInput v-model="payAmount[d.id]" placeholder="Received ₹" inputmode="decimal" />
-                <button :style="miniBtn" @click="recordPayment(d)">Receive</button>
+                <TextInput
+                  v-model="payAmount[d.id]"
+                  size="sm"
+                  placeholder="Amount ₹"
+                  aria-label="Settlement amount"
+                  inputmode="decimal"
+                />
+                <button :style="miniBtn" @click="recordPayment(d)">Record settlement</button>
                 <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
               </div>
             </div>
