@@ -6,6 +6,7 @@ import {
   occurrenceDatesInRange,
   horizonDates,
   localDateInTz,
+  clampedMonthDay,
   type Recurrence,
 } from './recurrence'
 
@@ -80,5 +81,50 @@ describe('localDateInTz', () => {
     const t = Date.UTC(2026, 7, 15, 23, 30)
     expect(localDateInTz(t, 'Asia/Tokyo')).toBe('2026-08-16')
     expect(localDateInTz(t, 'UTC')).toBe('2026-08-15')
+  })
+})
+
+describe('monthly recurrence (section 27b)', () => {
+  const monthly = (dayOfMonth: number, over: Partial<Recurrence> = {}): Recurrence => ({
+    enabled: true,
+    freq: 'monthly',
+    daysOfWeek: [],
+    timeOfDay: '09:00',
+    timezone: 'Asia/Kolkata',
+    startDate: '2026-01-01',
+    endDate: null,
+    dayOfMonth,
+    ...over,
+  })
+
+  it('fires on the chosen day of each month', () => {
+    // Rent on the 5th: the shape almost every recurring money item takes, and
+    // one no weekly rule can express.
+    const dates = occurrenceDatesInRange(monthly(5), '2026-01-01', '2026-04-30')
+    expect(dates).toEqual(['2026-01-05', '2026-02-05', '2026-03-05', '2026-04-05'])
+  })
+
+  it('clamps to the last day of a short month rather than skipping it', () => {
+    // A rent due on the 31st is still due in February. A rule that silently
+    // misses February is worse than one that fires on the 28th.
+    const dates = occurrenceDatesInRange(monthly(31), '2026-01-01', '2026-04-30')
+    expect(dates).toEqual(['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30'])
+  })
+
+  it('clamps to the 29th in a leap February', () => {
+    expect(occurrenceDatesInRange(monthly(31), '2028-02-01', '2028-02-29')).toEqual(['2028-02-29'])
+  })
+
+  it('honours the start and end dates like every other frequency', () => {
+    const rec = monthly(5, { startDate: '2026-02-01', endDate: '2026-03-31' })
+    expect(occurrenceDatesInRange(rec, '2026-01-01', '2026-05-30')).toEqual([
+      '2026-02-05',
+      '2026-03-05',
+    ])
+  })
+
+  it('treats a nonsense day as the 1st rather than never firing', () => {
+    expect(occurrenceDatesInRange(monthly(0), '2026-01-01', '2026-01-31')).toEqual(['2026-01-01'])
+    expect(clampedMonthDay(99, '2026-02-10')).toBe(28)
   })
 })

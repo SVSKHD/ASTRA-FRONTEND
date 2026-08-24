@@ -9,6 +9,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { nextTick } from 'vue'
 import FinancesView from '@/components/views/FinancesView.vue'
 import { useAppStore } from '@/stores/app'
+import { toMinor } from '@/utils/money'
 import { vHoverStyle } from '@/directives/hoverStyle'
 import { currentMonthKey } from '@/utils/budget'
 
@@ -36,8 +37,8 @@ describe('<FinancesView />', () => {
 
   it('switching scope changes the totals with no cross-leak', async () => {
     const app = useAppStore()
-    app.addTxn({ kind: 'expense', amount: 1000, scope: 'personal', date: M + '-05' })
-    app.addTxn({ kind: 'expense', amount: 7000, scope: 'business', date: M + '-05' })
+    app.addTxn({ kind: 'expense', amountMinor: toMinor(1000), scope: 'personal', date: M + '-05' })
+    app.addTxn({ kind: 'expense', amountMinor: toMinor(7000), scope: 'business', date: M + '-05' })
     const wrapper = mount(FinancesView, { global })
     await nextTick()
 
@@ -55,10 +56,10 @@ describe('<FinancesView />', () => {
 
   it('adding income above baseline surfaces as Extra', async () => {
     const app = useAppStore()
-    app.setScopeIncome('personal', M, 50000) // baseline
+    app.setScopeIncome('personal', M, toMinor(50000)) // baseline
     app.addTxn({
       kind: 'income',
-      amount: 60000,
+      amountMinor: toMinor(60000),
       scope: 'personal',
       date: M + '-01',
       source: 'Salary',

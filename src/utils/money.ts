@@ -98,3 +98,79 @@ export function formatCurrency(value: number, options: CurrencyOptions = {}): st
   // of signed figures does not shift by a pixel between rows.
   return (n < 0 ? '−' : '+') + text
 }
+
+// ---------------------------------------------------------------------------
+// Minor units (section 27b, acceptance 143).
+//
+// Money is stored as an integer count of the currency's smallest unit — paise
+// for INR, cents for USD — and never as a float. The reason is that 0.1 + 0.2
+// is 0.30000000000000004 in every language with IEEE-754 doubles, and a ledger
+// is precisely a long chain of additions: a month of ₹0.1 entries drifts, a
+// running balance drifts faster, and the drift shows up as a total that is off
+// by a paisa with no bad row to point at.
+//
+// Integers do not drift. `formatCurrency` still takes major units, because a
+// formatter that takes paise would have every call site dividing by 100 — which
+// is the float back again, just later.
+
+/** How many minor units make one major unit. Currency-specific, not always 100. */
+const MINOR_PER_MAJOR: Record<string, number> = {
+  // The zero-decimal currencies: a yen IS the minor unit, and multiplying it by
+  // 100 would store every price a hundred times over.
+  JPY: 1,
+  KRW: 1,
+  VND: 1,
+  // Three-decimal currencies, for the same reason in the other direction.
+  BHD: 1000,
+  KWD: 1000,
+  OMR: 1000,
+  TND: 1000,
+}
+
+export function minorPerMajor(currency = 'INR'): number {
+  return MINOR_PER_MAJOR[currency] ?? 100
+}
+
+/**
+ * Major units in, minor units out, rounded to an integer.
+ *
+ * The rounding is the point: `12.34 * 100` is 1233.9999999999998, and `Math.trunc`
+ * of that is 1233 — a paisa lost on a value the user typed exactly. Rounding is
+ * what makes the conversion total rather than lossy.
+ */
+export function toMinor(major: number, currency = 'INR'): number {
+  if (!Number.isFinite(major)) return 0
+  return Math.round(major * minorPerMajor(currency))
+}
+
+/** Minor units back to major, for display and for arithmetic that must not. */
+export function toMajor(minor: number, currency = 'INR'): number {
+  if (!Number.isFinite(minor)) return 0
+  return minor / minorPerMajor(currency)
+}
+
+/** Format an integer minor-unit amount. The only way a stored figure is shown. */
+export function formatMinor(minor: number, options: CurrencyOptions = {}): string {
+  return formatCurrency(toMajor(minor, options.currency ?? 'INR'), options)
+}
+
+/**
+ * Parse what a person typed into minor units.
+ *
+ * Accepts "1500", "₹1,500", "1500.50", "1.5k", "2L" and "1.2cr", because those
+ * are what someone actually types into a field labelled "amount" in India. An
+ * unparseable string is 0 rather than NaN, so no caller has to guard — and the
+ * quick-add row refuses to submit a 0 anyway, which is where the "you typed
+ * nonsense" feedback belongs.
+ */
+const SUFFIXES: Record<string, number> = { k: 1_000, l: 100_000, cr: 10_000_000 }
+
+export function parseMoney(input: string, currency = 'INR'): number {
+  if (typeof input !== 'string') return 0
+  const cleaned = input.replace(/[₹$€£,\s]/g, '').toLowerCase()
+  const match = /^(-?\d*\.?\d+)(cr|k|l)?$/.exec(cleaned)
+  if (!match) return 0
+  const magnitude = Number(match[1])
+  if (!Number.isFinite(magnitude)) return 0
+  return toMinor(magnitude * (match[2] ? SUFFIXES[match[2]] : 1), currency)
+}

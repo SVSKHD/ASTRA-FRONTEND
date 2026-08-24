@@ -3,13 +3,14 @@
 // prompt section. Pure and capped so it can be unit-tested and can never blow the
 // token budget. The aiProxy Cloud Function prepends this to the system prompt.
 
-import { formatINR } from '@/utils/currency'
+import { formatMinor } from '@/utils/money'
 
 export interface AiContextInput {
   overdueTodos: string[]
   todayTodos: string[]
   overdueTasks: string[]
   upcomingReminders: string[]
+  /** Integer minor units (paise), like every money figure since 27b. */
   income: number
   spent: number
   remaining: number
@@ -27,9 +28,9 @@ function section(title: string, lines: string[]): string {
 // and caps it.
 export function buildAiContext(input: AiContextInput, maxChars = 8000): string {
   const money = section('This month (INR)', [
-    `income ${formatINR(input.income)}`,
-    `spent ${formatINR(input.spent)}`,
-    `remaining ${formatINR(input.remaining)}`,
+    `income ${formatMinor(input.income)}`,
+    `spent ${formatMinor(input.spent)}`,
+    `remaining ${formatMinor(input.remaining)}`,
   ])
   const parts = [
     section('Overdue todos', input.overdueTodos),

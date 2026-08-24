@@ -14,8 +14,7 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
 import { pxify, typeStep } from '@/styles'
-import { parseINR } from '@/utils/currency'
-import { formatCurrency, signTone, valueColor } from '@/utils/money'
+import { formatMinor, parseMoney, signTone, valueColor } from '@/utils/money'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import StatRow from '@/components/ui/StatRow.vue'
@@ -23,6 +22,7 @@ import Button from '@/components/ui/Button.vue'
 import type { Stat } from '@/components/ui/StatRow.vue'
 import { currentMonthKey } from '@/utils/budget'
 import {
+  accruedInterest,
   balanceState,
   categoryOutflow,
   debtOutstanding,
@@ -31,17 +31,29 @@ import {
   effectiveDebtStatus,
   extraIncome,
   filterTxns,
+  monthOf,
   isOverdue,
   monthTotals,
+  principalMinor,
   tagBreakdown,
+  txnMinor,
 } from '@/utils/finance'
 import MonthPicker from '@/components/MonthPicker.vue'
+import QuickAddRow, { type QuickAddDraft } from '@/components/finance/QuickAddRow.vue'
+import TransactionList from '@/components/finance/TransactionList.vue'
+import TxnFilters from '@/components/finance/TxnFilters.vue'
+import { applyFilters, isFiltered, signedMinor } from '@/utils/txnList'
+import { csvFilename, monthSummaryMarkdown, transactionsToCsv } from '@/utils/financeExport'
+import { downloadText } from '@/utils/noteExport'
+import { copyText } from '@/utils/clipboard'
+import { deleteAttachment, uploadAttachment } from '@/services/attachments'
+import { auth } from '@/firebase'
 import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
 const app = useAppStore()
 const { c, panelStyle } = useStyles()
-const { transactions, debts, finScope } = storeToRefs(app)
+const { transactions, debts, finScope, txnCategories, txnFilters, financeTags } = storeToRefs(app)
 const { now } = storeToRefs(useUiStore())
 const route = useRoute()
 const router = useRouter()
@@ -112,31 +124,40 @@ const marginPct = computed(() =>
 const extraIncomeList = computed(() =>
   filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value, kind: 'income' })
     .filter((t) => t.confirmed !== false)
-    .sort((a, b) => b.amount - a.amount),
+    .sort((a, b) => txnMinor(b) - txnMinor(a)),
 )
 
-const kindFilter = ref<'all' | 'income' | 'expense'>('all')
-const monthTxns = computed(() => {
-  let list = filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value })
-  if (tagFilter.value) list = list.filter((t) => t.tags.includes(tagFilter.value))
-  if (kindFilter.value !== 'all') list = list.filter((t) => t.kind === kindFilter.value)
-  return [...list].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id))
-})
+// The list is the month, narrowed by the saved filters. The tab's own scope
+// switch still wins over the filter's scope — a filter should not be able to
+// contradict the control the reader is looking at.
+const listTxns = computed(() =>
+  applyFilters(filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value }), {
+    ...txnFilters.value,
+    scope: scope.value,
+    tags: activeTags.value,
+  }),
+)
 
-// Group transactions by day with a per-day net subtotal.
-const txnDays = computed(() => {
-  const groups = new Map<string, Txn[]>()
-  for (const t of monthTxns.value) {
-    const arr = groups.get(t.date) || []
-    arr.push(t)
-    groups.set(t.date, arr)
-  }
-  return [...groups.entries()].map(([date, items]) => ({
-    date,
-    items,
-    net: items.reduce((sum, t) => sum + (t.kind === 'income' ? t.amount : -t.amount), 0),
-  }))
-})
+const activeTags = computed(() =>
+  tagFilter.value && !txnFilters.value.tags.includes(tagFilter.value)
+    ? [...txnFilters.value.tags, tagFilter.value]
+    : txnFilters.value.tags,
+)
+
+const listIsFiltered = computed(
+  () => isFiltered({ ...txnFilters.value, scope: 'all' }) || Boolean(tagFilter.value),
+)
+
+/**
+ * Everything before this month, netted — so the running balance in a month view
+ * continues from where the account actually stood rather than restarting at
+ * zero and implying it was empty on the 1st.
+ */
+const openingBalance = computed(() =>
+  filterTxns(transactions.value, { scope: scope.value })
+    .filter((t) => monthOf(t.date) < monthKey.value)
+    .reduce((sum, t) => sum + signedMinor(t), 0),
+)
 
 const monthDebts = computed(() =>
   debts.value.filter((d) => scope.value === 'all' || d.scope === scope.value),
@@ -170,15 +191,17 @@ function openTxnForm(kind: 'income' | 'expense') {
   showTxnForm.value = true
 }
 function submitTxn() {
-  const amount = parseINR(String(txnForm.value.amount ?? ''))
-  if (!amount || amount <= 0) return
+  // Parsed straight to integer paise: the rupee float exists only as the string
+  // the user typed, and never as a stored number (acceptance 143).
+  const amountMinor = parseMoney(String(txnForm.value.amount ?? ''))
+  if (!amountMinor || amountMinor <= 0) return
   const tags = String(txnForm.value.tags ?? '')
     .split(',')
     .map((x) => app.ensureFinTag(x))
     .filter(Boolean)
   app.addTxn({
     kind: txnForm.value.kind as Txn['kind'],
-    amount,
+    amountMinor,
     date: String(txnForm.value.date || todayInMonth()),
     note: String(txnForm.value.note ?? ''),
     category: String(
@@ -202,6 +225,86 @@ function submitTxn() {
   showTxnForm.value = false
 }
 
+// --- quick add (section 27b) -------------------------------------------------
+// The last category and method are remembered so the common case needs no
+// choosing. They live here rather than in the row because the row is
+// stateless — it is handed its defaults and hands back a draft.
+const lastCategory = ref('')
+const lastMethod = ref<Txn['method']>(undefined)
+
+function quickAdd(draft: QuickAddDraft): void {
+  if (draft.amountMinor <= 0) return
+  app.addTxn({
+    kind: draft.kind,
+    amountMinor: draft.amountMinor,
+    date: draft.date,
+    note: draft.note,
+    category: draft.category || (draft.kind === 'income' ? 'Income' : 'Other'),
+    method: draft.method ?? undefined,
+    tags: draft.tags.map((t) => app.ensureFinTag(t)).filter(Boolean),
+    scope: scope.value === 'all' ? 'personal' : (scope.value as FinScope),
+  })
+  if (draft.category) lastCategory.value = draft.category
+  if (draft.method) lastMethod.value = draft.method
+}
+
+// --- attachments (section 27b) -----------------------------------------------
+// The upload happens first and the reference is stored only on success, so a
+// failed upload never leaves a pointer to a blob that is not there — which is
+// the failure that produces a broken-image icon nobody can explain.
+const uploadingId = ref<number | null>(null)
+
+async function attachFiles(payload: { id: number; files: File[] }): Promise<void> {
+  uploadingId.value = payload.id
+  const failures: string[] = []
+  try {
+    for (const file of payload.files) {
+      const { attachment, error } = await uploadAttachment(payload.id, file)
+      if (attachment) app.addTxnAttachment(payload.id, attachment)
+      else if (error) failures.push(error)
+    }
+  } finally {
+    uploadingId.value = null
+  }
+  // One toast for the batch. One per failed file would bury the successes.
+  if (failures.length) app.showToastMsg(failures[0])
+}
+
+async function detachFile(payload: { id: number; attachmentId: string }): Promise<void> {
+  // The reference goes first: the user asked for the receipt to be gone, and
+  // an orphaned blob is a far smaller problem than a delete that appears not to
+  // have happened while a network call decides.
+  const removed = app.removeTxnAttachment(payload.id, payload.attachmentId)
+  const uid = auth?.currentUser?.uid
+  if (removed && uid) await deleteAttachment(uid, payload.id, removed)
+}
+
+// --- export (section 27b) ----------------------------------------------------
+// Reuses the note exporter's download helper rather than building a second
+// anchor-and-revoke dance: it already handles the object-URL lifecycle, and two
+// of those in one app is one too many to keep correct.
+function exportCsv(): void {
+  const from = `${monthKey.value}-01`
+  const to = `${monthKey.value}-31`
+  const csv = transactionsToCsv(
+    filterTxns(transactions.value, { scope: scope.value, monthKey: monthKey.value }),
+    { from, to },
+  )
+  downloadText(csv, csvFilename(from, to), 'text/csv;charset=utf-8')
+}
+
+async function copySummary(): Promise<void> {
+  const md = monthSummaryMarkdown({
+    monthKey: monthKey.value,
+    transactions: filterTxns(transactions.value, { scope: scope.value }),
+    categories: txnCategories.value,
+    debts: monthDebts.value,
+    now: now.value,
+  })
+  const ok = await copyText(md)
+  app.showToastMsg(ok ? 'Summary copied' : 'Could not copy the summary')
+}
+
 // --- add-debt form ----------------------------------------------------------
 const showDebtForm = ref(false)
 const debtForm = ref<Record<string, string>>({
@@ -218,13 +321,13 @@ useDraft('debt', null, debtForm, {
   isEmpty: (p) => !String(p.counterparty ?? '').trim() && !String(p.principal ?? '').trim(),
 })
 function submitDebt() {
-  const principal = parseINR(String(debtForm.value.principal ?? ''))
-  if (!String(debtForm.value.counterparty ?? '').trim() || !principal) return
+  const principalMinor = parseMoney(String(debtForm.value.principal ?? ''))
+  if (!String(debtForm.value.counterparty ?? '').trim() || !principalMinor) return
   app.addDebt({
     direction: debtForm.value.direction as Debt['direction'],
     counterparty: String(debtForm.value.counterparty),
-    principal,
-    interestRatePct: parseINR(String(debtForm.value.interestRatePct ?? '')) || undefined,
+    principalMinor,
+    interestRatePct: Number(debtForm.value.interestRatePct) || undefined,
     interestType: debtForm.value.interestType as Debt['interestType'],
     startDate: String(debtForm.value.startDate || todayInMonth()),
     dueDate: String(debtForm.value.dueDate ?? '') || undefined,
@@ -247,10 +350,27 @@ function submitDebt() {
 // Per-debt payment input.
 const payAmount = ref<Record<number, string>>({})
 function recordPayment(d: Debt) {
-  const amt = parseINR(payAmount.value[d.id] || '')
-  if (!amt || amt <= 0) return
-  app.recordDebtPayment(d.id, { amount: amt, date: todayInMonth() })
+  const amountMinor = parseMoney(payAmount.value[d.id] || '')
+  if (!amountMinor || amountMinor <= 0) return
+  // recordDebtPayment writes the linked transaction AND files the payment, so
+  // the money shows up in the month's totals and the outstanding decrements in
+  // one pass. Deleting either side later unlinks the other.
+  app.recordDebtPayment(d.id, { amountMinor, date: todayInMonth() })
   payAmount.value = { ...payAmount.value, [d.id]: '' }
+}
+
+/**
+ * How much of the debt is repaid, as a percentage.
+ *
+ * Against principal + accrued interest rather than principal alone: on an
+ * interest-bearing debt, paying the principal exactly does not clear it, and a
+ * bar reading 100% beside a non-zero outstanding is the kind of contradiction
+ * that makes a reader distrust the whole page.
+ */
+function paidPct(d: Debt): number {
+  const owedTotal = principalMinor(d) + accruedInterest(d, now.value)
+  if (owedTotal <= 0) return 0
+  return Math.min(100, Math.round((debtPaid(d) / owedTotal) * 100))
 }
 
 function daysUntil(due: string): number {
@@ -292,18 +412,6 @@ const header = pxify({
   gap: 'var(--sp-3)',
   flexWrap: 'wrap',
 })
-function pill(active: boolean) {
-  return pxify({
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    padding: '6px 12px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + (active ? c.value.accent : c.value.border),
-    background: active ? c.value.accent : 'transparent',
-    color: active ? c.value.onAccent : c.value.dim,
-    cursor: 'pointer',
-  })
-}
 const spacer = pxify({ flex: 1 })
 const body = pxify({
   flex: 1,
@@ -370,7 +478,10 @@ const debtStats = computed<Stat[]>(() => [
   { label: 'Net', value: money(debtSum.value.net, true), tone: signTone(debtSum.value.net) },
 ])
 
-const money = (n: number, signed = false) => formatCurrency(n, { signed })
+// Every figure on this tab is an integer count of paise, so there is exactly
+// one formatter and it takes minor units. A call site that divided by 100 first
+// would be the float back again, just later.
+const money = (n: number, signed = false) => formatMinor(n, { signed })
 
 // The hero. Its colour follows the sign of what it shows and nothing else:
 // "over budget" is a negative remaining, so the sign already carries it, and
@@ -504,26 +615,6 @@ const formGrid = pxify({
   gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
   gap: 'var(--sp-2)',
 })
-const dayHead = computed(() =>
-  pxify({
-    display: 'flex',
-    justifyContent: 'space-between',
-    ...typeStep('xs'),
-    color: c.value.dim,
-    padding: '6px 2px 2px',
-    borderBottom: '1px solid ' + c.value.border,
-  }),
-)
-const txnRow = computed(() =>
-  pxify({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--sp-3)',
-    padding: '8px 4px',
-    ...typeStep('sm'),
-    borderBottom: '1px solid ' + c.value.border,
-  }),
-)
 const table = pxify({ width: '100%', borderCollapse: 'collapse', ...typeStep('xs') })
 const th = computed(() =>
   pxify({
@@ -661,7 +752,7 @@ const debtCard = computed(() =>
                   alignItems: 'center',
                 }"
               >
-                <span :style="strong">{{ money(t.amount) }}</span>
+                <span :style="strong">{{ money(txnMinor(t)) }}</span>
                 <span :style="scopeChip">{{ t.source || 'Other' }}</span>
                 <span :style="sub">{{ t.note }}</span>
               </div>
@@ -685,21 +776,31 @@ const debtCard = computed(() =>
 
       <!-- ============ TRANSACTIONS ============ -->
       <template v-else-if="subtab === 'transactions'">
+        <!-- Always visible, at the top, autofocused (section 27b). The point is
+             one number and Enter: the detailed form below is for the row that
+             needs a source or a counterparty, not for the ₹40 chai. -->
+        <QuickAddRow
+          :categories="txnCategories"
+          :last-category="lastCategory"
+          :last-method="lastMethod"
+          @add="quickAdd"
+          @create-category="app.ensureTxnCategory($event)"
+        />
+
+        <TxnFilters
+          :model-value="txnFilters"
+          :categories="txnCategories"
+          :tags="financeTags.map((t) => t.name)"
+          :show-scope="false"
+          @update:model-value="app.setTxnFilters($event)"
+          @clear="app.clearTxnFilters()"
+        />
+
         <div :style="{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }">
-          <button :style="miniBtn" @click="openTxnForm('expense')">＋ Add expense</button>
-          <button :style="ghostBtn" @click="openTxnForm('income')">＋ Add income</button>
+          <button :style="ghostBtn" @click="openTxnForm('expense')">More fields…</button>
           <span :style="spacer"></span>
-          <button
-            v-for="k in ['all', 'income', 'expense']"
-            :key="k"
-            :style="pill(kindFilter === k)"
-            @click="kindFilter = k as typeof kindFilter"
-          >
-            {{ k[0].toUpperCase() + k.slice(1) }}
-          </button>
-          <span v-if="tagFilter" :style="tagChip(tagFilter)" @click="tagFilter = ''"
-            >#{{ tagFilter }} ✕</span
-          >
+          <Button size="sm" variant="ghost" @click="exportCsv">Export CSV</Button>
+          <Button size="sm" variant="ghost" @click="copySummary">Copy summary</Button>
         </div>
 
         <div v-if="showTxnForm" :style="card">
@@ -731,43 +832,21 @@ const debtCard = computed(() =>
           </div>
         </div>
 
-        <div v-if="!txnDays.length" :style="sub">No transactions in this month.</div>
-        <div v-for="day in txnDays" :key="day.date">
-          <div :style="dayHead">
-            <span>{{ day.date }}</span>
-            <span :style="{ color: valueColor(day.net) }">{{ fmtSigned(day.net) }}</span>
-          </div>
-          <div v-for="t in day.items" :key="t.id" :style="txnRow">
-            <span
-              :style="{
-                color: t.kind === 'income' ? GOOD : c.text,
-                fontWeight: 'var(--weight-semibold)',
-                minWidth: '92px',
-              }"
-            >
-              {{ money(t.kind === 'income' ? t.amount : -t.amount, true) }}
-            </span>
-            <span :style="{ flex: 1, minWidth: 0 }">
-              {{ t.note || t.category }}<span v-if="t.party" :style="sub"> · {{ t.party }}</span>
-            </span>
-            <span :style="scopeChip">{{ t.category }}</span>
-            <span v-for="tg in t.tags" :key="tg" :style="tagChip(tg)" @click="filterByTag(tg)"
-              >#{{ tg }}</span
-            >
-            <span v-if="scope === 'all'" :style="scopeChip">{{ t.scope }}</span>
-            <button
-              :style="{
-                background: 'transparent',
-                border: 'none',
-                color: c.dim,
-                cursor: 'pointer',
-              }"
-              @click="app.deleteTxn(t.id)"
-            >
-              ×
-            </button>
-          </div>
-        </div>
+        <TransactionList
+          :transactions="listTxns"
+          :categories="txnCategories"
+          :opening-minor="openingBalance"
+          :filtered="listIsFiltered"
+          :show-scope="scope === 'all'"
+          :uploading-id="uploadingId"
+          @attach="attachFiles"
+          @detach="detachFile"
+          @edit="openTxnForm('expense')"
+          @remove="app.deleteTxn($event)"
+          @tag="filterByTag"
+          @clear-filters="app.clearTxnFilters()"
+          @add="openTxnForm('expense')"
+        />
       </template>
 
       <!-- ============ DEBTS ============ -->
@@ -858,7 +937,7 @@ const debtCard = computed(() =>
               </div>
               <span :style="big">{{ money(debtOutstanding(d, now)) }}</span>
               <span :style="sub"
-                >of {{ money(d.principal)
+                >of {{ money(principalMinor(d))
                 }}<span v-if="d.interestRatePct">
                   · {{ d.interestRatePct }}% {{ d.interestType }}</span
                 ></span
@@ -874,16 +953,21 @@ const debtCard = computed(() =>
                 <div
                   :style="{
                     height: '100%',
-                    width:
-                      Math.min(100, Math.round((debtPaid(d) / (d.principal || 1)) * 100)) + '%',
+                    width: paidPct(d) + '%',
                     background: c.accent,
                   }"
                 ></div>
               </div>
               <span :style="scopeChip">{{ effectiveDebtStatus(d, now) }}</span>
               <div :style="{ display: 'flex', gap: '6px' }">
-                <TextInput v-model="payAmount[d.id]" placeholder="Payment ₹" inputmode="decimal" />
-                <button :style="miniBtn" @click="recordPayment(d)">Pay</button>
+                <TextInput
+                  v-model="payAmount[d.id]"
+                  size="sm"
+                  placeholder="Amount ₹"
+                  aria-label="Settlement amount"
+                  inputmode="decimal"
+                />
+                <button :style="miniBtn" @click="recordPayment(d)">Record settlement</button>
                 <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
               </div>
             </div>
@@ -907,10 +991,16 @@ const debtCard = computed(() =>
                 </span>
               </div>
               <span :style="big">{{ money(debtOutstanding(d, now)) }}</span>
-              <span :style="sub">of {{ money(d.principal) }}</span>
+              <span :style="sub">of {{ money(principalMinor(d)) }}</span>
               <div :style="{ display: 'flex', gap: '6px' }">
-                <TextInput v-model="payAmount[d.id]" placeholder="Received ₹" inputmode="decimal" />
-                <button :style="miniBtn" @click="recordPayment(d)">Receive</button>
+                <TextInput
+                  v-model="payAmount[d.id]"
+                  size="sm"
+                  placeholder="Amount ₹"
+                  aria-label="Settlement amount"
+                  inputmode="decimal"
+                />
+                <button :style="miniBtn" @click="recordPayment(d)">Record settlement</button>
                 <button :style="ghostBtn" @click="app.settleDebt(d.id)">Settle</button>
               </div>
             </div>

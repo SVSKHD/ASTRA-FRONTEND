@@ -13,7 +13,7 @@ import { debtSummary, monthTotals } from '@/utils/finance'
 import { useStyles } from '@/composables/useStyles'
 import { useMonthlyOverview } from '@/composables/useMonthlyOverview'
 import { pxify, typeStep } from '@/styles'
-import { formatINR } from '@/utils/currency'
+import { formatMinor } from '@/utils/money'
 import { bucketPct, type Bucket, type MonthlyOverview } from '@/utils/overview'
 import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
 import MonthPicker from '@/components/MonthPicker.vue'
@@ -212,8 +212,10 @@ const fin = computed(() => {
   const ds = debtSummary(debts.value, finScope.value, now.value)
   return { in: t.incomeReceived, out: t.out, net: t.net, income, overdue: ds.overdueCount }
 })
+// The card's figures come from monthTotals and baselineIncome, both of which
+// are integer paise since 27b, so the formatter takes minor units.
 function fmtSignedInr(n: number): string {
-  return (n >= 0 ? '+' : '−') + formatINR(Math.abs(n))
+  return formatMinor(n, { signed: true })
 }
 
 // --- styles -----------------------------------------------------------------
@@ -384,13 +386,13 @@ function cardIcon(key: string): IconName {
           <span :style="zeroStyle">{{ card.zeroText }}</span>
         </template>
         <template v-else-if="card.key === 'finances'">
-          <span :style="bigNum">{{ formatINR(fin.out) }}</span>
+          <span :style="bigNum">{{ formatMinor(fin.out) }}</span>
           <span :style="ofStyle">
-            {{ financeState.over ? 'over ' : 'of ' }}{{ formatINR(fin.income) }}
+            {{ financeState.over ? 'over ' : 'of ' }}{{ formatMinor(fin.income) }}
           </span>
           <div :style="trackStyle()"><span :style="fillStyle(card.pct, card.barColor)"></span></div>
           <span :style="pctStyle">
-            In {{ formatINR(fin.in) }} · Net {{ fmtSignedInr(fin.net) }}
+            In {{ formatMinor(fin.in) }} · Net {{ fmtSignedInr(fin.net) }}
             <template v-if="fin.overdue">
               · <span :style="{ color: RED }">{{ fin.overdue }} debt overdue</span></template
             >

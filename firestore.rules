@@ -42,6 +42,55 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
+    // DEVICES + ACTIVITY (section 27a).
+    //
+    // Read-only to the client, in both collections. Every field that matters —
+    // the IP hash, the coarse location, `lastActiveAt`, `revokedAt` — is either
+    // a secret derivation or a security control, and a client that could write
+    // them could forge a device row, backdate its own liveness, or un-revoke
+    // itself after being signed out. So all writes go through the callable
+    // functions, which run as admin and bypass these rules entirely.
+    //
+    // Note this is a genuine subtree under /users/{uid}, unlike the rest of the
+    // workspace: a single document cannot express "this row is revoked and may
+    // no longer be read", and that sentence is the whole feature.
+    match /users/{userId}/sessions/{sessionId} {
+      // `revokedAt == null` is the rule half of revocation, and it applies to
+      // single-document reads and to collection queries alike (Firestore
+      // evaluates a query against every document it would return, so a revoked
+      // row does not merely disappear from the list — it fails the read).
+      //
+      // The consequence is deliberate: a revoked device cannot even see its own
+      // session row. That is the signal the client watches for. The full chain
+      // is three links, because no one of them is sufficient:
+      //
+      //   1. this rule stops the revoked device reading;
+      //   2. `heartbeat` returns { revoked: true } and the client signs itself
+      //      out, which handles the tab that is already open and would
+      //      otherwise keep rendering what it has in memory;
+      //   3. `revokeRefreshTokens` in the admin SDK stops it minting a fresh
+      //      ID token, which is the only link that holds against a device whose
+      //      user has disabled JavaScript's cooperation entirely.
+      //
+      // Revoked rows are therefore absent from the devices list rather than
+      // shown greyed out. The revocation is still visible — it is an entry in
+      // the activity log, which is where a past event belongs.
+      allow read: if isSignedIn()
+        && request.auth.uid == userId
+        && resource.data.revokedAt == null;
+      allow write: if false;
+    }
+
+    match /users/{userId}/activity/{eventId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
     // AUREON SHARES: one frozen snapshot per shared item.
     // The workspace is a single document, so a rule cannot expose one todo out
     // of an array — each share gets its own document and is gated here.

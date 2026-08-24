@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { bucketPct, computeMonthlyOverview, type OverviewInput } from '@/utils/overview'
+import { toMinor } from '@/utils/money'
 import { emptyFinanceSettings, type Finance, type Reminder, type Task, type Todo } from '@/types'
 
 // July 2026 timestamps (local) for completion stamps.
@@ -156,8 +157,8 @@ describe('computeMonthlyOverview — todos/reminders/finance', () => {
       incomeByMonth: { '2026-07': 85000 },
     }
     expect(computeMonthlyOverview(input({ finances, settings }), M).finance).toEqual({
-      spent: 20000,
-      income: 85000,
+      spent: toMinor(20000),
+      income: toMinor(85000),
     })
   })
 })

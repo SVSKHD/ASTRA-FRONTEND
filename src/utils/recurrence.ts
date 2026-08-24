@@ -5,7 +5,7 @@
 // fully unit-testable — the store snapshots the timezone at creation and passes
 // the local "today" string in, this module never reads the clock.
 
-export type RecurrenceFreq = 'daily' | 'weekdays' | 'weekly' | 'custom'
+export type RecurrenceFreq = 'daily' | 'weekdays' | 'weekly' | 'custom' | 'monthly'
 
 export interface Recurrence {
   enabled: boolean
@@ -15,6 +15,16 @@ export interface Recurrence {
   timezone: string // IANA, captured at creation
   startDate: string // yyyy-mm-dd
   endDate: string | null
+  /**
+   * For 'monthly': the day of the month it fires on, 1–31. Added for recurring
+   * transactions (section 27b), where rent-on-the-5th is the shape almost every
+   * recurring money item takes and no weekly rule can express it.
+   *
+   * A value past the end of a short month CLAMPS to the last day rather than
+   * skipping: a rent due on the 31st is due in February, and a rule that
+   * silently misses February is worse than one that fires on the 28th.
+   */
+  dayOfMonth?: number
   // Second "still pending?" nudge time (HH:mm). null = no end-of-day nudge.
   endOfDayNudge?: string | null
 }
@@ -52,9 +62,30 @@ export function isRecurrenceDay(rec: Recurrence, dateStr: string): boolean {
     case 'weekly':
     case 'custom':
       return rec.daysOfWeek.includes(dow)
+    case 'monthly':
+      return dayOfMonth(dateStr) === clampedMonthDay(rec.dayOfMonth ?? 1, dateStr)
     default:
       return false
   }
+}
+
+export function dayOfMonth(dateStr: string): number {
+  return Number(dateStr.slice(8, 10))
+}
+
+/** Days in the month `dateStr` falls in — day 0 of the next month is this one's last. */
+export function daysInMonth(dateStr: string): number {
+  const [y, m] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m, 0)).getUTCDate()
+}
+
+/**
+ * The requested day of the month, pulled back to the last day when the month is
+ * too short. The 31st in February is the 28th (or the 29th), not nothing.
+ */
+export function clampedMonthDay(wanted: number, dateStr: string): number {
+  const last = daysInMonth(dateStr)
+  return Math.min(Math.max(1, Math.trunc(wanted)), last)
 }
 
 // Every firing date in [fromStr, toStr] inclusive. Used to lazily materialise

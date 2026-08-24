@@ -2,6 +2,24 @@
   command = "npm run build"
   publish = "dist"
 
+# The package manager is pinned rather than detected.
+#
+# Three deploy previews failed here in ~11 seconds each — far too fast for an
+# install of this dependency tree, which takes about a hundred — while the same
+# commit built locally to exit 0. The cause was a stray `pnpm-workspace.yaml` at
+# the repository root: Netlify reads it as "this is a pnpm project" and runs
+# `pnpm install --frozen-lockfile`, which fails immediately when the pnpm
+# lockfile is stale and equally immediately when it is absent. That is why
+# deleting the lockfiles changed nothing — both states fail the same check in
+# the same second, and the build step never ran at all.
+#
+# The file is gone, and NETLIFY_USE_PNPM=false says so explicitly so that
+# another stray pnpm artefact — `legacy-next/` still carries one — cannot
+# silently reintroduce the same eleven-second failure.
+[build.environment]
+  NETLIFY_USE_PNPM = "false"
+  NPM_FLAGS = "--include=dev"
+
 # Aureon is a single-page app that uses client-side history paths
 # (share links like /todos/:slug and /tasks/:id/view). Serve index.html
 # for any unmatched route so deep links and refreshes resolve.
