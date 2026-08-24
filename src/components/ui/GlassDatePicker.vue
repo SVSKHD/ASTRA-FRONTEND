@@ -163,8 +163,14 @@ function onDocumentPointer(event: MouseEvent) {
   if (panel.value?.contains(target) || trigger.value?.contains(target)) return
   closePanel(false)
 }
-onMounted(() => document.addEventListener('mousedown', onDocumentPointer))
-onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentPointer))
+// Guarded on both sides. An unmount can outlive the document — a test
+// environment torn down while a component is still unmounting, and any
+// server-side render — and an unguarded `document.removeEventListener` there
+// throws inside a lifecycle hook, which Vue reports as an unhandled rejection
+// rather than a test failure. That is the worst shape a bug can have: every
+// test still reports as passing while the run exits non-zero.
+onMounted(() => globalThis.document?.addEventListener('mousedown', onDocumentPointer))
+onBeforeUnmount(() => globalThis.document?.removeEventListener('mousedown', onDocumentPointer))
 
 // A portalled panel is no longer carried along by whatever scrolls under it, so
 // it has to be told. Capture-phase, because the scroller is usually an ancestor
@@ -173,12 +179,13 @@ function onViewportChange() {
   reposition()
 }
 onMounted(() => {
-  window.addEventListener('scroll', onViewportChange, true)
-  window.addEventListener('resize', onViewportChange)
+  globalThis.window?.addEventListener('scroll', onViewportChange, true)
+  globalThis.window?.addEventListener('resize', onViewportChange)
 })
 onBeforeUnmount(() => {
-  window.removeEventListener('scroll', onViewportChange, true)
-  window.removeEventListener('resize', onViewportChange)
+  // Same guard, same reason as the document listener above.
+  globalThis.window?.removeEventListener('scroll', onViewportChange, true)
+  globalThis.window?.removeEventListener('resize', onViewportChange)
 })
 
 // Scrolling the chosen time into view is what makes the column usable at all —

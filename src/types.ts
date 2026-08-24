@@ -2,10 +2,14 @@
 import type { Recurrence } from './utils/recurrence'
 import type { ChainKey, Network } from './utils/chains'
 import type { Metric, Occurrence } from './utils/goalMetrics'
+import type { Attachment } from './utils/attachments'
 
 export type { Recurrence } from './utils/recurrence'
 export type { ChainKey, Network } from './utils/chains'
 export type { Metric, Occurrence, MetricDirection, MetricUnit } from './utils/goalMetrics'
+// Re-exported from the util that owns the limits, so the model and the rules
+// that police it cannot end up describing two different things.
+export type { Attachment } from './utils/attachments'
 
 export type TabKey =
   | 'overview'
@@ -568,8 +572,10 @@ export interface Txn extends Timestamped {
   gst?: FinGst
   // Set when this txn is a debt repayment/borrowing, linking it to the debt.
   debtId?: number | null
+  /** @deprecated Pre-27b single URL. Read by the strip, never written. */
   attachmentUrl?: string
-  attachmentIds?: string[]
+  /** Receipts (section 27b). Stored inline: at most four small records a row. */
+  attachments?: Attachment[]
 }
 
 // A spend category, user-editable, with an icon and a colour (section 27b).

@@ -13,9 +13,11 @@
 import { computed } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import AttachmentStrip from '@/components/finance/AttachmentStrip.vue'
 import { formatMinor, valueColor } from '@/utils/money'
 import { categoryColor, categoryIcon } from '@/utils/txnCategories'
 import { signedMinor } from '@/utils/txnList'
+import { ACCEPT_ATTR, triageFiles } from '@/utils/attachments'
 import type { Txn, TxnCategory } from '@/types'
 
 const props = defineProps<{
@@ -24,8 +26,15 @@ const props = defineProps<{
   /** Balance after this row. Omitted hides the column. */
   balanceMinor?: number
   showScope?: boolean
+  uploading?: boolean
 }>()
-defineEmits<{ edit: [id: number]; remove: [id: number]; tag: [name: string] }>()
+const emit = defineEmits<{
+  edit: [id: number]
+  remove: [id: number]
+  tag: [name: string]
+  attach: [files: File[]]
+  detach: [attachmentId: string]
+}>()
 
 const signed = computed(() => signedMinor(props.txn))
 const bar = computed(() => categoryColor(props.categories, props.txn.category))
@@ -34,6 +43,17 @@ const icon = computed(() => categoryIcon(props.categories, props.txn.category))
 // A row that says only "Food" is a row nobody can identify a month later, which
 // is why the quick-add row keeps the leftovers.
 const title = computed(() => props.txn.note || props.txn.category || 'Transaction')
+
+function onPick(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const { accepted } = triageFiles(
+    Array.from(input.files ?? []),
+    props.txn.attachments?.length ?? 0,
+  )
+  if (accepted.length) emit('attach', accepted)
+  // Cleared so picking the same file twice in a row still fires a change event.
+  input.value = ''
+}
 </script>
 
 <template>
@@ -60,6 +80,17 @@ const title = computed(() => props.txn.note || props.txn.category || 'Transactio
         </button>
         <span v-if="showScope" class="txr__method">{{ txn.scope }}</span>
       </p>
+      <!-- Receipts. Shown when the row has one or is mid-upload; otherwise
+           nothing at all, so a list of mostly-unattached rows keeps one height
+           and the attach affordance lives in the hover actions instead. -->
+      <AttachmentStrip
+        v-if="txn.attachments?.length || uploading"
+        class="txr__att"
+        :attachments="txn.attachments ?? []"
+        :busy="uploading"
+        @add="$emit('attach', $event)"
+        @remove="$emit('detach', $event)"
+      />
     </div>
 
     <span class="txr__amount ui-tabular" :style="{ color: valueColor(signed) }">
@@ -71,6 +102,17 @@ const title = computed(() => props.txn.note || props.txn.category || 'Transactio
     </span>
 
     <span class="txr__actions">
+      <label class="txr__attach" :title="'Attach a receipt'">
+        <input
+          class="txr__hidden-input"
+          type="file"
+          multiple
+          :accept="ACCEPT_ATTR"
+          @change="onPick"
+        />
+        <Icon name="paperclip" size="xs" />
+        <span class="ui-sr-only">Attach a receipt</span>
+      </label>
       <IconButton label="Edit" size="sm" @click="$emit('edit', txn.id)">
         <Icon name="notebook" size="xs" />
       </IconButton>
@@ -158,6 +200,10 @@ const title = computed(() => props.txn.note || props.txn.category || 'Transactio
 .txr__tag:hover {
   color: var(--theme-accent);
 }
+.txr__att {
+  min-width: 0;
+  margin-top: var(--sp-1);
+}
 .txr__amount {
   flex-shrink: 0;
   font-size: var(--text-base);
@@ -174,6 +220,34 @@ const title = computed(() => props.txn.note || props.txn.category || 'Transactio
   line-height: var(--lh-xs);
   color: var(--text-muted, var(--theme-dim));
 }
+.txr__attach {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--theme-dim);
+  cursor: pointer;
+}
+.txr__attach:hover {
+  color: var(--text-primary, var(--theme-text));
+}
+.txr__attach:focus-within {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 1px;
+}
+.txr__hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 .txr__actions {
   display: flex;
   flex-shrink: 0;
@@ -182,12 +256,68 @@ const title = computed(() => props.txn.note || props.txn.category || 'Transactio
   transition: opacity 120ms ease;
 }
 .txr:hover .txr__actions,
-.txr:focus-within .txr__actions {
+.txr:focus-within .txr__attach {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--theme-dim);
+  cursor: pointer;
+}
+.txr__attach:hover {
+  color: var(--text-primary, var(--theme-text));
+}
+.txr__attach:focus-within {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 1px;
+}
+.txr__hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.txr__actions {
   opacity: 1;
 }
 /* On a touch device there is no hover, so the actions are always there rather
    than permanently unreachable. */
 @media (hover: none) {
+  .txr__attach {
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    color: var(--theme-dim);
+    cursor: pointer;
+  }
+  .txr__attach:hover {
+    color: var(--text-primary, var(--theme-text));
+  }
+  .txr__attach:focus-within {
+    outline: 2px solid var(--theme-accent);
+    outline-offset: 1px;
+  }
+  .txr__hidden-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
   .txr__actions {
     opacity: 1;
   }
@@ -200,6 +330,34 @@ const title = computed(() => props.txn.note || props.txn.category || 'Transactio
      amount is what the row is for. */
   .txr__balance {
     display: none;
+  }
+  .txr__attach {
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    color: var(--theme-dim);
+    cursor: pointer;
+  }
+  .txr__attach:hover {
+    color: var(--text-primary, var(--theme-text));
+  }
+  .txr__attach:focus-within {
+    outline: 2px solid var(--theme-accent);
+    outline-offset: 1px;
+  }
+  .txr__hidden-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
   .txr__actions {
     grid-column: 3;

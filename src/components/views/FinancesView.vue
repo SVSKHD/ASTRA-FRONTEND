@@ -46,6 +46,8 @@ import { applyFilters, isFiltered, signedMinor } from '@/utils/txnList'
 import { csvFilename, monthSummaryMarkdown, transactionsToCsv } from '@/utils/financeExport'
 import { downloadText } from '@/utils/noteExport'
 import { copyText } from '@/utils/clipboard'
+import { deleteAttachment, uploadAttachment } from '@/services/attachments'
+import { auth } from '@/firebase'
 import type { Debt, FinScope, ScopeFilter, Txn } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
@@ -244,6 +246,37 @@ function quickAdd(draft: QuickAddDraft): void {
   })
   if (draft.category) lastCategory.value = draft.category
   if (draft.method) lastMethod.value = draft.method
+}
+
+// --- attachments (section 27b) -----------------------------------------------
+// The upload happens first and the reference is stored only on success, so a
+// failed upload never leaves a pointer to a blob that is not there — which is
+// the failure that produces a broken-image icon nobody can explain.
+const uploadingId = ref<number | null>(null)
+
+async function attachFiles(payload: { id: number; files: File[] }): Promise<void> {
+  uploadingId.value = payload.id
+  const failures: string[] = []
+  try {
+    for (const file of payload.files) {
+      const { attachment, error } = await uploadAttachment(payload.id, file)
+      if (attachment) app.addTxnAttachment(payload.id, attachment)
+      else if (error) failures.push(error)
+    }
+  } finally {
+    uploadingId.value = null
+  }
+  // One toast for the batch. One per failed file would bury the successes.
+  if (failures.length) app.showToastMsg(failures[0])
+}
+
+async function detachFile(payload: { id: number; attachmentId: string }): Promise<void> {
+  // The reference goes first: the user asked for the receipt to be gone, and
+  // an orphaned blob is a far smaller problem than a delete that appears not to
+  // have happened while a network call decides.
+  const removed = app.removeTxnAttachment(payload.id, payload.attachmentId)
+  const uid = auth?.currentUser?.uid
+  if (removed && uid) await deleteAttachment(uid, payload.id, removed)
 }
 
 // --- export (section 27b) ----------------------------------------------------
@@ -805,6 +838,9 @@ const debtCard = computed(() =>
           :opening-minor="openingBalance"
           :filtered="listIsFiltered"
           :show-scope="scope === 'all'"
+          :uploading-id="uploadingId"
+          @attach="attachFiles"
+          @detach="detachFile"
           @edit="openTxnForm('expense')"
           @remove="app.deleteTxn($event)"
           @tag="filterByTag"

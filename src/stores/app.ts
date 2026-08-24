@@ -137,7 +137,16 @@ import {
 } from '@/utils/calendarEvents'
 import { reportError } from '@/utils/scrub'
 import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
-import type { Debt, DebtPayment, FinScope, FinTag, ScopeFilter, Txn, TxnCategory } from '@/types'
+import type {
+  Attachment,
+  Debt,
+  DebtPayment,
+  FinScope,
+  FinTag,
+  ScopeFilter,
+  Txn,
+  TxnCategory,
+} from '@/types'
 import { titleFromMessage } from '@/utils/ai'
 import {
   debtOutstanding,
@@ -3051,7 +3060,7 @@ export const useAppStore = defineStore('app', () => {
         gst: fields.gst,
         debtId: fields.debtId ?? null,
         attachmentUrl: fields.attachmentUrl,
-        attachmentIds: fields.attachmentIds,
+        attachments: fields.attachments,
         ...stamps(),
       },
     ]
@@ -3336,6 +3345,41 @@ export const useAppStore = defineStore('app', () => {
     }
     if (created.length) transactions.value = [...transactions.value, ...created]
     return created.length
+  }
+
+  /**
+   * Attach an uploaded receipt to a transaction.
+   *
+   * The upload has already happened by the time this is called — the record it
+   * returns is what gets stored. Splitting it that way means a failed upload
+   * never leaves a reference to a blob that is not there, which is the failure
+   * mode that produces a broken-image icon nobody can explain.
+   */
+  function addTxnAttachment(txnId: number, attachment: Attachment) {
+    transactions.value = transactions.value.map((t) =>
+      t.id === txnId ? touched({ ...t, attachments: [...(t.attachments ?? []), attachment] }) : t,
+    )
+  }
+
+  /**
+   * Drop a receipt from a transaction, returning the record so the caller can
+   * delete the blob.
+   *
+   * The reference goes first and the blob second. The other order leaves the
+   * user staring at a receipt they asked to remove while a network call decides
+   * whether it worked — and if the blob delete fails, an orphaned file is a far
+   * smaller problem than a delete that appears not to have happened.
+   */
+  function removeTxnAttachment(txnId: number, attachmentId: string): Attachment | null {
+    const txn = transactions.value.find((t) => t.id === txnId)
+    const gone = txn?.attachments?.find((a) => a.id === attachmentId) ?? null
+    if (!gone) return null
+    transactions.value = transactions.value.map((t) =>
+      t.id === txnId
+        ? touched({ ...t, attachments: (t.attachments ?? []).filter((a) => a.id !== attachmentId) })
+        : t,
+    )
+    return gone
   }
 
   function setTxnFilters(next: TxnFilters) {
@@ -6744,6 +6788,8 @@ export const useAppStore = defineStore('app', () => {
     ensureTxnCategory,
     txnFilters,
     generateRecurringTxns,
+    addTxnAttachment,
+    removeTxnAttachment,
     setTxnFilters,
     clearTxnFilters,
     deleteWithUndo,

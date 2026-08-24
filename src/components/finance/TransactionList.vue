@@ -25,6 +25,8 @@ const props = withDefaults(
     showScope?: boolean
     /** True when a filter is narrowing the list — changes what the empty state says. */
     filtered?: boolean
+    /** Transaction id currently uploading, so only that row shows a busy state. */
+    uploadingId?: number | null
   }>(),
   { openingMinor: 0, showBalance: true },
 )
@@ -32,6 +34,8 @@ const emit = defineEmits<{
   edit: [id: number]
   remove: [id: number]
   tag: [name: string]
+  attach: [payload: { id: number; files: File[] }]
+  detach: [payload: { id: number; attachmentId: string }]
   'clear-filters': []
   add: []
 }>()
@@ -77,9 +81,12 @@ function dayLabel(date: string): string {
               :categories="categories"
               :balance-minor="showBalance ? row.balanceMinor : undefined"
               :show-scope="showScope"
+              :uploading="uploadingId === row.txn.id"
               @edit="emit('edit', $event)"
               @remove="emit('remove', $event)"
               @tag="emit('tag', $event)"
+              @attach="emit('attach', { id: row.txn.id, files: $event })"
+              @detach="emit('detach', { id: row.txn.id, attachmentId: $event })"
             />
           </ul>
         </div>
