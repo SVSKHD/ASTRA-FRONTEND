@@ -21,6 +21,9 @@ import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Button from '@/components/ui/Button.vue'
 import Alert from '@/components/ui/Alert.vue'
 import Modal from '@/components/ui/Modal.vue'
+import IconSymbol from '@/components/icons/IconSymbol.vue'
+import IconBuy from '@/components/icons/IconBuy.vue'
+import IconSell from '@/components/icons/IconSell.vue'
 import { useForm } from '@/composables/useForm'
 import { tradeFormSchema } from '@/utils/formSchemas'
 import {
@@ -286,7 +289,11 @@ async function onSubmit() {
            a row. `aria-live` so a screen-reader user gets them too. -->
       <dl class="tform__preview ui-tabular" aria-live="polite">
         <div class="tform__cell">
-          <dt class="ui-label">Move</dt>
+          <dt class="ui-label">
+            <IconBuy v-if="form.values.side === 'buy'" :size="12" />
+            <IconSell v-else :size="12" />
+            Move
+          </dt>
           <dd class="tform__value" :class="`is-${sign(preview?.move)}`">
             {{ preview ? signed2(preview.move) : '—' }}
           </dd>
@@ -298,7 +305,10 @@ async function onSubmit() {
           </dd>
         </div>
         <div class="tform__cell">
-          <dt class="ui-label">Contract</dt>
+          <dt class="ui-label">
+            <IconSymbol :size="12" />
+            Contract
+          </dt>
           <dd class="tform__value">×{{ contractSize }}</dd>
         </div>
       </dl>
@@ -327,15 +337,22 @@ async function onSubmit() {
 </template>
 
 <style scoped>
+/* The raised layer, like every other panel on this tab. */
 .tform {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
   min-width: 0;
   padding: var(--sp-3);
-  border: 1px solid var(--border-subtle, var(--glass-border));
+  border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
-  background: var(--bg-elevated, var(--glass-card));
+  background: var(--layer-raised-bg);
+  box-shadow: var(--layer-raised-shadow);
+}
+.tform__cell .ui-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .tform__grid {
   display: grid;

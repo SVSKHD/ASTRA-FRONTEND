@@ -4,8 +4,10 @@
 // missing settings document.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import TradesView from '@/components/views/TradesView.vue'
+import { useAuthStore } from '@/stores/auth'
 
 // The hover directive is registered on the app in main.ts, which a mounted
 // component does not go through.
@@ -17,8 +19,44 @@ describe('TradesView', () => {
 
   it('renders the account block under the labels the spec fixes', () => {
     const wrapper = mountView()
-    const labels = wrapper.findAll('.statrow__label').map((el) => el.text())
-    expect(labels.slice(0, 3)).toEqual(['Balance', 'Secured', 'Total profit'])
+    const labels = wrapper.findAll('.acct__label').map((el) => el.text())
+    expect(labels).toEqual(['Balance', 'Secured', 'Total profit'])
+    wrapper.unmount()
+  })
+
+  it('gives each account figure its own glyph, and only the profit a sign colour', () => {
+    const wrapper = mountView()
+    // Three labels, three different icons — the audit that started this pass
+    // found one glyph doing several jobs, so this is the shape of the fix.
+    const glyphs = wrapper.findAll('.acct__label svg')
+    expect(glyphs).toHaveLength(3)
+    expect(new Set(glyphs.map((g) => g.html())).size).toBe(3)
+    const values = wrapper.findAll('.acct__value')
+    expect(values[0].classes()).not.toContain('is-pos')
+    expect(values[1].classes()).not.toContain('is-pos')
+    wrapper.unmount()
+  })
+
+  it('says so, and keeps saying so, when Firestore cannot be reached', async () => {
+    // A signed-in user with no Firestore behind them is the real unreachable
+    // path — under the test runner the SDK never loads — and the failure has to
+    // be a standing message on the screen rather than a toast that has gone by
+    // the time the reader looks up.
+    useAuthStore().user = {
+      uid: 'u1',
+      name: 'T',
+      email: 't@example.com',
+      provider: 'google',
+      initial: 'T',
+      color: '',
+    }
+    const wrapper = mountView()
+    await nextTick()
+    await Promise.resolve()
+    await nextTick()
+    const alert = wrapper.find('.ui-alert--danger')
+    expect(alert.exists()).toBe(true)
+    expect(alert.text()).toContain('Firestore')
     wrapper.unmount()
   })
 

@@ -16,15 +16,21 @@ import { storeToRefs } from 'pinia'
 import ListToolbar from '@/components/ListToolbar.vue'
 import Alert from '@/components/ui/Alert.vue'
 import Button from '@/components/ui/Button.vue'
-import Icon from '@/components/ui/Icon.vue'
-import StatRow from '@/components/ui/StatRow.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
-import Skeleton from '@/components/ui/Skeleton.vue'
+import StatRow from '@/components/ui/StatRow.vue'
 import FormField from '@/components/ui/FormField.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
+import IconExport from '@/components/icons/IconExport.vue'
+import IconTargetHit from '@/components/icons/IconTargetHit.vue'
+import IconTargetMissed from '@/components/icons/IconTargetMissed.vue'
+import IconSessionAsia from '@/components/icons/IconSessionAsia.vue'
+import IconSessionLondon from '@/components/icons/IconSessionLondon.vue'
+import IconSessionNy from '@/components/icons/IconSessionNy.vue'
+import AccountBlock from '@/components/trades/AccountBlock.vue'
 import TradeCalendar from '@/components/trades/TradeCalendar.vue'
 import TradeForm from '@/components/trades/TradeForm.vue'
 import TradeTable from '@/components/trades/TradeTable.vue'
+import TradeSkeleton from '@/components/trades/TradeSkeleton.vue'
 import SecuredLedger from '@/components/trades/SecuredLedger.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useUiStore } from '@/stores/ui'
@@ -36,7 +42,6 @@ import { signTone } from '@/utils/money'
 import {
   TRADE_SESSIONS,
   accountTotals,
-  dayMetaFor,
   dayTotals,
   fmt2,
   signOf,
@@ -48,6 +53,7 @@ import {
   tradesToCsv,
 } from '@/utils/tradeMath'
 import type { Stat } from '@/components/ui/StatRow.vue'
+import type { TradeSession } from '@/types'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -77,19 +83,6 @@ const totals = computed(() =>
   accountTotals(trades.value, secured.value, settings.value.startingBalance),
 )
 
-// The three labels the spec fixes, in the order it fixes them. Only the profit
-// is coloured: a balance and a total withdrawn are amounts, not results.
-const accountStats = computed<Stat[]>(() => [
-  { label: 'Balance', value: fmt2(totals.value.balance), note: monthLabel(monthKey.value) },
-  { label: 'Secured', value: fmt2(totals.value.securedTotal), note: 'taken off the table' },
-  {
-    label: 'Total profit',
-    value: signed2(totals.value.totalProfit),
-    tone: signTone(totals.value.totalProfit),
-    note: 'trades only',
-  },
-])
-
 // --- targets -----------------------------------------------------------------
 // Off the shared clock rather than a value read at setup: a session left open
 // across midnight otherwise reports yesterday as today for the rest of the day.
@@ -103,9 +96,6 @@ const monthProgress = computed(() =>
   ),
 )
 
-// --- the calendar ------------------------------------------------------------
-const dayMeta = computed(() => dayMetaFor(trades.value, settings.value.dayTarget))
-
 // --- the table ---------------------------------------------------------------
 const visibleTrades = computed(() =>
   selectedDay.value ? trades.value.filter((t) => t.date === selectedDay.value) : trades.value,
@@ -113,6 +103,11 @@ const visibleTrades = computed(() =>
 
 // --- stats -------------------------------------------------------------------
 const stats = computed(() => tradeStats(trades.value))
+const SESSION_ICON = {
+  Asia: IconSessionAsia,
+  London: IconSessionLondon,
+  NY: IconSessionNy,
+} satisfies Record<TradeSession, unknown>
 const statRow = computed<Stat[]>(() => [
   { label: 'Hit rate', value: `${fmt2(stats.value.hitRate)}%`, note: `${stats.value.wins} up` },
   {
@@ -187,7 +182,7 @@ defineExpose({ focus: () => form.value?.focus() })
     <ListToolbar title="Trades" new-label="Log trade" @new="form?.focus()">
       <template #actions>
         <Button variant="ghost" size="sm" :disabled="!visibleTrades.length" @click="exportCsv">
-          <Icon name="download" size="xs" />
+          <IconExport :size="14" />
           CSV
         </Button>
         <Button variant="ghost" size="sm" @click="showSettings = !showSettings">
@@ -202,8 +197,18 @@ defineExpose({ focus: () => form.value?.focus() })
       {{ error }}
     </Alert>
 
-    <div class="tv__scroll">
-      <StatRow :stats="accountStats" size="lg" />
+    <!-- Loading is the whole screen's state, not the table's: the account
+         figures and the calendar are as absent as the rows are, and a skeleton
+         that stands in for one of the three is a layout that jumps twice. -->
+    <TradeSkeleton v-if="loading" class="tv__scroll" />
+
+    <div v-else class="tv__scroll">
+      <AccountBlock
+        :balance="totals.balance"
+        :secured="totals.securedTotal"
+        :total-profit="totals.totalProfit"
+        :period="monthLabel(monthKey)"
+      />
 
       <section v-if="showSettings" class="tv__settings">
         <FormField label="Starting balance" v-slot="f">
@@ -246,7 +251,11 @@ defineExpose({ focus: () => form.value?.focus() })
       <section class="tv__targets">
         <div class="tv__target">
           <div class="tv__targetHead">
-            <span class="ui-label">Today · move</span>
+            <span class="ui-label">
+              <IconTargetHit v-if="dayProgress.remaining === 0" :size="14" />
+              <IconTargetMissed v-else :size="14" />
+              Today · move
+            </span>
             <span class="tv__figure ui-mono" :class="`is-${signOf(dayProgress.move)}`">
               {{ signed2(dayProgress.move) }} / {{ fmt2(dayProgress.target) }}
             </span>
@@ -262,7 +271,11 @@ defineExpose({ focus: () => form.value?.focus() })
         </div>
         <div class="tv__target">
           <div class="tv__targetHead">
-            <span class="ui-label">Month to date · move</span>
+            <span class="ui-label">
+              <IconTargetHit v-if="monthProgress.remaining === 0" :size="14" />
+              <IconTargetMissed v-else :size="14" />
+              Month to date · move
+            </span>
             <span class="tv__figure ui-mono" :class="`is-${signOf(monthProgress.move)}`">
               {{ signed2(monthProgress.move) }} / {{ fmt2(monthProgress.target) }}
             </span>
@@ -284,8 +297,9 @@ defineExpose({ focus: () => form.value?.focus() })
       <div class="tv__split">
         <TradeCalendar
           :trades="trades"
-          :day-meta="dayMeta"
+          :day-target="settings.dayTarget"
           :selected="selectedDay"
+          :loading="loading"
           @update:selected="selectedDay = $event"
           @month="onMonth"
         />
@@ -298,9 +312,7 @@ defineExpose({ focus: () => form.value?.focus() })
         />
       </div>
 
-      <Skeleton v-if="loading" :lines="4" />
       <TradeTable
-        v-else
         :trades="visibleTrades"
         :empty-title="selectedDay ? `Nothing traded on ${selectedDay}` : 'No trades this month'"
         :empty-description="
@@ -317,7 +329,10 @@ defineExpose({ focus: () => form.value?.focus() })
           <span class="ui-label">Move by session</span>
           <ul class="tv__sessionList">
             <li v-for="s in TRADE_SESSIONS" :key="s" class="tv__session">
-              <span class="tv__sessionName">{{ s }}</span>
+              <span class="tv__sessionName">
+                <component :is="SESSION_ICON[s]" :size="14" />
+                {{ s }}
+              </span>
               <span class="tv__figure ui-mono" :class="`is-${signOf(stats.bySession[s])}`">
                 {{ signed2(stats.bySession[s]) }}
               </span>
@@ -355,6 +370,17 @@ defineExpose({ focus: () => form.value?.focus() })
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--sp-4);
   min-width: 0;
+}
+/* Both are panels on the raised layer — same background, same border, same one
+   shadow recipe. The base layer is the stage they sit on and casts nothing;
+   the overlay recipe belongs to the tooltip and the sticky header. */
+.tv__settings,
+.tv__stats {
+  padding: var(--sp-4);
+  border: 1px solid var(--layer-raised-border);
+  border-radius: var(--radius-card);
+  background: var(--layer-raised-bg);
+  box-shadow: var(--layer-raised-shadow);
 }
 .tv__target {
   display: flex;
@@ -426,9 +452,17 @@ defineExpose({ focus: () => form.value?.focus() })
   border-radius: var(--radius-control);
 }
 .tv__sessionName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
   min-width: 0;
   font-size: var(--text-xs);
   line-height: var(--lh-xs);
   color: var(--text-secondary, var(--theme-dim));
+}
+.tv__targetHead .ui-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
 }
 </style>

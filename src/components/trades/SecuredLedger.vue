@@ -12,7 +12,8 @@ import TextInput from '@/components/ui/TextInput.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Button from '@/components/ui/Button.vue'
 import IconButton from '@/components/ui/IconButton.vue'
-import Icon from '@/components/ui/Icon.vue'
+import IconSecured from '@/components/icons/IconSecured.vue'
+import IconDelete from '@/components/icons/IconDelete.vue'
 import { useForm } from '@/composables/useForm'
 import { securedFormSchema } from '@/utils/formSchemas'
 import { fmt2, todayYmd } from '@/utils/tradeMath'
@@ -43,7 +44,10 @@ async function onSubmit() {
   <section class="sled">
     <header class="sled__head">
       <div class="sled__title">
-        <span class="ui-label">Secured</span>
+        <span class="ui-label">
+          <IconSecured :size="14" />
+          Secured
+        </span>
         <span class="sled__total ui-mono">{{ fmt2(total) }}</span>
         <span class="sled__count">
           {{ count }} withdrawal{{ count === 1 ? '' : 's' }} this month
@@ -103,7 +107,7 @@ async function onSubmit() {
           size="sm"
           @click="$emit('delete', entry.id)"
         >
-          <Icon name="trash" size="xs" />
+          <IconDelete :size="14" />
         </IconButton>
       </li>
     </ul>
@@ -120,9 +124,35 @@ async function onSubmit() {
   gap: var(--sp-3);
   min-width: 0;
   padding: var(--sp-3);
-  border: 1px solid var(--border-subtle, var(--glass-border));
+  border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
-  background: var(--bg-elevated, var(--glass-card));
+  background: var(--layer-raised-bg);
+  box-shadow: var(--layer-raised-shadow);
+}
+.sled__title .ui-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+/* Same rule as the trade table: the destructive action appears on approach,
+   and comes back for the keyboard as well as the pointer. */
+.sled__row .ui-iconbtn {
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.sled__row:hover .ui-iconbtn,
+.sled__row:focus-within .ui-iconbtn {
+  opacity: 1;
+}
+@media (hover: none) {
+  .sled__row .ui-iconbtn {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sled__row .ui-iconbtn {
+    transition: none;
+  }
 }
 .sled__head {
   display: flex;

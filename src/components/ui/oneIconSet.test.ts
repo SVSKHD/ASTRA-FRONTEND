@@ -49,12 +49,21 @@ const ALLOWED = new Set([
   'components/security/SessionMap.vue',
 ])
 
+// The trade family (section 28b) is the one place a second set is allowed, and
+// it is allowed as a SET rather than as fourteen exceptions: every file in this
+// directory is one glyph, and `components/icons/family.test.ts` holds it to its
+// own frame — 24×24, currentColor, 1.5, round caps, no colour, no duplicate
+// geometry. The rule this whole audit exists for is unchanged: what is banned
+// is an icon drawn by hand at a call site, not a second deliberate set with its
+// own audit behind it.
+const TRADE_FAMILY = /^components\/icons\/Icon[A-Za-z]+\.vue$/
+
 describe('one set, drawn once', () => {
   it('nothing draws its own icon (acceptance 111)', () => {
     const offenders = vueFiles(SRC)
       .filter((file) => template(readFileSync(file, 'utf8')).includes('<svg'))
       .map((file) => file.replace(SRC + '/', ''))
-      .filter((rel) => !ALLOWED.has(rel))
+      .filter((rel) => !ALLOWED.has(rel) && !TRADE_FAMILY.test(rel))
     expect(offenders).toEqual([])
   })
 

@@ -101,6 +101,53 @@
 
   /* Elevation, expressed through the theme's own shadow token. */
   --elev-1: var(--glass-shadow);
+
+  /* ---- the layer system (section 28b) -------------------------------------
+     Three surfaces, and a component picks one by what it IS rather than by how
+     much shadow it wants: base is the ground a panel sits on, raised is a panel
+     or a card, overlay is anything that floats over one — a tooltip, a menu, a
+     dialog.
+
+     Each layer names its own background, border AND shadow, and the three
+     shadow recipes are deliberately different shapes, not one recipe at three
+     opacities: base has no cast shadow at all (it is the ground — a shadow
+     under it is a shadow from nothing) and carries a hairline instead; raised
+     is a short, tight drop; overlay is a long, soft one with a contact shadow
+     under it. Reusing one recipe across two layers is what makes a "layered"
+     interface read as flat with blur on it.
+
+     The ink is derived from the theme's own page colour rather than being
+     black: a black shadow on a pale theme is a smudge, and on the mono themes
+     it is the only chroma on the screen. */
+  --shadow-ink: color-mix(in oklch, var(--bg-base, #000) 45%, #000);
+
+  --layer-base-bg: var(--bg-base, var(--theme-surface));
+  --layer-base-border: color-mix(
+    in oklch,
+    var(--border-subtle, var(--glass-border)) 55%,
+    transparent
+  );
+  --layer-base-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary, #fff) 6%, transparent);
+
+  --layer-raised-bg: var(--bg-elevated, var(--glass-card));
+  --layer-raised-border: var(--border-subtle, var(--glass-border));
+  --layer-raised-shadow:
+    0 1px 1px color-mix(in srgb, var(--shadow-ink) 20%, transparent),
+    0 4px 10px -6px color-mix(in srgb, var(--shadow-ink) 34%, transparent);
+
+  /* Built from --bg-base, not --bg-elevated: the elevated token is a
+     translucent glass fill, and an overlay that inherits its alpha is a tooltip
+     you read the calendar through. An overlay is the one layer that must be
+     opaque — it covers content by definition. */
+  --layer-overlay-bg: color-mix(in oklch, var(--bg-base, #000) 88%, var(--text-primary, #fff) 12%);
+  --layer-overlay-border: color-mix(
+    in oklch,
+    var(--border-subtle, var(--glass-border)) 75%,
+    var(--text-primary, #fff)
+  );
+  --layer-overlay-shadow:
+    0 12px 28px -12px color-mix(in srgb, var(--shadow-ink) 62%, transparent),
+    0 2px 6px -3px color-mix(in srgb, var(--shadow-ink) 40%, transparent);
 }
 
 /* Compact density: the same components, tighter. The /ui page toggles this on

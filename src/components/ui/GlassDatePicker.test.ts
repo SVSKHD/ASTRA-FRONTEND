@@ -296,7 +296,11 @@ describe('GlassDatePicker — a painted grid', () => {
     const plain = wrapper.get('#gdp-day-2024-06-05')
     expect(plain.classes()).not.toContain('is-pos')
     expect(plain.classes()).not.toContain('is-neg')
-    expect(plain.attributes('style')).toBeUndefined()
+    expect(plain.classes()).not.toContain('has-wash')
+    // It still carries its place in the month — every cell does, because that
+    // is what staggers the sweep — but no wash and no heat.
+    expect(plain.attributes('style')).not.toContain('--gdp-day-wash')
+    expect(plain.attributes('style')).not.toContain('--gdp-day-heat')
     wrapper.unmount()
   })
 
@@ -333,6 +337,72 @@ describe('GlassDatePicker — a painted grid', () => {
     expect(wrapper.emitted('month')?.[0]).toEqual(['2024-06'])
     await wrapper.get('[aria-label="Previous month"]').trigger('click')
     expect(wrapper.emitted('month')?.at(-1)).toEqual(['2024-05'])
+    wrapper.unmount()
+  })
+})
+
+// Section 28b: a caller with a scale of its own hands the cell an exact fill,
+// and the grid stops behaving like a date field — the cells lift, and the
+// selection is a ring over the fill rather than a fill of its own.
+describe('GlassDatePicker — a caller’s own scale', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  function mountScaled(props: Record<string, unknown> = {}) {
+    return mount(GlassDatePicker, {
+      props: {
+        modelValue: '2024-06-03',
+        inline: true,
+        quickEntry: false,
+        dayMeta: {
+          '2024-06-03': { tone: 'pos', wash: 'var(--pl-pos-4)' },
+          '2024-06-04': { tone: 'neg', intensity: 0.5 },
+        },
+        ...props,
+      },
+      attachTo: document.body,
+    })
+  }
+
+  it('takes the fill it is given rather than mixing one', () => {
+    const wrapper = mountScaled()
+    const cell = wrapper.get('#gdp-day-2024-06-03')
+    expect(cell.classes()).toContain('has-wash')
+    expect(cell.attributes('style')).toContain('--gdp-day-wash: var(--pl-pos-4)')
+    wrapper.unmount()
+  })
+
+  it('still mixes for a caller that only gave an intensity', () => {
+    const wrapper = mountScaled()
+    const cell = wrapper.get('#gdp-day-2024-06-04')
+    expect(cell.classes()).not.toContain('has-wash')
+    expect(cell.attributes('style')).toContain('--gdp-day-heat: 50%')
+    wrapper.unmount()
+  })
+
+  it('marks the grid as painted, which is what turns the lift on', () => {
+    expect(mountScaled().get('.gdp__grid').classes()).toContain('is-painted')
+    // A plain date field is not painted and keeps its ordinary behaviour.
+    const plain = mount(GlassDatePicker, {
+      props: { modelValue: '2024-06-03', inline: true },
+      attachTo: document.body,
+    })
+    expect(plain.get('.gdp__grid').classes()).not.toContain('is-painted')
+    plain.unmount()
+  })
+
+  it('orders every cell for the sweep, in reading order', () => {
+    const wrapper = mountScaled()
+    const cells = wrapper.findAll('.gdp__day')
+    expect(cells[0].attributes('style')).toContain('--gdp-day-order: 0')
+    expect(cells[8].attributes('style')).toContain('--gdp-day-order: 8')
+    wrapper.unmount()
+  })
+
+  it('keeps the wash under the selection instead of replacing it', () => {
+    const wrapper = mountScaled()
+    const selected = wrapper.get('#gdp-day-2024-06-03')
+    expect(selected.classes()).toContain('is-selected')
+    expect(selected.classes()).toContain('has-wash')
     wrapper.unmount()
   })
 })
