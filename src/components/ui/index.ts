@@ -51,6 +51,7 @@ export { default as Tooltip } from './Tooltip.vue'
 
 export * from './registry'
 export type { SelectOption } from './Select.vue'
+export type { DayMeta } from './GlassDatePicker.vue'
 export type { ListOption } from '@/composables/useListbox'
 export type { Segment } from './SegmentedControl.vue'
 export type { Stat } from './StatRow.vue'

@@ -97,3 +97,39 @@ export const repoLinkSchema = z.object({
 })
 
 export type RepoLinkForm = z.infer<typeof repoLinkSchema>
+
+// The trade logger (section 28). Entry and exit are the only prices anyone
+// types; move and P/L are derived, so there is nothing to validate about them.
+// A price of zero is legitimate on some instruments, so the rule is "a number",
+// not "a positive number" — the lot, which is a size, is the one that must be
+// above zero.
+export const tradeFormSchema = z.object({
+  date: isoDate,
+  symbol: z
+    .string({ error: 'Enter the symbol you traded.' })
+    .trim()
+    .min(1, 'Enter the symbol you traded.')
+    .max(20, 'Keep a symbol under 20 characters.'),
+  session: z.enum(['Asia', 'London', 'NY'], { error: 'Pick the session you traded in.' }),
+  side: z.enum(['buy', 'sell'], { error: 'Pick Buy or Sell.' }),
+  lot: z
+    .number({ error: 'Enter the lot size.' })
+    .positive('A lot size is greater than zero.')
+    .max(10_000, 'That lot size looks like a typo — check the units.'),
+  entry: z.number({ error: 'Enter the entry price.' }).finite('Enter the entry price.'),
+  exit: z.number({ error: 'Enter the exit price.' }).finite('Enter the exit price.'),
+  note: z.string().max(200, 'Keep the note under 200 characters.'),
+})
+
+export type TradeForm = z.infer<typeof tradeFormSchema>
+
+/** The withdrawal row. An amount of zero is not a withdrawal. */
+export const securedFormSchema = z.object({
+  date: isoDate,
+  amt: z
+    .number({ error: 'Enter the amount you secured.' })
+    .positive('Enter an amount greater than zero.'),
+  note: z.string().max(200, 'Keep the note under 200 characters.'),
+})
+
+export type SecuredForm = z.infer<typeof securedFormSchema>

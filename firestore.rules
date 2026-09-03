@@ -86,6 +86,33 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // TRADE LOGGER (section 28).
+    //
+    // Three real subcollections under the uid, unlike the rest of the
+    // workspace: a trading month is hundreds of rows written one at a time and
+    // read back by date range, which is a query rather than a field on a blob.
+    //
+    // The path IS the ownership check — another signed-in user's uid does not
+    // match {userId}, so their read is denied before any field is looked at —
+    // and, unlike the device rows above, the client is the writer here: these
+    // are the user's own records, not security controls, so there is no
+    // callable to route them through.
+    //
+    // `{document=**}` on each so a future sub-document (an attachment on a
+    // trade, say) inherits the same gate rather than falling through to the
+    // catch-all at the bottom, which only matches top-level collections.
+    match /users/{userId}/trades/{tradeId}/{document=**} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/secured/{securedId}/{document=**} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/settings/{settingId}/{document=**} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn() && request.auth.uid == userId;
       allow write: if false;

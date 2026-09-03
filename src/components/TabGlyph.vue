@@ -142,6 +142,15 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
       RC(13, 15, 7, 4.5, 1.5, filled ? { fill: col } : stroke(col, 1.7)),
     ]
     ch = [...edges, ...nodes]
+  } else if (name === 'trades') {
+    // Two candlesticks with their wicks: the trade log's own glyph, and
+    // deliberately not the Stocks trend line — one tab is a watchlist, the
+    // other is a record of what was actually traded.
+    const wicks = [P('M8.5 3.6 V20.4', stroke(col, 1.6)), P('M15.5 3.6 V20.4', stroke(col, 1.6))]
+    const bodies = filled
+      ? [RC(6, 6.5, 5, 7, 1.2, { fill: col }), RC(13, 10.5, 5, 7, 1.2, { fill: col })]
+      : [RC(6, 6.5, 5, 7, 1.2, stroke(col, 1.8)), RC(13, 10.5, 5, 7, 1.2, stroke(col, 1.8))]
+    ch = [...wicks, ...bodies]
   } else if (name === 'bots') {
     // A robot head: rounded case, two eyes, and an antenna.
     const antenna = [

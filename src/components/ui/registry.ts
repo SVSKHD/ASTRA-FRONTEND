@@ -325,6 +325,22 @@ export const UI_COMPONENTS: ComponentDoc[] = [
       { name: 'mode', type: "'date' | 'datetime' | 'time' | 'range' | 'month'", default: 'date' },
       { name: 'min / max', type: 'string', note: 'YYYY-MM-DD bounds.' },
       { name: 'inline', type: 'boolean', note: 'Renders the panel with no trigger.' },
+      {
+        name: 'dayMeta',
+        type: 'Record<string, DayMeta>',
+        note: 'Per-day tone / intensity / title, keyed by YYYY-MM-DD. Paints the grid.',
+      },
+      {
+        name: 'quickEntry',
+        type: 'boolean',
+        default: 'true',
+        note: 'The typed field and preset chips. Off when the grid is a calendar, not a field.',
+      },
+      {
+        name: 'slot: day',
+        type: '{ cell, meta }',
+        note: 'Replaces the day number — where a painted grid puts its own mark.',
+      },
     ],
     snippet: '<GlassDatePicker v-model="dueAt" mode="date" />',
   },

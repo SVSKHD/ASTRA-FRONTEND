@@ -26,6 +26,18 @@ import { useDatePicker } from '@/composables/useDatePicker'
 import { formatDisplay, type DateRange, type PickerMode } from '@/utils/datePicker'
 import { placePopover, type Placed } from '@/utils/popoverPlace'
 
+/**
+ * What a caller can say about one day. `tone` is the sign of whatever the day
+ * measured, `intensity` (0–1) how strongly — the two are separate because the
+ * direction and the magnitude are usually different quantities. `title` is the
+ * hover text, and the reason the colour is never the only signal.
+ */
+export interface DayMeta {
+  tone?: 'pos' | 'neg' | 'flat'
+  intensity?: number
+  title?: string
+}
+
 const props = withDefaults(
   defineProps<{
     modelValue: string | DateRange | null | undefined
@@ -42,6 +54,21 @@ const props = withDefaults(
     disabled?: boolean
     label?: string
     id?: string
+    /**
+     * Per-day decoration, keyed by 'YYYY-MM-DD' (section 28). The grid is the
+     * app's only month grid, so a surface that wants to paint days — a trading
+     * month's wins and losses, a habit streak — extends it here rather than
+     * forking it. Tone and intensity are the caller's meaning, not the
+     * picker's: it only knows how to draw them.
+     */
+    dayMeta?: Record<string, DayMeta>
+    /**
+     * The typed field and the preset chips. On by default; a grid used as a
+     * heat calendar rather than as a field turns them off, because "tomorrow,
+     * 25/12, in 3 days" is an instruction to pick a date and that grid is not
+     * picking one.
+     */
+    quickEntry?: boolean
   }>(),
   {
     mode: 'date',
@@ -53,9 +80,19 @@ const props = withDefaults(
     size: 'md',
     inline: false,
     disabled: false,
+    quickEntry: true,
   },
 )
-const emit = defineEmits<{ 'update:modelValue': [string | DateRange | null] }>()
+const emit = defineEmits<{
+  'update:modelValue': [string | DateRange | null]
+  /**
+   * The month the grid is showing, as 'YYYY-MM', whenever it moves. A caller
+   * painting the grid (section 28) loads its data a month at a time and has to
+   * know which one is on screen — the alternative is a second month control
+   * beside a grid that already has one.
+   */
+  month: [string]
+}>()
 
 const ui = useUiStore()
 const { isMobile } = storeToRefs(ui)
@@ -200,9 +237,31 @@ watch(showPanel, async (visible) => {
   selected?.scrollIntoView?.({ block: 'center' })
 })
 
+watch(
+  () => picker.anchor.value.slice(0, 7),
+  (month) => emit('month', month),
+  {
+    immediate: true,
+  },
+)
+
 function onClear() {
   picker.clear()
   closePanel()
+}
+
+function metaFor(ymd: string): DayMeta | undefined {
+  return props.dayMeta?.[ymd]
+}
+
+// The intensity is handed over as a percentage rather than a bare number so the
+// stylesheet can drop it straight into color-mix(), which will not accept a
+// unitless multiplier there.
+function dayHeat(ymd: string) {
+  const meta = metaFor(ymd)
+  if (!meta?.tone || meta.tone === 'flat') return undefined
+  const pct = Math.round(Math.max(0, Math.min(1, meta.intensity ?? 1)) * 100)
+  return { '--gdp-day-heat': `${pct}%` }
 }
 </script>
 
@@ -258,7 +317,7 @@ function onClear() {
         @keydown="onPanelKeydown"
       >
         <!-- Typed entry: "tmrw 6pm", "25/12", "in 3 days". -->
-        <div class="gdp__typed">
+        <div v-if="quickEntry" class="gdp__typed">
           <input
             v-model="picker.typed.value"
             class="gdp__input"
@@ -268,11 +327,11 @@ function onClear() {
             @keydown.enter.prevent="picker.submitTyped()"
           />
         </div>
-        <p v-if="picker.typedError.value" class="gdp__error" role="alert">
+        <p v-if="quickEntry && picker.typedError.value" class="gdp__error" role="alert">
           {{ picker.typedError.value }}
         </p>
 
-        <div v-if="showGrid" class="gdp__chips">
+        <div v-if="showGrid && quickEntry" class="gdp__chips">
           <button
             v-for="preset in picker.presetChips.value"
             :key="preset.label"
@@ -342,19 +401,27 @@ function onClear() {
                   type="button"
                   role="gridcell"
                   class="gdp__day"
-                  :class="{
-                    'is-out': !cell.inMonth,
-                    'is-today': cell.isToday,
-                    'is-selected': picker.isSelected(cell.ymd),
-                    'is-inrange': picker.inRange(cell.ymd),
-                    'is-focused': picker.focused.value === cell.ymd,
-                  }"
+                  :class="[
+                    {
+                      'is-out': !cell.inMonth,
+                      'is-today': cell.isToday,
+                      'is-selected': picker.isSelected(cell.ymd),
+                      'is-inrange': picker.inRange(cell.ymd),
+                      'is-focused': picker.focused.value === cell.ymd,
+                    },
+                    metaFor(cell.ymd)?.tone ? `is-${metaFor(cell.ymd)?.tone}` : '',
+                  ]"
+                  :style="dayHeat(cell.ymd)"
                   :tabindex="-1"
                   :aria-selected="picker.isSelected(cell.ymd)"
                   :disabled="picker.disabled(cell.ymd)"
+                  :title="metaFor(cell.ymd)?.title"
                   @click="picker.selectDate(cell.ymd)"
                 >
-                  {{ cell.day }}
+                  <!-- The number by default. A caller painting the grid adds
+                       its own mark here — which is what keeps the colour from
+                       being the only thing carrying the day's meaning. -->
+                  <slot name="day" :cell="cell" :meta="metaFor(cell.ymd)">{{ cell.day }}</slot>
                 </button>
               </div>
             </div>
@@ -690,6 +757,35 @@ function onClear() {
   opacity: 0.3;
   cursor: not-allowed;
   text-decoration: line-through;
+}
+
+/* Painted days (section 28). The tint carries the magnitude, and the edge —
+   under the number for a gain, over it for a loss — carries the direction, so
+   the day still reads on the mono themes, where every status token is the text
+   colour and the two tints are identical. */
+.gdp__day.is-pos,
+.gdp__day.is-neg,
+.gdp__day.is-flat {
+  position: relative;
+}
+.gdp__day.is-pos {
+  background: color-mix(in oklch, var(--theme-success) var(--gdp-day-heat, 0%), transparent);
+  box-shadow: inset 0 -2px 0 var(--theme-success);
+}
+.gdp__day.is-neg {
+  background: color-mix(in oklch, var(--theme-danger) var(--gdp-day-heat, 0%), transparent);
+  box-shadow: inset 0 2px 0 var(--theme-danger);
+}
+.gdp__day.is-flat {
+  box-shadow: inset 0 0 0 1px var(--glass-border);
+}
+/* The selection still wins: a painted day that has been clicked is the accent,
+   or the filter it applied would be invisible on a heavy day. */
+.gdp__day.is-selected.is-pos,
+.gdp__day.is-selected.is-neg,
+.gdp__day.is-selected.is-flat {
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
 }
 
 .gdp__times {
