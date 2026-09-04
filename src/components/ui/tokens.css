@@ -121,33 +121,52 @@
      it is the only chroma on the screen. */
   --shadow-ink: color-mix(in oklch, var(--bg-base, #000) 45%, #000);
 
-  --layer-base-bg: var(--bg-base, var(--theme-surface));
-  --layer-base-border: color-mix(
-    in oklch,
-    var(--border-subtle, var(--glass-border)) 55%,
-    transparent
-  );
+  /* ---- the named surfaces (section 29) ------------------------------------
+     The layer system above is re-keyed onto six names — page, three surfaces
+     and two borders — so a theme can restate the whole ladder by overriding
+     six values rather than by reaching into every layer recipe.
+
+     On every theme but espresso these resolve to what they always did: the
+     values applyThemeToDom() writes from the theme registry. Espresso declares
+     its own literals in the block at the bottom of this file, which is also
+     what paints the first frame — the boot script in index.html sets
+     `data-theme` before any JavaScript module is parsed, so a reload lands on
+     the roast rather than flashing the previous theme. */
+  --bg: var(--theme-surface, var(--bg-base));
+  --surface-base: var(--bg-base, var(--theme-surface));
+  --surface-raised: var(--bg-elevated, var(--glass-card));
+  /* Opaque by construction: an overlay covers content by definition, and one
+     that inherits the elevated token's alpha is a tooltip you read the calendar
+     through. */
+  --surface-overlay: color-mix(in oklch, var(--bg-base, #000) 88%, var(--text-primary, #fff) 12%);
+  --border: var(--border-subtle, var(--glass-border));
+  --border-strong-token: var(--border-strong, var(--theme-dim));
+
+  --layer-base-bg: var(--surface-base);
+  --layer-base-border: color-mix(in oklch, var(--border) 55%, transparent);
   --layer-base-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary, #fff) 6%, transparent);
 
-  --layer-raised-bg: var(--bg-elevated, var(--glass-card));
-  --layer-raised-border: var(--border-subtle, var(--glass-border));
+  --layer-raised-bg: var(--surface-raised);
+  --layer-raised-border: var(--border);
   --layer-raised-shadow:
     0 1px 1px color-mix(in srgb, var(--shadow-ink) 20%, transparent),
     0 4px 10px -6px color-mix(in srgb, var(--shadow-ink) 34%, transparent);
 
-  /* Built from --bg-base, not --bg-elevated: the elevated token is a
-     translucent glass fill, and an overlay that inherits its alpha is a tooltip
-     you read the calendar through. An overlay is the one layer that must be
-     opaque — it covers content by definition. */
-  --layer-overlay-bg: color-mix(in oklch, var(--bg-base, #000) 88%, var(--text-primary, #fff) 12%);
-  --layer-overlay-border: color-mix(
-    in oklch,
-    var(--border-subtle, var(--glass-border)) 75%,
-    var(--text-primary, #fff)
-  );
+  --layer-overlay-bg: var(--surface-overlay);
+  --layer-overlay-border: color-mix(in oklch, var(--border) 75%, var(--text-primary, #fff));
   --layer-overlay-shadow:
     0 12px 28px -12px color-mix(in srgb, var(--shadow-ink) 62%, transparent),
     0 2px 6px -3px color-mix(in srgb, var(--shadow-ink) 40%, transparent);
+
+  /* The accent, and the inactive half of a track it fills. Named here so a
+     theme can restate the pair; the accent itself still comes from the
+     registry on every other theme. */
+  --accent: var(--theme-accent);
+  --accent-soft: color-mix(in oklch, var(--theme-accent) 45%, var(--surface-raised));
+
+  /* The trade family's stroke. A hairline that reads on a pale page can
+     disappear on a near-black one, so the weight is a token. */
+  --icon-stroke: 1.5;
 }
 
 /* Compact density: the same components, tighter. The /ui page toggles this on
@@ -277,8 +296,12 @@
   min-width: 0;
   padding: 0 10px;
   border-radius: var(--radius-control);
-  border: 1px solid var(--border-subtle, var(--glass-border));
-  background: var(--bg-elevated, var(--theme-input));
+  /* The named surfaces (section 29): a field is the raised layer with the
+     ordinary border, its value in primary text and its placeholder in muted.
+     Stated in these names rather than the older ones so a theme that restates
+     the ladder restates the fields with it. */
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
   color: var(--text-primary, var(--theme-text));
   font-family: inherit;
   font-size: var(--text-base);
@@ -350,4 +373,117 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ---- Espresso (section 29) -------------------------------------------------
+   The one theme that states its whole palette here rather than deriving it, and
+   the reason is the first frame: index.html's boot script stamps `data-theme`
+   from localStorage before a single module is parsed, so these declarations are
+   what paints the page while the app is still loading. The registry carries the
+   same values for the JavaScript side (themes/extra.ts) and `espresso.test.ts`
+   fails the build if the two copies drift.
+
+   Every value below is measured against `--surface-base`, which is the surface
+   text actually sits on:
+
+     --text-primary    13.1:1   crema
+     --text-secondary   8.2:1
+     --text-muted       5.0:1   labels only — and 4.35:1 on --surface-overlay,
+                                which is under the floor, so an overlay uses
+                                --text-muted-on-overlay instead
+     --accent           6.6:1   gold, and only ever progress, focus, active day
+*/
+[data-theme='espresso'] {
+  color-scheme: dark;
+
+  /* Surfaces, darkest to lightest. */
+  --bg: #070504;
+  --surface-base: #0f0a08;
+  --surface-raised: #1a1210;
+  --surface-overlay: #241a16;
+  --border: #3a2a22;
+  --border-strong-token: #4e3a2e;
+
+  /* Text. Nothing here is below 4.5:1 on --surface-base. */
+  --text-primary: #e8cfae;
+  --text-secondary: #c4a180;
+  --text-muted: #9a7b5e;
+  /* #9a7b5e measures 4.35:1 on the overlay surface — under the floor — so the
+     overlay layer gets its own muted step rather than a lightened surface. */
+  --text-muted-on-overlay: #b08f6d;
+
+  /* The gold. Progress, focus, the active day's ring; nothing decorative. */
+  --accent: #c8873f;
+  --accent-soft: #7a4f26;
+
+  /* The legacy names the older components read, pointed at the same values so
+     one theme does not need two palettes. */
+  --theme-surface: #070504;
+  --theme-text: #e8cfae;
+  --theme-dim: #9a7b5e;
+  --theme-border: #3a2a22;
+  --theme-accent: #c8873f;
+  --theme-on-accent: #0f0a08;
+  --theme-input: #1a1210;
+  --bg-base: #0f0a08;
+  --bg-elevated: #1a1210;
+  --border-subtle: #3a2a22;
+  --border-strong: #4e3a2e;
+  --glass-bg: #0f0a08;
+  --glass-card: #1a1210;
+  --glass-border: #3a2a22;
+  --glass-solid: #0f0a08;
+  --glass-blur: 0px;
+
+  /* Shadows. A black drop shadow is invisible on a near-black ground, so each
+     layer is lifted by a 1px crema highlight along its top edge instead, with a
+     wide ambient underneath to seat it. One recipe per layer, none shared: base
+     is the highlight alone (it is the ground — nothing casts onto it), raised
+     adds a close ambient, overlay a deeper one with a contact shadow. */
+  --layer-base-shadow: inset 0 1px 0 rgb(232 207 174 / 6%);
+  --layer-raised-shadow: inset 0 1px 0 rgb(232 207 174 / 6%), 0 2px 12px rgb(0 0 0 / 60%);
+  --layer-overlay-shadow:
+    inset 0 1px 0 rgb(232 207 174 / 9%), 0 10px 28px rgb(0 0 0 / 70%), 0 2px 6px rgb(0 0 0 / 50%);
+  --glass-shadow: var(--layer-raised-shadow);
+  --elev-1: var(--layer-raised-shadow);
+
+  /* 1.5 reads as a hairline on this ground at 16px; 1.6 holds. */
+  --icon-stroke: 1.6;
+}
+
+/* The overlay layer's own muted step, applied where an overlay is drawn rather
+   than left for a call site to remember. Scoped to the theme so no other theme
+   pays for it. */
+[data-theme='espresso'] .ttable thead th,
+[data-theme='espresso'] .tcal__tip {
+  --text-muted: var(--text-muted-on-overlay);
+}
+
+/* The trade family draws with `stroke-width="1.5"` as an attribute; CSS wins
+   over a presentation attribute, so the weight is themeable without touching
+   fourteen files. */
+svg[data-family='trade'] {
+  stroke-width: var(--icon-stroke);
+}
+
+/* The theme switch (section 29).
+   
+   Only two properties move, and only while a switch is in flight: the class is
+   put on <html> by applyThemeToDom and taken off 180ms later. `!important` is
+   deliberate and is the reason this works — for those 180ms it has to outrank
+   every component's own transition list, and because the class is gone
+   afterwards it cannot leak into hover, focus or any other interaction.
+   
+   Anything that is not a background or a text colour is left alone: a border
+   or a shadow crossfading at the same time reads as the interface wobbling
+   rather than as the lights changing. */
+@media (prefers-reduced-motion: no-preference) {
+  html.theme-switching,
+  html.theme-switching *,
+  html.theme-switching *::before,
+  html.theme-switching *::after {
+    transition:
+      background-color 180ms ease,
+      color 180ms ease !important;
+  }
 }

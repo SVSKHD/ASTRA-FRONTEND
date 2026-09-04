@@ -1056,4 +1056,9 @@ export interface LoggerSettings {
   lastSymbol: string
   /** Points per whole unit, per symbol. An unknown symbol is asked for once. */
   contractSizes: Record<string, number>
+  /**
+   * The chosen theme (section 29). Empty means nothing has been chosen yet,
+   * which is the only state in which `prefers-color-scheme` gets a say.
+   */
+  theme: string
 }

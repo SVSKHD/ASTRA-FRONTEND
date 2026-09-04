@@ -224,6 +224,58 @@ export const EXTRA_THEMES: Record<string, Theme> = {
     sunColor: 'oklch(0.72 0.12 90)',
     corner: 'tr',
   },
+  // ---- espresso (section 29) ----------------------------------------------
+  // A roast, not a tint of the dark family. Six surfaces from near-black to a
+  // lifted brown, crema text, and one gold that is allowed to appear in exactly
+  // three places — target progress, focus rings and the active day's ring.
+  //
+  // Three things are declared here rather than derived, and each has a reason
+  // this ground made unavoidable:
+  //
+  //   textSecondary / textMuted   the derivation mixes text toward `dim`, which
+  //                               on a page this dark lands at 3.9:1. These are
+  //                               measured: 8.2 and 5.0 on the base surface.
+  //   plRamp                      the derived ramp walks lightness away from the
+  //                               page at full chroma, which on brown-black
+  //                               reads as neon. These endpoints are the same
+  //                               two signs, desaturated and lifted to sit in
+  //                               the cup rather than glow out of it.
+  //   noGlass                     a blur over a near-black page is a slightly
+  //                               different near-black. The layers separate by
+  //                               a top highlight and a border instead.
+  //
+  // The surface, border and accent-soft values live in the CSS token layer
+  // (components/ui/tokens.css, `[data-theme='espresso']`) so the first paint has
+  // them before any JavaScript runs; `espresso.test.ts` asserts the two copies
+  // agree.
+  espresso: {
+    label: 'Espresso',
+    group: 'dark',
+    noGlass: true,
+    colorScheme: 'dark',
+    // The glass tokens resolve to the layer surfaces, opaque.
+    glass: '#0F0A08',
+    card: '#1A1210',
+    input: '#1A1210',
+    border: '#3A2A22',
+    text: '#E8CFAE',
+    // `dim` is the legacy name the older components read; it is the muted step.
+    dim: '#9A7B5E',
+    textSecondary: '#C4A180',
+    textMuted: '#9A7B5E',
+    onAccent: '#0F0A08',
+    // Black shadows vanish on this ground: the elevation is a 1px crema
+    // highlight along the top edge plus a wide ambient. One recipe, and the
+    // per-layer recipes are in the token layer.
+    shadow: 'inset 0 1px 0 rgba(232,207,174,0.06), 0 2px 12px rgba(0,0,0,0.6)',
+    pageBg: '#070504',
+    bgSolid: '#0F0A08',
+    accent: '#C8873F',
+    accentSoft: '#7A4F26',
+    plRamp: { pos: ['#4F7A52', '#8FC98A'], neg: ['#7A3B33', '#D98A78'] },
+    celestial: 'none',
+    focusRing: '0 0 0 2px #C8873F',
+  },
   // ---- special ------------------------------------------------------------
   // AMOLED black / pure white, thicker borders, no glass blur.
   contrast: {

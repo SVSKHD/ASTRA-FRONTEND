@@ -32,6 +32,8 @@ import { storeToRefs } from 'pinia'
 import type { DocumentData, Unsubscribe } from 'firebase/firestore'
 import { loadFirestore } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
+import { isThemeKey, type ThemeSetting } from '@/themes'
 import { currentMonthKey } from '@/utils/budget'
 import {
   DEFAULT_LOGGER_SETTINGS,
@@ -119,6 +121,7 @@ function readSettings(data: DocumentData | undefined): LoggerSettings {
         ? (data.contractSizes as Record<string, number>)
         : {}),
     },
+    theme: String(data.theme ?? ''),
   }
 }
 
@@ -127,6 +130,8 @@ export function useTradeLog(
   month: MaybeRefOrGetter<string> = currentMonthKey(),
 ) {
   const { user } = storeToRefs(useAuthStore())
+  const ui = useUiStore()
+  const { themeSetting } = storeToRefs(ui)
   const uid = computed(() => user.value?.uid ?? '')
   const monthKey = computed(() => toValue(month))
   // An empty symbol means "whatever was traded last" — the caller's field is
@@ -295,9 +300,11 @@ export function useTradeLog(
           void fs.setDoc(settingsRef, { ...DEFAULT_LOGGER_SETTINGS }).catch(() => {
             /* A read-only session still works; it just does not remember. */
           })
+          applyStoredTheme('')
           return
         }
         storedSettings.value = readSettings(snap.data())
+        applyStoredTheme(storedSettings.value.theme)
       },
       (err) => {
         console.error('[Aureon] Logger settings listener failed:', err)
@@ -307,6 +314,48 @@ export function useTradeLog(
 
   watch([uid, monthKey], () => void attach(), { immediate: true })
   onUnmounted(unsubscribe)
+
+  // --- the theme, kept in this document (section 29) -------------------------
+  //
+  // The choice lives beside the logger's other settings rather than in the
+  // workspace document the theme picker writes to. That is a second place a
+  // theme can be stored, so the two are reconciled in one direction only: what
+  // this document says wins when it says anything, and a change made while the
+  // logger is on screen is written back here.
+  //
+  // `prefers-color-scheme` gets a say exactly once — when the document has no
+  // theme at all. After that the stored answer is the answer, because an
+  // operating system that switches to dark at sunset should not overrule a
+  // choice somebody made at noon.
+  let themeSynced = false
+
+  function osPrefersDark(): boolean {
+    return globalThis.window?.matchMedia?.('(prefers-color-scheme: dark)').matches === true
+  }
+
+  function applyStoredTheme(stored: string) {
+    if (themeSynced) return
+    themeSynced = true
+    if (stored && isThemeKey(stored)) {
+      if (stored !== themeSetting.value) ui.setTheme(stored as ThemeSetting)
+      return
+    }
+    // Nothing stored: the one moment the operating system decides. Espresso is
+    // this app's answer to "the user wants dark"; anything else stays as it is.
+    if (osPrefersDark() && themeSetting.value !== 'espresso') {
+      ui.setTheme('espresso')
+      void saveSettings({ theme: 'espresso' })
+    }
+  }
+
+  // A change made while the logger is mounted is persisted here. Guarded on the
+  // stored value so the round trip — write, snapshot, read — does not write
+  // again.
+  watch(themeSetting, (next) => {
+    if (!themeSynced || !uid.value) return
+    if (next === 'auto' || next === storedSettings.value.theme) return
+    void saveSettings({ theme: next })
+  })
 
   // --- writes ---------------------------------------------------------------
 

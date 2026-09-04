@@ -19,7 +19,7 @@
 // towards the page until it does. That check is not decoration — a wash is a
 // text background, and the day number sits on it.
 
-import { contrastRatio, over, parseColor } from './contrast'
+import { contrastRatio, over, parseColor, toOklch } from './contrast'
 import type { Theme } from './index'
 
 /** Steps per side. Five is the most a reader can rank without a legend. */
@@ -57,6 +57,37 @@ function rgbString(color: { r: number; g: number; b: number }): string {
   return `rgb(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)})`
 }
 
+/** The opacity a step's colour is laid on at, for a theme that names its ramp. */
+export const WASH_ALPHA = { from: 0.12, to: 0.7 } as const
+
+/** Linear interpolation between two colours in OKLCH, which is where the
+ *  perceptual steps are even. Used only by a theme that names its endpoints. */
+function mixOklch(from: string, to: string, t: number): string {
+  const a = toOklch(parseColor(from))
+  const b = toOklch(parseColor(to))
+  return `oklch(${(a.l + (b.l - a.l) * t).toFixed(4)} ${(a.c + (b.c - a.c) * t).toFixed(4)} ${(
+    a.h +
+    (b.h - a.h) * t
+  ).toFixed(2)})`
+}
+
+/**
+ * A step of a ramp the theme declared, as an opaque colour.
+ *
+ * The colour walks OKLCH between the theme's two endpoints and is then laid
+ * over the base surface at 12% (step 1) to 70% (step 5). Both halves matter: a
+ * fixed pair of endpoints keeps the hue in the theme's own family, and the
+ * opacity ramp is what makes a heavy day look heavy rather than merely
+ * differently coloured.
+ */
+function declaredWash(theme: Theme, side: PlSide, step: number): string {
+  const ramp = theme.plRamp![side]
+  const t = (step - 1) / (PL_STEPS - 1)
+  const alpha = WASH_ALPHA.from + (WASH_ALPHA.to - WASH_ALPHA.from) * t
+  const colour = parseColor(mixOklch(ramp[0], ramp[1], t))
+  return rgbString(over({ ...colour, a: alpha }, parseColor(theme.bgSolid)))
+}
+
 /**
  * One step of the ramp, as an opaque colour.
  *
@@ -65,6 +96,7 @@ function rgbString(color: { r: number; g: number; b: number }): string {
  * contrast measurement of it means anything.
  */
 export function plWash(theme: Theme, side: PlSide, step: number): string {
+  if (theme.plRamp) return declaredWash(theme, side, Math.min(PL_STEPS, Math.max(1, step)))
   const page = parseColor(theme.bgSolid)
   const light = theme.group === 'light'
   const clamped = Math.min(PL_STEPS, Math.max(1, Math.round(step)))
@@ -93,8 +125,42 @@ export function plWash(theme: Theme, side: PlSide, step: number): string {
   return rgbString(page)
 }
 
+/**
+ * The ink for a step's wash — the colour the day number is drawn in.
+ *
+ * The theme's text wherever it clears 4.5:1, which on every derived ramp is
+ * every step (the derivation walks the wash back until it does). A declared
+ * ramp does NOT walk the wash back — its steps are the theme's chosen colours
+ * at a chosen opacity — so at the deep end the wash can be a mid-lightness
+ * colour that neither the theme's text nor its page colour can sit on. There
+ * the numeral flips instead of the wash lightening: the reading a heat grid
+ * exists to give is the colour of the cell, and moving it to keep a numeral
+ * legible is the wrong thing to move.
+ */
+export function plInk(theme: Theme, side: PlSide, step: number): string {
+  const wash = plWash(theme, side, step)
+  if (contrastRatio(theme.text, wash) >= AA_TEXT) return theme.text
+  // Two fallbacks, both already in the theme: the page it sits on, and white.
+  // Whichever clears with the most room, and the theme's text if neither does —
+  // legible-and-wrong beats a rule silently unmet.
+  const candidates = [
+    theme.bgSolid,
+    theme.pageBg.startsWith('#') ? theme.pageBg : '#000000',
+    '#ffffff',
+  ]
+  const best = candidates
+    .map((ink) => ({ ink, ratio: contrastRatio(ink, wash) }))
+    .filter((c) => c.ratio >= AA_TEXT)
+    .sort((a, b) => b.ratio - a.ratio)[0]
+  return best?.ink ?? theme.text
+}
+
 /** The neutral cell: traded, but flat. Not the same as "no trades". */
 export function plFlat(theme: Theme): string {
+  // A theme that names its own ladder puts a flat day on the raised surface —
+  // traded, but with nothing to say, so it takes the panel colour rather than a
+  // step of a colour scale.
+  if (theme.plRamp) return rgbString(parseColor(theme.card))
   const page = parseColor(theme.bgSolid)
   const light = theme.group === 'light'
   const l = light ? 0.93 : 0.26
@@ -112,6 +178,10 @@ export function plScaleTokens(theme: Theme): Record<string, string> {
   for (let step = 1; step <= PL_STEPS; step += 1) {
     out[`--pl-pos-${step}`] = plWash(theme, 'pos', step)
     out[`--pl-neg-${step}`] = plWash(theme, 'neg', step)
+    // Every wash names its own ink, so a cell can never be painted without the
+    // colour its number has to be drawn in.
+    out[`--on-pl-pos-${step}`] = plInk(theme, 'pos', step)
+    out[`--on-pl-neg-${step}`] = plInk(theme, 'neg', step)
   }
   return out
 }
@@ -121,4 +191,11 @@ export function plWashVar(sign: 'pos' | 'neg' | 'flat', move: number, dayTarget:
   if (sign === 'flat') return 'var(--pl-flat)'
   const step = plStep(move, dayTarget)
   return step === 0 ? 'var(--pl-flat)' : `var(--pl-${sign}-${step})`
+}
+
+/** The ink that goes with that wash. Always fetched together with it. */
+export function plInkVar(sign: 'pos' | 'neg' | 'flat', move: number, dayTarget: number): string {
+  if (sign === 'flat') return 'var(--text-primary)'
+  const step = plStep(move, dayTarget)
+  return step === 0 ? 'var(--text-primary)' : `var(--on-pl-${sign}-${step}, var(--text-primary))`
 }

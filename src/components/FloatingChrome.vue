@@ -21,7 +21,7 @@ const auth = useAuthStore()
 const app = useAppStore()
 const lock = useLockStore()
 const { c, B } = useStyles()
-const { themePanelOpen, themeSetting, isPhone, dark } = storeToRefs(ui)
+const { themePanelOpen, themeSetting, isPhone, dark, preferredLight } = storeToRefs(ui)
 const { avatarMenuOpen, avatarInitial, avatarName, avatarSub, avatarColor, ghMenuLabel } =
   storeToRefs(auth)
 const { security, autoRollover, hideCompleted, reminderSound } = storeToRefs(app)
@@ -124,6 +124,14 @@ const rightCluster = computed(() =>
 )
 const orbRel = pxify({ position: 'relative' })
 
+// The espresso switch. It sets the theme like any other, and — because the
+// choice is persisted with the trade logger's settings rather than in the
+// workspace document — it also asks the logger to remember it (section 29).
+const espressoOn = computed(() => themeSetting.value === 'espresso')
+function toggleEspresso() {
+  ui.setTheme(espressoOn.value ? preferredLight.value : 'espresso')
+}
+
 const avatarDisc = computed(() =>
   pxify({
     width: 30,
@@ -133,7 +141,9 @@ const avatarDisc = computed(() =>
     placeItems: 'center',
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
-    color: '#fff',
+    // The ink on a filled disc, from the theme rather than a literal white: on
+    // a pale accent white is unreadable, and the token is measured (section 29).
+    color: 'var(--theme-on-accent)',
     background: avatarColor.value,
   }),
 )
@@ -322,6 +332,20 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
     >
       <Icon v-if="dark" name="sun" size="md" :style="{ color: c.accent }" />
       <Icon v-else name="moon" size="md" :style="{ color: c.accent }" />
+    </button>
+    <!-- Espresso (section 29). Its own control rather than another row in the
+         picker: it is a whole ground, and a switch you can find without opening
+         a menu is the difference between a theme people use and one they
+         discover once. The cup is not used anywhere else in the app. -->
+    <button
+      :style="orb"
+      v-hover-style="orbHover"
+      class="orb-themed"
+      :aria-pressed="espressoOn"
+      :aria-label="espressoOn ? 'Leave the espresso theme' : 'Switch to the espresso theme'"
+      @click="toggleEspresso()"
+    >
+      <Icon name="coffee" size="md" :style="{ color: c.accent }" />
     </button>
     <div :style="orbRel">
       <button

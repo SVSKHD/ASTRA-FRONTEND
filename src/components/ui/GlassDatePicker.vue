@@ -43,6 +43,13 @@ export interface DayMeta {
    * than the linear tint below can do (section 28b, themes/plScale).
    */
   wash?: string
+  /**
+   * The colour the day number is drawn in on that fill. Supplied WITH the wash,
+   * never separately: a caller that picks a background has picked the pair, and
+   * a deep step of a ramp can need a numeral the theme's text colour cannot
+   * provide (section 29).
+   */
+  ink?: string
 }
 
 const props = withDefaults(
@@ -270,6 +277,7 @@ function dayStyle(ymd: string, order: number) {
   const meta = metaFor(ymd)
   const style: Record<string, string> = { '--gdp-day-order': String(order) }
   if (meta?.wash) style['--gdp-day-wash'] = meta.wash
+  if (meta?.ink) style['--gdp-day-ink'] = meta.ink
   if (meta?.tone && meta.tone !== 'flat') {
     const pct = Math.round(Math.max(0, Math.min(1, meta.intensity ?? 1)) * 100)
     style['--gdp-day-heat'] = `${pct}%`
@@ -844,6 +852,7 @@ const painted = computed(() => Object.keys(props.dayMeta ?? {}).length > 0)
    and the linear mix above is not layered under it. */
 .gdp__day.has-wash {
   background: var(--gdp-day-wash);
+  color: var(--gdp-day-ink, var(--theme-text));
 }
 
 /* The fill sweep (section 28b). One orchestrated moment on month load: each
@@ -892,7 +901,7 @@ const painted = computed(() => Object.keys(props.dayMeta ?? {}).length > 0)
    accent would delete the green/red reading of the day the reader just picked. */
 .gdp__day.is-selected.has-wash {
   background: var(--gdp-day-wash);
-  color: var(--theme-text);
+  color: var(--gdp-day-ink, var(--theme-text));
   box-shadow:
     inset 0 0 0 2px var(--theme-accent),
     0 0 0 1px color-mix(in oklch, var(--theme-accent) 45%, transparent);

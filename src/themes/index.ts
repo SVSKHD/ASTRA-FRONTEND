@@ -44,6 +44,32 @@ export interface Theme {
   // A theme that wants its own focus ring rather than the accent glow every
   // other theme derives (section 21d). One box-shadow value, applied as-is.
   focusRing?: string
+
+  // ---- section 29: a theme that names its own tokens ------------------------
+  // Everything below is optional and DERIVED when a theme does not set it, so
+  // the nineteen themes above are untouched. A theme sets one of these only
+  // when the derivation would be wrong for it — which, for a very dark ground,
+  // it is: a secondary text colour mixed 72% toward the page lands under the
+  // contrast floor there, and a red/green ramp built for a blue-black page
+  // glows against a brown-black one.
+
+  /** Exact secondary text, when mixing text toward dim would not clear 4.5:1. */
+  textSecondary?: string
+  /** Exact muted text — labels only. Measured against `bgSolid`. */
+  textMuted?: string
+  /** The inactive half of a progress track, when a mix of the accent is wrong. */
+  accentSoft?: string
+  /**
+   * The profit/loss ramp's own endpoints, as [step 1, step 5] per side. A theme
+   * that sets this gets a wash built from ITS colours at a fixed opacity ramp,
+   * rather than the derived one that walks lightness away from the page.
+   */
+  plRamp?: { pos: [string, string]; neg: [string, string] }
+  /**
+   * What the browser should assume when it draws something we do not — a native
+   * date popup, a scrollbar, a select's list. Defaults to the theme's group.
+   */
+  colorScheme?: 'dark' | 'light'
 }
 
 export type ThemeKey =
@@ -66,6 +92,7 @@ export type ThemeKey =
   | 'monoLight'
   | 'kungfu'
   | 'kungfuLight'
+  | 'espresso'
 
 const lightBase = {
   glass: 'rgba(255,255,255,0.55)',

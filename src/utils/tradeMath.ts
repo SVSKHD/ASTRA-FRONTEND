@@ -35,6 +35,10 @@ export const DEFAULT_LOGGER_SETTINGS: LoggerSettings = {
   defaultLot: 1,
   lastSymbol: 'XAUUSD',
   contractSizes: { ...DEFAULT_CONTRACT_SIZES },
+  // Empty rather than a theme name: "nothing chosen" and "chose the default"
+  // are different states, and only the first one lets the operating system's
+  // preference decide (section 29).
+  theme: '',
 }
 
 /**
