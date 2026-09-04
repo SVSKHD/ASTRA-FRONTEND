@@ -427,6 +427,25 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     snippet: '<SaveState state="working" />',
   },
   {
+    name: 'TopProgressBar',
+    group: 'Feedback',
+    summary:
+      'A 2px indeterminate bar at the top of the viewport. Route changes and background syncs only.',
+    props: [{ name: 'active', type: 'boolean' }],
+    snippet: '<TopProgressBar :active="syncing" />',
+  },
+  {
+    name: 'UnsavedSheet',
+    group: 'Feedback',
+    summary: 'Asks about unsaved work by naming the fields. Save, then Discard; Escape goes back.',
+    props: [
+      { name: 'open', type: 'boolean' },
+      { name: 'fields', type: 'string[]' },
+      { name: 'title', type: 'string' },
+    ],
+    snippet: '<UnsavedSheet :open="asking" :fields="[\'Assignee\']" />',
+  },
+  {
     name: 'Skeleton',
     group: 'Feedback',
     summary: 'Loading placeholder shaped like the content it stands in for.',

@@ -550,7 +550,17 @@ export const useAppStore = defineStore('app', () => {
   const detailSiblings = ref<number[]>([])
   // Set by the open body while a debounced autosave is still pending. The shell
   // reads it to decide whether closing needs a confirmation.
-  const detailDirty = ref(false)
+  /**
+   * WHICH fields are unsaved, not merely whether any are (section 43, item 4).
+   *
+   * The bodies were already computing this — a `Set` of names, one per field
+   * with a write in flight — and then throwing it away at this boundary by
+   * reducing it to a boolean. The dialog that asks "discard your edits?" could
+   * therefore only ever ask about "your edits", which is the version of that
+   * question nobody can answer.
+   */
+  const detailDirtyFields = ref<string[]>([])
+  const detailDirty = computed(() => detailDirtyFields.value.length > 0)
   // The goal open on its own wide page, /goals/:goalId (section 18d's footer
   // link). Distinct from the dialog: the page is the Goals tab showing one goal
   // full width, and it survives a reload because the URL names it.
@@ -5030,7 +5040,7 @@ export const useAppStore = defineStore('app', () => {
   }
   function leaveFrame(frame: DetailFrame | null) {
     if (!frame) return
-    detailDirty.value = false
+    detailDirtyFields.value = []
     if (frame.kind === 'task') {
       // Writes the local edit first, then lets the guard reconcile the buffered
       // remote against it (see flushTaskEdit).
@@ -5122,10 +5132,11 @@ export const useAppStore = defineStore('app', () => {
     leaveFrame(detailFrame.value)
     detailStack.value = []
     detailSiblings.value = []
-    detailDirty.value = false
+    detailDirtyFields.value = []
   }
-  function setDetailDirty(value: boolean) {
-    detailDirty.value = value
+  /** Names, in the order the fields appear, or [] for nothing outstanding. */
+  function setDetailDirty(fields: string[]) {
+    detailDirtyFields.value = fields
   }
 
   // --- the note extension column (section 21b) ------------------------------
@@ -5875,7 +5886,7 @@ export const useAppStore = defineStore('app', () => {
     // would try to flush an edit into a workspace that has just been emptied.
     detailStack.value = []
     detailSiblings.value = []
-    detailDirty.value = false
+    detailDirtyFields.value = []
     noteColumnId.value = null
     goalPageId.value = null
     nid = 100
@@ -6918,6 +6929,7 @@ export const useAppStore = defineStore('app', () => {
     detailStack,
     detailSiblings,
     detailDirty,
+    detailDirtyFields,
     detailFrame,
     detailOpen,
     detailCanGoBack,

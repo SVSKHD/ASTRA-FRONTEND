@@ -182,6 +182,8 @@ function onNumber(key: (typeof NUMBERS)[number]['key']) {
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
   background: var(--layer-raised-bg);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
 }
 .tset__span {
   grid-column: 1 / -1;

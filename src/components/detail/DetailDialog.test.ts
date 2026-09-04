@@ -74,24 +74,62 @@ describe('the dirty guard', () => {
     await wrapper.find('[data-testid="detail-scrim"]').trigger('click')
     expect(wrapper.emitted('close')).toBeUndefined()
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true)
+    wrapper.unmount()
   })
 
-  it('discards once the reader confirms — a different event from a plain close', async () => {
-    const wrapper = mountShell({ dirty: true })
+  it('names the fields that are unsaved, rather than saying "your edits"', async () => {
+    // Section 43, item 4. A question you cannot answer without the one fact it
+    // withholds is not a question, and this is the fact.
+    const wrapper = mountShell({ dirty: true, dirtyFields: ['Assignee', 'Description'] })
     await wrapper.find('[data-testid="detail-scrim"]').trigger('click')
-    await wrapper.findAll('.detail__confirm button')[1].trigger('click')
-    // `close` flushes what is in flight, which is the opposite of what was just
-    // asked for, so this is its own event.
+    const sheet = wrapper.find('[role="alertdialog"]')
+    expect(sheet.text()).toContain('Assignee')
+    expect(sheet.text()).toContain('Description')
+    wrapper.unmount()
+  })
+
+  it('offers Save first and Discard second, with Save as the accent', async () => {
+    const wrapper = mountShell({ dirty: true, dirtyFields: ['Assignee'] })
+    await wrapper.find('[data-testid="detail-scrim"]').trigger('click')
+    const actions = wrapper.findAll('.usheet__actions button')
+    // Order matters: the destructive answer is never the one the hand goes to.
+    expect(actions[0].text()).toBe('Save changes')
+    expect(actions[0].classes()).toContain('ui-btn--primary')
+    expect(actions[1].text()).toBe('Discard')
+    wrapper.unmount()
+  })
+
+  it('saves and closes on the first answer — the one that used to be missing', async () => {
+    const wrapper = mountShell({ dirty: true, dirtyFields: ['Assignee'] })
+    await wrapper.find('[data-testid="detail-scrim"]').trigger('click')
+    await wrapper.findAll('.usheet__actions button')[0].trigger('click')
+    // `close` flushes what is in flight, so it was always the save; it simply
+    // had no button on it.
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('discard')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('discards on the second — a different event from a plain close', async () => {
+    const wrapper = mountShell({ dirty: true, dirtyFields: ['Assignee'] })
+    await wrapper.find('[data-testid="detail-scrim"]').trigger('click')
+    await wrapper.findAll('.usheet__actions button')[1].trigger('click')
     expect(wrapper.emitted('discard')).toHaveLength(1)
     expect(wrapper.emitted('close')).toBeUndefined()
+    wrapper.unmount()
   })
 
-  it('goes back to editing on the other answer', async () => {
-    const wrapper = mountShell({ dirty: true })
+  it('takes Escape and a click on its scrim as "back to the form"', async () => {
+    // Neither of the two irreversible answers, and never a silent close: the
+    // question goes, the editor and everything typed into it stay.
+    const wrapper = mountShell({ dirty: true, dirtyFields: ['Assignee'] })
     await wrapper.find('[data-testid="detail-scrim"]').trigger('click')
-    await wrapper.findAll('.detail__confirm button')[0].trigger('click')
-    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true)
+    await wrapper.find('.usheet').trigger('click')
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false)
+    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(wrapper.emitted('discard')).toBeUndefined()
+    wrapper.unmount()
   })
 
   it('guards Escape too', async () => {

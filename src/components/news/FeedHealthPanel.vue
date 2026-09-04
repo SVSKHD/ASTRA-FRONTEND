@@ -90,6 +90,8 @@ function tone(feed: FeedHealth): string {
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
   background: var(--layer-raised-bg);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
 }
 .fhp__head {
   display: flex;

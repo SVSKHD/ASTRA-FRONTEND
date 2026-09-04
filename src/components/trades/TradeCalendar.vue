@@ -293,7 +293,10 @@ const MARK: Record<string, string> = { pos: '▲', neg: '▼', flat: '·' }
   transform: translateX(-50%);
   border-radius: var(--radius-card);
   border: 1px solid var(--layer-overlay-border);
-  background: var(--layer-overlay-bg);
+  /* Opaque, and the one surface in the system that must be (section 43,
+     item 3): rows scroll UNDER this, so a translucent header is a header
+     with figures moving through it at exactly the moment it is read. */
+  background: var(--glass-solid, var(--layer-overlay-bg));
   box-shadow: var(--layer-overlay-shadow);
   color: var(--text-primary, var(--theme-text));
   font-size: var(--text-2xs);

@@ -245,6 +245,8 @@ const firstOfDay = computed(() => {
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
   background: var(--layer-raised-bg);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
   box-shadow: var(--layer-raised-shadow);
 }
 .ttable {
@@ -269,7 +271,10 @@ const firstOfDay = computed(() => {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--layer-overlay-bg);
+  /* Opaque, and the one surface in the system that must be (section 43,
+     item 3): rows scroll UNDER this, so a translucent header is a header
+     with figures moving through it at exactly the moment it is read. */
+  background: var(--glass-solid, var(--layer-overlay-bg));
   border-bottom: 1px solid var(--layer-raised-border);
   font-size: var(--text-2xs);
   line-height: var(--lh-2xs);

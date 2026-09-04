@@ -49,7 +49,8 @@ function fieldDirty(name: string) {
   return (dirty: boolean) => {
     if (dirty) pendingFields.value.add(name)
     else pendingFields.value.delete(name)
-    app.setDetailDirty(pendingFields.value.size > 0)
+    // The names, not the count: the sheet that asks about them says which.
+    app.setDetailDirty([...pendingFields.value])
   }
 }
 

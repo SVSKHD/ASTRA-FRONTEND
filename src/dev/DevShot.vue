@@ -17,6 +17,7 @@ import TradesView from '@/components/views/TradesView.vue'
 import ExpensesView from '@/components/views/ExpensesView.vue'
 import NewsView from '@/components/views/NewsView.vue'
 import CodeView from '@/components/views/CodeView.vue'
+import LoadingStates from '@/dev/LoadingStates.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useSettings } from '@/composables/useSettings'
@@ -61,6 +62,8 @@ const VIEWS = {
   expenses: ExpensesView,
   news: NewsView,
   code: CodeView,
+  // The five loading and glass states on one page (section 43, item 10).
+  states: LoadingStates,
   trades: TradesView,
 } as const
 
@@ -77,6 +80,9 @@ const view = computed(() => VIEWS[which.value] ?? TradesView)
  * on a stage whose contents are still empty.
  */
 const ownsReady = computed(() => which.value === 'news' || which.value === 'code')
+
+/** Which of the five to put up, for the states page. */
+const show = computed(() => String(route.query.show ?? 'all'))
 
 /**
  * All three, not any one of them.
@@ -101,16 +107,22 @@ const stage = ref<HTMLElement | null>(null)
     :data-ready="ready ? 'true' : 'false'"
     :data-state="state || 'live'"
   >
-    <component :is="view" />
+    <component :is="view" :show="which === 'states' ? show : undefined" />
   </div>
 </template>
 
 <style scoped>
+/* No background of its own (section 43). The stage used to paint the page
+   colour, which was harmless when panels were opaque and is not now: a
+   translucent panel over a flat fill is a flat fill, so every glass surface
+   photographed here would have been a picture of the fallback. The starfield
+   App draws is what these sit on, the same as in the workspace. */
 .shot {
+  position: relative;
+  z-index: 1;
   min-width: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: var(--sp-4);
-  background: var(--bg, var(--theme-surface));
   color: var(--text-primary, var(--theme-text));
 }
 </style>

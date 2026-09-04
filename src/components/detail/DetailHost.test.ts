@@ -161,7 +161,7 @@ describe('editing in place (acceptance 87)', () => {
     const { app, wrapper } = await mountHost('/?task=1')
     await titleInput(wrapper).setValue('half typed')
     await wrapper.find('button[aria-label="Close"]').trigger('click')
-    await wrapper.findAll('.detail__confirm button')[1].trigger('click')
+    await wrapper.findAll('.usheet__actions button')[1].trigger('click')
     await flushPromises()
     expect(app.detailOpen).toBe(false)
     // Flushing here instead of reverting would save exactly what was refused.

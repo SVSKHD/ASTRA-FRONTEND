@@ -19,6 +19,7 @@ import {
   splitFromDrag,
   type NoteColumnMode,
 } from '@/utils/noteColumn'
+import UnsavedSheet from '@/components/ui/UnsavedSheet.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -26,6 +27,8 @@ const props = withDefaults(
     title: string
     // Unsaved edits: closing asks first rather than dropping them.
     dirty?: boolean
+    /** WHICH fields are unsaved (section 43, item 4). The sheet names them. */
+    dirtyFields?: string[]
     mobile?: boolean
     canGoBack?: boolean
     backLabel?: string
@@ -43,6 +46,7 @@ const props = withDefaults(
   }>(),
   {
     dirty: false,
+    dirtyFields: () => [],
     mobile: false,
     canGoBack: false,
     backLabel: 'Back',
@@ -72,10 +76,17 @@ const sheet = ref<HTMLElement | null>(null)
 const asidePanel = ref<HTMLElement | null>(null)
 let restoreTo: HTMLElement | null = null
 
-// --- the dirty guard --------------------------------------------------------
+// --- the dirty guard (section 43, item 4) -----------------------------------
+//
 // Inline rather than window.confirm: a native dialog would drop the reader out
-// of the sheet on mobile, and there is no reason a "you have unsaved edits"
-// question cannot be answered inside the surface that raised it.
+// of the sheet on mobile, and there is no reason this question cannot be
+// answered inside the surface that raised it.
+//
+// THREE ANSWERS, and the third is the one that used to be missing. Saving was
+// only ever available by not asking the question — closing without edits — so
+// somebody who had typed something could keep editing or throw it away, and
+// "save it and close" was not on offer at all. `close` flushes what is in
+// flight, so it was always there; it simply had no button.
 const confirming = ref(false)
 
 function requestClose() {
@@ -91,6 +102,12 @@ function discard() {
   confirming.value = false
   emit('discard')
 }
+/** Save and close. `close` flushes what is in flight, which is what saving is. */
+function save() {
+  confirming.value = false
+  emit('close')
+}
+/** Escape and the scrim both land here: the question goes, the work stays. */
 function keepEditing() {
   confirming.value = false
 }
@@ -463,21 +480,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
             <div class="detail__body"><slot name="aside" /></div>
           </section>
         </div>
-
-        <div
-          v-if="confirming"
-          class="detail__confirm"
-          role="alertdialog"
-          aria-label="Unsaved edits"
-        >
-          <p class="detail__confirmtext">This has edits that have not been saved yet.</p>
-          <div class="detail__confirmrow">
-            <button type="button" class="detail__btn" @click="keepEditing">Keep editing</button>
-            <button type="button" class="detail__btn detail__btn--danger" @click="discard">
-              Discard and close
-            </button>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -521,6 +523,17 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
       </div>
     </div>
   </template>
+
+  <!-- Centred over everything, including the sheet that raised it: a question
+       about losing work does not belong tucked into a corner of the surface it
+       is about (section 43, item 4). -->
+  <UnsavedSheet
+    :open="confirming"
+    :fields="dirtyFields"
+    @save="save"
+    @discard="discard"
+    @back="keepEditing"
+  />
 </template>
 
 <style scoped>
@@ -536,8 +549,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   color: var(--theme-text);
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
+  /* The overlay layer's own recipe (section 43): a dialog is the furthest
+     surface from the ground, so it takes the deepest blur. */
+  backdrop-filter: var(--layer-overlay-blur, blur(var(--glass-blur)) saturate(1.6));
+  -webkit-backdrop-filter: var(--layer-overlay-blur, blur(var(--glass-blur)) saturate(1.6));
   box-shadow: var(--elev-1);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -747,28 +762,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   padding: var(--sp-3) var(--sp-4);
   border-top: 1px solid var(--glass-border);
   background: inherit;
-}
-.detail__confirm {
-  position: absolute;
-  inset: auto 0 0 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-4);
-  border-top: 1px solid var(--glass-border);
-  background: var(--glass-solid);
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-}
-.detail__confirmtext {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--theme-dim);
-}
-.detail__confirmrow {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--sp-2);
 }
 .detail__btn {
   padding: var(--sp-2) var(--sp-3);

@@ -486,6 +486,8 @@ async function onSubmit() {
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
   background: var(--layer-raised-bg);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
   box-shadow: var(--layer-raised-shadow);
 }
 .tform__cell .ui-label {

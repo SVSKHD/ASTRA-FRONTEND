@@ -19,7 +19,22 @@ import { dayLabel, orDash } from '@/utils/format'
 import { IST, hhmmOn, ymdOn } from '@/utils/tradeTime'
 import type { NewsCategory, NewsItem } from '@/types'
 
-const props = defineProps<{ items: NewsItem[] }>()
+const props = withDefaults(
+  defineProps<{
+    items: NewsItem[]
+    /**
+     * The list is being replaced under the reader (section 43, item 6).
+     *
+     * This is the shimmer's one and only job, and the news is the one place in
+     * the app it actually happens: toggling a category re-queries without
+     * clearing what is on screen, so there IS something being refreshed. The
+     * trade log clears its rows before the round trip, which makes a month
+     * change a first paint — a skeleton, not a sweep.
+     */
+    refreshing?: boolean
+  }>(),
+  { refreshing: false },
+)
 
 const CATEGORY_ICON = {
   forex: IconForex,
@@ -46,7 +61,7 @@ function day(item: NewsItem): string {
 </script>
 
 <template>
-  <div v-if="items.length" class="ntable__wrap">
+  <div v-if="items.length" class="ntable__wrap" :class="{ 'ui-shimmer': refreshing }">
     <table class="ntable">
       <caption class="ui-sr-only">
         Headlines, newest first, grouped by day
@@ -108,6 +123,8 @@ function day(item: NewsItem): string {
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
   background: var(--layer-raised-bg);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
   box-shadow: var(--layer-raised-shadow);
 }
 .ntable {
@@ -128,7 +145,10 @@ function day(item: NewsItem): string {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--layer-overlay-bg);
+  /* Opaque, and the one surface in the system that must be (section 43,
+     item 3): rows scroll UNDER this, so a translucent header is a header
+     with figures moving through it at exactly the moment it is read. */
+  background: var(--glass-solid, var(--layer-overlay-bg));
   border-bottom: 1px solid var(--layer-raised-border);
   font-size: var(--text-2xs);
   line-height: var(--lh-2xs);

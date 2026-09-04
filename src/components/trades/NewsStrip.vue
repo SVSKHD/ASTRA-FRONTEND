@@ -69,6 +69,8 @@ const matching = computed(() => forexFor(props.items, props.day, props.tags))
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
   background: var(--layer-raised-bg);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
 }
 .nstrip__head {
   display: flex;

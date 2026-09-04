@@ -93,7 +93,10 @@ const counts = computed<Record<string, number>>(() => {
 
       <FeedHealthPanel v-if="showHealth" />
 
-      <NewsTable :items="news.items.value" />
+      <!-- Refreshing, not loading: the items on screen stay while the new
+           category query lands, so what is happening is a replacement of
+           something already readable (section 43, item 6). -->
+      <NewsTable :items="news.items.value" :refreshing="news.loading.value" />
     </div>
   </div>
 </template>

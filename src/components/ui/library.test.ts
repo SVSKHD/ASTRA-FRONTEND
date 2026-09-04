@@ -43,6 +43,8 @@ const REQUIRED = [
   'ProgressBar',
   'ProgressRing',
   'SaveState',
+  'TopProgressBar',
+  'UnsavedSheet',
   'Skeleton',
   'Toast',
   'EmptyState',

@@ -54,6 +54,7 @@ const {
   notes,
   detailFrame,
   detailDirty,
+  detailDirtyFields,
   noteColumnId,
   noteColumnFocusTitle,
   detailSplit,
@@ -153,7 +154,7 @@ const title = useInlineField({
     if (current.kind === 'goal') app.updateGoal(current.id, { title: next })
     else app.updateTask(current.id, 'title', next)
   },
-  onDirty: (dirty) => app.setDetailDirty(dirty),
+  onDirty: (dirty) => app.setDetailDirty(dirty ? ['Title'] : []),
 })
 // Stepping to a sibling swaps what the field is about, so a pending write goes
 // to the item it was typed into rather than the one that just arrived.
@@ -194,7 +195,7 @@ function onDiscard() {
   noteBody.value?.revert?.()
   title.revert()
   body.value?.revert?.()
-  app.setDetailDirty(false)
+  app.setDetailDirty([])
   app.closeDetail()
 }
 function onBack() {
@@ -223,6 +224,7 @@ function onOpen(target: { kind: DetailKind; id: number }) {
     :open="open"
     :title="titleText"
     :dirty="detailDirty"
+    :dirty-fields="detailDirtyFields"
     :mobile="isMobile"
     :can-go-back="app.detailCanGoBack"
     :back-label="backLabel"

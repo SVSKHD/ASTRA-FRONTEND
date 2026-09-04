@@ -70,6 +70,10 @@ const SHOTS = [
   // is that there IS a bottom and it can be reached; a shot of the top proves
   // nothing about that.
   { name: 'trades-bottom', path: '/dev/shot/trades?mode=journal&month=2026-08', scroll: 'bottom' },
+  // The glass and loading language (section 43, item 10). Two shots: the four
+  // treatments side by side, and the unsaved sheet over them.
+  { name: 'glass-states', path: '/dev/shot/states?show=topbar' },
+  { name: 'glass-unsaved', path: '/dev/shot/states?show=unsaved' },
   { name: 'state-empty', path: '/dev/shot/trades?state=empty' },
   { name: 'state-loading', path: '/dev/shot/trades?state=loading', ready: false },
   { name: 'state-error', path: '/dev/shot/trades?state=error', ready: false },

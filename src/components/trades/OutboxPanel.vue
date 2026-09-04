@@ -53,6 +53,8 @@ function label(entry: OutboxEntry): string {
   border: 1px solid var(--theme-danger);
   border-radius: var(--radius-card);
   background: var(--layer-raised-bg);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
 }
 .obx__list {
   display: flex;
