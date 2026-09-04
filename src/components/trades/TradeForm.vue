@@ -32,10 +32,19 @@ import {
   isKnownSymbol,
   signOf,
   signed2,
-  todayYmd,
   tradeMove,
   tradePl,
 } from '@/utils/tradeMath'
+import {
+  IST,
+  hhmmOn,
+  instantFromWall,
+  offsetLabel,
+  offsetAt,
+  sessionAt,
+  ymdOn,
+  type Clock,
+} from '@/utils/tradeTime'
 import type { NewTrade } from '@/composables/useTradeLog'
 import type { LoggerSettings, TradeSession, TradeSide } from '@/types'
 
@@ -52,9 +61,16 @@ const SIDE_SEGMENTS = [
   { value: 'sell', label: 'Sell' },
 ]
 
+// The trader's own clock, and the one the form defaults to. Read through the
+// IST zone rather than from the machine's locale: a laptop left on London time
+// would otherwise log a 19:42 trade as 14:12 and put it in the wrong session.
+const nowIst = Date.now()
+
 const form = useForm({
   initial: {
-    date: todayYmd(),
+    date: ymdOn(IST, nowIst),
+    istTime: hhmmOn(IST, nowIst),
+    exitTime: '',
     symbol: props.settings.lastSymbol,
     session: 'London' as TradeSession,
     side: 'buy' as TradeSide,
@@ -67,6 +83,8 @@ const form = useForm({
   onSubmit: async (values) => {
     emit('submit', {
       date: values.date,
+      istTime: values.istTime,
+      exitTime: values.exitTime,
       symbol: String(values.symbol).trim().toUpperCase(),
       session: values.session,
       side: values.side,
@@ -98,6 +116,59 @@ const symbolOptions = computed(() =>
 
 const contractSize = computed(() =>
   contractSizeFor(props.settings.contractSizes, String(form.values.symbol)),
+)
+
+// --- the two clocks (section 31) ---------------------------------------------
+//
+// The form takes ONE reading — the IST wall clock — and everything below is
+// derived from the instant it names. Broker time is never the IST string with
+// hours added to it: that arithmetic is wrong on the day the broker's clock
+// changes and wrong again about which day it is whenever it crosses midnight.
+const broker = computed<Clock>(() => ({
+  zone: props.settings.brokerTimezone,
+  offsetMinutes: props.settings.brokerOffsetMinutes,
+}))
+
+const entryAt = computed(() =>
+  instantFromWall(IST, String(form.values.date), String(form.values.istTime)),
+)
+
+const clocks = computed(() => {
+  const at = entryAt.value
+  if (at == null) return null
+  return {
+    ist: hhmmOn(IST, at),
+    broker: hhmmOn(broker.value, at),
+    offset: offsetLabel(offsetAt(broker.value, at)),
+  }
+})
+
+/** What the boundaries say, read on the broker's clock. `null` = out of hours. */
+const derivedSession = computed(() =>
+  entryAt.value == null
+    ? null
+    : sessionAt(broker.value, props.settings.sessionBounds, entryAt.value),
+)
+
+// The dropdown is pre-selected from the time and stays that way until somebody
+// disagrees with it. After that it is theirs: a control that keeps correcting
+// its owner is a control that gets ignored.
+const sessionOverridden = ref(false)
+watch(derivedSession, (next) => {
+  if (next && !sessionOverridden.value) form.values.session = next
+})
+watch(
+  () => form.values.session,
+  (next) => {
+    if (derivedSession.value && next !== derivedSession.value) sessionOverridden.value = true
+  },
+)
+
+/** An override, stated rather than silently accepted. */
+const sessionMismatch = computed(() =>
+  derivedSession.value && derivedSession.value !== form.values.session
+    ? `The broker clock puts this in ${derivedSession.value}.`
+    : '',
 )
 
 // The live preview. Nulls read as nothing rather than as zero: "0.00" before a
@@ -162,7 +233,20 @@ async function onSubmit() {
   // being kept by the third day. Through `reset` rather than by clearing the
   // fields, so the emptied prices are not immediately marked invalid.
   const { date, symbol, session, side, lot } = form.values
-  form.reset({ date, symbol, session, side, lot, entry: null, exit: null, note: '' })
+  // The clock moves on with the trader: the next entry defaults to now, not to
+  // the time of the one just logged.
+  form.reset({
+    date,
+    istTime: hhmmOn(IST, Date.now()),
+    exitTime: '',
+    symbol,
+    session,
+    side,
+    lot,
+    entry: null,
+    exit: null,
+    note: '',
+  })
   entryField.value?.querySelector('input')?.focus()
 }
 </script>
@@ -180,6 +264,38 @@ async function onSubmit() {
             mode="date"
             :clearable="false"
             @update:model-value="form.change('date')"
+          />
+        </div>
+      </FormField>
+
+      <FormField label="Entry time (IST)" :error="form.errorFor('istTime')" v-slot="f">
+        <div data-field="istTime">
+          <GlassDatePicker
+            :id="f.id"
+            :size="f.size"
+            :disabled="f.disabled"
+            v-model="form.values.istTime"
+            mode="time"
+            :clearable="false"
+            @update:model-value="form.change('istTime')"
+          />
+        </div>
+      </FormField>
+
+      <FormField
+        label="Exit time (IST)"
+        hint="Optional — leave it if the trade is still open"
+        :error="form.errorFor('exitTime')"
+        v-slot="f"
+      >
+        <div data-field="exitTime">
+          <GlassDatePicker
+            :id="f.id"
+            :size="f.size"
+            :disabled="f.disabled"
+            v-model="form.values.exitTime"
+            mode="time"
+            @update:model-value="form.change('exitTime')"
           />
         </div>
       </FormField>
@@ -204,7 +320,12 @@ async function onSubmit() {
         </div>
       </FormField>
 
-      <FormField label="Session" :error="form.errorFor('session')" v-slot="f">
+      <FormField
+        label="Session"
+        :hint="sessionMismatch || undefined"
+        :error="form.errorFor('session')"
+        v-slot="f"
+      >
         <div data-field="session">
           <SegmentedControl
             :size="f.size"
@@ -281,6 +402,15 @@ async function onSubmit() {
         </div>
       </FormField>
     </div>
+
+    <!-- Both readings of the one instant, before it is stored. The broker time
+         is computed from the instant every time it is shown; it is never the
+         IST string with an offset added to it. -->
+    <p v-if="clocks" class="tform__clocks ui-mono" aria-live="polite">
+      IST {{ clocks.ist }} <span class="tform__dot" aria-hidden="true">·</span> Broker
+      {{ clocks.broker }}
+      <span class="tform__offset">GMT{{ clocks.offset }}</span>
+    </p>
 
     <Alert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</Alert>
 
@@ -368,6 +498,24 @@ async function onSubmit() {
   gap: var(--sp-3);
   min-width: 0;
 }
+/* The pair, stated plainly. Mono because they are read against each other, and
+   secondary because it is a confirmation of what was typed, not a field. */
+.tform__clocks {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--text-secondary, var(--theme-dim));
+}
+.tform__dot {
+  padding: 0 var(--sp-1);
+  color: var(--text-muted, var(--theme-dim));
+}
+.tform__offset {
+  padding-left: var(--sp-2);
+  color: var(--text-muted, var(--theme-dim));
+}
+
 .tform__preview {
   display: flex;
   gap: var(--sp-5);

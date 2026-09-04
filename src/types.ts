@@ -1023,10 +1023,37 @@ export type TradeSide = 'buy' | 'sell'
 
 export interface Trade {
   id: string
-  /** Local 'YYYY-MM-DD'. The field every query and every grouping goes through. */
+  /**
+   * The IST calendar day, 'YYYY-MM-DD'. The field every query and every
+   * grouping goes through — and the reason section 31 does not add a second
+   * `istDate` beside it: this IS the IST date, derived from `entryAt` on the
+   * Asia/Kolkata clock, and two copies of one string is one copy that drifts.
+   */
   date: string
   /** The stored Timestamp, flattened to epoch ms on read. Breaks ties within a day. */
   ts: number
+  /**
+   * The instant the trade was entered, epoch ms (section 31). Everything about
+   * time is derived from this: IST, broker time, UTC and the session are four
+   * readings of it, and none of them is stored as a second clock.
+   *
+   * Zero means a row logged before section 31 that has not been backfilled.
+   */
+  entryAt: number
+  /** The instant it was closed, if it was given. Zero means "not recorded". */
+  exitAt: number
+  /** 'HH:mm' IST, as typed. Kept so a row reads back the way it was entered
+   *  even if the broker's zone is corrected later. */
+  istTime: string
+  /**
+   * What the broker's clock was doing AT `entryAt`, in minutes east of UTC.
+   * Recorded per row rather than read from settings, so a January trade is not
+   * re-read through July's offset.
+   */
+  brokerOffsetMinutes: number
+  /** A time the backfill invented rather than one somebody typed. Excluded
+   *  from every hour-of-day view and shown as a dash. */
+  timeEstimated?: boolean
   symbol: string
   session: TradeSession
   side: TradeSide
@@ -1061,4 +1088,23 @@ export interface LoggerSettings {
    * which is the only state in which `prefers-color-scheme` gets a say.
    */
   theme: string
+  /**
+   * The broker's IANA zone, e.g. 'Europe/Athens' (section 31). Empty means
+   * nobody has named it and the fixed offset below is used instead. A named
+   * zone is strictly better: it resolves per trade date, so a year of history
+   * reads correctly across both DST transitions.
+   */
+  brokerTimezone: string
+  /** The fallback offset, minutes east of UTC. GMT+3 — the usual MT5 server. */
+  brokerOffsetMinutes: number
+  /** Session opens and the New York close, on the BROKER's clock, 'HH:mm'. */
+  sessionBounds: SessionBounds
+}
+
+/** The session boundaries as stored. Broker time; see utils/tradeTime.ts. */
+export interface SessionBounds {
+  asia: string
+  london: string
+  ny: string
+  nyEnd: string
 }

@@ -107,6 +107,7 @@ vi.stubGlobal('indexedDB', {
 const { useTradeLog } = await import('@/composables/useTradeLog')
 const { useAuthStore } = await import('@/stores/auth')
 const { resetOutboxConnection, MAX_ATTEMPTS } = await import('@/services/outbox')
+const { IST, instantFromWall } = await import('@/utils/tradeTime')
 
 function docsOf(rows: Record<string, unknown>[], pending = false) {
   return {
@@ -236,6 +237,8 @@ describe('useTradeLog', () => {
       entry: 41000,
       exit: 40900,
       note: 'break',
+      istTime: '19:42',
+      exitTime: '',
     })
     // The form is told the trade is captured while the write is still in
     // flight. This is the whole of section 30 in one assertion: awaiting the
@@ -266,6 +269,8 @@ describe('useTradeLog', () => {
       entry: 2400,
       exit: 2405,
       note: '',
+      istTime: '19:42',
+      exitTime: '',
     })
     const written = writes.setDoc[0] as { path: string }
     const id = written.path.split('/').pop() as string
@@ -291,6 +296,8 @@ describe('useTradeLog', () => {
       entry: 2400,
       exit: 2405,
       note: '',
+      istTime: '19:42',
+      exitTime: '',
     })
     await settle()
     // Captured is captured. What was refused is the delivery, and a rollback
@@ -375,6 +382,8 @@ describe('useTradeLog', () => {
       entry: 1,
       exit: 2,
       note: '',
+      istTime: '19:42',
+      exitTime: '',
     })
     // Fire-and-forget, so it has not necessarily happened by the time addTrade
     // returns — which is the point.
@@ -384,6 +393,83 @@ describe('useTradeLog', () => {
     )
     expect(settingsWrite).toBeTruthy()
     expect(log.settings.value.lastSymbol).toBe('NAS100')
+    wrapper.unmount()
+  })
+
+  it('stores the instant and derives the day from it, never two clock strings', async () => {
+    // Section 31. What goes to Firestore is `entryAt`; the IST reading is kept
+    // beside it so the row reads back as typed, and the broker's offset is
+    // recorded as it was AT that instant.
+    const { wrapper, log } = await mountLog()
+    listeners.trades.next(docsOf([]))
+    await nextTick()
+    await log.addTrade({
+      date: '2026-09-03',
+      symbol: 'XAUUSD',
+      session: 'NY',
+      side: 'buy',
+      lot: 1,
+      entry: 2400,
+      exit: 2405,
+      note: '',
+      istTime: '19:42',
+      exitTime: '20:10',
+    })
+    await settle()
+    const payload = tradeWrites()[0].data as Record<string, { toMillis(): number }> &
+      Record<string, unknown>
+    const at = instantFromWall(IST, '2026-09-03', '19:42')!
+    expect(payload.entryAt.toMillis()).toBe(at)
+    expect(payload.exitAt.toMillis()).toBe(instantFromWall(IST, '2026-09-03', '20:10'))
+    expect(payload.istTime).toBe('19:42')
+    // GMT+3 by default, and stored as the number rather than as '+03:00': it is
+    // arithmetic, not a label.
+    expect(payload.brokerOffsetMinutes).toBe(180)
+    // The date is the instant's own IST day, so there is exactly one date field
+    // and no question about which zone it is in.
+    expect(payload.date).toBe('2026-09-03')
+    wrapper.unmount()
+  })
+
+  it('reads a close before the open as the next morning, not as minus a day', async () => {
+    const { wrapper, log } = await mountLog()
+    listeners.trades.next(docsOf([]))
+    await nextTick()
+    await log.addTrade({
+      date: '2026-09-03',
+      symbol: 'XAUUSD',
+      session: 'NY',
+      side: 'buy',
+      lot: 1,
+      entry: 2400,
+      exit: 2405,
+      note: '',
+      istTime: '23:40',
+      exitTime: '00:20',
+    })
+    await settle()
+    const payload = tradeWrites()[0].data as Record<string, { toMillis(): number }>
+    // Forty minutes, not minus twenty-three hours and twenty.
+    expect(payload.exitAt.toMillis() - payload.entryAt.toMillis()).toBe(40 * 60_000)
+    wrapper.unmount()
+  })
+
+  it('backfills a timeless row to midnight IST and marks the time as invented', async () => {
+    const { wrapper, log } = await mountLog()
+    // A row from before section 31: a date, and no instant at all.
+    listeners.trades.next(docsOf([TRADE]))
+    await nextTick()
+    expect(log.untimed.value).toHaveLength(1)
+
+    expect(await log.backfillTimes()).toBe(1)
+    await settle()
+    const write = tradeWrites().find((w) => w.path.endsWith('/trades/server1'))!
+    const data = write.data as Record<string, { toMillis(): number }> & Record<string, unknown>
+    expect(data.entryAt.toMillis()).toBe(instantFromWall(IST, '2026-09-02', '00:00'))
+    expect(data.istTime).toBe('00:00')
+    // The flag is the whole point: it is what keeps a guess out of every
+    // hour-of-day view instead of reporting a spike of midnight trades.
+    expect(data.timeEstimated).toBe(true)
     wrapper.unmount()
   })
 
@@ -410,6 +496,8 @@ const NEW_TRADE = {
   entry: 2400,
   exit: 2410,
   note: 'offline',
+  istTime: '19:42',
+  exitTime: '',
 } as const
 
 describe('no trade is lost and none is counted twice', () => {

@@ -10,6 +10,12 @@ function makeTrade(over: Partial<Trade> = {}): Trade {
     id: 't1',
     date: '2026-09-01',
     ts: 1,
+    // Section 31's four: the instant, its optional close, the IST reading it
+    // was typed as, and the broker offset that was in force for it.
+    entryAt: 0,
+    exitAt: 0,
+    istTime: '',
+    brokerOffsetMinutes: 180,
     symbol: 'XAUUSD',
     session: 'London',
     side: 'buy',
@@ -61,16 +67,43 @@ describe('TradeTable', () => {
   })
 
   it('gives Buy and Sell their own glyphs, and each session its own', () => {
-    const rows = mountTable().findAll('tbody tr')
-    // Rail, sync dot, date, symbol, session, side — the two icon columns are
-    // the fifth and the sixth.
-    const buy = rows[0].findAll('td')[5].find('svg').html()
-    const sell = rows[1].findAll('td')[5].find('svg').html()
-    expect(buy).not.toBe(sell)
-    const london = rows[0].findAll('td')[4].find('svg').html()
-    const ny = rows[1].findAll('td')[4].find('svg').html()
-    const asia = rows[2].findAll('td')[4].find('svg').html()
-    expect(new Set([london, ny, asia]).size).toBe(3)
+    const wrapper = mountTable()
+    // Found by the column's own heading rather than by a number: this table has
+    // gained two columns since it was written, and each time it did, a test
+    // counting cells failed for a reason that had nothing to do with glyphs.
+    const headings = wrapper.findAll('thead th').map((th) => th.text())
+    const cell = (row: number, column: string) =>
+      wrapper.findAll('tbody tr')[row].findAll('td')[headings.indexOf(column)].find('svg').html()
+    expect(cell(0, 'Side')).not.toBe(cell(1, 'Side'))
+    expect(new Set([cell(0, 'Session'), cell(1, 'Session'), cell(2, 'Session')]).size).toBe(3)
+  })
+
+  it('reads one instant on two clocks, and dashes the rows that have no instant', () => {
+    // Section 31. Broker time is computed from `entryAt` at render, never from
+    // the IST string with hours added to it — so a row stored under a +02:00
+    // broker still reads +02:00 after the clocks change.
+    const at = Date.UTC(2026, 8, 1, 14, 12) // 19:42 IST, 17:12 on a +03:00 broker
+    const wrapper = mount(TradeTable, {
+      props: {
+        trades: [
+          makeTrade({ id: 'a', entryAt: at, istTime: '19:42', brokerOffsetMinutes: 180 }),
+          makeTrade({ id: 'b', entryAt: at, timeEstimated: true }),
+          makeTrade({ id: 'c' }),
+        ],
+        emptyTitle: 'Nothing yet',
+        emptyDescription: 'Log one.',
+        broker: { zone: '', offsetMinutes: 180 },
+      },
+      global: { stubs: { 'transition-group': false } },
+    })
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0].find('.ttable__time').text()).toContain('19:42')
+    expect(rows[0].find('.ttable__time').text()).toContain('17:12')
+    expect(rows[0].find('.ttable__time').attributes('title')).toContain('UTC 14:12')
+    // A backfilled midnight and a row with no time at all read the same way,
+    // because they are the same thing: a time nobody typed.
+    expect(rows[1].find('.ttable__time').text()).toContain('—')
+    expect(rows[2].find('.ttable__time').text()).toContain('—')
   })
 
   it('dots only the rows the server has not got, and says which is which', () => {

@@ -45,7 +45,9 @@ import {
   type OutboxEntry,
 } from '@/services/outbox'
 import {
+  DEFAULT_BROKER_OFFSET_MINUTES,
   DEFAULT_LOGGER_SETTINGS,
+  DEFAULT_SESSION_BOUNDS,
   contractSizeFor,
   monthBounds,
   recomputeAll,
@@ -53,6 +55,15 @@ import {
   tradeMove,
   tradePl,
 } from '@/utils/tradeMath'
+import {
+  IST,
+  hasTime,
+  hhmmOn,
+  instantFromWall,
+  offsetAt,
+  ymdOn,
+  type Clock,
+} from '@/utils/tradeTime'
 import type { LoggerSettings, SecuredEntry, Trade, TradeSession, TradeSide } from '@/types'
 
 /** What the form hands over. `move` and `pl` are derived here, never typed. */
@@ -65,6 +76,10 @@ export interface NewTrade {
   entry: number
   exit: number
   note: string
+  /** 'HH:mm' IST, as typed (section 31). */
+  istTime: string
+  /** 'HH:mm' IST, optional — '' when the close was not recorded. */
+  exitTime: string
 }
 
 export interface NewSecured {
@@ -93,6 +108,14 @@ function readTrade(id: string, data: DocumentData): Trade {
     id,
     date: String(data.date ?? ''),
     ts: millis(data.ts),
+    // The instant, and the three fields that describe how it was captured.
+    // Everything else about time — broker, UTC, the session, the hour bucket —
+    // is derived from `entryAt` at the point of use (section 31).
+    entryAt: millis(data.entryAt),
+    exitAt: millis(data.exitAt),
+    istTime: String(data.istTime ?? ''),
+    brokerOffsetMinutes: num(data.brokerOffsetMinutes, DEFAULT_BROKER_OFFSET_MINUTES),
+    timeEstimated: data.timeEstimated === true,
     symbol: String(data.symbol ?? ''),
     session: (data.session as TradeSession) ?? 'London',
     side: (data.side as TradeSide) ?? 'buy',
@@ -131,6 +154,14 @@ function readSettings(data: DocumentData | undefined): LoggerSettings {
         : {}),
     },
     theme: String(data.theme ?? ''),
+    brokerTimezone: String(data.brokerTimezone ?? ''),
+    brokerOffsetMinutes: num(data.brokerOffsetMinutes, DEFAULT_BROKER_OFFSET_MINUTES),
+    sessionBounds: {
+      ...DEFAULT_SESSION_BOUNDS,
+      ...(typeof data.sessionBounds === 'object' && data.sessionBounds
+        ? (data.sessionBounds as Record<string, string>)
+        : {}),
+    },
   }
 }
 
@@ -216,6 +247,19 @@ export function useTradeLog(
       .filter((s) => !gone.has(s.id))
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id.localeCompare(b.id)))
   })
+
+  /**
+   * The broker's clock, as much as is known about it (section 31). A named IANA
+   * zone resolves per trade date and is the right answer; the fixed offset is
+   * the fallback for a broker nobody has named.
+   */
+  const brokerClock = computed<Clock>(() => ({
+    zone: settings.value.brokerTimezone,
+    offsetMinutes: settings.value.brokerOffsetMinutes,
+  }))
+
+  /** Rows still carrying no instant at all — what the backfill is for. */
+  const untimed = computed(() => trades.value.filter((t) => !hasTime(t)))
 
   /** The contract size in force for the symbol the form is on. */
   const contractSize = computed(() =>
@@ -428,14 +472,28 @@ export function useTradeLog(
     const symbolKey = input.symbol.trim().toUpperCase()
     const move = tradeMove(input.side, input.entry, input.exit)
     const pl = tradePl(move, input.lot, contractSizeFor(settings.value.contractSizes, symbolKey))
+    // The IST wall clock the trader typed, resolved to the instant it names —
+    // and the instant is what is stored. `date` is that instant's IST day, so
+    // there is one date field and it is unambiguous about which zone it is in.
+    const entryAt = instantFromWall(IST, input.date, input.istTime) ?? Date.now()
+    // A close that reads earlier than the open is a session that ran past
+    // midnight IST, not a typo: 23:40 → 00:20 is forty minutes, not minus 23
+    // hours. Anything else would need a second date field on the form.
+    let exitAt = input.exitTime ? instantFromWall(IST, input.date, input.exitTime) : null
+    if (exitAt != null && exitAt < entryAt) exitAt += 86_400_000
+    const brokerOffsetMinutes = offsetAt(brokerClock.value, entryAt)
     // The id is minted client-side so the optimistic row and the document that
     // lands are the same row — and so a replay overwrites rather than
     // duplicating. `addDoc` would leave them as two.
     const ref = fs.doc(fs.collection(db, 'users', owner, 'trades'))
     const ts = Date.now()
     const payload: Record<string, unknown> = {
-      date: input.date,
+      date: ymdOn(IST, entryAt),
       ts: fs.Timestamp.fromMillis(ts),
+      entryAt: fs.Timestamp.fromMillis(entryAt),
+      exitAt: exitAt == null ? null : fs.Timestamp.fromMillis(exitAt),
+      istTime: hhmmOn(IST, entryAt),
+      brokerOffsetMinutes,
       symbol: symbolKey,
       session: input.session,
       side: input.side,
@@ -449,7 +507,20 @@ export function useTradeLog(
     }
     pendingTrades.value = [
       ...pendingTrades.value,
-      { ...input, symbol: symbolKey, id: ref.id, ts, move, pl, createdAt: ts },
+      {
+        ...input,
+        date: ymdOn(IST, entryAt),
+        symbol: symbolKey,
+        id: ref.id,
+        ts,
+        move,
+        pl,
+        createdAt: ts,
+        entryAt,
+        exitAt: exitAt ?? 0,
+        istTime: hhmmOn(IST, entryAt),
+        brokerOffsetMinutes,
+      },
     ]
     error.value = ''
     // Started, not awaited. The catch runs whenever it runs.
@@ -627,6 +698,53 @@ export function useTradeLog(
     }
   }
 
+  /**
+   * The one-time backfill for rows logged before section 31 (item 10).
+   *
+   * They are given midnight IST on the day they already carry — the only
+   * defensible guess, because it is the one reading that cannot be mistaken for
+   * an observation — and marked `timeEstimated`, which is what keeps them out
+   * of every hour-of-day view. A guess counted as data would show a spike of
+   * trades at 00:00 that nobody made.
+   *
+   * Scoped to the month on screen, because that is the set actually loaded;
+   * paging back through the history backfills the rest a month at a time.
+   */
+  const backfilling = ref(false)
+
+  async function backfillTimes(): Promise<number> {
+    const cloud = await handle()
+    if (!cloud || backfilling.value) return 0
+    const { db, fs } = cloud
+    const rows = untimed.value
+    if (!rows.length) return 0
+    backfilling.value = true
+    let done = 0
+    try {
+      for (const row of rows) {
+        const at = instantFromWall(IST, row.date, '00:00')
+        if (at == null) continue
+        await fs.setDoc(
+          fs.doc(db, 'users', uid.value, 'trades', row.id),
+          {
+            entryAt: fs.Timestamp.fromMillis(at),
+            istTime: '00:00',
+            brokerOffsetMinutes: offsetAt(brokerClock.value, at),
+            timeEstimated: true,
+          },
+          { merge: true },
+        )
+        done += 1
+      }
+    } catch (err) {
+      console.error('[Aureon] Backfill failed:', err)
+      error.value = 'Some rows could not be given a time. Nothing was changed twice — try again.'
+    } finally {
+      backfilling.value = false
+    }
+    return done
+  }
+
   /** The answer to "what is this symbol worth per point?", asked once per symbol. */
   function setContractSize(nextSymbol: string, size: number): Promise<boolean> {
     const key = nextSymbol.trim().toUpperCase()
@@ -659,6 +777,10 @@ export function useTradeLog(
     trades,
     secured,
     settings,
+    brokerClock,
+    untimed,
+    backfilling,
+    backfillTimes,
     contractSize,
     loading,
     error,
