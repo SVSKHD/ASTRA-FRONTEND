@@ -27,25 +27,19 @@ withDefaults(defineProps<{ width?: string; height?: string; radius?: string; lin
   gap: var(--sp-2);
   width: 100%;
 }
+/* FLAT, AND THAT IS THE POINT (section 43, item 5).
+   
+   The four loading treatments have one job each and none of them overlaps. A
+   skeleton is first paint: it says "this is the shape of what is coming", and
+   it says it by being that shape. It used to also sweep a gradient across
+   itself, which is the shimmer's sentence — "what you are reading is being
+   replaced" — said about content that is not there to replace. Two treatments
+   on one element, saying two different things, one of them untrue.
+   
+   So the bar is a flat wash of the panel's own hairline colour. A caller that
+   wants the sweep asks for it by name, on a panel that has content in it. */
 .ui-skeleton__bar {
   display: block;
-  background: linear-gradient(
-    90deg,
-    color-mix(in oklch, var(--glass-border) 45%, transparent),
-    color-mix(in oklch, var(--glass-border) 85%, transparent),
-    color-mix(in oklch, var(--glass-border) 45%, transparent)
-  );
-  background-size: 200% 100%;
-  animation: uiShimmer 1.4s linear infinite;
-}
-@keyframes uiShimmer {
-  to {
-    background-position: -200% 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ui-skeleton__bar {
-    animation: none;
-  }
+  background: color-mix(in oklch, var(--glass-border) 65%, transparent);
 }
 </style>

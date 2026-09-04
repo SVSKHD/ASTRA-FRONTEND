@@ -240,9 +240,18 @@ export const EXTRA_THEMES: Record<string, Theme> = {
   //                               reads as neon. These endpoints are the same
   //                               two signs, desaturated and lifted to sit in
   //                               the cup rather than glow out of it.
-  //   noGlass                     a blur over a near-black page is a slightly
-  //                               different near-black. The layers separate by
-  //                               a top highlight and a border instead.
+  //   glass / card / border       translucent, not opaque (section 43). The
+  //                               earlier reasoning — "a blur over a near-black
+  //                               page is a slightly different near-black" —
+  //                               was true of a near-black page. The page is a
+  //                               starfield, and a panel that hides it is a
+  //                               hole cut in the sky. These three are the
+  //                               tints; the blur and the edge highlight are in
+  //                               the token layer.
+  //
+  // These values are written to :root as INLINE styles by applyThemeToDom, so
+  // they beat the [data-theme] block — which is why the glass tints have to
+  // live here as well as there rather than in the stylesheet alone.
   //
   // The surface, border and accent-soft values live in the CSS token layer
   // (components/ui/tokens.css, `[data-theme='espresso']`) so the first paint has
@@ -251,13 +260,14 @@ export const EXTRA_THEMES: Record<string, Theme> = {
   espresso: {
     label: 'Espresso',
     group: 'dark',
-    noGlass: true,
     colorScheme: 'dark',
-    // The glass tokens resolve to the layer surfaces, opaque.
-    glass: '#1A0D08',
-    card: '#2B160B',
-    input: '#2B160B',
-    border: '#4D270E',
+    // The three tints, and the border is a clear hairline of light rather than
+    // a warm line: on glass the edge is what reads as an edge of a pane, and a
+    // brown border on a brown tint is a slightly different brown.
+    glass: 'rgba(26, 13, 8, 0.72)',
+    card: 'rgba(43, 22, 11, 0.68)',
+    input: 'rgba(43, 22, 11, 0.68)',
+    border: 'rgba(255, 255, 255, 0.10)',
     // White, not crema. On a ground this warm a tinted text reads as a stain on
     // the surface rather than as ink on it, and the two alpha steps below then
     // have nowhere to go: they would be tints of a tint.
@@ -273,7 +283,7 @@ export const EXTRA_THEMES: Record<string, Theme> = {
     // Black shadows vanish on this ground: the elevation is a 1px white
     // highlight along the top edge plus a wide ambient. One recipe, and the
     // per-layer recipes are in the token layer.
-    shadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 2px 12px rgba(0,0,0,0.6)',
+    shadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 12px rgba(0,0,0,0.6)',
     pageBg: '#0B0100',
     bgSolid: '#1A0D08',
     accent: '#C8873F',

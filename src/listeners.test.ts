@@ -44,15 +44,28 @@ describe('every listener is torn down', () => {
     expect(leaks.map((f) => f.path)).toEqual([])
   })
 
-  it('only the three owners of Firestore data open a listener', () => {
-    // The workspace is a single document, so one listener covers all of it and a
-    // second onSnapshot on it anywhere would be duplicated traffic on the same
-    // data. Beside it there are exactly two more: the settings document, which
-    // every query path is built from, and the shared month listener that trades,
-    // signals and expenses all go through — one file, three collections, so a
-    // fourth entry in this list should have to be argued for.
+  it('only the named owners of Firestore data open a listener', () => {
+    // Named rather than counted, so a new entry has to be argued for in this
+    // comment rather than by bumping a number:
+    //
+    //   stores/app.ts            the workspace, which is one document
+    //   composables/useSettings  the settings document every query path is
+    //                            built from
+    //   useOwnedMonth            one month listener shared by trades, signals,
+    //                            expenses and the secured ledger
+    //   useNews                  the shared `forex` collection — no uid, because
+    //                            the news is not anybody's data (section 39)
+    //   useGithubLive            repos and pull requests, both live for as long
+    //                            as the Code tab is open
+    //   useGhThread              one pull request's comments, attached when it
+    //                            is expanded and torn down when it is collapsed
+    //   FeedHealthPanel          one document, read only while the panel is open
     const listeners = FILES.filter((f) => f.body.includes('onSnapshot(')).map((f) => f.path)
     expect(listeners.sort()).toEqual([
+      'components/news/FeedHealthPanel.vue',
+      'composables/useGhThread.ts',
+      'composables/useGithubLive.ts',
+      'composables/useNews.ts',
       'composables/useOwnedMonth.ts',
       'composables/useSettings.ts',
       'stores/app.ts',

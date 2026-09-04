@@ -58,12 +58,20 @@ const ALLOWED = new Set([
 // own audit behind it.
 const TRADE_FAMILY = /^components\/icons\/Icon[A-Za-z]+\.vue$/
 
+// The feed family (sections 39–40) is allowed on the same terms and for the
+// same reason: news categories and pull-request states are a set with its own
+// frame and its own audit, and `feedicons/feedFamily.test.ts` additionally
+// proves that no glyph in it is shared with the trade set. Two deliberate sets
+// with audits behind them is not the thing this file exists to prevent — a
+// hand-drawn `<svg>` at a call site is.
+const FEED_FAMILY = /^components\/feedicons\/Icon[A-Za-z]+\.vue$/
+
 describe('one set, drawn once', () => {
   it('nothing draws its own icon (acceptance 111)', () => {
     const offenders = vueFiles(SRC)
       .filter((file) => template(readFileSync(file, 'utf8')).includes('<svg'))
       .map((file) => file.replace(SRC + '/', ''))
-      .filter((rel) => !ALLOWED.has(rel) && !TRADE_FAMILY.test(rel))
+      .filter((rel) => !ALLOWED.has(rel) && !TRADE_FAMILY.test(rel) && !FEED_FAMILY.test(rel))
     expect(offenders).toEqual([])
   })
 

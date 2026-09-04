@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { PLURAL } from '@/utils/share'
 import { useUiStore } from '@/stores/ui'
 import { LAST_ROUTE_KEY, sessionRead } from '@/composables/useTradeRoute'
+import { tabOf } from '@/composables/useTabRoute'
 import type { ItemType, TabKey } from '@/types'
 
 // Share routes are declared per item type rather than as one wildcard so an
@@ -19,6 +20,8 @@ const shareTypes = Object.keys(PLURAL) as ItemType[]
 export const TAB_ROUTES: Record<string, TabKey> = {
   '/trades': 'trades',
   '/expenses': 'expenses',
+  '/news': 'news',
+  '/code': 'code',
 }
 
 const routes: RouteRecordRaw[] = [
@@ -142,7 +145,10 @@ router.beforeEach((to) => {
       return last
     }
   }
-  const tab = TAB_ROUTES[to.path]
+  // The reading half, for every tab rather than for the four with a path of
+  // their own (section 42): `?tab=finances` on the root is how the other
+  // seventeen say which one they are.
+  const tab = tabOf(to.path, to.query)
   if (tab) useUiStore().setTab(tab)
   return true
 })

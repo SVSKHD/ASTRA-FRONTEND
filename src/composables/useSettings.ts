@@ -18,9 +18,14 @@ import { storeToRefs } from 'pinia'
 import type { DocumentData, Unsubscribe } from 'firebase/firestore'
 import { loadFirestore } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
-import { DEFAULT_COLLECTIONS, resolveCollection, type CollectionKey } from '@/utils/collections'
+import {
+  DEFAULT_COLLECTIONS,
+  DEFAULT_WATCH_SETTINGS,
+  resolveCollection,
+  type CollectionKey,
+} from '@/utils/collections'
 import { DEFAULT_LOGGER_SETTINGS } from '@/utils/tradeMath'
-import type { AstraSettings, LoggerSettings } from '@/types'
+import type { AstraSettings, LoggerSettings, NewsCategory } from '@/types'
 
 export const ASTRA_USERS = 'Astra-users'
 
@@ -61,7 +66,21 @@ function readSettings(data: DocumentData | undefined): AstraSettings {
     // query path that throws.
     names[key] = resolveCollection(d as Record<CollectionKey, string>, key)
   }
-  return { ...logger, ...names }
+  return {
+    ...logger,
+    ...names,
+    // Lower-cased on read as well as on write: the webhook matches on the
+    // lower-case name, and a repo typed with capitals would silently never
+    // resolve to this uid (section 40).
+    trackedRepos: Array.isArray(d.trackedRepos)
+      ? (d.trackedRepos as string[]).map((r) => String(r).trim().toLowerCase()).filter(Boolean)
+      : [...DEFAULT_WATCH_SETTINGS.trackedRepos],
+    newsCategories: Array.isArray(d.newsCategories)
+      ? (d.newsCategories as NewsCategory[]).filter((c) =>
+          (['forex', 'ai', 'code'] as string[]).includes(c),
+        )
+      : [...DEFAULT_WATCH_SETTINGS.newsCategories],
+  }
 }
 
 let shared: ReturnType<typeof create> | null = null

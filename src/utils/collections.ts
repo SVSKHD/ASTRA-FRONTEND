@@ -100,3 +100,17 @@ export function resolveCollection(
   const stored = names?.[key]?.trim()
   return stored && isValidCollectionName(stored) ? stored : DEFAULT_COLLECTIONS[key]
 }
+
+/**
+ * The rest of `Astra-users/{uid}` (sections 39–40).
+ *
+ * Beside the collection names rather than beside the logger's numbers, because
+ * these describe what the app WATCHES rather than how it computes: which
+ * repositories send it webhooks, and which news categories it shows. Nothing
+ * tracked and every category on is the honest starting state for both — a new
+ * account has no repositories and no reason to have a category hidden.
+ */
+export const DEFAULT_WATCH_SETTINGS = {
+  trackedRepos: [] as string[],
+  newsCategories: ['forex', 'ai', 'code'] as ('forex' | 'ai' | 'code')[],
+}

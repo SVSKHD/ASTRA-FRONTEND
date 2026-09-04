@@ -2,7 +2,10 @@
 // The primary action control. Variant, size and state are props — a button never
 // carries page-specific styling, which is what lets the same component serve a
 // dialog footer and a toolbar.
-withDefaults(
+import SaveState from '@/components/ui/SaveState.vue'
+import type { SaveState as SaveStateValue } from '@/composables/useSaveState'
+
+const props = withDefaults(
   defineProps<{
     variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
     size?: 'sm' | 'md' | 'lg'
@@ -10,9 +13,23 @@ withDefaults(
     loading?: boolean
     block?: boolean
     type?: 'button' | 'submit'
+    /**
+     * The three states of a save (section 41).
+     *
+     * Different from `loading`, and the difference is the point. `loading` adds
+     * a spinner BESIDE the label, so the button is wider while it is busy and
+     * says nothing at all when it finishes. `state` puts a reserved box in the
+     * label's place-holder position that never changes size, and it has a
+     * finish: a check that is held long enough to read, or an error that stays
+     * until it is dealt with.
+     */
+    state?: SaveStateValue
   }>(),
   { variant: 'primary', size: 'md', type: 'button' },
 )
+
+/** Working is busy; so is `loading`. Done and failed are not — the button works. */
+const busy = () => props.loading || props.state === 'working'
 </script>
 
 <template>
@@ -20,10 +37,11 @@ withDefaults(
     class="ui-btn ui-focus-ring"
     :class="[`ui-btn--${variant}`, `ui-btn--${size}`, { 'ui-btn--block': block }]"
     :type="type"
-    :disabled="disabled || loading"
-    :aria-busy="loading"
+    :disabled="disabled || busy()"
+    :aria-busy="busy()"
   >
     <span v-if="loading" class="ui-btn__spinner" aria-hidden="true"></span>
+    <SaveState v-if="state" :state="state" />
     <slot />
   </button>
 </template>

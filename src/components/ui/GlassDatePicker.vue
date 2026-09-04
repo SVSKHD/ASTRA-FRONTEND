@@ -50,6 +50,15 @@ export interface DayMeta {
    * provide (section 29).
    */
   ink?: string
+  /**
+   * Ring this day briefly (section 42).
+   *
+   * Set by a caller that has just changed the day's figures, so the
+   * confirmation lands where the data landed rather than in a corner of the
+   * screen. It is a border on a cell that already has one — nothing resizes,
+   * nothing below it moves.
+   */
+  flash?: boolean
 }
 
 const props = withDefaults(
@@ -459,6 +468,7 @@ const painted = computed(() => Object.keys(props.dayMeta ?? {}).length > 0)
                     },
                     metaFor(cell.ymd)?.tone ? `is-${metaFor(cell.ymd)?.tone}` : '',
                     { 'has-wash': !!metaFor(cell.ymd)?.wash },
+                    { 'is-flashing': !!metaFor(cell.ymd)?.flash },
                   ]"
                   :style="dayStyle(cell.ymd, wi * 7 + di)"
                   :tabindex="-1"
@@ -799,6 +809,13 @@ const painted = computed(() => Object.keys(props.dayMeta ?? {}).length > 0)
 }
 .gdp__day:hover:not(:disabled) {
   background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
+}
+/* The brief ring (section 42). The border is already there and already
+   transitioned, so this colours it rather than adding one — the cell does not
+   change size and the grid does not reflow around a confirmation. */
+.gdp__day.is-flashing {
+  border-color: var(--accent, var(--theme-accent));
+  box-shadow: 0 0 0 1px var(--accent, var(--theme-accent));
 }
 .gdp__day.is-out {
   color: var(--theme-dim);

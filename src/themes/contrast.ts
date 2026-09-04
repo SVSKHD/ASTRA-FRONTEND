@@ -81,8 +81,19 @@ export function parseColor(input: string): RGB {
   }
   const rgb = s.match(/^rgba?\(([^)]+)\)$/i)
   if (rgb) {
-    const parts = rgb[1].split(',').map((p) => parseFloat(p))
-    return { r: parts[0], g: parts[1], b: parts[2], a: parts[3] ?? 1 }
+    // Both syntaxes. `rgba(43, 22, 11, 0.68)` is what the theme registry
+    // writes; `rgb(43 22 11 / 68%)` is what the stylesheet writes, because
+    // stylelint's modern-notation rule asks for it. They are the same colour,
+    // and a parser that reads only one of them makes "the two copies agree"
+    // fail on punctuation (section 43).
+    const [channels, alpha] = rgb[1].split('/')
+    const parts = channels
+      .split(/[,\s]+/)
+      .filter(Boolean)
+      .map(parseFloat)
+    const raw = alpha !== undefined ? alpha.trim() : String(parts[3] ?? 1)
+    const a = raw.endsWith('%') ? parseFloat(raw) / 100 : parseFloat(raw)
+    return { r: parts[0], g: parts[1], b: parts[2], a: Number.isFinite(a) ? a : 1 }
   }
   const ok = s.match(/^oklch\(([^)]+)\)$/i)
   if (ok) {

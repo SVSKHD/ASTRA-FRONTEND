@@ -58,6 +58,9 @@ import {
   SearchField,
   SegmentedControl,
   Select,
+  SaveState,
+  TopProgressBar,
+  UnsavedSheet,
   Skeleton,
   SlideOver,
   StatRow,
@@ -144,6 +147,7 @@ const demo = ref({
   tab: 'one',
 })
 const modalOpen = ref(false)
+const unsavedDemo = ref(false)
 const sheetOpen = ref(false)
 const drawerOpen = ref(false)
 const popoverOpen = ref(false)
@@ -530,6 +534,30 @@ const OverlapDetector = import.meta.env.DEV
           </template>
 
           <!-- Feedback -->
+          <template v-else-if="doc.name === 'SaveState'">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <SaveState state="working" />
+              <SaveState state="done" />
+              <SaveState state="failed" />
+            </div>
+          </template>
+          <template v-else-if="doc.name === 'TopProgressBar'">
+            <!-- Rendered inert here: the real one is fixed to the viewport top
+                 and would sit over the page's own chrome. -->
+            <div style="position: relative; height: 2px; overflow: hidden">
+              <TopProgressBar :active="true" />
+            </div>
+          </template>
+          <template v-else-if="doc.name === 'UnsavedSheet'">
+            <Button variant="ghost" size="sm" @click="unsavedDemo = true">Show the sheet</Button>
+            <UnsavedSheet
+              :open="unsavedDemo"
+              :fields="['Assignee', 'Description']"
+              @save="unsavedDemo = false"
+              @discard="unsavedDemo = false"
+              @back="unsavedDemo = false"
+            />
+          </template>
           <template v-else-if="doc.name === 'Skeleton'">
             <Skeleton :lines="3" />
           </template>

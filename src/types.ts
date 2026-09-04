@@ -14,6 +14,8 @@ export type { Attachment } from './utils/attachments'
 export type TabKey =
   | 'overview'
   | 'expenses'
+  | 'news'
+  | 'code'
   | 'todo'
   | 'tasks'
   | 'planning'
@@ -1137,6 +1139,17 @@ export interface AstraSettings extends LoggerSettings {
   dacoitCollection: string
   expensesCollection: string
   securedCollection: string
+  /**
+   * Repositories this account watches, as lower-case `owner/name` (section 40).
+   *
+   * In the settings document rather than in a deploy, because adding a repo is
+   * a thing somebody does on a Tuesday afternoon and redeploying a function to
+   * do it is a thing they will not do. The webhook resolves the uid from this
+   * list; a repo nobody lists is acknowledged and dropped.
+   */
+  trackedRepos: string[]
+  /** Which news categories the News tab shows by default. */
+  newsCategories: NewsCategory[]
 }
 
 /** Dacoit's verdict on a setup, as delivered by the ingestion function. */
@@ -1189,4 +1202,95 @@ export interface Expense {
   /** Recurring only: the day of the month it repeats on, 1–31. */
   recurDay?: number
   createdAt: number
+}
+
+// ---- news and GitHub (sections 39–40) --------------------------------------
+
+export type NewsCategory = 'forex' | 'ai' | 'code'
+
+/**
+ * One headline.
+ *
+ * A pointer to somebody else's article: title, link, source, time. Never the
+ * body — this is an index of the web, not a copy of it, and a reader who wants
+ * the piece follows the link to the publisher who wrote it.
+ *
+ * It lives in the shared top-level `forex` collection, which the rules already
+ * make readable by every signed-in user and writable only by an admin. So there
+ * is no `userId` here: the news is not anybody's data, and one copy serves every
+ * account including the demo.
+ */
+export interface NewsItem {
+  id: string
+  title: string
+  link: string
+  source: string
+  category: NewsCategory
+  /** The feed's own tags plus, for forex, whatever the headline matched. */
+  tags: string[]
+  publishedAt: number
+  fetchedAt: number
+}
+
+/** What the last pull found, per feed — the answer to "is that source alive". */
+export interface FeedHealth {
+  source: string
+  url: string
+  category: string
+  status: number
+  items: number
+  written: number
+  error: string
+  at: number
+}
+
+export type PullState = 'open' | 'draft' | 'merged' | 'closed'
+export type GhCommentKind = 'issue' | 'review' | 'review_comment'
+
+export interface GhRepo {
+  id: string
+  userId: string
+  repoId: number
+  fullName: string
+  defaultBranch: string
+  openPRCount: number
+  pushedAt: number
+  updatedAt: number
+}
+
+export interface GhPull {
+  id: string
+  userId: string
+  repoId: number
+  number: number
+  title: string
+  state: PullState
+  draft: boolean
+  author: string
+  headRef: string
+  baseRef: string
+  additions: number
+  deletions: number
+  /** '' means "not reported here" rather than "nobody has reviewed it". */
+  reviewDecision: string
+  commentCount: number
+  createdAt: number
+  updatedAt: number
+  url: string
+}
+
+export interface GhComment {
+  id: string
+  userId: string
+  repoId: number
+  pullNumber: number
+  commentId: number
+  kind: GhCommentKind
+  author: string
+  /** ~280 characters and a link out, the same rule the news follows. */
+  bodyPreview: string
+  path: string
+  line: number
+  createdAt: number
+  url: string
 }

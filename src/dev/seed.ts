@@ -362,4 +362,8 @@ export const SEED_SETTINGS = {
   dacoitCollection: 'demo-dacoit-signals',
   expensesCollection: 'demo-expenses',
   securedCollection: 'demo-secured',
+  // The Code and News tabs read these two; both are settings rather than
+  // deploys, which is the point the demo account has to demonstrate.
+  trackedRepos: ['svskhd/astra-frontend', 'svskhd/dacoit-signals', 'svskhd/astra-docs'],
+  newsCategories: ['forex', 'ai', 'code'],
 }

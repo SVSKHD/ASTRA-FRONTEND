@@ -149,7 +149,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     page: {
       position: 'relative',
       zIndex: 1,
-      minHeight: '100vh',
+      // dvh: see the note on `#app` in style.css.
+      minHeight: '100dvh',
       display: 'flex',
       alignItems: isMobile ? 'flex-start' : 'center',
       justifyContent: 'center',

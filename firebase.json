@@ -27,6 +27,13 @@
         }
       },
       {
+        "source": "/api/github/event",
+        "function": {
+          "functionId": "githubEvent",
+          "region": "asia-south1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

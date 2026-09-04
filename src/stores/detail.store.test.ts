@@ -207,9 +207,13 @@ describe('closing (section 18e ordering)', () => {
   it('forgets any unsaved-edit flag', () => {
     const { app } = freshStore()
     app.openDetail('task', 1)
-    app.setDetailDirty(true)
+    // The names of the fields, which is what the sheet asking about them shows.
+    app.setDetailDirty(['Assignee', 'Description'])
+    expect(app.detailDirty).toBe(true)
+    expect(app.detailDirtyFields).toEqual(['Assignee', 'Description'])
     app.closeDetail()
     expect(app.detailDirty).toBe(false)
+    expect(app.detailDirtyFields).toEqual([])
   })
 
   it('closing a dialog that is not open does nothing', () => {

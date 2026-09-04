@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { THEMES } from '@/themes'
-import { contrastRatio } from '@/themes/contrast'
+import { contrastRatio, over, parseColor } from '@/themes/contrast'
 import { AA_TEXT, PL_STEPS, WASH_ALPHA, plFlat, plInk, plWash } from '@/themes/plScale'
 
 const espresso = THEMES.espresso
@@ -27,11 +27,29 @@ function token(name: string): string {
 const ratio = (fg: string, bg: string) => Math.round(contrastRatio(fg, bg) * 100) / 100
 
 describe('the two copies of the palette agree', () => {
+  // Compared as colours rather than as strings: the stylesheet writes modern
+  // `rgb(r g b / n%)` and the registry writes `rgba(r, g, b, n)`, which are the
+  // same colour and different text. A string comparison would fail on the
+  // punctuation and pass on a genuinely wrong value with the right punctuation.
+  const same = (a: string, b: string) => {
+    const [x, y] = [parseColor(a), parseColor(b)]
+    return (
+      Math.abs(x.r - y.r) < 1 &&
+      Math.abs(x.g - y.g) < 1 &&
+      Math.abs(x.b - y.b) < 1 &&
+      Math.abs(x.a - y.a) < 0.01
+    )
+  }
+
   const PAIRS: [string, string][] = [
     ['--bg', espresso.pageBg],
-    ['--surface-base', espresso.bgSolid],
-    ['--surface-raised', espresso.card],
-    ['--border', espresso.border],
+    // The three glass tints (section 43). These are what applyThemeToDom writes
+    // to :root as inline styles, so a drift here is a drift the running app has
+    // and the first frame does not.
+    ['--glass-base', espresso.glass],
+    ['--glass-raised', espresso.card],
+    ['--glass-border', espresso.border],
+    ['--glass-solid', espresso.bgSolid],
     ['--text-primary', espresso.text],
     ['--text-secondary', espresso.textSecondary!],
     ['--text-muted', espresso.textMuted!],
@@ -41,17 +59,22 @@ describe('the two copies of the palette agree', () => {
 
   for (const [name, registry] of PAIRS) {
     it(`${name} is the same in the stylesheet and the registry`, () => {
-      expect(token(name).toLowerCase()).toBe(registry.toLowerCase())
+      expect(same(token(name), registry), `${token(name)} vs ${registry}`).toBe(true)
     })
   }
 
-  it('states the surfaces darkest to lightest', () => {
-    const order = ['--bg', '--surface-base', '--surface-raised', '--surface-overlay'].map((n) =>
-      contrastRatio('#ffffff', token(n)),
-    )
+  it('states the surfaces darkest to lightest, composited over the page', () => {
+    // Each tint over the page it actually sits on: a translucent surface has no
+    // lightness of its own, and comparing the tints raw would rank them by
+    // their opaque colour rather than by what a reader sees.
+    const page = parseColor(espresso.pageBg)
+    const order = ['--glass-base', '--glass-raised', '--glass-overlay'].map((n) => {
+      const c = over(parseColor(token(n)), page)
+      return contrastRatio('#ffffff', `rgb(${c.r}, ${c.g}, ${c.b})`)
+    })
     // Contrast against white falls as a surface lightens, so the ladder is
-    // strictly descending — which is the machine-readable form of "darkest to
-    // lightest, and no two the same".
+    // strictly descending — the machine-readable form of "darkest to lightest,
+    // and no two the same".
     for (let i = 1; i < order.length; i += 1) expect(order[i]).toBeLessThan(order[i - 1])
   })
 })
@@ -159,17 +182,34 @@ describe('espresso is a dark theme that draws its own chrome', () => {
     expect(BLOCK).toContain('color-scheme: dark')
   })
 
-  it('drops the glass blur rather than blurring one near-black into another', () => {
-    expect(espresso.noGlass).toBe(true)
+  it('has glass now, and a blur that deepens as the layer rises (section 43)', () => {
+    // The earlier reasoning was "a blur over a near-black page is a slightly
+    // different near-black", and it was right about a near-black page. The page
+    // is a starfield: a panel that hides it is a hole cut in the sky.
+    expect(espresso.noGlass).toBeUndefined()
+    const radius = (name: string) => Number(/blur\((\d+)px\)/.exec(token(name))?.[1] ?? 0)
+    expect(radius('--glass-blur-base')).toBe(20)
+    expect(radius('--glass-blur-raised')).toBe(24)
+    expect(radius('--glass-blur-overlay')).toBe(32)
+    // Saturation with the blur, not instead of it: blurring alone greys what is
+    // behind the pane, and a greyed starfield is a starfield gone.
+    for (const name of ['--glass-blur-base', '--glass-blur-raised', '--glass-blur-overlay']) {
+      expect(token(name), name).toMatch(/saturate\(1[4-9]0%\)/)
+    }
   })
 
-  it('lifts each layer with a highlight and an ambient rather than a black drop', () => {
-    // Three recipes, none of them shared, and none of them a plain drop shadow:
-    // on this ground a black shadow is invisible.
+  it('every layer carries the edge highlight — it is what reads as glass', () => {
+    // One pixel of light along the top, the way a real pane catches it. More of
+    // the illusion lives here than in the blur, which is why it is in every
+    // recipe rather than left to each component.
+    expect(token('--glass-edge')).toMatch(/inset 0 1px 0/)
     for (const layer of ['base', 'raised', 'overlay']) {
-      expect(token(`--layer-${layer}-shadow`), layer).toContain('inset 0 1px 0')
+      const recipe = token(`--layer-${layer}-shadow`)
+      expect(recipe, layer).toMatch(/var\(--glass-edge\)|inset 0 1px 0/)
     }
     const recipes = ['base', 'raised', 'overlay'].map((l) => token(`--layer-${l}-shadow`))
+    // Three recipes, none of them shared: one reused across two layers is what
+    // makes a layered interface read as flat with blur on it.
     expect(new Set(recipes).size).toBe(3)
   })
 

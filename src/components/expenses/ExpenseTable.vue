@@ -104,13 +104,18 @@ function railVar(expense: Expense) {
 </template>
 
 <style scoped>
+/* The page carries the height (section 42). No `max-height` and no vertical
+   overflow: a list in a 420px window inside a page that could not scroll was
+   two broken things agreeing with each other. Sideways only, and only where a
+   phone needs it — an overflow of any kind makes this the scrollport a sticky
+   header sticks to, which is the header's whole job undone. */
 .etable__wrap {
-  overflow: auto;
-  max-height: 420px;
   min-width: 0;
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
   background: var(--layer-raised-bg);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
   box-shadow: var(--layer-raised-shadow);
 }
 .etable {
@@ -131,7 +136,10 @@ function railVar(expense: Expense) {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--layer-overlay-bg);
+  /* Opaque, and the one surface in the system that must be (section 43,
+     item 3): rows scroll UNDER this, so a translucent header is a header
+     with figures moving through it at exactly the moment it is read. */
+  background: var(--glass-solid, var(--layer-overlay-bg));
   border-bottom: 1px solid var(--layer-raised-border);
   font-size: var(--text-2xs);
   line-height: var(--lh-2xs);
@@ -200,6 +208,13 @@ function railVar(expense: Expense) {
 @media (prefers-reduced-motion: reduce) {
   .etable__del {
     transition: none;
+  }
+}
+
+/* The phone's bargain: sideways scrolling instead of a page-sticky header. */
+@media (max-width: 700px) {
+  .etable__wrap {
+    overflow-x: auto;
   }
 }
 </style>

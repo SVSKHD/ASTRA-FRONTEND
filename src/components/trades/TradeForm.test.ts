@@ -7,9 +7,9 @@ import TradeForm from '@/components/trades/TradeForm.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import { DEFAULT_LOGGER_SETTINGS } from '@/utils/tradeMath'
-import { DEFAULT_COLLECTIONS } from '@/utils/collections'
+import { DEFAULT_COLLECTIONS, DEFAULT_WATCH_SETTINGS } from '@/utils/collections'
 
-const settings = { ...DEFAULT_LOGGER_SETTINGS, ...DEFAULT_COLLECTIONS }
+const settings = { ...DEFAULT_LOGGER_SETTINGS, ...DEFAULT_COLLECTIONS, ...DEFAULT_WATCH_SETTINGS }
 
 function mountForm() {
   return mount(TradeForm, { props: { settings } })

@@ -23,9 +23,13 @@
      The old sm/md/lg/xl names remain as aliases onto the three, because a
      radius is chosen at hundreds of call sites and renaming them all in one
      commit would bury the change that matters. */
-  --radius-control: 6px;
-  --radius-card: 10px;
-  --radius-dialog: 14px;
+  /* Scaled to the layer (section 43): a row or an input is 8, a panel is 12, a
+     sheet is 16. On a translucent surface the radius is doing more work than it
+     was — the edge highlight follows it, and it is most of what reads as a
+     pane of glass rather than as a rectangle of tint. */
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-dialog: 16px;
   --radius-pill: 999px;
   --radius-sm: var(--radius-control);
   --radius-md: var(--radius-card);
@@ -158,11 +162,28 @@
     0 12px 28px -12px color-mix(in srgb, var(--shadow-ink) 62%, transparent),
     0 2px 6px -3px color-mix(in srgb, var(--shadow-ink) 40%, transparent);
 
+  /* No blur by default (section 43). A theme with opaque surfaces has nothing
+     to see through, and `backdrop-filter: none` costs nothing; espresso is the
+     theme that fills these in. */
+  --layer-base-blur: none;
+  --layer-raised-blur: none;
+  --layer-overlay-blur: none;
+  --glass-control: color-mix(in oklch, var(--text-primary, #fff) 6%, transparent);
+  --glass-control-hover: color-mix(in oklch, var(--text-primary, #fff) 10%, transparent);
+
   /* The accent, and the inactive half of a track it fills. Named here so a
      theme can restate the pair; the accent itself still comes from the
      registry on every other theme. */
   --accent: var(--theme-accent);
   --accent-soft: color-mix(in oklch, var(--theme-accent) 45%, var(--surface-raised));
+
+  /* Scrims (section 43, item 4). The page's own ink rather than black: on a
+     warm ground a black scrim is a grey film over a brown room. Two depths —
+     one for a modal's backdrop, a lighter one for the solid patch that goes
+     UNDER long-form text on a translucent panel, which is the answer to text
+     over a blur (never a weaker blur). */
+  --scrim: color-mix(in srgb, var(--theme-surface, var(--bg-base)) 60%, transparent);
+  --scrim-inset: color-mix(in srgb, var(--theme-surface, var(--bg-base)) 45%, transparent);
 
   /* The trade family's stroke. A hairline that reads on a pale page can
      disappear on a near-black one, so the weight is a token. */
@@ -430,23 +451,75 @@
   --bg-elevated: #2b160b;
   --border-subtle: #4d270e;
   --border-strong: #6b3a18;
-  --glass-bg: #1a0d08;
-  --glass-card: #2b160b;
-  --glass-border: #4d270e;
+
+  /* ---- the glass system (section 43) --------------------------------------
+     Three tints of the roast, each translucent, each with its own blur and its
+     own clear border. NEVER A FLAT OPAQUE FILL: an opaque panel over a
+     starfield is a hole cut in the sky, and the whole reason these surfaces
+     read as layers rather than as boxes is that the ground shows through them.
+
+     The alpha climbs as the layer sinks and the blur climbs as it rises, which
+     is the right way round: a base surface is close to the ground and lets more
+     of it through in focus; an overlay is far from it and needs the ground
+     softened, or the text on it competes with whatever is behind it.
+
+     THE EDGE IS THE GLASS. Every layer carries `inset 0 1px 0 rgba(255 255 255
+     / 8%)` — one pixel of light along the top, the way a real pane catches it.
+     That highlight does more for the illusion than any amount of blur: without
+     it these are tinted rectangles, and with it they are panes. It is in every
+     layer's shadow recipe below rather than left to each component, because it
+     is the one part no surface may skip. */
+  --glass-base: rgb(26 13 8 / 72%);
+  --glass-raised: rgb(43 22 11 / 68%);
+  --glass-overlay: rgb(77 39 14 / 62%);
+  --glass-border: rgb(255 255 255 / 10%);
+  --glass-border-strong: rgb(255 255 255 / 16%);
+  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 8%);
+  /* Saturation with the blur, not instead of it: blurring alone greys what is
+     behind the pane, and a starfield greyed is a starfield gone. */
+  --glass-blur-base: blur(20px) saturate(140%);
+  --glass-blur-raised: blur(24px) saturate(150%);
+  --glass-blur-overlay: blur(32px) saturate(160%);
+  /* Controls on glass. A button or an input filled with an opaque grey on a
+     translucent panel is the one thing that gives the whole system away. */
+  --glass-control: rgb(255 255 255 / 6%);
+  --glass-control-hover: rgb(255 255 255 / 10%);
+
+  /* The legacy names, pointed at the same three so the fifty-seven components
+     that read them get the glass without being edited one at a time. */
+  --glass-bg: var(--glass-base);
+  --glass-card: var(--glass-raised);
+  /* The one that must stay opaque: it is used behind long-form text and under
+     a sticky header, where translucency is not a style, it is unreadability. */
   --glass-solid: #1a0d08;
-  --glass-blur: 0px;
+  --glass-blur: 24px;
 
   /* Shadows. A black drop shadow is invisible on a near-black ground, so each
-     layer is lifted by a 1px white highlight along its top edge instead, with a
-     wide ambient underneath to seat it. One recipe per layer, none shared: base
-     is the highlight alone (it is the ground — nothing casts onto it), raised
-     adds a close ambient, overlay a deeper one with a contact shadow. */
-  --layer-base-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
-  --layer-raised-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), 0 2px 12px rgb(0 0 0 / 60%);
+     layer is lifted by the edge highlight instead, with a wide ambient
+     underneath to seat it. One recipe per layer, none shared: base is the
+     highlight alone (it is the ground — nothing casts onto it), raised adds a
+     close ambient, overlay a deeper one with a contact shadow. */
+  --layer-base-shadow: var(--glass-edge);
+  --layer-raised-shadow: var(--glass-edge), 0 2px 12px rgb(0 0 0 / 60%);
   --layer-overlay-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 10%), 0 10px 28px rgb(0 0 0 / 70%), 0 2px 6px rgb(0 0 0 / 50%);
+    inset 0 1px 0 rgb(255 255 255 / 12%), 0 10px 28px rgb(0 0 0 / 70%), 0 2px 6px rgb(0 0 0 / 50%);
   --glass-shadow: var(--layer-raised-shadow);
   --elev-1: var(--layer-raised-shadow);
+
+  /* The three layers, restated through the glass. A component still picks a
+     layer by what it IS; what changed is what a layer is made of. */
+  --surface-base: var(--glass-base);
+  --surface-raised: var(--glass-raised);
+  --surface-overlay: var(--glass-overlay);
+  --layer-base-bg: var(--glass-base);
+  --layer-raised-bg: var(--glass-raised);
+  --layer-overlay-bg: var(--glass-overlay);
+  --layer-base-border: var(--glass-border);
+  --layer-raised-border: var(--glass-border);
+  --layer-overlay-border: var(--glass-border-strong);
+  --layer-base-blur: var(--glass-blur-base);
+  --layer-raised-blur: var(--glass-blur-raised);
+  --layer-overlay-blur: var(--glass-blur-overlay);
 
   /* 1.5 reads as a hairline on this ground at 16px; 1.6 holds. */
   --icon-stroke: 1.6;
@@ -478,5 +551,215 @@ svg[data-family='trade'] {
     transition:
       background-color 180ms ease,
       color 180ms ease !important;
+  }
+}
+
+/* ---- the glass surfaces (section 43) --------------------------------------
+
+   One class per layer, and the recipe for that layer lives here rather than in
+   each component. That is not tidiness — it is the only way item 9's rule can
+   be true: one shadow recipe per layer, none reused. Written out in twenty-two
+   scoped stylesheets it would be twenty-two chances to drift, and it had
+   already drifted before this pass.
+
+   A component still declares its own layout. What it stops declaring is what a
+   panel is made of. */
+.ui-glass-base,
+.ui-glass-raised,
+.ui-glass-overlay {
+  min-width: 0;
+  border-style: solid;
+  border-width: 1px;
+}
+.ui-glass-base {
+  border-radius: var(--radius-card);
+  border-color: var(--layer-base-border);
+  background: var(--layer-base-bg);
+  box-shadow: var(--layer-base-shadow);
+  backdrop-filter: var(--layer-base-blur);
+  -webkit-backdrop-filter: var(--layer-base-blur);
+}
+.ui-glass-raised {
+  border-radius: var(--radius-card);
+  border-color: var(--layer-raised-border);
+  background: var(--layer-raised-bg);
+  box-shadow: var(--layer-raised-shadow);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
+}
+.ui-glass-overlay {
+  border-radius: var(--radius-dialog);
+  border-color: var(--layer-overlay-border);
+  background: var(--layer-overlay-bg);
+  box-shadow: var(--layer-overlay-shadow);
+  backdrop-filter: var(--layer-overlay-blur);
+  -webkit-backdrop-filter: var(--layer-overlay-blur);
+}
+
+/* NEVER MORE THAN TWO LAYERS DEEP, and this is what makes that a rule rather
+   than a note in a document nobody opens.
+
+   The stage is the first pane; a panel on it is the second. A third — a card
+   inside a panel inside the stage — is three sheets of frosted glass in a row,
+   and what is behind the third is not the starfield, it is a blur of a blur of
+   a blur. It reads as fog, it costs a compositor pass per pane, and the text on
+   it fails contrast against a backdrop nobody can predict.
+
+   So a glass surface inside a glass surface keeps its tint and its border and
+   gives up its blur. It is still a layer; it is no longer a pane. */
+.ui-glass-base :is(.ui-glass-base, .ui-glass-raised, .ui-glass-overlay),
+.ui-glass-raised :is(.ui-glass-base, .ui-glass-raised, .ui-glass-overlay),
+.ui-glass-overlay :is(.ui-glass-base, .ui-glass-raised, .ui-glass-overlay) {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Controls on glass (item 9). An opaque grey button on a translucent panel is
+   the single thing that gives the whole system away, so the fill is a wash of
+   the panel's own light and the border is the same hairline the panel has. */
+.ui-glass-control {
+  border: 1px solid var(--glass-border, var(--border));
+  border-radius: var(--radius-control);
+  background: var(--glass-control);
+}
+.ui-glass-control:hover:not(:disabled) {
+  background: var(--glass-control-hover);
+}
+
+/* No `backdrop-filter` at all — an older Safari, Firefox with the flag off.
+   The tints alone would be washes of brown over a starfield with the stars
+   showing through the text, so every layer goes near-opaque instead. The
+   interface loses its depth and keeps its legibility, which is the right way
+   round to fail. */
+@supports not (backdrop-filter: blur(1px)) {
+  [data-theme='espresso'] {
+    --glass-base: rgb(26 13 8 / 97%);
+    --glass-raised: rgb(43 22 11 / 97%);
+    --glass-overlay: rgb(77 39 14 / 98%);
+  }
+}
+
+/* THE CAP ON SIMULTANEOUSLY BLURRED SURFACES (item 10).
+   
+   Two rules do this, and neither is a number in a comment. The nesting guard
+   above caps the DEPTH at two — a pane, and a pane on it. This caps the COUNT,
+   on the device where it costs most: a phone shows a column of panels that each
+   fill the width, so ten backdrop-filters are ten full-width compositor passes
+   for a translucency nobody can see past the panel edges anyway. The stage keeps
+   its blur, because the stage is the one pane the starfield is actually behind.
+   
+   There is no CSS for "at most N blurred surfaces", so the honest version of
+   that rule is: blur the layer that has something to blur, on the devices that
+   can afford it. */
+@media (max-width: 700px) {
+  [data-theme='espresso'] {
+    --layer-raised-blur: none;
+  }
+}
+
+/* Asked for less transparency: give exactly that (item 10). The blur goes —
+   it is the expensive half and the one this setting is actually about — and the
+   tints go solid. Borders, shadows and the edge highlight stay, so the layers
+   are still legible as layers. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-theme='espresso'] {
+    --glass-base: #1a0d08;
+    --glass-raised: #2b160b;
+    --glass-overlay: #3a1d0d;
+    --layer-base-blur: none;
+    --layer-raised-blur: none;
+    --layer-overlay-blur: none;
+  }
+}
+
+/* ---- the shimmer (section 43, item 6) -------------------------------------
+
+   ONE JOB: data refreshing in place. Not first paint — that is a skeleton, and
+   a skeleton that shimmers is two treatments on one element saying two
+   different things. This says "what you are reading is being replaced", which
+   is only a sentence worth saying when there is already something to read.
+
+   120% wide so the sweep enters and leaves off the edges rather than fading up
+   in the middle; 1.8s because a fast sweep reads as a glitch; 400ms of rest
+   between passes because a loop with no gap is a barber's pole, and a barber's
+   pole is a thing the eye cannot stop following. Clipped to the panel's own
+   radius, so it sweeps the pane and not a rectangle over it. */
+.ui-shimmer {
+  position: relative;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.ui-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0 -10%;
+  pointer-events: none;
+  /* `will-change` only while animating (item 10), and this is what that means
+     in CSS: the pseudo-element only exists while the panel carries `.ui-shimmer`,
+     which is only while it is refreshing. A `will-change` on a permanent
+     element is a layer the compositor holds forever. */
+  will-change: transform;
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 6%) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: uiSweep 2.2s ease-in-out infinite;
+}
+@keyframes uiSweep {
+  /* 1.8s of sweep, then 400ms of nothing — the rest is the last 18% of a 2.2s
+     cycle held at the far edge. */
+  0% {
+    transform: translateX(-100%);
+  }
+  82%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ---- the top bar (section 43, item 5) -------------------------------------
+
+   Route changes and background syncs, and nothing else. It is the only loader
+   that is not attached to the thing it is about, which is exactly why it may
+   only be used for work that is not about any one thing on the page. */
+.ui-topbar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 90;
+  height: 2px;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+}
+.ui-topbar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  /* Same rule: the bar is only in the document while it is running. */
+  will-change: transform;
+  background: var(--accent, var(--theme-accent));
+  animation: uiTopbar 1.1s ease-in-out infinite;
+}
+@keyframes uiTopbar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+/* Reduced motion (item 10): the sweep and the bar's travel are motion for its
+   own sake and go. The skeletons stay — they are shape, not movement — and so
+   does the save ring, which is the only thing on screen saying work is in
+   flight. */
+@media (prefers-reduced-motion: reduce) {
+  .ui-shimmer::after {
+    animation: none;
+    opacity: 0.5;
+  }
+  .ui-topbar::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
   }
 }

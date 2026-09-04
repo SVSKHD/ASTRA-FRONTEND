@@ -22,8 +22,19 @@ samp,
 pre {
   font-family: var(--font-mono);
 }
+/* dvh, not vh (section 42). On a phone `vh` is the viewport with the URL bar
+   retracted, so a `100vh` shell is permanently taller than what can be seen and
+   the last row of any list sits under the browser chrome. */
 #app {
-  min-height: 100vh;
+  min-height: 100dvh;
+  /* The page's own colour, under everything (section 42/43).
+     
+     The starfield is `position: fixed`, so it paints one viewport and no more.
+     That was invisible while the shell was also fixed and nothing scrolled; now
+     that the document scrolls, anything past the first screenful had no ground
+     at all and fell through to the browser's default white — under a dark theme,
+     with white text on it. A fixed backdrop needs a painted page behind it. */
+  background: var(--bg, var(--theme-surface, #000));
 }
 button,
 input,
