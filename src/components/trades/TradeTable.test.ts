@@ -62,13 +62,37 @@ describe('TradeTable', () => {
 
   it('gives Buy and Sell their own glyphs, and each session its own', () => {
     const rows = mountTable().findAll('tbody tr')
-    const buy = rows[0].findAll('td')[4].find('svg').html()
-    const sell = rows[1].findAll('td')[4].find('svg').html()
+    // Rail, sync dot, date, symbol, session, side — the two icon columns are
+    // the fifth and the sixth.
+    const buy = rows[0].findAll('td')[5].find('svg').html()
+    const sell = rows[1].findAll('td')[5].find('svg').html()
     expect(buy).not.toBe(sell)
-    const london = rows[0].findAll('td')[3].find('svg').html()
-    const ny = rows[1].findAll('td')[3].find('svg').html()
-    const asia = rows[2].findAll('td')[3].find('svg').html()
+    const london = rows[0].findAll('td')[4].find('svg').html()
+    const ny = rows[1].findAll('td')[4].find('svg').html()
+    const asia = rows[2].findAll('td')[4].find('svg').html()
     expect(new Set([london, ny, asia]).size).toBe(3)
+  })
+
+  it('dots only the rows the server has not got, and says which is which', () => {
+    // Section 30. Three states are worth drawing and the fourth — safely on the
+    // server — is worth drawing nothing at all: a tick on every row is thirty
+    // ticks to look past for the one that has not landed.
+    const wrapper = mount(TradeTable, {
+      props: {
+        trades: TRADES,
+        emptyTitle: 'Nothing yet',
+        emptyDescription: 'Log one.',
+        state: { a: 'pending', b: 'blocked' } as Record<string, 'pending' | 'blocked'>,
+      },
+      global: { stubs: { 'transition-group': false } },
+    })
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0].find('.ttable__dot').classes()).toContain('is-pending')
+    expect(rows[1].find('.ttable__dot').classes()).toContain('is-blocked')
+    expect(rows[2].find('.ttable__dot').exists()).toBe(false)
+    // The colour is never the only carrier: each dot states its case.
+    expect(rows[1].find('.ttable__dot').attributes('title')).toContain('refused')
+    expect(rows[1].find('.ttable__dot').text()).toContain('refused')
   })
 
   it('keeps the delete in the row, ready for hover and for focus', () => {

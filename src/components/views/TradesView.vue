@@ -15,6 +15,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import ListToolbar from '@/components/ListToolbar.vue'
 import Alert from '@/components/ui/Alert.vue'
+import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import StatRow from '@/components/ui/StatRow.vue'
@@ -35,6 +36,7 @@ import SecuredLedger from '@/components/trades/SecuredLedger.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useUiStore } from '@/stores/ui'
 import { useTradeLog, type NewSecured, type NewTrade } from '@/composables/useTradeLog'
+import { MAX_ATTEMPTS } from '@/services/outbox'
 import { useAppStore } from '@/stores/app'
 import { downloadText } from '@/utils/noteExport'
 import { currentMonthKey, monthLabel } from '@/utils/budget'
@@ -69,7 +71,35 @@ const selectedDay = ref('')
 const symbol = ref('')
 
 const log = useTradeLog(symbol, monthKey)
-const { trades, secured, settings, loading, error } = log
+const { trades, secured, settings, loading, error, outbox, rowState } = log
+
+// --- delivery (section 30) ----------------------------------------------------
+// A trade is captured the moment it is typed; whether it has reached the server
+// is a separate fact, and this is where that fact is shown. A pill in the header
+// when anything is unsent, a dot on the rows it belongs to, and — only for the
+// entries that have stopped trying — a list with the reason and one button.
+// No modal and no toast: nothing here asks the user to retry, because the retry
+// is automatic and a prompt would only be a chance to say no to it.
+// Flattened here rather than in the template: the payload is the document as
+// Firestore will store it, so every field on it is `unknown` until something
+// says otherwise, and that something belongs in script.
+const blocked = computed(() =>
+  outbox.value
+    .filter((e) => e.blocked)
+    .map((e) => ({
+      id: e.id,
+      what: String(e.payload.symbol ?? e.collection),
+      when: String(e.payload.date ?? ''),
+      why: e.lastError,
+    })),
+)
+const outboxPill = computed(() => {
+  if (!outbox.value.length) return null
+  const held = blocked.value.length
+  return held
+    ? { tone: 'danger' as const, label: `${held} held` }
+    : { tone: 'warning' as const, label: `${outbox.value.length} unsent` }
+})
 
 // Changing month drops a day filter that belongs to the month we just left.
 function onMonth(next: string) {
@@ -188,6 +218,10 @@ defineExpose({ focus: () => form.value?.focus() })
         <Button variant="ghost" size="sm" @click="showSettings = !showSettings">
           {{ showSettings ? 'Hide account' : 'Account' }}
         </Button>
+        <!-- Present only while something is unsent, and gone the moment the
+             last one lands. A permanent "all synced" badge is a badge nobody
+             reads by the second day. -->
+        <Badge v-if="outboxPill" :tone="outboxPill.tone" :label="outboxPill.label" />
       </template>
     </ListToolbar>
 
@@ -200,6 +234,26 @@ defineExpose({ focus: () => form.value?.focus() })
     <!-- Loading is the whole screen's state, not the table's: the account
          figures and the calendar are as absent as the rows are, and a skeleton
          that stands in for one of the three is a layout that jumps twice. -->
+    <!-- Only the entries that have stopped trying. Everything else retries by
+         itself and needs no list, no button and no decision. -->
+    <section v-if="blocked.length" class="tv__blocked">
+      <h3 class="ui-label">Held trades</h3>
+      <ul class="tv__blockedList">
+        <li v-for="entry in blocked" :key="entry.id" class="tv__blockedRow">
+          <span class="tv__blockedWhat">
+            {{ entry.what }}
+            <span class="tv__blockedWhen">{{ entry.when }}</span>
+          </span>
+          <span class="tv__blockedWhy ui-mono">{{ entry.why }}</span>
+          <Button variant="ghost" size="sm" @click="log.discard(entry.id)">Discard</Button>
+        </li>
+      </ul>
+      <p class="tv__note">
+        Refused {{ MAX_ATTEMPTS }} times, so it has stopped asking. Fix the cause and reload to try
+        again, or discard it — it will not go anywhere on its own.
+      </p>
+    </section>
+
     <TradeSkeleton v-if="loading" class="tv__scroll" />
 
     <div v-else class="tv__scroll">
@@ -320,6 +374,7 @@ defineExpose({ focus: () => form.value?.focus() })
             ? 'Pick the day again on the calendar to see the whole month.'
             : 'Log the first one above — the calendar, the targets and the stats all come from these rows.'
         "
+        :state="rowState"
         @delete="log.deleteTrade($event)"
       />
 
@@ -406,6 +461,60 @@ defineExpose({ focus: () => form.value?.focus() })
 .tv__figure.is-neg {
   color: var(--theme-danger);
 }
+/* Held trades: the one place in the feature that asks for a decision, so it is
+   drawn as a panel rather than as an alert. An alert is dismissible and this is
+   not — the entries stay until they are dealt with. */
+.tv__blocked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--theme-danger);
+  border-radius: var(--radius-card);
+  background: var(--layer-raised-bg);
+}
+.tv__blockedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+.tv__blockedRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.tv__blockedWhat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  color: var(--text-primary, var(--theme-text));
+}
+.tv__blockedWhen {
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--text-secondary, var(--theme-dim));
+}
+/* The code, verbatim and in mono, because `permission-denied` and
+   `failed-precondition` have two different fixes and a paraphrase sends
+   somebody to neither of them. */
+.tv__blockedWhy {
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--theme-danger);
+}
+
 .tv__note {
   margin: 0;
   min-width: 0;
