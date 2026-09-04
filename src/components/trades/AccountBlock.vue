@@ -16,7 +16,8 @@ import IconBalance from '@/components/icons/IconBalance.vue'
 import IconSecured from '@/components/icons/IconSecured.vue'
 import IconProfit from '@/components/icons/IconProfit.vue'
 import { useCountUp } from '@/composables/useCountUp'
-import { fmt2, signOf, signed2 } from '@/utils/tradeMath'
+import { signOf } from '@/utils/tradeMath'
+import { fmt2, signed2 } from '@/utils/format'
 
 const props = defineProps<{
   balance: number

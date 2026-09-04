@@ -26,13 +26,16 @@ import IconFilter from '@/components/icons/IconFilter.vue'
 import IconTargetHit from '@/components/icons/IconTargetHit.vue'
 import IconTargetMissed from '@/components/icons/IconTargetMissed.vue'
 import { plInkVar, plWashVar } from '@/themes/plScale'
-import { byDay, dayTotals, fmt2, signOf, signed2 } from '@/utils/tradeMath'
+import { byDay, dayTotals, signOf } from '@/utils/tradeMath'
+import { fmt2, signed2 } from '@/utils/format'
 import type { DayMeta } from '@/components/ui/GlassDatePicker.vue'
 import type { Trade } from '@/types'
 
 const props = defineProps<{
   trades: Trade[]
   dayTarget: number
+  /** The month on screen, owned by the URL rather than by the grid. */
+  month: string
   /** '' means the whole month; a date filters the table to that day. */
   selected: string
   loading?: boolean
@@ -90,6 +93,7 @@ const MARK: Record<string, string> = { pos: '▲', neg: '▼', flat: '·' }
   <section class="tcal">
     <GlassDatePicker
       :model-value="selected"
+      :month="month"
       inline
       mode="date"
       :quick-entry="false"

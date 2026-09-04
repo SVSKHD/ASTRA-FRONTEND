@@ -254,25 +254,40 @@ export const EXTRA_THEMES: Record<string, Theme> = {
     noGlass: true,
     colorScheme: 'dark',
     // The glass tokens resolve to the layer surfaces, opaque.
-    glass: '#0F0A08',
-    card: '#1A1210',
-    input: '#1A1210',
-    border: '#3A2A22',
-    text: '#E8CFAE',
+    glass: '#1A0D08',
+    card: '#2B160B',
+    input: '#2B160B',
+    border: '#4D270E',
+    // White, not crema. On a ground this warm a tinted text reads as a stain on
+    // the surface rather than as ink on it, and the two alpha steps below then
+    // have nowhere to go: they would be tints of a tint.
+    text: '#FFFFFF',
     // `dim` is the legacy name the older components read; it is the muted step.
-    dim: '#9A7B5E',
-    textSecondary: '#C4A180',
-    textMuted: '#9A7B5E',
-    onAccent: '#0F0A08',
-    // Black shadows vanish on this ground: the elevation is a 1px crema
+    dim: 'rgba(255, 255, 255, 0.52)',
+    textSecondary: 'rgba(255, 255, 255, 0.72)',
+    // Labels only. It measures 4.67:1 on the overlay surface, which clears the
+    // floor — so unlike the first cut of this theme there is no separate
+    // overlay muted step to keep in step with this one.
+    textMuted: 'rgba(255, 255, 255, 0.52)',
+    onAccent: '#1A0D08',
+    // Black shadows vanish on this ground: the elevation is a 1px white
     // highlight along the top edge plus a wide ambient. One recipe, and the
     // per-layer recipes are in the token layer.
-    shadow: 'inset 0 1px 0 rgba(232,207,174,0.06), 0 2px 12px rgba(0,0,0,0.6)',
-    pageBg: '#070504',
-    bgSolid: '#0F0A08',
+    shadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 2px 12px rgba(0,0,0,0.6)',
+    pageBg: '#0B0100',
+    bgSolid: '#1A0D08',
     accent: '#C8873F',
     accentSoft: '#7A4F26',
-    plRamp: { pos: ['#4F7A52', '#8FC98A'], neg: ['#7A3B33', '#D98A78'] },
+    // Retuned for the warmer ground (section 37). Red is the side that loses
+    // separation fastest here — a muted brick on brown is brown — so the
+    // negative endpoints are pushed further from the surface in lightness AND
+    // held off the orange the accent occupies, while the positive pair only
+    // needed the same treatment lightly.
+    plRamp: { pos: ['#3F7A4B', '#8FC98A'], neg: ['#A34434', '#F0A090'] },
+    // 12% of anything over a warm brown is warm brown. Measured: at the shared
+    // default the shallowest loss sat at 1.03:1 against a traded-but-flat cell,
+    // which is to say invisible. From 34% it separates.
+    washAlpha: { from: 0.34, to: 0.85 },
     celestial: 'none',
     focusRing: '0 0 0 2px #C8873F',
   },

@@ -12,7 +12,8 @@ const REFERENCE = instantFromWall(IST, '2026-09-01', '00:00')!
 function makeTrade(hour: number, over: Partial<Trade> = {}): Trade {
   return {
     id: `t${hour}-${Math.random()}`,
-    date: '2026-09-02',
+    userId: 'u1',
+    istDate: '2026-09-02',
     ts: 1,
     entryAt: instantFromWall(IST, '2026-09-02', `${String(hour).padStart(2, '0')}:30`)!,
     exitAt: 0,

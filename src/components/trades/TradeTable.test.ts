@@ -8,7 +8,8 @@ import type { Trade } from '@/types'
 function makeTrade(over: Partial<Trade> = {}): Trade {
   return {
     id: 't1',
-    date: '2026-09-01',
+    userId: 'u1',
+    istDate: '2026-09-01',
     ts: 1,
     // Section 31's four: the instant, its optional close, the IST reading it
     // was typed as, and the broker offset that was in force for it.
@@ -31,9 +32,9 @@ function makeTrade(over: Partial<Trade> = {}): Trade {
 }
 
 const TRADES = [
-  makeTrade({ id: 'a', date: '2026-09-01', pl: 1000, move: 10 }),
-  makeTrade({ id: 'b', date: '2026-09-01', pl: -400, move: -4, side: 'sell', session: 'NY' }),
-  makeTrade({ id: 'c', date: '2026-09-02', pl: 0, move: 0, session: 'Asia' }),
+  makeTrade({ id: 'a', istDate: '2026-09-01', pl: 1000, move: 10 }),
+  makeTrade({ id: 'b', istDate: '2026-09-01', pl: -400, move: -4, side: 'sell', session: 'NY' }),
+  makeTrade({ id: 'c', istDate: '2026-09-02', pl: 0, move: 0, session: 'Asia' }),
 ]
 
 // The rows live inside a TransitionGroup rendering as the <tbody>, and Vue Test

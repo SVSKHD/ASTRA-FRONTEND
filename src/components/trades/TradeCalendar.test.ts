@@ -9,7 +9,8 @@ import type { Trade } from '@/types'
 function makeTrade(over: Partial<Trade> = {}): Trade {
   return {
     id: 't1',
-    date: '2026-09-03',
+    userId: 'u1',
+    istDate: '2026-09-03',
     ts: 1,
     // Section 31's four: the instant, its optional close, the IST reading it
     // was typed as, and the broker offset that was in force for it.
@@ -32,13 +33,13 @@ function makeTrade(over: Partial<Trade> = {}): Trade {
 }
 
 const TRADES = [
-  makeTrade({ id: 'a', date: '2026-09-03', move: 4, pl: 400 }),
-  makeTrade({ id: 'b', date: '2026-09-04', move: -12, pl: -1200 }),
+  makeTrade({ id: 'a', istDate: '2026-09-03', move: 4, pl: 400 }),
+  makeTrade({ id: 'b', istDate: '2026-09-04', move: -12, pl: -1200 }),
 ]
 
 function mountCalendar(props: Record<string, unknown> = {}) {
   return mount(TradeCalendar, {
-    props: { trades: TRADES, dayTarget: 10, selected: '', ...props },
+    props: { trades: TRADES, dayTarget: 10, month: '2026-09', selected: '', ...props },
     attachTo: document.body,
   })
 }

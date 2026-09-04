@@ -24,7 +24,9 @@ const route = useRoute()
 // The workspace renders its own floating AUREON orb (FloatingChrome), so the
 // corner mark would be a duplicate there. Keep it on the other routes (the share
 // page, the 404) which have no chrome of their own.
-const showBrand = computed(() => route.name !== 'workspace')
+// The screenshot stage draws a tab on its own and would otherwise get the
+// corner mark stamped over the toolbar's title.
+const showBrand = computed(() => route.name !== 'workspace' && route.name !== 'dev-shot')
 
 // One-time notice when offline persistence could not be enabled (private mode /
 // unsupported browser): the app still works, just without offline durability.

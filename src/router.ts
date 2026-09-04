@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { PLURAL } from '@/utils/share'
-import type { ItemType } from '@/types'
+import { useUiStore } from '@/stores/ui'
+import { LAST_ROUTE_KEY, sessionRead } from '@/composables/useTradeRoute'
+import type { ItemType, TabKey } from '@/types'
 
 // Share routes are declared per item type rather than as one wildcard so an
 // unknown plural 404s instead of silently rendering an empty share page.
@@ -10,12 +12,26 @@ const sharePlurals = Object.values(PLURAL)
 // unknown type 404s rather than rendering a blank share.
 const shareTypes = Object.keys(PLURAL) as ItemType[]
 
+// Tabs that have a URL of their own (section 33). The workspace is one page
+// with a tab rail, so these all render the same view — the path names which tab
+// it opens on, which is what makes a link to a month of trades a link rather
+// than an instruction to click twice.
+export const TAB_ROUTES: Record<string, TabKey> = {
+  '/trades': 'trades',
+  '/expenses': 'expenses',
+}
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'workspace',
     component: () => import('@/views/WorkspaceView.vue'),
   },
+  ...Object.entries(TAB_ROUTES).map(([path, key]): RouteRecordRaw => ({
+    path,
+    name: `tab-${key}-${path.slice(1)}`,
+    component: () => import('@/views/WorkspaceView.vue'),
+  })),
   // Existing deep link into a task, kept working: three segments, so it does
   // not collide with the two-segment share route below.
   {
@@ -80,6 +96,19 @@ const routes: RouteRecordRaw[] = [
           name: 'ui-showcase',
           component: () => import('@/views/UiShowcaseView.vue'),
         } as RouteRecordRaw,
+        // The screenshot harness (section 38). Both of these are registered
+        // inside a DEV branch, which the bundler evaluates statically — so they
+        // are absent from a production build rather than present and guarded.
+        {
+          path: '/dev/login',
+          name: 'dev-login',
+          component: () => import('@/dev/DevLogin.vue'),
+        } as RouteRecordRaw,
+        {
+          path: '/dev/shot/:view',
+          name: 'dev-shot',
+          component: () => import('@/dev/DevShot.vue'),
+        } as RouteRecordRaw,
       ]
     : []),
   {
@@ -93,4 +122,27 @@ export const router = createRouter({
   history: createWebHistory(),
   routes,
   scrollBehavior: () => ({ top: 0 }),
+})
+
+/**
+ * The tab is chosen BEFORE the view paints, not in `onMounted` (section 33).
+ *
+ * Mounting first and correcting afterwards is what produces the default-tab
+ * flash: Overview renders, its listeners attach, and a frame later Trades
+ * replaces it. Deciding here means the first paint is already the right tab.
+ *
+ * The bare domain is also resolved here, from the last route this browser tab
+ * was on. Silently: a stored path that no longer resolves simply does not
+ * redirect, and the workspace opens on whatever it opens on.
+ */
+router.beforeEach((to) => {
+  if (to.path === '/') {
+    const last = sessionRead(LAST_ROUTE_KEY)
+    if (last && last !== to.fullPath && router.resolve(last).name !== 'not-found') {
+      return last
+    }
+  }
+  const tab = TAB_ROUTES[to.path]
+  if (tab) useUiStore().setTab(tab)
+  return true
 })

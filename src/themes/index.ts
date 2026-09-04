@@ -66,6 +66,14 @@ export interface Theme {
    */
   plRamp?: { pos: [string, string]; neg: [string, string] }
   /**
+   * How hard the declared ramp is laid on, from step 1 to step 5 (section 37).
+   *
+   * Defaults to 12%–70%, which is right on a page whose surface is close to
+   * neutral. A deeply tinted ground needs more: at 12% over a warm brown, a
+   * muted red IS brown, and the shallowest loss stops reading as a loss.
+   */
+  washAlpha?: { from: number; to: number }
+  /**
    * What the browser should assume when it draws something we do not — a native
    * date popup, a scrollbar, a select's list. Defaults to the theme's group.
    */

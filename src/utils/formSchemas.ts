@@ -104,7 +104,10 @@ export type RepoLinkForm = z.infer<typeof repoLinkSchema>
 // not "a positive number" — the lot, which is a size, is the one that must be
 // above zero.
 export const tradeFormSchema = z.object({
-  date: isoDate,
+  // Named for the zone it is in: the form takes ONE reading, on the trader's
+  // own clock, and everything else about time is derived from the instant it
+  // names (section 31).
+  istDate: isoDate,
   symbol: z
     .string({ error: 'Enter the symbol you traded.' })
     .trim()
@@ -142,3 +145,23 @@ export const securedFormSchema = z.object({
 })
 
 export type SecuredForm = z.infer<typeof securedFormSchema>
+
+// One expense (section 35). Single-signed: the amount is a size, so zero and
+// negative are both refused here rather than normalised silently downstream —
+// somebody typing -40 meant something, and it was not "spend forty".
+export const expenseFormSchema = z.object({
+  date: isoDate,
+  amount: z
+    .number({ error: 'Enter what it cost.' })
+    .positive('An expense is an amount spent — enter it without a minus sign.')
+    .max(100_000_000, 'That looks like a typo — check the units.'),
+  category: z
+    .string({ error: 'Give it a category.' })
+    .trim()
+    .min(1, 'Give it a category.')
+    .max(40, 'Keep a category under 40 characters.'),
+  note: z.string().max(200, 'Keep the note under 200 characters.'),
+  kind: z.enum(['one-off', 'recurring'], { error: 'Pick one-off or monthly.' }),
+})
+
+export type ExpenseForm = z.infer<typeof expenseFormSchema>

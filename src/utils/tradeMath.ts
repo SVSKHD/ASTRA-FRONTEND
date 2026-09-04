@@ -23,6 +23,7 @@ import type {
   TradeSide,
 } from '@/types'
 import { csvField } from '@/utils/financeExport'
+import { fmt2, signed2 } from '@/utils/format'
 
 export const TRADE_SESSIONS: readonly TradeSession[] = ['Asia', 'London', 'NY'] as const
 export const TRADE_SIDES: readonly TradeSide[] = ['buy', 'sell'] as const
@@ -59,6 +60,11 @@ export const DEFAULT_LOGGER_SETTINGS: LoggerSettings = {
   dayTarget: 10,
   monthTarget: 50,
   defaultLot: 1,
+  // Expenses (section 35). No budget until one is set, and expenses do not net
+  // against trading profit until the user says they should — "money spent" and
+  // "money lost trading" are two questions, and adding them answers neither.
+  monthlyBudget: 0,
+  netExpenses: false,
   lastSymbol: 'XAUUSD',
   contractSizes: { ...DEFAULT_CONTRACT_SIZES },
   // Empty rather than a theme name: "nothing chosen" and "chose the default"
@@ -85,19 +91,6 @@ export function round2(value: number): number {
   if (!Number.isFinite(value)) return 0
   const scaled = value * 100
   return (Math.sign(scaled) * Math.round(Math.abs(scaled))) / 100
-}
-
-export function fmt2(value: number): string {
-  return round2(value).toFixed(2)
-}
-
-/** A figure whose sign is the information — a move, a P/L, a net. */
-export function signed2(value: number): string {
-  const rounded = round2(value)
-  // `-0.00` is the same number as `0.00` and reads as a loss. Normalised here
-  // rather than at four call sites.
-  if (rounded === 0) return '0.00'
-  return `${rounded > 0 ? '+' : '−'}${Math.abs(rounded).toFixed(2)}`
 }
 
 export type ValueSign = 'pos' | 'neg' | 'flat'
@@ -149,7 +142,11 @@ export function sortTrades(trades: Trade[]): Trade[] {
   return trades
     .slice()
     .sort((a, b) =>
-      a.date < b.date ? -1 : a.date > b.date ? 1 : a.ts - b.ts || a.id.localeCompare(b.id),
+      a.istDate < b.istDate
+        ? -1
+        : a.istDate > b.istDate
+          ? 1
+          : a.ts - b.ts || a.id.localeCompare(b.id),
     )
 }
 
@@ -165,11 +162,11 @@ export interface DayTotals {
 export function byDay(trades: Trade[]): Map<string, DayTotals> {
   const out = new Map<string, DayTotals>()
   for (const t of trades) {
-    const cell = out.get(t.date) ?? { date: t.date, move: 0, pl: 0, count: 0 }
+    const cell = out.get(t.istDate) ?? { date: t.istDate, move: 0, pl: 0, count: 0 }
     cell.move = round2(cell.move + t.move)
     cell.pl = round2(cell.pl + t.pl)
     cell.count += 1
-    out.set(t.date, cell)
+    out.set(t.istDate, cell)
   }
   return out
 }
@@ -302,8 +299,8 @@ export function monthBounds(monthKey: string): { from: string; to: string } {
   return { from: `${monthKey}-01`, to: `${monthKey}-31` }
 }
 
-export function inMonth(trade: { date: string }, monthKey: string): boolean {
-  return trade.date.startsWith(monthKey)
+export function inMonth(trade: { istDate: string }, monthKey: string): boolean {
+  return trade.istDate.startsWith(monthKey)
 }
 
 /** Local, not UTC: the day a trade belongs to is the trader's day. */
@@ -336,7 +333,7 @@ export function tradesToCsv(trades: Trade[]): string {
   for (const t of sortTrades(trades)) {
     lines.push(
       [
-        csvField(t.date),
+        csvField(t.istDate),
         csvField(t.symbol),
         csvField(t.session),
         csvField(t.side),

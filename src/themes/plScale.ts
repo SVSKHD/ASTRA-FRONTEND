@@ -83,7 +83,10 @@ function mixOklch(from: string, to: string, t: number): string {
 function declaredWash(theme: Theme, side: PlSide, step: number): string {
   const ramp = theme.plRamp![side]
   const t = (step - 1) / (PL_STEPS - 1)
-  const alpha = WASH_ALPHA.from + (WASH_ALPHA.to - WASH_ALPHA.from) * t
+  // The theme's own alpha range when it names one: how much tint it takes to
+  // read as a tint depends entirely on what it is laid over.
+  const range = theme.washAlpha ?? WASH_ALPHA
+  const alpha = range.from + (range.to - range.from) * t
   const colour = parseColor(mixOklch(ramp[0], ramp[1], t))
   return rgbString(over({ ...colour, a: alpha }, parseColor(theme.bgSolid)))
 }

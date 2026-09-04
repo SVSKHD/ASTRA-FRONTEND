@@ -16,8 +16,9 @@ import IconSecured from '@/components/icons/IconSecured.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
 import { useForm } from '@/composables/useForm'
 import { securedFormSchema } from '@/utils/formSchemas'
-import { fmt2, todayYmd } from '@/utils/tradeMath'
-import type { NewSecured } from '@/composables/useTradeLog'
+import { todayYmd } from '@/utils/tradeMath'
+import { fmt2 } from '@/utils/format'
+import type { NewSecured } from '@/composables/useSecured'
 import type { SecuredEntry } from '@/types'
 
 const props = defineProps<{ entries: SecuredEntry[]; total: number }>()

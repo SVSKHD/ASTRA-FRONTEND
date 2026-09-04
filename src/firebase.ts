@@ -72,6 +72,12 @@ export interface FirestoreHandle {
 let firestoreLoad: Promise<FirestoreHandle | null> | null = null
 
 export function loadFirestore(): Promise<FirestoreHandle | null> {
+  // The screenshot fixture (section 38). `import.meta.env.DEV` is a static
+  // false in a production build, so this branch — and the module behind it —
+  // is dropped by the bundler rather than shipped behind a runtime guard.
+  if (import.meta.env.DEV && String(import.meta.env.VITE_FIXTURE ?? '') === '1') {
+    return import('@/dev/fixture').then((m) => m.fixtureHandle(m.forcedState()))
+  }
   if (!firebaseEnabled || !app) return Promise.resolve(null)
   if (!firestoreLoad) firestoreLoad = initFirestore(app)
   return firestoreLoad
