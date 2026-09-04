@@ -53,9 +53,16 @@ export function useAutoResizeTextarea(options: AutoResizeOptions = {}) {
 
   onMounted(() => {
     resize()
-    window.addEventListener('resize', resize)
+    globalThis.window?.addEventListener('resize', resize)
   })
-  onBeforeUnmount(() => window.removeEventListener('resize', resize))
+  // Guarded on both sides, for the reason GlassDatePicker's listeners are: an
+  // unmount can outlive the document — a test environment torn down while a
+  // component is still unmounting — and an unguarded `window.removeEventListener`
+  // there throws inside a lifecycle hook, which Vue reports as an unhandled
+  // rejection rather than a test failure. That is the worst shape a bug can
+  // have: every test still reports as passing while the run exits non-zero,
+  // which is exactly what it was doing here.
+  onBeforeUnmount(() => globalThis.window?.removeEventListener('resize', resize))
 
   return { el, resize, resizeSoon, onInput }
 }

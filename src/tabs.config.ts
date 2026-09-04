@@ -28,6 +28,7 @@ export const TABS: readonly TabDef[] = [
   { key: 'trips', label: 'Trips' },
   { key: 'ideas', label: 'Ideas' },
   { key: 'stocks', label: 'Stocks' },
+  { key: 'trades', label: 'Trades' },
   { key: 'ai', label: 'AI' },
   { key: 'bots', label: 'Bots' },
   { key: 'github', label: 'GitHub' },

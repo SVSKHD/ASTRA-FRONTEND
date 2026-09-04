@@ -27,6 +27,7 @@ export type TabKey =
   | 'goals'
   | 'github'
   | 'wallets'
+  | 'trades'
   | 'calendar'
 
 // Every stored item carries these. Items written before timestamps existed have
@@ -1000,4 +1001,59 @@ export interface AureonUser {
   provider: 'google' | 'github'
   initial: string
   color: string
+}
+
+// ---- Trade logger (section 28) ---------------------------------------------
+//
+// The one part of the app that is NOT a slice of the single workspace document.
+// A trading month is hundreds of rows written one at a time and read back by
+// date, which is a query, not a field on a blob — so trades, the secured ledger
+// and the logger's own settings live in real subcollections under the uid:
+//
+//   users/{uid}/trades/{tradeId}
+//   users/{uid}/secured/{id}
+//   users/{uid}/settings/logger
+//
+// `move` and `pl` are stored so Firestore can order and filter on them, and
+// recomputed on read so a bad stored value is corrected on screen rather than
+// propagated into a total (utils/tradeMath).
+
+export type TradeSession = 'Asia' | 'London' | 'NY'
+export type TradeSide = 'buy' | 'sell'
+
+export interface Trade {
+  id: string
+  /** Local 'YYYY-MM-DD'. The field every query and every grouping goes through. */
+  date: string
+  /** The stored Timestamp, flattened to epoch ms on read. Breaks ties within a day. */
+  ts: number
+  symbol: string
+  session: TradeSession
+  side: TradeSide
+  lot: number
+  entry: number
+  exit: number
+  move: number
+  pl: number
+  note: string
+  createdAt: number
+}
+
+/** One withdrawal from the traded balance. Its own ledger, never a trade. */
+export interface SecuredEntry {
+  id: string
+  date: string
+  amt: number
+  note: string
+  createdAt: number
+}
+
+export interface LoggerSettings {
+  startingBalance: number
+  dayTarget: number
+  monthTarget: number
+  defaultLot: number
+  lastSymbol: string
+  /** Points per whole unit, per symbol. An unknown symbol is asked for once. */
+  contractSizes: Record<string, number>
 }

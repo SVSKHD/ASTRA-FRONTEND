@@ -142,6 +142,15 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
       RC(13, 15, 7, 4.5, 1.5, filled ? { fill: col } : stroke(col, 1.7)),
     ]
     ch = [...edges, ...nodes]
+  } else if (name === 'trades') {
+    // Two candlesticks with their wicks: the trade log's own glyph, and
+    // deliberately not the Stocks trend line — one tab is a watchlist, the
+    // other is a record of what was actually traded.
+    const wicks = [P('M8.5 3.6 V20.4', stroke(col, 1.6)), P('M15.5 3.6 V20.4', stroke(col, 1.6))]
+    const bodies = filled
+      ? [RC(6, 6.5, 5, 7, 1.2, { fill: col }), RC(13, 10.5, 5, 7, 1.2, { fill: col })]
+      : [RC(6, 6.5, 5, 7, 1.2, stroke(col, 1.8)), RC(13, 10.5, 5, 7, 1.2, stroke(col, 1.8))]
+    ch = [...wicks, ...bodies]
   } else if (name === 'bots') {
     // A robot head: rounded case, two eyes, and an antenna.
     const antenna = [
@@ -160,6 +169,54 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
           CI(15, 12.6, 1.4, stroke(col, 1.7)),
         ]
     ch = [...antenna, ...head]
+  } else if (name === 'github') {
+    // The three tabs below used to fall through to the branch at the end, which
+    // draws Trips' location pin: GitHub, Wallets and Calendar all wore the same
+    // glyph as each other and as a fourth tab that means something else
+    // entirely. A rail is a row of glyphs read at a glance, and three of them
+    // being the same is the one thing it cannot survive.
+    //
+    // A merge arrow through a branch point.
+    const branch = [
+      CI(6.5, 5.5, 2.2, filled ? { fill: col } : stroke(col, 1.7)),
+      CI(6.5, 18.5, 2.2, filled ? { fill: col } : stroke(col, 1.7)),
+      CI(17.5, 5.5, 2.2, filled ? { fill: col } : stroke(col, 1.7)),
+      P('M6.5 7.7 V16.3', stroke(col, 1.8)),
+      P('M17.5 7.7 v3.3 a4 4 0 0 1-4 4 H9.5', stroke(col, 1.8)),
+    ]
+    ch = branch
+  } else if (name === 'wallets') {
+    // A card sleeve with the note edge showing.
+    ch = filled
+      ? [
+          RC(3, 6.5, 18, 12, 3, { fill: col }),
+          P('M3.4 11 H20.6', stroke(ko || col, 1.7)),
+          CI(16.4, 14.6, 1.4, { fill: ko || col }),
+        ]
+      : [
+          RC(3, 6.5, 18, 12, 3, stroke(col)),
+          P('M3.4 11 H20.6', stroke(col, 1.8)),
+          CI(16.4, 14.6, 1.4, stroke(col, 1.6)),
+        ]
+  } else if (name === 'calendar') {
+    // A month grid with its two hanging rings.
+    ch = filled
+      ? [
+          RC(3.5, 5, 17, 15.5, 3, { fill: col }),
+          P('M3.9 10 H20.1', stroke(ko || col, 1.7)),
+          P('M8 3 V6.4', stroke(col, 1.9)),
+          P('M16 3 V6.4', stroke(col, 1.9)),
+          CI(9, 14.5, 1.3, { fill: ko || col }),
+          CI(14.5, 14.5, 1.3, { fill: ko || col }),
+        ]
+      : [
+          RC(3.5, 5, 17, 15.5, 3, stroke(col)),
+          P('M3.9 10 H20.1', stroke(col, 1.8)),
+          P('M8 3 V6.4', stroke(col, 1.9)),
+          P('M16 3 V6.4', stroke(col, 1.9)),
+          CI(9, 14.5, 1.3, stroke(col, 1.5)),
+          CI(14.5, 14.5, 1.3, stroke(col, 1.5)),
+        ]
   } else {
     const pin = 'M12 21s6-5.35 6-11a6 6 0 1 0-12 0c0 5.65 6 11 6 11Z'
     ch = filled

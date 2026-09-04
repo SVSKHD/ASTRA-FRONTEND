@@ -42,11 +42,15 @@ describe('every listener is torn down', () => {
     expect(leaks.map((f) => f.path)).toEqual([])
   })
 
-  it('the workspace runs exactly one snapshot listener', () => {
-    // One document, one listener: the whole workspace is a single Firestore doc,
-    // so a second onSnapshot anywhere would be duplicated traffic on the same data.
+  it('only the two owners of Firestore data open a listener', () => {
+    // The workspace is a single document, so one listener covers all of it and a
+    // second onSnapshot on it anywhere would be duplicated traffic on the same
+    // data. The trade log is the one thing that is NOT in that document — it is
+    // a real subcollection, queried a month at a time — so it has its own, and
+    // the list is named rather than counted: a third entry here should have to
+    // be argued for.
     const listeners = FILES.filter((f) => f.body.includes('onSnapshot(')).map((f) => f.path)
-    expect(listeners).toEqual(['stores/app.ts'])
+    expect(listeners.sort()).toEqual(['composables/useTradeLog.ts', 'stores/app.ts'])
   })
 
   it('every setInterval has a clearInterval in the same module', () => {

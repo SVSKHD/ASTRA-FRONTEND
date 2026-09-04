@@ -47,6 +47,7 @@ const FinancesView = defineAsyncComponent(() => import('@/components/views/Finan
 const TripsView = defineAsyncComponent(() => import('@/components/views/TripsView.vue'))
 const IdeasView = defineAsyncComponent(() => import('@/components/views/IdeasView.vue'))
 const StocksView = defineAsyncComponent(() => import('@/components/views/StocksView.vue'))
+const TradesView = defineAsyncComponent(() => import('@/components/views/TradesView.vue'))
 const AiView = defineAsyncComponent(() => import('@/components/views/AiView.vue'))
 const BotsView = defineAsyncComponent(() => import('@/components/views/BotsView.vue'))
 const GithubView = defineAsyncComponent(() => import('@/components/views/GithubView.vue'))
@@ -118,6 +119,7 @@ const viewMap = {
   trips: TripsView,
   ideas: IdeasView,
   stocks: StocksView,
+  trades: TradesView,
   ai: AiView,
   bots: BotsView,
   github: GithubView,

@@ -26,6 +26,25 @@ import { useDatePicker } from '@/composables/useDatePicker'
 import { formatDisplay, type DateRange, type PickerMode } from '@/utils/datePicker'
 import { placePopover, type Placed } from '@/utils/popoverPlace'
 
+/**
+ * What a caller can say about one day. `tone` is the sign of whatever the day
+ * measured, `intensity` (0–1) how strongly — the two are separate because the
+ * direction and the magnitude are usually different quantities. `title` is the
+ * hover text, and the reason the colour is never the only signal.
+ */
+export interface DayMeta {
+  tone?: 'pos' | 'neg' | 'flat'
+  intensity?: number
+  title?: string
+  /**
+   * The exact fill for this day, when the caller has a scale of its own — a
+   * token, not a computed mix. A caller that supplies this has decided what
+   * "twice as far" looks like and measured its text against it, which is more
+   * than the linear tint below can do (section 28b, themes/plScale).
+   */
+  wash?: string
+}
+
 const props = withDefaults(
   defineProps<{
     modelValue: string | DateRange | null | undefined
@@ -42,6 +61,21 @@ const props = withDefaults(
     disabled?: boolean
     label?: string
     id?: string
+    /**
+     * Per-day decoration, keyed by 'YYYY-MM-DD' (section 28). The grid is the
+     * app's only month grid, so a surface that wants to paint days — a trading
+     * month's wins and losses, a habit streak — extends it here rather than
+     * forking it. Tone and intensity are the caller's meaning, not the
+     * picker's: it only knows how to draw them.
+     */
+    dayMeta?: Record<string, DayMeta>
+    /**
+     * The typed field and the preset chips. On by default; a grid used as a
+     * heat calendar rather than as a field turns them off, because "tomorrow,
+     * 25/12, in 3 days" is an instruction to pick a date and that grid is not
+     * picking one.
+     */
+    quickEntry?: boolean
   }>(),
   {
     mode: 'date',
@@ -53,9 +87,19 @@ const props = withDefaults(
     size: 'md',
     inline: false,
     disabled: false,
+    quickEntry: true,
   },
 )
-const emit = defineEmits<{ 'update:modelValue': [string | DateRange | null] }>()
+const emit = defineEmits<{
+  'update:modelValue': [string | DateRange | null]
+  /**
+   * The month the grid is showing, as 'YYYY-MM', whenever it moves. A caller
+   * painting the grid (section 28) loads its data a month at a time and has to
+   * know which one is on screen — the alternative is a second month control
+   * beside a grid that already has one.
+   */
+  month: [string]
+}>()
 
 const ui = useUiStore()
 const { isMobile } = storeToRefs(ui)
@@ -200,10 +244,43 @@ watch(showPanel, async (visible) => {
   selected?.scrollIntoView?.({ block: 'center' })
 })
 
+watch(
+  () => picker.anchor.value.slice(0, 7),
+  (month) => emit('month', month),
+  {
+    immediate: true,
+  },
+)
+
 function onClear() {
   picker.clear()
   closePanel()
 }
+
+function metaFor(ymd: string): DayMeta | undefined {
+  return props.dayMeta?.[ymd]
+}
+
+// The intensity is handed over as a percentage rather than a bare number so the
+// stylesheet can drop it straight into color-mix(), which will not accept a
+// unitless multiplier there. `order` is the cell's place in the month, which is
+// what staggers the fill sweep — computed here rather than in CSS because
+// nth-child cannot see across the week rows.
+function dayStyle(ymd: string, order: number) {
+  const meta = metaFor(ymd)
+  const style: Record<string, string> = { '--gdp-day-order': String(order) }
+  if (meta?.wash) style['--gdp-day-wash'] = meta.wash
+  if (meta?.tone && meta.tone !== 'flat') {
+    const pct = Math.round(Math.max(0, Math.min(1, meta.intensity ?? 1)) * 100)
+    style['--gdp-day-heat'] = `${pct}%`
+  }
+  return style
+}
+
+// A grid somebody is painting behaves differently from a date field: its cells
+// lift under the pointer, and its selection is a ring rather than a fill,
+// because a fill would overwrite the very colour the caller put there.
+const painted = computed(() => Object.keys(props.dayMeta ?? {}).length > 0)
 </script>
 
 <template>
@@ -258,7 +335,7 @@ function onClear() {
         @keydown="onPanelKeydown"
       >
         <!-- Typed entry: "tmrw 6pm", "25/12", "in 3 days". -->
-        <div class="gdp__typed">
+        <div v-if="quickEntry" class="gdp__typed">
           <input
             v-model="picker.typed.value"
             class="gdp__input"
@@ -268,11 +345,11 @@ function onClear() {
             @keydown.enter.prevent="picker.submitTyped()"
           />
         </div>
-        <p v-if="picker.typedError.value" class="gdp__error" role="alert">
+        <p v-if="quickEntry && picker.typedError.value" class="gdp__error" role="alert">
           {{ picker.typedError.value }}
         </p>
 
-        <div v-if="showGrid" class="gdp__chips">
+        <div v-if="showGrid && quickEntry" class="gdp__chips">
           <button
             v-for="preset in picker.presetChips.value"
             :key="preset.label"
@@ -329,6 +406,7 @@ function onClear() {
             <div
               ref="gridEl"
               class="gdp__grid"
+              :class="{ 'is-painted': painted }"
               role="grid"
               tabindex="0"
               :aria-activedescendant="`gdp-day-${picker.focused.value}`"
@@ -336,25 +414,34 @@ function onClear() {
             >
               <div v-for="(week, wi) in picker.weeks.value" :key="wi" class="gdp__week" role="row">
                 <button
-                  v-for="cell in week"
+                  v-for="(cell, di) in week"
                   :id="`gdp-day-${cell.ymd}`"
                   :key="cell.ymd"
                   type="button"
                   role="gridcell"
                   class="gdp__day"
-                  :class="{
-                    'is-out': !cell.inMonth,
-                    'is-today': cell.isToday,
-                    'is-selected': picker.isSelected(cell.ymd),
-                    'is-inrange': picker.inRange(cell.ymd),
-                    'is-focused': picker.focused.value === cell.ymd,
-                  }"
+                  :class="[
+                    {
+                      'is-out': !cell.inMonth,
+                      'is-today': cell.isToday,
+                      'is-selected': picker.isSelected(cell.ymd),
+                      'is-inrange': picker.inRange(cell.ymd),
+                      'is-focused': picker.focused.value === cell.ymd,
+                    },
+                    metaFor(cell.ymd)?.tone ? `is-${metaFor(cell.ymd)?.tone}` : '',
+                    { 'has-wash': !!metaFor(cell.ymd)?.wash },
+                  ]"
+                  :style="dayStyle(cell.ymd, wi * 7 + di)"
                   :tabindex="-1"
                   :aria-selected="picker.isSelected(cell.ymd)"
                   :disabled="picker.disabled(cell.ymd)"
+                  :title="metaFor(cell.ymd)?.title"
                   @click="picker.selectDate(cell.ymd)"
                 >
-                  {{ cell.day }}
+                  <!-- The number by default. A caller painting the grid adds
+                       its own mark here — which is what keeps the colour from
+                       being the only thing carrying the day's meaning. -->
+                  <slot name="day" :cell="cell" :meta="metaFor(cell.ymd)">{{ cell.day }}</slot>
                 </button>
               </div>
             </div>
@@ -551,6 +638,22 @@ function onClear() {
   .gdp__panel--sheet {
     animation: none;
   }
+  /* The sweep and the lift are both motion answering nothing the reader asked
+     for on this frame, so both go. The wash, the ring and the edge stay: they
+     are the information, and none of them moves. */
+  .gdp__grid.is-painted .gdp__day.has-wash,
+  .gdp__grid.is-painted .gdp__day.is-pos,
+  .gdp__grid.is-painted .gdp__day.is-neg,
+  .gdp__grid.is-painted .gdp__day.is-flat {
+    animation: none;
+  }
+  .gdp__grid.is-painted .gdp__day {
+    transition: none;
+  }
+  .gdp__grid.is-painted .gdp__day:hover:not(:disabled),
+  .gdp__grid.is-painted .gdp__day:focus-visible {
+    transform: none;
+  }
 }
 
 .gdp__input {
@@ -690,6 +793,128 @@ function onClear() {
   opacity: 0.3;
   cursor: not-allowed;
   text-decoration: line-through;
+}
+
+/* Painted days (section 28). The tint carries the magnitude, and the edge —
+   under the number for a gain, over it for a loss — carries the direction, so
+   the day still reads on the mono themes, where every status token is the text
+   colour and the two tints are identical. */
+.gdp__day.is-pos,
+.gdp__day.is-neg,
+.gdp__day.is-flat {
+  position: relative;
+}
+.gdp__day.is-pos {
+  background: color-mix(in oklch, var(--theme-success) var(--gdp-day-heat, 0%), transparent);
+}
+.gdp__day.is-neg {
+  background: color-mix(in oklch, var(--theme-danger) var(--gdp-day-heat, 0%), transparent);
+}
+
+/* The edge that says which way the day went — under a gain, over a loss — so
+   the direction survives a mono theme and a colour-blind reader.
+   
+   Drawn as a pseudo-element rather than an inset box-shadow, which is what it
+   was: a shadow here silently overwrote the focus ring on every painted cell,
+   because both live in the same property and the tone rule came last. Focus
+   and selection now own `box-shadow` outright and the edge cannot take it. */
+.gdp__day.is-pos::after,
+.gdp__day.is-neg::after {
+  content: '';
+  position: absolute;
+  right: 5px;
+  left: 5px;
+  height: 1.5px;
+  border-radius: var(--radius-pill);
+}
+.gdp__day.is-pos::after {
+  bottom: 1px;
+  background: color-mix(in oklch, var(--theme-success) 85%, transparent);
+}
+.gdp__day.is-neg::after {
+  top: 1px;
+  background: color-mix(in oklch, var(--theme-danger) 85%, transparent);
+}
+/* A traded day that went nowhere: the flat step of the ramp says it, and there
+   is no direction to draw an edge for. */
+.gdp__day.is-flat:not(.has-wash) {
+  background: color-mix(in oklch, var(--glass-border) 40%, transparent);
+}
+/* A caller with its own scale wins outright: the token it named is the fill,
+   and the linear mix above is not layered under it. */
+.gdp__day.has-wash {
+  background: var(--gdp-day-wash);
+}
+
+/* The fill sweep (section 28b). One orchestrated moment on month load: each
+   cell fades its wash in, staggered by its place in the month, and the last one
+   lands inside 400ms — `min()` caps the stagger so a six-week month does not
+   run longer than a four-week one. Nothing else on this screen animates on
+   mount, which is what makes this one legible as a sweep rather than as noise.
+
+   It runs on month change for free: the day buttons are keyed by date, so
+   navigating replaces every node and the animation plays on the new ones. */
+@keyframes gdpDayWash {
+  from {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+.gdp__grid.is-painted .gdp__day.has-wash,
+.gdp__grid.is-painted .gdp__day.is-pos,
+.gdp__grid.is-painted .gdp__day.is-neg,
+.gdp__grid.is-painted .gdp__day.is-flat {
+  animation: gdpDayWash 180ms var(--ease-out) both;
+  animation-delay: calc(min(var(--gdp-day-order, 0) * 5, 220) * 1ms);
+}
+
+/* A painted grid is a control surface, so its cells answer the pointer. 1px:
+   enough to read as a lift, small enough that a 42-cell grid does not ripple. */
+.gdp__grid.is-painted .gdp__day {
+  position: relative;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.gdp__grid.is-painted .gdp__day:hover:not(:disabled),
+.gdp__grid.is-painted .gdp__day:focus-visible {
+  transform: translateY(-1px);
+  z-index: 2;
+}
+/* The pointer must not repaint a painted cell: the wash IS the reading, and
+   hover replacing it with an accent tint is the one thing a heat grid cannot
+   afford. The lift and the ring say "you are on this one" instead. */
+.gdp__grid.is-painted .gdp__day:hover:not(:disabled) {
+  background: var(--gdp-day-wash, transparent);
+}
+
+/* Selection is a ring, not a colour (section 28b): filling the cell with the
+   accent would delete the green/red reading of the day the reader just picked. */
+.gdp__day.is-selected.has-wash {
+  background: var(--gdp-day-wash);
+  color: var(--theme-text);
+  box-shadow:
+    inset 0 0 0 2px var(--theme-accent),
+    0 0 0 1px color-mix(in oklch, var(--theme-accent) 45%, transparent);
+}
+.gdp__day.is-selected.is-pos:not(.has-wash),
+.gdp__day.is-selected.is-neg:not(.has-wash),
+.gdp__day.is-selected.is-flat:not(.has-wash) {
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
+}
+
+/* Last, and on purpose: wherever the keyboard is, is the thing that must be
+   visible. The grid takes focus as one element and moves an
+   `aria-activedescendant` between the cells, so this ring is the ONLY signal a
+   keyboard user has about which day they are on — it outranks the selection
+   ring and every tone rule above. */
+.gdp__day.is-focused,
+.gdp__day.is-focused.has-wash,
+.gdp__day.is-focused.is-selected {
+  box-shadow:
+    0 0 0 2px var(--theme-accent),
+    0 0 0 4px color-mix(in oklch, var(--theme-accent) 30%, transparent);
 }
 
 .gdp__times {

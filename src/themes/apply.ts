@@ -8,6 +8,7 @@
 import { THEMES, type ThemeKey, type ThemeSetting } from './index'
 import { accentGlow, accentGradient, surfaceTint } from '@/utils/gradient'
 import { statusTokens } from './status'
+import { plScaleTokens } from './plScale'
 
 export const LS_THEME_ID = 'aureon:themeId'
 export const LS_THEME_SETTING = 'aureon:themeSetting'
@@ -68,6 +69,14 @@ export function applyThemeToDom(key: ThemeKey, setting: ThemeSetting): void {
   // Danger, success and warning (section 25b). Derived rather than declared,
   // so a twentieth theme gets them without remembering to.
   for (const [name, value] of Object.entries(statusTokens(t))) {
+    root.style.setProperty(name, value)
+  }
+  // The profit/loss ramp (section 28b): five opaque steps each side, each one
+  // measured to carry the theme's text at 4.5:1, plus the flat step. Set here
+  // rather than in the trade calendar because it is a property of the theme —
+  // and because a token set from one place is a token a second surface can use
+  // without rebuilding the maths.
+  for (const [name, value] of Object.entries(plScaleTokens(t))) {
     root.style.setProperty(name, value)
   }
   // A theme may define its own focus ring instead of the accent glow
