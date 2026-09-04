@@ -6,13 +6,30 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import TradesView from '@/components/views/TradesView.vue'
 import { useAuthStore } from '@/stores/auth'
 
+// The view reads its state out of the URL (section 33), so a mount without a
+// router is a mount of something else. Memory history rather than the real
+// router: this is about the tab, not about navigation.
+function makeRouter() {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: '/trades', component: { template: '<div />' } }],
+  })
+}
+
 // The hover directive is registered on the app in main.ts, which a mounted
 // component does not go through.
-const mountView = () =>
-  mount(TradesView, { attachTo: document.body, global: { directives: { 'hover-style': {} } } })
+function mountView() {
+  const router = makeRouter()
+  router.push('/trades')
+  return mount(TradesView, {
+    attachTo: document.body,
+    global: { plugins: [router], directives: { 'hover-style': {} } },
+  })
+}
 
 describe('TradesView', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -37,11 +54,10 @@ describe('TradesView', () => {
     wrapper.unmount()
   })
 
-  it('says so, and keeps saying so, when Firestore cannot be reached', async () => {
-    // A signed-in user with no Firestore behind them is the real unreachable
-    // path — under the test runner the SDK never loads — and the failure has to
-    // be a standing message on the screen rather than a toast that has gone by
-    // the time the reader looks up.
+  it('shows the desk before anything else has loaded', async () => {
+    // The countdown is the one element that is about the next few minutes
+    // rather than about the month, so it is present in every state — including
+    // the one where no data has arrived at all.
     useAuthStore().user = {
       uid: 'u1',
       name: 'T',
@@ -54,9 +70,38 @@ describe('TradesView', () => {
     await nextTick()
     await Promise.resolve()
     await nextTick()
-    const alert = wrapper.find('.ui-alert--danger')
-    expect(alert.exists()).toBe(true)
-    expect(alert.text()).toContain('Firestore')
+    expect(wrapper.find('[data-desk]').exists()).toBe(true)
+    expect(wrapper.text()).toMatch(/(Asia|London|NY) opens/)
+    wrapper.unmount()
+  })
+
+  it('reads the mode, the month and the day out of the URL', async () => {
+    // The URL is the source of truth, so a link that names a mode opens on it
+    // without anything else being clicked (section 33).
+    const router = makeRouter()
+    await router.push('/trades?mode=signals&month=2026-09')
+    const wrapper = mount(TradesView, {
+      attachTo: document.body,
+      global: { plugins: [router], directives: { 'hover-style': {} } },
+    })
+    await nextTick()
+    expect(wrapper.text()).toContain('No signals this month')
+    // And the switch reflects it rather than showing the default.
+    expect(wrapper.find('[aria-label="What this month is shown as"]').text()).toContain('Signals')
+    wrapper.unmount()
+  })
+
+  it('falls back silently when the URL says something impossible', async () => {
+    const router = makeRouter()
+    await router.push('/trades?mode=sideways&month=banana&day=nope')
+    const wrapper = mount(TradesView, {
+      attachTo: document.body,
+      global: { plugins: [router], directives: { 'hover-style': {} } },
+    })
+    await nextTick()
+    // The journal, this month, no day filter — and no error anywhere.
+    expect(wrapper.text()).toContain('No trades this month')
+    expect(wrapper.find('.ui-alert--danger').exists()).toBe(false)
     wrapper.unmount()
   })
 

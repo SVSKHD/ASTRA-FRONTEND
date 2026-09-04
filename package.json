@@ -54,6 +54,7 @@
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.11",
     "jsdom": "^29.1.1",
+    "playwright": "^1.62.1",
     "postcss-html": "^1.8.1",
     "prettier": "^3.9.5",
     "rollup-plugin-visualizer": "^7.1.1",

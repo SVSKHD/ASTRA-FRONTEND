@@ -386,31 +386,32 @@
    Every value below is measured against `--surface-base`, which is the surface
    text actually sits on:
 
-     --text-primary    13.1:1   crema
-     --text-secondary   8.2:1
-     --text-muted       5.0:1   labels only — and 4.35:1 on --surface-overlay,
-                                which is under the floor, so an overlay uses
-                                --text-muted-on-overlay instead
-     --accent           6.6:1   gold, and only ever progress, focus, active day
+     --text-primary    19.0:1   white
+     --text-secondary  10.0:1   white at 72%
+     --text-muted       5.7:1   white at 52%, labels only — and 4.67:1 on
+                                --surface-overlay, the tightest place it is
+                                used, which still clears the floor
+     --accent           6.3:1   gold, and only ever progress, focus, active day
 */
 [data-theme='espresso'] {
   color-scheme: dark;
 
-  /* Surfaces, darkest to lightest. */
-  --bg: #070504;
-  --surface-base: #0f0a08;
-  --surface-raised: #1a1210;
-  --surface-overlay: #241a16;
-  --border: #3a2a22;
-  --border-strong-token: #4e3a2e;
+  /* Surfaces, darkest to lightest — a roast, not a tint of the dark family. */
+  --bg: #0b0100;
+  --surface-base: #1a0d08;
+  --surface-raised: #2b160b;
+  --surface-overlay: #4d270e;
+  --border: #4d270e;
+  --border-strong-token: #6b3a18;
 
-  /* Text. Nothing here is below 4.5:1 on --surface-base. */
-  --text-primary: #e8cfae;
-  --text-secondary: #c4a180;
-  --text-muted: #9a7b5e;
-  /* #9a7b5e measures 4.35:1 on the overlay surface — under the floor — so the
-     overlay layer gets its own muted step rather than a lightened surface. */
-  --text-muted-on-overlay: #b08f6d;
+  /* Text. White and two alpha steps of it: on a ground this warm, a tinted
+     text reads as a stain on the surface rather than as ink on it. Measured on
+     --surface-base: 19.0, 10.0 and 5.65 to one decimal. */
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  /* Labels only. 4.67:1 on the overlay surface, which is the tightest place it
+     is used and still over the floor. */
+  --text-muted: rgba(255, 255, 255, 0.52);
 
   /* The gold. Progress, focus, the active day's ring; nothing decorative. */
   --accent: #c8873f;
@@ -418,45 +419,37 @@
 
   /* The legacy names the older components read, pointed at the same values so
      one theme does not need two palettes. */
-  --theme-surface: #070504;
-  --theme-text: #e8cfae;
-  --theme-dim: #9a7b5e;
-  --theme-border: #3a2a22;
+  --theme-surface: #0b0100;
+  --theme-text: #ffffff;
+  --theme-dim: rgba(255, 255, 255, 0.52);
+  --theme-border: #4d270e;
   --theme-accent: #c8873f;
-  --theme-on-accent: #0f0a08;
-  --theme-input: #1a1210;
-  --bg-base: #0f0a08;
-  --bg-elevated: #1a1210;
-  --border-subtle: #3a2a22;
-  --border-strong: #4e3a2e;
-  --glass-bg: #0f0a08;
-  --glass-card: #1a1210;
-  --glass-border: #3a2a22;
-  --glass-solid: #0f0a08;
+  --theme-on-accent: #1a0d08;
+  --theme-input: #2b160b;
+  --bg-base: #1a0d08;
+  --bg-elevated: #2b160b;
+  --border-subtle: #4d270e;
+  --border-strong: #6b3a18;
+  --glass-bg: #1a0d08;
+  --glass-card: #2b160b;
+  --glass-border: #4d270e;
+  --glass-solid: #1a0d08;
   --glass-blur: 0px;
 
   /* Shadows. A black drop shadow is invisible on a near-black ground, so each
-     layer is lifted by a 1px crema highlight along its top edge instead, with a
+     layer is lifted by a 1px white highlight along its top edge instead, with a
      wide ambient underneath to seat it. One recipe per layer, none shared: base
      is the highlight alone (it is the ground — nothing casts onto it), raised
      adds a close ambient, overlay a deeper one with a contact shadow. */
-  --layer-base-shadow: inset 0 1px 0 rgb(232 207 174 / 6%);
-  --layer-raised-shadow: inset 0 1px 0 rgb(232 207 174 / 6%), 0 2px 12px rgb(0 0 0 / 60%);
+  --layer-base-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
+  --layer-raised-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), 0 2px 12px rgb(0 0 0 / 60%);
   --layer-overlay-shadow:
-    inset 0 1px 0 rgb(232 207 174 / 9%), 0 10px 28px rgb(0 0 0 / 70%), 0 2px 6px rgb(0 0 0 / 50%);
+    inset 0 1px 0 rgb(255 255 255 / 10%), 0 10px 28px rgb(0 0 0 / 70%), 0 2px 6px rgb(0 0 0 / 50%);
   --glass-shadow: var(--layer-raised-shadow);
   --elev-1: var(--layer-raised-shadow);
 
   /* 1.5 reads as a hairline on this ground at 16px; 1.6 holds. */
   --icon-stroke: 1.6;
-}
-
-/* The overlay layer's own muted step, applied where an overlay is drawn rather
-   than left for a call site to remember. Scoped to the theme so no other theme
-   pays for it. */
-[data-theme='espresso'] .ttable thead th,
-[data-theme='espresso'] .tcal__tip {
-  --text-muted: var(--text-muted-on-overlay);
 }
 
 /* The trade family draws with `stroke-width="1.5"` as an attribute; CSS wins

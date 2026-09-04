@@ -37,20 +37,26 @@ const FILES = sourceFiles(SRC).map((path) => ({
 describe('every listener is torn down', () => {
   it('every onSnapshot keeps its unsubscribe', () => {
     const leaks = FILES.filter((f) => f.body.includes('onSnapshot(')).filter(
-      (f) => !/Unsub\s*\(\)|unsubscribe\s*\(\)/.test(f.body),
+      // `detach()` counts: it is the same teardown under the name the shared
+      // month listener gives it.
+      (f) => !/Unsub\s*\(\)|unsubscribe\s*\(\)|detach\s*\(\)/.test(f.body),
     )
     expect(leaks.map((f) => f.path)).toEqual([])
   })
 
-  it('only the two owners of Firestore data open a listener', () => {
+  it('only the three owners of Firestore data open a listener', () => {
     // The workspace is a single document, so one listener covers all of it and a
     // second onSnapshot on it anywhere would be duplicated traffic on the same
-    // data. The trade log is the one thing that is NOT in that document — it is
-    // a real subcollection, queried a month at a time — so it has its own, and
-    // the list is named rather than counted: a third entry here should have to
-    // be argued for.
+    // data. Beside it there are exactly two more: the settings document, which
+    // every query path is built from, and the shared month listener that trades,
+    // signals and expenses all go through — one file, three collections, so a
+    // fourth entry in this list should have to be argued for.
     const listeners = FILES.filter((f) => f.body.includes('onSnapshot(')).map((f) => f.path)
-    expect(listeners.sort()).toEqual(['composables/useTradeLog.ts', 'stores/app.ts'])
+    expect(listeners.sort()).toEqual([
+      'composables/useOwnedMonth.ts',
+      'composables/useSettings.ts',
+      'stores/app.ts',
+    ])
   })
 
   it('every setInterval has a clearInterval in the same module', () => {

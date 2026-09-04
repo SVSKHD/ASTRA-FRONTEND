@@ -7,8 +7,9 @@ import TradeForm from '@/components/trades/TradeForm.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import { DEFAULT_LOGGER_SETTINGS } from '@/utils/tradeMath'
+import { DEFAULT_COLLECTIONS } from '@/utils/collections'
 
-const settings = { ...DEFAULT_LOGGER_SETTINGS }
+const settings = { ...DEFAULT_LOGGER_SETTINGS, ...DEFAULT_COLLECTIONS }
 
 function mountForm() {
   return mount(TradeForm, { props: { settings } })
@@ -39,7 +40,7 @@ describe('TradeForm times', () => {
 
   it('shows both readings of the one instant', async () => {
     const wrapper = mountForm()
-    await picker(wrapper, 'date').vm.$emit('update:modelValue', '2026-09-03')
+    await picker(wrapper, 'istDate').vm.$emit('update:modelValue', '2026-09-03')
     await picker(wrapper, 'istTime').vm.$emit('update:modelValue', '19:42')
     // 19:42 IST is 17:12 on the default GMT+3 broker — computed from the
     // instant, never by adding three hours to the string "19:42".
@@ -50,7 +51,7 @@ describe('TradeForm times', () => {
 
   it('pre-selects the session the broker clock puts the trade in', async () => {
     const wrapper = mountForm()
-    await picker(wrapper, 'date').vm.$emit('update:modelValue', '2026-09-03')
+    await picker(wrapper, 'istDate').vm.$emit('update:modelValue', '2026-09-03')
 
     // 12:00 IST is 09:30 for the broker — London, by half an hour.
     await picker(wrapper, 'istTime').vm.$emit('update:modelValue', '12:00')

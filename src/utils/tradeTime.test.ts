@@ -35,7 +35,8 @@ const ATHENS: Clock = { zone: 'Europe/Athens', offsetMinutes: 180 }
 function makeTrade(over: Partial<Trade> = {}): Trade {
   return {
     id: 't1',
-    date: '2026-09-01',
+    userId: 'u1',
+    istDate: '2026-09-01',
     ts: 1,
     entryAt: 0,
     exitAt: 0,

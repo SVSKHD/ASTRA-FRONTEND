@@ -163,7 +163,9 @@ export const registerSession = onCall(async (req) => {
       sessionId,
       city: location.city,
       country: location.country,
-      detail: location.country,
+      // `detail` is an optional string, and a coarse lookup that found no
+      // country gives null — which is "not known", not the string "null".
+      detail: location.country ?? undefined,
     })
   }
 
@@ -327,3 +329,8 @@ export const purgeExpiredActivity = onSchedule('every day 03:00', async () => {
 
   logger.info('retention sweep', { activityDeleted, sessionsDeleted })
 })
+
+// Dacoit's ingestion endpoint (section 34). Kept in its own module: it is the
+// only thing here that is not about device activity, and it is the only one
+// that authenticates with a shared key rather than with a Firebase session.
+export { dacoitSignal } from './dacoit'

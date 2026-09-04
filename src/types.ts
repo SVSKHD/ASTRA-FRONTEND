@@ -1023,13 +1023,16 @@ export type TradeSide = 'buy' | 'sell'
 
 export interface Trade {
   id: string
+  /** The owner. Under the deployed catch-all rule this field IS the document's
+   *  reachability — see services/owned.ts. Stamped, never typed. */
+  userId: string
   /**
    * The IST calendar day, 'YYYY-MM-DD'. The field every query and every
-   * grouping goes through — and the reason section 31 does not add a second
-   * `istDate` beside it: this IS the IST date, derived from `entryAt` on the
-   * Asia/Kolkata clock, and two copies of one string is one copy that drifts.
+   * grouping goes through, derived from `entryAt` on the Asia/Kolkata clock.
+   * Named for the zone it is in, because a bare `date` beside a broker clock
+   * and a UTC column is a field whose meaning has to be remembered.
    */
-  date: string
+  istDate: string
   /** The stored Timestamp, flattened to epoch ms on read. Breaks ties within a day. */
   ts: number
   /**
@@ -1064,11 +1067,15 @@ export interface Trade {
   pl: number
   note: string
   createdAt: number
+  /** The Dacoit signal this trade was taken on, when the desk linked them
+   *  (section 34). Empty on a trade taken without one. */
+  signalId?: string
 }
 
 /** One withdrawal from the traded balance. Its own ledger, never a trade. */
 export interface SecuredEntry {
   id: string
+  userId: string
   date: string
   amt: number
   note: string
@@ -1079,6 +1086,17 @@ export interface LoggerSettings {
   startingBalance: number
   dayTarget: number
   monthTarget: number
+  /** The month's spending allowance, which is what the expense ramp is keyed
+   *  to (section 35). Zero means no budget has been set. */
+  monthlyBudget: number
+  /**
+   * Whether expenses come off trading profit in the account block.
+   *
+   * A choice, not a fact: money spent on a data feed nets against the desk's
+   * profit, and a grocery bill logged in the same tab does not. Stated once
+   * here rather than guessed per row.
+   */
+  netExpenses: boolean
   defaultLot: number
   lastSymbol: string
   /** Points per whole unit, per symbol. An unknown symbol is asked for once. */
@@ -1107,4 +1125,67 @@ export interface SessionBounds {
   london: string
   ny: string
   nyEnd: string
+}
+
+/**
+ * Everything in `Astra-users/{uid}`: the durable preferences above plus the
+ * name of every collection the app queries (section 32).
+ */
+export interface AstraSettings extends LoggerSettings {
+  tradesCollection: string
+  dacoitCollection: string
+  expensesCollection: string
+  securedCollection: string
+}
+
+/** Dacoit's verdict on a setup, as delivered by the ingestion function. */
+export type SignalVerdict = 'GO' | 'NO_GO'
+
+/**
+ * One signal from Dacoit (section 34).
+ *
+ * `raw` is whatever Dacoit sent, kept whole. The envelope is validated and the
+ * body is not: a field this build has never heard of is a field a later build
+ * will want, and rejecting the document for carrying it would lose the signal
+ * to protect a schema nobody reads.
+ */
+export interface DacoitSignal {
+  id: string
+  userId: string
+  signalId: string
+  /** The instant Dacoit says it fired. */
+  signalAt: number
+  /** The instant we stored it. Differs from the above when it arrives late. */
+  receivedAt: number
+  /** The IST day of `signalAt`, for the same range query the trades use. */
+  istDate: string
+  symbol: string
+  session: TradeSession
+  verdict: SignalVerdict
+  raw: Record<string, unknown>
+  source: string
+}
+
+export type ExpenseKind = 'one-off' | 'recurring'
+
+/**
+ * One expense (section 35).
+ *
+ * Single-signed on purpose: an expense is an amount spent, always positive,
+ * never a negative income. A refund is not an expense with a minus sign, it is
+ * the absence of one — which is why there is no side, no sign and no green.
+ */
+export interface Expense {
+  id: string
+  userId: string
+  /** 'YYYY-MM-DD', local to the user, the field the month query ranges over. */
+  date: string
+  /** Always > 0. */
+  amount: number
+  category: string
+  note: string
+  kind: ExpenseKind
+  /** Recurring only: the day of the month it repeats on, 1–31. */
+  recurDay?: number
+  createdAt: number
 }

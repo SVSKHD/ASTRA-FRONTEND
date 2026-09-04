@@ -104,7 +104,10 @@ export type RepoLinkForm = z.infer<typeof repoLinkSchema>
 // not "a positive number" — the lot, which is a size, is the one that must be
 // above zero.
 export const tradeFormSchema = z.object({
-  date: isoDate,
+  // Named for the zone it is in: the form takes ONE reading, on the trader's
+  // own clock, and everything else about time is derived from the instant it
+  // names (section 31).
+  istDate: isoDate,
   symbol: z
     .string({ error: 'Enter the symbol you traded.' })
     .trim()

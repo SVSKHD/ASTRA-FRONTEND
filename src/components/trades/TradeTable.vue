@@ -22,7 +22,8 @@ import IconSessionAsia from '@/components/icons/IconSessionAsia.vue'
 import IconSessionLondon from '@/components/icons/IconSessionLondon.vue'
 import IconSessionNy from '@/components/icons/IconSessionNy.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
-import { fmt2, signOf, signed2 } from '@/utils/tradeMath'
+import { signOf } from '@/utils/tradeMath'
+import { fmt2, signed2 } from '@/utils/format'
 import { clocksFor, type Clock } from '@/utils/tradeTime'
 import type { Trade, TradeSession } from '@/types'
 
@@ -101,8 +102,8 @@ const firstOfDay = computed(() => {
   const seen = new Set<string>()
   const out = new Set<string>()
   for (const trade of props.trades) {
-    if (seen.has(trade.date)) continue
-    seen.add(trade.date)
+    if (seen.has(trade.istDate)) continue
+    seen.add(trade.istDate)
     out.add(trade.id)
   }
   return out
@@ -161,8 +162,8 @@ const firstOfDay = computed(() => {
           <!-- The date is written once per day; the rows under it inherit it
                from the divider above, which is how a person reads a ledger. -->
           <td class="is-mono ttable__date">
-            <span v-if="firstOfDay.has(t.id)">{{ t.date }}</span>
-            <span v-else class="ui-sr-only">{{ t.date }}</span>
+            <span v-if="firstOfDay.has(t.id)">{{ t.istDate }}</span>
+            <span v-else class="ui-sr-only">{{ t.istDate }}</span>
           </td>
           <td class="is-mono ttable__time" :title="clocks[t.id]?.title">
             <template v-if="clocks[t.id]">
@@ -201,7 +202,7 @@ const firstOfDay = computed(() => {
           <td class="ttable__act">
             <IconButton
               class="ttable__del"
-              :label="`Delete the ${t.symbol} trade on ${t.date}`"
+              :label="`Delete the ${t.symbol} trade on ${t.istDate}`"
               size="sm"
               @click="$emit('delete', t.id)"
             >

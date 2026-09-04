@@ -11,7 +11,7 @@
 // The symbol is asked for on every entry rather than being pinned to the tab:
 // a month is usually one instrument, but the day it is not is the day a P/L
 // silently computed at the wrong contract size would be worst.
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import FormField from '@/components/ui/FormField.vue'
 import Combobox from '@/components/ui/Combobox.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
@@ -31,10 +31,10 @@ import {
   contractSizeFor,
   isKnownSymbol,
   signOf,
-  signed2,
   tradeMove,
   tradePl,
 } from '@/utils/tradeMath'
+import { signed2 } from '@/utils/format'
 import {
   IST,
   hhmmOn,
@@ -45,12 +45,28 @@ import {
   ymdOn,
   type Clock,
 } from '@/utils/tradeTime'
-import type { NewTrade } from '@/composables/useTradeLog'
-import type { LoggerSettings, TradeSession, TradeSide } from '@/types'
+import type { TradeDraft } from '@/services/tradeDoc'
+import type { AstraSettings, TradeSession, TradeSide } from '@/types'
 
-const props = defineProps<{ settings: LoggerSettings; busy?: boolean }>()
+/**
+ * What the desk asks the form to become at T-5 (section 34).
+ *
+ * A request, not a value: it carries the instant it was raised so the same
+ * arming cannot be applied twice, and it never touches a field the trader has
+ * already typed into.
+ */
+export interface ArmRequest {
+  at: number
+  session: TradeSession
+  symbol: string
+  istDate: string
+  istTime: string
+  signalId?: string
+}
+
+const props = defineProps<{ settings: AstraSettings; busy?: boolean; arm?: ArmRequest | null }>()
 const emit = defineEmits<{
-  submit: [NewTrade]
+  submit: [TradeDraft]
   /** A symbol nobody has sized yet, with the size the trader gave for it. */
   sizeSymbol: [{ symbol: string; size: number }]
 }>()
@@ -68,7 +84,7 @@ const nowIst = Date.now()
 
 const form = useForm({
   initial: {
-    date: ymdOn(IST, nowIst),
+    istDate: ymdOn(IST, nowIst),
     istTime: hhmmOn(IST, nowIst),
     exitTime: '',
     symbol: props.settings.lastSymbol,
@@ -82,9 +98,10 @@ const form = useForm({
   schema: tradeFormSchema,
   onSubmit: async (values) => {
     emit('submit', {
-      date: values.date,
+      istDate: values.istDate,
       istTime: values.istTime,
       exitTime: values.exitTime,
+      signalId: armedSignal.value,
       symbol: String(values.symbol).trim().toUpperCase(),
       session: values.session,
       side: values.side,
@@ -130,7 +147,7 @@ const broker = computed<Clock>(() => ({
 }))
 
 const entryAt = computed(() =>
-  instantFromWall(IST, String(form.values.date), String(form.values.istTime)),
+  instantFromWall(IST, String(form.values.istDate), String(form.values.istTime)),
 )
 
 const clocks = computed(() => {
@@ -185,6 +202,33 @@ function sign(value: number | null | undefined): 'pos' | 'neg' | 'flat' {
   return value == null ? 'flat' : signOf(value)
 }
 
+// --- arming (section 34) ----------------------------------------------------
+//
+// Five minutes before the open the desk asks for the form to be ready. Ready
+// means the four fields nobody thinks about are already right — date, IST time,
+// session and the symbol last traded — so the trade costs one number and Enter.
+//
+// It never overwrites a price, and never re-arms for the same request: a form
+// that keeps refilling itself while somebody is typing in it is worse than one
+// that does nothing.
+const armedSignal = ref('')
+let lastArm = 0
+
+watch(
+  () => props.arm,
+  (arm) => {
+    if (!arm || arm.at === lastArm) return
+    lastArm = arm.at
+    form.values.istDate = arm.istDate
+    form.values.istTime = arm.istTime
+    form.values.session = arm.session
+    if (arm.symbol) form.values.symbol = arm.symbol
+    armedSignal.value = arm.signalId ?? ''
+    // The cursor goes where the only unknown is.
+    void nextTick(() => entryField.value?.querySelector('input')?.focus())
+  },
+)
+
 // --- an unknown symbol ------------------------------------------------------
 // Asked once, the first time a symbol is used, because the contract size is the
 // difference between a P/L and a number that looks like one.
@@ -232,11 +276,12 @@ async function onSubmit() {
   // symbol, session and side, and re-picking all three is why a log stops
   // being kept by the third day. Through `reset` rather than by clearing the
   // fields, so the emptied prices are not immediately marked invalid.
-  const { date, symbol, session, side, lot } = form.values
+  const { istDate, symbol, session, side, lot } = form.values
   // The clock moves on with the trader: the next entry defaults to now, not to
   // the time of the one just logged.
+  armedSignal.value = ''
   form.reset({
-    date,
+    istDate,
     istTime: hhmmOn(IST, Date.now()),
     exitTime: '',
     symbol,
@@ -254,16 +299,16 @@ async function onSubmit() {
 <template>
   <form class="tform" novalidate @submit.prevent="onSubmit">
     <div class="tform__grid">
-      <FormField label="Date" :error="form.errorFor('date')" v-slot="f">
-        <div data-field="date">
+      <FormField label="Date" :error="form.errorFor('istDate')" v-slot="f">
+        <div data-field="istDate">
           <GlassDatePicker
             :id="f.id"
             :size="f.size"
             :disabled="f.disabled"
-            v-model="form.values.date"
+            v-model="form.values.istDate"
             mode="date"
             :clearable="false"
-            @update:model-value="form.change('date')"
+            @update:model-value="form.change('istDate')"
           />
         </div>
       </FormField>

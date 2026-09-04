@@ -71,12 +71,13 @@ describe('espresso text clears the floor', () => {
     }
   })
 
-  it('muted does NOT clear it on the overlay surface, which is why that layer has its own', () => {
-    // The failing case, pinned. If someone lightens the overlay or darkens the
-    // muted step this test tells them which assumption they broke.
+  it('muted clears it on the overlay surface too, which is the tightest place it sits', () => {
+    // The first cut of this theme failed here at 4.35:1 and needed a second
+    // muted step for the overlay. The retune fixed it at the surface instead,
+    // which is one token rather than two — and this is the measurement that
+    // says so, so a future darkening of the overlay fails here.
     const overlay = token('--surface-overlay')
-    expect(ratio(espresso.textMuted!, overlay)).toBeLessThan(AA_TEXT)
-    expect(ratio(token('--text-muted-on-overlay'), overlay)).toBeGreaterThanOrEqual(AA_TEXT)
+    expect(ratio(espresso.textMuted!, overlay)).toBeGreaterThanOrEqual(AA_TEXT)
   })
 
   it('the accent clears the 3:1 a ring or a bar needs, everywhere it is drawn', () => {
@@ -94,13 +95,18 @@ describe('espresso text clears the floor', () => {
 describe('the espresso P/L ramp', () => {
   it('is built from the theme’s own endpoints, not the derived hues', () => {
     expect(espresso.plRamp).toEqual({
-      pos: ['#4F7A52', '#8FC98A'],
-      neg: ['#7A3B33', '#D98A78'],
+      pos: ['#3F7A4B', '#8FC98A'],
+      neg: ['#A34434', '#F0A090'],
     })
   })
 
-  it('lays each step on at 12% through 70%', () => {
+  it('lays it on harder than the shared default, because of what it lands on', () => {
+    // 12%–70% is right over a near-neutral surface and wrong over this one:
+    // measured at the default, the shallowest loss sat at 1.03:1 against a
+    // traded-but-flat cell — indistinguishable from an untraded day. The shared
+    // default is unchanged for every other theme.
     expect(WASH_ALPHA).toEqual({ from: 0.12, to: 0.7 })
+    expect(espresso.washAlpha).toEqual({ from: 0.34, to: 0.85 })
   })
 
   it('keeps every wash legible by moving the numeral, never the wash', () => {
@@ -114,20 +120,36 @@ describe('the espresso P/L ramp', () => {
     }
   })
 
-  it('flips the numeral only where the crema cannot sit on the wash', () => {
-    // Three steps out of ten, and they are the deep ones. Named rather than
-    // counted: a change that flips a shallow step is a change to the ramp.
+  it('flips the numeral only where white cannot sit on the wash', () => {
+    // Four steps out of ten. The retune lays the wash on harder (34% rather
+    // than 12% at the shallow end, because 12% of anything over warm brown is
+    // warm brown), so the deep half of both ramps is now too light for white
+    // and takes the dark ink instead. Named rather than counted, because a
+    // change that flips a SHALLOW step is a change to the ramp itself.
     const flipped: string[] = []
     for (const side of ['pos', 'neg'] as const) {
       for (let step = 1; step <= PL_STEPS; step += 1) {
         if (plInk(espresso, side, step) !== espresso.text) flipped.push(`${side}-${step}`)
       }
     }
-    expect(flipped).toEqual(['pos-4', 'pos-5', 'neg-5'])
+    expect(flipped).toEqual(['pos-4', 'pos-5', 'neg-4', 'neg-5'])
+  })
+
+  it('keeps the negative ramp off the surface it sits on', () => {
+    // The specific risk on a warm brown ground: a muted brick red IS brown, so
+    // the shallowest loss step stops reading as a loss and starts reading as an
+    // untraded day. Measured against the flat cell, which is what it would be
+    // confused with, and required to be at least as separated as the positive
+    // side's shallowest step — which has an easy time of it here.
+    const flat = plFlat(espresso)
+    const negOne = contrastRatio(plWash(espresso, 'neg', 1), flat)
+    const posOne = contrastRatio(plWash(espresso, 'pos', 1), flat)
+    expect(negOne).toBeGreaterThan(1.08)
+    expect(negOne).toBeGreaterThanOrEqual(posOne * 0.9)
   })
 
   it('gives a traded-but-flat day the raised surface, not a colour', () => {
-    expect(plFlat(espresso).replace(/\s/g, '')).toBe('rgb(26,18,16)')
+    expect(plFlat(espresso).replace(/\s/g, '')).toBe('rgb(43,22,11)')
   })
 })
 

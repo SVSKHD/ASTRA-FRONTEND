@@ -20,7 +20,8 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import IconTargetHit from '@/components/icons/IconTargetHit.vue'
 import IconTargetMissed from '@/components/icons/IconTargetMissed.vue'
 import { plInkVar, plWashVar } from '@/themes/plScale'
-import { fmt2, signOf, signed2 } from '@/utils/tradeMath'
+import { signOf } from '@/utils/tradeMath'
+import { fmt2, signed2 } from '@/utils/format'
 import {
   THIN_HOURS_BELOW,
   hourExtremes,

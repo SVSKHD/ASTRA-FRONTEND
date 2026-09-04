@@ -8,7 +8,6 @@ import {
   isKnownSymbol,
   monthBounds,
   recomputed,
-  signed2,
   sortTrades,
   targetProgress,
   tradeMove,
@@ -16,12 +15,14 @@ import {
   tradeStats,
   tradesToCsv,
 } from '@/utils/tradeMath'
+import { signed2 } from '@/utils/format'
 import type { SecuredEntry, Trade } from '@/types'
 
 function makeTrade(over: Partial<Trade> = {}): Trade {
   const base: Trade = {
     id: 't1',
-    date: '2026-09-01',
+    userId: 'u1',
+    istDate: '2026-09-01',
     ts: 1,
     // Section 31's four: the instant, its optional close, the IST reading it
     // was typed as, and the broker offset that was in force for it.
@@ -44,7 +45,7 @@ function makeTrade(over: Partial<Trade> = {}): Trade {
 }
 
 function makeSecured(over: Partial<SecuredEntry> = {}): SecuredEntry {
-  return { id: 's1', date: '2026-09-02', amt: 500, note: '', createdAt: 0, ...over }
+  return { id: 's1', userId: 'u1', date: '2026-09-02', amt: 500, note: '', createdAt: 0, ...over }
 }
 
 describe('move and P/L', () => {
@@ -83,9 +84,9 @@ describe('a stored value is never trusted', () => {
 
 describe('day buckets', () => {
   const trades = [
-    makeTrade({ id: 'a', date: '2026-09-01', move: 10, pl: 1000 }),
-    makeTrade({ id: 'b', date: '2026-09-01', move: -4, pl: -400 }),
-    makeTrade({ id: 'c', date: '2026-09-02', move: -6, pl: -600 }),
+    makeTrade({ id: 'a', istDate: '2026-09-01', move: 10, pl: 1000 }),
+    makeTrade({ id: 'b', istDate: '2026-09-01', move: -4, pl: -400 }),
+    makeTrade({ id: 'c', istDate: '2026-09-02', move: -6, pl: -600 }),
   ]
 
   it('sums move, P/L and count per day', () => {
@@ -132,10 +133,10 @@ describe('the account block', () => {
 
 describe('stats', () => {
   const trades = [
-    makeTrade({ id: 'a', date: '2026-09-01', session: 'Asia', move: 10, pl: 1000 }),
-    makeTrade({ id: 'b', date: '2026-09-01', session: 'London', move: -4, pl: -400 }),
-    makeTrade({ id: 'c', date: '2026-09-02', session: 'NY', move: -6, pl: -600 }),
-    makeTrade({ id: 'd', date: '2026-09-02', session: 'NY', move: 0, pl: 0 }),
+    makeTrade({ id: 'a', istDate: '2026-09-01', session: 'Asia', move: 10, pl: 1000 }),
+    makeTrade({ id: 'b', istDate: '2026-09-01', session: 'London', move: -4, pl: -400 }),
+    makeTrade({ id: 'c', istDate: '2026-09-02', session: 'NY', move: -6, pl: -600 }),
+    makeTrade({ id: 'd', istDate: '2026-09-02', session: 'NY', move: 0, pl: 0 }),
   ]
   const stats = tradeStats(trades)
 
@@ -193,17 +194,17 @@ describe('formatting', () => {
 describe('ordering and export', () => {
   it('sorts by date, then by the moment within the day', () => {
     const rows = sortTrades([
-      makeTrade({ id: 'b', date: '2026-09-02', ts: 5 }),
-      makeTrade({ id: 'c', date: '2026-09-01', ts: 9 }),
-      makeTrade({ id: 'a', date: '2026-09-01', ts: 2 }),
+      makeTrade({ id: 'b', istDate: '2026-09-02', ts: 5 }),
+      makeTrade({ id: 'c', istDate: '2026-09-01', ts: 9 }),
+      makeTrade({ id: 'a', istDate: '2026-09-01', ts: 2 }),
     ])
     expect(rows.map((r) => r.id)).toEqual(['a', 'c', 'b'])
   })
 
   it('exports the nine columns the spec names, oldest first', () => {
     const csv = tradesToCsv([
-      makeTrade({ id: 'b', date: '2026-09-02', symbol: 'US30', side: 'sell', move: -6, pl: -6 }),
-      makeTrade({ id: 'a', date: '2026-09-01' }),
+      makeTrade({ id: 'b', istDate: '2026-09-02', symbol: 'US30', side: 'sell', move: -6, pl: -6 }),
+      makeTrade({ id: 'a', istDate: '2026-09-01' }),
     ])
     const lines = csv.trim().split('\r\n')
     expect(lines[0]).toBe('date,symbol,session,side,lot,entry,exit,move,pl')
