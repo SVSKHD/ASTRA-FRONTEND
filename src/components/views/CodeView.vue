@@ -61,6 +61,11 @@ function toggleRepo(repoId: number) {
   openPull.value = null
 }
 
+/** Is this the one pull request whose conversation is showing? */
+function isOpen(pull: { repoId: number; number: number }): boolean {
+  return openPull.value?.repoId === pull.repoId && openPull.value?.number === pull.number
+}
+
 function togglePull(repoId: number, number: number) {
   const same = openPull.value?.repoId === repoId && openPull.value?.number === number
   openPull.value = same ? null : { repoId, number }
@@ -121,22 +126,25 @@ const silent = computed(() =>
           </button>
 
           <div v-if="openRepo === repo.repoId" class="cv__pulls">
-            <PullRow
-              v-for="pull in live.pullsByRepo.value[repo.repoId] ?? []"
-              :key="pull.id"
-              :pull="pull"
-              :expanded="openPull?.repoId === pull.repoId && openPull?.number === pull.number"
-              :flashing="flashing.has(pull.id)"
-              @toggle="togglePull(pull.repoId, pull.number)"
-            />
+            <!-- The thread belongs to ITS pull request, inside the loop. Below
+                 the list it would sit under whichever row happened to be last,
+                 which reads as a conversation on the wrong pull request. -->
+            <template v-for="pull in live.pullsByRepo.value[repo.repoId] ?? []" :key="pull.id">
+              <PullRow
+                :pull="pull"
+                :expanded="isOpen(pull)"
+                :flashing="flashing.has(pull.id)"
+                @toggle="togglePull(pull.repoId, pull.number)"
+              />
+              <CommentThread
+                v-if="isOpen(pull)"
+                :comments="thread.comments.value"
+                :loading="thread.loading.value"
+              />
+            </template>
             <p v-if="!(live.pullsByRepo.value[repo.repoId] ?? []).length" class="cv__note">
               Nothing mirrored for this repository yet.
             </p>
-            <CommentThread
-              v-if="openPull?.repoId === repo.repoId"
-              :comments="thread.comments.value"
-              :loading="thread.loading.value"
-            />
           </div>
         </li>
 
@@ -167,8 +175,11 @@ const silent = computed(() =>
   flex-wrap: wrap;
   min-width: 0;
 }
+/* A basis rather than a bare `flex: 1`: below about thirty characters of room
+   the note wraps onto its own line instead of being squeezed into a four-word
+   column beside the field, which is what it did at 390px. */
 .cv__note {
-  flex: 1;
+  flex: 1 1 30ch;
   margin: 0;
   min-width: 0;
   font-size: var(--text-xs);

@@ -15,6 +15,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import TradesView from '@/components/views/TradesView.vue'
 import ExpensesView from '@/components/views/ExpensesView.vue'
+import NewsView from '@/components/views/NewsView.vue'
+import CodeView from '@/components/views/CodeView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useSettings } from '@/composables/useSettings'
@@ -55,7 +57,26 @@ const settings = useSettings()
 const trades = useTrades(() => month)
 const signals = useSignals(() => month)
 
-const view = computed(() => (String(route.params.view) === 'expenses' ? ExpensesView : TradesView))
+const VIEWS = {
+  expenses: ExpensesView,
+  news: NewsView,
+  code: CodeView,
+  trades: TradesView,
+} as const
+
+const which = computed(() => String(route.params.view) as keyof typeof VIEWS)
+const view = computed(() => VIEWS[which.value] ?? TradesView)
+
+/**
+ * News and Code own their own `data-ready`.
+ *
+ * They read the shared news collection and the GitHub mirror, neither of which
+ * this stage waits on — so it says `false` and lets the view say when it is
+ * ready. The harness waits for the attribute, not for this element, so the
+ * shutter still fires at the right moment; claiming `true` here would fire it
+ * on a stage whose contents are still empty.
+ */
+const ownsReady = computed(() => which.value === 'news' || which.value === 'code')
 
 /**
  * All three, not any one of them.
@@ -65,7 +86,7 @@ const view = computed(() => (String(route.params.view) === 'expenses' ? Expenses
  * like a bug in the link drawing rather than like a race in the harness.
  */
 const ready = computed(() =>
-  state === 'loading'
+  state === 'loading' || ownsReady.value
     ? false
     : settings.ready.value && !trades.loading.value && !signals.loading.value,
 )

@@ -60,6 +60,12 @@ const SHOTS = [
   { name: 'trades-combined', path: '/dev/shot/trades?mode=combined' },
   { name: 'trades-day', path: '/dev/shot/trades?mode=journal&day=2026-09-02' },
   { name: 'expenses', path: '/dev/shot/expenses' },
+  // The two live tabs (sections 39-40). `code` is shot with the tree opened —
+  // a picture of three collapsed repository rows says nothing about the thing
+  // the tab is for, which is reading a review without leaving the desk.
+  { name: 'news', path: '/dev/shot/news' },
+  { name: 'code', path: '/dev/shot/code' },
+  { name: 'code-thread', path: '/dev/shot/code', open: 'thread' },
   { name: 'state-empty', path: '/dev/shot/trades?state=empty' },
   { name: 'state-loading', path: '/dev/shot/trades?state=loading', ready: false },
   { name: 'state-error', path: '/dev/shot/trades?state=error', ready: false },
@@ -102,6 +108,19 @@ async function shoot(page, shot, theme, size, outDir) {
     // A forced state never becomes ready by design, so wait for the stage
     // itself and then for the frame it painted.
     await page.waitForSelector('[data-state]', { timeout: 15_000 })
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))))
+  }
+
+  // An opened state is opened by CLICKING, not by a query parameter the app
+  // would then have to carry in production. The picture is of the real
+  // interaction or it is a picture of something else.
+  if (shot.open === 'thread') {
+    await page
+      .getByRole('button', { name: /astra-frontend/ })
+      .first()
+      .click()
+    await page.getByRole('button', { name: /#61/ }).first().click()
+    await page.waitForSelector('.cthread__list', { timeout: 15_000 })
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))))
   }
 

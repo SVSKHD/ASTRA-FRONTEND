@@ -16,6 +16,14 @@
 // has to be set as well.
 
 import { SEED_SETTINGS, seedExpenses, seedSignals, seedTrades, type SeedTrade } from '@/dev/seed'
+import {
+  SEED_FEED_PULLED_AT,
+  seedComments,
+  seedFeedHealth,
+  seedNews,
+  seedPulls,
+  seedRepos,
+} from '@/dev/seedFeed'
 
 export const DEMO_UID = 'demo-uid'
 
@@ -110,6 +118,49 @@ export function loadFixture(state: ForcedState = ''): void {
       createdAt: stamp(Date.parse(`${e.date}T00:00:00Z`)),
     })
   }
+
+  // The news and the GitHub mirror. These four are NOT named in the settings:
+  // `forex` is shared by the rules and the three `gh-` collections are fixed,
+  // so the fixture writes the same literal names the composables read.
+  for (const n of seedNews()) {
+    const { id, publishedAt, ...rest } = n
+    collectionOf('forex').set(id, {
+      ...rest,
+      publishedAt: stamp(publishedAt),
+      fetchedAt: stamp(SEED_FEED_PULLED_AT),
+    })
+  }
+  collectionOf('forex').set('_health', {
+    kind: 'feed-health',
+    at: stamp(SEED_FEED_PULLED_AT),
+    feeds: seedFeedHealth(),
+  })
+  for (const r of seedRepos()) {
+    const { id, pushedAt, updatedAt, ...rest } = r
+    collectionOf('gh-repos').set(id, {
+      ...rest,
+      userId: DEMO_UID,
+      pushedAt: stamp(pushedAt),
+      updatedAt: stamp(updatedAt),
+    })
+  }
+  for (const p of seedPulls()) {
+    const { id, createdAt, updatedAt, ...rest } = p
+    collectionOf('gh-pulls').set(id, {
+      ...rest,
+      userId: DEMO_UID,
+      createdAt: stamp(createdAt),
+      updatedAt: stamp(updatedAt),
+    })
+  }
+  for (const c of seedComments()) {
+    const { id, createdAt, ...rest } = c
+    collectionOf('gh-comments').set(id, {
+      ...rest,
+      userId: DEMO_UID,
+      createdAt: stamp(createdAt),
+    })
+  }
 }
 
 // ---- the SDK surface, and only the parts that are used ----------------------
@@ -120,11 +171,12 @@ interface Ref {
   id: string
 }
 interface Constraint {
-  kind: 'where' | 'orderBy'
-  field: string
+  kind: 'where' | 'orderBy' | 'limit'
+  field?: string
   op?: string
   value?: unknown
   dir?: 'asc' | 'desc'
+  count?: number
 }
 interface Query {
   __kind: 'query'
@@ -135,10 +187,12 @@ interface Query {
 let autoId = 0
 
 function matches(row: Row, c: Constraint): boolean {
-  const value = row[c.field]
+  const value = row[c.field ?? '']
   switch (c.op) {
     case '==':
       return value === c.value
+    case 'in':
+      return Array.isArray(c.value) && (c.value as unknown[]).includes(value)
     case '>=':
       return String(value ?? '') >= String(c.value)
     case '<=':
@@ -146,6 +200,20 @@ function matches(row: Row, c: Constraint): boolean {
     default:
       return true
   }
+}
+
+/**
+ * Sortable form of a field.
+ *
+ * A timestamp sorts by its millis and a number by its value; anything else
+ * falls back to its string. Comparing a timestamp as a string would order the
+ * news by the letters of "[object Object]", which is no order at all.
+ */
+function sortable(value: unknown): number | string {
+  if (value && typeof value === 'object' && 'toMillis' in value) {
+    return (value as { toMillis(): number }).toMillis()
+  }
+  return typeof value === 'number' ? value : String(value ?? '')
 }
 
 function runQuery(q: Query) {
@@ -157,22 +225,28 @@ function runQuery(q: Query) {
   const order = q.constraints.find((c) => c.kind === 'orderBy')
   if (order) {
     rows.sort((a, b) => {
-      const av = String(a.data[order.field] ?? '')
-      const bv = String(b.data[order.field] ?? '')
+      const av = sortable(a.data[order.field ?? ''])
+      const bv = sortable(b.data[order.field ?? ''])
       return (av < bv ? -1 : av > bv ? 1 : 0) * (order.dir === 'desc' ? -1 : 1)
     })
   }
-  return rows
+  const cap = q.constraints.find((c) => c.kind === 'limit')?.count
+  return cap ? rows.slice(0, cap) : rows
 }
 
 function snapshotOf(q: Query) {
+  const docs = runQuery(q).map(({ id, data }) => ({
+    id,
+    data: () => data,
+    exists: () => true,
+    metadata: { hasPendingWrites: false },
+  }))
   return {
-    docs: runQuery(q).map(({ id, data }) => ({
-      id,
-      data: () => data,
-      exists: () => true,
-      metadata: { hasPendingWrites: false },
-    })),
+    docs,
+    // A first snapshot is every document added, which is what the real SDK
+    // reports too — so the row-flash reads nothing as modified, and the
+    // screenshot is of a settled list rather than of one lit up all over.
+    docChanges: () => docs.map((doc) => ({ type: 'added' as const, doc })),
   }
 }
 
@@ -211,6 +285,7 @@ export function fixtureHandle(state: ForcedState = '') {
       field,
       dir,
     }),
+    limit: (count: number): Constraint => ({ kind: 'limit', count }),
     onSnapshot: (target: Ref | Query, ...rest: unknown[]) => {
       const callbacks = rest.filter((r) => typeof r === 'function') as ((v: unknown) => void)[]
       const [next, onError] = callbacks

@@ -179,14 +179,29 @@ function day(item: NewsItem): string {
   min-width: 0;
 }
 /* The one column allowed to be long. It wraps rather than truncating: a
-   headline cut at 40 characters is a headline nobody can judge. */
-.ntable__title {
+   headline cut at 40 characters is a headline nobody can judge.
+
+   The width lives on the ANCHOR, not on the cell. A `max-width` on a `td` is
+   advisory under automatic table layout and a long headline simply ignores it —
+   which is exactly what happened, and the headline ran under the tags column.
+   A block child with a width is a real constraint on the cell's preferred
+   width, so the cell can no longer grow past it. */
+/* `.ntable td` is the more specific selector for `white-space`, so a bare
+   `.ntable__title` loses to it and the headline never wrapped at all. The
+   element is part of the selector for that reason. */
+.ntable td.ntable__title {
   white-space: normal;
-  min-width: 0;
-  max-width: 60ch;
+  /* A floor as well as a ceiling. Without one, a phone squeezed this column to
+     about five characters and broke words down the middle, because it is the
+     only cell allowed to wrap and so the only one that can be crushed. With it
+     the table overflows and the wrapper scrolls sideways — the same behaviour
+     the trade log already has at this width. */
+  min-width: 32ch;
 }
 .ntable__title a {
+  display: block;
   min-width: 0;
+  max-width: 62ch;
   color: var(--text-primary, var(--theme-text));
   text-decoration: none;
   overflow-wrap: anywhere;

@@ -187,14 +187,22 @@ const review = computed(() => {
   text-decoration: underline;
 }
 
+/* On a phone the grid becomes a wrap.
+   
+   The title is the only thing on this row worth reading first, and in three
+   columns it was the one thing being truncated — "A news fee…" beside a full
+   diff count and a full comment count. So it takes a line of its own and wraps,
+   and the state, the number and the counts flow around it. */
 @media (max-width: 700px) {
   .prow__main {
-    grid-template-columns: auto auto minmax(0, 1fr);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-2);
   }
-  .prow__review,
-  .prow__diff,
-  .prow__comments {
-    grid-column: 3;
+  .prow__title {
+    flex: 1 1 100%;
+    white-space: normal;
+    overflow: visible;
   }
 }
 </style>
