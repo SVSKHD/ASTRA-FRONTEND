@@ -58,6 +58,7 @@ import {
   SearchField,
   SegmentedControl,
   Select,
+  SaveState,
   Skeleton,
   SlideOver,
   StatRow,
@@ -530,6 +531,13 @@ const OverlapDetector = import.meta.env.DEV
           </template>
 
           <!-- Feedback -->
+          <template v-else-if="doc.name === 'SaveState'">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <SaveState state="working" />
+              <SaveState state="done" />
+              <SaveState state="failed" />
+            </div>
+          </template>
           <template v-else-if="doc.name === 'Skeleton'">
             <Skeleton :lines="3" />
           </template>

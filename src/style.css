@@ -22,8 +22,11 @@ samp,
 pre {
   font-family: var(--font-mono);
 }
+/* dvh, not vh (section 42). On a phone `vh` is the viewport with the URL bar
+   retracted, so a `100vh` shell is permanently taller than what can be seen and
+   the last row of any list sits under the browser chrome. */
 #app {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 button,
 input,

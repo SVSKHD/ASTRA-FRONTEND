@@ -42,6 +42,7 @@ const REQUIRED = [
   'Table',
   'ProgressBar',
   'ProgressRing',
+  'SaveState',
   'Skeleton',
   'Toast',
   'EmptyState',

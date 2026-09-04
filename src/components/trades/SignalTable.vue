@@ -128,9 +128,12 @@ function format(value: unknown): string {
 </template>
 
 <style scoped>
+/* The page carries the height (section 42). No `max-height` and no vertical
+   overflow: a list in a 420px window inside a page that could not scroll was
+   two broken things agreeing with each other. Sideways only, and only where a
+   phone needs it — an overflow of any kind makes this the scrollport a sticky
+   header sticks to, which is the header's whole job undone. */
 .stable__wrap {
-  overflow: auto;
-  max-height: 420px;
   min-width: 0;
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
@@ -163,6 +166,10 @@ function format(value: unknown): string {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-secondary, var(--theme-dim));
+}
+/* A day scrolled to must not land under the sticky header. */
+.stable tbody tr.is-dayStart {
+  scroll-margin-top: 64px;
 }
 .stable tbody tr.is-dayStart td {
   border-top: 1px solid var(--layer-raised-border);
@@ -212,5 +219,12 @@ function format(value: unknown): string {
 .stable .is-mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* The phone's bargain: sideways scrolling instead of a page-sticky header. */
+@media (max-width: 700px) {
+  .stable__wrap {
+    overflow-x: auto;
+  }
 }
 </style>

@@ -42,6 +42,7 @@ import {
   type Clock,
 } from '@/utils/tradeTime'
 import type { TradeDraft } from '@/services/tradeDoc'
+import type { SaveState as SaveStateValue } from '@/composables/useSaveState'
 import type { AstraSettings, TradeSession, TradeSide } from '@/types'
 
 /**
@@ -60,9 +61,22 @@ export interface ArmRequest {
   signalId?: string
 }
 
-const props = defineProps<{ settings: AstraSettings; busy?: boolean; arm?: ArmRequest | null }>()
+const props = defineProps<{
+  settings: AstraSettings
+  /** The save's three states, owned by the view that does the writing. */
+  saving?: SaveStateValue
+  arm?: ArmRequest | null
+}>()
 const emit = defineEmits<{
-  submit: [TradeDraft]
+  /**
+   * The draft, and a way to say whether it was captured (section 42).
+   *
+   * A callback rather than a bare event because the answer decides whether this
+   * form clears itself, and it must not clear before the trade is actually in
+   * hand: a rejected write that has already emptied the fields is a trade that
+   * has to be typed twice, from memory, at the worst possible moment.
+   */
+  submit: [draft: TradeDraft, captured: (ok: boolean) => void]
   /** A symbol nobody has sized yet, with the size the trader gave for it. */
   sizeSymbol: [{ symbol: string; size: number }]
 }>()
@@ -93,19 +107,28 @@ const form = useForm({
   },
   schema: tradeFormSchema,
   onSubmit: async (values) => {
-    emit('submit', {
-      istDate: values.istDate,
-      istTime: values.istTime,
-      exitTime: values.exitTime,
-      signalId: armedSignal.value,
-      symbol: String(values.symbol).trim().toUpperCase(),
-      session: values.session,
-      side: values.side,
-      lot: Number(values.lot),
-      entry: Number(values.entry),
-      exit: Number(values.exit),
-      note: values.note,
+    const captured = await new Promise<boolean>((resolve) => {
+      emit(
+        'submit',
+        {
+          istDate: values.istDate,
+          istTime: values.istTime,
+          exitTime: values.exitTime,
+          signalId: armedSignal.value,
+          symbol: String(values.symbol).trim().toUpperCase(),
+          session: values.session,
+          side: values.side,
+          lot: Number(values.lot),
+          entry: Number(values.entry),
+          exit: Number(values.exit),
+          note: values.note,
+        },
+        resolve,
+      )
     })
+    // Thrown, so `useForm` reports it as a form-level failure and `submit()`
+    // returns false — which is what keeps the typed values on screen.
+    if (!captured) throw new Error('That trade was not captured. The values are still here.')
   },
 })
 
@@ -440,7 +463,12 @@ async function onSubmit() {
         :side="form.values.side"
         :contract-size="contractSize"
       />
-      <Button type="submit" :loading="busy || form.submitting.value">Log trade</Button>
+      <!-- The state is the button's own icon, in a box that is the same size
+           empty, spinning, checked or failed — so pressing this never moves the
+           thing under the cursor. -->
+      <Button type="submit" :state="saving ?? (form.submitting.value ? 'working' : 'idle')">
+        Log trade
+      </Button>
     </div>
 
     <SymbolSizePrompt :symbol="sizingSymbol" @confirm="onSized" @dismiss="sizingSymbol = ''" />

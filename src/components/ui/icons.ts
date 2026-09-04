@@ -26,6 +26,11 @@ export type IconSize = keyof typeof ICON_SIZES
 // once on the symbol in IconSprite, so nothing here carries presentation.
 export const ICONS = {
   check: '<polyline points="20 6 9 17 4 12" />',
+  // The failure half of a save's three states (section 41). A circle with a
+  // bar, not a triangle: the triangle is a warning about something that might
+  // happen, and this is a report of something that already did not.
+  'alert-circle':
+    '<circle cx="12" cy="12" r="9" /><line x1="12" y1="7.5" x2="12" y2="13" /><path d="M12 16.5h.01" />',
   'check-square':
     '<rect x="3" y="3" width="18" height="18" rx="5" /><polyline points="8 12.4 11 15.2 16.4 9.1" />',
   'chevron-right': '<polyline points="9 6 15 12 9 18" />',

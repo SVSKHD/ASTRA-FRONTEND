@@ -38,6 +38,8 @@ const props = defineProps<{
   month: string
   /** '' means the whole month; a date filters the table to that day. */
   selected: string
+  /** A day whose figures just changed, ringed briefly (section 42). */
+  flashDay?: string
   loading?: boolean
 }>()
 const emit = defineEmits<{ 'update:selected': [string]; month: [string] }>()
@@ -59,6 +61,11 @@ const dayMeta = computed<Record<string, DayMeta>>(() => {
       wash: plWashVar(tone, cell.move, target),
       ink: plInkVar(tone, cell.move, target),
     }
+  }
+  // A day that just changed is ringed even if it had no trades a second ago,
+  // which is the case that matters most: the first trade of a day.
+  if (props.flashDay) {
+    out[props.flashDay] = { ...(out[props.flashDay] ?? {}), flash: true }
   }
   return out
 })

@@ -37,6 +37,8 @@ const props = withDefaults(
     emptyDescription: string
     /** Only the rows that are NOT safely on the server appear here. */
     state?: Record<string, RowState>
+    /** The id of a row just written, ringed briefly (section 42). */
+    flash?: string
     /** The broker's clock, for the second reading of each row's instant. */
     broker?: Clock
     /** The UTC column is off by default: it is the column you turn on to settle
@@ -140,10 +142,15 @@ const firstOfDay = computed(() => {
       <!-- Enter and leave only: `appear` is off, so a month that loads with
            forty rows in it paints them, it does not perform them. -->
       <TransitionGroup tag="tbody" name="trow">
+        <!-- `v-memo` on the three things a row is actually made of: the trade
+             itself (recomputed rows are new objects, so identity is the test),
+             its pending marker, and whether it carries the day's divider. A
+             month of forty rows re-renders the one row that changed. -->
         <tr
           v-for="t in trades"
           :key="t.id"
-          :class="{ 'is-dayStart': firstOfDay.has(t.id) }"
+          v-memo="[t, state[t.id], firstOfDay.has(t.id), flash === t.id]"
+          :class="{ 'is-dayStart': firstOfDay.has(t.id), 'is-flashing': flash === t.id }"
           :style="railVar(t)"
         >
           <td class="ttable__rail" aria-hidden="true"></td>
@@ -218,11 +225,22 @@ const firstOfDay = computed(() => {
 </template>
 
 <style scoped>
+/* No overflow at all, on purpose (section 42).
+   
+   This used to be `overflow: auto; max-height: 420px`, which is what made a
+   month of trades a small window onto itself — and, less obviously, it is what
+   the sticky header was sticking to: a header sticks to its nearest scrollport,
+   and inside a 420px box that is the box, not the screen. With no overflow here
+   the scrollport is the document, so the header holds against the top of the
+   VIEWPORT while the whole month scrolls under it.
+   
+   There is no way to have both a horizontally scrolling box and a header that
+   sticks to the page — any overflow other than visible makes this element the
+   scrollport again — so the phone takes the box and the desktop takes the page.
+   Thirteen columns of nowrap figures do not fit in 390px under any layout, and
+   a sticky header on a table nobody can see the right-hand half of is not the
+   half worth keeping. */
 .ttable__wrap {
-  /* The table is wider than a phone and taller than the stage; it scrolls
-     inside its own box rather than pushing the page in either direction. */
-  overflow: auto;
-  max-height: 420px;
   min-width: 0;
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
@@ -263,6 +281,12 @@ const firstOfDay = computed(() => {
 
 /* One divider per date, above the day's first row. Hairline rather than a
    heading row: it groups without spending a whole row on saying so. */
+/* A filtered day is scrolled to; without this it lands underneath the sticky
+   header, which is the one place it must not land. Two rows of header plus a
+   little air. */
+.ttable tbody tr.is-dayStart {
+  scroll-margin-top: 64px;
+}
 .ttable tbody tr.is-dayStart td {
   border-top: 1px solid var(--layer-raised-border);
 }
@@ -281,6 +305,20 @@ const firstOfDay = computed(() => {
    palette follows. */
 /* Specific enough to beat the cell padding rule above: `.ttable td` is two
    classes and would otherwise pad the rail out to a 30px block of colour. */
+/* The confirmation, on the rail the row already has (section 42). It is the
+   channel that already says what the row is worth, so brightening it says "this
+   one" without adding anything to the row or moving what is under it. */
+.ttable tbody tr.is-flashing td.ttable__rail {
+  background: var(--accent, var(--theme-accent));
+}
+.ttable tbody tr.is-flashing td {
+  background: color-mix(in oklch, var(--accent, currentcolor) 10%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ttable tbody tr td {
+    transition: background var(--dur-med) var(--ease-out);
+  }
+}
 .ttable th.ttable__rail,
 .ttable td.ttable__rail {
   width: 3px;
@@ -425,6 +463,13 @@ const firstOfDay = computed(() => {
   .trow-leave-active,
   .trow-move {
     transition: none;
+  }
+}
+
+/* The phone's bargain: sideways scrolling instead of a page-sticky header. */
+@media (max-width: 700px) {
+  .ttable__wrap {
+    overflow-x: auto;
   }
 }
 </style>

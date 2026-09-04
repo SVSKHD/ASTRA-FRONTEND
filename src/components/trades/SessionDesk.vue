@@ -14,27 +14,54 @@
 // point of the component: at the open, the difference between logging a trade
 // and not logging it is how much typing stands in the way, and five minutes
 // before is when that can still be fixed.
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import IconSessionAsia from '@/components/icons/IconSessionAsia.vue'
 import IconSessionLondon from '@/components/icons/IconSessionLondon.vue'
 import IconSessionNy from '@/components/icons/IconSessionNy.vue'
 import Button from '@/components/ui/Button.vue'
+import { useSessionClock } from '@/composables/useSessionClock'
+import { freshGo } from '@/composables/useSignals'
 import { clockPair, countOf } from '@/utils/format'
 import { IST, hhmmOn } from '@/utils/tradeTime'
-import type { NextOpen } from '@/composables/useSessionClock'
 import type { Clock } from '@/utils/tradeTime'
-import type { DacoitSignal, TradeSession } from '@/types'
+import type { DacoitSignal, SessionBounds, TradeSession } from '@/types'
 
+/**
+ * THE CLOCK LIVES HERE, and that is a performance decision (section 42).
+ *
+ * It used to live in TradesView, which passed the countdown down as a prop —
+ * and a prop that changes every second is a parent that re-renders every
+ * second. The tab's whole template was rebuilt once a second, forever, whether
+ * or not anybody was looking at it: the calendar, the table, the timeline, all
+ * of them, on a tick that only this component's four lines of text care about.
+ *
+ * Owning the tick means the re-render stops here. The parent keeps what it
+ * genuinely needs — the arming moment — and gets it as an event, which is not
+ * a render dependency at all.
+ */
 const props = defineProps<{
-  next: NextOpen | null
-  countdown: string
-  armed: boolean
-  /** The most recent GO still inside its window, if there is one. */
-  go: DacoitSignal | null
   broker: Clock
+  bounds: SessionBounds
+  /** The month's signals, for the GO still inside its window. */
+  signals: DacoitSignal[]
 }>()
 
-defineEmits<{ take: [DacoitSignal] }>()
+const emit = defineEmits<{ take: [DacoitSignal]; arm: [TradeSession] }>()
+
+const clock = useSessionClock(
+  () => props.broker,
+  () => props.bounds,
+)
+const next = computed(() => clock.next.value)
+const countdown = computed(() => clock.countdown.value)
+const armed = computed(() => clock.armed.value)
+const go = computed(() => freshGo(props.signals, clock.now.value))
+
+// T-5. Announced upward once per arming rather than watched by the parent, so
+// the parent never reads the ticking ref.
+watch(armed, (isArmed) => {
+  if (isArmed && next.value) emit('arm', next.value.session)
+})
 
 const SESSION_ICON = {
   Asia: IconSessionAsia,
@@ -44,8 +71,8 @@ const SESSION_ICON = {
 
 /** The signal's own instant, read on both clocks — never a stored second copy. */
 const goClocks = computed(() =>
-  props.go
-    ? clockPair(hhmmOn(IST, props.go.signalAt), hhmmOn(props.broker, props.go.signalAt))
+  go.value
+    ? clockPair(hhmmOn(IST, go.value.signalAt), hhmmOn(props.broker, go.value.signalAt))
     : '',
 )
 </script>

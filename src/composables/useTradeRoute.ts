@@ -21,7 +21,7 @@
 // month in a pasted link is a link that opens on this month, not an error
 // screen: nothing here is worth interrupting somebody over.
 
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { currentMonthKey } from '@/utils/budget'
 
@@ -100,13 +100,10 @@ export function useTradeRoute() {
     void router.replace({ path: route.path, query: next })
   }
 
-  // The last route, for a bare-domain visit. Written on every change rather
-  // than on unload: `beforeunload` does not fire reliably on mobile.
-  watch(
-    () => route.fullPath,
-    (path) => sessionWrite(LAST_ROUTE_KEY, path),
-    { immediate: true },
-  )
+  // The last route is written by `useTabRoute`, which is mounted for every tab.
+  // It used to be written here — and this composable is only mounted on Trades,
+  // so a bare-domain visit could only ever be sent back to a trades URL
+  // whatever the reader was actually last looking at (section 42).
 
   return { mode, month, day, symbol, set }
 }

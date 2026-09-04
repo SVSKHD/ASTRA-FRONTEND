@@ -66,6 +66,10 @@ const SHOTS = [
   { name: 'news', path: '/dev/shot/news' },
   { name: 'code', path: '/dev/shot/code' },
   { name: 'code-thread', path: '/dev/shot/code', open: 'thread' },
+  // The bottom of a full month (section 42). The whole point of the scroll fix
+  // is that there IS a bottom and it can be reached; a shot of the top proves
+  // nothing about that.
+  { name: 'trades-bottom', path: '/dev/shot/trades?mode=journal&month=2026-08', scroll: 'bottom' },
   { name: 'state-empty', path: '/dev/shot/trades?state=empty' },
   { name: 'state-loading', path: '/dev/shot/trades?state=loading', ready: false },
   { name: 'state-error', path: '/dev/shot/trades?state=error', ready: false },
@@ -124,8 +128,17 @@ async function shoot(page, shot, theme, size, outDir) {
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))))
   }
 
+  // The bottom of the document, then a frame to settle — with the page
+  // scrolling rather than a box inside it, this is a real scroll of the window.
+  if (shot.scroll === 'bottom') {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))))
+  }
+
   const file = join(outDir, `${shot.name}--${theme}--${size.name}.png`)
-  await page.screenshot({ path: file, fullPage: true })
+  // `fullPage` on a scrolled shot would photograph the whole document and lose
+  // the thing being proved, which is what the bottom of the viewport looks like.
+  await page.screenshot({ path: file, fullPage: shot.scroll !== 'bottom' })
   return file
 }
 

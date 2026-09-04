@@ -9,6 +9,9 @@ import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { useDeviceSession } from '@/composables/useDeviceSession'
+import { useScrollMemory } from '@/composables/useScrollMemory'
+import { useTabRoute } from '@/composables/useTabRoute'
+import { stageGeometry, stageWrapGeometry } from '@/views/workspaceStage'
 
 import FloatingDock from '@/components/FloatingDock.vue'
 import FloatingChrome from '@/components/FloatingChrome.vue'
@@ -66,31 +69,36 @@ const lock = useLockStore()
 const { c } = useStyles()
 const { tab, vw, isPhone } = storeToRefs(ui)
 
-// The centered floating stage. Width tracks the breakpoints; it never touches an
-// edge, and it keeps its height even when a section is empty so there is always
-// visible starfield above and below — no dead black region under the cards.
-const stageWrap = pxify({
-  position: 'fixed',
-  inset: 0,
-  zIndex: 2,
-  display: 'grid',
-  placeItems: 'center',
-  // The gutters around the stage belong to the dock and the starfield, so the
-  // wrapper must not eat their clicks.
-  pointerEvents: 'none',
-})
+// The tab in the URL, and where each tab was scrolled to (section 42). Both are
+// mounted here rather than inside a tab, because "which tab" is a fact about
+// the workspace and a composable that only exists on Trades can only ever
+// remember Trades.
+useTabRoute()
+useScrollMemory(tab)
+
+// The centered stage (section 42).
+//
+// IT IS IN FLOW, AND THE PAGE IS WHAT SCROLLS. It used to be `position: fixed`
+// at `inset: 0` with a fixed `86vh` height and `overflow: hidden`, and those
+// three together are why a long month was cut off at the bottom of the screen
+// with no way to reach the rest: the shell was out of flow so the document had
+// nothing to scroll, the stage was exactly one screen tall, and anything past
+// that was clipped rather than reachable.
+//
+// Nothing inside is a scrollbox now either. A table that scrolls in its own
+// 420px window inside a page that cannot scroll is two broken things agreeing
+// with each other; the table is as tall as its rows and the document carries it.
+//
+// The wrapper still centres, and `min-height` still keeps the stage a full
+// screen tall when a tab is nearly empty, so there is starfield above and below
+// rather than a card floating in a void.
+// The geometry is in `workspaceStage.ts` so a test can assert what is NOT in
+// it; the paint — the glass, the border, the shadow — stays here where the
+// theme is.
+const stageWrap = pxify(stageWrapGeometry())
 const stageStyle = computed(() => {
-  const w = vw.value
-  const width = isPhone.value ? '94vw' : w < 1024 ? '92vw' : w < 1440 ? '82vw' : '70vw'
   return pxify({
-    position: 'relative',
-    pointerEvents: 'auto',
-    width,
-    maxWidth: 1500,
-    minWidth: isPhone.value ? 0 : 720,
-    height: isPhone.value ? '88dvh' : '86vh',
-    display: 'flex',
-    flexDirection: 'column',
+    ...stageGeometry({ vw: vw.value, isPhone: isPhone.value }),
     background: c.value.glass,
     backdropFilter: 'blur(30px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
@@ -98,9 +106,12 @@ const stageStyle = computed(() => {
     borderRadius: 'var(--radius-dialog)',
     boxShadow: c.value.shadow + ', inset 0 1px 0 rgba(255,255,255,0.16)',
     padding: isPhone.value ? '16px' : '22px 24px',
-    overflow: 'hidden',
-    // A gentle idle drift; disabled under prefers-reduced-motion by the global rule.
-    animation: 'stageDrift 6s ease-in-out infinite',
+    // NO `overflow` and NO `transform`. Both break `position: sticky` inside:
+    // an overflow other than visible makes this the scrollport a sticky header
+    // would stick to, and a transform makes it the containing block. The idle
+    // drift that used to live here was a transform on the element containing
+    // every row on the page, animating forever — it went with the fixed height
+    // that made this a floating card in the first place.
   })
 })
 const { isSignedIn, authReady } = storeToRefs(auth)

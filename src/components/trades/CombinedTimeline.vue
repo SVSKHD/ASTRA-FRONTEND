@@ -137,8 +137,8 @@ function time(at: number): string {
   border-radius: var(--radius-card);
   background: var(--layer-raised-bg);
   box-shadow: var(--layer-raised-shadow);
-  max-height: 480px;
-  overflow: auto;
+  /* No cap and no overflow (section 42): the timeline is as tall as the month
+     and the page scrolls it, rather than a 480px window onto thirty days. */
 }
 .ctl__head {
   display: flex;

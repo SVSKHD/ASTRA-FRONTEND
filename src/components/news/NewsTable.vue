@@ -98,9 +98,12 @@ function day(item: NewsItem): string {
 </template>
 
 <style scoped>
+/* The page carries the height (section 42). No `max-height` and no vertical
+   overflow: a list in a 420px window inside a page that could not scroll was
+   two broken things agreeing with each other. Sideways only, and only where a
+   phone needs it — an overflow of any kind makes this the scrollport a sticky
+   header sticks to, which is the header's whole job undone. */
 .ntable__wrap {
-  overflow: auto;
-  max-height: 560px;
   min-width: 0;
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
@@ -133,6 +136,10 @@ function day(item: NewsItem): string {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-secondary, var(--theme-dim));
+}
+/* A day scrolled to must not land under the sticky header. */
+.ntable tbody tr.is-dayStart {
+  scroll-margin-top: 64px;
 }
 .ntable tbody tr.is-dayStart td {
   border-top: 1px solid var(--layer-raised-border);
@@ -213,5 +220,12 @@ function day(item: NewsItem): string {
 .ntable .is-mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* The phone's bargain: sideways scrolling instead of a page-sticky header. */
+@media (max-width: 700px) {
+  .ntable__wrap {
+    overflow-x: auto;
+  }
 }
 </style>
