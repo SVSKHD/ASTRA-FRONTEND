@@ -19,6 +19,8 @@ const shareTypes = Object.keys(PLURAL) as ItemType[]
 export const TAB_ROUTES: Record<string, TabKey> = {
   '/trades': 'trades',
   '/expenses': 'expenses',
+  '/news': 'news',
+  '/code': 'code',
 }
 
 const routes: RouteRecordRaw[] = [

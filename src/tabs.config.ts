@@ -36,6 +36,11 @@ export const TABS: readonly TabDef[] = [
   { key: 'ai', label: 'AI' },
   { key: 'bots', label: 'Bots' },
   { key: 'github', label: 'GitHub' },
+  // Beside GitHub rather than replacing it: the older tab is the issue mirror
+  // (ask a function, get an answer), and this one is the live pull-request
+  // view (functions write, the app watches). Two different jobs (section 40).
+  { key: 'code', label: 'Code' },
+  { key: 'news', label: 'News' },
   { key: 'wallets', label: 'Wallets' },
   { key: 'calendar', label: 'Calendar' },
 ] as const

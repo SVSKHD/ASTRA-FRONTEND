@@ -27,12 +27,14 @@ import TradeSkeleton from '@/components/trades/TradeSkeleton.vue'
 import TradeTable from '@/components/trades/TradeTable.vue'
 import TradeTargets from '@/components/trades/TradeTargets.vue'
 import SecuredLedger from '@/components/trades/SecuredLedger.vue'
+import NewsStrip from '@/components/trades/NewsStrip.vue'
 import OutboxPanel from '@/components/trades/OutboxPanel.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAppStore } from '@/stores/app'
 import { useSessionClock } from '@/composables/useSessionClock'
 import { useSettings } from '@/composables/useSettings'
 import { useSignals, freshGo } from '@/composables/useSignals'
+import { useNews } from '@/composables/useNews'
 import { useTradeRoute, type TradeMode } from '@/composables/useTradeRoute'
 import { useTrades } from '@/composables/useTrades'
 import { useSecured } from '@/composables/useSecured'
@@ -56,6 +58,9 @@ const { settings, ready } = store
 const log = useTrades(() => route.month.value)
 const signalLog = useSignals(() => route.month.value)
 const secured = useSecured(() => route.month.value)
+// Forex only, for the day strip. The same shared collection the News tab reads,
+// filtered to one day and to what the desk trades (section 39).
+const news = useNews(() => ['forex'])
 const rename = useCollectionRename()
 const outbox = useOutbox()
 
@@ -213,6 +218,10 @@ defineExpose({ focus: () => form.value?.focus() })
       />
 
       <TradeTargets :trades="log.trades.value" :settings="settings" />
+
+      <!-- Collapsed, and only when a day is selected: on a month view it would
+           have no day to be about. -->
+      <NewsStrip :items="news.items.value" :day="route.day.value" />
 
       <SecuredLedger
         :entries="secured.entries.value"

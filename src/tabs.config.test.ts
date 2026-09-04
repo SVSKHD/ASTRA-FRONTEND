@@ -20,6 +20,8 @@ describe('tabs.config', () => {
       'ai',
       'bots',
       'github',
+      'code',
+      'news',
       'wallets',
       'calendar',
     ])
@@ -48,6 +50,8 @@ describe('tabs.config', () => {
       'ai',
       'bots',
       'github',
+      'code',
+      'news',
       'wallets',
       'calendar',
     ])

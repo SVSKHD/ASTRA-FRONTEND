@@ -334,3 +334,9 @@ export const purgeExpiredActivity = onSchedule('every day 03:00', async () => {
 // only thing here that is not about device activity, and it is the only one
 // that authenticates with a shared key rather than with a Firebase session.
 export { dacoitSignal } from './dacoit'
+
+// The news pipeline (section 39) and the live GitHub integration (section 40).
+// Both are here rather than in `index.ts` itself: this file is the device
+// activity feature, and those are two others that happen to deploy beside it.
+export { pullNews, cleanupNews } from './news'
+export { githubEvent, githubSweep } from './github'
