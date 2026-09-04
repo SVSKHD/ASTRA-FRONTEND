@@ -34,6 +34,8 @@ import type { Trade } from '@/types'
 const props = defineProps<{
   trades: Trade[]
   dayTarget: number
+  /** The month on screen, owned by the URL rather than by the grid. */
+  month: string
   /** '' means the whole month; a date filters the table to that day. */
   selected: string
   loading?: boolean
@@ -91,6 +93,7 @@ const MARK: Record<string, string> = { pos: '▲', neg: '▼', flat: '·' }
   <section class="tcal">
     <GlassDatePicker
       :model-value="selected"
+      :month="month"
       inline
       mode="date"
       :quick-entry="false"

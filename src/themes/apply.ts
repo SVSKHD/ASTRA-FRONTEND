@@ -9,6 +9,7 @@ import { THEMES, type ThemeKey, type ThemeSetting } from './index'
 import { accentGlow, accentGradient, surfaceTint } from '@/utils/gradient'
 import { statusTokens } from './status'
 import { plScaleTokens } from './plScale'
+import { spendScaleTokens } from './spendScale'
 
 export const LS_THEME_ID = 'aureon:themeId'
 export const LS_THEME_SETTING = 'aureon:themeSetting'
@@ -97,6 +98,11 @@ export function applyThemeToDom(key: ThemeKey, setting: ThemeSetting): void {
   // rather than in the trade calendar because it is a property of the theme —
   // and because a token set from one place is a token a second surface can use
   // without rebuilding the maths.
+  // The expense ramp travels with the P/L one: two scales, published together,
+  // so a theme can never have one and not the other (section 35).
+  for (const [name, value] of Object.entries(spendScaleTokens(t))) {
+    root.style.setProperty(name, value)
+  }
   for (const [name, value] of Object.entries(plScaleTokens(t))) {
     root.style.setProperty(name, value)
   }

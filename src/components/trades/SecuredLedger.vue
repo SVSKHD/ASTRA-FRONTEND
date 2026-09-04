@@ -18,13 +18,7 @@ import { useForm } from '@/composables/useForm'
 import { securedFormSchema } from '@/utils/formSchemas'
 import { todayYmd } from '@/utils/tradeMath'
 import { fmt2 } from '@/utils/format'
-
-/** One withdrawal, as the form hands it over. */
-export interface NewSecured {
-  date: string
-  amt: number
-  note: string
-}
+import type { NewSecured } from '@/composables/useSecured'
 import type { SecuredEntry } from '@/types'
 
 const props = defineProps<{ entries: SecuredEntry[]; total: number }>()

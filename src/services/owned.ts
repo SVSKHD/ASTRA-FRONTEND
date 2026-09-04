@@ -80,3 +80,16 @@ export function ownedMonthQuery(ref: OwnedRef, field: string, from: string, to: 
     fs.orderBy(field, 'asc'),
   )
 }
+
+/**
+ * The code Firestore refused with.
+ *
+ * Read rather than paraphrased: `permission-denied` and `failed-precondition`
+ * have two different fixes, and every message that carries one of them names
+ * it so the reader can act on it.
+ */
+export function errorCode(err: unknown): string {
+  return typeof err === 'object' && err && 'code' in err
+    ? String((err as { code: unknown }).code)
+    : 'unknown'
+}

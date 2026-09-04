@@ -26,6 +26,8 @@ import TradeSettingsPanel from '@/components/trades/TradeSettingsPanel.vue'
 import TradeSkeleton from '@/components/trades/TradeSkeleton.vue'
 import TradeTable from '@/components/trades/TradeTable.vue'
 import TradeTargets from '@/components/trades/TradeTargets.vue'
+import SecuredLedger from '@/components/trades/SecuredLedger.vue'
+import OutboxPanel from '@/components/trades/OutboxPanel.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAppStore } from '@/stores/app'
 import { useSessionClock } from '@/composables/useSessionClock'
@@ -33,7 +35,9 @@ import { useSettings } from '@/composables/useSettings'
 import { useSignals, freshGo } from '@/composables/useSignals'
 import { useTradeRoute, type TradeMode } from '@/composables/useTradeRoute'
 import { useTrades } from '@/composables/useTrades'
+import { useSecured } from '@/composables/useSecured'
 import { useCollectionRename } from '@/composables/useCollectionRename'
+import { useOutbox } from '@/composables/useOutbox'
 import { linkSignals } from '@/utils/combine'
 import { downloadText } from '@/utils/noteExport'
 import { monthLabel } from '@/utils/budget'
@@ -51,7 +55,9 @@ const { settings, ready } = store
 
 const log = useTrades(() => route.month.value)
 const signalLog = useSignals(() => route.month.value)
+const secured = useSecured(() => route.month.value)
 const rename = useCollectionRename()
+const outbox = useOutbox()
 
 const broker = computed(() => ({
   zone: settings.value.brokerTimezone,
@@ -83,7 +89,9 @@ const visibleSignals = computed(() =>
     : signalLog.signals.value,
 )
 const links = computed(() => linkSignals(log.trades.value, signalLog.signals.value))
-const totals = computed(() => accountTotals(log.trades.value, [], settings.value.startingBalance))
+const totals = computed(() =>
+  accountTotals(log.trades.value, secured.entries.value, settings.value.startingBalance),
+)
 
 // --- the desk (section 34) ----------------------------------------------------
 // A GO that has landed and is still worth acting on, and the arming request the
@@ -162,12 +170,18 @@ defineExpose({ focus: () => form.value?.focus() })
       </template>
     </ListToolbar>
 
+    <!-- A write that was refused, and a listener that stopped. Two different
+         failures with two different fixes, so they are two messages. -->
     <Alert v-if="log.error.value" tone="danger" dismissible @dismiss="log.error.value = ''">
       {{ log.error.value }}
     </Alert>
+    <Alert v-if="log.listenerError.value" tone="danger">{{ log.listenerError.value }}</Alert>
     <Alert v-if="rename.message.value" tone="info" dismissible @dismiss="rename.dismiss()">
       {{ rename.message.value }}
     </Alert>
+    <Alert v-if="outbox.message.value" tone="warning">{{ outbox.message.value }}</Alert>
+
+    <OutboxPanel :entries="outbox.entries.value" @discard="outbox.discard($event)" />
 
     <!-- The one always-visible element, above everything the month is about. -->
     <SessionDesk
@@ -200,10 +214,18 @@ defineExpose({ focus: () => form.value?.focus() })
 
       <TradeTargets :trades="log.trades.value" :settings="settings" />
 
+      <SecuredLedger
+        :entries="secured.entries.value"
+        :total="secured.total.value"
+        @add="secured.add($event)"
+        @delete="secured.remove($event)"
+      />
+
       <div class="tv__split">
         <TradeCalendar
           :trades="log.trades.value"
           :day-target="settings.dayTarget"
+          :month="route.month.value"
           :selected="route.day.value"
           :loading="log.loading.value"
           @update:selected="route.set({ day: $event })"

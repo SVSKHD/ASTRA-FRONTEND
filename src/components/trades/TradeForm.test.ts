@@ -44,9 +44,9 @@ describe('TradeForm times', () => {
     await picker(wrapper, 'istTime').vm.$emit('update:modelValue', '19:42')
     // 19:42 IST is 17:12 on the default GMT+3 broker — computed from the
     // instant, never by adding three hours to the string "19:42".
-    expect(wrapper.find('.tform__clocks').text()).toContain('IST 19:42')
-    expect(wrapper.find('.tform__clocks').text()).toContain('Broker 17:12')
-    expect(wrapper.find('.tform__clocks').text()).toContain('GMT+03:00')
+    expect(wrapper.find('.tprev__clocks').text()).toContain('IST 19:42')
+    expect(wrapper.find('.tprev__clocks').text()).toContain('Broker 17:12')
+    expect(wrapper.find('.tprev__clocks').text()).toContain('GMT+03:00')
   })
 
   it('pre-selects the session the broker clock puts the trade in', async () => {

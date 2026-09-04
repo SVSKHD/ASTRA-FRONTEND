@@ -29,6 +29,10 @@ export const TABS: readonly TabDef[] = [
   { key: 'ideas', label: 'Ideas' },
   { key: 'stocks', label: 'Stocks' },
   { key: 'trades', label: 'Trades' },
+  // Beside Trades rather than beside Finances: the question it answers is
+  // "what did the desk cost", and the account block on both tabs shares a
+  // grammar (section 35).
+  { key: 'expenses', label: 'Expenses' },
   { key: 'ai', label: 'AI' },
   { key: 'bots', label: 'Bots' },
   { key: 'github', label: 'GitHub' },

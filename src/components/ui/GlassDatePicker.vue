@@ -77,6 +77,15 @@ const props = withDefaults(
      */
     dayMeta?: Record<string, DayMeta>
     /**
+     * The month to show, 'YYYY-MM' (section 33).
+     *
+     * Without it the grid picks its own month from the selected value or from
+     * today, and then tells its parent which month it chose — which makes the
+     * calendar the source of truth for something the URL owns. With no day
+     * selected that is how a link to August opens on September.
+     */
+    month?: string
+    /**
      * The typed field and the preset chips. On by default; a grid used as a
      * heat calendar rather than as a field turns them off, because "tomorrow,
      * 25/12, in 3 days" is an instruction to pick a date and that grid is not
@@ -257,6 +266,18 @@ watch(
   {
     immediate: true,
   },
+)
+
+// The controlled month. Guarded on a real change so the emit above and this
+// watcher cannot chase each other around the same value.
+watch(
+  () => props.month,
+  (month) => {
+    if (month && /^\d{4}-\d{2}$/.test(month) && month !== picker.anchor.value.slice(0, 7)) {
+      picker.jumpTo(`${month}-01`)
+    }
+  },
+  { immediate: true },
 )
 
 function onClear() {

@@ -20,21 +20,17 @@ import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Button from '@/components/ui/Button.vue'
 import Alert from '@/components/ui/Alert.vue'
-import Modal from '@/components/ui/Modal.vue'
-import IconSymbol from '@/components/icons/IconSymbol.vue'
-import IconBuy from '@/components/icons/IconBuy.vue'
-import IconSell from '@/components/icons/IconSell.vue'
+import SymbolSizePrompt from '@/components/trades/SymbolSizePrompt.vue'
+import TradePreview from '@/components/trades/TradePreview.vue'
 import { useForm } from '@/composables/useForm'
 import { tradeFormSchema } from '@/utils/formSchemas'
 import {
   TRADE_SESSIONS,
   contractSizeFor,
   isKnownSymbol,
-  signOf,
   tradeMove,
   tradePl,
 } from '@/utils/tradeMath'
-import { signed2 } from '@/utils/format'
 import {
   IST,
   hhmmOn,
@@ -197,11 +193,6 @@ const preview = computed(() => {
   return { move, pl: tradePl(move, lot, contractSize.value) }
 })
 
-/** The class suffix for a figure: its own sign, never which figure it is. */
-function sign(value: number | null | undefined): 'pos' | 'neg' | 'flat' {
-  return value == null ? 'flat' : signOf(value)
-}
-
 // --- arming (section 34) ----------------------------------------------------
 //
 // Five minutes before the open the desk asks for the form to be ready. Ready
@@ -233,8 +224,6 @@ watch(
 // Asked once, the first time a symbol is used, because the contract size is the
 // difference between a P/L and a number that looks like one.
 const sizingSymbol = ref('')
-const sizingValue = ref<number | null>(null)
-const sizingError = ref('')
 
 function onSymbol(next: string) {
   form.values.symbol = next.trim().toUpperCase()
@@ -250,16 +239,10 @@ function askIfUnknown() {
   const symbol = String(form.values.symbol).trim().toUpperCase()
   if (!symbol || isKnownSymbol(props.settings.contractSizes, symbol)) return
   sizingSymbol.value = symbol
-  sizingValue.value = null
-  sizingError.value = ''
 }
 
-function confirmSize() {
-  if (sizingValue.value == null || sizingValue.value <= 0) {
-    sizingError.value = 'Enter the contract size — how much one point is worth per lot.'
-    return
-  }
-  emit('sizeSymbol', { symbol: sizingSymbol.value, size: sizingValue.value })
+function onSized(answer: { symbol: string; size: number }) {
+  emit('sizeSymbol', answer)
   sizingSymbol.value = ''
 }
 
@@ -448,66 +431,19 @@ async function onSubmit() {
       </FormField>
     </div>
 
-    <!-- Both readings of the one instant, before it is stored. The broker time
-         is computed from the instant every time it is shown; it is never the
-         IST string with an offset added to it. -->
-    <p v-if="clocks" class="tform__clocks ui-mono" aria-live="polite">
-      IST {{ clocks.ist }} <span class="tform__dot" aria-hidden="true">·</span> Broker
-      {{ clocks.broker }}
-      <span class="tform__offset">GMT{{ clocks.offset }}</span>
-    </p>
-
     <Alert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</Alert>
 
     <div class="tform__foot">
-      <!-- Live, and labelled: the two numbers the row will carry, before it is
-           a row. `aria-live` so a screen-reader user gets them too. -->
-      <dl class="tform__preview ui-tabular" aria-live="polite">
-        <div class="tform__cell">
-          <dt class="ui-label">
-            <IconBuy v-if="form.values.side === 'buy'" :size="12" />
-            <IconSell v-else :size="12" />
-            Move
-          </dt>
-          <dd class="tform__value" :class="`is-${sign(preview?.move)}`">
-            {{ preview ? signed2(preview.move) : '—' }}
-          </dd>
-        </div>
-        <div class="tform__cell">
-          <dt class="ui-label">P/L</dt>
-          <dd class="tform__value" :class="`is-${sign(preview?.pl)}`">
-            {{ preview ? signed2(preview.pl) : '—' }}
-          </dd>
-        </div>
-        <div class="tform__cell">
-          <dt class="ui-label">
-            <IconSymbol :size="12" />
-            Contract
-          </dt>
-          <dd class="tform__value">×{{ contractSize }}</dd>
-        </div>
-      </dl>
+      <TradePreview
+        :clocks="clocks"
+        :preview="preview"
+        :side="form.values.side"
+        :contract-size="contractSize"
+      />
       <Button type="submit" :loading="busy || form.submitting.value">Log trade</Button>
     </div>
 
-    <Modal
-      :open="!!sizingSymbol"
-      :title="`Contract size for ${sizingSymbol}`"
-      size="sm"
-      @close="sizingSymbol = ''"
-    >
-      <p class="tform__ask">
-        How much is one point of {{ sizingSymbol }} worth, per lot? Gold is 100, silver 5000, an
-        index 1. It is asked once and then remembered.
-      </p>
-      <FormField label="Contract size" :error="sizingError" v-slot="f">
-        <NumberInput v-bind="f" v-model="sizingValue" :min="0" :step="1" />
-      </FormField>
-      <template #footer>
-        <Button variant="ghost" @click="sizingSymbol = ''">Not now</Button>
-        <Button @click="confirmSize">Save</Button>
-      </template>
-    </Modal>
+    <SymbolSizePrompt :symbol="sizingSymbol" @confirm="onSized" @dismiss="sizingSymbol = ''" />
   </form>
 </template>
 
@@ -545,53 +481,7 @@ async function onSubmit() {
 }
 /* The pair, stated plainly. Mono because they are read against each other, and
    secondary because it is a confirmation of what was typed, not a field. */
-.tform__clocks {
-  margin: 0;
-  min-width: 0;
-  font-size: var(--text-xs);
-  line-height: var(--lh-xs);
-  color: var(--text-secondary, var(--theme-dim));
-}
-.tform__dot {
-  padding: 0 var(--sp-1);
-  color: var(--text-muted, var(--theme-dim));
-}
-.tform__offset {
-  padding-left: var(--sp-2);
-  color: var(--text-muted, var(--theme-dim));
-}
 
-.tform__preview {
-  display: flex;
-  gap: var(--sp-5);
-  margin: 0;
-  min-width: 0;
-}
-.tform__cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.tform__value {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-md);
-  line-height: var(--lh-md);
-  color: var(--text-primary, var(--theme-text));
-}
 /* Sign, not metric: a gain is the success token and a loss the danger one, and
    a flat row stays ordinary text rather than being coloured for having a name. */
-.tform__value.is-pos {
-  color: var(--theme-success);
-}
-.tform__value.is-neg {
-  color: var(--theme-danger);
-}
-.tform__ask {
-  margin: 0 0 var(--sp-3);
-  font-size: var(--text-sm);
-  line-height: var(--lh-sm);
-  color: var(--text-secondary, var(--theme-dim));
-}
 </style>

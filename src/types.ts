@@ -13,6 +13,7 @@ export type { Attachment } from './utils/attachments'
 
 export type TabKey =
   | 'overview'
+  | 'expenses'
   | 'todo'
   | 'tasks'
   | 'planning'

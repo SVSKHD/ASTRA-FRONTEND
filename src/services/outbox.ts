@@ -35,8 +35,16 @@ export interface OutboxEntry {
   /** The Firestore document id, minted client-side. Replay overwrites, so this
    *  is also what makes a repeat safe rather than a duplicate. */
   id: string
-  /** Which of the user's collections it belongs in. */
-  collection: 'trades' | 'secured'
+  /**
+   * The collection it belongs in — the NAME, not a kind (section 32).
+   *
+   * A parked write outlives the settings that were in force when it was made,
+   * so it carries the collection it was addressed to rather than a label that
+   * would be re-resolved against whatever the names say on replay. Replaying a
+   * trade into a collection the user renamed away from is worse than not
+   * replaying it.
+   */
+  collection: string
   uid: string
   payload: Record<string, unknown>
   attempts: number

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Aureon — a liquid-glass, space-themed personal tracker (todos, tasks, deadlines, reminders, finances) built with Vue 3 + Firebase.",
+  "description": "Aureon \u2014 a liquid-glass, space-themed personal tracker (todos, tasks, deadlines, reminders, finances) built with Vue 3 + Firebase.",
   "scripts": {
     "dev": "vite",
     "test": "vitest run",
@@ -15,7 +15,10 @@
     "build": "npm run verify && vite build",
     "build:only": "vue-tsc -b && vite build",
     "preview": "vite preview",
-    "lint:css": "stylelint \"src/**/*.{css,vue}\""
+    "lint:css": "stylelint \"src/**/*.{css,vue}\"",
+    "shoot": "node scripts/shoot.js",
+    "dev:fixture": "VITE_FIXTURE=1 vite",
+    "seed:demo": "node scripts/seed.mjs"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.21",

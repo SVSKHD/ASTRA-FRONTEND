@@ -13,7 +13,8 @@
 
 import { computed, onUnmounted, ref } from 'vue'
 import { useOwnedMonth } from '@/composables/useOwnedMonth'
-import { newId, ownedDelete, ownedMerge, ownedSet } from '@/services/owned'
+import { errorCode, newId, ownedDelete, ownedMerge, ownedSet } from '@/services/owned'
+import { queueFailure } from '@/services/outbox'
 import { readTrade, toDraft, tradeDocument, type TradeDraft } from '@/services/tradeDoc'
 import { recomputeAll, sortTrades } from '@/utils/tradeMath'
 import type { Trade } from '@/types'
@@ -57,9 +58,16 @@ export function useTrades(month: () => string) {
     // Started, not awaited: with the persistent cache a write with no network
     // does not settle until a server answers, and awaiting it hangs the form on
     // a trade Firestore has already stored durably.
-    void ownedSet(ref, id, doc).catch((err) => {
+    void ownedSet(ref, id, doc).catch(async (err) => {
+      // A refusal, not a network problem — the persistent cache never rejects
+      // for the latter. Parked with the id it was minted with, so the replay is
+      // an overwrite rather than a second trade (section 30).
       console.error('[Astra] Trade write refused:', err)
-      error.value = `That trade was refused (${code(err)}). It is held locally and will retry.`
+      await queueFailure(
+        { id, collection: ref.collection, uid: ref.uid, payload: { ...doc, userId: ref.uid } },
+        errorCode(err),
+      )
+      error.value = `That trade was refused (${errorCode(err)}). It is held and will be retried.`
     })
     return id
   }
@@ -80,7 +88,7 @@ export function useTrades(month: () => string) {
       return true
     } catch (err) {
       console.error('[Astra] Trade update failed:', err)
-      error.value = `That change could not be saved (${code(err)}).`
+      error.value = `That change could not be saved (${errorCode(err)}).`
       return false
     }
   }
@@ -99,7 +107,7 @@ export function useTrades(month: () => string) {
     } catch (err) {
       console.error('[Astra] Trade delete failed:', err)
       undoable.value = null
-      error.value = `That trade could not be deleted (${code(err)}) — it is still in the log.`
+      error.value = `That trade could not be deleted (${errorCode(err)}) — it is still in the log.`
       return false
     }
   }
@@ -140,10 +148,4 @@ export function useTrades(month: () => string) {
     remove,
     undo,
   }
-}
-
-function code(err: unknown): string {
-  return typeof err === 'object' && err && 'code' in err
-    ? String((err as { code: unknown }).code)
-    : 'unknown'
 }

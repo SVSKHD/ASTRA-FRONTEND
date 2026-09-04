@@ -18,7 +18,7 @@ const shareTypes = Object.keys(PLURAL) as ItemType[]
 // than an instruction to click twice.
 export const TAB_ROUTES: Record<string, TabKey> = {
   '/trades': 'trades',
-  '/expenses': 'finances',
+  '/expenses': 'expenses',
 }
 
 const routes: RouteRecordRaw[] = [
@@ -95,6 +95,19 @@ const routes: RouteRecordRaw[] = [
           path: '/ui',
           name: 'ui-showcase',
           component: () => import('@/views/UiShowcaseView.vue'),
+        } as RouteRecordRaw,
+        // The screenshot harness (section 38). Both of these are registered
+        // inside a DEV branch, which the bundler evaluates statically — so they
+        // are absent from a production build rather than present and guarded.
+        {
+          path: '/dev/login',
+          name: 'dev-login',
+          component: () => import('@/dev/DevLogin.vue'),
+        } as RouteRecordRaw,
+        {
+          path: '/dev/shot/:view',
+          name: 'dev-shot',
+          component: () => import('@/dev/DevShot.vue'),
         } as RouteRecordRaw,
       ]
     : []),

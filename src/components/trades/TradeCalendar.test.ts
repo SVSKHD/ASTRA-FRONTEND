@@ -39,7 +39,7 @@ const TRADES = [
 
 function mountCalendar(props: Record<string, unknown> = {}) {
   return mount(TradeCalendar, {
-    props: { trades: TRADES, dayTarget: 10, selected: '', ...props },
+    props: { trades: TRADES, dayTarget: 10, month: '2026-09', selected: '', ...props },
     attachTo: document.body,
   })
 }
