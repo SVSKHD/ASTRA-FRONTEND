@@ -25,7 +25,7 @@ import Button from '@/components/ui/Button.vue'
 import IconFilter from '@/components/icons/IconFilter.vue'
 import IconTargetHit from '@/components/icons/IconTargetHit.vue'
 import IconTargetMissed from '@/components/icons/IconTargetMissed.vue'
-import { plWashVar } from '@/themes/plScale'
+import { plInkVar, plWashVar } from '@/themes/plScale'
 import { byDay, dayTotals, fmt2, signOf, signed2 } from '@/utils/tradeMath'
 import type { DayMeta } from '@/components/ui/GlassDatePicker.vue'
 import type { Trade } from '@/types'
@@ -50,8 +50,11 @@ const dayMeta = computed<Record<string, DayMeta>>(() => {
     out[cell.date] = {
       tone,
       intensity: Math.min(1, Math.abs(cell.move) / target),
-      // The exact step, not a mix: the picker paints what it is given.
+      // The exact step, not a mix: the picker paints what it is given — and the
+      // ink comes with it, because a wash without the colour its number has to
+      // be drawn in is half a decision (section 29).
       wash: plWashVar(tone, cell.move, target),
+      ink: plInkVar(tone, cell.move, target),
     }
   }
   return out

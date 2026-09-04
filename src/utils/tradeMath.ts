@@ -14,7 +14,14 @@
 //      taken off the table" answer different questions and adding them makes
 //      both unanswerable.
 
-import type { LoggerSettings, SecuredEntry, Trade, TradeSession, TradeSide } from '@/types'
+import type {
+  LoggerSettings,
+  SecuredEntry,
+  SessionBounds,
+  Trade,
+  TradeSession,
+  TradeSide,
+} from '@/types'
 import { csvField } from '@/utils/financeExport'
 
 export const TRADE_SESSIONS: readonly TradeSession[] = ['Asia', 'London', 'NY'] as const
@@ -28,6 +35,25 @@ export const DEFAULT_CONTRACT_SIZES: Record<string, number> = {
   US500: 1,
 }
 
+/**
+ * When each session opens, and when New York shuts, on the BROKER's clock
+ * (section 31). Broker time because that is the frame the boundaries are quoted
+ * in everywhere else — a London open stated in IST would have to be restated
+ * twice a year.
+ *
+ * Between the New York close and the Asian open there is no session at all,
+ * which is why there are four numbers and not three.
+ */
+export const DEFAULT_SESSION_BOUNDS: SessionBounds = {
+  asia: '03:00',
+  london: '09:00',
+  ny: '15:00',
+  nyEnd: '22:00',
+}
+
+/** The usual MT5 server clock. A named zone in settings beats it. */
+export const DEFAULT_BROKER_OFFSET_MINUTES = 180
+
 export const DEFAULT_LOGGER_SETTINGS: LoggerSettings = {
   startingBalance: 0,
   dayTarget: 10,
@@ -35,6 +61,16 @@ export const DEFAULT_LOGGER_SETTINGS: LoggerSettings = {
   defaultLot: 1,
   lastSymbol: 'XAUUSD',
   contractSizes: { ...DEFAULT_CONTRACT_SIZES },
+  // Empty rather than a theme name: "nothing chosen" and "chose the default"
+  // are different states, and only the first one lets the operating system's
+  // preference decide (section 29).
+  theme: '',
+  // Empty rather than a guess at an IANA name: an unnamed broker falls back to
+  // the fixed offset below, which is honest about being fixed. A named zone
+  // resolves per trade date and is what makes a year of history survive DST.
+  brokerTimezone: '',
+  brokerOffsetMinutes: DEFAULT_BROKER_OFFSET_MINUTES,
+  sessionBounds: { ...DEFAULT_SESSION_BOUNDS },
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   AA_TEXT,
   PL_STEPS,
   plFlat,
+  plInk,
   plScaleTokens,
   plStep,
   plWash,
@@ -60,17 +61,31 @@ describe('the ramp, on every theme', () => {
     const theme = THEMES[key]
 
     it(`${key}: every step carries the day number at ${AA_TEXT}:1`, () => {
+      // Against the step's OWN ink, not against the theme's text: a theme that
+      // declares its ramp keeps the wash it chose and moves the numeral
+      // instead, so "the number is legible" is a claim about the pair.
       for (const side of ['pos', 'neg'] as const) {
         for (let step = 1; step <= PL_STEPS; step += 1) {
           const wash = plWash(theme, side, step)
-          expect(contrastRatio(theme.text, wash), `${key} ${side}-${step}`).toBeGreaterThanOrEqual(
-            AA_TEXT,
-          )
+          const ink = plInk(theme, side, step)
+          expect(contrastRatio(ink, wash), `${key} ${side}-${step}`).toBeGreaterThanOrEqual(AA_TEXT)
         }
       }
       expect(contrastRatio(theme.text, plFlat(theme)), `${key} flat`).toBeGreaterThanOrEqual(
         AA_TEXT,
       )
+    })
+
+    it(`${key}: a derived ramp keeps the theme's own text as its ink`, () => {
+      // The flip is for declared ramps only. On the nineteen derived ones the
+      // wash is already walked back until the theme's text clears, and a
+      // numeral that changed colour there would be a regression, not a fix.
+      if (theme.plRamp) return
+      for (const side of ['pos', 'neg'] as const) {
+        for (let step = 1; step <= PL_STEPS; step += 1) {
+          expect(plInk(theme, side, step), `${key} ${side}-${step}`).toBe(theme.text)
+        }
+      }
     })
 
     it(`${key}: the steps are distinct and ordered away from the page`, () => {
@@ -102,13 +117,15 @@ describe('the ramp, on every theme', () => {
     })
   }
 
-  it('publishes eleven tokens, so a surface can use the ramp without rebuilding it', () => {
+  it('publishes a wash and an ink for every step, so a cell never has one without the other', () => {
     const tokens = plScaleTokens(THEMES.deepSpace)
     expect(Object.keys(tokens).sort()).toEqual(
       [
         '--pl-flat',
         ...Array.from({ length: PL_STEPS }, (_, i) => `--pl-neg-${i + 1}`),
         ...Array.from({ length: PL_STEPS }, (_, i) => `--pl-pos-${i + 1}`),
+        ...Array.from({ length: PL_STEPS }, (_, i) => `--on-pl-neg-${i + 1}`),
+        ...Array.from({ length: PL_STEPS }, (_, i) => `--on-pl-pos-${i + 1}`),
       ].sort(),
     )
   })

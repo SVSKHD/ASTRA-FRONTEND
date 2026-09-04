@@ -97,6 +97,14 @@ export const ICONS = {
   paperclip:
     '<path d="M20 11.5l-7.9 7.9a5 5 0 0 1-7.1-7.1l8.4-8.4a3.3 3.3 0 0 1 4.7 4.7l-8.3 8.3a1.6 1.6 0 0 1-2.3-2.3l7.6-7.6" />',
   tag: '<path d="M20.5 12.9l-7.6 7.6a1.8 1.8 0 0 1-2.5 0l-7-7A1.8 1.8 0 0 1 3 12.2V4.6A1.6 1.6 0 0 1 4.6 3h7.6a1.8 1.8 0 0 1 1.3 0.5l7 7a1.8 1.8 0 0 1 0 2.5z" /><circle cx="8" cy="8" r="1.4" />',
+
+  // ---- section 29: the espresso switch ------------------------------------
+  // A cup with steam, and only ever that. The sun and the moon already mean
+  // "the light family" and "the dark family" in the same cluster of controls,
+  // so the roast could not borrow either without the header saying two
+  // different things with one picture.
+  coffee:
+    '<path d="M4 9h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" /><path d="M17 10.5h1.5a2.5 2.5 0 0 1 0 5H17" /><path d="M8 3v2.5M12 2.5v3" />',
 } as const
 
 export type IconName = keyof typeof ICONS

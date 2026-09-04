@@ -12,6 +12,7 @@ withDefaults(defineProps<{ size?: number; title?: string }>(), { size: 16 })
     :width="size"
     :height="size"
     viewBox="0 0 24 24"
+    data-family="trade"
     fill="none"
     stroke="currentColor"
     stroke-width="1.5"

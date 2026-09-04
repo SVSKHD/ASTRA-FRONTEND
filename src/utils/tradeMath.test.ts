@@ -23,6 +23,12 @@ function makeTrade(over: Partial<Trade> = {}): Trade {
     id: 't1',
     date: '2026-09-01',
     ts: 1,
+    // Section 31's four: the instant, its optional close, the IST reading it
+    // was typed as, and the broker offset that was in force for it.
+    entryAt: 0,
+    exitAt: 0,
+    istTime: '',
+    brokerOffsetMinutes: 180,
     symbol: 'XAUUSD',
     session: 'London',
     side: 'buy',

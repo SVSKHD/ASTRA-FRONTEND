@@ -15,11 +15,14 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import ListToolbar from '@/components/ListToolbar.vue'
 import Alert from '@/components/ui/Alert.vue'
+import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import StatRow from '@/components/ui/StatRow.vue'
 import FormField from '@/components/ui/FormField.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
+import TextInput from '@/components/ui/TextInput.vue'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import IconExport from '@/components/icons/IconExport.vue'
 import IconTargetHit from '@/components/icons/IconTargetHit.vue'
 import IconTargetMissed from '@/components/icons/IconTargetMissed.vue'
@@ -30,11 +33,14 @@ import AccountBlock from '@/components/trades/AccountBlock.vue'
 import TradeCalendar from '@/components/trades/TradeCalendar.vue'
 import TradeForm from '@/components/trades/TradeForm.vue'
 import TradeTable from '@/components/trades/TradeTable.vue'
+import TradeHours from '@/components/trades/TradeHours.vue'
 import TradeSkeleton from '@/components/trades/TradeSkeleton.vue'
 import SecuredLedger from '@/components/trades/SecuredLedger.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useUiStore } from '@/stores/ui'
 import { useTradeLog, type NewSecured, type NewTrade } from '@/composables/useTradeLog'
+import { MAX_ATTEMPTS } from '@/services/outbox'
+import { IST, instantFromWall, offsetLabel, offsetAt } from '@/utils/tradeTime'
 import { useAppStore } from '@/stores/app'
 import { downloadText } from '@/utils/noteExport'
 import { currentMonthKey, monthLabel } from '@/utils/budget'
@@ -69,7 +75,67 @@ const selectedDay = ref('')
 const symbol = ref('')
 
 const log = useTradeLog(symbol, monthKey)
-const { trades, secured, settings, loading, error } = log
+const { trades, secured, settings, loading, error, outbox, rowState, brokerClock, untimed } = log
+
+// --- the two clocks (section 31) ----------------------------------------------
+// The month's first midnight IST, which is what the hour strip reads the broker
+// axis at: a month is shown on the offset that month had, not on today's.
+const monthStart = computed(
+  () => instantFromWall(IST, `${monthKey.value}-01`, '00:00') ?? Date.now(),
+)
+const brokerLabel = computed(
+  () =>
+    `${settings.value.brokerTimezone || 'fixed offset'} · GMT${offsetLabel(
+      offsetAt(brokerClock.value, monthStart.value),
+    )}`,
+)
+// Off by default: UTC is the column you turn on to settle an argument with a
+// broker, not one that earns its width every day.
+const showUtc = ref(false)
+
+const backfilled = ref(0)
+async function onBackfill() {
+  backfilled.value = await log.backfillTimes()
+  if (backfilled.value) {
+    app.showToastMsg(`Gave ${backfilled.value} row${backfilled.value === 1 ? '' : 's'} a time`)
+  }
+}
+
+/** One session boundary at a time, saved as it is picked. */
+function onBound(field: 'asia' | 'london' | 'ny' | 'nyEnd') {
+  return (value: string) => {
+    if (!/^\d{2}:\d{2}$/.test(value)) return
+    void log.saveSettings({ sessionBounds: { ...settings.value.sessionBounds, [field]: value } })
+  }
+}
+
+// --- delivery (section 30) ----------------------------------------------------
+// A trade is captured the moment it is typed; whether it has reached the server
+// is a separate fact, and this is where that fact is shown. A pill in the header
+// when anything is unsent, a dot on the rows it belongs to, and — only for the
+// entries that have stopped trying — a list with the reason and one button.
+// No modal and no toast: nothing here asks the user to retry, because the retry
+// is automatic and a prompt would only be a chance to say no to it.
+// Flattened here rather than in the template: the payload is the document as
+// Firestore will store it, so every field on it is `unknown` until something
+// says otherwise, and that something belongs in script.
+const blocked = computed(() =>
+  outbox.value
+    .filter((e) => e.blocked)
+    .map((e) => ({
+      id: e.id,
+      what: String(e.payload.symbol ?? e.collection),
+      when: String(e.payload.date ?? ''),
+      why: e.lastError,
+    })),
+)
+const outboxPill = computed(() => {
+  if (!outbox.value.length) return null
+  const held = blocked.value.length
+  return held
+    ? { tone: 'danger' as const, label: `${held} held` }
+    : { tone: 'warning' as const, label: `${outbox.value.length} unsent` }
+})
 
 // Changing month drops a day filter that belongs to the month we just left.
 function onMonth(next: string) {
@@ -152,7 +218,9 @@ function onAddSecured(entry: NewSecured) {
 }
 
 /** One setting at a time, saved on blur — there is no Save button to forget. */
-function onSetting(field: 'startingBalance' | 'dayTarget' | 'monthTarget' | 'defaultLot') {
+function onSetting(
+  field: 'startingBalance' | 'dayTarget' | 'monthTarget' | 'defaultLot' | 'brokerOffsetMinutes',
+) {
   return (value: number | null) => {
     if (value == null || !Number.isFinite(value)) return
     void log.saveSettings({ [field]: value })
@@ -185,9 +253,16 @@ defineExpose({ focus: () => form.value?.focus() })
           <IconExport :size="14" />
           CSV
         </Button>
+        <Button variant="ghost" size="sm" @click="showUtc = !showUtc">
+          {{ showUtc ? 'Hide UTC' : 'UTC' }}
+        </Button>
         <Button variant="ghost" size="sm" @click="showSettings = !showSettings">
           {{ showSettings ? 'Hide account' : 'Account' }}
         </Button>
+        <!-- Present only while something is unsent, and gone the moment the
+             last one lands. A permanent "all synced" badge is a badge nobody
+             reads by the second day. -->
+        <Badge v-if="outboxPill" :tone="outboxPill.tone" :label="outboxPill.label" />
       </template>
     </ListToolbar>
 
@@ -200,6 +275,26 @@ defineExpose({ focus: () => form.value?.focus() })
     <!-- Loading is the whole screen's state, not the table's: the account
          figures and the calendar are as absent as the rows are, and a skeleton
          that stands in for one of the three is a layout that jumps twice. -->
+    <!-- Only the entries that have stopped trying. Everything else retries by
+         itself and needs no list, no button and no decision. -->
+    <section v-if="blocked.length" class="tv__blocked">
+      <h3 class="ui-label">Held trades</h3>
+      <ul class="tv__blockedList">
+        <li v-for="entry in blocked" :key="entry.id" class="tv__blockedRow">
+          <span class="tv__blockedWhat">
+            {{ entry.what }}
+            <span class="tv__blockedWhen">{{ entry.when }}</span>
+          </span>
+          <span class="tv__blockedWhy ui-mono">{{ entry.why }}</span>
+          <Button variant="ghost" size="sm" @click="log.discard(entry.id)">Discard</Button>
+        </li>
+      </ul>
+      <p class="tv__note">
+        Refused {{ MAX_ATTEMPTS }} times, so it has stopped asking. Fix the cause and reload to try
+        again, or discard it — it will not go anywhere on its own.
+      </p>
+    </section>
+
     <TradeSkeleton v-if="loading" class="tv__scroll" />
 
     <div v-else class="tv__scroll">
@@ -244,6 +339,80 @@ defineExpose({ focus: () => form.value?.focus() })
             :step="0.01"
             :min="0"
             @update:model-value="onSetting('defaultLot')($event)"
+          />
+        </FormField>
+
+        <!-- The broker's clock. A named zone beats a fixed offset every time:
+             it resolves per trade date, which is what stops a year of history
+             shifting by an hour twice. -->
+        <FormField
+          label="Broker timezone"
+          hint="An IANA name, e.g. Europe/Athens. Blank uses the fixed offset."
+          v-slot="f"
+        >
+          <TextInput
+            v-bind="f"
+            :model-value="settings.brokerTimezone"
+            placeholder="Europe/Athens"
+            @update:model-value="log.saveSettings({ brokerTimezone: String($event).trim() })"
+          />
+        </FormField>
+        <FormField
+          label="Broker offset (minutes)"
+          hint="Used only when no zone is named. 180 is GMT+3."
+          v-slot="f"
+        >
+          <NumberInput
+            v-bind="f"
+            :model-value="settings.brokerOffsetMinutes"
+            :step="15"
+            @update:model-value="onSetting('brokerOffsetMinutes')($event)"
+          />
+        </FormField>
+
+        <!-- What those two fields actually resolve to, for the month on
+             screen — so a wrong zone is visible as a wrong number rather than
+             as an hour of quiet drift in the session column. -->
+        <p class="tv__note tv__brokerNote">Broker clock this month: {{ brokerLabel }}</p>
+
+        <FormField label="Asia opens (broker)" v-slot="f">
+          <GlassDatePicker
+            :id="f.id"
+            :size="f.size"
+            :model-value="settings.sessionBounds.asia"
+            mode="time"
+            :clearable="false"
+            @update:model-value="onBound('asia')(String($event))"
+          />
+        </FormField>
+        <FormField label="London opens (broker)" v-slot="f">
+          <GlassDatePicker
+            :id="f.id"
+            :size="f.size"
+            :model-value="settings.sessionBounds.london"
+            mode="time"
+            :clearable="false"
+            @update:model-value="onBound('london')(String($event))"
+          />
+        </FormField>
+        <FormField label="New York opens (broker)" v-slot="f">
+          <GlassDatePicker
+            :id="f.id"
+            :size="f.size"
+            :model-value="settings.sessionBounds.ny"
+            mode="time"
+            :clearable="false"
+            @update:model-value="onBound('ny')(String($event))"
+          />
+        </FormField>
+        <FormField label="New York closes (broker)" v-slot="f">
+          <GlassDatePicker
+            :id="f.id"
+            :size="f.size"
+            :model-value="settings.sessionBounds.nyEnd"
+            mode="time"
+            :clearable="false"
+            @update:model-value="onBound('nyEnd')(String($event))"
           />
         </FormField>
       </section>
@@ -312,6 +481,21 @@ defineExpose({ focus: () => form.value?.focus() })
         />
       </div>
 
+      <!-- The one-time backfill. Offered rather than run automatically: it
+           invents a time, and inventing data on somebody's behalf without
+           asking is how a log stops being trustworthy. -->
+      <section v-if="untimed.length" class="tv__backfill">
+        <p class="tv__note">
+          {{ untimed.length }} row{{ untimed.length === 1 ? '' : 's' }} in
+          {{ monthLabel(monthKey) }} carry no time — they were logged before times were recorded.
+          They can be given 00:00 IST and marked estimated, which keeps them out of the hour view
+          rather than reporting them as midnight trades.
+        </p>
+        <Button variant="ghost" size="sm" :loading="log.backfilling.value" @click="onBackfill">
+          Mark them 00:00 IST
+        </Button>
+      </section>
+
       <TradeTable
         :trades="visibleTrades"
         :empty-title="selectedDay ? `Nothing traded on ${selectedDay}` : 'No trades this month'"
@@ -320,7 +504,17 @@ defineExpose({ focus: () => form.value?.focus() })
             ? 'Pick the day again on the calendar to see the whole month.'
             : 'Log the first one above — the calendar, the targets and the stats all come from these rows.'
         "
+        :state="rowState"
+        :broker="brokerClock"
+        :show-utc="showUtc"
         @delete="log.deleteTrade($event)"
+      />
+
+      <TradeHours
+        :trades="trades"
+        :broker="brokerClock"
+        :day-target="settings.dayTarget"
+        :reference="monthStart"
       />
 
       <section v-if="stats.count" class="tv__stats">
@@ -406,6 +600,80 @@ defineExpose({ focus: () => form.value?.focus() })
 .tv__figure.is-neg {
   color: var(--theme-danger);
 }
+/* Held trades: the one place in the feature that asks for a decision, so it is
+   drawn as a panel rather than as an alert. An alert is dismissible and this is
+   not — the entries stay until they are dealt with. */
+.tv__blocked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--theme-danger);
+  border-radius: var(--radius-card);
+  background: var(--layer-raised-bg);
+}
+.tv__blockedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+.tv__blockedRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.tv__blockedWhat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  color: var(--text-primary, var(--theme-text));
+}
+.tv__blockedWhen {
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--text-secondary, var(--theme-dim));
+}
+/* The code, verbatim and in mono, because `permission-denied` and
+   `failed-precondition` have two different fixes and a paraphrase sends
+   somebody to neither of them. */
+.tv__blockedWhy {
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--theme-danger);
+}
+
+/* Spans the settings grid: it is a statement about the two fields above it,
+   not a field of its own. */
+.tv__brokerNote {
+  grid-column: 1 / -1;
+}
+.tv__backfill {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--layer-raised-border);
+  border-radius: var(--radius-card);
+  background: var(--layer-raised-bg);
+}
+.tv__backfill .tv__note {
+  flex: 1;
+}
+
 .tv__note {
   margin: 0;
   min-width: 0;

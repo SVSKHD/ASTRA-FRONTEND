@@ -27,14 +27,27 @@
 // import, like everywhere else: a value import of firebase/firestore anywhere
 // pulls the SDK back into the first paint.
 
-import { computed, onUnmounted, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
+import { computed, onMounted, onUnmounted, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { DocumentData, Unsubscribe } from 'firebase/firestore'
 import { loadFirestore } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
+import { isThemeKey, type ThemeSetting } from '@/themes'
 import { currentMonthKey } from '@/utils/budget'
 import {
+  MAX_ATTEMPTS,
+  discardOutbox,
+  isDue,
+  listOutbox,
+  queueFailure,
+  removeOutbox,
+  type OutboxEntry,
+} from '@/services/outbox'
+import {
+  DEFAULT_BROKER_OFFSET_MINUTES,
   DEFAULT_LOGGER_SETTINGS,
+  DEFAULT_SESSION_BOUNDS,
   contractSizeFor,
   monthBounds,
   recomputeAll,
@@ -42,6 +55,15 @@ import {
   tradeMove,
   tradePl,
 } from '@/utils/tradeMath'
+import {
+  IST,
+  hasTime,
+  hhmmOn,
+  instantFromWall,
+  offsetAt,
+  ymdOn,
+  type Clock,
+} from '@/utils/tradeTime'
 import type { LoggerSettings, SecuredEntry, Trade, TradeSession, TradeSide } from '@/types'
 
 /** What the form hands over. `move` and `pl` are derived here, never typed. */
@@ -54,6 +76,10 @@ export interface NewTrade {
   entry: number
   exit: number
   note: string
+  /** 'HH:mm' IST, as typed (section 31). */
+  istTime: string
+  /** 'HH:mm' IST, optional — '' when the close was not recorded. */
+  exitTime: string
 }
 
 export interface NewSecured {
@@ -82,6 +108,14 @@ function readTrade(id: string, data: DocumentData): Trade {
     id,
     date: String(data.date ?? ''),
     ts: millis(data.ts),
+    // The instant, and the three fields that describe how it was captured.
+    // Everything else about time — broker, UTC, the session, the hour bucket —
+    // is derived from `entryAt` at the point of use (section 31).
+    entryAt: millis(data.entryAt),
+    exitAt: millis(data.exitAt),
+    istTime: String(data.istTime ?? ''),
+    brokerOffsetMinutes: num(data.brokerOffsetMinutes, DEFAULT_BROKER_OFFSET_MINUTES),
+    timeEstimated: data.timeEstimated === true,
     symbol: String(data.symbol ?? ''),
     session: (data.session as TradeSession) ?? 'London',
     side: (data.side as TradeSide) ?? 'buy',
@@ -119,6 +153,15 @@ function readSettings(data: DocumentData | undefined): LoggerSettings {
         ? (data.contractSizes as Record<string, number>)
         : {}),
     },
+    theme: String(data.theme ?? ''),
+    brokerTimezone: String(data.brokerTimezone ?? ''),
+    brokerOffsetMinutes: num(data.brokerOffsetMinutes, DEFAULT_BROKER_OFFSET_MINUTES),
+    sessionBounds: {
+      ...DEFAULT_SESSION_BOUNDS,
+      ...(typeof data.sessionBounds === 'object' && data.sessionBounds
+        ? (data.sessionBounds as Record<string, string>)
+        : {}),
+    },
   }
 }
 
@@ -127,6 +170,8 @@ export function useTradeLog(
   month: MaybeRefOrGetter<string> = currentMonthKey(),
 ) {
   const { user } = storeToRefs(useAuthStore())
+  const ui = useUiStore()
+  const { themeSetting } = storeToRefs(ui)
   const uid = computed(() => user.value?.uid ?? '')
   const monthKey = computed(() => toValue(month))
   // An empty symbol means "whatever was traded last" — the caller's field is
@@ -154,6 +199,16 @@ export function useTradeLog(
 
   const loading = ref(true)
   const error = ref('')
+
+  // Which rows the server has not acknowledged yet, from the snapshot's own
+  // metadata rather than from anything we track: `hasPendingWrites` is
+  // Firestore telling us it holds the write locally and has not been told it
+  // landed. That is the difference between "captured" and "safe", and it is the
+  // only honest source for it (section 30).
+  const pendingIds = ref<string[]>([])
+  /** Refused writes, parked in IndexedDB. Never dropped without being seen. */
+  const outbox = ref<OutboxEntry[]>([])
+  let replayTimer: ReturnType<typeof setInterval> | undefined
 
   let tradesUnsub: Unsubscribe | null = null
   let securedUnsub: Unsubscribe | null = null
@@ -192,6 +247,19 @@ export function useTradeLog(
       .filter((s) => !gone.has(s.id))
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id.localeCompare(b.id)))
   })
+
+  /**
+   * The broker's clock, as much as is known about it (section 31). A named IANA
+   * zone resolves per trade date and is the right answer; the fixed offset is
+   * the fallback for a broker nobody has named.
+   */
+  const brokerClock = computed<Clock>(() => ({
+    zone: settings.value.brokerTimezone,
+    offsetMinutes: settings.value.brokerOffsetMinutes,
+  }))
+
+  /** Rows still carrying no instant at all — what the backfill is for. */
+  const untimed = computed(() => trades.value.filter((t) => !hasTime(t)))
 
   /** The contract size in force for the symbol the form is on. */
   const contractSize = computed(() =>
@@ -244,8 +312,13 @@ export function useTradeLog(
         fs.orderBy('date', 'asc'),
         fs.orderBy('ts', 'asc'),
       ),
+      // includeMetadataChanges, because the transition that matters here — a row
+      // going from held-locally to acknowledged — changes no data at all. Without
+      // it the pending dot would never clear until something else moved.
+      { includeMetadataChanges: true },
       (snap) => {
         storedTrades.value = snap.docs.map((d) => readTrade(d.id, d.data()))
+        pendingIds.value = snap.docs.filter((d) => d.metadata.hasPendingWrites).map((d) => d.id)
         // Anything the server now carries is no longer pending, and anything it
         // no longer carries is no longer waiting to be deleted.
         const ids = new Set(storedTrades.value.map((t) => t.id))
@@ -295,9 +368,11 @@ export function useTradeLog(
           void fs.setDoc(settingsRef, { ...DEFAULT_LOGGER_SETTINGS }).catch(() => {
             /* A read-only session still works; it just does not remember. */
           })
+          applyStoredTheme('')
           return
         }
         storedSettings.value = readSettings(snap.data())
+        applyStoredTheme(storedSettings.value.theme)
       },
       (err) => {
         console.error('[Aureon] Logger settings listener failed:', err)
@@ -306,7 +381,53 @@ export function useTradeLog(
   }
 
   watch([uid, monthKey], () => void attach(), { immediate: true })
-  onUnmounted(unsubscribe)
+  onUnmounted(() => {
+    unsubscribe()
+    clearInterval(replayTimer)
+    globalThis.window?.removeEventListener('online', onOnline)
+  })
+
+  // --- the theme, kept in this document (section 29) -------------------------
+  //
+  // The choice lives beside the logger's other settings rather than in the
+  // workspace document the theme picker writes to. That is a second place a
+  // theme can be stored, so the two are reconciled in one direction only: what
+  // this document says wins when it says anything, and a change made while the
+  // logger is on screen is written back here.
+  //
+  // `prefers-color-scheme` gets a say exactly once — when the document has no
+  // theme at all. After that the stored answer is the answer, because an
+  // operating system that switches to dark at sunset should not overrule a
+  // choice somebody made at noon.
+  let themeSynced = false
+
+  function osPrefersDark(): boolean {
+    return globalThis.window?.matchMedia?.('(prefers-color-scheme: dark)').matches === true
+  }
+
+  function applyStoredTheme(stored: string) {
+    if (themeSynced) return
+    themeSynced = true
+    if (stored && isThemeKey(stored)) {
+      if (stored !== themeSetting.value) ui.setTheme(stored as ThemeSetting)
+      return
+    }
+    // Nothing stored: the one moment the operating system decides. Espresso is
+    // this app's answer to "the user wants dark"; anything else stays as it is.
+    if (osPrefersDark() && themeSetting.value !== 'espresso') {
+      ui.setTheme('espresso')
+      void saveSettings({ theme: 'espresso' })
+    }
+  }
+
+  // A change made while the logger is mounted is persisted here. Guarded on the
+  // stored value so the round trip — write, snapshot, read — does not write
+  // again.
+  watch(themeSetting, (next) => {
+    if (!themeSynced || !uid.value) return
+    if (next === 'auto' || next === storedSettings.value.theme) return
+    void saveSettings({ theme: next })
+  })
 
   // --- writes ---------------------------------------------------------------
 
@@ -323,51 +444,175 @@ export function useTradeLog(
     return cloud
   }
 
+  /** The code Firestore refused with, for the message and for the outbox. */
+  function errorCode(err: unknown): string {
+    return typeof err === 'object' && err && 'code' in err
+      ? String((err as { code: unknown }).code)
+      : 'unknown'
+  }
+
   /**
-   * Optimistic: the row is on screen before the write is acknowledged, and off
-   * again — with the reason visible — if Firestore rejects it.
+   * A trade is captured the moment it is written locally — NOT when the server
+   * acknowledges it (section 30).
+   *
+   * This is the whole fix. `setDoc` with persistent local cache does not settle
+   * until the server acks, so awaiting it means a submit with no network hangs
+   * forever: the button spins, the form never clears, and the trade looks lost
+   * although Firestore has it safely in IndexedDB and will replay it. So the
+   * write is started and NOT awaited; the local snapshot echo is the capture
+   * signal, `hasPendingWrites` says whether it has reached the server yet, and
+   * a rejection — which with persistence on means a refusal, not a network
+   * problem — parks the payload in the outbox.
    */
   async function addTrade(input: NewTrade): Promise<boolean> {
     const cloud = await handle()
     if (!cloud) return false
     const { db, fs } = cloud
+    const owner = uid.value
     const symbolKey = input.symbol.trim().toUpperCase()
     const move = tradeMove(input.side, input.entry, input.exit)
     const pl = tradePl(move, input.lot, contractSizeFor(settings.value.contractSizes, symbolKey))
+    // The IST wall clock the trader typed, resolved to the instant it names —
+    // and the instant is what is stored. `date` is that instant's IST day, so
+    // there is one date field and it is unambiguous about which zone it is in.
+    const entryAt = instantFromWall(IST, input.date, input.istTime) ?? Date.now()
+    // A close that reads earlier than the open is a session that ran past
+    // midnight IST, not a typo: 23:40 → 00:20 is forty minutes, not minus 23
+    // hours. Anything else would need a second date field on the form.
+    let exitAt = input.exitTime ? instantFromWall(IST, input.date, input.exitTime) : null
+    if (exitAt != null && exitAt < entryAt) exitAt += 86_400_000
+    const brokerOffsetMinutes = offsetAt(brokerClock.value, entryAt)
     // The id is minted client-side so the optimistic row and the document that
-    // lands are the same row. `addDoc` would leave them as two.
-    const ref = fs.doc(fs.collection(db, 'users', uid.value, 'trades'))
+    // lands are the same row — and so a replay overwrites rather than
+    // duplicating. `addDoc` would leave them as two.
+    const ref = fs.doc(fs.collection(db, 'users', owner, 'trades'))
     const ts = Date.now()
+    const payload: Record<string, unknown> = {
+      date: ymdOn(IST, entryAt),
+      ts: fs.Timestamp.fromMillis(ts),
+      entryAt: fs.Timestamp.fromMillis(entryAt),
+      exitAt: exitAt == null ? null : fs.Timestamp.fromMillis(exitAt),
+      istTime: hhmmOn(IST, entryAt),
+      brokerOffsetMinutes,
+      symbol: symbolKey,
+      session: input.session,
+      side: input.side,
+      lot: input.lot,
+      entry: input.entry,
+      exit: input.exit,
+      move,
+      pl,
+      note: input.note,
+      createdAt: fs.serverTimestamp(),
+    }
     pendingTrades.value = [
       ...pendingTrades.value,
-      { ...input, symbol: symbolKey, id: ref.id, ts, move, pl, createdAt: ts },
-    ]
-    try {
-      await fs.setDoc(ref, {
-        date: input.date,
-        ts: fs.Timestamp.fromMillis(ts),
+      {
+        ...input,
+        date: ymdOn(IST, entryAt),
         symbol: symbolKey,
-        session: input.session,
-        side: input.side,
-        lot: input.lot,
-        entry: input.entry,
-        exit: input.exit,
+        id: ref.id,
+        ts,
         move,
         pl,
-        note: input.note,
-        createdAt: fs.serverTimestamp(),
-      })
-      error.value = ''
-      // The symbol the user actually traded becomes the next form's default.
-      await saveSettings({ lastSymbol: symbolKey })
-      return true
-    } catch (err) {
-      console.error('[Aureon] Trade write failed:', err)
-      pendingTrades.value = pendingTrades.value.filter((t) => t.id !== ref.id)
-      error.value = 'That trade could not be saved — it has been rolled back. Try again.'
-      return false
-    }
+        createdAt: ts,
+        entryAt,
+        exitAt: exitAt ?? 0,
+        istTime: hhmmOn(IST, entryAt),
+        brokerOffsetMinutes,
+      },
+    ]
+    error.value = ''
+    // Started, not awaited. The catch runs whenever it runs.
+    void fs.setDoc(ref, payload).catch((err) => {
+      void onRefused({ id: ref.id, collection: 'trades', uid: owner, payload }, err)
+    })
+    // Same treatment for the setting: remembering the symbol must never be able
+    // to hold up the trade that taught us it.
+    void saveSettings({ lastSymbol: symbolKey })
+    return true
   }
+
+  /**
+   * A refusal: park it, and say so once.
+   *
+   * The message names the code rather than describing the symptom, because the
+   * two codes that get here have two different fixes — `permission-denied` is
+   * rules that have not been deployed and `failed-precondition` is an index
+   * that does not exist. "Could not save" sends nobody to either of them.
+   */
+  async function onRefused(
+    seed: {
+      id: string
+      collection: 'trades' | 'secured'
+      uid: string
+      payload: Record<string, unknown>
+    },
+    err: unknown,
+  ): Promise<void> {
+    const code = errorCode(err)
+    console.error(`[Aureon] Firestore refused a ${seed.collection} write (${code}):`, err)
+    const entry = await queueFailure(seed, code)
+    await refreshOutbox()
+    // Set from the stored entry, not from this attempt: a replay that is the
+    // eighth refusal has to change the message, or the row goes red while the
+    // banner still promises another try.
+    error.value = entry.blocked
+      ? `A trade could not be saved after ${MAX_ATTEMPTS} attempts (${code}). It is held below — discard it once you have dealt with the cause.`
+      : `Firestore refused a write (${code}). It is queued and will be retried.`
+  }
+
+  async function refreshOutbox(): Promise<void> {
+    outbox.value = (await listOutbox()).filter((e) => e.uid === uid.value)
+  }
+
+  /**
+   * Replay, automatically. Never a button: a queue the user has to remember to
+   * flush is a queue that does not get flushed.
+   */
+  async function flushOutbox(): Promise<void> {
+    if (!uid.value) return
+    const cloud = await loadFirestore()
+    if (!cloud) return
+    const { db, fs } = cloud
+    for (const entry of await listOutbox()) {
+      if (entry.uid !== uid.value || !isDue(entry)) continue
+      try {
+        // setDoc on the entry's own id: a replay of something that did land is
+        // an overwrite with identical content, not a second trade.
+        await fs.setDoc(fs.doc(db, 'users', entry.uid, entry.collection, entry.id), entry.payload)
+        // Removed only after the acknowledgement, never before.
+        await removeOutbox(entry.id)
+      } catch (err) {
+        // Through the same path as a first refusal, so the eighth one is
+        // reported as the end of the road rather than as another retry.
+        await onRefused(entry, err)
+      }
+    }
+    await refreshOutbox()
+  }
+
+  /** The user's one manual action, and only for an entry that stopped trying. */
+  async function discard(id: string): Promise<void> {
+    await discardOutbox(id)
+    pendingTrades.value = pendingTrades.value.filter((t) => t.id !== id)
+    pendingSecured.value = pendingSecured.value.filter((s) => s.id !== id)
+    await refreshOutbox()
+  }
+
+  function onOnline(): void {
+    void flushOutbox()
+  }
+
+  onMounted(() => {
+    void refreshOutbox().then(() => flushOutbox())
+    globalThis.window?.addEventListener('online', onOnline)
+    // A 30s sweep while anything is parked. It costs nothing when the outbox is
+    // empty, which is the normal case.
+    replayTimer = setInterval(() => {
+      if (outbox.value.length) void flushOutbox()
+    }, 30_000)
+  })
 
   async function deleteTrade(id: string): Promise<boolean> {
     const cloud = await handle()
@@ -397,24 +642,21 @@ export function useTradeLog(
     const cloud = await handle()
     if (!cloud) return false
     const { db, fs } = cloud
-    const ref = fs.doc(fs.collection(db, 'users', uid.value, 'secured'))
+    const owner = uid.value
+    const ref = fs.doc(fs.collection(db, 'users', owner, 'secured'))
     const ts = Date.now()
     pendingSecured.value = [...pendingSecured.value, { ...input, id: ref.id, createdAt: ts }]
-    try {
-      await fs.setDoc(ref, {
-        date: input.date,
-        amt: input.amt,
-        note: input.note,
-        createdAt: fs.serverTimestamp(),
-      })
-      error.value = ''
-      return true
-    } catch (err) {
-      console.error('[Aureon] Secured write failed:', err)
-      pendingSecured.value = pendingSecured.value.filter((s) => s.id !== ref.id)
-      error.value = 'That withdrawal could not be saved — it has been rolled back.'
-      return false
+    const payload: Record<string, unknown> = {
+      date: input.date,
+      amt: input.amt,
+      note: input.note,
+      createdAt: fs.serverTimestamp(),
     }
+    error.value = ''
+    void fs.setDoc(ref, payload).catch((err) => {
+      void onRefused({ id: ref.id, collection: 'secured', uid: owner, payload }, err)
+    })
+    return true
   }
 
   async function deleteSecured(id: string): Promise<boolean> {
@@ -456,6 +698,53 @@ export function useTradeLog(
     }
   }
 
+  /**
+   * The one-time backfill for rows logged before section 31 (item 10).
+   *
+   * They are given midnight IST on the day they already carry — the only
+   * defensible guess, because it is the one reading that cannot be mistaken for
+   * an observation — and marked `timeEstimated`, which is what keeps them out
+   * of every hour-of-day view. A guess counted as data would show a spike of
+   * trades at 00:00 that nobody made.
+   *
+   * Scoped to the month on screen, because that is the set actually loaded;
+   * paging back through the history backfills the rest a month at a time.
+   */
+  const backfilling = ref(false)
+
+  async function backfillTimes(): Promise<number> {
+    const cloud = await handle()
+    if (!cloud || backfilling.value) return 0
+    const { db, fs } = cloud
+    const rows = untimed.value
+    if (!rows.length) return 0
+    backfilling.value = true
+    let done = 0
+    try {
+      for (const row of rows) {
+        const at = instantFromWall(IST, row.date, '00:00')
+        if (at == null) continue
+        await fs.setDoc(
+          fs.doc(db, 'users', uid.value, 'trades', row.id),
+          {
+            entryAt: fs.Timestamp.fromMillis(at),
+            istTime: '00:00',
+            brokerOffsetMinutes: offsetAt(brokerClock.value, at),
+            timeEstimated: true,
+          },
+          { merge: true },
+        )
+        done += 1
+      }
+    } catch (err) {
+      console.error('[Aureon] Backfill failed:', err)
+      error.value = 'Some rows could not be given a time. Nothing was changed twice — try again.'
+    } finally {
+      backfilling.value = false
+    }
+    return done
+  }
+
   /** The answer to "what is this symbol worth per point?", asked once per symbol. */
   function setContractSize(nextSymbol: string, size: number): Promise<boolean> {
     const key = nextSymbol.trim().toUpperCase()
@@ -469,13 +758,36 @@ export function useTradeLog(
     error.value = ''
   }
 
+  /**
+   * What to draw beside a row: nothing when the server has it, a dot when it is
+   * only here yet, amber when it was refused and is waiting, red when it has
+   * stopped trying (section 30).
+   */
+  const rowState = computed<Record<string, 'pending' | 'queued' | 'blocked'>>(() => {
+    const out: Record<string, 'pending' | 'queued' | 'blocked'> = {}
+    for (const id of pendingIds.value) out[id] = 'pending'
+    // A row we are holding that the snapshot has not echoed yet is pending too.
+    const echoed = new Set(storedTrades.value.map((t) => t.id))
+    for (const t of pendingTrades.value) if (!echoed.has(t.id)) out[t.id] = 'pending'
+    for (const entry of outbox.value) out[entry.id] = entry.blocked ? 'blocked' : 'queued'
+    return out
+  })
+
   return {
     trades,
     secured,
     settings,
+    brokerClock,
+    untimed,
+    backfilling,
+    backfillTimes,
     contractSize,
     loading,
     error,
+    outbox,
+    rowState,
+    flushOutbox,
+    discard,
     addTrade,
     deleteTrade,
     addSecured,

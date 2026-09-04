@@ -23,10 +23,38 @@ import IconSessionLondon from '@/components/icons/IconSessionLondon.vue'
 import IconSessionNy from '@/components/icons/IconSessionNy.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { fmt2, signOf, signed2 } from '@/utils/tradeMath'
+import { clocksFor, type Clock } from '@/utils/tradeTime'
 import type { Trade, TradeSession } from '@/types'
 
-const props = defineProps<{ trades: Trade[]; emptyTitle: string; emptyDescription: string }>()
+/** What Firestore has and has not acknowledged, by row id (section 30). */
+export type RowState = 'pending' | 'queued' | 'blocked'
+
+const props = withDefaults(
+  defineProps<{
+    trades: Trade[]
+    emptyTitle: string
+    emptyDescription: string
+    /** Only the rows that are NOT safely on the server appear here. */
+    state?: Record<string, RowState>
+    /** The broker's clock, for the second reading of each row's instant. */
+    broker?: Clock
+    /** The UTC column is off by default: it is the column you turn on to settle
+     *  an argument with a broker, not one you read every day. */
+    showUtc?: boolean
+  }>(),
+  { state: () => ({}), broker: () => ({ zone: '', offsetMinutes: 0 }), showUtc: false },
+)
 defineEmits<{ delete: [string] }>()
+
+// A dot is a colour, and a colour is not a fact anybody can act on — so each
+// one carries its sentence, as a tooltip for a pointer and as text for a
+// screen reader. A row the server has is left alone: a green tick on every
+// line is forty ticks to scan past for the one row that has not landed.
+const STATE_LABEL: Record<RowState, string> = {
+  pending: 'Saved here, not yet acknowledged by the server',
+  queued: 'The server refused this write — it is queued and being retried',
+  blocked: 'The server refused this write repeatedly — it is held below',
+}
 
 const SESSION_ICON = {
   Asia: IconSessionAsia,
@@ -44,6 +72,29 @@ const RAIL = {
 function railVar(trade: Trade) {
   return { '--row-rail': RAIL[signOf(trade.pl)] }
 }
+
+/**
+ * Both readings of a row's instant (section 31).
+ *
+ * Recomputed from `entryAt` on every render rather than read from a stored
+ * string, which is what makes a row logged under a +02:00 broker still say
+ * +02:00 in July. A row with no instant — logged before section 31 and not yet
+ * backfilled — gets a dash rather than a plausible-looking 00:00.
+ */
+const clocks = computed(() => {
+  const out: Record<string, { ist: string; broker: string; utc: string; title: string }> = {}
+  for (const trade of props.trades) {
+    const c = clocksFor(trade, props.broker)
+    if (!c || trade.timeEstimated) continue
+    out[trade.id] = {
+      ist: c.ist,
+      broker: c.broker,
+      utc: c.utc,
+      title: `IST ${c.ist} · Broker ${c.broker} (GMT${c.brokerOffset}) · UTC ${c.utc}`,
+    }
+  }
+  return out
+})
 
 /** The first row of each date, which is where the divider and the date go. */
 const firstOfDay = computed(() => {
@@ -67,7 +118,13 @@ const firstOfDay = computed(() => {
       <thead>
         <tr>
           <th scope="col" class="ttable__rail"><span class="ui-sr-only">Result</span></th>
+          <th scope="col" class="ttable__state"><span class="ui-sr-only">Sync</span></th>
           <th scope="col">Date</th>
+          <!-- Two clocks in one column, named in the header rather than
+               repeated on every row: forty rows each saying "IST" is forty
+               readings of the word and none of the numbers. -->
+          <th scope="col">IST · Broker</th>
+          <th v-if="showUtc" scope="col">UTC</th>
           <th scope="col">Symbol</th>
           <th scope="col">Session</th>
           <th scope="col">Side</th>
@@ -89,12 +146,36 @@ const firstOfDay = computed(() => {
           :style="railVar(t)"
         >
           <td class="ttable__rail" aria-hidden="true"></td>
+          <!-- Nothing at all for a row that is on the server, which is nearly
+               every row nearly all of the time. -->
+          <td class="ttable__state">
+            <span
+              v-if="state[t.id]"
+              class="ttable__dot"
+              :class="`is-${state[t.id]}`"
+              :title="STATE_LABEL[state[t.id]!]"
+            >
+              <span class="ui-sr-only">{{ STATE_LABEL[state[t.id]!] }}</span>
+            </span>
+          </td>
           <!-- The date is written once per day; the rows under it inherit it
                from the divider above, which is how a person reads a ledger. -->
           <td class="is-mono ttable__date">
             <span v-if="firstOfDay.has(t.id)">{{ t.date }}</span>
             <span v-else class="ui-sr-only">{{ t.date }}</span>
           </td>
+          <td class="is-mono ttable__time" :title="clocks[t.id]?.title">
+            <template v-if="clocks[t.id]">
+              {{ clocks[t.id].ist }}
+              <span class="ttable__sep" aria-hidden="true">·</span>
+              <span class="ttable__broker">{{ clocks[t.id].broker }}</span>
+            </template>
+            <!-- A time nobody typed. The dash is the honest rendering of a
+                 backfilled midnight; printing 00:00 would make a guess look
+                 like an observation. -->
+            <template v-else>—<span class="ui-sr-only">no time recorded</span></template>
+          </td>
+          <td v-if="showUtc" class="is-mono ttable__broker">{{ clocks[t.id]?.utc ?? '—' }}</td>
           <td>{{ t.symbol }}</td>
           <td>
             <span class="ttable__with">
@@ -210,6 +291,46 @@ const firstOfDay = computed(() => {
 }
 .ttable tbody tr.is-dayStart td.ttable__rail {
   border-top: none;
+}
+
+/* The sync dot: 7px, in a column of its own so it never nudges a figure, and
+   silent — no pulse, because the one piece of motion on this screen is the
+   calendar's sweep and a blinking dot on a row of money is an alarm. */
+.ttable th.ttable__state,
+.ttable td.ttable__state {
+  width: 1%;
+  padding-right: 0;
+}
+.ttable__dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dot-tone);
+  vertical-align: middle;
+}
+.ttable__dot.is-pending {
+  /* Accent, not a warning: a write Firestore is holding is on its way. */
+  --dot-tone: var(--accent, var(--theme-accent));
+}
+.ttable__dot.is-queued {
+  --dot-tone: var(--theme-warning);
+}
+.ttable__dot.is-blocked {
+  --dot-tone: var(--theme-danger);
+}
+
+/* IST at full strength, broker beside it at secondary: they are the same fact
+   read twice, and the trader's own clock is the one being scanned. */
+.ttable__time {
+  color: var(--text-primary, var(--theme-text));
+}
+.ttable__sep {
+  padding: 0 2px;
+  color: var(--text-muted, var(--theme-dim));
+}
+.ttable__broker {
+  color: var(--text-secondary, var(--theme-dim));
 }
 
 .ttable .is-num {

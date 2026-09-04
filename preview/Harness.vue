@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useUiStore } from '@/stores/ui'
+import * as tradeIcons from '@/components/icons'
 import AccountBlock from '@/components/trades/AccountBlock.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import TradeCalendar from '@/components/trades/TradeCalendar.vue'
@@ -68,6 +70,16 @@ const secured = ref<SecuredEntry[]>([
 ])
 
 const selected = ref('')
+
+// The harness renders one theme at a time; the screenshot script drives this.
+const theme = ref<'deepSpace' | 'espresso'>(
+  (new URLSearchParams(location.search).get('theme') as 'espresso') || 'deepSpace',
+)
+// Through the store, like the app: the ui store owns the watcher that pushes a
+// theme to the DOM, and calling applyThemeToDom directly is overwritten by it.
+const ui = useUiStore()
+watch(theme, (next) => ui.setTheme(next), { immediate: true })
+const ICONS = Object.entries(tradeIcons)
 const totals = computed(() => accountTotals(trades.value, secured.value, settings.startingBalance))
 const stats = computed(() => tradeStats(trades.value))
 const dayProgress = computed(() => targetProgress(6, settings.dayTarget))
@@ -79,6 +91,15 @@ const visible = computed(() =>
 
 <template>
   <main class="harness">
+    <div class="harness__bar">
+      <button type="button" @click="theme = theme === 'espresso' ? 'deepSpace' : 'espresso'">
+        {{ theme }}
+      </button>
+      <!-- Every glyph at the size it is actually used, on the page ground. -->
+      <span class="harness__icons">
+        <component :is="c" v-for="[n, c] in ICONS" :key="n" :size="16" :title="n" />
+      </span>
+    </div>
     <AccountBlock
       :balance="totals.balance"
       :secured="totals.securedTotal"
@@ -123,6 +144,20 @@ body {
 </style>
 
 <style scoped>
+.harness__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
+  color: var(--text-primary);
+}
+.harness__icons {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  color: var(--text-primary);
+}
+
 .harness {
   display: flex;
   flex-direction: column;

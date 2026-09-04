@@ -40,6 +40,33 @@ function oklchToRgb(L: number, C: number, H: number): RGB {
   }
 }
 
+export interface OKLCH {
+  l: number
+  c: number
+  h: number
+}
+
+// The inverse of the transform above: sRGB → OKLCH. Needed because a theme can
+// name the two ends of a colour ramp and the steps between them have to be
+// walked somewhere the steps are perceptually even (section 29).
+export function toOklch({ r, g, b }: RGB): OKLCH {
+  const lin = (v: number) => {
+    const c = v / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  const R = lin(r)
+  const G = lin(g)
+  const B = lin(b)
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B)
+  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B)
+  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B)
+  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s
+  const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s
+  const Bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s
+  const h = (Math.atan2(Bb, A) * 180) / Math.PI
+  return { l: L, c: Math.hypot(A, Bb), h: h < 0 ? h + 360 : h }
+}
+
 export function parseColor(input: string): RGB {
   const s = input.trim()
   if (s.startsWith('#')) {

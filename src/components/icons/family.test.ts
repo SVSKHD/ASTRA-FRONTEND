@@ -27,6 +27,10 @@ const geometryOf = (file: string) =>
 // the whole tag, so a failure names the attribute that drifted.
 const FRAME = [
   'viewBox="0 0 24 24"',
+  // The marker a theme sets the weight through: CSS beats a presentation
+  // attribute, so `svg[data-family='trade'] { stroke-width: … }` can thicken the
+  // whole set on a ground where 1.5 reads as a hairline (section 29).
+  'data-family="trade"',
   'fill="none"',
   'stroke="currentColor"',
   'stroke-width="1.5"',

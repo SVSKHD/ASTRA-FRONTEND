@@ -110,6 +110,15 @@ export const tradeFormSchema = z.object({
     .trim()
     .min(1, 'Enter the symbol you traded.')
     .max(20, 'Keep a symbol under 20 characters.'),
+  // 24-hour, minute precision, IST — section 31. Required, because a trade
+  // with no time is a trade that cannot be placed in a session or an hour.
+  istTime: z
+    .string({ error: 'Enter the time you entered, in IST.' })
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter the entry time as HH:mm, 24-hour IST.'),
+  // Optional: plenty of trades are logged while they are still open.
+  exitTime: z
+    .string()
+    .regex(/^(([01]\d|2[0-3]):[0-5]\d)?$/, 'Enter the exit time as HH:mm, 24-hour IST.'),
   session: z.enum(['Asia', 'London', 'NY'], { error: 'Pick the session you traded in.' }),
   side: z.enum(['buy', 'sell'], { error: 'Pick Buy or Sell.' }),
   lot: z
