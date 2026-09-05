@@ -1,4 +1,5 @@
 dist
+functions/lib
 node_modules
 legacy-next
 package-lock.json

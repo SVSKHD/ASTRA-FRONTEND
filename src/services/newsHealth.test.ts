@@ -49,7 +49,15 @@ describe('the health record names all four stages', () => {
   })
 
   it('reports a dead URL as its status, and stops there', () => {
-    const line = healthLine({ ...base, status: 404, parsed: false, items: 0, usable: 0, written: 0, error: 'HTTP 404' })
+    const line = healthLine({
+      ...base,
+      status: 404,
+      parsed: false,
+      items: 0,
+      usable: 0,
+      written: 0,
+      error: 'HTTP 404',
+    })
     expect(line).toContain('FAIL HTTP 404')
     expect(line).toContain('404')
   })

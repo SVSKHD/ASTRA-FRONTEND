@@ -232,7 +232,9 @@ async function main() {
           await page.waitForSelector('[data-ready="true"]', { timeout: 20_000 })
 
           if (shot.open === 'setup') {
-            const setup = page.getByRole('button', { name: /Connect GitHub|Set up GitHub/i }).first()
+            const setup = page
+              .getByRole('button', { name: /Connect GitHub|Set up GitHub/i })
+              .first()
             if (await setup.count()) await setup.click()
           }
           if (shot.scroll === 'bottom') {

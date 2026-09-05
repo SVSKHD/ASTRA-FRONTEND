@@ -340,3 +340,13 @@ export { dacoitSignal } from './dacoit'
 // activity feature, and those are two others that happen to deploy beside it.
 export { pullNews, pullNewsNow, cleanupNews } from './news'
 export { githubEvent, githubSweep } from './github'
+// The guided setup (section 44, item 9): connect a token, pick repositories,
+// check the webhook, read the live status. The token is posted once to
+// `githubConnect` and never comes back out of it.
+export {
+  githubConnect,
+  githubDisconnect,
+  githubRepos,
+  githubStatus,
+  githubTestEvent,
+} from './githubSetup'

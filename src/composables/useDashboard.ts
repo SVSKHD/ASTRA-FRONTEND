@@ -93,7 +93,13 @@ export function useDashboard({ month, now }: DashboardInput) {
   const recentTrades = computed(() =>
     log.trades.value
       .slice()
-      .sort((a, b) => (a.istDate === b.istDate ? b.istTime.localeCompare(a.istTime) : a.istDate < b.istDate ? 1 : -1))
+      .sort((a, b) =>
+        a.istDate === b.istDate
+          ? b.istTime.localeCompare(a.istTime)
+          : a.istDate < b.istDate
+            ? 1
+            : -1,
+      )
       .slice(0, RECENT_TRADES),
   )
 

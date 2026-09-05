@@ -179,3 +179,88 @@ export function driftRepairs(
     .filter((row) => (row.state === 'open' || row.state === 'draft') && !live.has(row.number))
     .map((row) => row.id)
 }
+
+// ---------------------------------------------------------------------------
+// The guided setup (section 44, item 9).
+//
+// The scopes and the events live here rather than in prose in two places,
+// because the two places drift: the webhook handler already declares which five
+// events it handles, and a setup page that lists a sixth is a setup page that
+// tells somebody to configure a delivery nothing reads. `HANDLED_EVENTS` above
+// is the handler's list, and `WEBHOOK_EVENTS` below is derived from it — the UI
+// cannot get it wrong because it is not writing it down.
+
+/**
+ * The three permissions a fine-grained token needs, and nothing else.
+ *
+ * Every one of them is READ. This integration mirrors; it does not push, does
+ * not comment and does not merge, so a leak of a correctly-scoped token is a
+ * read of data the holder could already see — which is the whole reason the
+ * setup asks for a fine-grained token rather than a classic one with `repo`.
+ */
+export const REQUIRED_SCOPES = [
+  {
+    key: 'metadata',
+    label: 'Metadata',
+    access: 'Read-only',
+    why: 'Lists the repositories the token can see. Without it the other two are unusable and every sweep fails.',
+  },
+  {
+    key: 'pull_requests',
+    label: 'Pull requests',
+    access: 'Read-only',
+    why: 'The pull requests, their reviews and their comments — everything the Code tab shows.',
+  },
+  {
+    key: 'contents',
+    label: 'Contents',
+    access: 'Read-only',
+    why: 'The default branch and the last push time on each repository row.',
+  },
+] as const
+
+/** The five deliveries the webhook handler acts on. Derived, never retyped. */
+export const WEBHOOK_EVENTS = HANDLED_EVENTS
+
+export interface ConnectionFacts {
+  login: string
+  connectedAtMs: number
+  lastSyncAtMs: number
+  limit: number
+  remaining: number
+  resetAtMs: number
+}
+
+export interface Connection {
+  login: string
+  connectedAt: number
+  lastSyncAt: number
+  rateLimit: { limit: number; remaining: number; resetAt: number }
+  /** True when the quota is low enough that a sweep is about to start failing. */
+  low: boolean
+}
+
+/**
+ * What the panel is told about the connection.
+ *
+ * A function rather than an object literal at each call site, so there is one
+ * definition of the shape AND one definition of "low" — and, more to the point,
+ * one place that can be read to confirm the token itself is not in it. Every
+ * field here is a fact ABOUT the credential; none of them is the credential.
+ */
+export function describeConnection(facts: ConnectionFacts): Connection {
+  return {
+    login: facts.login,
+    connectedAt: facts.connectedAtMs,
+    lastSyncAt: facts.lastSyncAtMs,
+    rateLimit: {
+      limit: facts.limit,
+      remaining: facts.remaining,
+      resetAt: facts.resetAtMs,
+    },
+    // A tenth of the window. The sweep costs one conditional request per repo
+    // per quarter hour, so this is comfortably before anything breaks — which
+    // is when a warning is worth reading.
+    low: facts.limit > 0 && facts.remaining < facts.limit / 10,
+  }
+}

@@ -24,13 +24,7 @@ import LoadingStates from '@/dev/LoadingStates.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
-import {
-  seedDeadlines,
-  seedIdeas,
-  seedReminders,
-  seedTasks,
-  seedTodos,
-} from '@/dev/seedWorkspace'
+import { seedDeadlines, seedIdeas, seedReminders, seedTasks, seedTodos } from '@/dev/seedWorkspace'
 import { useSettings } from '@/composables/useSettings'
 import { useSignals } from '@/composables/useSignals'
 import { useTrades } from '@/composables/useTrades'

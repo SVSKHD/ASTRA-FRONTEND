@@ -19,6 +19,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import PullRow from '@/components/code/PullRow.vue'
 import CommentThread from '@/components/code/CommentThread.vue'
+import GithubSetup from '@/components/code/GithubSetup.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useGhThread } from '@/composables/useGhThread'
 import { useGithubLive } from '@/composables/useGithubLive'
@@ -36,6 +37,19 @@ const { flashing } = useRowFlash(live.touched)
 const openRepo = ref<number | null>(null)
 const openPull = ref<{ repoId: number; number: number } | null>(null)
 const thread = useGhThread(() => openPull.value)
+
+/**
+ * The guided setup (section 44, item 9).
+ *
+ * Open by default when nothing is tracked, because on the first visit the tab
+ * has nothing to show and the setup is the only thing worth being on it. Once a
+ * repository is tracked it folds away behind a button — a reader coming back to
+ * read a review does not want four numbered steps above it.
+ */
+const setupOpen = ref(false)
+const setupShown = computed(
+  () => setupOpen.value || (!settings.value.trackedRepos.length && !live.repos.value.length),
+)
 
 const adding = ref('')
 const addError = computed(() =>
@@ -81,11 +95,19 @@ const silent = computed(() =>
 
 <template>
   <div :style="panelStyle" :data-ready="ready && !live.loading.value ? 'true' : 'false'">
-    <ListToolbar title="Code" />
+    <ListToolbar title="Code">
+      <template #actions>
+        <Button variant="ghost" size="sm" @click="setupOpen = !setupOpen">
+          {{ setupShown ? 'Hide setup' : 'Set up GitHub' }}
+        </Button>
+      </template>
+    </ListToolbar>
 
     <Alert v-if="live.error.value" tone="danger">{{ live.error.value }}</Alert>
 
     <div class="cv__scroll">
+      <GithubSetup v-if="setupShown" />
+
       <section class="cv__track">
         <TextInput
           :model-value="adding"
@@ -100,14 +122,14 @@ const silent = computed(() =>
         <p v-if="addError" class="cv__note cv__error">{{ addError }}</p>
         <p v-else class="cv__note">
           Webhook events for an untracked repository are acknowledged and dropped. Adding one here
-          needs no redeploy.
+          needs no redeploy — or pick from what your token can see, in the setup above.
         </p>
       </section>
 
       <EmptyState
         v-if="!live.repos.value.length && !settings.trackedRepos.length"
         title="No repositories tracked"
-        description="Add one above, then point its webhook at /api/github/event. The sweep fills in the rest within fifteen minutes."
+        description="Work through the four steps above: a fine-grained token, the repositories to track, and the webhook. The sweep fills in the rest within fifteen minutes."
       />
 
       <ul v-else class="cv__repos">

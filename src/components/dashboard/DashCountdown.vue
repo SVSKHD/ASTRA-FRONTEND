@@ -30,7 +30,8 @@ const next = computed(() => clock.next.value)
 const label = computed(() => {
   const n = next.value
   if (!n) return ''
-  if (n.minutes >= 60) return `${Math.floor(n.minutes / 60)}h ${String(n.minutes % 60).padStart(2, '0')}m`
+  if (n.minutes >= 60)
+    return `${Math.floor(n.minutes / 60)}h ${String(n.minutes % 60).padStart(2, '0')}m`
   return `${n.minutes}m ${String(n.seconds).padStart(2, '0')}s`
 })
 

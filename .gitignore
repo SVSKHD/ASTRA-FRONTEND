@@ -7,6 +7,10 @@ node_modules
 
 # build output
 dist
+# the functions' compiled output. `firebase deploy` builds it from `functions/src`
+# through the predeploy hook, so a committed copy is only ever a stale one that
+# looks authoritative.
+functions/lib
 # harness output — the shots that matter go on the pull request
 screenshots
 dist-ssr

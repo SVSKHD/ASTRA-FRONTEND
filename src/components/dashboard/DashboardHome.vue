@@ -157,11 +157,7 @@ function ago(ms: number): string {
       </DashBlock>
 
       <!-- 6. Today's open Dacoit signals — GO, and not yet taken. -->
-      <DashBlock
-        title="Open signals today"
-        tab="trades"
-        :hint="String(d.openSignals.value.length)"
-      >
+      <DashBlock title="Open signals today" tab="trades" :hint="String(d.openSignals.value.length)">
         <template #icon><Icon name="bot" size="sm" /></template>
         <ul v-if="d.openSignals.value.length" class="dash__list">
           <li v-for="s in d.openSignals.value" :key="s.id" class="dash__row">

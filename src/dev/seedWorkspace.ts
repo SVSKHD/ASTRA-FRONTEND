@@ -91,7 +91,11 @@ export function seedTodos(): Todo[] {
     todo(5, 'Renew the data subscription'),
     todo(6, 'Move the standing order to the 3rd'),
     todo(7, 'Book the dentist'),
-    todo(8, 'Read the ECB statement properly', { status: 'done', done: true, completedAt: noon(SEED_TODAY) }),
+    todo(8, 'Read the ECB statement properly', {
+      status: 'done',
+      done: true,
+      completedAt: noon(SEED_TODAY),
+    }),
     todo(9, 'Close the stale PR on astra-frontend', {
       status: 'done',
       done: true,

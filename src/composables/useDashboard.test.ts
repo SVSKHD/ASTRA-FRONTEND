@@ -23,10 +23,7 @@ import { RECENT_HEADLINES, RECENT_TRADES } from '@/composables/useDashboard'
 import type { DacoitSignal, Expense, SecuredEntry, Trade } from '@/types'
 
 const SOURCE = readFileSync(resolve(__dirname, 'useDashboard.ts'), 'utf8')
-const HOME = readFileSync(
-  resolve(__dirname, '../components/dashboard/DashboardHome.vue'),
-  'utf8',
-)
+const HOME = readFileSync(resolve(__dirname, '../components/dashboard/DashboardHome.vue'), 'utf8')
 
 const TODAY = '2026-09-04'
 const at = (ymd: string, hhmm: string) => Date.parse(`${ymd}T${hhmm}:00+05:30`)
@@ -76,15 +73,45 @@ function signal(over: Partial<DacoitSignal> = {}): DacoitSignal {
 
 const TRADES = [
   trade({ id: 't1', move: 4, pl: 400 }),
-  trade({ id: 't2', istDate: '2026-09-02', istTime: '09:10', move: -1.5, pl: -150, entryAt: at('2026-09-02', '09:10') }),
-  trade({ id: 't3', istDate: '2026-09-03', istTime: '18:20', move: 2.25, pl: 225, entryAt: at('2026-09-03', '18:20') }),
+  trade({
+    id: 't2',
+    istDate: '2026-09-02',
+    istTime: '09:10',
+    move: -1.5,
+    pl: -150,
+    entryAt: at('2026-09-02', '09:10'),
+  }),
+  trade({
+    id: 't3',
+    istDate: '2026-09-03',
+    istTime: '18:20',
+    move: 2.25,
+    pl: 225,
+    entryAt: at('2026-09-03', '18:20'),
+  }),
 ]
 const SECURED: SecuredEntry[] = [
   { id: 'x', userId: 'u', date: '2026-09-01', amt: 500, note: '', createdAt: 0 },
 ]
 const EXPENSES = [
-  { id: 'e1', userId: 'u', date: '2026-09-01', amount: 1200, kind: 'one-off', note: '', category: 'data' },
-  { id: 'e2', userId: 'u', date: '2026-09-03', amount: 800, kind: 'one-off', note: '', category: 'data' },
+  {
+    id: 'e1',
+    userId: 'u',
+    date: '2026-09-01',
+    amount: 1200,
+    kind: 'one-off',
+    note: '',
+    category: 'data',
+  },
+  {
+    id: 'e2',
+    userId: 'u',
+    date: '2026-09-03',
+    amount: 800,
+    kind: 'one-off',
+    note: '',
+    category: 'data',
+  },
 ] as unknown as Expense[]
 
 describe('the figures are the tabs’ own', () => {
