@@ -11,7 +11,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
 import { useGoalToday } from '@/composables/useGoalToday'
 import GoalMetricChart from '@/components/GoalMetricChart.vue'
@@ -147,7 +147,7 @@ function outcomeText(hit: boolean, missed: boolean) {
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     marginLeft: 'auto',
-    color: missed ? 'oklch(0.64 0.22 25)' : hit ? 'oklch(0.72 0.15 150)' : 'oklch(0.8 0.16 72)',
+    color: missed ? DANGER : hit ? SUCCESS : WARNING,
   })
 }
 const pendingHint = computed(() =>

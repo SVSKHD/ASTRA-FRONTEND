@@ -12,7 +12,7 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep, type Style } from '@/styles'
+import { DANGER, pxify, type Style, typeStep } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import TagPicker from '@/components/TagPicker.vue'
 // Leaflet is ~43KB gzipped and only ever needed once a trip's map is on screen,
@@ -334,7 +334,7 @@ const dangerBtn = computed(() =>
     borderRadius: 'var(--radius-card)',
     border: '1px solid ' + c.value.border,
     background: 'transparent',
-    color: '#f87171',
+    color: DANGER,
     cursor: 'pointer',
   }),
 )

@@ -9,7 +9,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useLinkedItems, type LinkedRow } from '@/composables/useLinkedItems'
-import { pxify, typeStep } from '@/styles'
+import { SUCCESS, pxify, typeStep } from '@/styles'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import type { LinkCollection } from '@/types'
@@ -94,8 +94,8 @@ function dotStyle(done: boolean) {
     height: 14,
     flexShrink: 0,
     borderRadius: '50%',
-    border: '1.5px solid ' + (done ? 'oklch(0.72 0.15 150)' : c.value.border),
-    background: done ? 'oklch(0.72 0.15 150)' : 'transparent',
+    border: '1.5px solid ' + (done ? SUCCESS : c.value.border),
+    background: done ? SUCCESS : 'transparent',
     display: 'grid',
     placeItems: 'center',
   })
@@ -131,8 +131,8 @@ const promptStyle = computed(() =>
     gap: 'var(--sp-3)',
     padding: '10px 12px',
     borderRadius: 'var(--radius-card)',
-    background: 'color-mix(in oklch, oklch(0.72 0.15 150) 14%, transparent)',
-    border: '1px solid oklch(0.72 0.15 150)',
+    background: `color-mix(in oklch, ${SUCCESS} 14%, transparent)`,
+    border: '1px solid ' + SUCCESS,
     ...typeStep('xs'),
     color: c.value.text,
   }),
@@ -144,8 +144,11 @@ const confirmBtn = computed(() =>
     padding: '6px 12px',
     borderRadius: 'var(--radius-pill)',
     border: 'none',
-    background: 'oklch(0.72 0.15 150)',
-    color: '#08130c',
+    background: SUCCESS,
+    // The ink on a filled token, from the theme rather than a literal near-black:
+    // on a pale success colour a near-black is right and on a dark one it is not,
+    // and only the theme knows which it has.
+    color: 'var(--theme-on-accent)',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   }),

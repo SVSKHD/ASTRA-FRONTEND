@@ -13,7 +13,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import { formatMinor, parseMoney, signTone, valueColor } from '@/utils/money'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Tabs from '@/components/ui/Tabs.vue'
@@ -60,9 +60,11 @@ const router = useRouter()
 
 defineExpose({ focus: () => {} })
 
-const GOOD = 'oklch(0.72 0.15 150)'
-const AMBER = 'oklch(0.8 0.16 72)'
-const RED = 'oklch(0.64 0.22 25)'
+// Tokens, not literals (section 44, item 10): derived per theme, and
+// achromatic on the two themes that carry status by weight instead of hue.
+const GOOD = SUCCESS
+const AMBER = WARNING
+const RED = DANGER
 
 // --- scope + month + sub-tab (URL-synced) ----------------------------------
 const CURRENT = currentMonthKey()

@@ -9,7 +9,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useReminderClock } from '@/composables/useReminderClock'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, pxify, typeStep } from '@/styles'
 import { upcomingReminders, countdownClock, relLabel, SOON_MS } from '@/utils/upcoming'
 
 const app = useAppStore()
@@ -29,7 +29,7 @@ const bigLabel = computed(() => {
 })
 
 const accent = computed(() => c.value.accent)
-const danger = computed(() => (dark.value ? 'oklch(0.68 0.2 25)' : 'oklch(0.58 0.2 25)'))
+const danger = computed(() => DANGER)
 
 const tileStyle = computed(() =>
   pxify({

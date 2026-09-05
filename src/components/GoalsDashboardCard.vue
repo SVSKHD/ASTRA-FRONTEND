@@ -12,7 +12,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
 import { captureOutcome } from '@/utils/goalMetrics'
@@ -25,9 +25,10 @@ const { c } = useStyles()
 const { goals, goalOccurrences, cloudReady } = storeToRefs(app)
 const { user } = storeToRefs(auth)
 
-const AMBER = 'oklch(0.8 0.16 72)'
-const RED = 'oklch(0.64 0.22 25)'
-const GREEN = 'oklch(0.72 0.15 150)'
+// Tokens, not literals (section 44, item 10).
+const AMBER = WARNING
+const RED = DANGER
+const GREEN = SUCCESS
 
 // --- today's recurring goals (task 11) ---------------------------------------
 const dailies = computed(() => {

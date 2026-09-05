@@ -15,7 +15,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useMovePending, type CollectionKey } from '@/composables/useMovePending'
-import { pxify, typeStep } from '@/styles'
+import { SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const props = defineProps<{ collection: CollectionKey }>()
@@ -86,11 +86,7 @@ async function run() {
 
 // --- styles -----------------------------------------------------------------
 const fillColor = computed(() =>
-  phase.value === 'success'
-    ? 'oklch(0.72 0.15 150)'
-    : phase.value === 'fail'
-      ? 'oklch(0.78 0.16 72)'
-      : c.value.accent,
+  phase.value === 'success' ? SUCCESS : phase.value === 'fail' ? WARNING : c.value.accent,
 )
 const running = computed(() => phase.value === 'running')
 

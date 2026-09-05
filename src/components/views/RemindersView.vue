@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { merge, pxify, rowBase, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, merge, pxify, rowBase, typeStep } from '@/styles'
 import { occurrences, repFreqLabel } from '@/utils/reminders'
 import { splitList } from '@/utils/listSplit'
 import { useLongList } from '@/composables/useLongList'
@@ -29,9 +29,9 @@ defineExpose({ focus: () => app.openCreate('reminder') })
 
 const PRIORITY_LABEL: Record<Priority, string> = { high: 'High', normal: 'Normal', low: 'Low' }
 function priorityColor(p: Priority): string {
-  if (p === 'high') return dark.value ? 'oklch(0.72 0.18 25)' : 'oklch(0.58 0.19 25)'
+  if (p === 'high') return DANGER
   if (p === 'low') return c.value.dim
-  return dark.value ? 'oklch(0.78 0.13 88)' : 'oklch(0.62 0.13 70)'
+  return WARNING
 }
 
 // A reminder is "done" once acknowledged or cancelled — the done/not-done split
@@ -88,12 +88,12 @@ function toView(r: Reminder): RemView {
   const syncColor =
     r.calSync === 'synced'
       ? dark.value
-        ? 'oklch(0.75 0.14 145)'
-        : 'oklch(0.6 0.14 145)'
+        ? SUCCESS
+        : SUCCESS
       : r.calSync === 'error'
         ? dark.value
-          ? 'oklch(0.72 0.18 25)'
-          : 'oklch(0.58 0.19 25)'
+          ? DANGER
+          : DANGER
         : c.value.dim
   const at = doneAt(r)
   return {

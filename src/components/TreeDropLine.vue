@@ -7,6 +7,7 @@
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { INDENT_PX } from '@/composables/useTreeDrag'
+import { DANGER } from '@/styles'
 
 const props = defineProps<{
   side: 'above' | 'below'
@@ -17,7 +18,7 @@ const props = defineProps<{
 }>()
 
 const { c } = useStyles()
-const color = computed(() => (props.valid ? c.value.accent : 'oklch(0.64 0.22 25)'))
+const color = computed(() => (props.valid ? c.value.accent : DANGER))
 const left = computed(() => (props.baseInset ?? 0) + props.indentDepth * INDENT_PX)
 
 const lineStyle = computed(() => ({

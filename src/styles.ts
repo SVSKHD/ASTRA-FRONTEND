@@ -3,6 +3,7 @@ import type { Theme } from '@/themes'
 import type { ItemStatus } from '@/types'
 import { tagColor } from '@/utils/tags'
 import { surfacePair } from '@/themes/surfacePair'
+import { statusToken } from '@/themes/status'
 import { monoPatternCss, monoPatternFor } from '@/utils/mono'
 import type { ShortStep, TypeStep } from '@/components/ui/type'
 
@@ -84,6 +85,29 @@ export const dataText: Style = {
 // thing again. Opacity fades the strike with the text, so the row recedes
 // evenly instead of leaving a hard line across pale words.
 export const DONE_OPACITY = 0.55
+
+// ---------------------------------------------------------------------------
+// The status colours, as tokens rather than as literals (section 44, item 10).
+//
+// `--theme-danger`, `--theme-success` and `--theme-warning` are DERIVED per
+// theme by `themes/status.ts` and written to the document by `applyThemeToDom`:
+// each one is walked towards the page until it clears 4.5:1 against that
+// theme's own ground, and on a zero-chroma theme all three collapse to the
+// theme's text so status is carried by weight and glyph instead of by hue.
+//
+// None of that reaches a component that writes `oklch(0.64 0.22 25)` into an
+// inline style. Such a value is a red picked once, against one ground, that
+// then appears unchanged on all nineteen themes — including the two designed
+// to have no hue at all. The audit found these scattered across a dozen views,
+// each defensible where it was written and none of them following the theme.
+//
+// So they are named here, once, as the variable references components use.
+// Referencing the custom property rather than calling `statusToken(theme, …)`
+// is deliberate: the value then follows a theme change through the browser's
+// own cascade, with no component needing to be reactive to it.
+export const DANGER = 'var(--theme-danger)'
+export const SUCCESS = 'var(--theme-success)'
+export const WARNING = 'var(--theme-warning)'
 
 export function doneText(done: boolean): Style {
   return done ? { textDecoration: 'line-through', opacity: DONE_OPACITY } : {}
@@ -1437,7 +1461,19 @@ export function statusColor(c: Theme, status: ItemStatus): string {
   if (status === 'done') return c.accent
   // In-progress is the one status carrying a hue of its own; under a mono theme
   // it becomes a neutral and the pill's border weight does the distinguishing.
-  if (status === 'progress') return c.mono ? c.text : 'oklch(0.75 0.16 75)'
+  // `statusToken`, not the `var(--theme-warning)` reference the components use.
+  //
+  // This function is handed the theme, so it can RESOLVE the colour rather than
+  // defer it — which matters because the mono guarantee (a zero-chroma theme
+  // carries status by weight and glyph, never by hue) is asserted by a test that
+  // reads what this returns. A `var()` string is achromatic to a parser and
+  // chromatic on screen, so deferring here would have made a real rule
+  // untestable while looking like it still held.
+  //
+  // `statusToken` already does the `c.mono` branch this used to do by hand, and
+  // derives the amber against each theme's own ground instead of using one
+  // literal picked against one.
+  if (status === 'progress') return statusToken(c, 'warning')
   return c.dim
 }
 

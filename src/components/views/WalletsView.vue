@@ -12,7 +12,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, WARNING, pxify, typeStep } from '@/styles'
 import { copyText } from '@/utils/clipboard'
 import { CHAINS, chainDef, chainName, explorerUrl } from '@/utils/chains'
 import { chainMismatch, copyVerification, rejectSecret, truncateAddress } from '@/utils/address'
@@ -269,15 +269,15 @@ const defaultChip = computed(() =>
       />
       <TextInput placeholder="Notes (optional)" v-model="form.notes" />
 
-      <div v-if="secretWarning" :style="warnBox('oklch(0.65 0.22 25)')">
+      <div v-if="secretWarning" :style="warnBox(DANGER)">
         <strong>{{ secretWarning }}.</strong> Nothing you typed has been saved. This app only ever
         stores public addresses.
       </div>
-      <div v-else-if="mismatch.length" :style="warnBox('oklch(0.75 0.16 65)')">
+      <div v-else-if="mismatch.length" :style="warnBox(WARNING)">
         That looks like a {{ mismatch.map((m) => chainName(m)).join(' / ') }} address, not
         {{ chainName(form.chain) }}. Check before saving.
       </div>
-      <div v-if="formError" :style="warnBox('oklch(0.65 0.22 25)')">{{ formError }}</div>
+      <div v-if="formError" :style="warnBox(DANGER)">{{ formError }}</div>
 
       <div :style="s.dialogActions">
         <button :style="s.saveBtn" @click="onSave">Save wallet</button>
@@ -356,7 +356,7 @@ const defaultChip = computed(() =>
               v-model="editDraft.memoTag"
             />
             <TextInput placeholder="Notes" v-model="editDraft.notes" />
-            <div v-if="editError" :style="warnBox('oklch(0.65 0.22 25)')">{{ editError }}</div>
+            <div v-if="editError" :style="warnBox(DANGER)">{{ editError }}</div>
             <div :style="s.dialogActions">
               <button :style="s.saveBtn" @click="saveEdit(wallet)">Save</button>
               <button :style="s.editBtn" @click="editingId = null">Cancel</button>
@@ -379,7 +379,7 @@ const defaultChip = computed(() =>
           </template>
 
           <!-- delete confirmation, naming the wallet -->
-          <div v-if="confirmingId === wallet.id" :style="warnBox('oklch(0.65 0.22 25)')">
+          <div v-if="confirmingId === wallet.id" :style="warnBox(DANGER)">
             Delete "{{ wallet.label }}"? The address is only removed from this list.
             <button :style="s.cancelBtn" @click="reallyDelete(wallet)">Delete</button>
             <button :style="s.editBtn" @click="confirmingId = null">Keep</button>

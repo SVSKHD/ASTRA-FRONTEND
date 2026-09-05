@@ -16,7 +16,7 @@ import { useAccordionState } from '@/composables/useAccordionState'
 import { useTreeDrag, INDENT_PX, type TreeCollection } from '@/composables/useTreeDrag'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
-import { doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
+import { DANGER, WARNING, doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
 import TreeDropLine from '@/components/TreeDropLine.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -217,7 +217,7 @@ function showLine(id: number, side: 'above' | 'below') {
 function nestStyle(id: number) {
   const t = ts(id)
   if (!t.active || t.mode !== 'nest') return {}
-  const col = t.valid ? c.value.accent : 'oklch(0.64 0.22 25)'
+  const col = t.valid ? c.value.accent : DANGER
   return {
     outline: '2px solid ' + col,
     outlineOffset: '1px',
@@ -332,8 +332,8 @@ const conflictBadge = computed(() =>
     textTransform: 'uppercase',
     padding: '2px 6px',
     borderRadius: 'var(--radius-control)',
-    color: 'oklch(0.7 0.18 60)',
-    border: '1px solid oklch(0.7 0.18 60)',
+    color: WARNING,
+    border: '1px solid ' + WARNING,
     background: 'transparent',
     cursor: 'pointer',
     flexShrink: 0,

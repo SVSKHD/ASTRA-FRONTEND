@@ -617,10 +617,10 @@ defineExpose({
   font-weight: var(--weight-semibold);
 }
 .tdb__chip--overdue {
-  color: oklch(0.64 0.22 25);
+  color: var(--theme-danger);
 }
 .tdb__chip--today {
-  color: oklch(0.72 0.16 55);
+  color: var(--theme-warning);
 }
 .tdb__chip--ahead {
   color: var(--theme-dim);

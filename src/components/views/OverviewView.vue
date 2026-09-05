@@ -29,7 +29,7 @@ import { botDisplayStatus } from '@/utils/bots'
 import { debtSummary, monthTotals } from '@/utils/finance'
 import { useStyles } from '@/composables/useStyles'
 import { useMonthlyOverview } from '@/composables/useMonthlyOverview'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import { formatMinor } from '@/utils/money'
 import { bucketPct, type Bucket, type MonthlyOverview } from '@/utils/overview'
 import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
@@ -89,9 +89,12 @@ function resetToCurrent() {
 const { overview, previous } = useMonthlyOverview(monthKey)
 
 // --- cards ------------------------------------------------------------------
-const GREEN = 'oklch(0.72 0.15 150)'
-const AMBER = 'oklch(0.8 0.16 72)'
-const RED = 'oklch(0.64 0.22 25)'
+// The three status colours as TOKENS (section 44, item 10). They were three
+// literals picked once against one ground and then shown unchanged on all
+// nineteen themes, including the two that are meant to have no hue at all.
+const GREEN = SUCCESS
+const AMBER = WARNING
+const RED = DANGER
 const monthName = computed(() => monthLabel(monthKey.value).split(' ')[0])
 
 interface CardModel {

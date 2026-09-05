@@ -272,19 +272,19 @@ const percent = computed(() => ringPercent(props.ratio))
   font-weight: var(--weight-medium);
 }
 .gcard__chip--overdue {
-  color: oklch(0.64 0.22 25);
+  color: var(--theme-danger);
 }
 .gcard__chip--today {
-  color: oklch(0.72 0.16 55);
+  color: var(--theme-warning);
 }
 .gcard__badge--active {
-  color: oklch(0.7 0.15 155);
+  color: var(--theme-success);
 }
 .gcard__badge--paused {
-  color: oklch(0.75 0.13 80);
+  color: var(--theme-warning);
 }
 .gcard__badge--done {
-  color: oklch(0.7 0.13 250);
+  color: var(--accent, var(--theme-accent));
 }
 .gcard__badge--archived {
   color: var(--theme-dim);

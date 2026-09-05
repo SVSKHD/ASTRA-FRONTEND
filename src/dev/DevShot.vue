@@ -18,6 +18,14 @@ import ExpensesView from '@/components/views/ExpensesView.vue'
 import NewsView from '@/components/views/NewsView.vue'
 import CodeView from '@/components/views/CodeView.vue'
 import TodoView from '@/components/views/TodoView.vue'
+import TasksView from '@/components/views/TasksView.vue'
+import RemindersView from '@/components/views/RemindersView.vue'
+import DeadlinesView from '@/components/views/DeadlinesView.vue'
+import FinancesView from '@/components/views/FinancesView.vue'
+import GoalsView from '@/components/views/GoalsView.vue'
+import IdeasView from '@/components/views/IdeasView.vue'
+import BotsView from '@/components/views/BotsView.vue'
+import WalletsView from '@/components/views/WalletsView.vue'
 import OverviewView from '@/components/views/OverviewView.vue'
 import AppShell from '@/components/shell/AppShell.vue'
 import LoadingStates from '@/dev/LoadingStates.vue'
@@ -72,6 +80,17 @@ const VIEWS = {
   // used to sit on top of.
   overview: OverviewView,
   todo: TodoView,
+  // The rest of the tabs, mounted here only so the colour audit (section 44,
+  // item 10) can render every view under two opposite themes and diff what
+  // moved. They are not in the screenshot set.
+  tasks: TasksView,
+  reminders: RemindersView,
+  deadlines: DeadlinesView,
+  finances: FinancesView,
+  goals: GoalsView,
+  ideas: IdeasView,
+  bots: BotsView,
+  wallets: WalletsView,
   // The five loading and glass states on one page (section 43, item 10).
   states: LoadingStates,
   trades: TradesView,

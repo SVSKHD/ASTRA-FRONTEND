@@ -7,7 +7,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useDragNest } from '@/composables/useDragNest'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, pxify, typeStep } from '@/styles'
 import { LINK_REJECTION_MESSAGE, type LinkRejection } from '@/utils/links'
 
 const { c } = useStyles()
@@ -50,7 +50,7 @@ const pill = computed(() =>
     background: c.value.glass,
     backdropFilter: 'blur(20px) saturate(1.5)',
     '-webkit-backdrop-filter': 'blur(20px) saturate(1.5)',
-    border: '1px solid ' + (invalid.value ? 'oklch(0.64 0.22 25)' : c.value.accent),
+    border: '1px solid ' + (invalid.value ? DANGER : c.value.accent),
     boxShadow: c.value.shadow,
     opacity: 0.96,
   }),
@@ -73,7 +73,7 @@ const reasonPill = computed(() =>
     fontWeight: 'var(--weight-semibold)',
     padding: '3px 8px',
     borderRadius: 'var(--radius-pill)',
-    background: 'oklch(0.64 0.22 25)',
+    background: DANGER,
     color: '#fff',
   }),
 )
