@@ -1233,15 +1233,41 @@ export interface NewsItem {
 }
 
 /** What the last pull found, per feed — the answer to "is that source alive". */
+/**
+ * What one feed did on one run (section 39, extended in 44).
+ *
+ * The four stages are recorded separately because they fail separately and each
+ * needs a different fix: a 404 is a dead URL, a 200 that did not parse is a
+ * publisher serving an HTML page where the XML used to be, items with no
+ * `usable` count is a feed of untitled or unlinked entries, and `usable` with no
+ * `written` is a Firestore write that failed.
+ *
+ * `written` is the count that ACTUALLY REACHED `forex`, set only after the
+ * commit resolved. It used to be the number of documents built, which meant a
+ * run whose every write failed still reported nineteen healthy feeds.
+ */
 export interface FeedHealth {
   source: string
   url: string
   category: string
+  /** The HTTP status. 0 means the request never completed at all. */
   status: number
+  /** Did the body parse as a feed? */
+  parsed?: boolean
+  /** Items the feed returned. */
   items: number
+  /** Of those, the ones with both a title and a link. */
+  usable?: number
+  /** Documents committed to `forex`. */
   written: number
   error: string
+  /** How long the fetch and parse took. */
+  ms?: number
   at: number
+  /** Consecutive failed runs. Reset to zero the moment the feed answers. */
+  fails?: number
+  /** True when the run did not fetch it, because it is in the penalty box. */
+  skipped?: boolean
 }
 
 export type PullState = 'open' | 'draft' | 'merged' | 'closed'
