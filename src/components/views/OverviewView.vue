@@ -1,8 +1,25 @@
 <script setup lang="ts">
-// The Overview tab: a month selector driving four fulfilment cards
-// (Tasks / Todos / Reminders / Finances) and a per-metric comparison against
-// the previous month. One monthKey ref drives everything; it persists to the
-// URL (?month=YYYY-MM) and localStorage so a reload keeps the view.
+// The Dashboard — the tab the app opens on, and the one place every other tab
+// is visible from (section 44, item 6).
+//
+// TWO HALVES, IN THIS ORDER.
+//
+//   The home screen first: today's move against the daily target, month to date
+//   against the monthly one, the account, the session countdown, the last five
+//   trades, today's open signals, the month's expenses, the open pull requests
+//   and the latest headlines. Nine blocks, nine links, no arithmetic of their
+//   own — every figure comes from the same composable and the same pure
+//   function its own tab uses, via `useDashboard`.
+//
+//   Then the month's fulfilment: the Tasks / Todos / Reminders / Finances cards
+//   and the comparison against the previous month, which is what this tab was
+//   before and is still the right thing to have under the day's numbers. One
+//   monthKey ref drives it; it persists to the URL (?month=YYYY-MM) and
+//   localStorage so a reload keeps the view.
+//
+// The home blocks read the CURRENT month whatever the picker says. That is on
+// purpose: "today's move" and "the next session" are about now, and a picker
+// scrolled back to March must not quietly restate March's Tuesday as today.
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
@@ -16,6 +33,7 @@ import { pxify, typeStep } from '@/styles'
 import { formatMinor } from '@/utils/money'
 import { bucketPct, type Bucket, type MonthlyOverview } from '@/utils/overview'
 import { currentMonthKey, monthLabel, shiftMonth } from '@/utils/budget'
+import DashboardHome from '@/components/dashboard/DashboardHome.vue'
 import MonthPicker from '@/components/MonthPicker.vue'
 import OverviewUpNext from '@/components/OverviewUpNext.vue'
 import GoalsDashboardCard from '@/components/GoalsDashboardCard.vue'
@@ -24,6 +42,7 @@ import WalletsDashboardCard from '@/components/WalletsDashboardCard.vue'
 import type { TabKey } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 import type { IconName } from '@/components/ui/icons'
+import ListToolbar from '@/components/ListToolbar.vue'
 
 const ui = useUiStore()
 const { c, panelStyle } = useStyles()
@@ -350,6 +369,11 @@ function cardIcon(key: string): IconName {
 
 <template>
   <div :style="panelStyle">
+    <ListToolbar title="Dashboard" />
+
+    <DashboardHome />
+
+    <!-- Everything below is the month on the picker, not today. -->
     <div :style="headerRow">
       <MonthPicker v-model="monthKey" />
       <button v-if="!isCurrent" type="button" :style="resetChip" @click="resetToCurrent">
