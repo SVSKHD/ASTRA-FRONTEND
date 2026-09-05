@@ -63,18 +63,70 @@ account menu.
 
 ## Scripts
 
-| Script               | Description                         |
-| -------------------- | ----------------------------------- |
-| `npm run dev`        | Start the Vite dev server           |
-| `npm run build`      | Type-check and build for production |
-| `npm run preview`    | Preview the production build        |
-| `npm run type-check` | Run `vue-tsc` only                  |
+| Script                  | Description                                                    |
+| ----------------------- | -------------------------------------------------------------- |
+| `npm run dev`           | Start the Vite dev server                                      |
+| `npm run build`         | Verify (format, lint, types, tests) and build for production   |
+| `npm run preview`       | Preview the production build                                   |
+| `npm run type-check`    | Run `vue-tsc` only                                             |
+| `npm run dev:fixture`   | Dev server serving the deterministic seed from memory          |
+| `npm run shoot`         | The screenshot set — every mode, both themes, 1440px and 390px |
+| `npm run check:overlap` | Does any chrome element sit on top of content? (section 44)    |
+| `npm run check:theme`   | Which painted colours do NOT move when the theme does?         |
+| `npm run check:feeds`   | Which news feeds are actually alive?                           |
+
+The last three drive a real browser against a running dev server, which is why
+they are not part of `npm run verify`. Start `npm run dev:fixture` first:
+
+```sh
+npm run dev:fixture &
+npm run check:overlap    # 16/16 clean
+npm run check:theme      # 0 stuck declarations
+```
+
+`check:feeds` needs open outbound HTTPS. In a sandbox whose egress policy blocks
+general web hosts every row comes back `blocked` — a fact about the machine, not
+a verdict on the feed — and the script says so rather than marking them dead.
 
 ## Notes
 
 - GitHub repo/PR/issue data is currently mocked (deterministic per repo name);
   the real GitHub API calls are marked with comments where they would slot in.
 - The previous Next.js/React app has been moved to [`legacy-next/`](./legacy-next).
+
+## The Cloud Functions have to be deployed
+
+`netlify.toml` builds and publishes the Vite front end and nothing else. The
+scheduled functions — `pullNews`, `githubSweep`, `cleanupNews`,
+`purgeExpiredActivity` — exist only once somebody has run
+`firebase deploy --only functions`, and a scheduled function that was never
+deployed has no Cloud Scheduler job behind it, has never run, and leaves its
+collection empty in a way that reads from the app like a broken feature.
+
+That is why the News tab returned nothing.
+[`.github/workflows/deploy-functions.yml`](.github/workflows/deploy-functions.yml)
+now deploys them on a push that touches `functions/`, the rules or the indexes,
+and prints `functions:list` afterwards so a deploy that scheduled nothing is
+visible. Its header lists the one-time service account and secrets it needs.
+
+To check the news pipeline without waiting for the schedule: open the News tab,
+press **Feeds**, then **Run a pull now**. Every feed reports its HTTP status,
+whether the body parsed, how many items came back and how many documents
+actually reached the `forex` collection.
+
+## Connecting GitHub
+
+Open the **Code** tab and press **Set up GitHub**. Four numbered steps: a
+fine-grained token with `metadata`, `pull_requests` and `contents` at read-only;
+paste it once (it goes straight to the Cloud Function and is never stored in the
+browser, and the rules deny the collection it lands in to every client); pick the
+repositories to track; add the webhook. **Send test event** posts a signed ping
+to the deployed endpoint and reports whether the URL and the server-side secret
+agree.
+
+The webhook secret itself is still set once with
+`firebase functions:secrets:set GITHUB_WEBHOOK_SECRET` — the app cannot read it,
+which is the point of it being a secret.
 
 ## AI tab — aiProxy Cloud Function contract
 
