@@ -9,7 +9,7 @@ import TextInput from '@/components/ui/TextInput.vue'
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useSyncGuard } from '@/composables/useSyncGuard'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import { captureOutcome, type Metric } from '@/utils/goalMetrics'
 
 const props = defineProps<{
@@ -98,7 +98,7 @@ const outcomeStyle = computed(() =>
   pxify({
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
-    color: outcome.value.hit ? 'oklch(0.72 0.15 150)' : 'oklch(0.8 0.16 72)',
+    color: outcome.value.hit ? SUCCESS : WARNING,
   }),
 )
 const rowBtns = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
@@ -133,9 +133,9 @@ const missedBtn = computed(() =>
     fontWeight: 'var(--weight-semibold)',
     padding: '4px 8px',
     borderRadius: 'var(--radius-pill)',
-    border: '1px solid oklch(0.64 0.22 25)',
+    border: '1px solid ' + DANGER,
     background: 'transparent',
-    color: 'oklch(0.64 0.22 25)',
+    color: DANGER,
     cursor: 'pointer',
     alignSelf: 'flex-start',
   }),

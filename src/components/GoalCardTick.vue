@@ -93,9 +93,9 @@ const {
   white-space: nowrap;
 }
 .gct__label--hit {
-  color: oklch(0.72 0.15 150);
+  color: var(--theme-success);
 }
 .gct__label--short {
-  color: oklch(0.8 0.16 72);
+  color: var(--theme-warning);
 }
 </style>

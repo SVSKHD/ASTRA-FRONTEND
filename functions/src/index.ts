@@ -338,5 +338,15 @@ export { dacoitSignal } from './dacoit'
 // The news pipeline (section 39) and the live GitHub integration (section 40).
 // Both are here rather than in `index.ts` itself: this file is the device
 // activity feature, and those are two others that happen to deploy beside it.
-export { pullNews, cleanupNews } from './news'
+export { pullNews, pullNewsNow, cleanupNews } from './news'
 export { githubEvent, githubSweep } from './github'
+// The guided setup (section 44, item 9): connect a token, pick repositories,
+// check the webhook, read the live status. The token is posted once to
+// `githubConnect` and never comes back out of it.
+export {
+  githubConnect,
+  githubDisconnect,
+  githubRepos,
+  githubStatus,
+  githubTestEvent,
+} from './githubSetup'

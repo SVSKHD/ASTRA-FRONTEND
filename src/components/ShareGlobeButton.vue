@@ -13,7 +13,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useShareLink } from '@/composables/useShareLink'
 import { useConnectivity } from '@/composables/useConnectivity'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, pxify, typeStep } from '@/styles'
 import type { ItemType, Shareable } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 import type { IconSize } from '@/components/ui/icons'
@@ -239,7 +239,7 @@ function menuItemStyle() {
 const menuHover = computed(() => ({ background: c.value.card }))
 // A warm red for the destructive action, distinct from the accent so "Stop
 // sharing" never blends into the two safe items above it.
-const dangerColor = 'oklch(0.66 0.17 25)'
+const dangerColor = DANGER
 </script>
 
 <template>

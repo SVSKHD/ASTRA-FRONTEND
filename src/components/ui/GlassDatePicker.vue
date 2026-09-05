@@ -108,7 +108,8 @@ const props = withDefaults(
     max: null,
     firstDayOfWeek: 1,
     clearable: true,
-    placeholder: 'Pick a date',
+    // Left undefined so the default can depend on `mode`; see `placeholderText`.
+    placeholder: undefined,
     size: 'md',
     inline: false,
     disabled: false,
@@ -150,6 +151,21 @@ const showPanel = computed(() => props.inline || picker.open.value)
 const displayText = computed(
   () => formatDisplay(props.mode, (props.modelValue as string | DateRange) ?? null) || '',
 )
+/**
+ * The empty-state text, which depends on what is being picked.
+ *
+ * A time field read "Pick a date". One default for four modes is one default
+ * that is wrong for three of them, and the one it was wrong for is the field
+ * beside "Entry time" on the trade form — where a trader glancing at "Pick a
+ * date" has to work out that it means the exit time is optional.
+ */
+const placeholderText = computed(() => {
+  if (props.placeholder) return props.placeholder
+  if (props.mode === 'time') return 'Pick a time'
+  if (props.mode === 'datetime') return 'Pick a date and time'
+  if (props.mode === 'range') return 'Pick a range'
+  return 'Pick a date'
+})
 const showTimeColumn = computed(() => props.mode === 'datetime' || props.mode === 'time')
 const showGrid = computed(() => props.mode !== 'time')
 
@@ -337,7 +353,7 @@ const painted = computed(() => Object.keys(props.dayMeta ?? {}).length > 0)
       :aria-expanded="picker.open.value"
       @click="togglePanel"
     >
-      <span class="gdp__value">{{ displayText || placeholder }}</span>
+      <span class="gdp__value">{{ displayText || placeholderText }}</span>
       <span
         v-if="clearable && displayText && !disabled"
         class="gdp__clear"

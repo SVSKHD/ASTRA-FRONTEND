@@ -1,11 +1,16 @@
 <script setup lang="ts">
-// The floating icon dock — a detached glass capsule that replaces the flat
-// sidebar. Icon-only, no labels: it is a vertical carousel (horizontal at the
+// The icon dock. Icon-only, no labels: a vertical carousel (horizontal at the
 // bottom on phones) showing five icons at a time, the active one centered,
 // largest and glowing, its neighbours scaled and faded with distance. The wheel,
 // a drag, or ↑/↓ rotate it; it wraps around. Labels are communicated by hover
 // tooltips. Ordering comes from tabs.config so the dock and everything else
 // agree.
+//
+// IT IS NO LONGER FIXED (section 44, item 2). It used to be a detached capsule
+// at `position: fixed`, floating over the starfield with nothing reserving room
+// for it — which is why the sync pill, also fixed and also bottom-left, landed
+// on top of it. It now fills the shell's `rail` region: the grid gives it a
+// column of its own and the content area starts where that column ends.
 import { computed, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
@@ -110,12 +115,12 @@ onBeforeUnmount(() => {
 })
 
 // ---- styles ---------------------------------------------------------------
-// The capsule floats off the edge; its inner track is masked so items dissolve
-// at the rounded ends.
+// The capsule fills its region; its inner track is masked so items dissolve at
+// the rounded ends. `position: relative`, never fixed — the rail region is what
+// places it, and a fixed child of a grid area is a child of the viewport.
 const capsule = computed(() => {
   const base = {
-    position: 'fixed' as const,
-    zIndex: 6,
+    position: 'relative' as const,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -129,22 +134,19 @@ const capsule = computed(() => {
   if (horizontal.value) {
     return pxify({
       ...base,
-      left: '50%',
-      transform: 'translateX(-50%)',
-      bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-      height: 60,
-      maxWidth: '86vw',
+      height: 52,
+      maxWidth: '92vw',
       padding: '0 10px',
       borderRadius: 'var(--radius-pill)',
     })
   }
   return pxify({
     ...base,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    left: isTablet.value ? 12 : 28,
-    width: isTablet.value ? 56 : 64,
-    maxHeight: '62vh',
+    width: isTablet.value ? 52 : 60,
+    // A ceiling, not a height: the rail column is as tall as the shell and the
+    // capsule should not be. `maxHeight: 100%` keeps it inside the region on a
+    // short window instead of pushing the grid past the viewport.
+    maxHeight: '100%',
     padding: '10px 0',
     borderRadius: 'var(--radius-pill)',
     flexDirection: 'column' as const,

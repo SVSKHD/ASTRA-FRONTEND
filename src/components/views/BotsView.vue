@@ -9,7 +9,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import {
   botDisplayStatus,
   dailyLossColor,
@@ -26,9 +26,10 @@ const { now } = storeToRefs(useUiStore())
 
 defineExpose({ focus: () => {} })
 
-const GOOD = 'oklch(0.72 0.15 150)'
-const AMBER = 'oklch(0.8 0.16 72)'
-const RED = 'oklch(0.64 0.22 25)'
+// Tokens, not literals (section 44, item 10).
+const GOOD = SUCCESS
+const AMBER = WARNING
+const RED = DANGER
 const COLORS = { good: GOOD, warn: AMBER, bad: RED }
 
 const anyEnabled = computed(() => bots.value.some((b) => b.enabled))

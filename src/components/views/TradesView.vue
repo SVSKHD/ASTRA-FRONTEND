@@ -364,6 +364,10 @@ defineExpose({ focus: () => form.value?.focus() })
 .tv__split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  /* `start`, not the default `stretch`. The form collapsed to one row in
+     section 44 and the calendar did not, so stretching gives the form six
+     hundred pixels of empty panel to be as tall as its neighbour. */
+  align-items: start;
   gap: var(--sp-4);
   min-width: 0;
 }

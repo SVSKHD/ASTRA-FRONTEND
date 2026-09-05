@@ -1,16 +1,33 @@
 <script setup lang="ts">
-// The entry form (section 28).
+// The entry form (section 28, collapsed in 44).
 //
-// Two typed prices and everything else is a default: the date is today, the lot
-// is the one from settings, the symbol is the last one traded and the session
-// and side keep whatever they were. What the form will store — the move and the
-// P/L — is shown live above the button, because those are the two numbers the
-// trader is actually checking, and finding out after submitting is finding out
-// too late.
+// ONE ROW, AND IT EXPANDS WHEN YOU FOCUS IT.
 //
-// The symbol is asked for on every entry rather than being pinned to the tab:
-// a month is usually one instrument, but the day it is not is the day a P/L
-// silently computed at the wrong contract size would be worst.
+// The form had ten fields laid out in a grid, and nine of them were already
+// correct before anybody touched the page: the date is today, the entry time is
+// now, the symbol is the last one traded, the session is what the broker's clock
+// says, the side and the lot are whatever they were last. Showing ten fields to
+// collect three is not neutral — it is ten things to read past at the one moment
+// there is least time to read anything, which is the open.
+//
+// So the resting state is a single row: Entry, Exit, Lot and the button, with
+// everything the form already knows stated beside them as text. Focus anything
+// in it and the rest unfolds underneath, because "already correct" is not
+// "never wrong" — the day the symbol is not the last one traded is the day a P/L
+// computed at the wrong contract size would be worst, and that day has to be one
+// click away rather than a preference.
+//
+// It collapses again when focus leaves entirely, never while you are in it: a
+// panel that folds up mid-edit is worse than one that never folded.
+//
+// ENTER SUBMITS. The three fields are number inputs inside a real `<form>` with
+// a real submit button, so this is the browser's own behaviour rather than a
+// key handler — which is why it also works from the lot field, and why a picker
+// that swallows Enter for its own panel does not break it.
+//
+// What the form will store — the move and the P/L — is shown live beside the
+// button, because those are the two numbers the trader is actually checking, and
+// finding out after submitting is finding out too late.
 import { computed, nextTick, ref, watch } from 'vue'
 import FormField from '@/components/ui/FormField.vue'
 import Combobox from '@/components/ui/Combobox.vue'
@@ -189,10 +206,22 @@ const derivedSession = computed(() =>
 // The dropdown is pre-selected from the time and stays that way until somebody
 // disagrees with it. After that it is theirs: a control that keeps correcting
 // its owner is a control that gets ignored.
+//
+// `immediate`, and that is a fix rather than a tidy-up. Without it the watcher
+// only fired on a CHANGE to the derived session, so the form opened holding its
+// hard-coded 'London' default while the hint underneath said "The broker clock
+// puts this in NY" — the control contradicting its own explanation, on the
+// resting state of the form, at every hour outside London. It matters more now
+// that the field is behind a fold: a trader who never opens the panel is
+// trusting the pre-fill, and the pre-fill has to be the pre-fill.
 const sessionOverridden = ref(false)
-watch(derivedSession, (next) => {
-  if (next && !sessionOverridden.value) form.values.session = next
-})
+watch(
+  derivedSession,
+  (next) => {
+    if (next && !sessionOverridden.value) form.values.session = next
+  },
+  { immediate: true },
+)
 watch(
   () => form.values.session,
   (next) => {
@@ -238,7 +267,9 @@ watch(
     form.values.session = arm.session
     if (arm.symbol) form.values.symbol = arm.symbol
     armedSignal.value = arm.signalId ?? ''
-    // The cursor goes where the only unknown is.
+    // The cursor goes where the only unknown is. The panel unfolds as a
+    // consequence of the focus rather than by being told to, which is the same
+    // path a click takes — one behaviour, not two.
     void nextTick(() => entryField.value?.querySelector('input')?.focus())
   },
 )
@@ -272,8 +303,53 @@ function onSized(answer: { symbol: string; size: number }) {
 /** Focused by ⌘K and by the toolbar's create button. */
 const entryField = ref<HTMLElement | null>(null)
 defineExpose({
-  focus: () => entryField.value?.querySelector('input')?.focus(),
+  focus: () => {
+    // Focusing the form is a request to LOG something, so it goes to the first
+    // field that actually needs typing rather than to the top of the panel.
+    entryField.value?.querySelector('input')?.focus()
+  },
 })
+
+// --- collapse / expand ------------------------------------------------------
+//
+// Driven by focus, not by a toggle button, because the request was "expands only
+// when I focus it" and because a disclosure control is one more thing between
+// the trader and the three numbers.
+//
+// `focusout` fires before `focusin` on the element being moved to, and its
+// `relatedTarget` is where focus is going — which is `null` when focus leaves
+// the document entirely (alt-tab, devtools). Collapsing on a null would fold the
+// panel up every time the window loses focus with a half-typed trade in it, so
+// a null keeps it open and only a move to something OUTSIDE the form closes it.
+const expanded = ref(false)
+const root = ref<HTMLFormElement | null>(null)
+
+function onFocusIn() {
+  expanded.value = true
+}
+function onFocusOut(event: FocusEvent) {
+  const next = event.relatedTarget as Node | null
+  if (!next) return
+  if (root.value?.contains(next)) return
+  expanded.value = false
+}
+
+/**
+ * What the row states rather than asks for.
+ *
+ * Read as one line — `2026-09-04 · 19:42 · XAUUSD · NY · Buy` — because these
+ * are five facts about one trade and five separate chips would read as five
+ * controls that happen to be disabled.
+ */
+const context = computed(() =>
+  [
+    String(form.values.istDate),
+    String(form.values.istTime),
+    String(form.values.symbol) || '—',
+    form.values.session,
+    form.values.side === 'buy' ? 'Buy' : 'Sell',
+  ].join(' · '),
+)
 
 async function onSubmit() {
   const ok = await form.submit()
@@ -303,8 +379,102 @@ async function onSubmit() {
 </script>
 
 <template>
-  <form class="tform" novalidate @submit.prevent="onSubmit">
-    <div class="tform__grid">
+  <form
+    ref="root"
+    class="tform"
+    :class="{ 'is-expanded': expanded }"
+    novalidate
+    @submit.prevent="onSubmit"
+    @focusin="onFocusIn"
+    @focusout="onFocusOut"
+  >
+    <!-- THE ROW. Three fields, the context it already knows, and the button.
+         Everything here is always visible; nothing here is a disclosure. -->
+    <div class="tform__row">
+      <div class="tform__three">
+        <FormField label="Entry" :error="form.errorFor('entry')" v-slot="f">
+          <div ref="entryField" data-field="entry">
+            <NumberInput
+              v-bind="f"
+              v-model="form.values.entry"
+              :step="0.01"
+              @update:model-value="form.change('entry')"
+              @blur="form.blur('entry')"
+            />
+          </div>
+        </FormField>
+
+        <FormField label="Exit" :error="form.errorFor('exit')" v-slot="f">
+          <div data-field="exit">
+            <NumberInput
+              v-bind="f"
+              v-model="form.values.exit"
+              :step="0.01"
+              @update:model-value="form.change('exit')"
+              @blur="form.blur('exit')"
+            />
+          </div>
+        </FormField>
+
+        <FormField label="Lot" :error="form.errorFor('lot')" v-slot="f">
+          <div data-field="lot">
+            <NumberInput
+              v-bind="f"
+              v-model="form.values.lot"
+              :step="0.01"
+              :min="0"
+              @update:model-value="form.change('lot')"
+              @blur="form.blur('lot')"
+            />
+          </div>
+        </FormField>
+      </div>
+
+      <!-- The state is the button's own icon, in a box that is the same size
+           empty, spinning, checked or failed — so pressing this never moves the
+           thing under the cursor. -->
+      <Button type="submit" :state="saving ?? (form.submitting.value ? 'working' : 'idle')">
+        Log trade
+      </Button>
+    </div>
+
+    <!-- What it already knows, on its own line.
+         NOT in the row above: the form lives in a half-width column, and five
+         facts competing with three number fields and a button for 650px is how
+         "2026-09-04 · 19:42 · XAUUSD · NY · Buy" becomes "2026-09-04 · 19…".
+         A line of its own is the only width that fits it.
+         A button, because it is the way into the fields underneath for anybody
+         not reaching for a keyboard — and `aria-expanded` so that is announced
+         rather than implied. -->
+    <button
+      type="button"
+      class="tform__context"
+      :aria-expanded="expanded"
+      aria-controls="tform-details"
+      :title="expanded ? 'Hide the pre-filled fields' : 'Edit the pre-filled fields'"
+      @click="expanded = !expanded"
+    >
+      <span class="tform__contextLabel">Filled in</span>
+      <span class="tform__contextText ui-mono">{{ context }}</span>
+    </button>
+
+    <!-- The live preview stays with the row: it is a reading of what was just
+         typed, not one of the fields underneath. -->
+    <TradePreview
+      :clocks="clocks"
+      :preview="preview"
+      :side="form.values.side"
+      :contract-size="contractSize"
+    />
+
+    <Alert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</Alert>
+
+    <!-- EVERYTHING THE FORM ALREADY KNOWS. Correct before it is opened, and
+         still editable, because "already correct" is not "never wrong".
+         `v-show`, not `v-if`: these fields hold the values a submit reads, and
+         a panel that unmounts on collapse would take a half-typed note with
+         it. -->
+    <div v-show="expanded" id="tform-details" class="tform__grid">
       <FormField label="Date" :error="form.errorFor('istDate')" v-slot="f">
         <div data-field="istDate">
           <GlassDatePicker
@@ -353,7 +523,7 @@ async function onSubmit() {
 
       <FormField
         label="Symbol"
-        hint="Asked every time — the contract size depends on it"
+        hint="Pre-filled from the last trade — the contract size depends on it"
         :error="form.errorFor('symbol')"
         v-slot="f"
       >
@@ -404,43 +574,6 @@ async function onSubmit() {
         </div>
       </FormField>
 
-      <FormField label="Lot" :error="form.errorFor('lot')" v-slot="f">
-        <div data-field="lot">
-          <NumberInput
-            v-bind="f"
-            v-model="form.values.lot"
-            :step="0.01"
-            :min="0"
-            @update:model-value="form.change('lot')"
-            @blur="form.blur('lot')"
-          />
-        </div>
-      </FormField>
-
-      <FormField label="Entry" :error="form.errorFor('entry')" v-slot="f">
-        <div ref="entryField" data-field="entry">
-          <NumberInput
-            v-bind="f"
-            v-model="form.values.entry"
-            :step="0.01"
-            @update:model-value="form.change('entry')"
-            @blur="form.blur('entry')"
-          />
-        </div>
-      </FormField>
-
-      <FormField label="Exit" :error="form.errorFor('exit')" v-slot="f">
-        <div data-field="exit">
-          <NumberInput
-            v-bind="f"
-            v-model="form.values.exit"
-            :step="0.01"
-            @update:model-value="form.change('exit')"
-            @blur="form.blur('exit')"
-          />
-        </div>
-      </FormField>
-
       <FormField label="Note" hint="Optional" :error="form.errorFor('note')" v-slot="f">
         <div data-field="note">
           <TextInput
@@ -452,23 +585,6 @@ async function onSubmit() {
           />
         </div>
       </FormField>
-    </div>
-
-    <Alert v-if="form.formError.value" tone="danger">{{ form.formError.value }}</Alert>
-
-    <div class="tform__foot">
-      <TradePreview
-        :clocks="clocks"
-        :preview="preview"
-        :side="form.values.side"
-        :contract-size="contractSize"
-      />
-      <!-- The state is the button's own icon, in a box that is the same size
-           empty, spinning, checked or failed — so pressing this never moves the
-           thing under the cursor. -->
-      <Button type="submit" :state="saving ?? (form.submitting.value ? 'working' : 'idle')">
-        Log trade
-      </Button>
     </div>
 
     <SymbolSizePrompt :symbol="sizingSymbol" @confirm="onSized" @dismiss="sizingSymbol = ''" />
@@ -490,24 +606,85 @@ async function onSubmit() {
   -webkit-backdrop-filter: var(--layer-raised-blur);
   box-shadow: var(--layer-raised-shadow);
 }
-.tform__cell .ui-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* The row. `align-items: end` so the button and the three fields sit on one
+   baseline whatever a field's label wraps to. */
+.tform__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+/* The three fields that are actually typed into. A floor of 96px rather than
+   the grid's 150: these hold four or five digits, and giving them a text
+   field's width is what pushed the button onto its own line at 1440. */
+.tform__three {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(96px, 1fr));
+  gap: var(--sp-3);
+  flex: 1 1 320px;
+  min-width: 0;
+}
+/* What the form already knows, stated rather than asked. A full-width line
+   under the row: five facts do not fit beside three number fields and a button
+   in a half-width column, and truncating them to "2026-09-04 · 19…" states
+   nothing. It still ellipsises, for the day a symbol is long. */
+.tform__context {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px dashed var(--layer-raised-border);
+  border-radius: var(--radius-control);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.tform__contextLabel {
+  flex-shrink: 0;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary, var(--theme-dim));
+}
+.tform__context:hover {
+  border-style: solid;
+  border-color: var(--accent, var(--theme-accent));
+}
+.tform__contextText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-secondary, var(--theme-dim));
+}
+/* Expanded, the context line has nothing left to say that is not on screen
+   underneath it — so it becomes the label for the panel rather than a summary
+   of it. */
+.tform.is-expanded .tform__context {
+  border-style: solid;
 }
 .tform__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--sp-3);
   min-width: 0;
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--layer-raised-border);
 }
-.tform__foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  min-width: 0;
+
+@media (max-width: 560px) {
+  /* At 390px three number fields across is three fields of four characters.
+     Two and a half is worse than two rows. */
+  .tform__three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 /* The pair, stated plainly. Mono because they are read against each other, and
    secondary because it is a confirmation of what was typed, not a field. */

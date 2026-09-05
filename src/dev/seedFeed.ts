@@ -129,7 +129,14 @@ export function seedNews(): SeedNews[] {
   })).sort((a, b) => b.publishedAt - a.publishedAt)
 }
 
-/** What every feed answered on the last pull, including two that did not. */
+/**
+ * What every feed answered on the last pull, including three that did not.
+ *
+ * The panel's whole job is to distinguish the ways a feed fails, so the seed
+ * has to contain one of each or the picture is of the happy path: a 200 that
+ * parsed to nothing, a 404, a 200 whose body was not a feed, and one in the
+ * penalty box after a run of failures.
+ */
 export function seedFeedHealth() {
   const seen = new Map<string, { source: string; category: NewsCategory; items: number }>()
   for (const n of NEWS) {
@@ -142,28 +149,64 @@ export function seedFeedHealth() {
     source: row.source,
     category: row.category,
     status: 200,
+    parsed: true,
     items: row.items,
+    usable: row.items,
+    written: row.items,
     error: '',
+    ms: 180 + i * 20,
+    at: SEED_FEED_PULLED_AT,
+    fails: 0,
   }))
   return [
     ...ok,
-    // A 200 that parsed to nothing, and a 404. Both are skips, not failures —
-    // and both have to be visible, which is the whole point of the panel.
+    // Each of the four ways a feed fails, so the panel is photographed showing
+    // all of them rather than nineteen green rows.
     {
       url: 'https://example.invalid/feed/quiet.xml',
       source: 'DailyFX',
       category: 'forex' as NewsCategory,
       status: 200,
+      parsed: true,
       items: 0,
+      usable: 0,
+      written: 0,
       error: '',
+      ms: 210,
+      at: SEED_FEED_PULLED_AT,
+      fails: 1,
+    },
+    {
+      url: 'https://example.invalid/feed/moved.html',
+      source: 'ECB',
+      category: 'forex' as NewsCategory,
+      // A 200 whose body is an HTML page where the XML used to be. It needs a
+      // new URL, not a removal, and the panel has to say which.
+      status: 200,
+      parsed: false,
+      items: 0,
+      usable: 0,
+      written: 0,
+      error: '',
+      ms: 260,
+      at: SEED_FEED_PULLED_AT,
+      fails: 3,
     },
     {
       url: 'https://example.invalid/feed/gone.xml',
       source: 'Google AI',
       category: 'ai' as NewsCategory,
       status: 404,
+      parsed: false,
       items: 0,
-      error: '',
+      usable: 0,
+      written: 0,
+      error: 'HTTP 404',
+      ms: 90,
+      at: SEED_FEED_PULLED_AT,
+      // Past the threshold: not fetched this run, re-probed every sixth hour.
+      fails: 9,
+      skipped: true,
     },
   ]
 }

@@ -22,17 +22,23 @@ export interface StageInput {
   isPhone: boolean
 }
 
-/** The centring wrapper. A full screen tall, in flow, and click-through. */
+/**
+ * The centring wrapper. As tall as the region holding it, in flow, click-through.
+ *
+ * `100%`, not `100dvh` (section 44). The stage no longer sits in the document —
+ * it sits inside the shell's content region, which is already the viewport
+ * minus the strip and the bar. A `100dvh` floor inside a shorter box guarantees
+ * a scrollbar on every tab including the empty ones, and puts the bottom of the
+ * stage under the bar by exactly the height of the chrome. The shell is where
+ * `dvh` is measured now, once, in `appShell.ts`.
+ */
 export function stageWrapGeometry() {
   return {
     position: 'relative',
     zIndex: 2,
     display: 'grid',
     justifyItems: 'center',
-    // dvh, not vh: on a phone `vh` is measured against the viewport with the
-    // URL bar retracted, so a `100vh` shell is permanently taller than what can
-    // be seen and the last row of any list sits under the browser chrome.
-    minHeight: '100dvh',
+    minHeight: '100%',
     // The gutters belong to the dock and the starfield, so this must not eat
     // their clicks.
     pointerEvents: 'none',
@@ -48,15 +54,21 @@ export function stageWrapGeometry() {
  * it is.
  */
 export function stageGeometry({ vw, isPhone }: StageInput) {
-  const width = isPhone ? '94vw' : vw < 1024 ? '92vw' : vw < 1440 ? '82vw' : '70vw'
+  // Percentages of the CONTENT REGION, not of the viewport: the rail has its
+  // own column now, so a `vw` width would be measured against a viewport the
+  // stage no longer spans and would run under the dock at every breakpoint.
+  const width = isPhone ? '96%' : vw < 1024 ? '94%' : vw < 1440 ? '90%' : '82%'
   return {
     position: 'relative',
     pointerEvents: 'auto',
     width,
     maxWidth: 1500,
-    minWidth: isPhone ? 0 : 720,
-    minHeight: isPhone ? '88dvh' : '86dvh',
-    margin: isPhone ? '16px 0' : '3.5dvh 0',
+    minWidth: 0,
+    // A floor of the region rather than of the screen, for the same reason the
+    // wrapper's is: a tab with three rows should still fill the space it was
+    // given, and a tab with three hundred should be as tall as it is.
+    minHeight: '100%',
+    margin: isPhone ? '10px 0 16px' : '14px 0 22px',
     display: 'flex',
     flexDirection: 'column',
   } as const

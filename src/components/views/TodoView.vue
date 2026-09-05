@@ -9,7 +9,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
+import { DANGER, WARNING, doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import { todayKey, isOverdueTodo } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
@@ -97,7 +97,7 @@ function nestHighlight(id: number) {
   if (!ts.active || ts.zone !== 'nest') return {}
   return ts.valid
     ? { outline: '2px solid ' + c.value.accent, outlineOffset: '1px', background: c.value.card }
-    : { outline: '2px solid oklch(0.64 0.22 25)', outlineOffset: '1px' }
+    : { outline: '2px solid ' + DANGER, outlineOffset: '1px' }
 }
 
 // --- linked-items nesting ---------------------------------------------------
@@ -171,8 +171,10 @@ const rolloverChipStyle = computed(() =>
     padding: '2px 7px',
     borderRadius: 'var(--radius-pill)',
     background: 'transparent',
-    border: '1px solid ' + (dark.value ? 'oklch(0.72 0.18 55)' : 'oklch(0.6 0.18 55)'),
-    color: dark.value ? 'oklch(0.78 0.16 62)' : 'oklch(0.55 0.18 55)',
+    // The overdue chip. One token rather than a light/dark pair of literals:
+    // the pair only ever knew about two grounds, and there are nineteen.
+    border: '1px solid ' + WARNING,
+    color: WARNING,
     flexShrink: 0,
   }),
 )

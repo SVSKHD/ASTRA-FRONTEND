@@ -42,6 +42,27 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
+    // THE GITHUB TOKEN (section 44, item 9).
+    //
+    // Denied to EVERY client, including the account it belongs to. That is not
+    // an oversight and it is not conservatism: the guided setup's whole promise
+    // is that the token is posted once and never comes back, and a rule that
+    // let the owner read their own document would make that promise false — a
+    // compromised session could read the token straight out of Firestore and
+    // the app would have handed it over.
+    //
+    // The Admin SDK bypasses rules entirely, so the functions that need it
+    // (`tokenFor`, the sweep) are unaffected. Nothing else can see it at all.
+    //
+    // The document also carries the login, the connection time and the last
+    // sync, which are not secret — but they live here rather than in
+    // `Astra-users` so that this rule can be `false` with no exceptions to
+    // reason about. The app reads them through `githubStatus`, which returns
+    // the facts and not the field.
+    match /gh-secrets/{userId} {
+      allow read, write: if false;
+    }
+
     // DEVICES + ACTIVITY (section 27a).
     //
     // Read-only to the client, in both collections. Every field that matters —

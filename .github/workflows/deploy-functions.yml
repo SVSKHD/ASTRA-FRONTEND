@@ -1,0 +1,105 @@
+# Deploy the Cloud Functions, the Firestore rules and the indexes.
+#
+# THIS IS THE ROOT CAUSE FIX FOR "NEWS RETURNS NOTHING" (section 44, item 8).
+#
+# `netlify.toml` builds and publishes the Vite front end and nothing else. Until
+# this file existed there was no workflow, no CI step and no hook anywhere in
+# the repository that ran `firebase deploy --only functions` — so the deployed
+# state of every scheduled function was whatever somebody last pushed by hand
+# from a laptop. A scheduled function that was never deployed has no Cloud
+# Scheduler job behind it, has never run once, and leaves the `forex` collection
+# empty. From the News tab that is indistinguishable from every feed being dead,
+# which is why the report read as a feed problem.
+#
+# The same gap silently applies to `githubSweep`, `cleanupNews` and
+# `purgeExpiredActivity`: four scheduled jobs whose existence depended on
+# somebody remembering.
+#
+# WHAT IT NEEDS, once, before it can run:
+#
+#   1. A service account in the Firebase project with the roles
+#      "Firebase Admin", "Cloud Functions Admin", "Cloud Scheduler Admin",
+#      "Service Account User" and "Secret Manager Secret Accessor".
+#   2. Its JSON key pasted into the repository secret FIREBASE_SERVICE_ACCOUNT.
+#   3. The project id in the repository variable FIREBASE_PROJECT_ID.
+#
+# The two function secrets — GITHUB_PAT and GITHUB_WEBHOOK_SECRET — are NOT set
+# here and must not be. They live in Secret Manager, set once with
+# `firebase functions:secrets:set`, and a deploy binds them by name. Putting
+# them in a workflow would put them in the build log.
+
+name: Deploy functions
+
+on:
+  push:
+    branches: [dev01, main]
+    # Only when something that is actually deployed changed. A front-end-only
+    # commit should not redeploy nineteen functions and reset their cold starts.
+    paths:
+      - 'functions/**'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - 'firebase.json'
+      - '.github/workflows/deploy-functions.yml'
+  # So a deploy can be run deliberately after changing a secret, which changes
+  # nothing in git but does need the functions restarted to pick it up.
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # A fork's pull request must not be able to deploy to the real project.
+    if: github.event_name == 'workflow_dispatch' || github.repository == 'SVSKHD/ASTRA-FRONTEND'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install
+        working-directory: functions
+        run: npm ci
+
+      # Compiled before the deploy rather than only by the predeploy hook, so a
+      # type error fails the job with the compiler's own message instead of
+      # inside a deploy that has already started.
+      - name: Build
+        working-directory: functions
+        run: npm run build
+
+      - name: Deploy
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/service-account.json
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT is not set — see the header of this file." >&2
+            exit 1
+          fi
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > service-account.json
+          npx --yes firebase-tools@13 deploy \
+            --project "$FIREBASE_PROJECT_ID" \
+            --only functions,firestore:rules,firestore:indexes \
+            --non-interactive \
+            --force
+          rm -f service-account.json
+
+      # A deploy that succeeded but scheduled nothing is the failure this whole
+      # file exists to prevent, so the job says out loud what it left running.
+      - name: Confirm the schedules exist
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/service-account.json
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        if: always()
+        run: |
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > service-account.json
+          npx --yes firebase-tools@13 functions:list \
+            --project "$FIREBASE_PROJECT_ID" --non-interactive || true
+          rm -f service-account.json

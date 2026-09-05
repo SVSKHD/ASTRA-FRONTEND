@@ -13,8 +13,8 @@
 
 import { computed, onUnmounted, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import type { DocumentData, Unsubscribe } from 'firebase/firestore'
-import { loadFirestore } from '@/firebase'
-import type { NewsCategory, NewsItem } from '@/types'
+import { loadFirestore, loadFunctions } from '@/firebase'
+import type { FeedHealth, NewsCategory, NewsItem } from '@/types'
 
 export const NEWS_COLLECTION = 'forex'
 /** The pipeline's own diagnosis lives here; it is not a headline. */
@@ -125,4 +125,43 @@ export function forexFor(items: NewsItem[], ymd: string, tags: string[] = []): N
       item.publishedAt < to &&
       (tags.length === 0 || item.tags.some((t) => tags.includes(t))),
   )
+}
+
+/** What one on-demand pull answered, per feed. */
+export interface PullReport {
+  at: number
+  feeds: FeedHealth[]
+  ok: number
+  total: number
+  skipped: number
+  written: number
+}
+
+/**
+ * Run the pull now and get the per-feed report back.
+ *
+ * WHY THIS EXISTS. An empty News tab has four possible causes and they are not
+ * distinguishable from the tab: dead feed URLs, a function that was never
+ * scheduled, a client reading the wrong collection, and a missing index. Three
+ * of them are settled by reading the code (`functions/src/news.ts` says which,
+ * and why); the fourth — which feeds are alive — can only be settled by asking
+ * the publishers, from a machine that is allowed to reach them, which is the
+ * function and not this browser.
+ *
+ * So this is the button that asks. It returns the same per-feed record the
+ * scheduled run writes, and the health document it writes updates the panel
+ * over the snapshot that is already open.
+ *
+ * A `null` return means Firebase is not configured in this build at all, which
+ * is a different thing from a pull that failed and reads as one.
+ */
+export async function pullNewsNow(): Promise<PullReport | null> {
+  const handle = await loadFunctions()
+  if (!handle) throw new Error('Firebase is not configured in this build.')
+  const fn = handle.fx.httpsCallable<Record<string, never>, PullReport>(
+    handle.functions,
+    'pullNewsNow',
+  )
+  const res = await fn({})
+  return res.data
 }

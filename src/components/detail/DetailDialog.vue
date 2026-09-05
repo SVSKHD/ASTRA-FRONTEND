@@ -773,7 +773,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
   cursor: pointer;
 }
 .detail__btn--danger {
-  color: var(--theme-danger, oklch(0.64 0.22 25));
+  color: var(--theme-danger);
   border-color: currentColor;
 }
 </style>

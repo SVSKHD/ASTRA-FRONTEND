@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { stageGeometry, stageWrapGeometry } from '@/views/workspaceStage'
+import { shellGeometry } from '@/views/appShell'
 
 describe('the stage is in flow and the page is what scrolls', () => {
   const desktop = stageGeometry({ vw: 1440, isPhone: false })
@@ -18,7 +19,12 @@ describe('the stage is in flow and the page is what scrolls', () => {
       ['phone', phone],
     ] as const) {
       expect(Object.keys(style), name).not.toContain('height')
-      expect(style.minHeight, name).toMatch(/dvh$/)
+      // A floor of the REGION holding it (section 44). It used to be a floor of
+      // the viewport, which was right while the document was the scrollport and
+      // is wrong now that the shell reserves rows above and below: `100dvh`
+      // inside a box that is the viewport minus the chrome overflows by exactly
+      // the height of the chrome, on every tab, including the empty ones.
+      expect(style.minHeight, name).toBe('100%')
     }
   })
 
@@ -44,13 +50,31 @@ describe('the stage is in flow and the page is what scrolls', () => {
     expect(stageWrapGeometry().position).toBe('relative')
   })
 
-  it('measures the phone against the visible viewport, not the retracted one', () => {
-    expect(stageWrapGeometry().minHeight).toBe('100dvh')
-    expect(phone.minHeight).toBe('88dvh')
+  it('fills its region rather than measuring the viewport itself', () => {
+    expect(stageWrapGeometry().minHeight).toBe('100%')
+    expect(phone.minHeight).toBe('100%')
+  })
+
+  it('sizes itself against its container, never against the viewport', () => {
+    // A `vw` width was measured against a viewport the stage no longer spans:
+    // the rail has its own grid column now, so 70vw starting after the rail
+    // runs off the right-hand edge by the rail's width.
+    for (const style of [desktop, phone]) expect(style.width).not.toMatch(/vw$/)
   })
 })
 
-describe('the shells agree', () => {
+describe('the shell is the one thing measured against the viewport', () => {
+  // `dvh`, not `vh`: on a phone `vh` is measured against the viewport with the
+  // URL bar retracted, so a `100vh` shell is permanently taller than what can be
+  // seen and the bottom utility bar lives under the browser chrome — which is
+  // the overlap section 44 exists to end, reintroduced by a unit.
+  it('is exactly one visible viewport tall, at both breakpoints', () => {
+    for (const isPhone of [true, false]) {
+      const g = shellGeometry({ isPhone, isTablet: false })
+      expect(g.height).toBe('100dvh')
+    }
+  })
+
   it('uses dvh in the global stylesheet too', () => {
     const css = readFileSync(resolve(__dirname, '../style.css'), 'utf8')
     // A `100vh` here would put the bottom of every page under the URL bar,

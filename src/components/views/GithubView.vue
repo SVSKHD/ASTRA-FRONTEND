@@ -16,7 +16,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, SUCCESS, pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import { fullName, issueStateColor } from '@/utils/githubModel'
 import { renderMarkdown } from '@/utils/markdown'
@@ -166,8 +166,7 @@ const bulkBar = computed(() =>
   }),
 )
 function ciChip(ci: string) {
-  const col =
-    ci === 'passing' ? 'oklch(0.7 0.15 145)' : ci === 'failing' ? 'oklch(0.65 0.2 25)' : c.value.dim
+  const col = ci === 'passing' ? SUCCESS : ci === 'failing' ? DANGER : c.value.dim
   return pxify({
     ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
@@ -184,7 +183,7 @@ function toggleTrack(on: boolean) {
     width: 34,
     height: 20,
     borderRadius: 'var(--radius-card)',
-    background: on ? 'oklch(0.68 0.16 150)' : c.value.border,
+    background: on ? SUCCESS : c.value.border,
     border: '1px solid ' + c.value.border,
     cursor: 'pointer',
     position: 'relative',

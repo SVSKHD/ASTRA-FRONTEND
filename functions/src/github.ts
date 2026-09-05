@@ -36,6 +36,7 @@ import {
   type CommentKind,
   type PullState,
 } from './githubPure'
+import { noteSync, tokenFor } from './githubSetup'
 
 /** The webhook's shared secret, set on the GitHub side and here. */
 const GITHUB_WEBHOOK_SECRET = defineSecret('GITHUB_WEBHOOK_SECRET')
@@ -323,13 +324,24 @@ export const githubSweep = onSchedule(
 
     for (const [fullName, users] of byRepo) {
       try {
+        // THE TOKEN IS THE TRACKER'S OWN (section 44, item 9). It used to be
+        // one deploy-time PAT for every account, which meant one person's
+        // repositories were read with another person's credential and the
+        // 5,000-an-hour quota was shared by everybody on the deployment.
+        // `tokenFor` falls back to the deploy-time secret, so a deployment
+        // where nobody has connected yet keeps working exactly as before.
+        const token = await tokenFor(users[0])
+        if (!token) {
+          logger.warn('sweep: no token for tracker', { fullName })
+          continue
+        }
         const etagRef = db().collection(REPOS).doc(etagId(fullName))
         const stored = (await etagRef.get()).data() as Etag | undefined
         const res = await fetch(
           `${API}/repos/${fullName}/pulls?state=open&per_page=100&sort=updated&direction=desc`,
           {
             headers: {
-              Authorization: `Bearer ${GITHUB_PAT.value()}`,
+              Authorization: `Bearer ${token}`,
               Accept: 'application/vnd.github+json',
               'X-GitHub-Api-Version': '2022-11-28',
               'User-Agent': 'AstraSweep/1.0',
@@ -390,6 +402,13 @@ export const githubSweep = onSchedule(
         // One repo's failure is one repo's failure.
         logger.warn('sweep: repo threw', { fullName, err: String(err) })
       }
+    }
+
+    // Recorded per tracker as well as logged, because "last successful sync" is
+    // one of the three things the setup panel promises to show and a log line
+    // is not a thing the app can read.
+    for (const users of byRepo.values()) {
+      for (const userId of users) await noteSync(userId, remaining)
     }
 
     logger.info('githubSweep finished', {

@@ -1,4 +1,4 @@
-// The news pipeline (section 39).
+// The news pipeline (section 39, reworked in 44).
 //
 // WHY IT IS A FUNCTION AT ALL. The browser cannot fetch a third-party feed: the
 // publishers do not send `Access-Control-Allow-Origin`, so every one of these
@@ -17,16 +17,66 @@
 // own try/catch and a failure is recorded, not thrown: a publisher that 404s, a
 // TLS handshake that hangs, XML that does not parse — each of those is one
 // source missing from one run, and the run still writes the other eighteen.
+//
+// ---------------------------------------------------------------------------
+// WHY "NEWS RETURNS NOTHING", AND WHAT CHANGED
+//
+// Four things could produce an empty News tab, and three of them are ruled out
+// by reading the code rather than by guessing:
+//
+//   the client queries a collection the function does not write to
+//       Ruled out. Both name `forex` — `NEWS_COLLECTION` here and in
+//       `composables/useNews.ts` — and the health document is excluded from the
+//       client's query by having no `category`, so it cannot be the thing being
+//       counted.
+//   a missing composite index
+//       Ruled out. The query is `where('category','in',…)` ordered by
+//       `publishedAt desc`, and `firestore.indexes.json` carries exactly
+//       `forex (category ASC, publishedAt DESC)`. A missing index would also
+//       surface as a listener ERROR in the tab, not as silence.
+//   dead feed URLs
+//       Possible, and now impossible to be silent about — see the health record
+//       below. It cannot be settled from a sandbox whose egress policy answers
+//       403 for every host, which is a fact about the sandbox and not about the
+//       publishers. `scripts/check-feeds.mjs` is the thing to run somewhere with
+//       real egress, and `pullNewsNow` is the thing to call against the real
+//       project.
+//   THE FUNCTION IS NEVER SCHEDULED
+//       This is the one the repository actually evidences. `netlify.toml` builds
+//       and deploys the Vite front end and nothing else; there is no workflow,
+//       no CI step and no hook anywhere in this repository that runs
+//       `firebase deploy --only functions`. A scheduled function that was never
+//       deployed has no Cloud Scheduler job, has never run, and leaves `forex`
+//       empty — which reads from the app exactly like a feed problem.
+//       `.github/workflows/deploy-functions.yml` is the fix.
+//
+// WHAT THE HEALTH RECORD NOW SAYS, per feed, per run: the HTTP status, whether
+// the parse succeeded, how many items came back, how many of those were usable,
+// and how many documents were ACTUALLY COMMITTED to `forex`. The last one is
+// the field that matters and it is the one that did not exist: `written` used
+// to be the number of documents BUILT, so a run whose every commit failed
+// reported a healthy nineteen-for-nineteen. And every run logs one line per
+// feed, so the answer is in the log as well as in the document.
 
 import { getFirestore, Timestamp } from 'firebase-admin/firestore'
+import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { logger } from 'firebase-functions/v2'
 import Parser from 'rss-parser'
-import { NEWS_TTL_DAYS, toNewsDoc, type NewsCategory, type RawItem } from './newsPure'
+import {
+  NEWS_TTL_DAYS,
+  healthLine,
+  liveFeeds,
+  shouldFetch,
+  toNewsDoc,
+  type FeedDef,
+  type FeedHealth,
+  type RawItem,
+} from './newsPure'
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { FEEDS, FOREX_KEYWORDS } = require('../feeds') as {
-  FEEDS: { url: string; source: string; category: NewsCategory; tags: string[] }[]
+  FEEDS: FeedDef[]
   FOREX_KEYWORDS: Record<string, string[]>
 }
 
@@ -39,17 +89,6 @@ const FETCH_TIMEOUT_MS = 15_000
 /** Per feed, per run. A backlog is not worth a thousand writes. */
 const MAX_ITEMS_PER_FEED = 25
 
-interface FeedHealth {
-  source: string
-  url: string
-  category: string
-  status: number
-  items: number
-  written: number
-  error: string
-  at: number
-}
-
 /**
  * One feed, fetched and parsed, with every failure caught.
  *
@@ -58,19 +97,33 @@ interface FeedHealth {
  * can return 404 a month later and nothing would otherwise say so.
  */
 async function pullFeed(
-  feed: { url: string; source: string; category: NewsCategory; tags: string[] },
+  feed: FeedDef,
   parser: Parser,
   now: number,
-): Promise<{ docs: ReturnType<typeof toNewsDoc>[]; health: FeedHealth }> {
+  priorFails: number,
+): Promise<{ docs: NonNullable<ReturnType<typeof toNewsDoc>>[]; health: FeedHealth }> {
+  const started = Date.now()
   const health: FeedHealth = {
     source: feed.source,
     url: feed.url,
     category: feed.category,
     status: 0,
+    parsed: false,
     items: 0,
+    usable: 0,
     written: 0,
     error: '',
+    ms: 0,
     at: now,
+    fails: priorFails,
+  }
+  // In the penalty box, and not this run's turn to re-probe. The counter still
+  // advances so the re-probe eventually comes round — see `shouldFetch`.
+  if (!shouldFetch(priorFails)) {
+    health.skipped = true
+    health.fails = priorFails + 1
+    health.error = `skipped after ${priorFails} consecutive failures`
+    return { docs: [], health }
   }
   try {
     const controller = new AbortController()
@@ -79,6 +132,7 @@ async function pullFeed(
     try {
       const res = await fetch(feed.url, {
         signal: controller.signal,
+        redirect: 'follow',
         headers: {
           // Some publishers 403 a bare fetch. A named agent is honest about who
           // is asking and is what their robots guidance expects.
@@ -89,6 +143,8 @@ async function pullFeed(
       health.status = res.status
       if (!res.ok) {
         health.error = `HTTP ${res.status}`
+        health.ms = Date.now() - started
+        health.fails = priorFails + 1
         return { docs: [], health }
       }
       text = await res.text()
@@ -96,40 +152,81 @@ async function pullFeed(
       clearTimeout(timer)
     }
 
+    // Parsed separately from fetched, and recorded separately, because a 200
+    // whose body is an HTML "we moved our feed" page is a different failure from
+    // a 404 and needs a different fix.
     const parsed = await parser.parseString(text)
+    health.parsed = true
     const items = (parsed.items ?? []) as RawItem[]
     health.items = items.length
     const docs = items
       .slice(0, MAX_ITEMS_PER_FEED)
       .map((item) => toNewsDoc(item, feed, FOREX_KEYWORDS, now))
       .filter((d): d is NonNullable<ReturnType<typeof toNewsDoc>> => d !== null)
-    health.written = docs.length
+    health.usable = docs.length
+    health.ms = Date.now() - started
+    // Reached and parsed: the streak is over, whatever it was. A feed that was
+    // down for an afternoon is back in the rotation on its own.
+    health.fails = 0
     return { docs, health }
   } catch (err) {
     // Every failure mode lands here and none of them propagates: a skip, never
     // a function failure.
     health.error = err instanceof Error ? err.message.slice(0, 200) : 'unknown'
+    health.ms = Date.now() - started
+    health.fails = priorFails + 1
     return { docs: [], health }
   }
 }
 
-export const pullNews = onSchedule(
-  { schedule: 'every 15 minutes', region: 'asia-south1', timeoutSeconds: 300, memory: '512MiB' },
-  async () => {
-    const db = getFirestore()
-    const parser = new Parser({ timeout: FETCH_TIMEOUT_MS })
-    const now = Date.now()
+export interface PullReport {
+  at: number
+  feeds: FeedHealth[]
+  /** Feeds that returned 200, parsed, and committed at least one document. */
+  ok: number
+  total: number
+  skipped: number
+  written: number
+}
 
-    // Fetched in parallel because the run is dominated by waiting, and one slow
-    // publisher should not add its latency to the other eighteen.
-    const results = await Promise.all(FEEDS.map((feed) => pullFeed(feed, parser, now)))
+/**
+ * The whole run: fetch every live feed, commit each one's documents, record what
+ * happened.
+ *
+ * COMMITTED PER FEED, on purpose. One batch across all nineteen is fewer round
+ * trips, but it cannot say which feed's documents landed — and "did the write to
+ * `forex` succeed" is exactly the question this has to answer per feed. Nineteen
+ * batches of at most twenty-five documents is a rounding error against a
+ * fifteen-minute schedule.
+ */
+async function runPull(): Promise<PullReport> {
+  const db = getFirestore()
+  const parser = new Parser({ timeout: FETCH_TIMEOUT_MS })
+  const now = Date.now()
+  const live = liveFeeds(FEEDS)
+  const dropped = FEEDS.length - live.length
 
-    let written = 0
-    let batch = db.batch()
-    let pending = 0
-    for (const { docs } of results) {
-      for (const doc of docs) {
-        if (!doc) continue
+  // Last run's failure streaks, so a URL that has been 404ing all week stops
+  // being asked every fifteen minutes. Carried in the health document rather
+  // than in a collection of its own: it is one small array that is already
+  // being written once a run.
+  const priorDoc = await db.collection(NEWS_COLLECTION).doc(HEALTH_DOC).get()
+  const prior = new Map<string, number>()
+  for (const row of (priorDoc.data()?.feeds ?? []) as FeedHealth[]) {
+    prior.set(row.url, typeof row.fails === 'number' ? row.fails : 0)
+  }
+
+  // Fetched in parallel because the run is dominated by waiting, and one slow
+  // publisher should not add its latency to the other eighteen.
+  const results = await Promise.all(
+    live.map((feed) => pullFeed(feed, parser, now, prior.get(feed.url) ?? 0)),
+  )
+
+  for (const result of results) {
+    if (!result.docs.length) continue
+    try {
+      const batch = db.batch()
+      for (const doc of result.docs) {
         // setDoc at the hashed id: the same item on the next run overwrites
         // rather than duplicating, which is what makes a 15-minute schedule
         // safe to run forever.
@@ -138,32 +235,93 @@ export const pullNews = onSchedule(
           publishedAt: Timestamp.fromMillis(doc.publishedAt),
           fetchedAt: Timestamp.fromMillis(doc.fetchedAt),
         })
-        written += 1
-        pending += 1
-        if (pending >= 400) {
-          await batch.commit()
-          batch = db.batch()
-          pending = 0
-        }
       }
+      await batch.commit()
+      // Set only AFTER the commit resolved. This is the difference between
+      // reporting what was written and reporting what was intended.
+      result.health.written = result.docs.length
+    } catch (err) {
+      result.health.error =
+        'write failed: ' + (err instanceof Error ? err.message.slice(0, 160) : 'unknown')
     }
-    if (pending) await batch.commit()
+  }
 
-    // The health record is the answer to "which feeds are actually alive",
-    // available in the app rather than only in a log nobody opens.
-    await db
-      .collection(NEWS_COLLECTION)
-      .doc(HEALTH_DOC)
-      .set({
-        kind: 'health',
-        at: Timestamp.fromMillis(now),
-        feeds: results.map((r) => r.health),
-        ok: results.filter((r) => r.health.status === 200).length,
-        total: results.length,
-      })
+  const feeds = results.map((r) => r.health)
+  const report: PullReport = {
+    at: now,
+    feeds,
+    ok: feeds.filter((f) => f.status === 200 && f.parsed && f.written > 0).length,
+    total: feeds.length,
+    // Marked dead in `feeds.js`, plus the ones this run left in the penalty box.
+    skipped: dropped + feeds.filter((f) => f.skipped).length,
+    written: feeds.reduce((n, f) => n + f.written, 0),
+  }
 
-    const dead = results.filter((r) => r.health.error).map((r) => r.health.source)
-    logger.info('pullNews finished', { written, dead, feeds: results.length })
+  // The health record is the answer to "which feeds are actually alive",
+  // available in the app rather than only in a log nobody opens.
+  await db
+    .collection(NEWS_COLLECTION)
+    .doc(HEALTH_DOC)
+    .set({
+      kind: 'health',
+      at: Timestamp.fromMillis(now),
+      feeds,
+      ok: report.ok,
+      total: report.total,
+      skipped: report.skipped,
+      written: report.written,
+    })
+
+  // AND one line per feed in the log, every run. A summary that says
+  // "19 feeds, 0 written" tells you something is wrong and nothing about what;
+  // nineteen lines say which publisher, with which status, at which stage.
+  // This is what makes a silent failure impossible: there is no path through
+  // this function that logs nothing about a feed.
+  for (const health of feeds) logger.info('pullNews feed: ' + healthLine(health))
+  logger.info('pullNews finished', {
+    ok: report.ok,
+    total: report.total,
+    skipped: report.skipped,
+    written: report.written,
+    dead: feeds.filter((f) => f.error || !f.parsed).map((f) => f.source),
+    empty: feeds.filter((f) => !f.error && f.parsed && f.written === 0).map((f) => f.source),
+  })
+
+  return report
+}
+
+export const pullNews = onSchedule(
+  { schedule: 'every 15 minutes', region: 'asia-south1', timeoutSeconds: 300, memory: '512MiB' },
+  async () => {
+    await runPull()
+  },
+)
+
+/**
+ * The same run, on demand, returning the per-feed report to the caller.
+ *
+ * It exists because "is the pipeline working" should not require waiting up to
+ * fifteen minutes and then reading Cloud Logging. Any signed-in user may call it
+ * — the news is shared and there is nothing here to leak — but it is rate-limited
+ * to one run a minute so a held-down button cannot become nineteen fetches a
+ * second against nineteen publishers.
+ */
+let lastManualRun = 0
+const MANUAL_COOLDOWN_MS = 60_000
+
+export const pullNewsNow = onCall(
+  { region: 'asia-south1', timeoutSeconds: 300, memory: '512MiB' },
+  async (req): Promise<PullReport> => {
+    if (!req.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in first.')
+    const since = Date.now() - lastManualRun
+    if (since < MANUAL_COOLDOWN_MS) {
+      throw new HttpsError(
+        'resource-exhausted',
+        `A pull ran ${Math.round(since / 1000)}s ago. Wait ${Math.ceil((MANUAL_COOLDOWN_MS - since) / 1000)}s.`,
+      )
+    }
+    lastManualRun = Date.now()
+    return runPull()
   },
 )
 

@@ -6,7 +6,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, rowBase, tagChip, typeStep } from '@/styles'
+import { SUCCESS, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import ListToolbar from '@/components/ListToolbar.vue'
 import type { Stock } from '@/types'
 
@@ -50,7 +50,7 @@ const symBadge = computed(() =>
   }),
 )
 function priceChip(kind: 'target' | 'watch') {
-  const col = kind === 'target' ? 'oklch(0.72 0.15 150)' : c.value.dim
+  const col = kind === 'target' ? SUCCESS : c.value.dim
   return pxify({
     display: 'inline-flex',
     alignItems: 'center',

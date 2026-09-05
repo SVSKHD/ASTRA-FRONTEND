@@ -1,12 +1,16 @@
 <script setup lang="ts">
 // Shell only. The starfield and brand mark are shared chrome across every
 // route — the workspace, a share page and the 404 all sit on the same sky.
-// The sync pill also lives here so it floats above every route.
+//
+// The sync pill used to live here too, fixed to the bottom-left of the viewport
+// on every route. It is now a compact item in the workspace shell's bottom
+// utility bar (section 44, item 4): it was the element that covered the dock,
+// and a floating pill on a route with no writes to sync was reporting on
+// nothing anyway.
 import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Starfield from '@/components/Starfield.vue'
 import CursorTail from '@/components/CursorTail.vue'
-import SyncPill from '@/components/SyncPill.vue'
 import IconSprite from '@/components/ui/IconSprite.vue'
 import TopProgressBar from '@/components/ui/TopProgressBar.vue'
 // "How to add a goal" (section 23). Mounted once, here, because it is opened
@@ -27,7 +31,7 @@ const route = useRoute()
 // item 5). Nothing that has an element of its own to report on goes here.
 const backgroundWork = useBackgroundWork()
 
-// The workspace renders its own floating AUREON orb (FloatingChrome), so the
+// The workspace renders its own brand orb in the shell's top strip, so the
 // corner mark would be a duplicate there. Keep it on the other routes (the share
 // page, the 404) which have no chrome of their own.
 // The screenshot stage draws a tab on its own and would otherwise get the
@@ -55,6 +59,5 @@ onMounted(() => {
   <CursorTail />
   <RouterView />
   <GoalHelpPanel v-if="app.goalHelpOpen" />
-  <SyncPill />
   <div v-if="showBrand" :style="s.brandWrap"><span :style="s.brand">AUREON</span></div>
 </template>

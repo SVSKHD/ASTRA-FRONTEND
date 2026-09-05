@@ -6,7 +6,7 @@ import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 
 const auth = useAuthStore()
@@ -39,9 +39,7 @@ const checkRow = computed(() =>
     textAlign: 'left',
   }),
 )
-const errorStyle = computed(() =>
-  pxify({ ...typeStep('xs'), color: 'oklch(0.68 0.2 25)', lineHeight: 1.45 }),
-)
+const errorStyle = computed(() => pxify({ ...typeStep('xs'), color: DANGER, lineHeight: 1.45 }))
 
 watch(visible, () => {
   pin.value = ''

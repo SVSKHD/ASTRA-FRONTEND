@@ -15,7 +15,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, rowBase, typeStep } from '@/styles'
+import { DANGER, pxify, rowBase, typeStep } from '@/styles'
 import {
   parseImportUrl,
   parseGoalsJson,
@@ -252,7 +252,7 @@ const dropZone = computed(() =>
   }),
 )
 const warn = computed(() =>
-  pxify({ ...typeStep('xs'), color: 'oklch(0.64 0.22 25)', fontWeight: 'var(--weight-semibold)' }),
+  pxify({ ...typeStep('xs'), color: DANGER, fontWeight: 'var(--weight-semibold)' }),
 )
 const mergeNote = computed(() =>
   pxify({

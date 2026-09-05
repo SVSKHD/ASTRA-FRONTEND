@@ -17,6 +17,9 @@
     "preview": "vite preview",
     "lint:css": "stylelint \"src/**/*.{css,vue}\"",
     "shoot": "node scripts/shoot.js",
+    "check:overlap": "node scripts/check-overlap.mjs",
+    "check:theme": "node scripts/check-theme.mjs",
+    "check:feeds": "node scripts/check-feeds.mjs",
     "dev:fixture": "VITE_FIXTURE=1 vite",
     "seed:demo": "node scripts/seed.mjs"
   },

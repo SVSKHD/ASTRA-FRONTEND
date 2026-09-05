@@ -9,7 +9,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import {
   currentStreak,
   bestStreak,
@@ -23,9 +23,10 @@ const app = useAppStore()
 const { c } = useStyles()
 const { goalOccurrences } = storeToRefs(app)
 
-const GREEN = 'oklch(0.72 0.15 150)'
-const AMBER = 'oklch(0.8 0.16 72)'
-const RED = 'oklch(0.64 0.22 25)'
+// Tokens, not literals (section 44, item 10).
+const GREEN = SUCCESS
+const AMBER = WARNING
+const RED = DANGER
 
 const goal = computed(() => app.goals.find((g) => g.id === props.goalId))
 const metric = computed(() => goal.value?.metric)

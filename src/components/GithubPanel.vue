@@ -11,7 +11,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import { pausedLabel, rateLimitLabel } from '@/utils/ghPoll'
 import type { LinkedRepo } from '@/types'
@@ -84,7 +84,7 @@ const toggleTrack = (on: boolean) =>
     width: 38,
     height: 22,
     borderRadius: 'var(--radius-card)',
-    background: on ? 'oklch(0.68 0.16 150)' : c.value.border,
+    background: on ? SUCCESS : c.value.border,
     border: '1px solid ' + c.value.border,
     cursor: 'pointer',
     position: 'relative',
@@ -182,12 +182,12 @@ const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShri
           <span :style="s.finMeta">{{ rateLabel }}</span>
           <button :style="s.importBtn" @click="syncNow">Sync now</button>
         </div>
-        <div v-if="paused" :style="bannerStyle('oklch(0.72 0.16 60)')">
+        <div v-if="paused" :style="bannerStyle(WARNING)">
           <strong>Sync paused</strong>
           <span>{{ paused }}</span>
           <button :style="s.editBtn" @click="app.resumeGithubSync()">Resume now</button>
         </div>
-        <div v-if="ghError" :style="bannerStyle('oklch(0.65 0.2 25)')">{{ ghError }}</div>
+        <div v-if="ghError" :style="bannerStyle(DANGER)">{{ ghError }}</div>
 
         <TextInput placeholder="Search repositories…" v-model="search" />
 

@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import Checkbox from '@/components/ui/Checkbox.vue'
-// All the floating chrome that used to live docked in the rail/header, now
-// scattered as independent glass orbs over the starfield: the AUREON mark
-// (top-left), the Notes and Settings orbs (bottom-left), and the theme + account
-// + GitHub cluster (bottom-right). Every surface shares the one glass token set
-// (c.glass / c.border / c.shadow) so nothing is styled one-off.
+// The bottom utility bar (section 44, items 4–5).
+//
+// Everything that used to float over the bottom of the viewport now lives here,
+// in one row: the notes and settings orbs that were fixed bottom-left, the sync
+// indicator that was fixed bottom-left on top of them, and the theme / espresso
+// / appearance / account / GitHub cluster that was fixed bottom-right on top of
+// the trades table's last rows.
+//
+// A ROW, NOT AN ISLAND. The cluster was a floating capsule with its own shadow
+// and its own coordinates; docked, it is four buttons at the end of a flex row.
+// The bar is a grid region, so the content area above it stops where the bar
+// starts and there is nothing left for it to cover. The `padding-bottom` the
+// content area carries (equal to this bar's height) is the second half of the
+// same promise: the last row of a table is not merely uncovered, it is clear.
+//
+// The popovers still open upward, and they are still absolutely positioned —
+// against their own button's wrapper, which is what `position: relative` on the
+// wrapper is for. An overlay that opens on demand and closes on Escape is not
+// persistent chrome and does not need a region.
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
@@ -13,8 +26,11 @@ import { useAppStore } from '@/stores/app'
 import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
+import { barGeometry } from '@/views/appShell'
 import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
 import Icon from '@/components/ui/Icon.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
+import ShellSync from '@/components/shell/ShellSync.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -26,17 +42,12 @@ const { avatarMenuOpen, avatarInitial, avatarName, avatarSub, avatarColor, ghMen
   storeToRefs(auth)
 const { security, autoRollover, hideCompleted, reminderSound } = storeToRefs(app)
 
-// Lift the bottom clusters above the horizontal dock on phones.
-const bottomInset = computed(() =>
-  isPhone.value ? 'calc(92px + env(safe-area-inset-bottom, 0px))' : '24px',
-)
+const bar = computed(() => pxify(barGeometry({ isPhone: isPhone.value })))
 
 const autoActive = computed(() => themeSetting.value === 'auto')
 function isThemeActive(key: ThemeKey) {
   return !autoActive.value && themeSetting.value === key
 }
-// The picker groups, straight from the registry (dark, light, special,
-// standalone).
 const darkThemes = computed(() =>
   THEME_DESCRIPTORS.filter((t) => t.mode === 'dark' && !t.special && !t.standalone),
 )
@@ -45,7 +56,11 @@ const lightThemes = computed(() =>
 )
 const specialThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.special))
 const standaloneThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.standalone))
-// The control hands over the value; there is no event to dig into any more.
+
+const espressoOn = computed(() => themeSetting.value === 'espresso')
+function toggleEspresso() {
+  ui.setTheme(espressoOn.value ? preferredLight.value : 'espresso')
+}
 function onAutoLockChange(on: boolean) {
   lock.setAutoLock(on)
 }
@@ -54,107 +69,51 @@ function onLockNow() {
   lock.lockNow()
 }
 
-// ---- shared orb -----------------------------------------------------------
-const orb = computed(() =>
+// --- styles -----------------------------------------------------------------
+// Bar buttons, not orbs. A 44px floating disc made sense when it hovered over a
+// starfield; in a 52px row it is the row. These are 32px and square-ish, which
+// is what a utility bar's controls look like.
+const btn = computed(() =>
   pxify({
     position: 'relative',
-    width: 44,
-    height: 44,
-    borderRadius: '50%',
+    width: 32,
+    height: 32,
+    flexShrink: 0,
+    borderRadius: 'var(--radius-control)',
     display: 'grid',
     placeItems: 'center',
-    background: c.value.glass,
-    backdropFilter: 'blur(20px) saturate(1.5)',
-    '-webkit-backdrop-filter': 'blur(20px) saturate(1.5)',
-    border: B.value,
-    boxShadow: c.value.shadow + ', inset 0 1px 0 rgba(255,255,255,0.18)',
+    background: 'transparent',
+    border: '1px solid transparent',
     cursor: 'pointer',
     color: c.value.accent,
-    transition: 'transform .2s ease, box-shadow .25s ease',
+    transition: 'background .18s ease, border-color .18s ease',
   }),
 )
-const orbHover = pxify({ transform: 'translateY(-3px) scale(1.05)' })
-
-const brandWrap = pxify({ position: 'fixed', top: 20, left: 24, zIndex: 6 })
-const brandOrb = computed(() =>
-  pxify({
-    width: 40,
-    height: 40,
-    borderRadius: '50%',
-    display: 'grid',
-    placeItems: 'center',
-    background: c.value.glass,
-    backdropFilter: 'blur(20px) saturate(1.5)',
-    '-webkit-backdrop-filter': 'blur(20px) saturate(1.5)',
-    border: B.value,
-    boxShadow: c.value.shadow,
-  }),
-)
-const brandDot = computed(() =>
-  pxify({
-    width: 18,
-    height: 18,
-    borderRadius: '50%',
-    background: 'radial-gradient(circle at 34% 32%, ' + c.value.accent + ' 0%, transparent 72%)',
-    boxShadow: '0 0 12px ' + c.value.accent,
-  }),
-)
-
-const leftStack = computed(() =>
-  pxify({
-    position: 'fixed',
-    left: 24,
-    bottom: bottomInset.value,
-    zIndex: 6,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--sp-3)',
-  }),
-)
-const rightCluster = computed(() =>
-  pxify({
-    position: 'fixed',
-    right: 24,
-    bottom: bottomInset.value,
-    zIndex: 6,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--sp-3)',
-  }),
-)
-const orbRel = pxify({ position: 'relative' })
-
-// The espresso switch. It sets the theme like any other, and — because the
-// choice is persisted with the trade logger's settings rather than in the
-// workspace document — it also asks the logger to remember it (section 29).
-const espressoOn = computed(() => themeSetting.value === 'espresso')
-function toggleEspresso() {
-  ui.setTheme(espressoOn.value ? preferredLight.value : 'espresso')
-}
+const btnHover = computed(() => pxify({ background: c.value.card, borderColor: c.value.border }))
+const wrapRel = pxify({ position: 'relative', display: 'inline-flex' })
+/** The slack between the left group and the right cluster. */
+const spacer = pxify({ flex: '1 1 auto', minWidth: 0 })
 
 const avatarDisc = computed(() =>
   pxify({
-    width: 30,
-    height: 30,
+    width: 24,
+    height: 24,
     borderRadius: '50%',
     display: 'grid',
     placeItems: 'center',
-    ...typeStep('xs'),
+    ...typeStep('2xs'),
     fontWeight: 'var(--weight-semibold)',
-    // The ink on a filled disc, from the theme rather than a literal white: on
-    // a pale accent white is unreadable, and the token is measured (section 29).
     color: 'var(--theme-on-accent)',
     background: avatarColor.value,
   }),
 )
 
-// Popovers open upward from the cluster.
 const popover = computed(() =>
   pxify({
     position: 'absolute',
     bottom: 'calc(100% + 10px)',
     right: 0,
-    width: 220,
+    width: 224,
     background: c.value.glass,
     backdropFilter: 'blur(28px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
@@ -165,12 +124,9 @@ const popover = computed(() =>
     display: 'flex',
     flexDirection: 'column',
     gap: 2,
-    zIndex: 20,
-    animation: 'fadeUp .22s ease both',
+    zIndex: 30,
   }),
 )
-// The Appearance picker is wider than the account menu to fit the card grid,
-// and scrolls if the theme list outgrows the viewport.
 const themePopover = computed(() =>
   pxify({
     position: 'absolute',
@@ -186,8 +142,7 @@ const themePopover = computed(() =>
     borderRadius: 'var(--radius-dialog)',
     padding: 10,
     boxShadow: c.value.shadow,
-    zIndex: 20,
-    animation: 'fadeUp .22s ease both',
+    zIndex: 30,
   }),
 )
 function themeRow(active: boolean) {
@@ -223,7 +178,6 @@ const groupLabel = computed(() =>
     padding: '6px 8px 2px',
   }),
 )
-// --- Appearance picker: a grid of theme cards, grouped dark / light / special.
 const pickerGrid = pxify({
   display: 'grid',
   gridTemplateColumns: '1fr 1fr',
@@ -244,7 +198,6 @@ function themeCard(active: boolean) {
     width: '100%',
   })
 }
-// The three preview swatches (surface / accent / card) stacked as a mini board.
 function cardSwatchRow(preview: readonly [string, string, string]) {
   return pxify({
     display: 'flex',
@@ -300,62 +253,54 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
 </script>
 
 <template>
-  <!-- Brand orb, top-left -->
-  <div :style="brandWrap">
-    <div :style="brandOrb" aria-label="Aureon"><span :style="brandDot"></span></div>
-  </div>
-
-  <!-- Notes + Settings orbs, bottom-left -->
-  <div :style="leftStack">
-    <button :style="orb" v-hover-style="orbHover" aria-label="Notes" @click="ui.toggleDrawer()">
-      <Icon name="notebook" size="md" :style="{ color: c.accent }" />
+  <footer :style="bar" class="shell-bar">
+    <!-- Left: the two utilities, then the sync status. -->
+    <button :style="btn" v-hover-style="btnHover" aria-label="Notes" @click="ui.toggleDrawer()">
+      <Icon name="notebook" size="sm" :style="{ color: c.accent }" />
     </button>
     <button
-      :style="orb"
-      v-hover-style="orbHover"
+      :style="btn"
+      v-hover-style="btnHover"
       aria-label="Settings"
       @click="auth.toggleAvatarMenu()"
     >
-      <Icon name="sun" size="md" :style="{ color: c.accent }" />
+      <Icon name="sun" size="sm" :style="{ color: c.accent }" />
     </button>
-  </div>
 
-  <!-- Theme + account + GitHub cluster, bottom-right -->
-  <div :style="rightCluster">
-    <!-- Quick dark/light toggle: flips between the user's last-chosen dark and
-         light themes without opening the picker. -->
+    <ShellSync />
+
+    <span :style="spacer"></span>
+
+    <!-- Right: the action cluster, docked as a row rather than floating. -->
     <button
-      :style="orb"
-      v-hover-style="orbHover"
+      :style="btn"
+      v-hover-style="btnHover"
       :aria-label="dark ? 'Switch to light theme' : 'Switch to dark theme'"
       @click="ui.toggleThemeMode()"
     >
-      <Icon v-if="dark" name="sun" size="md" :style="{ color: c.accent }" />
-      <Icon v-else name="moon" size="md" :style="{ color: c.accent }" />
+      <Icon v-if="dark" name="sun" size="sm" :style="{ color: c.accent }" />
+      <Icon v-else name="moon" size="sm" :style="{ color: c.accent }" />
     </button>
-    <!-- Espresso (section 29). Its own control rather than another row in the
-         picker: it is a whole ground, and a switch you can find without opening
-         a menu is the difference between a theme people use and one they
-         discover once. The cup is not used anywhere else in the app. -->
+
     <button
-      :style="orb"
-      v-hover-style="orbHover"
-      class="orb-themed"
+      :style="btn"
+      v-hover-style="btnHover"
       :aria-pressed="espressoOn"
       :aria-label="espressoOn ? 'Leave the espresso theme' : 'Switch to the espresso theme'"
       @click="toggleEspresso()"
     >
-      <Icon name="coffee" size="md" :style="{ color: c.accent }" />
+      <Icon name="coffee" size="sm" :style="{ color: c.accent }" />
     </button>
-    <div :style="orbRel">
+
+    <div :style="wrapRel">
       <button
-        :style="orb"
-        v-hover-style="orbHover"
+        :style="btn"
+        v-hover-style="btnHover"
         aria-label="Appearance"
         :aria-expanded="themePanelOpen"
         @click="ui.toggleThemePanel()"
       >
-        <Icon name="palette" size="md" :style="{ color: c.accent }" />
+        <Icon name="palette" size="sm" :style="{ color: c.accent }" />
       </button>
       <div v-if="themePanelOpen" :style="themePopover" role="menu">
         <button :style="themeRow(autoActive)" @click="ui.setTheme('auto')">
@@ -423,8 +368,6 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
           </div>
         </template>
         <template v-if="standaloneThemes.length">
-          <!-- Its own group: a standalone theme is a whole look rather than a
-               variant of the current one (section 21d). -->
           <span :style="groupLabel">Standalone</span>
           <div :style="pickerGrid">
             <button
@@ -446,10 +389,10 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
       </div>
     </div>
 
-    <div :style="orbRel">
+    <div :style="wrapRel">
       <button
-        :style="orb"
-        v-hover-style="orbHover"
+        :style="btn"
+        v-hover-style="btnHover"
         aria-label="Account"
         @click="auth.toggleAvatarMenu()"
       >
@@ -499,12 +442,12 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
     </div>
 
     <button
-      :style="orb"
-      v-hover-style="orbHover"
+      :style="btn"
+      v-hover-style="btnHover"
       aria-label="GitHub"
       @click="auth.openGithubPanel()"
     >
-      <Icon name="share" size="md" :style="{ color: c.accent }" />
+      <Icon name="share" size="sm" :style="{ color: c.accent }" />
     </button>
-  </div>
+  </footer>
 </template>

@@ -399,10 +399,10 @@ defineExpose({
   font-weight: var(--weight-semibold);
 }
 .gdb__chip--overdue {
-  color: oklch(0.64 0.22 25);
+  color: var(--theme-danger);
 }
 .gdb__chip--today {
-  color: oklch(0.72 0.16 55);
+  color: var(--theme-warning);
 }
 .gdb__chip--ahead {
   color: var(--theme-dim);

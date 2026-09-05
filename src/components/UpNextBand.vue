@@ -9,7 +9,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useReminderClock } from '@/composables/useReminderClock'
-import { pxify, typeStep } from '@/styles'
+import { DANGER, WARNING, pxify, typeStep } from '@/styles'
 import {
   upcomingReminders,
   nextBeyondWindow,
@@ -44,11 +44,11 @@ const nextBeyondLabel = computed(() =>
 
 const PRIORITY_LABEL: Record<Priority, string> = { high: 'High', normal: 'Normal', low: 'Low' }
 function priorityColor(p: Priority): string {
-  if (p === 'high') return dark.value ? 'oklch(0.72 0.18 25)' : 'oklch(0.58 0.19 25)'
+  if (p === 'high') return DANGER
   if (p === 'low') return c.value.dim
-  return dark.value ? 'oklch(0.78 0.13 88)' : 'oklch(0.62 0.13 70)'
+  return WARNING
 }
-const dangerColor = computed(() => (dark.value ? 'oklch(0.68 0.2 25)' : 'oklch(0.58 0.2 25)'))
+const dangerColor = computed(() => DANGER)
 const accentColor = computed(() => c.value.accent)
 
 // Big countdown text: MM:SS under an hour, coarser above; "Xh ago" for overdue.

@@ -74,6 +74,18 @@ const SHOTS = [
   // treatments side by side, and the unsaved sheet over them.
   { name: 'glass-states', path: '/dev/shot/states?show=topbar' },
   { name: 'glass-unsaved', path: '/dev/shot/states?show=unsaved' },
+  // The shell (section 44). Every one of these is shot WITH the chrome around
+  // it, because the whole subject is whether the chrome overlaps the content
+  // and that is unphotographable without the chrome. `check-overlap.mjs`
+  // measures the same four; these are the pictures of them.
+  { name: 'shell-dashboard', path: '/dev/shot/overview?shell=1' },
+  { name: 'shell-todos', path: '/dev/shot/todo?shell=1' },
+  {
+    name: 'shell-trades-last-row',
+    path: '/dev/shot/trades?shell=1&month=2026-08',
+    scroll: 'bottom',
+  },
+  { name: 'shell-code-setup', path: '/dev/shot/code?shell=1' },
   { name: 'state-empty', path: '/dev/shot/trades?state=empty' },
   { name: 'state-loading', path: '/dev/shot/trades?state=loading', ready: false },
   { name: 'state-error', path: '/dev/shot/trades?state=error', ready: false },
@@ -132,10 +144,19 @@ async function shoot(page, shot, theme, size, outDir) {
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))))
   }
 
-  // The bottom of the document, then a frame to settle — with the page
-  // scrolling rather than a box inside it, this is a real scroll of the window.
+  // The bottom, then a frame to settle.
+  //
+  // WHICH ELEMENT scrolls depends on whether the shell is around it (section
+  // 44): inside the shell the content region is the scrollport and the document
+  // does not scroll at all, so `window.scrollTo` would silently do nothing and
+  // the shot would be of the top of the table — a picture that proves the
+  // opposite of what it is for.
   if (shot.scroll === 'bottom') {
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+    await page.evaluate(() => {
+      const region = document.querySelector('.app-shell__content')
+      if (region) region.scrollTop = region.scrollHeight
+      else window.scrollTo(0, document.body.scrollHeight)
+    })
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))))
   }
 
