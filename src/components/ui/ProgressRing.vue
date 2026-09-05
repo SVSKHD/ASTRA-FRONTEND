@@ -4,10 +4,25 @@
 import { computed, useId } from 'vue'
 
 const props = withDefaults(
-  defineProps<{ ratio: number; size?: number; stroke?: number; label?: string; color?: string }>(),
-  { size: 44, stroke: 4 },
+  defineProps<{
+    ratio?: number
+    size?: number
+    stroke?: number
+    label?: string
+    color?: string
+    /**
+     * Work in flight whose extent is unknown — a sync of N writes that will
+     * take as long as the network takes. The arc becomes a fixed quarter and
+     * spins, because a determinate ring drawn at a made-up ratio is a lie about
+     * progress, and a static arc is not an indicator at all.
+     */
+    indeterminate?: boolean
+  }>(),
+  { ratio: 0, size: 44, stroke: 4, indeterminate: false },
 )
-const clamped = computed(() => Math.max(0, Math.min(1, props.ratio || 0)))
+const clamped = computed(() =>
+  props.indeterminate ? 0.25 : Math.max(0, Math.min(1, props.ratio || 0)),
+)
 const radius = computed(() => (props.size - props.stroke) / 2)
 const circumference = computed(() => 2 * Math.PI * radius.value)
 const offset = computed(() => circumference.value * (1 - clamped.value))
@@ -19,11 +34,12 @@ const gradientId = `ui-ring-${useId()}`
 <template>
   <svg
     class="ui-ring"
+    :class="{ 'ui-ring--spin': indeterminate }"
     :width="size"
     :height="size"
     :viewBox="`0 0 ${size} ${size}`"
     role="img"
-    :aria-label="label || `${pct}%`"
+    :aria-label="label || (indeterminate ? 'Working' : `${pct}%`)"
   >
     <circle
       class="ui-ring__track"
@@ -53,7 +69,7 @@ const gradientId = `ui-ring-${useId()}`
       :transform="`rotate(-90 ${size / 2} ${size / 2})`"
     />
     <text
-      v-if="size >= 36"
+      v-if="size >= 36 && !indeterminate"
       class="ui-ring__text"
       :x="size / 2"
       :y="size / 2"
@@ -71,6 +87,21 @@ const gradientId = `ui-ring-${useId()}`
 }
 .ui-ring__fill {
   transition: stroke-dashoffset var(--dur-med) var(--ease-out);
+}
+/* One rotation a second, and nothing at all under reduced motion — a spinner
+   that cannot be turned off is the motion budget's whole complaint. */
+.ui-ring--spin {
+  animation: ui-ring-spin 0.9s linear infinite;
+}
+@keyframes ui-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-ring--spin {
+    animation: none;
+  }
 }
 .ui-ring__text {
   fill: var(--theme-text);

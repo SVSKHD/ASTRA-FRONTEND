@@ -19,6 +19,7 @@
 
 import { onUnmounted, watch, type Ref } from 'vue'
 import { sessionRead, sessionWrite } from '@/composables/useTradeRoute'
+import { shellScroller } from '@/components/shell/shellKeys'
 import type { TabKey } from '@/types'
 
 const KEY = 'astra:scroll'
@@ -39,6 +40,31 @@ export function readOffset(tab: TabKey): number {
 export function useScrollMemory(tab: Ref<TabKey>) {
   if (typeof window === 'undefined') return
 
+  // WHAT SCROLLS CHANGED (section 44). The document used to be the scrollport;
+  // in the shell it is the content region, because the strip and the bar must
+  // stay where they are while the month goes past. So the offset is read and
+  // written on whichever element is actually scrolling — the shell's content
+  // area when there is a shell, the window when there is not (the share page,
+  // the screenshot stage). Reading `window.scrollY` inside a shell would record
+  // zero forever and restore to the top every time.
+  const port = () => shellScroller.value
+  const readTop = () => port()?.scrollTop ?? window.scrollY
+  const scrollTo = (top: number) => {
+    const el = port()
+    if (el) el.scrollTo({ top, behavior: 'auto' })
+    else window.scrollTo({ top, behavior: 'auto' })
+  }
+  // The scroll event does not bubble from an element to the window, so the
+  // listener has to go on the element once it exists.
+  let listening: HTMLElement | Window | null = null
+  function listen() {
+    const next: HTMLElement | Window = port() ?? window
+    if (listening === next) return
+    listening?.removeEventListener('scroll', remember)
+    next.addEventListener('scroll', remember, { passive: true })
+    listening = next
+  }
+
   let frame = 0
   let observer: MutationObserver | null = null
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -51,7 +77,7 @@ export function useScrollMemory(tab: Ref<TabKey>) {
     if (frame) return
     frame = requestAnimationFrame(() => {
       frame = 0
-      if (current) sessionWrite(scrollKey(current), String(Math.round(window.scrollY)))
+      if (current) sessionWrite(scrollKey(current), String(Math.round(readTop())))
     })
   }
 
@@ -70,12 +96,12 @@ export function useScrollMemory(tab: Ref<TabKey>) {
     if (!offset) {
       // A tab never scrolled starts at the top, which is also what a reader
       // expects of a tab they have not been on.
-      window.scrollTo({ top: 0, behavior: 'auto' })
+      scrollTo(0)
       return
     }
     const apply = () => {
       disarm()
-      window.scrollTo({ top: offset, behavior: 'auto' })
+      scrollTo(offset)
     }
     if (isReady()) {
       // Ready already (a cached tab): still a frame late, so the rows are laid
@@ -97,7 +123,10 @@ export function useScrollMemory(tab: Ref<TabKey>) {
     timer = setTimeout(disarm, READY_TIMEOUT_MS)
   }
 
-  window.addEventListener('scroll', remember, { passive: true })
+  listen()
+  // The shell's content element arrives a tick after this composable is set up
+  // (the shell provides a ref and fills it on mount), so the listener follows it.
+  watch(shellScroller, () => listen())
 
   watch(
     tab,
@@ -105,7 +134,7 @@ export function useScrollMemory(tab: Ref<TabKey>) {
       if (previous && previous !== next) {
         // Park the outgoing tab at where it actually is, not at where the
         // throttled write last got to.
-        sessionWrite(scrollKey(previous), String(Math.round(window.scrollY)))
+        sessionWrite(scrollKey(previous), String(Math.round(readTop())))
       }
       current = next
       restore(next)
@@ -114,7 +143,8 @@ export function useScrollMemory(tab: Ref<TabKey>) {
   )
 
   onUnmounted(() => {
-    window.removeEventListener('scroll', remember)
+    listening?.removeEventListener('scroll', remember)
+    listening = null
     if (frame) cancelAnimationFrame(frame)
     disarm()
   })

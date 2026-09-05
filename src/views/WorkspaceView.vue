@@ -13,10 +13,8 @@ import { useScrollMemory } from '@/composables/useScrollMemory'
 import { useTabRoute } from '@/composables/useTabRoute'
 import { stageGeometry, stageWrapGeometry } from '@/views/workspaceStage'
 
-import FloatingDock from '@/components/FloatingDock.vue'
-import FloatingChrome from '@/components/FloatingChrome.vue'
+import AppShell from '@/components/shell/AppShell.vue'
 import DragGhost from '@/components/DragGhost.vue'
-import Ticker from '@/components/Ticker.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
 import NoteView from '@/components/NoteView.vue'
 import DetailHost from '@/components/detail/DetailHost.vue'
@@ -76,14 +74,18 @@ const { tab, vw, isPhone } = storeToRefs(ui)
 useTabRoute()
 useScrollMemory(tab)
 
-// The centered stage (section 42).
+// The centered stage (sections 42 and 44).
 //
-// IT IS IN FLOW, AND THE PAGE IS WHAT SCROLLS. It used to be `position: fixed`
-// at `inset: 0` with a fixed `86vh` height and `overflow: hidden`, and those
-// three together are why a long month was cut off at the bottom of the screen
-// with no way to reach the rest: the shell was out of flow so the document had
-// nothing to scroll, the stage was exactly one screen tall, and anything past
-// that was clipped rather than reachable.
+// IT IS IN FLOW INSIDE THE SHELL'S CONTENT REGION, WHICH IS WHAT SCROLLS. It
+// used to be `position: fixed` at `inset: 0` with a fixed `86vh` height and
+// `overflow: hidden`, and those three together are why a long month was cut off
+// at the bottom of the screen with no way to reach the rest.
+//
+// The scrollport moved from the document to the content region when the chrome
+// was given regions of its own (section 44) — the strip and the bar have to
+// stay put while the month goes past, and a document that scrolls takes them
+// with it. Everything below still applies unchanged: the stage itself must not
+// clip, must not transform and must not be taken out of flow.
 //
 // Nothing inside is a scrollbox now either. A table that scrolls in its own
 // 420px window inside a page that cannot scroll is two broken things agreeing
@@ -306,19 +308,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <template v-if="showWorkspace">
-    <!-- Everything floats over the starfield: an icon dock on the left, a single
-         centered glass stage holding the active section, and the chrome orbs. -->
-    <FloatingDock />
+  <!-- Four regions over the starfield: the dock in the rail, the page's header
+       actions and the reminder in the top strip, the active section in the one
+       scrolling content area, and the sync status and action cluster in the
+       bottom bar. Nothing is `position: fixed` and nothing overlaps anything. -->
+  <AppShell v-if="showWorkspace">
     <div :style="stageWrap">
-      <main :style="stageStyle">
+      <div :style="stageStyle">
         <component :is="currentView" ref="activeView" />
-      </main>
+      </div>
     </div>
-    <FloatingChrome />
-  </template>
-
-  <Ticker v-if="showWorkspace" />
+  </AppShell>
 
   <template v-if="showWorkspace">
     <NotesDrawer />

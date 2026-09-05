@@ -17,9 +17,20 @@ import TradesView from '@/components/views/TradesView.vue'
 import ExpensesView from '@/components/views/ExpensesView.vue'
 import NewsView from '@/components/views/NewsView.vue'
 import CodeView from '@/components/views/CodeView.vue'
+import TodoView from '@/components/views/TodoView.vue'
+import OverviewView from '@/components/views/OverviewView.vue'
+import AppShell from '@/components/shell/AppShell.vue'
 import LoadingStates from '@/dev/LoadingStates.vue'
+import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import {
+  seedDeadlines,
+  seedIdeas,
+  seedReminders,
+  seedTasks,
+  seedTodos,
+} from '@/dev/seedWorkspace'
 import { useSettings } from '@/composables/useSettings'
 import { useSignals } from '@/composables/useSignals'
 import { useTrades } from '@/composables/useTrades'
@@ -62,10 +73,42 @@ const VIEWS = {
   expenses: ExpensesView,
   news: NewsView,
   code: CodeView,
+  // The two tabs section 44 is about: the Dashboard that has to aggregate every
+  // other tab, and the Todos list whose "+ New todo" button the reminder pill
+  // used to sit on top of.
+  overview: OverviewView,
+  todo: TodoView,
   // The five loading and glass states on one page (section 43, item 10).
   states: LoadingStates,
   trades: TradesView,
 } as const
+
+/**
+ * `?shell=1` puts the real chrome around the view.
+ *
+ * The stage normally mounts a tab bare, which is the right default: a shot of
+ * the trades table should not depend on the account menu rendering. But the
+ * whole subject of section 44 is whether the chrome overlaps the content, and
+ * that is unphotographable without the chrome. So it is an opt-in, and the
+ * overlap shots ask for it.
+ *
+ * Read ONCE from the address bar rather than from the reactive route, the same
+ * way `forcedState` is. The Trades tab owns its own query — `useTradeRoute`
+ * replaces it with `{mode, month, day, symbol}` on the first tick — so a flag
+ * read reactively from `route.query` is true for one frame and false forever
+ * after, and the shell would unmount from under the shot.
+ */
+const withShell = new URLSearchParams(globalThis.location?.search ?? '').get('shell') === '1'
+
+// The workspace document, which the Firestore fixture does not cover because it
+// is not a collection. Assigned straight onto the store — see `seedWorkspace`.
+const app = useAppStore()
+app.todos = seedTodos()
+app.tasks = seedTasks()
+app.deadlines = seedDeadlines()
+app.reminders = seedReminders()
+app.ideas = seedIdeas()
+app.cloudReady = true
 
 const which = computed(() => String(route.params.view) as keyof typeof VIEWS)
 const view = computed(() => VIEWS[which.value] ?? TradesView)
@@ -101,7 +144,21 @@ const stage = ref<HTMLElement | null>(null)
 </script>
 
 <template>
+  <!-- With the shell, the stage is a plain child of the content region: the
+       shell owns the height, the scrolling and the padding, exactly as it does
+       in the workspace. Without it, the stage is the page. -->
+  <AppShell v-if="withShell">
+    <div
+      ref="stage"
+      class="shot shot--shell"
+      :data-ready="ready ? 'true' : 'false'"
+      :data-state="state || 'live'"
+    >
+      <component :is="view" :show="which === 'states' ? show : undefined" />
+    </div>
+  </AppShell>
   <div
+    v-else
     ref="stage"
     class="shot"
     :data-ready="ready ? 'true' : 'false'"
@@ -124,5 +181,10 @@ const stage = ref<HTMLElement | null>(null)
   min-height: 100dvh;
   padding: var(--sp-4);
   color: var(--text-primary, var(--theme-text));
+}
+/* Inside the shell the viewport height belongs to the shell, and a `100dvh`
+   floor here would add exactly the chrome's height of scroll to every tab. */
+.shot--shell {
+  min-height: 100%;
 }
 </style>
