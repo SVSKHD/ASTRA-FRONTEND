@@ -38,7 +38,9 @@ export function stageWrapGeometry() {
     zIndex: 2,
     display: 'grid',
     justifyItems: 'center',
-    minHeight: '100%',
+    height: '100%',
+    minHeight: 0,
+    overflow: 'hidden',
     // The gutters belong to the dock and the starfield, so this must not eat
     // their clicks.
     pointerEvents: 'none',
@@ -57,18 +59,17 @@ export function stageGeometry({ vw, isPhone }: StageInput) {
   // Percentages of the CONTENT REGION, not of the viewport: the rail has its
   // own column now, so a `vw` width would be measured against a viewport the
   // stage no longer spans and would run under the dock at every breakpoint.
-  const width = isPhone ? '96%' : vw < 1024 ? '94%' : vw < 1440 ? '90%' : '82%'
+  const width = isPhone ? '99%' : vw < 1024 ? '98%' : vw < 1440 ? '97%' : '95%'
   return {
     position: 'relative',
     pointerEvents: 'auto',
     width,
     maxWidth: 1500,
     minWidth: 0,
-    // A floor of the region rather than of the screen, for the same reason the
-    // wrapper's is: a tab with three rows should still fill the space it was
-    // given, and a tab with three hundred should be as tall as it is.
-    minHeight: '100%',
-    margin: isPhone ? '10px 0 16px' : '14px 0 22px',
+    height: isPhone ? 'calc(100% - 20px)' : 'calc(100% - 28px)',
+    minHeight: 0,
+    overflow: 'hidden',
+    margin: isPhone ? '12px 0 8px' : '18px 0 10px',
     display: 'flex',
     flexDirection: 'column',
   } as const

@@ -12,7 +12,7 @@
 // text on three adjacent rows.
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { resolve, sep } from 'node:path'
 import { readdirSync, statSync } from 'node:fs'
 import { TYPE_SCALE } from '@/components/ui/type'
 
@@ -28,7 +28,13 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const FILES = walk(SRC).filter((f) => !/\.test\.ts$/.test(f))
-const rel = (f: string) => f.slice(SRC.length + 1)
+// Posix separators on every platform, so an offender is named the same way
+// wherever the suite runs.
+const rel = (f: string) =>
+  f
+    .slice(SRC.length + 1)
+    .split(sep)
+    .join('/')
 
 /** Where a number is legitimately not CSS, and a custom property cannot go. */
 const NOT_CSS = new Set([

@@ -10,11 +10,35 @@
 // Nothing on this screen is stored twice. Every figure is a `computed` over the
 // month's rows, so an edit that changes a price moves the table, the calendar
 // cell, the targets and the account block in the same tick.
-import { computed, onUnmounted, ref, watch } from 'vue'
+//
+// THE SHAPE, top to bottom, and why it is this one:
+//
+//   ┌ targets ────────┬ session clock ──────┐   two questions, side by side:
+//   │ today           │ balance / secured   │   "am I on track" on the left,
+//   │ month to date   │                     │   "what is it worth" on the right
+//   ├ calendar ───────┼ trades ─────────────┤
+//   │ the month       │ the rows            │
+//   └─────────────────┴─────────────────────┘
+//
+// The calendar takes a NARROW fixed track and the table takes the rest. A
+// half-and-half split would have been the obvious grid and the wrong one: the
+// calendar is seven columns of two-digit cells and stops improving past about
+// 340px, while the table is thirteen columns of nowrap figures with no
+// horizontal scroll on the desktop by design — every pixel not spent on the
+// month is spent where it is legible. Below 1180px they stop sharing a row
+// entirely, because a table squeezed into a column is a table nobody can read.
+//
+// THE FORM IS A DIALOG. It used to sit beside the calendar taking half the row
+// forever, for a job done a handful of times a session — and the collapse-on-
+// blur behaviour it grew was the tell: an element folding itself away is an
+// element admitting it should not have been there. Asking for it by name gives
+// the table the width instead.
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import ListToolbar from '@/components/ListToolbar.vue'
 import Alert from '@/components/ui/Alert.vue'
 import Button from '@/components/ui/Button.vue'
-import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import Modal from '@/components/ui/Modal.vue'
+import Tabs from '@/components/ui/Tabs.vue'
 import IconExport from '@/components/icons/IconExport.vue'
 import AccountBlock from '@/components/trades/AccountBlock.vue'
 import CombinedTimeline from '@/components/trades/CombinedTimeline.vue'
@@ -26,6 +50,7 @@ import TradeSettingsPanel from '@/components/trades/TradeSettingsPanel.vue'
 import TradeSkeleton from '@/components/trades/TradeSkeleton.vue'
 import TradeTable, { type RowState } from '@/components/trades/TradeTable.vue'
 import TradeTargets from '@/components/trades/TradeTargets.vue'
+import CollectionProbe from '@/components/trades/CollectionProbe.vue'
 import SecuredLedger from '@/components/trades/SecuredLedger.vue'
 import NewsStrip from '@/components/trades/NewsStrip.vue'
 import OutboxPanel from '@/components/trades/OutboxPanel.vue'
@@ -44,7 +69,7 @@ import { linkSignals } from '@/utils/combine'
 import { downloadText } from '@/utils/noteExport'
 import { monthLabel } from '@/utils/budget'
 import { monthName } from '@/utils/format'
-import { accountTotals, tradeCsvFilename, tradesToCsv } from '@/utils/tradeMath'
+import { accountTotals, monthBounds, tradeCsvFilename, tradesToCsv } from '@/utils/tradeMath'
 import { IST, hhmmOn, instantFromWall, ymdOn } from '@/utils/tradeTime'
 import type { TradeDraft } from '@/services/tradeDoc'
 import type { DacoitSignal } from '@/types'
@@ -106,6 +131,25 @@ const rowStates = computed<Record<string, RowState>>(() => {
   return out
 })
 
+/**
+ * The month the listener is actually ranging over.
+ *
+ * Shown to the reader when the month comes back empty, because "no trades" and
+ * "the query never matched anything" are the same picture and only one of them
+ * is a bug (section 32).
+ */
+const bounds = computed(() => monthBounds(route.month.value))
+/**
+ * An empty month, once the fetch has genuinely finished.
+ *
+ * Not `!trades.length` on its own: during the first load that is true and means
+ * nothing. And not while a day is selected either — an empty day inside a month
+ * that has rows is an ordinary answer, and the table's own empty state says so.
+ */
+const monthIsEmpty = computed(
+  () => ready.value && !log.loading.value && !log.trades.value.length && !route.day.value,
+)
+
 const links = computed(() => linkSignals(log.trades.value, signalLog.signals.value))
 const totals = computed(() =>
   accountTotals(log.trades.value, secured.entries.value, settings.value.startingBalance),
@@ -133,9 +177,17 @@ function armRequest(session: ArmRequest['session'], symbol: string, signalId = '
   }
 }
 
-/** "Log this" on a signal: the same arming, with the signal's own facts. */
+/**
+ * "Log this" on a signal: the same arming, with the signal's own facts.
+ *
+ * This one DOES open the dialog, where the T-5 arming above does not. The
+ * difference is who asked: pressing "Log this" is a request to log a trade, and
+ * a clock reaching T-5 is not. A modal that opens itself three times a day
+ * because a session is due is a modal that gets dismissed without being read.
+ */
 function takeSignal(signal: DacoitSignal) {
   arm.value = armRequest(signal.session, signal.symbol, signal.signalId)
+  openForm()
 }
 
 // --- writes (section 42) ------------------------------------------------------
@@ -191,6 +243,10 @@ async function onSubmit(draft: TradeDraft, captured: (ok: boolean) => void) {
   // exactly where they were.
   captured(Boolean(id))
   if (!id) return
+  // Closed only on a capture. A failed write keeps the dialog — and the typed
+  // values in it — exactly where they were, which is the whole reason `submit`
+  // reports back rather than assuming.
+  formOpen.value = false
 
   // The confirmation lands where the data landed: the new row's rail and the
   // calendar cell whose figures just changed, both for the same moment.
@@ -216,18 +272,32 @@ function exportCsv() {
   )
 }
 
+// --- the form, on request (section 44) --------------------------------------
+//
+// `focus()` is what ⌘K and the toolbar's create button call, and what it means
+// on this tab is "let me log a trade" — which is now opening the dialog and
+// putting the cursor in the one field that is not already filled in.
+const formOpen = ref(false)
 const form = ref<{ focus: () => void } | null>(null)
-defineExpose({ focus: () => form.value?.focus() })
+
+function openForm() {
+  formOpen.value = true
+  // After the dialog has mounted its contents, not before: the field being
+  // focused does not exist until then.
+  void nextTick(() => form.value?.focus())
+}
+
+defineExpose({ focus: openForm })
 </script>
 
 <template>
   <div :style="panelStyle" :data-ready="ready && !log.loading.value ? 'true' : 'false'">
-    <ListToolbar title="Trades" new-label="Log trade" @new="form?.focus()">
+    <ListToolbar title="Trades" new-label="Log trade" @new="openForm()">
       <template #actions>
-        <SegmentedControl
+        <Tabs
           size="sm"
           :model-value="route.mode.value"
-          :options="MODES"
+          :tabs="MODES"
           aria-label="What this month is shown as"
           @update:model-value="route.set({ mode: $event as TradeMode })"
         />
@@ -241,37 +311,79 @@ defineExpose({ focus: () => form.value?.focus() })
       </template>
     </ListToolbar>
 
-    <!-- A write that was refused, and a listener that stopped. Two different
-         failures with two different fixes, so they are two messages. -->
-    <Alert v-if="log.error.value" tone="danger" dismissible @dismiss="log.error.value = ''">
+    <Alert
+      v-if="log.error.value"
+      tone="danger"
+      title="Could not save trade"
+      dismissible
+      @dismiss="log.error.value = ''"
+    >
       {{ log.error.value }}
     </Alert>
-    <Alert v-if="log.listenerError.value" tone="danger">{{ log.listenerError.value }}</Alert>
-    <Alert v-if="rename.message.value" tone="info" dismissible @dismiss="rename.dismiss()">
+    <Alert
+      v-if="log.listenerError.value"
+      tone="danger"
+      title="Trade feed interrupted"
+      dismissible
+      @dismiss="log.listenerError.value = ''"
+    >
+      {{ log.listenerError.value }}
+    </Alert>
+    <Alert
+      v-if="rename.message.value"
+      tone="info"
+      title="Collection update"
+      dismissible
+      @dismiss="rename.dismiss()"
+    >
       {{ rename.message.value }}
     </Alert>
-    <Alert v-if="outbox.message.value" tone="warning">{{ outbox.message.value }}</Alert>
+    <Alert
+      v-if="outbox.message.value"
+      tone="warning"
+      title="Write queued"
+      dismissible
+      @dismiss="outbox.message.value = ''"
+    >
+      {{ outbox.message.value }}
+    </Alert>
 
     <OutboxPanel :entries="outbox.entries.value" @discard="outbox.discard($event)" />
 
-    <!-- The one always-visible element, above everything the month is about. -->
-    <SessionDesk
-      :broker="broker"
-      :bounds="settings.sessionBounds"
-      :signals="signalLog.signals.value"
-      @take="takeSignal"
-      @arm="onArm"
-    />
+    <div class="tv__scroll">
+      <!-- TARGETS | CLOCK + ACCOUNT.
+           The desk is outside every loading branch, because it is the one
+           element here that is about the next few minutes rather than about the
+           month — it has nothing to wait for and is live on the first frame. -->
+      <div class="tv__top">
+        <div class="tv__col">
+          <TradeTargets
+            v-if="!log.loading.value"
+            :trades="log.trades.value"
+            :settings="settings"
+            :period="monthLabel(route.month.value)"
+          />
+          <TradeSkeleton v-else part="targets" />
+        </div>
 
-    <TradeSkeleton v-if="log.loading.value" class="tv__scroll" />
-
-    <div v-else class="tv__scroll">
-      <AccountBlock
-        :balance="totals.balance"
-        :secured="totals.securedTotal"
-        :total-profit="totals.totalProfit"
-        :period="monthLabel(route.month.value)"
-      />
+        <div class="tv__col">
+          <SessionDesk
+            :broker="broker"
+            :bounds="settings.sessionBounds"
+            :signals="signalLog.signals.value"
+            @take="takeSignal"
+            @arm="onArm"
+          />
+          <AccountBlock
+            v-if="!log.loading.value"
+            :balance="totals.balance"
+            :secured="totals.securedTotal"
+            :total-profit="totals.totalProfit"
+            :period="monthLabel(route.month.value)"
+          />
+          <TradeSkeleton v-else part="account" />
+        </div>
+      </div>
 
       <TradeSettingsPanel
         v-if="showSettings"
@@ -282,20 +394,14 @@ defineExpose({ focus: () => form.value?.focus() })
         @rename="rename.start($event.key, $event.next)"
       />
 
-      <TradeTargets :trades="log.trades.value" :settings="settings" />
-
       <!-- Collapsed, and only when a day is selected: on a month view it would
            have no day to be about. -->
       <NewsStrip :items="news.items.value" :day="route.day.value" />
 
-      <SecuredLedger
-        :entries="secured.entries.value"
-        :total="secured.total.value"
-        @add="secured.add($event)"
-        @delete="secured.remove($event)"
-      />
+      <TradeSkeleton v-if="log.loading.value" part="main" />
 
-      <div class="tv__split">
+      <!-- CALENDAR | TABLE. One switch, one calendar, three tables. -->
+      <div v-else class="tv__main">
         <TradeCalendar
           :trades="log.trades.value"
           :day-target="settings.dayTarget"
@@ -306,50 +412,84 @@ defineExpose({ focus: () => form.value?.focus() })
           @update:selected="route.set({ day: $event })"
           @month="route.set({ month: $event, day: '' })"
         />
-        <TradeForm
-          ref="form"
-          :settings="settings"
-          :saving="save.state.value"
-          :arm="arm"
-          @submit="onSubmit"
-          @size-symbol="
-            store.save({
-              contractSizes: { ...settings.contractSizes, [$event.symbol]: $event.size },
-              lastSymbol: $event.symbol,
-            })
-          "
-        />
+
+        <div class="tv__rows">
+          <TradeTable
+            v-if="route.mode.value === 'journal'"
+            :trades="visibleTrades"
+            :broker="broker"
+            :state="rowStates"
+            :flash="flashRow"
+            :empty-title="
+              route.day.value ? `Nothing traded on ${route.day.value}` : 'No trades this month'
+            "
+            empty-description="Log the first one with the button above — the calendar, the targets and the stats all come from these rows."
+            @delete="log.remove($event)"
+          />
+          <SignalTable
+            v-else-if="route.mode.value === 'signals'"
+            :signals="visibleSignals"
+            :broker="broker"
+            :taken="links.signalToTrade"
+          />
+          <CombinedTimeline
+            v-else
+            :trades="visibleTrades"
+            :signals="visibleSignals"
+            :broker="broker"
+          />
+
+          <!-- The month came back with nothing. Rather than leave the reader to
+               guess whether that is the data or the app, offer to ask the
+               database which one it is. -->
+          <CollectionProbe
+            v-if="monthIsEmpty"
+            collection-key="tradesCollection"
+            field="istDate"
+            label="the trade log"
+            :from="bounds.from"
+            :to="bounds.to"
+          />
+
+          <!-- Six seconds, and it says what it will put back. -->
+          <div v-if="log.undoable.value" class="tv__undo" role="status">
+            <span>
+              Deleted {{ log.undoable.value.trade.symbol }} on
+              {{ log.undoable.value.trade.istDate }}
+            </span>
+            <Button variant="ghost" size="sm" @click="log.undo()">Undo</Button>
+          </div>
+        </div>
       </div>
 
-      <!-- One switch, one calendar, three tables. -->
-      <TradeTable
-        v-if="route.mode.value === 'journal'"
-        :trades="visibleTrades"
-        :broker="broker"
-        :state="rowStates"
-        :flash="flashRow"
-        :empty-title="
-          route.day.value ? `Nothing traded on ${route.day.value}` : 'No trades this month'
-        "
-        empty-description="Log the first one above — the calendar, the targets and the stats all come from these rows."
-        @delete="log.remove($event)"
+      <SecuredLedger
+        :entries="secured.entries.value"
+        :total="secured.total.value"
+        @add="secured.add($event)"
+        @delete="secured.remove($event)"
       />
-      <SignalTable
-        v-else-if="route.mode.value === 'signals'"
-        :signals="visibleSignals"
-        :broker="broker"
-        :taken="links.signalToTrade"
-      />
-      <CombinedTimeline v-else :trades="visibleTrades" :signals="visibleSignals" :broker="broker" />
-
-      <!-- Six seconds, and it says what it will put back. -->
-      <div v-if="log.undoable.value" class="tv__undo" role="status">
-        <span>
-          Deleted {{ log.undoable.value.trade.symbol }} on {{ log.undoable.value.trade.istDate }}
-        </span>
-        <Button variant="ghost" size="sm" @click="log.undo()">Undo</Button>
-      </div>
     </div>
+
+    <!-- The form, on request. Kept out of the row above so the table has the
+         width; `always-expanded` because the dialog is the disclosure and a
+         panel that folds itself up inside a window opened to show it is a
+         control arguing with the thing that opened it. -->
+    <Modal :open="formOpen" title="Log trade" size="lg" @close="formOpen = false">
+      <TradeForm
+        ref="form"
+        always-expanded
+        :settings="settings"
+        :saving="save.state.value"
+        :arm="arm"
+        @submit="onSubmit"
+        @size-symbol="
+          store.save({
+            contractSizes: { ...settings.contractSizes, [$event.symbol]: $event.size },
+            lastSymbol: $event.symbol,
+          })
+        "
+      />
+    </Modal>
   </div>
 </template>
 
@@ -361,14 +501,42 @@ defineExpose({ focus: () => form.value?.focus() })
   min-width: 0;
   padding-bottom: var(--sp-4);
 }
-.tv__split {
+/* Targets on the left, the clock and the account on the right. Even halves,
+   because the two columns are two questions of equal standing — "am I on
+   track" and "what is it worth" — rather than a subject and its aside. */
+.tv__top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  /* `start`, not the default `stretch`. The form collapsed to one row in
-     section 44 and the calendar did not, so stretching gives the form six
-     hundred pixels of empty panel to be as tall as its neighbour. */
   align-items: start;
   gap: var(--sp-4);
+  min-width: 0;
+}
+.tv__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+/* The month and the rows.
+   NOT two equal halves. The calendar is seven columns of two-digit cells and
+   stops improving somewhere around 340px; the table is thirteen columns of
+   nowrap figures which, on a desktop, has no horizontal scroll of its own — its
+   header sticks to the page instead, and that trade was made deliberately. So
+   the calendar takes a ceiling and the table takes everything left. */
+.tv__main {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  /* `start`, not the default `stretch`: a short month must not stretch the
+     calendar to the height of a table with forty rows in it. */
+  align-items: start;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.tv__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
   min-width: 0;
 }
 .tv__undo {
@@ -386,8 +554,16 @@ defineExpose({ focus: () => form.value?.focus() })
   color: var(--text-primary, var(--theme-text));
 }
 
+/* Below this the table cannot hold thirteen columns beside anything, so it
+   takes the full width and the calendar sits above it. The same number is in
+   TradeSkeleton, so the placeholder promises the layout that arrives. */
+@media (max-width: 1180px) {
+  .tv__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 @media (max-width: 900px) {
-  .tv__split {
+  .tv__top {
     grid-template-columns: minmax(0, 1fr);
   }
 }

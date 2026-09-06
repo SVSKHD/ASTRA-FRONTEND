@@ -1,6 +1,19 @@
 <script setup lang="ts">
 // A centred dialog: scrim, focus trap, Escape, and focus returned to whatever
 // opened it. One implementation so every dialog in the app behaves the same.
+//
+// TELEPORTED TO THE BODY, and that is a correctness fix rather than a tidy-up.
+// The panel and its scrim are `position: fixed`, which is only measured against
+// the VIEWPORT while no ancestor establishes a containing block for fixed
+// descendants — and `backdrop-filter` does establish one, exactly like
+// `filter`. The workspace stage carries a `backdrop-filter` and an
+// `overflow: hidden`, so a dialog opened from inside a tab was being centred on
+// the stage and clipped by it, and its `inset: 0` scrim dimmed the stage rather
+// than the screen: the rail and the bars stayed bright behind a modal that was
+// supposed to have taken the window.
+//
+// Teleporting puts both elements outside every one of those ancestors, which is
+// the only way `fixed` means what it says.
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = withDefaults(
@@ -53,28 +66,30 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <template v-if="open">
-    <div class="ui-modal__scrim" @click="emit('close')"></div>
-    <div
-      ref="panel"
-      class="ui-modal"
-      :class="`ui-modal--${size}`"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="title"
-      tabindex="-1"
-      @keydown="onKeydown"
-    >
-      <header class="ui-modal__head">
-        <h2 class="ui-modal__title">{{ title }}</h2>
-        <button class="ui-modal__x" type="button" aria-label="Close" @click="emit('close')">
-          ×
-        </button>
-      </header>
-      <div class="ui-modal__body"><slot /></div>
-      <footer v-if="$slots.footer" class="ui-modal__foot"><slot name="footer" /></footer>
-    </div>
-  </template>
+  <Teleport to="body">
+    <template v-if="open">
+      <div class="ui-modal__scrim" @click="emit('close')"></div>
+      <div
+        ref="panel"
+        class="ui-modal"
+        :class="`ui-modal--${size}`"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
+        tabindex="-1"
+        @keydown="onKeydown"
+      >
+        <header class="ui-modal__head">
+          <h2 class="ui-modal__title">{{ title }}</h2>
+          <button class="ui-modal__x" type="button" aria-label="Close" @click="emit('close')">
+            ×
+          </button>
+        </header>
+        <div class="ui-modal__body"><slot /></div>
+        <footer v-if="$slots.footer" class="ui-modal__foot"><slot name="footer" /></footer>
+      </div>
+    </template>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -103,6 +118,9 @@ function onKeydown(event: KeyboardEvent) {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
   box-shadow: var(--elev-1);
   color: var(--theme-text);
+  /* Stated, because the panel now hangs off <body> rather than off the app
+     root and inherits nothing from it. */
+  font-family: var(--font-sans);
   animation: uiModalIn var(--dur-med) var(--spring) both;
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

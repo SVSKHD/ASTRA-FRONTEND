@@ -37,7 +37,7 @@ const auth = useAuthStore()
 const app = useAppStore()
 const lock = useLockStore()
 const { c, B } = useStyles()
-const { themePanelOpen, themeSetting, isPhone, dark, preferredLight } = storeToRefs(ui)
+const { themePanelOpen, themeSetting, isPhone, dark, preferredLight, drawerOpen } = storeToRefs(ui)
 const { avatarMenuOpen, avatarInitial, avatarName, avatarSub, avatarColor, ghMenuLabel } =
   storeToRefs(auth)
 const { security, autoRollover, hideCompleted, reminderSound } = storeToRefs(app)
@@ -73,23 +73,28 @@ function onLockNow() {
 // Bar buttons, not orbs. A 44px floating disc made sense when it hovered over a
 // starfield; in a 52px row it is the row. These are 32px and square-ish, which
 // is what a utility bar's controls look like.
-const btn = computed(() =>
-  pxify({
-    position: 'relative',
-    width: 32,
-    height: 32,
-    flexShrink: 0,
-    borderRadius: 'var(--radius-control)',
-    display: 'grid',
-    placeItems: 'center',
-    background: 'transparent',
-    border: '1px solid transparent',
-    cursor: 'pointer',
-    color: c.value.accent,
-    transition: 'background .18s ease, border-color .18s ease',
-  }),
-)
-const btnHover = computed(() => pxify({ background: c.value.card, borderColor: c.value.border }))
+// GEOMETRY HERE, PAINT IN THE STYLESHEET.
+//
+// The split is not cosmetic. `v-hover-style` snapshots the element's style
+// attribute on mouseenter and writes it back on mouseleave — which is fine for
+// a button whose style never changes, and wrong for a toggle, because clicking
+// one while the pointer is on it changes the style underneath the snapshot and
+// the restore then puts the pre-click appearance back. Hover and the on-state
+// are CSS, so there is nothing to snapshot and nothing to get stale.
+const btn = pxify({
+  position: 'relative',
+  // 36, not 32: a 16px icon in a 32px box leaves 8px of padding, which is
+  // enough to tap and not enough to SEE — the hover fill came out as a tight
+  // square wrapped round the glyph. Four more pixels turns the same fill into
+  // a shape the icon sits inside.
+  width: 36,
+  height: 36,
+  padding: 6,
+  flexShrink: 0,
+  display: 'grid',
+  placeItems: 'center',
+  cursor: 'pointer',
+})
 const wrapRel = pxify({ position: 'relative', display: 'inline-flex' })
 /** The slack between the left group and the right cluster. */
 const spacer = pxify({ flex: '1 1 auto', minWidth: 0 })
@@ -255,15 +260,17 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
 <template>
   <footer :style="bar" class="shell-bar">
     <!-- Left: the two utilities, then the sync status. -->
-    <button :style="btn" v-hover-style="btnHover" aria-label="Notes" @click="ui.toggleDrawer()">
+    <button
+      class="shell-btn"
+      :class="{ 'is-on': drawerOpen }"
+      :style="btn"
+      aria-label="Notes"
+      :aria-expanded="drawerOpen"
+      @click="ui.toggleDrawer()"
+    >
       <Icon name="notebook" size="sm" :style="{ color: c.accent }" />
     </button>
-    <button
-      :style="btn"
-      v-hover-style="btnHover"
-      aria-label="Settings"
-      @click="auth.toggleAvatarMenu()"
-    >
+    <button class="shell-btn" :style="btn" aria-label="Settings" @click="auth.toggleAvatarMenu()">
       <Icon name="sun" size="sm" :style="{ color: c.accent }" />
     </button>
 
@@ -273,8 +280,8 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
 
     <!-- Right: the action cluster, docked as a row rather than floating. -->
     <button
+      class="shell-btn"
       :style="btn"
-      v-hover-style="btnHover"
       :aria-label="dark ? 'Switch to light theme' : 'Switch to dark theme'"
       @click="ui.toggleThemeMode()"
     >
@@ -283,8 +290,9 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
     </button>
 
     <button
+      class="shell-btn"
+      :class="{ 'is-on': espressoOn }"
       :style="btn"
-      v-hover-style="btnHover"
       :aria-pressed="espressoOn"
       :aria-label="espressoOn ? 'Leave the espresso theme' : 'Switch to the espresso theme'"
       @click="toggleEspresso()"
@@ -294,8 +302,9 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
 
     <div :style="wrapRel">
       <button
+        class="shell-btn"
+        :class="{ 'is-on': themePanelOpen }"
         :style="btn"
-        v-hover-style="btnHover"
         aria-label="Appearance"
         :aria-expanded="themePanelOpen"
         @click="ui.toggleThemePanel()"
@@ -391,9 +400,11 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
 
     <div :style="wrapRel">
       <button
+        class="shell-btn"
+        :class="{ 'is-on': avatarMenuOpen }"
         :style="btn"
-        v-hover-style="btnHover"
         aria-label="Account"
+        :aria-expanded="avatarMenuOpen"
         @click="auth.toggleAvatarMenu()"
       >
         <span :style="avatarDisc">{{ avatarInitial }}</span>
@@ -441,13 +452,48 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
       </div>
     </div>
 
-    <button
-      :style="btn"
-      v-hover-style="btnHover"
-      aria-label="GitHub"
-      @click="auth.openGithubPanel()"
-    >
+    <button class="shell-btn" :style="btn" aria-label="GitHub" @click="auth.openGithubPanel()">
       <Icon name="share" size="sm" :style="{ color: c.accent }" />
     </button>
   </footer>
 </template>
+
+<style scoped>
+/*
+ * The bar's icon buttons.
+ *
+ * Two things were missing and both were about being able to SEE the control.
+ * The box was 32px around a 16px icon, so the hover fill was a tight square
+ * that read as a border on the glyph rather than a surface behind it — the
+ * padding is in the geometry object above. And three of these are toggles whose
+ * on-state existed only in `aria-pressed`: the espresso theme, the appearance
+ * panel and the account menu all looked identical open and shut, so the only
+ * way to learn which button owned the panel floating above the bar was to press
+ * one and watch. `is-on` is the accent tint the dock's active tab uses, at bar
+ * scale, so the two pieces of chrome say "this one" the same way.
+ */
+.shell-btn {
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--theme-accent);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.shell-btn:hover {
+  background: var(--theme-card);
+  border-color: var(--theme-border);
+}
+.shell-btn.is-on {
+  background: color-mix(in oklch, var(--theme-accent) 20%, transparent);
+  border-color: color-mix(in oklch, var(--theme-accent) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--theme-accent) 14%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell-btn {
+    transition: none;
+  }
+}
+</style>

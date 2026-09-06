@@ -1,22 +1,31 @@
 <script setup lang="ts">
-// A disclosure. Built on the native summary/details semantics so it is
-// keyboard-operable and announces its own state.
-withDefaults(defineProps<{ title: string; open?: boolean }>(), { open: false })
-defineEmits<{ toggle: [boolean] }>()
+// A disclosure: a button that announces its own state, and a body that grows
+// rather than appearing.
+//
+// The arrow is `Caret`, the same component every other collapsible header in
+// the app uses, rather than a `▸` typed into the template — see that file for
+// why a literal character was the wrong thing to draw here.
+import Caret from '@/components/ui/Caret.vue'
+
+const props = withDefaults(defineProps<{ title: string; open?: boolean }>(), { open: false })
+const emit = defineEmits<{ toggle: [boolean] }>()
 </script>
 
 <template>
-  <details
-    class="ui-accordion"
-    :open="open"
-    @toggle="$emit('toggle', ($event.target as HTMLDetailsElement).open)"
-  >
-    <summary class="ui-accordion__head ui-focus-ring">
-      <span class="ui-accordion__caret" aria-hidden="true">▸</span>
-      {{ title }}
-    </summary>
-    <div class="ui-accordion__body"><slot /></div>
-  </details>
+  <div class="ui-accordion" :class="{ 'is-open': props.open }">
+    <button
+      class="ui-accordion__head ui-focus-ring"
+      type="button"
+      :aria-expanded="props.open"
+      @click="emit('toggle', !props.open)"
+    >
+      <Caret :open="props.open" />
+      {{ props.title }}
+    </button>
+    <div class="ui-accordion__body">
+      <div class="ui-accordion__bodyInner"><slot /></div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -36,20 +45,35 @@ defineEmits<{ toggle: [boolean] }>()
   color: var(--theme-text);
   cursor: pointer;
   list-style: none;
-}
-.ui-accordion__head::-webkit-details-marker {
-  display: none;
-}
-.ui-accordion__caret {
-  transition: transform var(--dur-fast) var(--ease-out);
-  color: var(--theme-dim);
-}
-.ui-accordion[open] .ui-accordion__caret {
-  transform: rotate(90deg);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
 }
 .ui-accordion__body {
-  padding: 0 var(--sp-3) var(--sp-3);
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  padding: 0 var(--sp-3);
   color: var(--theme-dim);
   font-size: var(--text-sm);
+  transition:
+    grid-template-rows var(--dur-med) var(--ease-out),
+    opacity var(--dur-fast) ease,
+    padding var(--dur-med) var(--ease-out);
+}
+.ui-accordion__bodyInner {
+  min-height: 0;
+  overflow: hidden;
+}
+.ui-accordion.is-open .ui-accordion__body {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  padding-bottom: var(--sp-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-accordion__body {
+    transition: none;
+  }
 }
 </style>

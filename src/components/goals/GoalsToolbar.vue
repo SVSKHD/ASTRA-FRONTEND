@@ -17,6 +17,7 @@ import TextInput from '@/components/ui/TextInput.vue'
 // wheel and a chip is one tap.
 import { computed } from 'vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
+import Tabs from '@/components/ui/Tabs.vue'
 import Icon from '@/components/ui/Icon.vue'
 import type { GoalStatus } from '@/types'
 
@@ -121,24 +122,13 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
     </div>
 
     <!-- Mobile: the status filter as a scroller of one-tap chips. -->
-    <div
-      v-if="showFilters && mobile"
-      class="gtb__chips"
-      role="tablist"
-      aria-label="Filter by status"
-    >
-      <button
-        v-for="option in chips"
-        :key="option.value"
-        type="button"
-        role="tab"
-        class="gtb__chip"
-        :class="status === option.value && 'gtb__chip--on'"
-        :aria-selected="status === option.value"
-        @click="emit('update:status', option.value)"
-      >
-        {{ option.label }}
-      </button>
+    <div v-if="showFilters && mobile" class="gtb__chips">
+      <Tabs
+        :model-value="status"
+        :tabs="chips"
+        aria-label="Filter by status"
+        @update:model-value="emit('update:status', $event as GoalStatus | 'all')"
+      />
       <Select
         class="gtb__select gtb__select--chip"
         aria-label="Sort goals"
@@ -243,8 +233,11 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
     width: 100%;
   }
 }
+/* The row the strip and the sort select share. The strip draws its own chips
+   now — this only has to let them scroll off the edge of a phone. */
 .gtb__chips {
   display: flex;
+  align-items: center;
   gap: var(--sp-2);
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -253,21 +246,6 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
 }
 .gtb__chips::-webkit-scrollbar {
   display: none;
-}
-.gtb__chip {
-  flex-shrink: 0;
-  padding: var(--sp-1) var(--sp-3);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--glass-border);
-  background: transparent;
-  color: var(--theme-dim);
-  font-size: var(--text-2xs);
-  white-space: nowrap;
-  cursor: pointer;
-}
-.gtb__chip--on {
-  border-color: var(--theme-accent);
-  color: var(--theme-accent);
 }
 .gtb__select--chip {
   flex-shrink: 0;

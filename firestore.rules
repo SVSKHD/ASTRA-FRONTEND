@@ -98,7 +98,7 @@ service cloud.firestore {
       // the activity log, which is where a past event belongs.
       allow read: if isSignedIn()
         && request.auth.uid == userId
-        && resource.data.revokedAt == null;
+        && resource.data.get('revokedAt', null) == null;
       allow write: if false;
     }
 
@@ -159,7 +159,7 @@ service cloud.firestore {
     // Forex: any signed-in user can READ; only admins can WRITE.
     match /forex/{docId} {
       allow read:  if isSignedIn();
-      allow write: if isSignedIn() && request.auth.token.admin == true;
+      allow write: if isSignedIn() && request.auth.token.get('admin', false) == true;
     }
 
     // `.get()` rather than a bare field read: the field is absent on most

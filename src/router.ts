@@ -26,6 +26,11 @@ export const TAB_ROUTES: Record<string, TabKey> = {
 
 const routes: RouteRecordRaw[] = [
   {
+    path: '/astra',
+    name: 'astra',
+    component: () => import('@/views/AstraView.vue'),
+  },
+  {
     path: '/',
     name: 'workspace',
     component: () => import('@/views/WorkspaceView.vue'),

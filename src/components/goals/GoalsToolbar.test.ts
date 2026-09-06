@@ -110,9 +110,12 @@ describe('the controls report changes', () => {
 })
 
 describe('on a phone', () => {
+  // The chips ARE the library's tab strip — one component for every
+  // sub-navigation in the app, rather than a hand-rolled row per surface. So
+  // these assert on what the strip renders, not on a class this file owns.
   it('turns the status filter into a chip scroller', () => {
     const wrapper = mountToolbar({ mobile: true })
-    const chips = wrapper.findAll('.gtb__chip')
+    const chips = wrapper.findAll('.gtb__chips [role="tab"]')
     expect(chips.length).toBeGreaterThan(1)
     expect(chips.map((c) => c.text())).toContain('Paused')
     // The status select is gone; sort keeps one, since it has no default worth
@@ -123,7 +126,7 @@ describe('on a phone', () => {
   it('marks the selected chip for assistive technology', () => {
     const wrapper = mountToolbar({ mobile: true, status: 'done' })
     const selected = wrapper
-      .findAll('.gtb__chip')
+      .findAll('.gtb__chips [role="tab"]')
       .filter((c) => c.attributes('aria-selected') === 'true')
     expect(selected).toHaveLength(1)
     expect(selected[0].text()).toBe('Done')
@@ -132,7 +135,7 @@ describe('on a phone', () => {
   it('filters from a chip tap', async () => {
     const wrapper = mountToolbar({ mobile: true })
     await wrapper
-      .findAll('.gtb__chip')
+      .findAll('.gtb__chips [role="tab"]')
       .find((c) => c.text() === 'Paused')!
       .trigger('click')
     expect(wrapper.emitted('update:status')).toEqual([['paused']])

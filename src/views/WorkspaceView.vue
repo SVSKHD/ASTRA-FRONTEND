@@ -104,9 +104,9 @@ const stageStyle = computed(() => {
     background: c.value.glass,
     backdropFilter: 'blur(30px) saturate(1.6)',
     '-webkit-backdrop-filter': 'blur(30px) saturate(1.6)',
-    border: '1px solid ' + c.value.border,
+    border: '1px solid color-mix(in oklch, ' + c.value.border + ' 62%, transparent)',
     borderRadius: 'var(--radius-dialog)',
-    boxShadow: c.value.shadow + ', inset 0 1px 0 rgba(255,255,255,0.16)',
+    boxShadow: '0 18px 48px color-mix(in oklch, ' + c.value.pageBg + ' 42%, transparent)',
     padding: isPhone.value ? '16px' : '22px 24px',
     // NO `overflow` and NO `transform`. Both break `position: sticky` inside:
     // an overflow other than visible makes this the scrollport a sticky header
@@ -116,6 +116,21 @@ const stageStyle = computed(() => {
     // that made this a floating card in the first place.
   })
 })
+const stageBody = computed(() =>
+  pxify({
+    flex: '1 1 auto',
+    display: 'flex',
+    flexDirection: 'column',
+    width: '100%',
+    alignSelf: 'stretch',
+    minHeight: 0,
+    minWidth: 0,
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    overscrollBehaviorY: 'contain',
+    padding: isPhone.value ? '0 2px 18px 0' : '0 4px 22px 0',
+  }),
+)
 const { isSignedIn, authReady } = storeToRefs(auth)
 const { cloudReady } = storeToRefs(app)
 const { canUseApp } = storeToRefs(lock)
@@ -315,7 +330,9 @@ onBeforeUnmount(() => {
   <AppShell v-if="showWorkspace">
     <div :style="stageWrap">
       <div :style="stageStyle">
-        <component :is="currentView" ref="activeView" />
+          <div :style="stageBody" class="workspace-stage__body">
+            <component :is="currentView" ref="activeView" />
+          </div>
       </div>
     </div>
   </AppShell>

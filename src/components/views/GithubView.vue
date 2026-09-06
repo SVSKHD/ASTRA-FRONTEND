@@ -31,6 +31,7 @@ import {
   sortIssues,
 } from '@/utils/issueFilters'
 import type { GithubIssue } from '@/types'
+import Tabs from '@/components/ui/Tabs.vue'
 
 const app = useAppStore()
 const auth = useAuthStore()
@@ -50,6 +51,10 @@ const visibleIssues = computed(() =>
   sortIssues(filterIssues(ghIssues.value, filter.value, tasks.value)),
 )
 const counts = computed(() => countIssues(ghIssues.value, tasks.value))
+const githubTabs = computed(() => [
+  { value: 'issues', label: `Issues · ${counts.value.open} open` },
+  { value: 'repos', label: `Repos · ${repos.value.length}` },
+])
 const labels = computed(() => labelOptions(ghIssues.value))
 const assignees = computed(() => assigneeOptions(ghIssues.value))
 
@@ -97,21 +102,6 @@ const repoRows = computed(() =>
 )
 
 // ---- styles ---------------------------------------------------------------
-const segRow = pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' })
-function segBtn(active: boolean) {
-  return pxify({
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    padding: '6px 14px',
-    borderRadius: 'var(--radius-card)',
-    cursor: 'pointer',
-    border: '1px solid ' + (active ? c.value.accent : c.value.border),
-    background: active
-      ? 'color-mix(in oklch, ' + c.value.accent + ' 18%, transparent)'
-      : 'transparent',
-    color: active ? c.value.accent : c.value.dim,
-  })
-}
 const filterRow = computed(() =>
   pxify({
     display: 'grid',
@@ -214,13 +204,14 @@ function progressInner(pct: number) {
 
 <template>
   <div :style="panelStyle">
-    <div :style="segRow">
-      <button :style="segBtn(pane === 'issues')" @click="pane = 'issues'">
-        Issues · {{ counts.open }} open
-      </button>
-      <button :style="segBtn(pane === 'repos')" @click="pane = 'repos'">
-        Repos · {{ repos.length }}
-      </button>
+    <div :style="{ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' }">
+      <Tabs
+        size="sm"
+        :model-value="pane"
+        :tabs="githubTabs"
+        aria-label="GitHub section"
+        @update:model-value="pane = $event as 'issues' | 'repos'"
+      />
       <span style="flex: 1"></span>
       <button :style="s.editBtn" @click="auth.openGithubPanel()">Settings</button>
     </div>

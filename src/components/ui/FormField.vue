@@ -128,8 +128,11 @@ const overLimit = computed(() => !!props.maxLength && (props.length ?? 0) > prop
   justify-content: space-between;
   gap: var(--sp-2);
   min-width: 0;
-  margin-top: var(--sp-1);
-  min-height: calc(var(--text-xs) * var(--lh-xs));
+  /* Both halves are tokens, because anything that has to line up with the
+     CONTROL rather than with the field's box offsets by their sum — see
+     --field-msg-block in tokens.css. */
+  margin-top: var(--field-msg-gap);
+  min-height: var(--field-msg-h);
 }
 .ui-ff__msg {
   margin: 0;

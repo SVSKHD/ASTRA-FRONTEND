@@ -48,11 +48,11 @@ const teleportDisabled = computed(() => !shellStripReady.value)
     :disabled="teleportDisabled"
   >
     <div :style="s.dayToolbar" class="list-toolbar">
-      <span :style="s.dayGroupLabelBase">{{ title }}</span>
+      <span v-if="teleportDisabled" :style="s.dayGroupLabelBase">{{ title }}</span>
       <!-- Optional header actions (e.g. a link expand/collapse toggle) sit between
            the title and the create button. -->
       <slot name="actions" />
-      <button v-if="newLabel" :style="s.newBtn" v-hover-style="s.addBtnHover" @click="$emit('new')">
+      <button v-if="newLabel"  :style="s.newBtn" v-hover-style="s.addBtnHover" @click="$emit('new')">
         + {{ newLabel }}
       </button>
     </div>

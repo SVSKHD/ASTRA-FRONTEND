@@ -96,6 +96,19 @@
   --control-md: var(--control-h-md);
   --control-lg: var(--control-h-lg);
 
+  /* THE ROW A FIELD RESERVES UNDER ITS CONTROL (section 25a).
+     FormField always keeps room for a hint or an error, so a message appearing
+     never moves the form. The consequence is that a field's BOX is taller than
+     its CONTROL — so anything laid out beside a field and bottom-aligned with
+     it (a submit button next to three inputs) lines up with the empty message
+     row rather than with the inputs, and sits visibly low.
+     The offset is published here so the fix is `padding-bottom: var(--field-msg-block)`
+     at the call site rather than a hand-copied sum that drifts the day the
+     message row changes. */
+  --field-msg-gap: var(--sp-1);
+  --field-msg-h: calc(var(--text-xs) * var(--lh-xs));
+  --field-msg-block: calc(var(--field-msg-gap) + var(--field-msg-h));
+
   /* Motion: 150–200ms ease-out on hover/press, a spring for drops. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);

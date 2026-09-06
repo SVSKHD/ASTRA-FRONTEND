@@ -8,9 +8,10 @@
 // while the reader is still looking at the form trying to work out what to fix.
 //
 // So it sits above the actions, in the flow, and does not go away on its own.
-import Icon from '@/components/ui/Icon.vue'
+import { getCurrentInstance, onBeforeUnmount, useSlots, watchEffect } from 'vue'
+import { removeWarning, upsertWarning } from '@/services/warnings'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     tone?: 'danger' | 'warning' | 'success' | 'info'
     title?: string
@@ -19,34 +20,44 @@ withDefaults(
   }>(),
   { tone: 'info' },
 )
-defineEmits<{ dismiss: [] }>()
+const emit = defineEmits<{ dismiss: [] }>()
+const slots = useSlots()
+const instance = getCurrentInstance()
+const warningId = `alert-${instance?.uid ?? Math.random()}`
 
-const GLYPH = { danger: 'x', warning: 'bell', success: 'check', info: 'help' } as const
+function textFrom(value: unknown): string {
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  if (Array.isArray(value)) return value.map(textFrom).join(' ')
+  if (value && typeof value === 'object' && 'children' in value) {
+    return textFrom((value as { children?: unknown }).children)
+  }
+  return ''
+}
+
+watchEffect(() => {
+  const message = textFrom(slots.default?.()).replace(/\s+/g, ' ').trim()
+  upsertWarning({
+    id: warningId,
+    tone: props.tone,
+    title: props.title,
+    message,
+    dismissible: props.dismissible,
+    dismiss: () => emit('dismiss'),
+  })
+})
+onBeforeUnmount(() => removeWarning(warningId))
+
 </script>
 
-<template>
-  <div class="ui-alert" :class="`ui-alert--${tone}`" :role="tone === 'danger' ? 'alert' : 'status'">
-    <Icon :name="GLYPH[tone]" size="sm" class="ui-alert__glyph" />
-    <div class="ui-alert__body">
-      <p v-if="title" class="ui-alert__title">{{ title }}</p>
-      <p class="ui-alert__text"><slot /></p>
-    </div>
-    <button
-      v-if="dismissible"
-      type="button"
-      class="ui-alert__x"
-      aria-label="Dismiss"
-      @click="$emit('dismiss')"
-    >
-      ×
-    </button>
-  </div>
-</template>
+<template><span class="ui-alert-placeholder" aria-hidden="true"></span></template>
 
 <style scoped>
 /* A tinted surface, so it names both halves of its pair (section 24b): the tone
    carries the bar and the glyph, the text stays at --text-primary. Tone as the
    text colour is how an info alert measured 2.4:1 on the pale themes. */
+.ui-alert-placeholder {
+  display: none;
+}
 .ui-alert {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

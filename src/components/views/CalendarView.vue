@@ -27,6 +27,7 @@ import { surfacePair } from '@/themes/surfacePair'
 import CalEventCard from '@/components/CalEventCard.vue'
 import CalQuickCreate from '@/components/CalQuickCreate.vue'
 import UnscheduledPanel from '@/components/UnscheduledPanel.vue'
+import Tabs from '@/components/ui/Tabs.vue'
 import {
   CALENDAR_VIEWS,
   durationLabel,
@@ -46,6 +47,12 @@ const app = useAppStore()
 const ui = useUiStore()
 const { c, s, dark, isMobile, panelStyle } = useStyles()
 const { calendarView, tags, tasks, todos } = storeToRefs(app)
+const calendarTabs = computed(() =>
+  CALENDAR_VIEWS.map((view) => ({
+    value: view.key,
+    label: isMobile.value ? view.short : view.label,
+  })),
+)
 
 const calendar = useCalendar(
   () => dark.value,
@@ -541,14 +548,13 @@ const hintStyle = computed(() =>
         placeholder="Jump to…"
         @update:model-value="onJump"
       />
-      <button
-        v-for="view in CALENDAR_VIEWS"
-        :key="view.key"
-        :style="segBtn(calendarView === view.key)"
-        @click="switchView(view.key)"
-      >
-        {{ isMobile ? view.short : view.label }}
-      </button>
+      <Tabs
+        size="sm"
+        :model-value="calendarView"
+        :tabs="calendarTabs"
+        aria-label="Calendar range"
+        @update:model-value="switchView($event as CalendarViewKey)"
+      />
     </div>
 
     <div :style="headerRow">

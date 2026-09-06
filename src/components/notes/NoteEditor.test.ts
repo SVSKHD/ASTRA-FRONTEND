@@ -44,8 +44,11 @@ describe('layout', () => {
   it('remembers the choice on the store, so it survives reopening the note', async () => {
     const wrapper = mountEditor('x')
     const app = useAppStore()
-    const buttons = wrapper.findAll('button[aria-pressed]')
-    await buttons[1].trigger('click')
+    // The layout switch is the library's tab strip: three mutually exclusive
+    // views of one document, which is what a tab strip is for. It used to be
+    // three `aria-pressed` buttons, which announce three independent switches.
+    const tabs = wrapper.findAll('[role="tab"]')
+    await tabs.find((t) => t.text() === 'Preview')!.trigger('click')
     expect(app.noteEditorMode).toBe('preview')
     wrapper.unmount()
     const second = mountEditor('x')

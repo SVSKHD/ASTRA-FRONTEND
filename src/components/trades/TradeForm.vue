@@ -28,7 +28,7 @@
 // What the form will store — the move and the P/L — is shown live beside the
 // button, because those are the two numbers the trader is actually checking, and
 // finding out after submitting is finding out too late.
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, markRaw, nextTick, ref, watch } from 'vue'
 import FormField from '@/components/ui/FormField.vue'
 import Combobox from '@/components/ui/Combobox.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
@@ -37,6 +37,11 @@ import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Button from '@/components/ui/Button.vue'
 import Alert from '@/components/ui/Alert.vue'
+import IconBuy from '@/components/icons/IconBuy.vue'
+import IconSell from '@/components/icons/IconSell.vue'
+import IconSessionAsia from '@/components/icons/IconSessionAsia.vue'
+import IconSessionLondon from '@/components/icons/IconSessionLondon.vue'
+import IconSessionNy from '@/components/icons/IconSessionNy.vue'
 import SymbolSizePrompt from '@/components/trades/SymbolSizePrompt.vue'
 import TradePreview from '@/components/trades/TradePreview.vue'
 import { useForm } from '@/composables/useForm'
@@ -83,6 +88,17 @@ const props = defineProps<{
   /** The save's three states, owned by the view that does the writing. */
   saving?: SaveStateValue
   arm?: ArmRequest | null
+  /**
+   * Open, and staying open.
+   *
+   * The fold exists because the form used to live in a column of a busy tab,
+   * where ten fields to collect three was ten things to read past at the open.
+   * Inside a dialog that argument is gone — the dialog IS the disclosure, it was
+   * asked for by name, and there is nothing behind it competing for the space.
+   * A panel that folds itself up inside a window opened to show it is a control
+   * arguing with the thing that opened it.
+   */
+  alwaysExpanded?: boolean
 }>()
 const emit = defineEmits<{
   /**
@@ -98,10 +114,34 @@ const emit = defineEmits<{
   sizeSymbol: [{ symbol: string; size: number }]
 }>()
 
-const SESSION_SEGMENTS = TRADE_SESSIONS.map((s) => ({ value: s, label: s }))
+// THE SAME GLYPHS THE REST OF THE TAB ALREADY USES.
+//
+// The table draws a session icon in every row and an arrow beside every side;
+// so do the timeline, the desk, and the live preview six inches above this
+// form. The two controls that SET those values were the only surface in the
+// feature rendering them as bare words — so a trader picking "NY" here and
+// reading the NY glyph in the table was matching a word against a picture.
+//
+// Not colour, though. `TradeTable` states the rule and it holds here: a side is
+// a direction, not a result. Green and red belong to Move and P/L, whose sign
+// IS the information, and spending them on Buy/Sell would leave a losing buy
+// green on the left of the row and red on the right.
+// `markRaw`, because these are components sitting in data. Vue would otherwise
+// wrap them the first time this array met a reactive source, which costs a
+// proxy per glyph and warns about it in dev.
+const SESSION_ICON = {
+  Asia: markRaw(IconSessionAsia),
+  London: markRaw(IconSessionLondon),
+  NY: markRaw(IconSessionNy),
+} as const
+const SESSION_SEGMENTS = TRADE_SESSIONS.map((s) => ({
+  value: s,
+  label: s,
+  icon: SESSION_ICON[s],
+}))
 const SIDE_SEGMENTS = [
-  { value: 'buy', label: 'Buy' },
-  { value: 'sell', label: 'Sell' },
+  { value: 'buy', label: 'Buy', icon: markRaw(IconBuy) },
+  { value: 'sell', label: 'Sell', icon: markRaw(IconSell) },
 ]
 
 // The trader's own clock, and the one the form defaults to. Read through the
@@ -257,10 +297,21 @@ const preview = computed(() => {
 const armedSignal = ref('')
 let lastArm = 0
 
+/**
+ * How long an arming stays worth applying.
+ *
+ * It carries the date and the minute it was raised at, so applying a stale one
+ * would put yesterday's timestamp on the trade being typed now. Five minutes
+ * is the window the desk arms in; a form opened long after that gets its own
+ * defaults, which are `now`.
+ */
+const ARM_FRESH_MS = 5 * 60_000
+
 watch(
   () => props.arm,
   (arm) => {
     if (!arm || arm.at === lastArm) return
+    if (Date.now() - arm.at > ARM_FRESH_MS) return
     lastArm = arm.at
     form.values.istDate = arm.istDate
     form.values.istTime = arm.istTime
@@ -272,6 +323,11 @@ watch(
     // path a click takes — one behaviour, not two.
     void nextTick(() => entryField.value?.querySelector('input')?.focus())
   },
+  // `immediate`, because the form is not always mounted when the desk arms it.
+  // In a dialog it mounts on opening, by which time the request is already sitting
+  // in the parent — without this the pre-fill would only ever apply to a form
+  // that happened to be on screen at T-5.
+  { immediate: true },
 )
 
 // --- an unknown symbol ------------------------------------------------------
@@ -321,17 +377,18 @@ defineExpose({
 // the document entirely (alt-tab, devtools). Collapsing on a null would fold the
 // panel up every time the window loses focus with a half-typed trade in it, so
 // a null keeps it open and only a move to something OUTSIDE the form closes it.
-const expanded = ref(false)
+const focusExpanded = ref(false)
+const expanded = computed(() => props.alwaysExpanded || focusExpanded.value)
 const root = ref<HTMLFormElement | null>(null)
 
 function onFocusIn() {
-  expanded.value = true
+  focusExpanded.value = true
 }
 function onFocusOut(event: FocusEvent) {
   const next = event.relatedTarget as Node | null
   if (!next) return
   if (root.value?.contains(next)) return
-  expanded.value = false
+  focusExpanded.value = false
 }
 
 /**
@@ -432,10 +489,19 @@ async function onSubmit() {
 
       <!-- The state is the button's own icon, in a box that is the same size
            empty, spinning, checked or failed — so pressing this never moves the
-           thing under the cursor. -->
-      <Button type="submit" :state="saving ?? (form.submitting.value ? 'working' : 'idle')">
-        Log trade
-      </Button>
+           thing under the cursor.
+
+           The wrapper is what puts it on the inputs' baseline. A FormField
+           reserves a row under its control for a hint or an error, so a field's
+           BOX ends lower than its input does; bottom-aligning the button
+           against that box left it sitting a clear 20px below the three fields
+           it belongs to. The wrapper carries the same reserved height as
+           padding, so `align-items: end` lands the button on the inputs. -->
+      <div class="tform__submit">
+        <Button type="submit" :state="saving ?? (form.submitting.value ? 'working' : 'idle')">
+          Log trade
+        </Button>
+      </div>
     </div>
 
     <!-- What it already knows, on its own line.
@@ -447,12 +513,13 @@ async function onSubmit() {
          not reaching for a keyboard — and `aria-expanded` so that is announced
          rather than implied. -->
     <button
+      v-if="!alwaysExpanded"
       type="button"
       class="tform__context"
       :aria-expanded="expanded"
       aria-controls="tform-details"
       :title="expanded ? 'Hide the pre-filled fields' : 'Edit the pre-filled fields'"
-      @click="expanded = !expanded"
+      @click="focusExpanded = !focusExpanded"
     >
       <span class="tform__contextLabel">Filled in</span>
       <span class="tform__contextText ui-mono">{{ context }}</span>
@@ -541,38 +608,45 @@ async function onSubmit() {
         </div>
       </FormField>
 
-      <FormField
-        label="Session"
-        :hint="sessionMismatch || undefined"
-        :error="form.errorFor('session')"
-        v-slot="f"
-      >
-        <div data-field="session">
-          <SegmentedControl
-            :size="f.size"
-            :disabled="f.disabled"
-            :model-value="form.values.session"
-            :options="SESSION_SEGMENTS"
-            aria-label="Session"
-            @update:model-value="
-              ((form.values.session = $event as TradeSession), form.change('session'))
-            "
-          />
-        </div>
-      </FormField>
+      <!-- The two segmented controls share a row of their own, spanning the
+           grid. Three sessions with a glyph each do not fit a 150px auto-fit
+           track — the track would overflow its column and drag the grid around
+           it out of line. Given the full width they sit 2:1, which is the ratio
+           of what they hold. -->
+      <div class="tform__choices">
+        <FormField
+          label="Session"
+          :hint="sessionMismatch || undefined"
+          :error="form.errorFor('session')"
+          v-slot="f"
+        >
+          <div data-field="session">
+            <SegmentedControl
+              :size="f.size"
+              :disabled="f.disabled"
+              :model-value="form.values.session"
+              :options="SESSION_SEGMENTS"
+              aria-label="Session"
+              @update:model-value="
+                ((form.values.session = $event as TradeSession), form.change('session'))
+              "
+            />
+          </div>
+        </FormField>
 
-      <FormField label="Side" :error="form.errorFor('side')" v-slot="f">
-        <div data-field="side">
-          <SegmentedControl
-            :size="f.size"
-            :disabled="f.disabled"
-            :model-value="form.values.side"
-            :options="SIDE_SEGMENTS"
-            aria-label="Side"
-            @update:model-value="((form.values.side = $event as TradeSide), form.change('side'))"
-          />
-        </div>
-      </FormField>
+        <FormField label="Side" :error="form.errorFor('side')" v-slot="f">
+          <div data-field="side">
+            <SegmentedControl
+              :size="f.size"
+              :disabled="f.disabled"
+              :model-value="form.values.side"
+              :options="SIDE_SEGMENTS"
+              aria-label="Side"
+              @update:model-value="((form.values.side = $event as TradeSide), form.change('side'))"
+            />
+          </div>
+        </FormField>
+      </div>
 
       <FormField label="Note" hint="Optional" :error="form.errorFor('note')" v-slot="f">
         <div data-field="note">
@@ -625,6 +699,29 @@ async function onSubmit() {
   flex: 1 1 320px;
   min-width: 0;
 }
+/* The submit, on the inputs' baseline rather than on the fields' box bottom.
+   The offset is the row FormField reserves for a hint or an error, published as
+   a token so this is not a copy of a number that lives somewhere else. */
+.tform__submit {
+  flex: 0 0 auto;
+  padding-bottom: var(--field-msg-block);
+}
+
+/* Side and Session, on a row of their own across the grid. */
+.tform__choices {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--sp-3);
+  min-width: 0;
+}
+/* Both tracks fill their field, so the two controls read as one row of
+   segments rather than two islands hugging their own text. */
+.tform__choices :deep(.ui-seg) {
+  display: flex;
+  width: 100%;
+}
+
 /* What the form already knows, stated rather than asked. A full-width line
    under the row: five facts do not fit beside three number fields and a button
    in a half-width column, and truncating them to "2026-09-04 · 19…" states
@@ -684,6 +781,18 @@ async function onSubmit() {
      Two and a half is worse than two rows. */
   .tform__three {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tform__choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Stacked, the button goes full width under the fields — where nothing sits
+     beside it to line up with, so the offset goes. */
+  .tform__submit {
+    flex: 1 1 100%;
+    padding-bottom: 0;
+  }
+  .tform__submit :deep(.ui-btn) {
+    width: 100%;
   }
 }
 /* The pair, stated plainly. Mono because they are read against each other, and

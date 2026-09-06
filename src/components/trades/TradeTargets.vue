@@ -15,7 +15,13 @@ import { dayTotals, signOf, targetProgress } from '@/utils/tradeMath'
 import { IST, ymdOn } from '@/utils/tradeTime'
 import type { AstraSettings, Trade } from '@/types'
 
-const props = defineProps<{ trades: Trade[]; settings: AstraSettings; now?: number }>()
+const props = defineProps<{
+  trades: Trade[]
+  settings: AstraSettings
+  now?: number
+  /** What the month figure is scoped to — "September 2026". */
+  period?: string
+}>()
 
 /** The trader's own day, on the trader's own clock — not the machine's. */
 const today = computed(() => ymdOn(IST, props.now ?? Date.now()))
@@ -42,7 +48,17 @@ const rows = computed(() => [
 </script>
 
 <template>
+  <!-- ONE CARD, TWO HORIZONS.
+       Today and the month are the same question asked at two ranges, and they
+       are read against each other — "I am 4 up on a 10 day target, in a month
+       that still owes 30". Two cards side by side made that a comparison across
+       a gutter; one card with a rule between them makes it a comparison down a
+       column, which is the direction the eye already travels. -->
   <section class="ttar">
+    <header class="ttar__card">
+      <span class="ui-label">Targets</span>
+      <span v-if="period" class="ttar__period">{{ period }}</span>
+    </header>
     <div v-for="row in rows" :key="row.key" class="ttar__one">
       <div class="ttar__head">
         <span class="ui-label">
@@ -63,17 +79,49 @@ const rows = computed(() => [
 </template>
 
 <style scoped>
+/* The raised layer, the same recipe the account card uses — these two sit in
+   the same row of the tab and a card beside a bare section reads as one of them
+   being unfinished. */
 .ttar {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
   min-width: 0;
+  padding: var(--sp-4);
+  border: 1px solid var(--layer-raised-border);
+  border-radius: var(--radius-card);
+  background: var(--layer-raised-bg);
+  backdrop-filter: var(--layer-raised-blur);
+  -webkit-backdrop-filter: var(--layer-raised-blur);
+  box-shadow: var(--layer-raised-shadow);
+}
+.ttar__card {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.ttar__period {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--text-muted, var(--theme-dim));
 }
 .ttar__one {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
   min-width: 0;
+}
+/* A rule between the two, not a gutter: they are one card and the second is
+   the same measurement at a longer range. */
+.ttar__one + .ttar__one {
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--layer-raised-border);
 }
 .ttar__head {
   display: flex;

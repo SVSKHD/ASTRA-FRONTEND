@@ -16,13 +16,16 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { stripGeometry } from '@/views/appShell'
 import { STRIP_ACTIONS_ID } from '@/components/shell/shellKeys'
 import ReminderPill from '@/components/shell/ReminderPill.vue'
+import { tabLabel } from '@/tabs.config'
 
 const { c, B } = useStyles()
 const { isPhone } = storeToRefs(useUiStore())
+const { tab } = storeToRefs(useUiStore())
+const title = computed(() => (tab.value === 'overview' ? 'Dashboard' : tabLabel(tab.value)))
 
 const strip = computed(() => pxify(stripGeometry({ isPhone: isPhone.value })))
 
@@ -63,11 +66,36 @@ const actions = pxify({
   gap: 'var(--sp-2)',
   minWidth: 0,
 })
+const titleStyle = computed(() =>
+  pxify({
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 1,
+    maxWidth: isPhone.value ? '34vw' : '24vw',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    padding: isPhone.value ? '6px 12px' : '7px 16px',
+    border: B.value,
+    borderRadius: 'var(--radius-pill)',
+    background: c.value.glass,
+    backdropFilter: 'blur(18px) saturate(1.5)',
+    '-webkit-backdrop-filter': 'blur(18px) saturate(1.5)',
+    boxShadow: 'inset 0 1px 0 color-mix(in srgb, white 16%, transparent), ' + c.value.shadow,
+    color: c.value.text,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    letterSpacing: '0.04em',
+  }),
+)
 </script>
 
 <template>
   <header :style="strip" class="shell-strip">
     <div :style="brandOrb" aria-label="Aureon"><span :style="brandDot"></span></div>
+    <div :style="titleStyle" :title="title">{{ title }}</div>
     <div :id="STRIP_ACTIONS_ID" :style="actions"></div>
     <ReminderPill />
   </header>

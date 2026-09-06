@@ -10,11 +10,22 @@
 // It is one roving-tabindex group, not a row of buttons: arrow keys move the
 // selection, Tab leaves the control. A row of tab stops that all do the same
 // kind of thing is the commonest way a keyboard user loses their place.
-import { computed, ref } from 'vue'
+import { computed, ref, type Component } from 'vue'
 
 export interface Segment {
   value: string
   label: string
+  /**
+   * An optional glyph, shown before the label.
+   *
+   * Optional because most segmented controls are choosing between words — Task
+   * / Todo / Reminder needs no picture. It exists for the ones where the app
+   * ALREADY draws a glyph for the same concept somewhere else: the trade log
+   * shows a candle icon beside every session and an arrow beside every side, in
+   * the table, the timeline and the preview, and the form that sets those two
+   * values was the one surface rendering them as bare words.
+   */
+  icon?: Component
 }
 
 const props = withDefaults(
@@ -32,6 +43,9 @@ const emit = defineEmits<{ 'update:modelValue': [string] }>()
 
 const buttons = ref<HTMLButtonElement[]>([])
 const index = computed(() => props.options.findIndex((o) => o.value === props.modelValue))
+
+/** The glyph rides the control's size step rather than being chosen per call. */
+const iconPx = computed(() => (props.size === 'lg' ? 16 : props.size === 'md' ? 14 : 12))
 
 function pick(value: string) {
   if (props.disabled) return
@@ -75,7 +89,8 @@ function move(delta: number) {
       :disabled="disabled"
       @click="pick(opt.value)"
     >
-      {{ opt.label }}
+      <component :is="opt.icon" v-if="opt.icon" :size="iconPx" aria-hidden="true" />
+      <span class="ui-seg__label">{{ opt.label }}</span>
     </button>
   </div>
 </template>
@@ -94,9 +109,15 @@ function move(delta: number) {
   background: var(--bg-elevated, var(--glass-card));
 }
 .ui-seg__opt {
+  display: flex;
   flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
   min-width: 0;
-  border: none;
+  /* A transparent border of the same width the active segment paints, so
+     selecting one does not nudge the row by a pixel. */
+  border: 1px solid transparent;
   border-radius: calc(var(--radius-control) - 2px);
   background: transparent;
   color: var(--text-muted, var(--theme-dim));
@@ -108,14 +129,34 @@ function move(delta: number) {
   cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out);
 }
+/* The label truncates rather than pushing the track wider than its column: a
+   three-segment control with glyphs inside a form column is the tight case, and
+   an overflowing track breaks the grid around it. The glyph never shrinks — it
+   is the half that still reads at 40px. */
+.ui-seg__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The selected segment is a raised chip, not a tint.
+   It carries the same three layers the dock's active tab and the tab strip do —
+   an accent fill, an edge against the track, and a soft lift — so "the one that
+   is on" looks the same in a form as it does in the chrome. */
 .ui-seg__opt.is-active {
-  background: color-mix(in oklch, var(--theme-accent) 18%, var(--bg-base, transparent));
+  background: color-mix(in oklch, var(--theme-accent) 20%, var(--bg-base, transparent));
+  border-color: color-mix(in oklch, var(--theme-accent) 45%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 16%, transparent),
+    0 2px 8px color-mix(in oklch, var(--theme-accent) 22%, transparent);
   color: var(--text-primary, var(--theme-text));
   font-weight: var(--weight-semibold);
 }
 .ui-seg__opt:hover:not(.is-active):not(:disabled) {
+  background: color-mix(in oklch, var(--theme-accent) 8%, transparent);
   color: var(--text-primary, var(--theme-text));
 }
 .ui-seg--sm .ui-seg__opt {
@@ -129,6 +170,11 @@ function move(delta: number) {
 .ui-seg--lg .ui-seg__opt {
   height: calc(var(--control-h-lg) - 6px);
   padding: 0 var(--sp-4);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-seg__opt {
+    transition: none;
+  }
 }
 .ui-seg.is-disabled {
   opacity: 0.55;

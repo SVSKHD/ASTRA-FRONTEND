@@ -92,8 +92,12 @@ const goClocks = computed(() =>
 
     <!-- Said once, when it becomes true. `aria-live` polite rather than
          assertive: it is worth knowing, it is not an alarm. -->
+    <!-- It says what is READY, not what is on screen: the form is a dialog now,
+         and a message claiming a filled form while nothing is open is a message
+         about something the reader cannot see. Opening it is one click and the
+         four fields are already right. -->
     <p v-if="armed" class="desk__armed" aria-live="polite">
-      Form armed — symbol, session and time are filled. Type the entry price.
+      Armed — open Log trade and the symbol, session and time are already filled.
     </p>
 
     <!-- A GO that has landed, inline. Not a toast: a toast about a signal is

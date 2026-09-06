@@ -693,7 +693,8 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     inputRow: { display: 'flex', gap: 'var(--sp-2)' },
     addBtn: {
       flexShrink: 0,
-      width: 48,
+      minWidth: 48,
+      padding: '8px 14px',
       borderRadius: 'var(--radius-dialog)',
       border: B,
       background: c.card,
@@ -1175,11 +1176,13 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     toastText: { ...typeStep('xs'), color: c.text },
     brandWrap: {
       position: 'fixed',
-      top: isMobile ? 52 : 18,
-      left: isMobile ? 16 : 18,
+      top: isMobile ? 14 : 18,
+      left: '50%',
+      transform: 'translateX(-50%)',
       zIndex: 12,
       display: 'flex',
       alignItems: 'center',
+      pointerEvents: 'none',
     },
     menuHead: {
       display: 'flex',

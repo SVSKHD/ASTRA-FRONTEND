@@ -20,6 +20,7 @@ import TagPicker from '@/components/TagPicker.vue'
 const TripMap = defineAsyncComponent(() => import('@/components/trips/TripMap.vue'))
 import TripTimeline from '@/components/trips/TripTimeline.vue'
 import TripPlacesEditor from '@/components/trips/TripPlacesEditor.vue'
+import Tabs from '@/components/ui/Tabs.vue'
 import { noteTitle } from '@/utils/notes'
 import type { Note, Trip } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
@@ -214,29 +215,6 @@ const stickyBar = computed(() =>
     borderBottom: '1px solid ' + c.value.border,
   }),
 )
-const segTrack = computed(() =>
-  pxify({
-    display: 'inline-flex',
-    padding: 4,
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    gap: 2,
-  }),
-)
-function segBtn(activeState: boolean) {
-  return pxify({
-    padding: '6px 14px',
-    borderRadius: 'var(--radius-control)',
-    border: 'none',
-    background: activeState ? c.value.card : 'transparent',
-    color: activeState ? c.value.accent : c.value.dim,
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    cursor: 'pointer',
-    boxShadow: activeState ? 'inset 0 1px 0 rgba(255,255,255,0.25)' : 'none',
-  })
-}
 const primaryBtn = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -282,27 +260,26 @@ const sectionTitle = computed(() =>
 )
 const rowWrapRaw: Style = { display: 'flex', gap: 'var(--sp-3)', flexWrap: 'wrap' }
 const rowWrap = pxify(rowWrapRaw)
-const del = computed(() =>
-  pxify({
-    background: 'none',
-    border: 'none',
-    color: c.value.dim,
-    ...typeStep('lg'),
-    cursor: 'pointer',
-    flexShrink: 0,
-  }),
-)
+const tripDialogTabs = [
+  { value: 'map', label: 'Map' },
+  { value: 'timeline', label: 'Timeline' },
+]
 const iconBtn = computed(() =>
   pxify({
-    width: 30,
-    height: 30,
-    flexShrink: 0,
-    borderRadius: 'var(--radius-control)',
-    border: '1px solid ' + c.value.border,
+    border: 'none',
     background: 'transparent',
     color: c.value.dim,
+    ...typeStep('md'),
     cursor: 'pointer',
-    ...typeStep('base'),
+  }),
+)
+const del = computed(() =>
+  pxify({
+    border: 'none',
+    background: 'transparent',
+    color: c.value.dim,
+    ...typeStep('md'),
+    cursor: 'pointer',
   }),
 )
 const noteChip = computed(() =>
@@ -410,12 +387,13 @@ const dangerBtn = computed(() =>
       <div :style="bodyStyle" @keydown.esc="app.closeItemDialog()">
         <!-- Sticky Map / Timeline toggle + one-tap visited -->
         <div :style="stickyBar">
-          <div :style="segTrack">
-            <button :style="segBtn(view === 'map')" @click="view = 'map'">Map</button>
-            <button :style="segBtn(view === 'timeline')" @click="view = 'timeline'">
-              Timeline
-            </button>
-          </div>
+          <Tabs
+            size="sm"
+            :model-value="view"
+            :tabs="tripDialogTabs"
+            aria-label="How this trip is shown"
+            @update:model-value="view = $event as 'map' | 'timeline'"
+          />
           <span :style="pxify({ flex: 1 })"></span>
           <button v-if="trip.status !== 'done'" :style="primaryBtn" @click="markVisited">
             Mark visited

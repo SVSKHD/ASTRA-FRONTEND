@@ -19,6 +19,7 @@ import { groupPlacesByDay, dayColor } from '@/utils/tripDays'
 const TripMap = defineAsyncComponent(() => import('@/components/trips/TripMap.vue'))
 import TripItinerary from '@/components/trips/TripItinerary.vue'
 import TripLightbox from '@/components/trips/TripLightbox.vue'
+import Tabs from '@/components/ui/Tabs.vue'
 import type { Note, Trip, TripPlace } from '@/types'
 
 const props = withDefaults(
@@ -317,28 +318,10 @@ const toolbar = pxify({
   gap: 'var(--sp-2)',
   flexWrap: 'wrap',
 })
-const segTrack = computed(() =>
-  pxify({
-    display: 'inline-flex',
-    padding: 4,
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    gap: 2,
-  }),
-)
-function segBtn(activeState: boolean) {
-  return pxify({
-    padding: '6px 14px',
-    borderRadius: 'var(--radius-control)',
-    border: 'none',
-    background: activeState ? c.value.card : 'transparent',
-    color: activeState ? c.value.accent : c.value.dim,
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    cursor: 'pointer',
-  })
-}
+const tripViewTabs = [
+  { value: 'itinerary', label: 'Itinerary' },
+  { value: 'map', label: 'Map' },
+]
 const chipRow = pxify({ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' })
 function dayChip(selected: boolean, tint: string) {
   return pxify({
@@ -410,12 +393,13 @@ function safe(html: unknown): string {
 
       <!-- View toggle + day filter -->
       <div :style="toolbar">
-        <div :style="segTrack">
-          <button :style="segBtn(view === 'itinerary')" @click="view = 'itinerary'">
-            Itinerary
-          </button>
-          <button :style="segBtn(view === 'map')" @click="view = 'map'">Map</button>
-        </div>
+        <Tabs
+          size="sm"
+          :model-value="view"
+          :tabs="tripViewTabs"
+          aria-label="How this trip is shown"
+          @update:model-value="view = $event as 'map' | 'itinerary'"
+        />
         <div v-if="view === 'map' && days.length" :style="chipRow">
           <button :style="dayChip(selectedDay === null, c.accent)" @click="selectedDay = null">
             All

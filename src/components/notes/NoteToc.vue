@@ -9,6 +9,7 @@ import { computed, ref } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { headingsOf } from '@/utils/mdRender'
+import Caret from '@/components/ui/Caret.vue'
 
 const props = withDefaults(defineProps<{ source: string; minHeadings?: number }>(), {
   // Two headings is a document with sections; one is a title.
@@ -64,13 +65,12 @@ const entry = (level: number) =>
     borderRadius: 'var(--radius-control)',
   })
 const entryHover = computed(() => ({ background: c.value.card, color: c.value.accent }))
-const caret = computed(() => pxify({ color: c.value.accent, ...typeStep('2xs') }))
 </script>
 
 <template>
   <nav v-if="show" :style="wrap" aria-label="Note contents">
     <button type="button" :style="head" :aria-expanded="open" @click="open = !open">
-      <span :style="caret">{{ open ? '▾' : '▸' }}</span>
+      <Caret :open="open" size="xs" />
       Contents
       <span>· {{ headings.length }}</span>
     </button>

@@ -677,8 +677,10 @@ const debtCard = computed(() =>
         @update:model-value="setScope($event as typeof scope)"
       />
       <Tabs
+        size="sm"
         :model-value="subtab"
         :tabs="SUBTABS"
+        aria-label="Finances section"
         @update:model-value="subtab = $event as typeof subtab"
       />
       <span :style="spacer"></span>

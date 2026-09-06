@@ -39,13 +39,28 @@ function ringDelta(i: number): number {
   return d
 }
 
-const SPACING = computed(() => (isTablet.value ? 40 : 46))
-// Per-distance size/opacity ramp, straight from the spec.
+const SPACING = computed(() => (isTablet.value ? 44 : 50))
+// Per-distance size/opacity ramp. These are the GLYPH's size now; the disc
+// around it is `discFor` below, and it is deliberately a good deal larger, so
+// the highlight is a ring of space around the icon rather than a line drawn on
+// top of its edges.
 function sizeFor(d: number): number {
   const a = Math.abs(d)
-  if (a === 0) return 24
-  if (a === 1) return 20
-  return 17
+  if (a === 0) return 22
+  if (a === 1) return 18
+  return 16
+}
+/**
+ * The disc behind the glyph.
+ *
+ * The active one is a padded, filled circle — not a hairline ring hugging the
+ * artwork. The old highlight was `box-shadow: 0 0 0 3px` on a 24px box holding
+ * a 22px glyph: one pixel of gap on each side, so the ring read as part of the
+ * icon's outline instead of as a selection, and on the busier glyphs (the
+ * candlesticks, the calendar) it merged with them completely.
+ */
+function discFor(d: number): number {
+  return d === 0 ? 36 : 30
 }
 function opacityFor(d: number): number {
   const a = Math.abs(d)
@@ -134,7 +149,7 @@ const capsule = computed(() => {
   if (horizontal.value) {
     return pxify({
       ...base,
-      height: 52,
+      height: 56,
       maxWidth: '92vw',
       padding: '0 10px',
       borderRadius: 'var(--radius-pill)',
@@ -142,7 +157,7 @@ const capsule = computed(() => {
   }
   return pxify({
     ...base,
-    width: isTablet.value ? 52 : 60,
+    width: isTablet.value ? 56 : 64,
     // A ceiling, not a height: the rail column is as tall as the shell and the
     // capsule should not be. `maxHeight: 100%` keeps it inside the region on a
     // short window instead of pushing the grid past the viewport.
@@ -162,8 +177,8 @@ const track = computed(() => {
   )
   return pxify({
     position: 'relative',
-    width: horizontal.value ? span : 44,
-    height: horizontal.value ? 44 : span,
+    width: horizontal.value ? span : 48,
+    height: horizontal.value ? 48 : span,
     flexShrink: 0,
     maskImage: mask,
     '-webkit-mask-image': mask,
@@ -175,8 +190,8 @@ function itemStyle(d: number) {
     position: 'absolute',
     top: '50%',
     left: '50%',
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -193,21 +208,20 @@ function itemStyle(d: number) {
     transition: 'transform .32s cubic-bezier(.34,1.56,.64,1), opacity .32s ease',
   })
 }
+/**
+ * The disc's SIZE only. Its paint is in the stylesheet below.
+ *
+ * Deliberately split: the size is the one part that depends on ring distance
+ * and so has to be computed per item, and the paint is the part that has a
+ * hover state — which an inline style cannot express, and which `v-hover-style`
+ * would get wrong here because it restores the style it snapshotted on enter,
+ * and clicking an icon changes that style underneath it.
+ */
 function glyphWrap(d: number) {
-  const sz = sizeFor(d)
-  const active = d === 0
+  const size = discFor(d)
   return pxify({
-    position: 'relative',
-    width: sz,
-    height: sz,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '50%',
-    boxShadow: active
-      ? '0 0 0 3px ' + c.value.accent + '55, 0 0 16px ' + c.value.accent + '66'
-      : 'none',
-    transition: 'width .32s cubic-bezier(.34,1.56,.64,1), height .32s cubic-bezier(.34,1.56,.64,1)',
+    width: size,
+    height: size,
   })
 }
 const badgeDot = computed(() =>
@@ -268,10 +282,15 @@ const tip = computed(() =>
         :tabindex="opacityFor(ringDelta(i)) === 0 ? -1 : 0"
         @click="jumpTo(t.key)"
       >
-        <span :style="glyphWrap(ringDelta(i))">
+        <span
+          class="dock-glyph"
+          :class="{ 'is-active': tab === t.key }"
+          :style="glyphWrap(ringDelta(i))"
+        >
           <TabGlyph
             :name="t.key"
             :filled="tab === t.key"
+            :size="sizeFor(ringDelta(i))"
             :col="tab === t.key ? c.accent : c.dim"
             :ko="c.card"
           />
@@ -284,6 +303,55 @@ const tip = computed(() =>
 </template>
 
 <style scoped>
+/*
+ * THE ACTIVE ICON'S HIGHLIGHT.
+ *
+ * It used to be `box-shadow: 0 0 0 3px` on a 24px box around a 22px glyph —
+ * one pixel of clearance on each side, which reads as an outline the artwork
+ * grew rather than as "this is the tab you are on", and which disappeared
+ * entirely into the busier glyphs. It is now a padded disc: a filled circle
+ * seven pixels wider than the glyph on every side, its own edge against the
+ * glass, and a soft ring outside that.
+ *
+ * Three layers because each says something the others cannot — the fill says
+ * which one, the border gives it an edge on a light theme, the ring and glow
+ * lift it off the capsule. The transparent border on the inactive state is what
+ * keeps the layout from shifting by a pixel when an icon becomes the active one.
+ */
+.dock-glyph {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  transition:
+    width 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+    height 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.24s ease,
+    border-color 0.24s ease,
+    box-shadow 0.24s ease;
+}
+.dock-glyph.is-active {
+  background: color-mix(in oklch, var(--theme-accent) 22%, transparent);
+  border-color: color-mix(in oklch, var(--theme-accent) 60%, transparent);
+  box-shadow:
+    0 0 0 3px color-mix(in oklch, var(--theme-accent) 16%, transparent),
+    0 4px 14px color-mix(in oklch, var(--theme-accent) 32%, transparent);
+}
+/* A neighbour under the pointer gets the same disc at a fraction of the
+   strength, so "what will I land on" is answerable before the click. */
+.dock-item:hover .dock-glyph:not(.is-active),
+.dock-item:focus-visible .dock-glyph:not(.is-active) {
+  background: color-mix(in oklch, var(--theme-accent) 12%, transparent);
+  border-color: color-mix(in oklch, var(--theme-accent) 30%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-glyph {
+    transition: none;
+  }
+}
+
 /* Tooltips appear only after a 350ms hover, per spec. */
 .dock-tip {
   opacity: 0;

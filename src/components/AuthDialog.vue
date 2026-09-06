@@ -2,6 +2,7 @@
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
+import Alert from '@/components/ui/Alert.vue'
 
 const auth = useAuthStore()
 const { s } = useStyles()
@@ -57,10 +58,12 @@ const { authOpen, authReady, authBusy, authError, configurationReady } = storeTo
         </button>
       </div>
       <span v-if="authBusy" :style="s.finMeta">Opening secure sign-in…</span>
-      <span v-if="!configurationReady" :style="s.authError"
-        >Add the Firebase and owner allowlist keys from .env.example.</span
-      >
-      <span v-else-if="authError" :style="s.authError">{{ authError }}</span>
+      <Alert v-if="!configurationReady" tone="warning" title="Firebase setup incomplete" dismissible>
+        Add the Firebase and owner allowlist keys from .env.example.
+      </Alert>
+      <Alert v-else-if="authError" tone="danger" title="Sign-in unavailable" dismissible>
+        {{ authError }}
+      </Alert>
     </div>
   </template>
 </template>

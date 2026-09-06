@@ -19,7 +19,7 @@ const RC = (x: number, y: number, w: number, hh: number, rx: number, a: Attrs) =
   h('rect', { x, y, width: w, height: hh, rx, ...a })
 
 // Port of the design's tabGlyph(name, filled, col, ko).
-function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
+function glyph(name: TabKey, filled: boolean, col: string, ko?: string, size = 22) {
   let ch: ReturnType<typeof h>[]
   if (name === 'todo') {
     ch = filled
@@ -223,13 +223,20 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string) {
       ? [P(pin, { fill: col }), CI(12, 10, 2.15, { fill: ko || col })]
       : [P(pin, stroke(col)), CI(12, 10, 2.15, stroke(col, 1.8))]
   }
+  // Drawn AT the size it is asked for, and laid out in flow.
+  //
+  // It used to be a hard 22px at `position: absolute; inset: 0`, which meant the
+  // dock's size ramp did nothing: the wrapper shrank to 20px and then to 17px
+  // for the icons either side of the active one, and a 22px glyph pinned to the
+  // wrapper's top-left corner spilled out of both. The ramp is a real ramp now,
+  // and the glyph sits in the middle of whatever is highlighting it.
   return h(
     'svg',
     {
-      width: 22,
-      height: 22,
+      width: size,
+      height: size,
       viewBox: '0 0 24 24',
-      style: { display: 'block', position: 'absolute', inset: 0 },
+      style: { display: 'block' },
     },
     ch,
   )
@@ -242,9 +249,10 @@ export default defineComponent({
     filled: { type: Boolean, default: false },
     col: { type: String, required: true },
     ko: { type: String, default: undefined },
+    size: { type: Number, default: 22 },
   },
   setup(props) {
-    return () => glyph(props.name, props.filled, props.col, props.ko)
+    return () => glyph(props.name, props.filled, props.col, props.ko, props.size)
   },
 })
 </script>

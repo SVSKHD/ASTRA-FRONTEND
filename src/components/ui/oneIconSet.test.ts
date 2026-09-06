@@ -8,10 +8,18 @@
 // the build.
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { ICONS, ICON_NAMES, ICON_SIZES, ICON_STROKE } from '@/components/ui/icons'
 
 const SRC = join(process.cwd(), 'src')
+
+// Posix separators on every platform: the allowlist below names files as
+// `components/ui/Icon.vue`, and `join` hands back a backslash on Windows.
+const rel = (file: string) =>
+  file
+    .slice(SRC.length + 1)
+    .split(sep)
+    .join('/')
 
 // Only the markup. A component's script may well build an `<Icon …>` string
 // (the /ui page's copy button does), and that is a string, not a call site.
@@ -70,7 +78,7 @@ describe('one set, drawn once', () => {
   it('nothing draws its own icon (acceptance 111)', () => {
     const offenders = vueFiles(SRC)
       .filter((file) => template(readFileSync(file, 'utf8')).includes('<svg'))
-      .map((file) => file.replace(SRC + '/', ''))
+      .map(rel)
       .filter((rel) => !ALLOWED.has(rel) && !TRADE_FAMILY.test(rel) && !FEED_FAMILY.test(rel))
     expect(offenders).toEqual([])
   })
@@ -104,7 +112,7 @@ describe('the size scale', () => {
       const source = readFileSync(file, 'utf8')
       // `size="16"` or `:size="19"` on an Icon: a pixel where a step belongs.
       for (const tag of template(source).match(/<Icon\b[^>]*>/gs) ?? []) {
-        if (/:?size\s*=\s*["']\s*\d/.test(tag)) offenders.push(`${file.replace(SRC + '/', '')}`)
+        if (/:?size\s*=\s*["']\s*\d/.test(tag)) offenders.push(rel(file))
       }
     }
     expect(offenders).toEqual([])
@@ -130,7 +138,7 @@ describe('the sprite', () => {
     const app = readFileSync(join(SRC, 'App.vue'), 'utf8')
     expect(app).toContain('<IconSprite />')
     const mounted = vueFiles(SRC).filter((file) => /<IconSprite\b/.test(readFileSync(file, 'utf8')))
-    expect(mounted.map((f) => f.replace(SRC + '/', ''))).toEqual(['App.vue'])
+    expect(mounted.map(rel)).toEqual(['App.vue'])
   })
 
   it('every icon referenced in the app is in the set', () => {
@@ -140,8 +148,7 @@ describe('the sprite', () => {
       const source = readFileSync(file, 'utf8')
       for (const tag of template(source).match(/<Icon\b[^>]*>/gs) ?? []) {
         const literal = tag.match(/(?<!:)name\s*=\s*"([^"]+)"/)
-        if (literal && !known.has(literal[1]))
-          missing.push(`${file.replace(SRC + '/', '')}: ${literal[1]}`)
+        if (literal && !known.has(literal[1])) missing.push(`${rel(file)}: ${literal[1]}`)
       }
     }
     expect(missing).toEqual([])

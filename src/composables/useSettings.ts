@@ -13,7 +13,7 @@
 // It is a plain top-level document keyed by the uid, so its own rule —
 // `request.auth.uid == userId` — is the gate, and it needs no owner field.
 
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, effectScope, ref, watch, type EffectScope } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { DocumentData, Unsubscribe } from 'firebase/firestore'
 import { loadFirestore } from '@/firebase'
@@ -84,6 +84,7 @@ function readSettings(data: DocumentData | undefined): AstraSettings {
 }
 
 let shared: ReturnType<typeof create> | null = null
+let scope: EffectScope | null = null
 
 function create() {
   const { user } = storeToRefs(useAuthStore())
@@ -144,6 +145,21 @@ function create() {
     }
   }
 
+  // THE UID IS WATCHED HERE, INSIDE THE SINGLETON.
+  //
+  // It used to be "watched" by each caller: a plain ref seeded with the current
+  // uid, compared against it once at setup and once again at unmount. Seeded
+  // with the value it was compared to, the setup check could never fire, and
+  // the unmount check fired after the component that needed the answer was
+  // gone. So nothing re-attached, ever — and because `attach('')` returns with
+  // `ready` still false, an instance created before the auth listener resolved
+  // left `ready` false for the rest of the session. Every owned-month listener
+  // waits on `ready`, so the whole app read nothing from Firestore and the
+  // Trades tab sat on its skeleton with no error to show for it.
+  //
+  // A real watcher, created once, in a scope that belongs to nobody.
+  watch(uid, (owner) => void attach(owner), { immediate: true })
+
   return { uid, settings: stored, ready, error, attach, save, unsubscribe: () => unsub?.() }
 }
 
@@ -157,27 +173,21 @@ function create() {
  */
 export function useSettings() {
   if (!shared) {
-    shared = create()
-    void shared.attach(shared.uid.value)
+    // Detached, so the effects inside `create` belong to the singleton rather
+    // than to whichever component happened to ask for settings first. A watcher
+    // created in a component's scope is stopped when that component unmounts —
+    // which would silently end settings for everybody else the first time the
+    // reader changed tabs.
+    scope = effectScope(true)
+    shared = scope.run(() => create()) ?? null
   }
-  const api = shared
-  // Re-attach on a uid change without tearing the singleton down: the watcher
-  // lives here so a component's lifetime never ends the subscription for
-  // everyone else.
-  const seen = ref(api.uid.value)
-  const stop = () => {
-    if (seen.value !== api.uid.value) {
-      seen.value = api.uid.value
-      void api.attach(api.uid.value)
-    }
-  }
-  stop()
-  onUnmounted(stop)
-  return api
+  return shared as ReturnType<typeof create>
 }
 
 /** Test seam: drops the shared instance so a fresh uid can be attached. */
 export function resetSettings(): void {
   shared?.unsubscribe()
+  scope?.stop()
+  scope = null
   shared = null
 }

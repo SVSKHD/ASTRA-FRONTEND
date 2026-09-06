@@ -12,7 +12,7 @@
 // panel was still pushed off its own edge.
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { resolve, sep } from 'node:path'
 
 const SRC = resolve(__dirname, '../..')
 
@@ -25,7 +25,13 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-const rel = (f: string) => f.slice(SRC.length + 1)
+// Posix separators on every platform, so an offender is named the same way
+// wherever the suite runs.
+const rel = (f: string) =>
+  f
+    .slice(SRC.length + 1)
+    .split(sep)
+    .join('/')
 
 /** Declarations that say "the author expected this text to overflow". */
 const OVERFLOW_AWARE = /(-webkit-line-clamp|text-overflow:\s*ellipsis|overflow-wrap:\s*anywhere)/

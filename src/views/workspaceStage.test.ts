@@ -13,27 +13,14 @@ describe('the stage is in flow and the page is what scrolls', () => {
   const desktop = stageGeometry({ vw: 1440, isPhone: false })
   const phone = stageGeometry({ vw: 390, isPhone: true })
 
-  it('has a floor, never a height', () => {
+  it('keeps a stable height for every tab', () => {
     for (const [name, style] of [
       ['desktop', desktop],
       ['phone', phone],
     ] as const) {
-      expect(Object.keys(style), name).not.toContain('height')
-      // A floor of the REGION holding it (section 44). It used to be a floor of
-      // the viewport, which was right while the document was the scrollport and
-      // is wrong now that the shell reserves rows above and below: `100dvh`
-      // inside a box that is the viewport minus the chrome overflows by exactly
-      // the height of the chrome, on every tab, including the empty ones.
-      expect(style.minHeight, name).toBe('100%')
-    }
-  })
-
-  it('never clips: no overflow anywhere in the stage or its wrapper', () => {
-    // An overflow other than visible would also make the stage the scrollport
-    // that every sticky table header inside sticks to — which is the header's
-    // whole job undone, silently.
-    for (const style of [desktop, phone, stageWrapGeometry()]) {
-      for (const key of Object.keys(style)) expect(key.toLowerCase()).not.toContain('overflow')
+      expect(style.height, name).toBe(name === 'phone' ? 'calc(100% - 20px)' : 'calc(100% - 28px)')
+      expect(style.minHeight, name).toBe(0)
+      expect(style.overflow, name).toBe('hidden')
     }
   })
 
@@ -51,8 +38,8 @@ describe('the stage is in flow and the page is what scrolls', () => {
   })
 
   it('fills its region rather than measuring the viewport itself', () => {
-    expect(stageWrapGeometry().minHeight).toBe('100%')
-    expect(phone.minHeight).toBe('100%')
+    expect(stageWrapGeometry().height).toBe('100%')
+    expect(phone.height).toBe('calc(100% - 20px)')
   })
 
   it('sizes itself against its container, never against the viewport', () => {

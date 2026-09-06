@@ -27,6 +27,7 @@ import UiFormsDemo from '@/views/UiFormsDemo.vue'
 
 import {
   Accordion,
+  Caret,
   Alert,
   Avatar,
   Badge,
@@ -125,6 +126,7 @@ const radii = ['--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--ra
 
 // ---- live models for the demos ---------------------------------------------
 const demo = ref({
+  accordion: false,
   text: 'Ship the design system',
   multi: [] as string[],
   tags: ['work'] as string[],
@@ -349,6 +351,84 @@ const OverlapDetector = import.meta.env.DEV
         visited.
       </p>
       <UiFormsDemo />
+    </section>
+
+    <!-- ---- Dialogs and drawers ----------------------------------------- -->
+    <section class="ui-page__section ui-page__surfaces">
+      <h2>Dialogs &amp; drawers</h2>
+      <p class="ui-page__note">
+        Focused surfaces for decisions, quick filters, and supporting detail. Each example uses the
+        same glass layer, scrim, close behavior, and responsive motion as the production UI.
+      </p>
+      <div class="ui-page__surfaceGrid">
+        <article class="ui-page__surfaceDemo">
+          <div>
+            <span class="ui-page__surfaceEyebrow">Centered decision</span>
+            <h3>Modal dialog</h3>
+            <p>Use when the current task must pause for a clear answer.</p>
+          </div>
+          <Button variant="secondary" @click="modalOpen = true">Open modal</Button>
+        </article>
+        <article class="ui-page__surfaceDemo">
+          <div>
+            <span class="ui-page__surfaceEyebrow">Thumb reachable</span>
+            <h3>Bottom sheet</h3>
+            <p>Use for mobile-first filters and short action lists.</p>
+          </div>
+          <Button variant="secondary" @click="sheetOpen = true">Open sheet</Button>
+        </article>
+        <article class="ui-page__surfaceDemo">
+          <div>
+            <span class="ui-page__surfaceEyebrow">Supporting context</span>
+            <h3>Side drawer</h3>
+            <p>Use when detail should stay beside the page that opened it.</p>
+          </div>
+          <Button variant="secondary" @click="drawerOpen = true">Open drawer</Button>
+        </article>
+        <article class="ui-page__surfaceDemo">
+          <div>
+            <span class="ui-page__surfaceEyebrow">Unsaved work</span>
+            <h3>Exit confirmation</h3>
+            <p>Use when closing would discard edits or an in-progress flow.</p>
+          </div>
+          <Button variant="ghost" @click="unsavedDemo = true">Show confirmation</Button>
+        </article>
+      </div>
+      <Modal :open="modalOpen" title="Delete task?" @close="modalOpen = false">
+        This cannot be undone.
+        <template #footer>
+          <Button variant="ghost" @click="modalOpen = false">Cancel</Button>
+          <Button variant="danger" @click="modalOpen = false">Delete</Button>
+        </template>
+      </Modal>
+      <BottomSheet :open="sheetOpen" title="Filters" @close="sheetOpen = false">
+        <div class="ui-page__sheetContent">
+          <Switch v-model="demo.toggle" label="Only active items" />
+          <Checkbox v-model="demo.checked" label="Include archived" />
+          <Button @click="sheetOpen = false">Apply filters</Button>
+        </div>
+      </BottomSheet>
+      <SlideOver :open="drawerOpen" title="Details" @close="drawerOpen = false">
+        <div class="ui-page__drawerContent">
+          <StatRow
+            :stats="[
+              { label: 'Open', value: '12' },
+              { label: 'Done', value: '28' },
+            ]"
+          />
+          <p class="ui-page__note">
+            A drawer keeps the source page visible while the reader checks supporting information.
+          </p>
+          <Button variant="secondary" @click="drawerOpen = false">Done</Button>
+        </div>
+      </SlideOver>
+      <UnsavedSheet
+        :open="unsavedDemo"
+        :fields="['Assignee', 'Description']"
+        @save="unsavedDemo = false"
+        @discard="unsavedDemo = false"
+        @back="unsavedDemo = false"
+      />
     </section>
 
     <!-- ---- Components --------------------------------------------------- -->
@@ -621,7 +701,15 @@ const OverlapDetector = import.meta.env.DEV
             <Tabs v-model="demo.tab" :tabs="tabItems" />
           </template>
           <template v-else-if="doc.name === 'Accordion'">
-            <Accordion title="Advanced">Rarely-needed settings.</Accordion>
+            <Accordion title="Advanced" :open="demo.accordion" @toggle="demo.accordion = $event">
+              Rarely-needed settings.
+            </Accordion>
+          </template>
+          <template v-else-if="doc.name === 'Caret'">
+            <span style="display: inline-flex; align-items: center; gap: 12px">
+              <Caret :open="false" />
+              <Caret :open="true" />
+            </span>
           </template>
           <template v-else-if="doc.name === 'Pagination'">
             <Pagination v-model:page="demo.page" :page-count="9" />
@@ -767,6 +855,8 @@ const OverlapDetector = import.meta.env.DEV
 
 <style scoped>
 .ui-page {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   padding: var(--sp-4);
   display: flex;
@@ -896,6 +986,55 @@ const OverlapDetector = import.meta.env.DEV
   padding: var(--sp-3);
   border-radius: var(--radius-md);
   background: color-mix(in oklch, var(--glass-border) 18%, transparent);
+}
+.ui-page__surfaceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+.ui-page__surfaceDemo {
+  display: flex;
+  min-height: 170px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--glass-bg) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 12%, transparent);
+}
+.ui-page__surfaceEyebrow {
+  color: var(--theme-accent);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ui-page__surfaceDemo h3 {
+  margin: var(--sp-1) 0 0;
+  color: var(--theme-text);
+  font-size: var(--text-md);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.ui-page__surfaceDemo p {
+  max-width: 34ch;
+  margin: var(--sp-1) 0 0;
+  color: var(--theme-dim);
+  font-size: var(--text-xs);
+  line-height: var(--lh-base);
+}
+.ui-page__sheetContent,
+.ui-page__drawerContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+@media (max-width: 640px) {
+  .ui-page__surfaceGrid {
+    grid-template-columns: 1fr;
+  }
 }
 .ui-page__props {
   font-size: var(--text-xs);

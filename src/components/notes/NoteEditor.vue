@@ -32,6 +32,7 @@ import {
 import type { NoteEditorMode } from '@/utils/notes'
 import MarkdownView from '@/components/notes/MarkdownView.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
+import Tabs from '@/components/ui/Tabs.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -185,6 +186,11 @@ const MODE_LABEL: Record<NoteEditorMode, string> = {
   preview: 'Preview',
   split: 'Split',
 }
+// The switch is the app's tab strip, not three hand-styled buttons. Three
+// mutually exclusive views of one document is exactly what a tab strip is, and
+// the pair of `aria-pressed` toggles this replaced said "three independent
+// switches, any of which may be on".
+const modeTabs = computed(() => modes.value.map((m) => ({ value: m, label: MODE_LABEL[m] })))
 
 // --- styles -----------------------------------------------------------------
 const wrap = computed(() =>
@@ -226,18 +232,21 @@ const toolBtn = computed(() =>
   }),
 )
 const toolHover = computed(() => ({ background: c.value.card, borderColor: c.value.border }))
-const spacer = pxify({ flex: 1, minWidth: 0 })
-const modeBtn = (active: boolean) =>
+// The compact bar's single Preview toggle. Two states is a toggle and not a tab
+// strip, so it stays a button — but it is drawn from the same tokens the strip
+// beside it uses, rather than from its own idea of an active colour.
+const previewBtn = (active: boolean) =>
   pxify({
     padding: '4px 10px',
-    borderRadius: 'var(--radius-control)',
-    border: '1px solid ' + (active ? c.value.accent : 'transparent'),
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid ' + (active ? c.value.border : 'transparent'),
     background: active ? c.value.card : 'transparent',
-    color: active ? c.value.accent : c.value.dim,
+    color: active ? c.value.text : c.value.dim,
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
   })
+const spacer = pxify({ flex: 1, minWidth: 0 })
 const panes = computed(() =>
   pxify({
     display: 'grid',
@@ -292,24 +301,20 @@ const previewStyle = computed(() =>
       <button
         v-if="compact"
         type="button"
-        :style="modeBtn(mode === 'preview')"
+        :style="previewBtn(mode === 'preview')"
         :aria-pressed="mode === 'preview'"
         @click="togglePreview"
       >
         Preview
       </button>
-      <template v-else>
-        <button
-          v-for="m in modes"
-          :key="m"
-          type="button"
-          :style="modeBtn(noteEditorMode === m)"
-          :aria-pressed="noteEditorMode === m"
-          @click="setMode(m)"
-        >
-          {{ MODE_LABEL[m] }}
-        </button>
-      </template>
+      <Tabs
+        v-else
+        size="sm"
+        :model-value="noteEditorMode"
+        :tabs="modeTabs"
+        aria-label="Editor layout"
+        @update:model-value="setMode($event as NoteEditorMode)"
+      />
     </div>
 
     <div :style="panes">

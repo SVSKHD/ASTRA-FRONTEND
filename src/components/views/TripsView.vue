@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
+import Tabs from '@/components/ui/Tabs.vue'
 // The Trips tab. Two glass sub-tabs — To Visit and Done — over the same trip
 // list, each card showing the trip name, date, tags and a small static map of
 // its places. A trip is opened in its detail dialog (map, ordered places,
@@ -67,6 +68,10 @@ const counts = computed(() => ({
   tovisit: trips.value.filter((t) => t.status === 'tovisit').length,
   done: trips.value.filter((t) => t.status === 'done').length,
 }))
+const tripTabs = computed(() => [
+  { value: 'tovisit', label: `To visit · ${counts.value.tovisit}` },
+  { value: 'done', label: `Done · ${counts.value.done}` },
+])
 
 function dateLabel(t: Trip): string {
   const value = tripDate(t)
@@ -114,43 +119,6 @@ function onTouchEnd(e: TouchEvent) {
 }
 
 // --- styles -----------------------------------------------------------------
-const segTrack = computed(() =>
-  pxify({
-    display: 'flex',
-    padding: 4,
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + c.value.border,
-    background: c.value.input,
-    gap: 2,
-  }),
-)
-function segBtn(active: boolean) {
-  return pxify({
-    flex: 1,
-    padding: '8px 12px',
-    borderRadius: 'var(--radius-control)',
-    border: 'none',
-    background: active ? c.value.card : 'transparent',
-    color: active ? c.value.accent : c.value.dim,
-    ...typeStep('sm'),
-    fontWeight: 'var(--weight-semibold)',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 'var(--sp-2)',
-  })
-}
-const segCount = computed(() =>
-  pxify({
-    ...typeStep('2xs'),
-    fontWeight: 'var(--weight-semibold)',
-    padding: '1px 6px',
-    borderRadius: 'var(--radius-pill)',
-    background: c.value.input,
-    border: '1px solid ' + c.value.border,
-  }),
-)
 const toolbar = pxify({
   display: 'flex',
   gap: 'var(--sp-2)',
@@ -275,14 +243,12 @@ const promptRow = computed(() =>
     </div>
 
     <!-- Sub-tabs -->
-    <div :style="segTrack">
-      <button :style="segBtn(sub === 'tovisit')" @click="sub = 'tovisit'">
-        To visit <span :style="segCount">{{ counts.tovisit }}</span>
-      </button>
-      <button :style="segBtn(sub === 'done')" @click="sub = 'done'">
-        Done <span :style="segCount">{{ counts.done }}</span>
-      </button>
-    </div>
+    <Tabs
+      :model-value="sub"
+      :tabs="tripTabs"
+      aria-label="Filter trips by status"
+      @update:model-value="sub = $event as TripStatus"
+    />
 
     <!-- Filter + sort -->
     <div :style="toolbar">

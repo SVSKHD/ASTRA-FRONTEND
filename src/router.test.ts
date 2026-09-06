@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { PLURAL } from '@/utils/share'
 import type { ItemType } from '@/types'
@@ -32,6 +32,21 @@ const ALL_TYPES: ItemType[] = [
 ]
 
 describe('routes', () => {
+  // The route table is pulled in once, here, rather than inside whichever test
+  // happens to run first. `@/router` is a large module graph and the first
+  // import of it costs over a second — charged to a 5s test timeout under a
+  // loaded suite, that makes the first test in this file fail for a reason that
+  // has nothing to do with routing, and makes WHICH test fails depend on how
+  // many other files are running.
+  beforeAll(async () => {
+    await import('@/router')
+  }, 30_000)
+
+  it('resolves the public Astra page', async () => {
+    const r = await makeRouter()
+    expect(r.resolve('/astra').name).toBe('astra')
+  })
+
   it('resolves the workspace at /', async () => {
     const r = await makeRouter()
     expect(r.resolve('/').name).toBe('workspace')

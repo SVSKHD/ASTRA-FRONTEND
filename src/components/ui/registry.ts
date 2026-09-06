@@ -567,22 +567,45 @@ export const UI_COMPONENTS: ComponentDoc[] = [
   {
     name: 'Tabs',
     group: 'Navigation',
-    summary: 'ARIA tab strip; only the active tab is a tab stop.',
+    summary:
+      'ARIA tab strip; only the active tab is a tab stop. Every sub-navigation in the app is one of these.',
     props: [
       { name: 'modelValue', type: 'string' },
       { name: 'tabs', type: '{ value, label }[]' },
+      {
+        name: 'ariaLabel',
+        type: 'string',
+        default: "'Tabs'",
+        note: 'What this strip switches between.',
+      },
+      {
+        name: 'size',
+        type: "'sm' | 'md'",
+        default: 'md',
+        note: "'sm' when it shares a row with header actions.",
+      },
     ],
-    snippet: '<Tabs v-model="pane" :tabs="tabs" />',
+    snippet: '<Tabs v-model="pane" :tabs="tabs" aria-label="Panes" />',
   },
   {
     name: 'Accordion',
     group: 'Navigation',
-    summary: 'Disclosure built on native details/summary.',
+    summary: 'Disclosure with a height-animated body and the shared caret.',
     props: [
       { name: 'title', type: 'string' },
-      { name: 'open', type: 'boolean' },
+      { name: 'open', type: 'boolean', note: 'Controlled; pair it with @toggle.' },
     ],
-    snippet: '<Accordion title="Advanced">…</Accordion>',
+    snippet: '<Accordion title="Advanced" :open="open" @toggle="open = $event">…</Accordion>',
+  },
+  {
+    name: 'Caret',
+    group: 'Navigation',
+    summary: 'The disclosure arrow every collapsible header uses. Right closed, down open.',
+    props: [
+      { name: 'open', type: 'boolean', default: 'false', note: 'Rotation is derived from this.' },
+      { name: 'size', type: "'xs' | 'sm'", default: 'sm' },
+    ],
+    snippet: '<Caret :open="open" />',
   },
   {
     name: 'Table',

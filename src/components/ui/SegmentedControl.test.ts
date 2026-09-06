@@ -2,7 +2,16 @@
 // buttons is the keyboard: one tab stop, arrows to move, wrapping at the ends.
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { defineComponent, h, markRaw } from 'vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+
+/** Stands in for one of the trade family: takes `size`, renders an svg. */
+const Marker = markRaw(
+  defineComponent({
+    props: { size: { type: Number, default: 16 } },
+    setup: (props) => () => h('svg', { 'data-test-icon': '', 'data-size': String(props.size) }),
+  }),
+)
 
 const OPTIONS = [
   { value: 'task', label: 'Task' },
@@ -34,6 +43,47 @@ describe('the choice', () => {
     })
     await w.findAll('.ui-seg__opt')[1].trigger('click')
     expect(w.emitted('update:modelValue')).toBeUndefined()
+  })
+})
+
+describe('the glyph', () => {
+  // Optional, because most segmented controls choose between words. It exists
+  // for the ones where the app already draws a picture for the same concept
+  // elsewhere — the trade log draws a session icon in every table row, and the
+  // control that SETS the session was rendering a bare word.
+  it('draws one before the label when a segment carries it', () => {
+    const w = mount(SegmentedControl, {
+      props: {
+        modelValue: 'buy',
+        options: [
+          { value: 'buy', label: 'Buy', icon: Marker },
+          { value: 'sell', label: 'Sell', icon: Marker },
+        ],
+      },
+    })
+    expect(w.findAll('[data-test-icon]')).toHaveLength(2)
+    // The label is still the accessible name; the glyph is decoration beside it.
+    expect(w.findAll('.ui-seg__label').map((n) => n.text())).toEqual(['Buy', 'Sell'])
+  })
+
+  it('draws nothing extra for the segments that have none', () => {
+    expect(make().findAll('[data-test-icon]')).toHaveLength(0)
+    expect(
+      make()
+        .findAll('.ui-seg__label')
+        .map((n) => n.text()),
+    ).toEqual(['Task', 'Todo', 'Reminder'])
+  })
+
+  it('sizes the glyph from the control, never from the call site', () => {
+    const at = (size: 'sm' | 'md' | 'lg') =>
+      mount(SegmentedControl, {
+        props: { modelValue: 'a', options: [{ value: 'a', label: 'A', icon: Marker }], size },
+      })
+        .get('[data-test-icon]')
+        .attributes('data-size')
+    // Three steps, three sizes, and no way for a caller to pick a fourth.
+    expect([at('sm'), at('md'), at('lg')]).toEqual(['12', '14', '16'])
   })
 })
 

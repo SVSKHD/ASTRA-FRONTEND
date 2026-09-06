@@ -13,6 +13,7 @@ import Starfield from '@/components/Starfield.vue'
 import CursorTail from '@/components/CursorTail.vue'
 import IconSprite from '@/components/ui/IconSprite.vue'
 import TopProgressBar from '@/components/ui/TopProgressBar.vue'
+import WarningTray from '@/components/WarningTray.vue'
 // "How to add a goal" (section 23). Mounted once, here, because it is opened
 // from the goals toolbar, from the goal dialog and from /ui — three surfaces on
 // two routes, and a panel mounted in each would be three of them. Loaded on
@@ -36,7 +37,9 @@ const backgroundWork = useBackgroundWork()
 // page, the 404) which have no chrome of their own.
 // The screenshot stage draws a tab on its own and would otherwise get the
 // corner mark stamped over the toolbar's title.
-const showBrand = computed(() => route.name !== 'workspace' && route.name !== 'dev-shot')
+const showBrand = computed(
+  () => route.name !== 'workspace' && route.name !== 'dev-shot' && route.name !== 'ui-showcase',
+)
 
 // One-time notice when offline persistence could not be enabled (private mode /
 // unsupported browser): the app still works, just without offline durability.
@@ -59,5 +62,6 @@ onMounted(() => {
   <CursorTail />
   <RouterView />
   <GoalHelpPanel v-if="app.goalHelpOpen" />
+  <WarningTray />
   <div v-if="showBrand" :style="s.brandWrap"><span :style="s.brand">AUREON</span></div>
 </template>

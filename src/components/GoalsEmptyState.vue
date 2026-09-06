@@ -7,6 +7,7 @@ import { ref } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
+import Caret from '@/components/ui/Caret.vue'
 
 const emit = defineEmits<{
   (e: 'new'): void
@@ -128,6 +129,13 @@ const ghostBtn = () =>
   })
 const discBtn = () =>
   pxify({
+    // A flex row, because the arrow beside the label is a 22px box now rather
+    // than a character in the run of text.
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 'var(--sp-1)',
+    alignSelf: 'flex-start',
+    padding: 0,
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     color: c.value.dim,
@@ -188,8 +196,9 @@ const legend = () => pxify({ ...typeStep('xs'), color: c.value.dim, marginTop: 6
       </div>
     </div>
 
-    <button :style="discBtn()" @click="showFormat = !showFormat">
-      {{ showFormat ? '▾' : '▸' }} See the format
+    <button :style="discBtn()" :aria-expanded="showFormat" @click="showFormat = !showFormat">
+      <Caret :open="showFormat" size="xs" />
+      See the format
     </button>
     <template v-if="showFormat">
       <div :style="codeWrap()">

@@ -8,7 +8,7 @@
 // is visible in the file you are editing — only next to the controls beside it.
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { resolve, sep } from 'node:path'
 
 const SRC = resolve(__dirname, '../..')
 
@@ -21,7 +21,13 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-const rel = (f: string) => f.slice(SRC.length + 1)
+// Posix separators on every platform: the allowlists below name files as
+// `ui/TextInput.vue`, and `join` hands back a backslash on Windows.
+const rel = (f: string) =>
+  f
+    .slice(SRC.length + 1)
+    .split(sep)
+    .join('/')
 const FILES = walk(SRC).filter((f) => !rel(f).startsWith('components/ui/'))
 
 /**

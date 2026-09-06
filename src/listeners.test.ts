@@ -3,7 +3,7 @@
 // instead of leaking in a long-lived session.
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 
 const SRC = join(process.cwd(), 'src')
 
@@ -29,17 +29,26 @@ function code(file: string): string {
     .join('\n')
 }
 
+// Posix separators, on every platform. The expectations below name files as
+// `composables/useNews.ts`, and on Windows `join` hands back
+// `composables\useNews.ts` — which failed this audit for a reason that has
+// nothing to do with listeners.
 const FILES = sourceFiles(SRC).map((path) => ({
-  path: path.slice(SRC.length + 1),
+  path: path
+    .slice(SRC.length + 1)
+    .split(sep)
+    .join('/'),
   body: code(path),
 }))
 
 describe('every listener is torn down', () => {
   it('every onSnapshot keeps its unsubscribe', () => {
     const leaks = FILES.filter((f) => f.body.includes('onSnapshot(')).filter(
-      // `detach()` counts: it is the same teardown under the name the shared
-      // month listener gives it.
-      (f) => !/Unsub\s*\(\)|unsubscribe\s*\(\)|detach\s*\(\)/.test(f.body),
+      // `detach(entry)` and `unsub?.()` both count: they are the same teardown
+      // under the names the shared month cache gives it. What this is really
+      // asking is whether the file that opened a subscription anywhere also
+      // closes one somewhere — a spelling of the call is not the point.
+      (f) => !/Unsub\s*\(\)|unsubscribe\s*\(\)|unsub\?\.\(\)|detach\s*\(/.test(f.body),
     )
     expect(leaks.map((f) => f.path)).toEqual([])
   })

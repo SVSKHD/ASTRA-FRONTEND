@@ -76,7 +76,7 @@ function loadSample() {
         a list of points.
       </p>
 
-      <Tabs v-model="tab" :tabs="GOAL_HELP_TABS" />
+      <Tabs v-model="tab" :tabs="GOAL_HELP_TABS" aria-label="Help section" />
 
       <!-- The walkthrough. An ordered list, so the numbering is the document's
            rather than something painted on with CSS counters. -->

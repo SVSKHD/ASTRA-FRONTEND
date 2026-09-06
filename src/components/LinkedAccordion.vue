@@ -15,6 +15,7 @@ import ProgressBar from '@/components/ui/ProgressBar.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import type { LinkRef, Task, Todo } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
+import Caret from '@/components/ui/Caret.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -98,22 +99,19 @@ const rowStyle = computed(() =>
     position: 'relative',
   }),
 )
-const chevronStyle = computed(() =>
-  pxify({
-    width: 18,
-    height: 18,
-    flexShrink: 0,
-    border: 'none',
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    display: 'grid',
-    placeItems: 'center',
-    transform: expanded.value ? 'rotate(90deg)' : 'rotate(0deg)',
-    transition: 'transform .25s ease',
-  }),
-)
-const chevronSpacer = pxify({ width: 18, flexShrink: 0 })
+// The button is only the hit target now; the arrow inside it is `Caret`, which
+// owns the rotation and the colour so this row's chevron cannot drift from the
+// one on the Todo tab.
+const chevronBtn = pxify({
+  display: 'grid',
+  placeItems: 'center',
+  flexShrink: 0,
+  border: 'none',
+  background: 'transparent',
+  padding: 0,
+  cursor: 'pointer',
+})
+const chevronSpacer = pxify({ width: 22, flexShrink: 0 })
 function boxStyle() {
   return pxify({
     width: 16,
@@ -209,12 +207,12 @@ const nodeWrap = pxify({ display: 'flex', flexDirection: 'column' })
       <button
         v-if="hasChildren"
         type="button"
-        :style="chevronStyle"
+        :style="chevronBtn"
         :aria-label="expanded ? 'Collapse' : 'Expand'"
         :aria-expanded="expanded"
         @click="toggleExpand"
       >
-        <Icon name="chevron-right" size="xs" :style="{ color: c.dim }" />
+        <Caret :open="expanded" />
       </button>
       <span v-else :style="chevronSpacer"></span>
 

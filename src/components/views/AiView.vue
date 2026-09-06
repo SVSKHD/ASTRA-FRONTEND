@@ -210,7 +210,15 @@ const tokenTotal = computed(() => {
 })
 
 // --- styles -----------------------------------------------------------------
-const shell = pxify({ display: 'flex', gap: 'var(--sp-4)', flex: 1, minHeight: 0 })
+const shell = pxify({
+  display: 'flex',
+  gap: 'var(--sp-4)',
+  width: '100%',
+  height: '100%',
+  flex: 1,
+  minHeight: 0,
+  alignItems: 'stretch',
+})
 const rail = computed(() =>
   pxify({
     width: 240,
@@ -286,7 +294,14 @@ const iconBtn = computed(() =>
   }),
 )
 
-const main = pxify({ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 })
+const main = pxify({
+  flex: 1,
+  minWidth: 0,
+  minHeight: 0,
+  overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column',
+})
 const headerRow = computed(() =>
   pxify({
     display: 'flex',
@@ -295,6 +310,8 @@ const headerRow = computed(() =>
     paddingBottom: 10,
     borderBottom: '1px solid ' + c.value.border,
     flexWrap: 'wrap',
+    flex: '0 0 auto',
+    minWidth: 0,
   }),
 )
 const toggleLabel = computed(() =>
@@ -374,6 +391,7 @@ const composerBar = computed(() =>
     alignItems: 'flex-end',
     paddingTop: 10,
     borderTop: '1px solid ' + c.value.border,
+    flex: '0 0 auto',
   }),
 )
 const sendBtn = computed(() =>

@@ -12,7 +12,7 @@ import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { pxify, typeStep } from '@/styles'
 import type { ListKey } from '@/types'
-import Icon from '@/components/ui/Icon.vue'
+import Caret from '@/components/ui/Caret.vue'
 
 const props = defineProps<{
   collection: ListKey
@@ -47,18 +47,6 @@ const headStyle = computed(() =>
     padding: '10px 12px',
     cursor: 'pointer',
     userSelect: 'none',
-  }),
-)
-const chevronStyle = computed(() =>
-  pxify({
-    width: 16,
-    height: 16,
-    flexShrink: 0,
-    color: c.value.dim,
-    transform: open.value ? 'rotate(90deg)' : 'rotate(0deg)',
-    transition: 'transform .25s ease',
-    display: 'grid',
-    placeItems: 'center',
   }),
 )
 const titleStyle = computed(() =>
@@ -107,9 +95,7 @@ const sortLabel = computed(() =>
 <template>
   <div :style="cardStyle">
     <div :style="headStyle" role="button" :aria-expanded="open" @click="toggle">
-      <span :style="chevronStyle">
-        <Icon name="chevron-right" size="xs" :style="{ color: c.dim }" />
-      </span>
+      <Caret :open="open" />
       <span :style="titleStyle">Completed · {{ count }}</span>
       <div :style="actionsWrap" @click.stop>
         <button :style="ghostBtn()" :title="'Sort: ' + sortLabel" @click="emit('toggle-sort')">
