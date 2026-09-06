@@ -46,7 +46,6 @@ watchEffect(() => {
   })
 })
 onBeforeUnmount(() => removeWarning(warningId))
-
 </script>
 
 <template><span class="ui-alert-placeholder" aria-hidden="true"></span></template>

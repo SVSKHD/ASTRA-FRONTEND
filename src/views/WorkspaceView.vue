@@ -330,9 +330,9 @@ onBeforeUnmount(() => {
   <AppShell v-if="showWorkspace">
     <div :style="stageWrap">
       <div :style="stageStyle">
-          <div :style="stageBody" class="workspace-stage__body">
-            <component :is="currentView" ref="activeView" />
-          </div>
+        <div :style="stageBody" class="workspace-stage__body">
+          <component :is="currentView" ref="activeView" />
+        </div>
       </div>
     </div>
   </AppShell>

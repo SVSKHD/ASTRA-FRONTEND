@@ -115,7 +115,9 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   margin: 0 auto;
   cursor: ns-resize;
   touch-action: none;
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .ui-sheet__grip:hover,
 .ui-sheet__grip:focus-visible {

@@ -58,7 +58,12 @@ const { authOpen, authReady, authBusy, authError, configurationReady } = storeTo
         </button>
       </div>
       <span v-if="authBusy" :style="s.finMeta">Opening secure sign-in…</span>
-      <Alert v-if="!configurationReady" tone="warning" title="Firebase setup incomplete" dismissible>
+      <Alert
+        v-if="!configurationReady"
+        tone="warning"
+        title="Firebase setup incomplete"
+        dismissible
+      >
         Add the Firebase and owner allowlist keys from .env.example.
       </Alert>
       <Alert v-else-if="authError" tone="danger" title="Sign-in unavailable" dismissible>

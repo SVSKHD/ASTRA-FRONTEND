@@ -38,9 +38,7 @@ function beginResize(event: PointerEvent): void {
 function resize(event: PointerEvent): void {
   if (!resizeStart.value) return
   const delta = event.clientX - resizeStart.value.pointer
-  drawerWidth.value = clampWidth(
-    resizeStart.value.width + (props.side === 'left' ? delta : -delta),
-  )
+  drawerWidth.value = clampWidth(resizeStart.value.width + (props.side === 'left' ? delta : -delta))
 }
 
 function endResize(): void {
@@ -144,7 +142,9 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   background: var(--glass-border);
   cursor: ew-resize;
   transform: translateY(-50%);
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .ui-drawer__grip:hover,
 .ui-drawer__grip:focus-visible {
