@@ -149,6 +149,10 @@ function dismissAll(): void {
   font-size: var(--text-xs);
 }
 .warning-tray__copy span {
+  /* It is allowed to break a long word, so it has to be allowed to be narrow:
+     a flex item's automatic minimum is its content, and a message with a
+     40-character URL in it would widen the tray rather than wrap inside it. */
+  min-width: 0;
   color: var(--theme-dim);
   font-size: var(--text-xs);
   overflow-wrap: anywhere;

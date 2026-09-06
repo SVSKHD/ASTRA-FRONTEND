@@ -35,9 +35,21 @@ function reminder(id: number, start: string, extra: Partial<Reminder> = {}): Rem
   }
 }
 
-// datetime-local string N minutes from NOW.
+// A `datetime-local` string N minutes from NOW — in LOCAL time, which is what
+// that format means and what `upcoming.ts` parses it back as.
+//
+// This used to be `toISOString().slice(0, 16)`, which is UTC. The two agree
+// only on a machine whose offset is zero, so these tests passed on CI and
+// failed on any developer machine east or west of it — by exactly the offset.
+// In IST that is five and a half hours, which turned "fires in 40 minutes"
+// into "fired 4h50m ago" and read as a bug in the code under test.
 function inMin(mins: number): string {
-  return new Date(NOW + mins * 60000).toISOString().slice(0, 16)
+  const d = new Date(NOW + mins * 60000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  )
 }
 
 describe('upcomingReminders', () => {

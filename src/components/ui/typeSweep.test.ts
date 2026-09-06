@@ -50,11 +50,29 @@ const NOT_CSS = new Set([
   'utils/mdPaste.ts',
 ])
 
+/**
+ * The one surface with a scale of its own, and why it is allowed one.
+ *
+ * `/astra` is a public landing page rather than a screen of the app: no shared
+ * component, no theme token, three typefaces the workspace does not load, and a
+ * hero at `clamp(55px, 7.2vw, 98px)` against a scale that stops at 32px. The
+ * rule these sweeps enforce — one scale, so sizes cannot drift apart — is about
+ * one surface built from one system, and this page is not part of that surface.
+ *
+ * Stated here as well as in the file's own `stylelint-disable`, because the two
+ * enforce the same rule over the same lines and a build that passes one and
+ * fails the other tells the author nothing useful.
+ */
+const OWN_SCALE = new Set(['views/AstraView.vue'])
+
+/** Files neither sweep applies to, for either of the two reasons above. */
+const EXEMPT = (file: string) => NOT_CSS.has(file) || OWN_SCALE.has(file)
+
 describe('no raw font-size survives anywhere in the app', () => {
   it('not in a stylesheet or a scoped block', () => {
     const offenders: string[] = []
     for (const f of FILES) {
-      if (NOT_CSS.has(rel(f))) continue
+      if (EXEMPT(rel(f))) continue
       const src = readFileSync(f, 'utf8')
       for (const [i, line] of src.split('\n').entries()) {
         // A comment mentioning font-size is not a declaration.
@@ -73,7 +91,7 @@ describe('no raw font-size survives anywhere in the app', () => {
   it('not in an inline style object', () => {
     const offenders: string[] = []
     for (const f of FILES) {
-      if (NOT_CSS.has(rel(f))) continue
+      if (EXEMPT(rel(f))) continue
       const src = readFileSync(f, 'utf8')
       for (const [i, line] of src.split('\n').entries()) {
         const m = /fontSize:\s*([^,}]+)/.exec(line)
@@ -88,7 +106,7 @@ describe('no weight outside the three', () => {
   it('holds in stylesheets and in style objects alike', () => {
     const offenders: string[] = []
     for (const f of FILES) {
-      if (NOT_CSS.has(rel(f))) continue
+      if (EXEMPT(rel(f))) continue
       const src = readFileSync(f, 'utf8')
       for (const [i, line] of src.split('\n').entries()) {
         if (/^\s*(\/\/|\*|<!--)/.test(line)) continue
@@ -112,7 +130,7 @@ describe('the mono is confined to data', () => {
   it('is never named directly — every call site goes through the token', () => {
     const offenders: string[] = []
     for (const f of FILES) {
-      if (rel(f) === 'components/ui/tokens.css') continue
+      if (rel(f) === 'components/ui/tokens.css' || OWN_SCALE.has(rel(f))) continue
       const src = readFileSync(f, 'utf8')
       for (const [i, line] of src.split('\n').entries()) {
         if (/^\s*(\/\/|\*|<!--)/.test(line)) continue
@@ -130,6 +148,30 @@ describe('the mono is confined to data', () => {
     const css = readFileSync(resolve(SRC, 'style.css'), 'utf8')
     expect(css).toMatch(/font-family: var\(--font-sans\)/)
     expect(css).not.toMatch(/body\s*\{[^}]*JetBrains/)
+  })
+})
+
+describe('the exemption stays narrow', () => {
+  it('is one file, and it is the landing page', () => {
+    // A list that grows is a scale that has stopped meaning anything. If a
+    // second entry is ever wanted, the question to answer first is whether the
+    // app has genuinely acquired a second brand surface — or whether somebody
+    // just wanted a 15px label.
+    expect([...OWN_SCALE]).toEqual(['views/AstraView.vue'])
+  })
+
+  it('is stated in the file itself, so a reader of the CSS sees it too', () => {
+    const src = readFileSync(resolve(SRC, 'views/AstraView.vue'), 'utf8')
+    expect(src).toContain('stylelint-disable aureon/no-raw-font-size')
+    // Switched off with a reason attached, not silently.
+    expect(src).toContain('NOT ON THE APP')
+  })
+
+  it('turns off the two type rules and nothing else', () => {
+    const src = readFileSync(resolve(SRC, 'views/AstraView.vue'), 'utf8')
+    const disables = src.match(/stylelint-disable[^*\n]*/g) ?? []
+    expect(disables).toHaveLength(1)
+    expect(disables[0]).not.toMatch(/stylelint-disable\s*$/)
   })
 })
 

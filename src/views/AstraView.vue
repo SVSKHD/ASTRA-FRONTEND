@@ -167,6 +167,31 @@ function enterWorkspace() {
 </template>
 
 <style scoped>
+/*
+ * THE ONE PLACE IN THIS REPOSITORY THAT IS NOT ON THE APP'S TYPE SCALE, and the
+ * two rules below are switched off here on purpose rather than by oversight.
+ *
+ * `/astra` is a public landing page, not a screen of the application. It shares
+ * no component with the workspace, reads no theme token, and is drawn in three
+ * typefaces the app does not load — Manrope, DM Mono and Playfair Display. Its
+ * display size is `clamp(55px, 7.2vw, 98px)`; the app's scale stops at 32px and
+ * offers three weights against this page's five. Putting the hero on the app's
+ * scale would not tidy this page up, it would shrink it to a third of its size
+ * and flatten its voice to one weight.
+ *
+ * The rule it is exempt from is worth restating, because it still holds
+ * everywhere else and the reason is a good one: a size chosen at a call site is
+ * a decision made twice, and the two copies drift until three adjacent rows of
+ * meta text are 11px, 11.5px and 12px. That argument is about ONE surface built
+ * from ONE system. It does not reach a marketing page with its own.
+ *
+ * Narrow on purpose: the two type rules, this file, and nothing else. Every
+ * other Stylelint rule still applies here, and every other file in the app is
+ * still held to the scale. If this page is ever folded INTO the workspace — same
+ * fonts, same tokens, same components — delete these two lines first, because
+ * at that point the rules would be right and the page would be wrong.
+ */
+/* stylelint-disable aureon/no-raw-font-size, aureon/no-raw-font-weight */
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;1,600&display=swap');
 
 .astra-page {
