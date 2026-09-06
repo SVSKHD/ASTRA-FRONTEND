@@ -66,13 +66,30 @@ const actions = pxify({
   gap: 'var(--sp-2)',
   minWidth: 0,
 })
+/**
+ * The page's name, IN THE ROW.
+ *
+ * It used to be `position: absolute; left: 50%`, centred on the strip — and
+ * that cannot work here whatever the coordinates are. The strip is a flex row
+ * holding the page's own header actions, which are as wide as the page needs
+ * them to be: on Trades that is a three-tab strip, a CSV button and an Account
+ * button, and they reach the middle of the row at any window under about
+ * 1400px. An absolutely positioned element in the same row is not laid out with
+ * respect to them, so it does not move out of the way — it lands on top, and
+ * "Dashboard" was printed over the word "Account".
+ *
+ * (It was worse than that before this pass: the strip had no positioning
+ * context of its own, so the 50% was 50% of the SHELL and the title floated in
+ * the middle of the trades table. That is fixed in `appShell.ts`. This is the
+ * other half — being in the right row is not the same as being laid out in it.)
+ *
+ * In flow, beside the brand, the flex row does the work: the title takes the
+ * width it needs, the actions take the slack, and neither can overlap the
+ * other because that is not a thing flex layout can produce.
+ */
 const titleStyle = computed(() =>
   pxify({
-    position: 'absolute',
-    left: '50%',
-    top: '50%',
-    transform: 'translate(-50%, -50%)',
-    zIndex: 1,
+    flexShrink: 0,
     maxWidth: isPhone.value ? '34vw' : '24vw',
     overflow: 'hidden',
     textOverflow: 'ellipsis',

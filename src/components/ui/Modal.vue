@@ -33,7 +33,17 @@ watch(
     if (isOpen) {
       restoreTo = document.activeElement as HTMLElement
       await nextTick()
-      panel.value?.focus()
+      // NEVER TAKE FOCUS OFF SOMETHING INSIDE THE DIALOG.
+      //
+      // The panel is focused so the keyboard starts in the dialog rather than
+      // behind it. But a dialog whose contents want the cursor in a particular
+      // field — the trade form puts it in Entry, which is the only value it does
+      // not already know — focuses that field on the same tick. Whichever ran
+      // second used to win, and when it was this one the field it stole focus
+      // from fired `blur`, marked itself touched, and the dialog opened already
+      // showing "Enter the entry price." — an error about not having typed
+      // something yet, on a form nobody had touched.
+      if (!panel.value?.contains(document.activeElement)) panel.value?.focus()
     } else {
       restoreTo?.focus?.()
       restoreTo = null

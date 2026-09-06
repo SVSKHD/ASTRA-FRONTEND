@@ -22,6 +22,15 @@ import type { AureonUser } from '@/types'
 const GOOGLE_COLOR = 'oklch(0.62 0.15 255)'
 const GITHUB_COLOR = 'oklch(0.5 0.02 260)'
 
+/**
+ * The in-tab fixture (section 38), read here without importing the dev module.
+ *
+ * `@/dev/fixture` pulls the whole seed in with it, and a static import from a
+ * store would put it in the production bundle. The expression is the same one
+ * `fixtureEnabled()` uses, and it folds to `false` at build time.
+ */
+const FIXTURE = import.meta.env.DEV && String(import.meta.env.VITE_FIXTURE ?? '') === '1'
+
 const allowedUids = (import.meta.env.VITE_ALLOWED_UIDS || '')
   .split(',')
   .map((value: string) => value.trim())
@@ -114,6 +123,26 @@ export const useAuthStore = defineStore('auth', () => {
   if (!firebaseEnabled || !auth) {
     authReady.value = true
     authError.value = 'Firebase is not configured. Add the VITE_FIREBASE_* environment values.'
+  } else if (FIXTURE) {
+    // THE SCREENSHOT HARNESS OWNS `user` (src/dev/DevShot.vue), and this branch
+    // is what lets it keep it.
+    //
+    // The harness assigns the demo account synchronously and then reads a
+    // Firestore that never leaves the tab. Attaching the real listener beside
+    // it resolves to "nobody is signed in" a moment later and wipes the demo
+    // uid — after which every month listener re-attaches for an empty uid and
+    // the stage photographs an empty tab.
+    //
+    // This used to be survivable by accident: the settings singleton never
+    // followed a uid change, so it kept querying as the demo account long after
+    // the store had stopped saying it was one. Fixing that watcher took the
+    // accident away, which is the right outcome — a harness whose data depends
+    // on a bug is a harness that reports on the bug.
+    //
+    // `import.meta.env.DEV` is a static false in a production build, so this
+    // branch and the flag behind it are dropped by the bundler rather than
+    // shipped behind a runtime check.
+    authReady.value = true
   } else {
     const configuredAuth = auth
     getRedirectResult(configuredAuth)

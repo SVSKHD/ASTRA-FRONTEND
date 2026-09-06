@@ -137,6 +137,19 @@ export function contentGeometry({ isPhone }: { isPhone: boolean }) {
 export function stripGeometry({ isPhone }: { isPhone: boolean }) {
   return {
     gridArea: 'strip',
+    // THE POSITIONING CONTEXT FOR THE PAGE TITLE, and its absence was a bug you
+    // could see from across the room.
+    //
+    // The strip centres the current tab's name in it with `position: absolute;
+    // left: 50%; top: 50%`. With the strip left `static`, the nearest positioned
+    // ancestor was the SHELL — which is `position: relative` and the size of the
+    // window — so "Dashboard" was being centred on the whole screen and landed
+    // in the middle of whatever the tab was showing. On Trades that is the
+    // middle of the trades table.
+    //
+    // 50% of a 56px strip, or 50% of a 1100px shell: the rule is the same and
+    // only one of them is the row the title belongs to.
+    position: 'relative',
     display: 'flex',
     alignItems: 'center',
     // The page's own header actions sit on the left of this row and the

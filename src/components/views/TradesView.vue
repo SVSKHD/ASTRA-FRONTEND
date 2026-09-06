@@ -539,6 +539,15 @@ defineExpose({ focus: openForm })
   gap: var(--sp-3);
   min-width: 0;
 }
+/* A CEILING ON THE CALENDAR, in both layouts.
+   Its cells are square, so width is height: handed a full-width row it draws a
+   month of 150px days and pushes everything under it off the screen. The track
+   above caps it while the two share a row; this caps it when they stop, which
+   is the case the track cannot reach. */
+.tv__main > .tcal {
+  width: 100%;
+  max-width: 340px;
+}
 .tv__undo {
   display: flex;
   align-items: center;

@@ -63,6 +63,20 @@ describe('every persistent element has a region', () => {
       }
     }
   })
+
+  it('gives the strip a positioning context, so the page title centres on IT', () => {
+    // The strip centres the current tab's name with `position: absolute;
+    // left: 50%`. Left `static`, the nearest positioned ancestor is the shell —
+    // which is `position: relative` and the size of the window — so the title
+    // was centred on the whole screen and rendered in the middle of the tab's
+    // content. On Trades it sat on top of the table.
+    //
+    // `relative` takes nothing out of flow, so the rule above still holds; it
+    // only decides which box the 50% is 50% OF.
+    for (const bp of BREAKPOINTS) {
+      expect(stripGeometry(bp).position, bp.name).toBe('relative')
+    }
+  })
 })
 
 describe('the content area is the one scrollport', () => {
