@@ -15,7 +15,6 @@ import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
 import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import { formatMinor, parseMoney, signTone, valueColor } from '@/utils/money'
-import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import StatRow from '@/components/ui/StatRow.vue'
 import Button from '@/components/ui/Button.vue'
@@ -415,6 +414,26 @@ const header = pxify({
   flexWrap: 'wrap',
 })
 const spacer = pxify({ flex: 1 })
+/**
+ * The rule between the two axes.
+ *
+ * Scope and sub-tab are one control now — the app has a single pick-one-of-N
+ * strip — so they can no longer be told apart by shape, which is how this
+ * toolbar used to do it. They are told apart by a gap and a line instead, which
+ * is the more honest signal anyway: the difference is not that they are
+ * different KINDS of control, it is that they are two separate questions, and a
+ * divider is what says "these two groups are not one list of seven".
+ */
+const axisRule = computed(() =>
+  pxify({
+    alignSelf: 'stretch',
+    width: 1,
+    minHeight: 20,
+    flexShrink: 0,
+    margin: '0 var(--sp-1)',
+    background: c.value.border,
+  }),
+)
 const body = pxify({
   flex: 1,
   minHeight: 0,
@@ -664,20 +683,27 @@ const debtCard = computed(() =>
 
 <template>
   <div :style="panelStyle">
-    <!-- header: scope + sub-tabs + month -->
     <div :style="header">
-      <!-- Two axes, two shapes (section 26c). Identical pills for both made it
-           look like one seven-option choice: scope is which money, sub-tab is
-           which view of it, and a reader cannot tell that from styling alone. -->
-      <SegmentedControl
+      <!-- TWO AXES, ONE CONTROL, AND A LINE BETWEEN THEM (section 26c).
+           Scope is which money; the sub-tab is which view of it. Left adjacent
+           and identical they read as one seven-option choice, which is the
+           thing this toolbar has to avoid. It used to be avoided by giving them
+           two different shapes — but the app has one pick-one-of-N strip now,
+           so the separation is a divider rather than a second component.
+           Both strips are `<Tabs>`: each switches what the page is showing —
+           one changes whose money, the other which view of it — so both
+           announce themselves as tablists, and their `aria-label`s are what
+           tell the two apart to anyone who cannot see the rule between. -->
+      <Tabs
         :model-value="scope"
-        :options="SCOPES"
-        size="sm"
+        :tabs="SCOPES"
+        size="md"
         aria-label="Which money"
         @update:model-value="setScope($event as typeof scope)"
       />
+      <span :style="axisRule" aria-hidden="true"></span>
       <Tabs
-        size="sm"
+        size="md"
         :model-value="subtab"
         :tabs="SUBTABS"
         aria-label="Finances section"

@@ -12,6 +12,7 @@ import { useDeviceSession } from '@/composables/useDeviceSession'
 import { useScrollMemory } from '@/composables/useScrollMemory'
 import { useTabRoute } from '@/composables/useTabRoute'
 import { stageGeometry, stageWrapGeometry } from '@/views/workspaceStage'
+import { handledByWidget } from '@/views/globalKeys'
 
 import AppShell from '@/components/shell/AppShell.vue'
 import DragGhost from '@/components/DragGhost.vue'
@@ -224,13 +225,12 @@ function onKey(e: KeyboardEvent) {
     ui.setTabByIndex(parseInt(e.key, 10) - 1)
     return
   }
-  const tag = (e.target as HTMLElement)?.tagName || ''
-  const typing =
-    tag === 'INPUT' ||
-    tag === 'TEXTAREA' ||
-    tag === 'SELECT' ||
-    (e.target as HTMLElement)?.isContentEditable
-  if (typing) return
+  // Anything closer to the event than the shell gets the key first — a text
+  // field, yes, but also a tab strip, a listbox, a menu or a date grid, all of
+  // which own the arrow keys by the role they carry. Naming four ELEMENT types
+  // (which is what this used to do) misses every one of the composite widgets,
+  // and a `<button role="tab">` is not an INPUT.
+  if (handledByWidget(e)) return
   // The rail is vertical now, so ↑/↓ step through tabs; ←/→ are kept as aliases
   // so the old horizontal habit still works.
   if (e.key === 'ArrowDown' || e.key === 'ArrowRight') ui.cycleTab(1)

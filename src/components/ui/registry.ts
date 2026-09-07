@@ -261,7 +261,8 @@ export const UI_COMPONENTS: ComponentDoc[] = [
   {
     name: 'SegmentedControl',
     group: 'Inputs',
-    summary: 'Two to four exclusive options, all visible at once. Replaces a short radio group.',
+    summary:
+      "The app's one pick-one-of-N strip. Picks a value; wrap it in Tabs when it switches a view.",
     props: [
       { name: 'modelValue', type: 'string' },
       { name: 'options', type: 'Segment[]', note: '{ value, label } — two to four of them.' },
@@ -568,7 +569,7 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     name: 'Tabs',
     group: 'Navigation',
     summary:
-      'ARIA tab strip; only the active tab is a tab stop. Every sub-navigation in the app is one of these.',
+      'SegmentedControl with tab semantics: switches what is on screen, and says so. Every sub-navigation is one of these.',
     props: [
       { name: 'modelValue', type: 'string' },
       { name: 'tabs', type: '{ value, label }[]' },

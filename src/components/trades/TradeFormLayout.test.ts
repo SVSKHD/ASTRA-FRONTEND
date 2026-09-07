@@ -125,11 +125,19 @@ describe('Side and Session', () => {
 })
 
 describe('a segment that runs out of room', () => {
-  it('truncates its label rather than pushing the track past its column', () => {
+  it('scrolls the strip rather than clipping a word out of a label', () => {
+    // `flex: 1` gave every segment the same width whatever was written in it,
+    // so the longest label was clipped while the shortest sat in white space —
+    // "One-off | Mont…" in a strip with room for both words. A segment now
+    // starts at its content width and only grows.
     const css = read('components/ui/SegmentedControl.vue')
-    const label = css.slice(css.indexOf('.ui-seg__label {'))
-    const rule = label.slice(0, label.indexOf('}'))
-    expect(rule).toContain('min-width: 0')
-    expect(rule).toContain('text-overflow: ellipsis')
+    const opt = css.slice(css.indexOf('.ui-seg__opt {'))
+    expect(opt.slice(0, opt.indexOf('}'))).toContain('flex: 1 0 auto')
+
+    const track = css.slice(css.indexOf('.ui-seg {'))
+    expect(track.slice(0, track.indexOf('}'))).toContain('overflow-x: auto')
+
+    // And the label is not the thing that gives any more.
+    expect(css).not.toContain('text-overflow: ellipsis')
   })
 })
