@@ -15,6 +15,7 @@ import { pxify, typeStep } from '@/styles'
 import { formatGap } from '@/utils/geo'
 import { dayColor, type DayGroup } from '@/utils/tripDays'
 import SmartImage from '@/components/trips/SmartImage.vue'
+import Caret from '@/components/ui/Caret.vue'
 import type { TripPlace } from '@/types'
 
 defineProps<{ days: DayGroup[]; active?: number | null }>()
@@ -103,13 +104,6 @@ const dayTitleWrap = pxify({
 const dayTitle = () =>
   pxify({ ...typeStep('base'), fontWeight: 'var(--weight-semibold)', color: c.value.text })
 const daySub = () => pxify({ ...typeStep('xs'), color: c.value.dim })
-const chevron = (open: boolean) =>
-  pxify({
-    ...typeStep('xs'),
-    color: c.value.dim,
-    transform: open ? 'rotate(90deg)' : 'none',
-    transition: 'transform .3s ease',
-  })
 const bodyPad = pxify({ padding: '4px 14px 14px' })
 function node(i: number, total: number) {
   return pxify({
@@ -227,7 +221,7 @@ function safe(html: unknown): string {
             </template>
           </span>
         </span>
-        <span :style="chevron(isOpen(day.key))">▶</span>
+        <Caret :open="isOpen(day.key)" />
       </button>
 
       <div v-show="isOpen(day.key)" :style="bodyPad">

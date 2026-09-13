@@ -9,7 +9,7 @@ import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
-import { doneText, pxify, typeStep } from '@/styles'
+import { checkHalo, checkRing, doneText, pxify, typeStep } from '@/styles'
 import { MAX_LINK_DEPTH } from '@/utils/links'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -111,15 +111,18 @@ const chevronBtn = pxify({
   padding: 0,
   cursor: 'pointer',
 })
-const chevronSpacer = pxify({ width: 22, flexShrink: 0 })
+// Matches the medium Caret box, so leaf rows line up with rows that expand.
+const chevronSpacer = pxify({ width: 26, flexShrink: 0 })
 function boxStyle() {
   return pxify({
     width: 16,
     height: 16,
     flexShrink: 0,
     borderRadius: 5,
-    border: '1.5px solid ' + (done.value ? c.value.accent : c.value.border),
+    border: '1.5px solid ' + (done.value ? c.value.accent : checkRing(c.value)),
+    boxShadow: done.value ? 'none' : checkHalo(c.value),
     background: done.value ? c.value.accent : 'transparent',
+    transition: 'background-color .2s ease, border-color .2s ease, box-shadow .2s ease',
     display: 'grid',
     placeItems: 'center',
     cursor: 'pointer',

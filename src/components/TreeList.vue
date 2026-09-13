@@ -9,6 +9,8 @@
 // description / globe share, task due / repo) branch on `collection`. The drag
 // engine, grip handle and drop-line indicator are collection-agnostic.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { vFocusField as vFocus } from '@/composables/useInlineEdit'
+import TextInput from '@/components/ui/TextInput.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -16,7 +18,19 @@ import { useAccordionState } from '@/composables/useAccordionState'
 import { useTreeDrag, INDENT_PX, type TreeCollection } from '@/composables/useTreeDrag'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
-import { DANGER, WARNING, doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
+import { richPlain } from '@/utils/richText'
+import {
+  DANGER,
+  WARNING,
+  checkHalo,
+  checkRing,
+  doneText,
+  merge,
+  pxify,
+  rowBase,
+  tagChip,
+  typeStep,
+} from '@/styles'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
 import TreeDropLine from '@/components/TreeDropLine.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -28,8 +42,17 @@ import RemindBell from '@/components/RemindBell.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import type { LinkRef, Task, Todo } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
+import Caret from '@/components/ui/Caret.vue'
 
-const props = defineProps<{ collection: TreeCollection; rootIds: number[] }>()
+// `selectable`: a tap selects the row (emits `select`) instead of opening the
+// item dialog — used by the Todos master/detail layout.
+const props = defineProps<{
+  collection: TreeCollection
+  rootIds: number[]
+  selectable?: boolean
+  selectedId?: number | null
+}>()
+const emit = defineEmits<{ select: [id: number] }>()
 
 const app = useAppStore()
 const { c, dark, s } = useStyles()
@@ -101,7 +124,8 @@ function title(id: number) {
 }
 function desc(id: number) {
   const n = nodeOf(id)
-  return !isTasks.value ? (n as Todo | undefined)?.description || '' : ''
+  // Descriptions are rich text now; the row shows a one-line plain preview.
+  return !isTasks.value ? richPlain((n as Todo | undefined)?.description).replace(/\s+/g, ' ') : ''
 }
 function tagOf(id: number) {
   return nodeOf(id)?.tag || ''
@@ -147,6 +171,10 @@ function dueLabel(id: number) {
 }
 
 function openDetail(id: number) {
+  if (props.selectable) {
+    emit('select', id)
+    return
+  }
   // The rows currently on screen, in the order they are read, so the dialog's
   // prev/next arrows step through what the reader is looking at rather than
   // through the whole collection (section 18a).
@@ -188,6 +216,36 @@ function dismissConflict(id: number) {
   if (isTasks.value) app.dismissTaskConflict(id)
 }
 
+// --- quick "add subtask" from a row -----------------------------------------
+// The row's ＋ opens an inline input beneath it; Enter adds a child (and keeps
+// the input open for the next one), Escape or blurring an empty input closes it.
+const addingUnder = ref<number | null>(null)
+const subDraft = ref('')
+function startAddSub(id: number) {
+  addingUnder.value = id
+  subDraft.value = ''
+}
+function cancelAddSub() {
+  addingUnder.value = null
+  subDraft.value = ''
+}
+function submitAddSub() {
+  const parentId = addingUnder.value
+  const text = subDraft.value.trim()
+  if (parentId == null || !text) return
+  const position = childrenOf(index.value, parentId).length
+  const newId = isTasks.value ? app.addTask(text, '') : app.addTodo(text)
+  if (newId != null) {
+    if (isTasks.value) app.moveTask(newId, parentId, position)
+    else app.moveTodo(newId, parentId, position)
+    accordion.set(keyOf(parentId), true)
+  }
+  subDraft.value = ''
+}
+function onSubBlur() {
+  if (!subDraft.value.trim()) cancelAddSub()
+}
+
 // --- cross-collection linked items (preserved from the list rows) -----------
 function linkedOf(id: number): LinkRef[] {
   return nodeOf(id)?.linked ?? []
@@ -227,6 +285,15 @@ function nestStyle(id: number) {
     animation: t.valid ? 'none' : 'shake .4s',
   }
 }
+function selectedStyle(id: number) {
+  if (!props.selectable || props.selectedId !== id) return {}
+  // Border + tint rather than an outline: an outline cannot transition, so it
+  // popped in; these two glide with the row's own transition.
+  return {
+    borderColor: c.value.accent,
+    backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 8%, ' + c.value.card + ')',
+  }
+}
 function sourceStyle(id: number) {
   if (!isSource(props.collection, id)) return {}
   return {
@@ -260,36 +327,61 @@ function textStyle(id: number) {
     ...doneText(done(id)),
   })
 }
+// Compact rows: title and chips share one line, the description is a single
+// truncated line under it (full text on hover and in the detail pane).
 const descStyle = computed(() =>
-  pxify({ ...typeStep('xs'), lineHeight: 1.4, color: c.value.dim, cursor: 'pointer' }),
+  pxify({
+    ...typeStep('xs'),
+    color: c.value.dim,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }),
 )
+const mainTight = pxify({ gap: 2 })
+const titleLine = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  columnGap: 'var(--sp-2)',
+  rowGap: 2,
+  minWidth: 0,
+})
+// Nested rows carry an accent rail on their left edge, so a subtask's level
+// reads at a glance even several levels deep.
+function depthRail(depth: number) {
+  if (depth === 0) return {}
+  return {
+    borderLeft: '3px solid color-mix(in srgb, ' + c.value.accent + ' 45%, transparent)',
+  }
+}
 function chipStyle(tag: string) {
   return pxify(tagChip(c.value, tag, dark.value))
 }
-function chevronStyle(id: number) {
+// The expand button is only the hit target; the arrow is Caret (medium, 26px
+// box), the same disclosure used by every accordion and detail section.
+const chevronBtn = pxify({
+  display: 'grid',
+  placeItems: 'center',
+  flexShrink: 0,
+  padding: 0,
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+})
+// Same width as the Caret box, so rows with and without children line up.
+const chevronSpacer = pxify({ width: 26, flexShrink: 0 })
+function boxStyle(id: number) {
   return pxify({
     width: 18,
     height: 18,
     flexShrink: 0,
-    border: 'none',
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    display: 'grid',
-    placeItems: 'center',
-    transform: expanded(id) ? 'rotate(90deg)' : 'rotate(0deg)',
-    transition: 'transform .25s ease',
-  })
-}
-const chevronSpacer = pxify({ width: 18, flexShrink: 0 })
-function boxStyle(id: number) {
-  return pxify({
-    width: 22,
-    height: 22,
-    flexShrink: 0,
     borderRadius: 'var(--radius-control)',
-    border: '1.5px solid ' + (done(id) ? c.value.accent : c.value.border),
+    border: '1.5px solid ' + (done(id) ? c.value.accent : checkRing(c.value)),
+    boxShadow: done(id) ? 'none' : checkHalo(c.value),
     background: done(id) ? c.value.accent : 'transparent',
+    transition: 'background-color .2s ease, border-color .2s ease, box-shadow .2s ease',
     display: 'grid',
     placeItems: 'center',
     cursor: 'pointer',
@@ -340,6 +432,37 @@ const conflictBadge = computed(() =>
   }),
 )
 const progressWrap = pxify({ padding: '4px 4px 0' })
+const addSubBtn = computed(() =>
+  pxify({
+    ...typeStep('2xs'),
+    flexShrink: 0,
+    padding: '2px 7px',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px dashed ' + c.value.border,
+    background: 'transparent',
+    color: c.value.dim,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  }),
+)
+const subForm = pxify({
+  display: 'flex',
+  gap: 'var(--sp-2)',
+  padding: '6px 0 2px ' + INDENT_PX + 'px',
+})
+const subInput = pxify({ flex: 1, minWidth: 0 })
+const subSubmit = computed(() =>
+  pxify({
+    ...typeStep('sm'),
+    flexShrink: 0,
+    padding: '0 14px',
+    borderRadius: 'var(--radius-control)',
+    border: '1px solid ' + c.value.accent,
+    background: 'transparent',
+    color: c.value.accent,
+    cursor: 'pointer',
+  }),
+)
 const breadcrumbStyle = computed(() =>
   pxify({ ...typeStep('2xs'), color: c.value.dim, padding: '2px 0 2px 26px' }),
 )
@@ -382,7 +505,13 @@ const rootStripStyle = computed(() =>
         />
         <div
           class="tree-row"
-          :style="[rowStyle, nestStyle(row.id), sourceStyle(row.id)]"
+          :style="[
+            rowStyle,
+            depthRail(row.depth),
+            selectedStyle(row.id),
+            nestStyle(row.id),
+            sourceStyle(row.id),
+          ]"
           v-hover-style="s.rowHover"
           :data-tree-collection="collection"
           :data-tree-id="row.id"
@@ -392,12 +521,12 @@ const rootStripStyle = computed(() =>
           <button
             v-if="hasKids(row.id)"
             type="button"
-            :style="chevronStyle(row.id)"
+            :style="chevronBtn"
             :aria-label="expanded(row.id) ? 'Collapse' : 'Expand'"
             :aria-expanded="expanded(row.id)"
             @click.stop="toggleExpand(row.id)"
           >
-            <Icon name="chevron-right" size="xs" :style="{ color: c.dim }" />
+            <Caret :open="expanded(row.id)" />
           </button>
           <span v-else :style="chevronSpacer"></span>
 
@@ -415,33 +544,39 @@ const rootStripStyle = computed(() =>
           </button>
 
           <div
-            :style="s.taskMain"
+            :style="[s.taskMain, mainTight]"
             @pointerdown="onRowPointerDown($event, row.id)"
             @pointercancel="tap.onPointerCancel"
             @click="tap.onClick"
           >
-            <span :style="textStyle(row.id)">{{ title(row.id) }}</span>
-            <span v-if="desc(row.id)" :style="descStyle">{{ desc(row.id) }}</span>
-            <div :style="s.chipRow">
-              <span v-if="tagOf(row.id)" :style="chipStyle(tagOf(row.id))">{{
-                tagOf(row.id)
-              }}</span>
-              <span v-if="dueLabel(row.id)" :style="dueChipStyle">due {{ dueLabel(row.id) }}</span>
-              <IssueChip v-if="issueLinkOf(row.id)" :link="issueLinkOf(row.id)!" compact />
-              <button
-                v-for="g in goalsOf(row.id)"
-                :key="g.id"
-                type="button"
-                :style="goalChip"
-                title="Open this goal"
-                @click.stop="openGoal(g.id)"
-              >
-                ◎ {{ g.label }}
-              </button>
-              <span v-if="hasKids(row.id)" :style="countChip"
-                >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
-              >
+            <div :style="titleLine">
+              <span :style="textStyle(row.id)">{{ title(row.id) }}</span>
+              <div :style="s.chipRow">
+                <span v-if="tagOf(row.id)" :style="chipStyle(tagOf(row.id))">{{
+                  tagOf(row.id)
+                }}</span>
+                <span v-if="dueLabel(row.id)" :style="dueChipStyle"
+                  >due {{ dueLabel(row.id) }}</span
+                >
+                <IssueChip v-if="issueLinkOf(row.id)" :link="issueLinkOf(row.id)!" compact />
+                <button
+                  v-for="g in goalsOf(row.id)"
+                  :key="g.id"
+                  type="button"
+                  :style="goalChip"
+                  title="Open this goal"
+                  @click.stop="openGoal(g.id)"
+                >
+                  ◎ {{ g.label }}
+                </button>
+                <span :style="countChip" title="Subtasks done / total"
+                  >☑ {{ progress(row.id).done }}/{{ progress(row.id).total }}</span
+                >
+              </div>
             </div>
+            <span v-if="desc(row.id)" :style="descStyle" :title="desc(row.id)">{{
+              desc(row.id)
+            }}</span>
             <OfflineChip :pending="app.isItemPending(itemType(), row.id)" />
           </div>
 
@@ -452,6 +587,15 @@ const rootStripStyle = computed(() =>
             @click.stop="dismissConflict(row.id)"
             >remote ✕</span
           >
+          <button
+            type="button"
+            :style="addSubBtn"
+            :title="'Add a subtask to this ' + itemType()"
+            @pointerdown.stop
+            @click.stop="startAddSub(row.id)"
+          >
+            ＋ Subtask
+          </button>
           <RemindBell :collection="collection" :id="row.id" />
           <ShareGlobeButton
             v-if="!isTasks"
@@ -472,6 +616,20 @@ const rootStripStyle = computed(() =>
           :base-inset="-row.depth * INDENT_PX"
         />
       </div>
+
+      <form v-if="addingUnder === row.id" :style="subForm" @submit.prevent="submitAddSub">
+        <TextInput
+          v-model="subDraft"
+          v-focus
+          size="sm"
+          :style="subInput"
+          aria-label="New subtask"
+          :placeholder="'New subtask under “' + title(row.id) + '” — Enter to add, Esc to close'"
+          @keydown.esc="cancelAddSub"
+          @blur="onSubBlur"
+        />
+        <button type="submit" :style="subSubmit" @mousedown.prevent>Add</button>
+      </form>
 
       <div v-if="hasKids(row.id) && expanded(row.id)" :style="progressWrap">
         <ProgressBar :value="progress(row.id).done" :max="progress(row.id).total" size="sm" />

@@ -2,7 +2,9 @@
 // Goals tab (task 8). A goal is a container above tasks/todos: it owns a
 // checklist and can have existing tasks/todos attached by reference. This view is
 // the list (card grid / mobile list) with status filter, sort, and grip-drag
-// reorder; selecting a card opens GoalDetail in place.
+// reorder. On desktop the cards sit in a left column and the selected goal's
+// details show in the right-hand pane (GoalSideDetail); on mobile a card opens
+// the goal dialog. The wide page (GoalDetail) still opens in place.
 import { computed, defineAsyncComponent, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -16,6 +18,7 @@ import GoalsToolbar from '@/components/goals/GoalsToolbar.vue'
 // rendered only once a goal is opened on it, so it stays off the grid's first
 // paint (section 19d).
 const GoalDetail = defineAsyncComponent(() => import('@/components/GoalDetail.vue'))
+import GoalSideDetail from '@/components/GoalSideDetail.vue'
 import GoalsEmptyState from '@/components/GoalsEmptyState.vue'
 import GoalCreateSlideOver from '@/components/GoalCreateSlideOver.vue'
 import GoalCard from '@/components/goals/GoalCard.vue'
@@ -26,7 +29,7 @@ import type { Goal, GoalStatus } from '@/types'
 
 const app = useAppStore()
 const router = useRouter()
-const { s, isMobile, panelStyle } = useStyles()
+const { c, s, isMobile, panelStyle } = useStyles()
 const { goals } = storeToRefs(app)
 
 // The selected goal lives in the store, so /goals/:goalId can open it on a cold
@@ -35,6 +38,11 @@ const selectedId = computed({
   get: () => app.goalPageId,
   set: (value: number | null) => (value == null ? app.closeGoalPage() : app.openGoalPage(value)),
 })
+// The goal shown in the right-hand pane (desktop). Separate from the wide page.
+const panelGoalId = ref<number | null>(null)
+const panelGoalExists = computed(
+  () => panelGoalId.value != null && goals.value.some((g) => g.id === panelGoalId.value),
+)
 const statusFilter = ref<GoalStatus | 'all'>('all')
 const sortKey = ref<'order' | 'target' | 'progress'>('order')
 
@@ -76,11 +84,17 @@ function onNew() {
 }
 function onCreated(goalId: number) {
   showCreate.value = false
-  selectedId.value = goalId
+  if (isMobile.value) selectedId.value = goalId
+  else panelGoalId.value = goalId
 }
-// A card opens the goal dialog (acceptance 89); the wide page is reached from
-// the dialog's footer, or by loading /goals/:goalId directly.
+// Desktop: a card selects the goal into the right-hand pane. Mobile: a card
+// opens the goal dialog (acceptance 89); the wide page is reached from the
+// dialog's footer, or by loading /goals/:goalId directly.
 function openGoal(goalId: number) {
+  if (!isMobile.value) {
+    panelGoalId.value = goalId
+    return
+  }
   app.openGoalDialog(
     goalId,
     rows.value.map((r) => r.goal.id),
@@ -223,6 +237,29 @@ const grid = computed(() =>
     alignContent: 'start',
   }),
 )
+const splitLayout = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+  gap: 'var(--sp-4)',
+  flex: 1,
+  minHeight: 0,
+})
+const listColumn = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-4)',
+  flex: 1,
+  minHeight: 0,
+})
+const detailColumn = computed(() =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
+    borderLeft: '1px solid ' + c.value.border,
+    paddingLeft: 'var(--sp-4)',
+  }),
+)
 // GoalGrid takes the goals themselves; the ratio and counts come from the
 // store's rollup index, which is O(1) per card (section 19d).
 const visibleGoals = computed(() => rows.value.map((r) => r.goal))
@@ -232,7 +269,14 @@ function indexOf(goalId: number): number {
   return rows.value.findIndex((r) => r.goal.id === goalId)
 }
 function cellStyle(id: number) {
-  return pxify({ minWidth: 0, opacity: dragId.value === id ? 0.5 : 1 })
+  const selected = !isMobile.value && panelGoalId.value === id
+  return pxify({
+    minWidth: 0,
+    opacity: dragId.value === id ? 0.5 : 1,
+    borderRadius: 'var(--radius-card)',
+    outline: selected ? '2px solid ' + c.value.accent : 'none',
+    outlineOffset: '1px',
+  })
 }
 </script>
 
@@ -256,47 +300,66 @@ function cellStyle(id: number) {
         @help="app.openGoalHelp()"
       />
 
-      <!-- Skeletons while the workspace is still arriving. Same box model as
-           the real card, so the swap moves nothing (acceptance 95). First,
-           because "nothing here" and "not here yet" are different answers. -->
-      <div v-if="loading" :style="grid" aria-busy="true" aria-label="Loading goals">
-        <GoalCardSkeleton v-for="n in SKELETON_COUNT" :key="n" />
-      </div>
-
-      <GoalsEmptyState
-        v-else-if="goals.length === 0"
-        @new="onNew"
-        @paste-json="goImport"
-        @import-link="goImport"
-      />
-      <div v-else-if="rows.length === 0" :style="s.empty">No goals match this filter.</div>
-
-      <GoalGrid v-else :items="visibleGoals" :mobile="isMobile">
-        <template #default="{ item }">
-          <div
-            :key="item.id"
-            v-memo="[item.id, item.updatedAt, sortKey, dragId === item.id]"
-            :style="cellStyle(item.id)"
-            :draggable="sortKey === 'order'"
-            @dragstart="onDragStart($event, item.id)"
-            @dragover="onDragOver"
-            @drop="onDropOn(indexOf(item.id))"
-            @pointerdown="onCardPointerDown($event, item.id)"
-            @pointercancel="tap.onPointerCancel"
-            @click="tap.onClick"
-          >
-            <GoalCard
-              :goal="item"
-              :ratio="app.goalProgress(item.id).ratio"
-              :counts="app.goalCounts(item.id)"
-              :days-chip="daysChip(item.targetDate)"
-              :menu="CARD_MENU"
-              :draggable="sortKey === 'order'"
-              @menu="onCardMenu(item.id, $event)"
-            />
+      <div :style="isMobile ? listColumn : splitLayout">
+        <div :style="listColumn">
+          <!-- Skeletons while the workspace is still arriving. Same box model as
+               the real card, so the swap moves nothing (acceptance 95). First,
+               because "nothing here" and "not here yet" are different answers. -->
+          <div v-if="loading" :style="grid" aria-busy="true" aria-label="Loading goals">
+            <GoalCardSkeleton v-for="n in SKELETON_COUNT" :key="n" />
           </div>
-        </template>
-      </GoalGrid>
+
+          <GoalsEmptyState
+            v-else-if="goals.length === 0"
+            @new="onNew"
+            @paste-json="goImport"
+            @import-link="goImport"
+          />
+          <div v-else-if="rows.length === 0" :style="s.empty">No goals match this filter.</div>
+
+          <!-- Single column on the left when the detail pane is beside it. -->
+          <GoalGrid v-else :items="visibleGoals" :mobile="true">
+            <template #default="{ item }">
+              <div
+                :key="item.id"
+                v-memo="[
+                  item.id,
+                  item.updatedAt,
+                  sortKey,
+                  dragId === item.id,
+                  panelGoalId === item.id,
+                ]"
+                :style="cellStyle(item.id)"
+                :draggable="sortKey === 'order'"
+                @dragstart="onDragStart($event, item.id)"
+                @dragover="onDragOver"
+                @drop="onDropOn(indexOf(item.id))"
+                @pointerdown="onCardPointerDown($event, item.id)"
+                @pointercancel="tap.onPointerCancel"
+                @click="tap.onClick"
+              >
+                <GoalCard
+                  :goal="item"
+                  :ratio="app.goalProgress(item.id).ratio"
+                  :counts="app.goalCounts(item.id)"
+                  :days-chip="daysChip(item.targetDate)"
+                  :menu="CARD_MENU"
+                  :draggable="sortKey === 'order'"
+                  @menu="onCardMenu(item.id, $event)"
+                />
+              </div>
+            </template>
+          </GoalGrid>
+        </div>
+
+        <!-- Right column: the selected goal's details (desktop only). -->
+        <div v-if="!isMobile" :style="detailColumn">
+          <GoalSideDetail
+            :goal-id="panelGoalExists ? panelGoalId : null"
+            @select="panelGoalId = $event"
+          />
+        </div>
+      </div>
     </template>
 
     <GoalCreateSlideOver v-if="showCreate" @close="showCreate = false" @created="onCreated" />

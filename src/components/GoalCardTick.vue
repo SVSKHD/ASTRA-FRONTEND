@@ -76,16 +76,24 @@ const {
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  border: 1.5px solid var(--glass-border);
+  /* Opposite-tone edge (from the theme's text colour) so the empty tick stays
+     visible on light themes as well as dark ones. */
+  border: 1.5px solid color-mix(in srgb, var(--theme-text) 45%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-text) 7%, transparent);
   background: transparent;
   color: var(--theme-on-accent, #fff);
   font-size: var(--text-xs);
   line-height: var(--lh-xs);
   cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .gct__box--on {
   background: var(--theme-accent);
   border-color: var(--theme-accent);
+  box-shadow: none;
 }
 .gct__label {
   font-size: var(--text-2xs);

@@ -724,10 +724,18 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       flex: 1,
       minHeight: 0,
       overflowY: 'auto',
-      margin: '0 -2px',
-      padding: '2px 2px',
+      // Room inside the scroller for a hovered row's shadow (a scroll container
+      // clips on every side); the negative margin keeps rows aligned.
+      margin: '0 -10px',
+      padding: '4px 10px 18px',
     },
-    rowHover: { transform: 'translateY(-3px)', boxShadow: '0 14px 26px rgba(0,0,0,0.28)' },
+    // Hover elevation falls straight down: the negative spread pulls the shadow
+    // in from the card's sides, so nothing glows or gets clipped left and right.
+    // No lift, so a hovered row stays aligned with the nested rows around it.
+    rowHover: {
+      borderColor: 'color-mix(in srgb, ' + c.accent + ' 30%, ' + c.border + ')',
+      boxShadow: '0 10px 18px -10px rgba(0,0,0,0.30), 0 3px 6px -4px rgba(0,0,0,0.12)',
+    },
     del: {
       flexShrink: 0,
       width: 27,
@@ -1527,11 +1535,29 @@ export function rowBase(c: Theme): Style {
   return {
     display: 'flex',
     alignItems: 'center',
-    gap: 'var(--sp-3)',
-    padding: '12px 14px',
-    borderRadius: 'var(--radius-dialog)',
+    gap: 'var(--sp-2)',
+    padding: '7px 12px',
+    borderRadius: 'var(--radius-card)',
     background: c.card,
     border: '1px solid ' + c.border,
-    transition: 'opacity .4s ease, background .4s ease, box-shadow .25s ease',
+    // Every property that hover or selection changes is listed, on one easing,
+    // so nothing snaps while its neighbour glides.
+    transition:
+      'opacity .2s ease, background-color .2s ease, border-color .2s ease, box-shadow .25s cubic-bezier(0.22, 1, 0.36, 1)',
   }
+}
+
+// The border of an unticked checkbox. `c.border` is tuned to sit quietly on its
+// own ground, which on a light theme makes an empty box all but vanish. Mixing
+// from the theme's TEXT colour instead always runs opposite to the ground —
+// dark on light themes, light on dark ones — so the box reads on every theme
+// without a light/dark branch.
+export function checkRing(c: Theme): string {
+  return 'color-mix(in srgb, ' + c.text + ' 45%, transparent)'
+}
+
+// A faint halo just outside an unticked box, in the same opposite tone, so the
+// control keeps a visible edge even on busy or glassy grounds.
+export function checkHalo(c: Theme): string {
+  return '0 0 0 3px color-mix(in srgb, ' + c.text + ' 7%, transparent)'
 }

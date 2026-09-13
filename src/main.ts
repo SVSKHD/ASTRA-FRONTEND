@@ -9,6 +9,7 @@ import './style.css'
 import './components/ui/tokens.css'
 
 import { reportError, scrubValue } from './utils/scrub'
+import { installGlassTooltips } from './utils/glassTooltip'
 
 const app = createApp(App)
 
@@ -31,3 +32,7 @@ if (typeof window !== 'undefined') {
 }
 
 app.use(createPinia()).use(router).directive('hover-style', vHoverStyle).mount('#app')
+
+// Every `title` in the app shows as the rounded glass tooltip instead of the
+// browser's native black bubble.
+installGlassTooltips()

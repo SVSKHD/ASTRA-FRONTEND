@@ -87,7 +87,6 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
 
     <div v-if="showFilters" class="gtb__filters">
       <TextInput
-        class="gtb__search"
         type="search"
         placeholder="Search goals…"
         :model-value="search"
@@ -98,7 +97,6 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
       <!-- Desktop: two compact selects sized to their content. -->
       <template v-if="!mobile">
         <Select
-          class="gtb__select"
           aria-label="Filter by status"
           :model-value="status"
           @update:model-value="emit('update:status', $event as GoalStatus | 'all')"
@@ -110,7 +108,6 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
           ]"
         />
         <Select
-          class="gtb__select"
           aria-label="Sort goals"
           :model-value="sort"
           @update:model-value="emit('update:sort', $event as typeof sort)"

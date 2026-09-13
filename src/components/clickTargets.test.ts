@@ -166,10 +166,13 @@ describe('a goal card (acceptance 89)', () => {
 
   beforeEach(() => push.mockReset())
 
-  it('opens the goal dialog when the card is clicked', async () => {
+  // Desktop is master/detail: a card click shows the goal in the right-hand pane
+  // instead of opening the dialog (mobile still opens the dialog).
+  it('shows the goal in the side pane when the card is clicked', async () => {
     const wrapper = mountCards()
     await tap(wrapper.findAll('[draggable]')[0])
-    expect(app.detailFrame).toEqual({ kind: 'goal', id: 50 })
+    expect(app.detailOpen).toBe(false)
+    expect(wrapper.text()).toContain('Attached items')
   })
 
   it('does not open when the progress ring is clicked', async () => {

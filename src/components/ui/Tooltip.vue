@@ -32,15 +32,32 @@ const shown = ref(false)
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
-  padding: var(--sp-1) var(--sp-2);
-  border-radius: var(--radius-sm);
+  /* Same rounded glass as the app-wide title tooltip (utils/glassTooltip). */
+  padding: 6px 11px;
+  border-radius: 999px;
   border: 1px solid var(--glass-border);
-  background: var(--glass-solid);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
   color: var(--theme-text);
-  font-size: var(--text-2xs);
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-medium);
   white-space: nowrap;
   pointer-events: none;
   box-shadow: var(--elev-1);
+  animation: uiTipIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes uiTipIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px) scale(0.98);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ui-tooltip__bubble {
+    background: var(--glass-solid);
+  }
 }
 .ui-tooltip__bubble.is-top {
   bottom: calc(100% + 6px);

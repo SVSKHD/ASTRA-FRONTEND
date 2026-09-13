@@ -3,6 +3,8 @@
 // accordion for overdue tasks, today's active items flat (no per-deadline
 // grouping), then a collapsed Completed section. Drag-to-nest, linked
 // accordions, the repo/CI chip and the "Remind me" bell all keep working.
+// On desktop the list sits on the left and the selected task's details and
+// subtasks show in the right-hand pane (TaskDetail).
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -19,8 +21,11 @@ import CompletedSection from '@/components/CompletedSection.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
+import TaskDetail from '@/components/TaskDetail.vue'
+import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { nestedChildIds } from '@/utils/links'
+import { buildIndex, progressOf } from '@/utils/taskTree'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useLongList } from '@/composables/useLongList'
 import { useDragNest } from '@/composables/useDragNest'
@@ -28,7 +33,7 @@ import type { LinkRef, Task } from '@/types'
 
 const app = useAppStore()
 const ui = useUiStore()
-const { c, dark, s, panelStyle } = useStyles()
+const { c, dark, s, panelStyle, isMobile } = useStyles()
 const { startDrag, targetState } = useDragNest()
 const { tasks, draggingId, hideCompleted } = storeToRefs(app)
 const { now } = storeToRefs(ui)
@@ -78,6 +83,31 @@ const completed = computed(() => split.value.completed)
 const completedWindow = useLongList(completed)
 const carriedSubtitle = computed(() => oldestFromLabel(carried.value.map(dayOf)))
 
+// --- master/detail selection ------------------------------------------------
+// Desktop: a tap selects the task into the right-hand pane. Mobile has no room
+// for a second column, so a tap keeps opening the task dialog.
+const selectedId = ref<number | null>(null)
+const selectedExists = computed(
+  () => selectedId.value != null && tasks.value.some((t) => t.id === selectedId.value),
+)
+function openTask(id: number, siblings: number[] = activeRootIds.value) {
+  if (isMobile.value) app.openTaskDialog(id, siblings)
+  else selectedId.value = id
+}
+function selectedRowStyle(id: number) {
+  return !isMobile.value && selectedId.value === id
+    ? {
+        borderColor: c.value.accent,
+        backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 8%, ' + c.value.card + ')',
+      }
+    : {}
+}
+// Subtask counter shown on every row, 0/0 when a task has none.
+const taskIndex = computed(() => buildIndex(tasks.value))
+function subCount(id: number) {
+  return progressOf(taskIndex.value, id, (x) => x.status === 'done')
+}
+
 // --- drag-to-nest -----------------------------------------------------------
 function onGripDown(e: PointerEvent, t: Task) {
   e.preventDefault()
@@ -110,17 +140,27 @@ const allExpanded = computed(
 function toggleAll() {
   acc.setMany(parentKeys.value, !allExpanded.value)
 }
+// Carried-over and completed rows are rendered here rather than by TreeList, so
+// they host their own linked children (TreeList does the same for today's rows).
+function linksOpen(t: Task) {
+  return t.linked.length > 0 && acc.isOpen(accKey(t))
+}
+const linkBody = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+  padding: '6px 4px 2px 26px',
+})
 
 // --- opening a row ----------------------------------------------------------
-// A single click opens the detail dialog, immediately (section 18b). This row
-// used to hold the click for 230ms to see whether a second one was coming; the
-// double click still opens the full-page task view, but it now does so from an
-// already-open dialog rather than by making every single click feel slow.
+// A single click selects the task (desktop) or opens the detail dialog
+// (mobile), immediately (section 18b). The double click still opens the
+// full-page task view.
 const pressedRow = ref<number | null>(null)
 const tap = useTapOpen(() => {
   const id = pressedRow.value
   pressedRow.value = null
-  if (id != null) app.openTaskDialog(id, activeRootIds.value)
+  if (id != null) openTask(id)
 })
 function onRowPointerDown(event: PointerEvent, t: Task) {
   pressedRow.value = t.id
@@ -165,6 +205,17 @@ const ageChipStyle = computed(() =>
     flexShrink: 0,
   }),
 )
+const subCountStyle = computed(() =>
+  pxify({
+    ...typeStep('2xs'),
+    color: c.value.dim,
+    padding: '1px 6px',
+    borderRadius: 'var(--radius-pill)',
+    background: c.value.input,
+    border: '1px solid ' + c.value.border,
+    flexShrink: 0,
+  }),
+)
 const rolloverChipStyle = computed(() =>
   pxify({
     ...typeStep('2xs'),
@@ -195,6 +246,33 @@ const linkExpandBtn = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
+const splitLayout = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+  gap: 'var(--sp-4)',
+  flex: 1,
+  minHeight: 0,
+})
+const listColumn = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-4)',
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  // A scroll container clips its overflow on every side, so the room for a
+  // hovered row's shadow has to be inside it.
+  padding: '4px 10px 18px',
+})
+const detailColumn = computed(() =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
+    borderLeft: '1px solid ' + c.value.border,
+    paddingLeft: 'var(--sp-4)',
+  }),
+)
 const doneAgo = (t: Task) => (t.completedAt ? relLabel(t.completedAt - now.value) : '')
 
 function onGripDrop(e: DragEvent, t: Task) {
@@ -223,98 +301,145 @@ function onRowDragOver(e: DragEvent) {
       </template>
     </ListToolbar>
     <ProgressLine :done="split.stats.done" :total="split.stats.total" />
-    <div v-if="tasks.length === 0" :style="s.empty">Nothing yet — add your first task.</div>
+    <div :style="isMobile ? listColumn : splitLayout">
+      <div :style="listColumn">
+        <div v-if="tasks.length === 0" :style="s.empty">Nothing yet — add your first task.</div>
 
-    <!-- 1. Carried over accordion -->
-    <CarriedOverGroup
-      v-if="carried.length > 0"
-      collection="tasks"
-      :count="carried.length"
-      :subtitle="carriedSubtitle"
-    >
-      <div v-for="t in carried" :key="t.id" :style="parentCardStyle">
-        <div
-          :style="[rowStyle(t), nestHighlight(t.id)]"
-          v-hover-style="s.rowHover"
-          :data-nest-id="t.id"
-          data-nest-collection="tasks"
-          @dragover="onRowDragOver"
-          @drop="onGripDrop($event, t)"
+        <!-- 1. Carried over accordion -->
+        <CarriedOverGroup
+          v-if="carried.length > 0"
+          collection="tasks"
+          :count="carried.length"
+          :subtitle="carriedSubtitle"
         >
-          <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
-          <span
-            :style="s.grip"
-            role="button"
-            aria-label="Drag to nest"
-            title="Drag to nest"
-            @pointerdown="onGripDown($event, t)"
-            ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-          ></span>
-          <div
-            :style="s.taskMain"
-            @pointerdown="onRowPointerDown($event, t)"
-            @pointercancel="tap.onPointerCancel"
-            @click="tap.onClick"
-            @dblclick="onRowDblClick(t)"
-          >
-            <span :style="textStyle(t)">{{ t.title }}</span>
-            <div :style="s.chipRow">
-              <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-              <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
-                >rolled over ×{{ t.rolloverCount }}</span
+          <div v-for="t in carried" :key="t.id" :style="parentCardStyle">
+            <div
+              :style="[rowStyle(t), selectedRowStyle(t.id), nestHighlight(t.id)]"
+              v-hover-style="s.rowHover"
+              :data-nest-id="t.id"
+              data-nest-collection="tasks"
+              @dragover="onRowDragOver"
+              @drop="onGripDrop($event, t)"
+            >
+              <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
+              <span
+                :style="s.grip"
+                role="button"
+                aria-label="Drag to nest"
+                title="Drag to nest"
+                @pointerdown="onGripDown($event, t)"
+                ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+              ></span>
+              <div
+                :style="s.taskMain"
+                @pointerdown="onRowPointerDown($event, t)"
+                @pointercancel="tap.onPointerCancel"
+                @click="tap.onClick"
+                @dblclick="onRowDblClick(t)"
               >
+                <span :style="textStyle(t)">{{ t.title }}</span>
+                <div :style="s.chipRow">
+                  <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                  <span :style="subCountStyle" title="Subtasks done / total"
+                    >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                  >
+                  <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
+                    >rolled over ×{{ t.rolloverCount }}</span
+                  >
+                </div>
+              </div>
+              <RemindBell collection="tasks" :id="t.id" />
+              <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+              <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
+                ×
+              </button>
+            </div>
+            <div v-if="linksOpen(t)" :style="linkBody">
+              <LinkedAccordion
+                v-for="ch in t.linked"
+                :key="ch.collection + ':' + ch.id"
+                :item-ref="ch"
+                :parent-ref="{ id: t.id, collection: 'tasks' }"
+                :depth="0"
+                :is-root="false"
+              />
             </div>
           </div>
-          <RemindBell collection="tasks" :id="t.id" />
-          <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-          <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">×</button>
-        </div>
-      </div>
-    </CarriedOverGroup>
+        </CarriedOverGroup>
 
-    <!-- 2. Active items as a flat, drag-reorderable tree (grip handle, reorder /
-         nest / promote indicators, root strip). -->
-    <TreeList collection="tasks" :root-ids="activeRootIds" />
+        <!-- 2. Active items as a flat, drag-reorderable tree (grip handle, reorder /
+             nest / promote indicators, root strip). -->
+        <TreeList
+          collection="tasks"
+          :root-ids="activeRootIds"
+          :selectable="!isMobile"
+          :selected-id="selectedId"
+          @select="selectedId = $event"
+        />
 
-    <!-- 3. Completed section -->
-    <CompletedSection
-      v-if="!hideCompleted && completed.length > 0"
-      collection="tasks"
-      :count="completed.length"
-      :sort="completedSort"
-      clearable
-      @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
-      @clear="app.archiveCompleted('tasks')"
-    >
-      <div v-for="t in completedWindow.visible.value" :key="t.id" :style="rowStyle(t, true)">
-        <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-        <div
-          :style="s.taskMain"
-          @click="
-            app.openTaskDialog(
-              t.id,
-              completedWindow.visible.value.map((x) => x.id),
-            )
-          "
+        <!-- 3. Completed section -->
+        <CompletedSection
+          v-if="!hideCompleted && completed.length > 0"
+          collection="tasks"
+          :count="completed.length"
+          :sort="completedSort"
+          clearable
+          @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
+          @clear="app.archiveCompleted('tasks')"
         >
-          <span :style="textStyle(t)">{{ t.title }}</span>
-          <div :style="s.chipRow">
-            <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-            <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
-          </div>
-        </div>
-        <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">×</button>
+          <template v-for="t in completedWindow.visible.value" :key="t.id">
+            <div :style="[rowStyle(t, true), selectedRowStyle(t.id)]">
+              <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+              <div
+                :style="s.taskMain"
+                @click="
+                  openTask(
+                    t.id,
+                    completedWindow.visible.value.map((x) => x.id),
+                  )
+                "
+              >
+                <span :style="textStyle(t)">{{ t.title }}</span>
+                <div :style="s.chipRow">
+                  <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+                  <span :style="subCountStyle" title="Subtasks done / total"
+                    >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                  >
+                  <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
+                </div>
+              </div>
+              <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
+                ×
+              </button>
+            </div>
+            <div v-if="linksOpen(t)" :style="linkBody">
+              <LinkedAccordion
+                v-for="ch in t.linked"
+                :key="ch.collection + ':' + ch.id"
+                :item-ref="ch"
+                :parent-ref="{ id: t.id, collection: 'tasks' }"
+                :depth="0"
+                :is-root="false"
+              />
+            </div>
+          </template>
+          <button
+            v-if="completedWindow.remaining.value > 0"
+            :style="s.showMoreRow"
+            @click="completedWindow.more()"
+          >
+            Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
+              completedWindow.remaining.value
+            }}
+            hidden)
+          </button>
+        </CompletedSection>
       </div>
-      <button
-        v-if="completedWindow.remaining.value > 0"
-        :style="s.showMoreRow"
-        @click="completedWindow.more()"
-      >
-        Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
-          completedWindow.remaining.value
-        }}
-        hidden)
-      </button>
-    </CompletedSection>
+
+      <!-- Right column: the selected task's details and subtasks (desktop only). -->
+      <div v-if="!isMobile" :style="detailColumn">
+        <TaskDetail :task-id="selectedExists ? selectedId : null" @select="selectedId = $event" />
+      </div>
+    </div>
   </div>
 </template>

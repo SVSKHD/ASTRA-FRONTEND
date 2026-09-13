@@ -3,6 +3,8 @@ import Select from '@/components/ui/Select.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
+import RichEditor from '@/components/RichEditor.vue'
+import { richHtml } from '@/utils/richText'
 // One dialog for creating — and, for the simpler types, editing — every kind of
 // item. It renders whatever ITEM_FORMS says the type's fields are, which is why
 // the tab views no longer carry an add-form of their own: that space now
@@ -170,11 +172,12 @@ function close() {
   if (isCreate.value) draft.flush()
   app.closeItemDialog()
 }
-// Enter confirms from any single-line field; a textarea keeps its newlines and
-// a focused button keeps its own activation.
+// Enter confirms from any single-line field; a textarea or the rich editor keeps
+// its newlines and a focused button keeps its own activation.
 function onEnter(e: KeyboardEvent) {
-  const tag = (e.target as HTMLElement).tagName
-  if (tag === 'TEXTAREA' || tag === 'BUTTON') return
+  const el = e.target as HTMLElement
+  const tag = el.tagName
+  if (tag === 'TEXTAREA' || tag === 'BUTTON' || el.isContentEditable) return
   e.preventDefault()
   save()
 }
@@ -288,8 +291,14 @@ const checkRow = computed(() =>
           />
           <template v-else>
             <span class="field-label" :style="labelStyle">{{ f.label }}</span>
+            <RichEditor
+              v-if="f.kind === 'rich'"
+              :placeholder="f.placeholder"
+              :model-value="richHtml(String(val(f) ?? ''))"
+              @update:model-value="onInput(f, $event)"
+            />
             <TextArea
-              v-if="f.kind === 'textarea'"
+              v-else-if="f.kind === 'textarea'"
               :placeholder="f.placeholder"
               :model-value="val(f)"
               @update:model-value="onInput(f, $event)"

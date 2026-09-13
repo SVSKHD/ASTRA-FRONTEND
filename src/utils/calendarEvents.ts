@@ -15,6 +15,7 @@
 //   reminder                     → a pill at its fire time
 
 import { ymd } from '@/utils/dayGroups'
+import { richPlain } from '@/utils/richText'
 import type { Goal, GoalOccurrence, Reminder, Task, Todo } from '@/types'
 
 export type EventSource = 'task' | 'todo' | 'goal' | 'reminder' | 'milestone'
@@ -145,7 +146,7 @@ export function taskEvent(task: Task, color: string): CalEvent | null {
     source: 'task',
     refId: task.id,
     title: task.title,
-    subtitle: firstLine(task.notes),
+    subtitle: firstLine(richPlain(task.notes)),
     start: block.start,
     end: block.end,
     allDay: block.allDay,
@@ -166,7 +167,7 @@ export function todoEvent(todo: Todo, color: string): CalEvent | null {
     source: 'todo',
     refId: todo.id,
     title: todo.text,
-    subtitle: firstLine(todo.description),
+    subtitle: firstLine(richPlain(todo.description)),
     start: block.start,
     end: block.end,
     allDay: block.allDay,

@@ -244,7 +244,8 @@ const tip = computed(() =>
     top: horizontal.value ? 'auto' : '50%',
     transform: horizontal.value ? 'translateX(-50%)' : 'translateY(-50%)',
     padding: '5px 11px',
-    borderRadius: 'var(--radius-card)',
+    // Same rounded glass as the app-wide tooltip (utils/glassTooltip).
+    borderRadius: 12,
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     whiteSpace: 'nowrap',
@@ -332,12 +333,17 @@ const tip = computed(() =>
     border-color 0.24s ease,
     box-shadow 0.24s ease;
 }
+/* Elevation matches every other surface in the app (rows, cards, menus): a
+   neutral shadow that falls straight down with a negative spread, so nothing
+   glows out to the sides. It used to add a 3px accent halo and an accent-tinted
+   glow, the one coloured shadow left in the shell. The fill and border still say
+   "this is the active tab". */
 .dock-glyph.is-active {
   background: color-mix(in oklch, var(--theme-accent) 22%, transparent);
   border-color: color-mix(in oklch, var(--theme-accent) 60%, transparent);
   box-shadow:
-    0 0 0 3px color-mix(in oklch, var(--theme-accent) 16%, transparent),
-    0 4px 14px color-mix(in oklch, var(--theme-accent) 32%, transparent);
+    0 8px 14px -8px rgba(0, 0, 0, 0.35),
+    0 2px 4px -2px rgba(0, 0, 0, 0.15);
 }
 /* A neighbour under the pointer gets the same disc at a fraction of the
    strength, so "what will I land on" is answerable before the click. */

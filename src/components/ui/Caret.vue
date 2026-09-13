@@ -20,14 +20,17 @@
 // beside it reads as part of the word.
 import Icon from '@/components/ui/Icon.vue'
 
-withDefaults(defineProps<{ open?: boolean; size?: 'xs' | 'sm' }>(), {
+// Medium by default: one size for every disclosure in the app, so a list row's
+// arrow and a detail section's arrow line up and read as the same control.
+// `sm`/`xs` remain for the rare dense header that genuinely needs them.
+withDefaults(defineProps<{ open?: boolean; size?: 'xs' | 'sm' | 'md' }>(), {
   open: false,
-  size: 'sm',
+  size: 'md',
 })
 </script>
 
 <template>
-  <span class="ui-caret" :class="{ 'is-open': open }" aria-hidden="true">
+  <span class="ui-caret" :class="[{ 'is-open': open }, `ui-caret--${size}`]" aria-hidden="true">
     <Icon name="chevron-right" :size="size" />
   </span>
 </template>
@@ -37,14 +40,19 @@ withDefaults(defineProps<{ open?: boolean; size?: 'xs' | 'sm' }>(), {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: var(--radius-control);
   color: var(--theme-dim);
   transition:
     transform var(--dur-fast) var(--ease-out),
     color var(--dur-fast) ease,
     background var(--dur-fast) ease;
+}
+.ui-caret--sm,
+.ui-caret--xs {
+  width: 22px;
+  height: 22px;
 }
 .ui-caret.is-open {
   transform: rotate(90deg);

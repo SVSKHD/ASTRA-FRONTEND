@@ -13,6 +13,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import IssueChip from '@/components/IssueChip.vue'
 import { durationLabel, type CalEvent } from '@/utils/calendarEvents'
+import { richPlain } from '@/utils/richText'
 import { STATUS_LABEL } from '@/types'
 
 const props = defineProps<{
@@ -36,7 +37,7 @@ const detail = computed(() => {
     const task = tasks.value.find((t) => t.id === refId)
     return task
       ? {
-          description: task.notes,
+          description: richPlain(task.notes),
           project: task.tag,
           status: STATUS_LABEL[task.status],
           goalIds: task.goalIds ?? [],
@@ -49,7 +50,7 @@ const detail = computed(() => {
     const todo = todos.value.find((t) => t.id === refId)
     return todo
       ? {
-          description: todo.description,
+          description: richPlain(todo.description),
           project: todo.tag,
           status: STATUS_LABEL[todo.status],
           goalIds: todo.goalIds ?? [],

@@ -10,6 +10,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, rowBase, tagChip, typeStep } from '@/styles'
 import { urg } from '@/utils/colors'
 import ListToolbar from '@/components/ListToolbar.vue'
+import MoveToDeadlineButton from '@/components/MoveToDeadlineButton.vue'
 import { IDEA_TYPE_OPTIONS } from '@/types'
 import type { Idea } from '@/types'
 
@@ -174,6 +175,7 @@ const metaStyle = computed(() =>
             </span>
           </div>
         </div>
+        <MoveToDeadlineButton type="idea" :item-id="t.id" :default-due="t.deadline" />
         <button :style="s.shareBtn" @click="app.share('idea', t)">↗</button>
         <button :style="s.del" @click="app.deleteWithUndo('ideas', 'idea', t.id)">×</button>
       </div>

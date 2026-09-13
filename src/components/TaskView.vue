@@ -6,6 +6,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, statusColor, typeStep } from '@/styles'
 import IssueChip from '@/components/IssueChip.vue'
 import { fullName } from '@/utils/githubModel'
+import { richHtml, richIsEmpty } from '@/utils/richText'
 import { STATUS_LABEL, type ItemStatus, type Task } from '@/types'
 
 const app = useAppStore()
@@ -68,7 +69,13 @@ const statusChip = computed(() => {
             </span>
           </div>
         </div>
-        <div v-if="task.notes && task.notes.trim()" :style="s.taskViewNotes">{{ task.notes }}</div>
+        <!-- eslint-disable-next-line vue/no-v-html -- richHtml() sanitises (or escapes plain text) -->
+        <div
+          v-if="!richIsEmpty(task.notes)"
+          class="rich"
+          :style="s.taskViewNotes"
+          v-html="richHtml(task.notes)"
+        ></div>
       </div>
     </div>
   </template>

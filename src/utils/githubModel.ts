@@ -13,6 +13,7 @@
 // to subcollections is a transport change, not a model change.
 
 import { emptyGithubIntegration } from '@/types'
+import { richPlain } from '@/utils/richText'
 import type {
   GithubIntegration,
   GithubIssue,
@@ -73,8 +74,9 @@ export function parseTaskMarker(body: string | null | undefined): number | null 
 
 // The body written to GitHub: the task's own description, a human backlink, and
 // the marker. Composed in one place so the footer is always recognisable.
+// Task notes are rich text (HTML); GitHub gets the plain words, not the tags.
 export function buildIssueBody(description: string, taskUrl: string, taskId: number): string {
-  const desc = (description || '').trim()
+  const desc = richPlain(description)
   const footer = [`[Open in Spasta](${taskUrl})`, taskMarker(taskId)].join('\n')
   return desc ? `${desc}\n\n---\n${footer}` : footer
 }

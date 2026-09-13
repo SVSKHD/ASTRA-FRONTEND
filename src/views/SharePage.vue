@@ -4,6 +4,7 @@
 // recipient who was not signed in, hydrated and unlocked saw nothing at all.
 import { computed, onMounted, ref, watch } from 'vue'
 import { sanitize } from '@/utils/sanitizeHtml'
+import { richPlain } from '@/utils/richText'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
@@ -73,7 +74,7 @@ const lines = computed<string[]>(() => {
   const out: string[] = []
   if (sv.type === 'todo') {
     out.push(String(it.text ?? ''))
-    if (it.description) out.push(String(it.description))
+    if (it.description) out.push(richPlain(String(it.description)))
     if (it.tag) out.push('Category: ' + it.tag)
     out.push('Status: ' + sharedStatus(it))
     if (isStamped(Number(it.createdAt)))
@@ -87,7 +88,7 @@ const lines = computed<string[]>(() => {
     out.push('Status: ' + sharedStatus(it))
     if (it.deadline) out.push('Due: ' + it.deadline)
     if (it.repo) out.push('Repo: ' + it.repo)
-    if (it.notes) out.push(String(it.notes))
+    if (it.notes) out.push(richPlain(String(it.notes)))
   }
   if (sv.type === 'deadline') {
     out.push(String(it.title ?? ''))

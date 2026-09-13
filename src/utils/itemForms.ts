@@ -8,6 +8,9 @@ import { IDEA_TYPE_OPTIONS } from '@/types'
 export type FieldKind =
   | 'text'
   | 'textarea'
+  // WYSIWYG rich text (RichEditor). The value is HTML; plain text saved before
+  // the field became rich still opens correctly (see utils/richText).
+  | 'rich'
   | 'date'
   | 'datetime'
   | 'number'
@@ -66,8 +69,8 @@ export const ITEM_FORMS: Record<ItemType, FormDef> = {
       {
         key: 'description',
         label: 'Description',
-        kind: 'textarea',
-        placeholder: 'Optional detail',
+        kind: 'rich',
+        placeholder: 'Optional detail — type / for headings, lists, checklists',
       },
       { key: 'tag', label: 'Tag', kind: 'tag' },
       { key: 'noteIds', label: 'Notes', kind: 'notes' },

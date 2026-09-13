@@ -5,6 +5,7 @@
 //
 // A section can be collapsible; the activity block uses that to start closed.
 import { ref, useId } from 'vue'
+import Caret from '@/components/ui/Caret.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -34,7 +35,7 @@ const bodyId = `detail-section-${useId()}`
         :aria-controls="collapsible ? bodyId : undefined"
         @click="collapsible && (open = !open)"
       >
-        <span v-if="collapsible" class="dsec__chev" :class="open && 'dsec__chev--open'">›</span>
+        <Caret v-if="collapsible" :open="open" />
         {{ label }}
         <span v-if="hint" class="dsec__hint">{{ hint }}</span>
       </component>
@@ -77,13 +78,6 @@ const bodyId = `detail-section-${useId()}`
 }
 .dsec__label--btn {
   cursor: pointer;
-}
-.dsec__chev {
-  display: inline-block;
-  transition: transform var(--dur-fast, 0.15s) var(--ease-out, ease);
-}
-.dsec__chev--open {
-  transform: rotate(90deg);
 }
 .dsec__hint {
   font-weight: var(--weight-medium);

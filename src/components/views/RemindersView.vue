@@ -14,6 +14,8 @@ import ListToolbar from '@/components/ListToolbar.vue'
 import UpNextBand from '@/components/UpNextBand.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
 import CompletedSection from '@/components/CompletedSection.vue'
+import Caret from '@/components/ui/Caret.vue'
+import MoveToDeadlineButton from '@/components/MoveToDeadlineButton.vue'
 import { PRIORITY_ORDER, type Priority, type Reminder } from '@/types'
 
 const app = useAppStore()
@@ -176,18 +178,17 @@ function toggleExpanded(id: number) {
   expandedId.value = expandedId.value === id ? null : id
 }
 const rowWrapStyle = pxify({ display: 'flex', flexDirection: 'column' })
-function chevronStyle(open: boolean) {
-  return pxify({
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    ...typeStep('xs'),
-    color: c.value.dim,
-    padding: '2px 6px',
-    transform: open ? 'rotate(180deg)' : 'none',
-    transition: 'transform .2s ease',
-  })
-}
+// The button is only the hit target; the arrow is Caret, the app's one
+// disclosure (medium, rotates itself when open).
+const chevronBtn = pxify({
+  display: 'grid',
+  placeItems: 'center',
+  flexShrink: 0,
+  padding: 0,
+  background: 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+})
 </script>
 
 <template>
@@ -206,13 +207,18 @@ function chevronStyle(open: boolean) {
           <span :style="priorityChipStyle(it.priorityColor)">{{ it.priorityLabel }}</span>
           <span :style="syncChipStyle(it.syncColor)">{{ it.syncLabel }}</span>
           <button
-            :style="chevronStyle(expandedId === it.id)"
+            :style="chevronBtn"
             :aria-expanded="expandedId === it.id"
             aria-label="Upcoming dates"
             @click.stop="toggleExpanded(it.id)"
           >
-            ▾
+            <Caret :open="expandedId === it.id" />
           </button>
+          <MoveToDeadlineButton
+            type="reminder"
+            :item-id="it.id"
+            :default-due="findReminder(it.id)?.start ?? ''"
+          />
           <button :style="s.shareBtn" @click.stop="app.share('reminder', findReminder(it.id)!)">
             ↗
           </button>

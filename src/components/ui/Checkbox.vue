@@ -56,17 +56,25 @@ const uid = useId()
   height: 18px;
   flex-shrink: 0;
   border-radius: 5px;
-  border: 1.5px solid var(--glass-border);
+  /* Mixed from the theme's text colour, which always runs opposite to the
+     ground: dark on light themes, light on dark ones. --glass-border is tuned
+     to sit quietly, so on a light theme an empty box all but vanished. */
+  border: 1.5px solid color-mix(in srgb, var(--theme-text) 45%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-text) 7%, transparent);
   background: var(--theme-input);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
   color: var(--theme-on-accent);
-  transition: background var(--dur-fast) var(--ease-out);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
 }
 .ui-check__input:checked + .ui-check__box,
 .ui-check__input:indeterminate + .ui-check__box {
   background: var(--theme-accent);
   border-color: var(--theme-accent);
+  box-shadow: none;
 }
 .ui-check__input:focus-visible + .ui-check__box {
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--theme-accent) 32%, transparent);

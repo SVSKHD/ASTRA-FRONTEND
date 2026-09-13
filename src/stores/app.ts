@@ -2040,13 +2040,67 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // ---- Deadlines ----------------------------------------------------------
-  function addDeadline(title: string, due: string) {
+  // Returns the new id so a caller (moveToDeadline) can undo exactly this one.
+  function addDeadline(title: string, due: string): number | undefined {
     const t = title.trim()
     if (!t || !due) return
-    deadlines.value = [...deadlines.value, { id: id(), title: t, due, ...stamps() }]
+    const newId = id()
+    deadlines.value = [...deadlines.value, { id: newId, title: t, due, ...stamps() }]
+    return newId
   }
   function updateDeadline(did: number, fields: Partial<Deadline>) {
     deadlines.value = deadlines.value.map((d) => (d.id === did ? touched({ ...d, ...fields }) : d))
+  }
+  // ⋯ → Move to Deadlines. A todo, task, idea or reminder becomes a dated
+  // deadline with the same title. Todos and tasks are ARCHIVED rather than
+  // deleted (the convertTaskToGoalPoint precedent), so their subtasks, notes and
+  // links survive; ideas and reminders go through deleteWithUndo, which also
+  // removes a reminder's calendar event. One toast offers Undo for the whole
+  // move: the deadline goes and the original comes back.
+  function moveToDeadline(
+    type: 'todo' | 'task' | 'idea' | 'reminder',
+    itemId: number,
+    due: string,
+  ): number | null {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return null
+    const title =
+      type === 'todo'
+        ? todos.value.find((t) => t.id === itemId)?.text
+        : type === 'task'
+          ? tasks.value.find((t) => t.id === itemId)?.title
+          : type === 'idea'
+            ? ideas.value.find((i) => i.id === itemId)?.title
+            : reminders.value.find((r) => r.id === itemId)?.title
+    if (title == null) return null
+    const deadlineId = addDeadline(title || 'Untitled', due)
+    if (deadlineId == null) return null
+
+    const removeDeadline = () => {
+      deadlines.value = deadlines.value.filter((d) => d.id !== deadlineId)
+    }
+    const short = title.length > 28 ? title.slice(0, 28) + '…' : title
+    const message = 'Moved "' + short + '" to Deadlines'
+
+    if (type === 'todo' || type === 'task') {
+      if (type === 'todo') updateTodo(itemId, { archivedAt: Date.now() })
+      else archiveTask(itemId)
+      showToastWithUndo(message, () => {
+        removeDeadline()
+        if (type === 'todo') updateTodo(itemId, { archivedAt: null })
+        else patchTask(itemId, { archivedAt: null })
+      })
+    } else {
+      deleteWithUndo(type === 'idea' ? 'ideas' : 'reminders', type, itemId)
+      // deleteWithUndo left its restore payload on the toast; keep it so this
+      // move's Undo can hand it straight back to undoDelete.
+      const deleted = toast.value
+      showToastWithUndo(message, () => {
+        removeDeadline()
+        toast.value = deleted
+        undoDelete()
+      })
+    }
+    return deadlineId
   }
 
   // ---- Finances -----------------------------------------------------------
@@ -6673,6 +6727,7 @@ export const useAppStore = defineStore('app', () => {
     convertTaskToGoalPoint,
     addDeadline,
     updateDeadline,
+    moveToDeadline,
     addFinance,
     updateFinance,
     setMonthlyIncome,
