@@ -162,6 +162,72 @@ describe('moveTodo — flat hierarchy parity with tasks', () => {
   })
 })
 
+describe('move — subtasks inherit the parent tag', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('stamps a tagged parent tag onto the moved task and its whole subtree', () => {
+    const app = useAppStore()
+    app.tasks = [
+      makeTask(1, { tag: 'work' }),
+      makeTask(2, { tag: 'home' }),
+      makeTask(3, { parentId: 2, depth: 1, rootId: 2, tag: '' }),
+    ]
+    expect(app.moveTask(2, 1, 0)).toBe(true)
+    expect(byId(app, 2).tag).toBe('work')
+    expect(byId(app, 3).tag).toBe('work')
+  })
+
+  it('does the same for todos', () => {
+    const app = useAppStore()
+    app.todos = [makeTodo(1, { tag: 'errands' }), makeTodo(2)]
+    expect(app.moveTodo(2, 1, 0)).toBe(true)
+    expect(app.todos.find((t) => t.id === 2)?.tag).toBe('errands')
+  })
+
+  it('keeps existing tags when the new parent has no tag', () => {
+    const app = useAppStore()
+    app.tasks = [makeTask(1), makeTask(2, { tag: 'home' })]
+    app.moveTask(2, 1, 0)
+    expect(byId(app, 2).tag).toBe('home')
+  })
+
+  it('leaves a changed subtask tag alone on a reorder within the same parent', () => {
+    const app = useAppStore()
+    app.tasks = [
+      makeTask(1, { tag: 'work' }),
+      makeTask(2, { parentId: 1, depth: 1, rootId: 1, order: 0, tag: 'custom' }),
+      makeTask(3, { parentId: 1, depth: 1, rootId: 1, order: 1, tag: 'work' }),
+    ]
+    app.moveTask(2, 1, 2)
+    expect(byId(app, 2).tag).toBe('custom')
+  })
+})
+
+describe('backfillSubtaskTags — existing untagged subtasks', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('tags untagged task and todo subtasks from their parent, leaving tagged ones', () => {
+    const app = useAppStore()
+    app.tasks = [
+      makeTask(1, { tag: 'work' }),
+      makeTask(2, { parentId: 1, depth: 1, rootId: 1 }),
+      makeTask(3, { parentId: 2, depth: 2, rootId: 1 }),
+      makeTask(4, { parentId: 1, depth: 1, rootId: 1, tag: 'custom' }),
+    ]
+    app.todos = [
+      makeTodo(10, { tag: 'errands' }),
+      makeTodo(11, { parentId: 10, depth: 1, rootId: 10 }),
+    ]
+    expect(app.backfillSubtaskTags()).toBe(3)
+    expect(byId(app, 2).tag).toBe('work')
+    expect(byId(app, 3).tag).toBe('work')
+    expect(byId(app, 4).tag).toBe('custom')
+    expect(app.todos.find((t) => t.id === 11)?.tag).toBe('errands')
+    // Idempotent: a second run finds nothing to fill.
+    expect(app.backfillSubtaskTags()).toBe(0)
+  })
+})
+
 describe('edit-safe flush — dialog close bumps localRev', () => {
   beforeEach(() => setActivePinia(createPinia()))
 

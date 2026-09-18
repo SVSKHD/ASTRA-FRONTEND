@@ -9,16 +9,29 @@ import { useAppStore } from '@/stores/app'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, useDetailStyles } from '@/composables/useDetailStyles'
 import { buildIndex, childrenOf, ancestorsOf, descendantsOf } from '@/utils/taskTree'
+import TitleTagPill from '@/components/TitleTagPill.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import MoveToDeadlineButton from '@/components/MoveToDeadlineButton.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import PaneSection from '@/components/detail/PaneSection.vue'
+import PaneNotes from '@/components/detail/PaneNotes.vue'
+import PaneButton from '@/components/detail/PaneButton.vue'
+import PaneToolbar from '@/components/detail/PaneToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import RichDescription from '@/components/detail/RichDescription.vue'
 import Icon from '@/components/ui/Icon.vue'
 import { STATUS_LABEL } from '@/types'
+
+// The attached-notes count on a subtask row: icon and number on one line.
+const noteBadge = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px',
+  flexShrink: 0,
+  color: 'var(--theme-accent)',
+}
 
 const props = defineProps<{ todoId: number | null }>()
 const emit = defineEmits<{ select: [id: number | null] }>()
@@ -33,7 +46,6 @@ const {
   row,
   headerRow,
   metaGroup,
-  actionBar,
   grow,
   crumbBtn,
   dimSmall,
@@ -50,7 +62,6 @@ const {
   subRow,
   boxStyle,
   subText,
-  iconBtn,
   addBtn,
   chipStyle,
 } = useDetailStyles()
@@ -153,7 +164,7 @@ function removeTodo(id: number) {
               title="Double-click to edit"
               @dblclick="start('text', todo.text)"
             >
-              {{ todo.text || '(untitled)' }}
+              <TitleTagPill v-if="todo.tag" :tag="todo.tag" />{{ todo.text || '(untitled)' }}
             </div>
 
             <div :style="headerRow">
@@ -190,7 +201,7 @@ function removeTodo(id: number) {
                   >rolled over ×{{ todo.rolloverCount }}</span
                 >
               </div>
-              <div :style="actionBar">
+              <PaneToolbar :style="{ marginLeft: 'auto' }">
                 <RemindBell collection="todos" :id="todo.id" />
                 <ShareGlobeButton entity-type="todo" :item="todo" variant="row" />
                 <MoveToDeadlineButton
@@ -198,23 +209,18 @@ function removeTodo(id: number) {
                   :item-id="todo.id"
                   @moved="emit('select', null)"
                 />
-                <button
-                  type="button"
-                  :style="iconBtn"
-                  title="Open in editor"
+                <PaneButton
+                  icon="external-link"
+                  label="Open in editor"
                   @click="app.openEdit('todo', todo.id)"
-                >
-                  <Icon name="chevron-right" size="md" />
-                </button>
-                <button
-                  type="button"
-                  :style="s.del"
-                  title="Delete todo"
+                />
+                <PaneButton
+                  icon="trash"
+                  label="Delete todo"
+                  tone="danger"
                   @click="removeTodo(todo.id)"
-                >
-                  ×
-                </button>
-              </div>
+                />
+              </PaneToolbar>
             </div>
           </section>
 
@@ -242,6 +248,9 @@ function removeTodo(id: number) {
               @update:model-value="app.updateTodo(todo.id, { description: $event })"
             />
           </PaneSection>
+
+          <!-- Attached notes, read and edited in place under the description -->
+          <PaneNotes type="todo" :id="todo.id" />
 
           <!-- Subtasks -->
           <PaneSection
@@ -284,18 +293,26 @@ function removeTodo(id: number) {
                 :style="subText(st.status === 'done')"
                 title="Double-click to rename"
                 @dblclick="start('sub:' + st.id, st.text)"
-                >{{ st.text || '(untitled)' }}</span
+                ><TitleTagPill v-if="st.tag" :tag="st.tag" />{{ st.text || '(untitled)' }}</span
+              >
+              <span
+                v-if="st.noteIds?.length"
+                :style="[pill, noteBadge]"
+                :title="`${st.noteIds.length} attached note${st.noteIds.length === 1 ? '' : 's'}`"
+                ><Icon name="notebook" size="xs" /> {{ st.noteIds.length }}</span
               >
               <span :style="pill">{{ kidCount(st.id) }} sub</span>
-              <button
-                type="button"
-                :style="iconBtn"
-                title="Open subtask"
+              <PaneButton
+                icon="chevron-right"
+                label="Open subtask"
                 @click="emit('select', st.id)"
-              >
-                <Icon name="chevron-right" size="md" />
-              </button>
-              <button type="button" :style="s.del" @click="removeTodo(st.id)">×</button>
+              />
+              <PaneButton
+                icon="trash"
+                label="Delete subtask"
+                tone="danger"
+                @click="removeTodo(st.id)"
+              />
             </div>
             <div v-if="!subtasks.length" :style="placeholder">No subtasks yet.</div>
 

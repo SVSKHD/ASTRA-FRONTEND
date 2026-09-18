@@ -9,7 +9,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useLinkedItems, type LinkedRow } from '@/composables/useLinkedItems'
-import { SUCCESS, checkHalo, checkRing, pxify, typeStep } from '@/styles'
+import { SUCCESS, checkHalo, checkHaloDone, checkRing, pxify, typeStep } from '@/styles'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import type { LinkCollection } from '@/types'
@@ -95,8 +95,9 @@ function dotStyle(done: boolean) {
     flexShrink: 0,
     borderRadius: '50%',
     border: '1.5px solid ' + (done ? SUCCESS : checkRing(c.value)),
-    boxShadow: done ? 'none' : checkHalo(c.value),
+    boxShadow: done ? checkHaloDone(SUCCESS) : checkHalo(c.value),
     background: done ? SUCCESS : 'transparent',
+    padding: 0,
     display: 'grid',
     placeItems: 'center',
   })

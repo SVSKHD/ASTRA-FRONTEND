@@ -137,6 +137,11 @@ function format(value: unknown): string {
   min-width: 0;
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
+  /* Same corner cut as the trades table, for the same reason: the rail cell and
+     the sticky header paint their own square backgrounds over the curve. `clip`
+     rather than `hidden` so this does not become a scrollport and steal the
+     sticky header off the viewport. */
+  overflow: clip;
   background: var(--layer-raised-bg);
   backdrop-filter: var(--layer-raised-blur);
   -webkit-backdrop-filter: var(--layer-raised-blur);

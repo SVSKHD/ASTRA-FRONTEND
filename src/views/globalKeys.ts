@@ -61,6 +61,18 @@ const SELECTOR = WIDGET_ROLES.map((r) => `[role="${r}"]`).join(',')
  */
 const EDITABLE = '[contenteditable=""],[contenteditable="true"]'
 
+/**
+ * Places that keep the bare shortcut keys for themselves, by attribute rather
+ * than by role:
+ *
+ * - `[aria-expanded]` — an accordion or disclosure toggle. Clicking one leaves
+ *   focus on it, and the next ↓ (to read what just opened) used to throw the
+ *   whole workspace onto another tab.
+ * - `[data-own-keys]` — a content region (the todo/task list and its detail
+ *   pane) where ↑/↓ mean "scroll", not "change tab".
+ */
+const OWNS_KEYS = '[aria-expanded],[data-own-keys]'
+
 /** Elements that swallow every key by nature, role or no role. */
 const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
@@ -74,14 +86,26 @@ const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
  */
 export function handledByWidget(
   event: Pick<KeyboardEvent, 'defaultPrevented' | 'target'>,
+  /**
+   * Where the last click landed. Clicking a plain row does not move focus, so
+   * the key's target is just <body>; this is what says the reader is actually
+   * working in the list.
+   */
+  lastPointer: Element | null = null,
 ): boolean {
   if (event.defaultPrevented) return true
-  const el = event.target as HTMLElement | null
+  let el = event.target as HTMLElement | null
   if (!el || typeof el !== 'object') return false
+  const onPage = el.tagName === 'BODY' || el.tagName === 'HTML'
+  if (onPage && lastPointer && typeof (lastPointer as HTMLElement).closest === 'function') {
+    el = lastPointer as HTMLElement
+  }
   if (TYPING_TAGS.has(el.tagName)) return true
   if (el.isContentEditable) return true
   if (typeof el.closest !== 'function') return false
   // `closest` covers the element itself as well as its ancestors, so a control
   // that carries the role directly is caught by the same call.
-  return el.closest(SELECTOR) != null || el.closest(EDITABLE) != null
+  return (
+    el.closest(SELECTOR) != null || el.closest(EDITABLE) != null || el.closest(OWNS_KEYS) != null
+  )
 }

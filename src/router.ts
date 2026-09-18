@@ -3,6 +3,7 @@ import { PLURAL } from '@/utils/share'
 import { useUiStore } from '@/stores/ui'
 import { LAST_ROUTE_KEY, sessionRead } from '@/composables/useTradeRoute'
 import { tabOf } from '@/composables/useTabRoute'
+import { rememberedTab, tabUrl } from '@/utils/lastTab'
 import type { ItemType, TabKey } from '@/types'
 
 // Share routes are declared per item type rather than as one wildcard so an
@@ -144,10 +145,20 @@ export const router = createRouter({
  * redirect, and the workspace opens on whatever it opens on.
  */
 router.beforeEach((to) => {
-  if (to.path === '/') {
+  // Only a BARE `/` is resolved from memory. It used to be any `/` whose full
+  // path differed from the stored route — so reloading on `/?tab=todo` could be
+  // sent somewhere else entirely (a task page, a stale tab) when the stored
+  // route had fallen behind the address bar. A URL that says where it is wins.
+  if (to.path === '/' && Object.keys(to.query).length === 0) {
     const last = sessionRead(LAST_ROUTE_KEY)
     if (last && last !== to.fullPath && router.resolve(last).name !== 'not-found') {
       return last
+    }
+    // No route in this browser tab (a new window, the installed app relaunching
+    // on `/`): fall back to the tab last worked on, from localStorage.
+    if (!last) {
+      const remembered = rememberedTab()
+      if (remembered && remembered !== 'overview') return tabUrl(remembered)
     }
   }
   // The reading half, for every tab rather than for the four with a path of

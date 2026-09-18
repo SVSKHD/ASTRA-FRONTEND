@@ -101,6 +101,7 @@ function goal(over: Partial<Goal> = {}): Goal {
     startDate: '',
     color: 'oklch(0.7 0.1 200)',
     icon: '',
+    tag: '',
     source: 'manual',
     sourceUrl: '',
     parentId: null,

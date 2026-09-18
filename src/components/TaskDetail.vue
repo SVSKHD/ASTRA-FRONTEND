@@ -10,6 +10,7 @@ import { useAppStore } from '@/stores/app'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, fmtDay, useDetailStyles } from '@/composables/useDetailStyles'
 import { buildIndex, childrenOf, ancestorsOf, descendantsOf } from '@/utils/taskTree'
+import TitleTagPill from '@/components/TitleTagPill.vue'
 import { daysRemaining, formatMinutes, parseMinutes, statusWord } from '@/utils/detailFields'
 import StatusPill from '@/components/StatusPill.vue'
 import RemindBell from '@/components/RemindBell.vue'
@@ -17,12 +18,24 @@ import IssueChip from '@/components/IssueChip.vue'
 import MoveToDeadlineButton from '@/components/MoveToDeadlineButton.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import PaneSection from '@/components/detail/PaneSection.vue'
+import PaneNotes from '@/components/detail/PaneNotes.vue'
+import PaneButton from '@/components/detail/PaneButton.vue'
+import PaneToolbar from '@/components/detail/PaneToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import RichDescription from '@/components/detail/RichDescription.vue'
 import Select from '@/components/ui/Select.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Icon from '@/components/ui/Icon.vue'
 import { STATUS_LABEL, type Priority } from '@/types'
+
+// The attached-notes count on a subtask row: icon and number on one line.
+const noteBadge = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px',
+  flexShrink: 0,
+  color: 'var(--theme-accent)',
+}
 
 const props = defineProps<{ taskId: number | null }>()
 const emit = defineEmits<{ select: [id: number | null] }>()
@@ -37,7 +50,6 @@ const {
   row,
   headerRow,
   metaGroup,
-  actionBar,
   grow,
   crumbBtn,
   dimSmall,
@@ -175,7 +187,7 @@ function removeTask(id: number) {
               title="Double-click to edit"
               @dblclick="start('title', task.title)"
             >
-              {{ task.title || '(untitled)' }}
+              <TitleTagPill v-if="task.tag" :tag="task.tag" />{{ task.title || '(untitled)' }}
             </div>
 
             <div :style="headerRow">
@@ -213,39 +225,27 @@ function removeTask(id: number) {
                   >rolled over ×{{ task.rolloverCount }}</span
                 >
               </div>
-              <div :style="actionBar">
+              <PaneToolbar :style="{ marginLeft: 'auto' }">
                 <RemindBell collection="tasks" :id="task.id" />
-                <button
-                  type="button"
-                  :style="iconBtn"
-                  title="Share"
-                  @click="app.share('task', task)"
-                >
-                  ↗
-                </button>
+                <PaneButton icon="share" label="Share" @click="app.share('task', task)" />
                 <MoveToDeadlineButton
                   type="task"
                   :item-id="task.id"
                   :default-due="task.deadline"
                   @moved="emit('select', null)"
                 />
-                <button
-                  type="button"
-                  :style="iconBtn"
-                  title="Open full page"
+                <PaneButton
+                  icon="external-link"
+                  label="Open full page"
                   @click="app.openTaskView(task.id)"
-                >
-                  <Icon name="chevron-right" size="md" />
-                </button>
-                <button
-                  type="button"
-                  :style="s.del"
-                  title="Delete task"
+                />
+                <PaneButton
+                  icon="trash"
+                  label="Delete task"
+                  tone="danger"
                   @click="removeTask(task.id)"
-                >
-                  ×
-                </button>
-              </div>
+                />
+              </PaneToolbar>
             </div>
           </section>
 
@@ -282,6 +282,9 @@ function removeTask(id: number) {
               @update:model-value="app.patchTask(task.id, { notes: $event })"
             />
           </PaneSection>
+
+          <!-- Attached notes, read and edited in place under the description -->
+          <PaneNotes type="task" :id="task.id" />
 
           <!-- Subtasks -->
           <PaneSection
@@ -324,21 +327,29 @@ function removeTask(id: number) {
                 :style="subText(st.status === 'done')"
                 title="Double-click to rename"
                 @dblclick="start('sub:' + st.id, st.title)"
-                >{{ st.title || '(untitled)' }}</span
+                ><TitleTagPill v-if="st.tag" :tag="st.tag" />{{ st.title || '(untitled)' }}</span
               >
               <span v-if="st.deadline" :style="toneStyle(daysRemaining(st.deadline))">{{
                 fmtDay(st.deadline)
               }}</span>
-              <span :style="pill">{{ kidCount(st.id) }} sub</span>
-              <button
-                type="button"
-                :style="iconBtn"
-                title="Open subtask"
-                @click="emit('select', st.id)"
+              <span
+                v-if="st.noteIds?.length"
+                :style="[pill, noteBadge]"
+                :title="`${st.noteIds.length} attached note${st.noteIds.length === 1 ? '' : 's'}`"
+                ><Icon name="notebook" size="xs" /> {{ st.noteIds.length }}</span
               >
-                <Icon name="chevron-right" size="md" />
-              </button>
-              <button type="button" :style="s.del" @click="removeTask(st.id)">×</button>
+              <span :style="pill">{{ kidCount(st.id) }} sub</span>
+              <PaneButton
+                icon="chevron-right"
+                label="Open subtask"
+                @click="emit('select', st.id)"
+              />
+              <PaneButton
+                icon="trash"
+                label="Delete subtask"
+                tone="danger"
+                @click="removeTask(st.id)"
+              />
             </div>
             <div v-if="!subtasks.length" :style="placeholder">No subtasks yet.</div>
 

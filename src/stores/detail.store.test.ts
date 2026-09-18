@@ -54,6 +54,7 @@ function freshStore() {
       startDate: '',
       color: '',
       icon: '',
+      tag: '',
       source: 'manual',
       sourceUrl: '',
       parentId: null,

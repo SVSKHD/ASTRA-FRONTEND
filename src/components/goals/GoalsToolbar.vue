@@ -19,11 +19,15 @@ import { computed } from 'vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import Icon from '@/components/ui/Icon.vue'
+import TagFilter from '@/components/TagFilter.vue'
 import type { GoalStatus } from '@/types'
 
 const props = defineProps<{
   search: string
   status: GoalStatus | 'all'
+  tag: string
+  /** Each goal's tag, one group per goal, for the filter's counts. */
+  tagGroups: readonly (readonly string[])[]
   sort: 'order' | 'target' | 'progress'
   mobile?: boolean
   // Filters are pointless on an empty tab.
@@ -33,6 +37,7 @@ const emit = defineEmits<{
   'update:search': [string]
   'submit-search': []
   'update:status': [GoalStatus | 'all']
+  'update:tag': [string]
   'update:sort': ['order' | 'target' | 'progress']
   import: []
   new: []
@@ -107,6 +112,11 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
             })),
           ]"
         />
+        <TagFilter
+          :model-value="tag"
+          :groups="tagGroups"
+          @update:model-value="emit('update:tag', $event)"
+        />
         <Select
           aria-label="Sort goals"
           :model-value="sort"
@@ -125,6 +135,12 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
         :tabs="chips"
         aria-label="Filter by status"
         @update:model-value="emit('update:status', $event as GoalStatus | 'all')"
+      />
+      <TagFilter
+        class="gtb__select--chip"
+        :model-value="tag"
+        :groups="tagGroups"
+        @update:model-value="emit('update:tag', $event)"
       />
       <Select
         class="gtb__select gtb__select--chip"

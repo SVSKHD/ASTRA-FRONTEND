@@ -26,15 +26,16 @@ import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { TAB_ORDER } from '@/tabs.config'
 import { LAST_ROUTE_KEY, sessionWrite } from '@/composables/useTradeRoute'
+import { TAB_PATHS, rememberTab } from '@/utils/lastTab'
 import type { TabKey } from '@/types'
 
-/** The four tabs whose own path is the canonical address for them. */
-export const TAB_PATHS: Partial<Record<TabKey, string>> = {
-  trades: '/trades',
-  expenses: '/expenses',
-  news: '/news',
-  code: '/code',
-}
+export { TAB_PATHS }
+
+// Pages that live INSIDE a tab and have an address of their own. Refreshing on
+// one has to come back to that tab — it used to fall back to Overview — and the
+// tab writer must not replace their address with a bare `?tab=`.
+const TASK_VIEW_RE = /^\/tasks\/\d+\/view$/
+const GOAL_PAGE_RE = /^\/goals\/\d+$/
 
 export function isTabKey(value: unknown): value is TabKey {
   return typeof value === 'string' && (TAB_ORDER as readonly string[]).includes(value)
@@ -46,6 +47,8 @@ export function isTabKey(value: unknown): value is TabKey {
  */
 export function tabOf(path: string, query: Record<string, unknown>): TabKey | '' {
   for (const [key, p] of Object.entries(TAB_PATHS)) if (p === path) return key as TabKey
+  if (TASK_VIEW_RE.test(path)) return 'tasks'
+  if (GOAL_PAGE_RE.test(path)) return 'goals'
   const raw = query.tab
   const value = typeof raw === 'string' ? raw : Array.isArray(raw) ? String(raw[0] ?? '') : ''
   return isTabKey(value) ? value : ''
@@ -69,6 +72,7 @@ export function useTabRoute() {
   watch(
     tab,
     (key) => {
+      rememberTab(key)
       const named = tabOf(route.path, route.query)
       // THE URL WINS THE FIRST ROUND. A cold load on /trades?month=2026-08 has
       // a store still on its default tab, and writing that default out would

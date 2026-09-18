@@ -13,6 +13,7 @@
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
+import { useTapOpen } from '@/composables/useTapOpen'
 import { pxify, typeStep } from '@/styles'
 import MovePendingButton from '@/components/MovePendingButton.vue'
 import type { ListKey } from '@/types'
@@ -33,6 +34,9 @@ const open = computed(() => acc.isOpen(key.value, false))
 function toggle() {
   acc.toggle(key.value, false)
 }
+// Only a real tap toggles: a drag released over the header, a long press or a
+// touch scroll that starts on it used to fold the whole group away.
+const tap = useTapOpen(toggle)
 
 // Only todos and tasks roll forward; deadlines and reminders carry an overdue
 // date that "Move all to today" wouldn't sensibly rewrite.
@@ -102,7 +106,14 @@ const bodyInner = pxify({
 
 <template>
   <div :style="cardStyle">
-    <div :style="headStyle" role="button" :aria-expanded="open" @click="toggle">
+    <div
+      :style="headStyle"
+      role="button"
+      :aria-expanded="open"
+      @pointerdown="tap.onPointerDown"
+      @pointercancel="tap.onPointerCancel"
+      @click="tap.onClick"
+    >
       <Caret :open="open" />
       <div :style="titleWrap">
         <span :style="titleStyle">Carried over · {{ count }}</span>

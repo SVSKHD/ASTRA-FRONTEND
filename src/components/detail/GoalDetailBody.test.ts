@@ -24,6 +24,7 @@ function makeGoal(id: number, over: Partial<Goal> = {}): Goal {
     startDate: '',
     color: '',
     icon: '',
+    tag: '',
     source: 'manual',
     sourceUrl: '',
     parentId: null,

@@ -21,6 +21,8 @@ import ProgressRing from '@/components/ui/ProgressRing.vue'
 import GoalCardTick from '@/components/GoalCardTick.vue'
 import Dropdown, { type MenuItem } from '@/components/ui/Dropdown.vue'
 import { cardMeta, ringPercent, showRing, statusBadge } from '@/utils/goalCardMeta'
+import { useStyles } from '@/composables/useStyles'
+import { pxify, tagChip } from '@/styles'
 import type { DaysChip } from '@/utils/detailFields'
 import type { Goal } from '@/types'
 
@@ -41,6 +43,11 @@ const badge = computed(() => statusBadge(props.goal.status))
 const meta = computed(() => cardMeta(props.counts, props.daysChip))
 const hasProgress = computed(() => showRing(props.ratio))
 const percent = computed(() => ringPercent(props.ratio))
+
+// The tag wears the same chip a todo or task row does, so a tag reads as one
+// thing across the three lists.
+const { c, dark } = useStyles()
+const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.value)))
 </script>
 
 <template>
@@ -85,6 +92,7 @@ const percent = computed(() => ringPercent(props.ratio))
     <p v-if="goal.description" class="gcard__desc">{{ goal.description }}</p>
 
     <div class="gcard__meta">
+      <span v-if="goal.tag" class="gcard__tag" :style="tagStyle">{{ goal.tag }}</span>
       <span v-if="badge" :class="['gcard__badge', `gcard__badge--${goal.status}`]">
         {{ badge }}
       </span>
@@ -250,6 +258,11 @@ const percent = computed(() => ringPercent(props.ratio))
   flex-wrap: nowrap;
   overflow: hidden;
   min-width: 0;
+}
+/* First in the meta row and never squeezed: it is what the list is filtered by. */
+.gcard__tag {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .gcard__none {
   font-size: var(--text-2xs);

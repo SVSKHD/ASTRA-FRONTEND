@@ -1,6 +1,16 @@
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { DANGER, WARNING, checkHalo, checkRing, doneText, pxify, tagChip, typeStep } from '@/styles'
+import {
+  DANGER,
+  WARNING,
+  checkHalo,
+  checkHaloDone,
+  checkRing,
+  doneText,
+  pxify,
+  tagChip,
+  typeStep,
+} from '@/styles'
 import type { DaysChip } from '@/utils/detailFields'
 
 // Long, readable timestamp for the detail panes ("Mon, Sep 13, 4:05 PM").
@@ -190,14 +200,16 @@ export function useDetailStyles() {
   )
   function boxStyle(done: boolean) {
     return pxify({
+      position: 'relative',
       width: 20,
       height: 20,
       flexShrink: 0,
       borderRadius: 'var(--radius-control)',
       border: '1.5px solid ' + (done ? c.value.accent : checkRing(c.value)),
-      boxShadow: done ? 'none' : checkHalo(c.value),
+      boxShadow: done ? checkHaloDone(c.value.accent) : checkHalo(c.value),
       background: done ? c.value.accent : 'transparent',
       transition: 'background-color .2s ease, border-color .2s ease, box-shadow .2s ease',
+      padding: 0,
       display: 'grid',
       placeItems: 'center',
       cursor: 'pointer',

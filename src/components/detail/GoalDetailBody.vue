@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
 import TextInput from '@/components/ui/TextInput.vue'
+import Icon from '@/components/ui/Icon.vue'
 // The goal side of the detail dialog (section 18d). The same rules as the task
 // body — inline everything, no Save button — over a different set of blocks:
 // progress, timeline, the recurring/metric panel, the points checklist, the
@@ -28,6 +29,7 @@ import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import GoalPointRow from '@/components/goals/GoalPointRow.vue'
 import NoteEditor from '@/components/notes/NoteEditor.vue'
 import ColorPicker from '@/components/ui/ColorPicker.vue'
+import TagPicker from '@/components/TagPicker.vue'
 import { downloadText } from '@/utils/noteExport'
 import type { GoalStatus } from '@/types'
 
@@ -211,6 +213,13 @@ defineExpose({
       <Dropdown label="Goal actions" :items="menuItems" @select="onMenu" />
     </div>
 
+    <!-- The same picker, from the same vocabulary, that a todo or a task is
+         tagged with — which is what lets the Goals list filter on the same tags. -->
+    <TagPicker
+      :model-value="goal.tag"
+      @update:model-value="app.updateGoal(goal.id, { tag: $event })"
+    />
+
     <DetailSection label="Progress">
       <div class="gdb__progress">
         <ProgressRing :ratio="progress.ratio" :size="56" :color="goal.color || undefined" />
@@ -302,7 +311,7 @@ defineExpose({
           :aria-label="t.done ? 'Mark not done' : 'Mark done'"
           @click.stop="app.toggleTask(t.id)"
         >
-          <span v-if="t.done" aria-hidden="true">✓</span>
+          <Icon v-if="t.done" name="check" size="xs" />
         </button>
         <button
           type="button"
@@ -332,7 +341,7 @@ defineExpose({
           :aria-label="t.done ? 'Mark not done' : 'Mark done'"
           @click.stop="app.toggleTodo(t.id)"
         >
-          <span v-if="t.done" aria-hidden="true">✓</span>
+          <Icon v-if="t.done" name="check" size="xs" />
         </button>
         <span class="gdb__attachedtitle" :class="t.done && 'gdb__attachedtitle--done'">
           {{ t.text || 'Untitled' }}
@@ -473,13 +482,19 @@ defineExpose({
   border: 1.5px solid var(--glass-border);
   background: transparent;
   color: var(--theme-on-accent, #fff);
-  font-size: var(--text-xs);
-  line-height: var(--lh-xs);
+  /* No button padding or text line box, so the tick sits dead centre. */
+  padding: 0;
+  line-height: 0;
   cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .gdb__box--on {
   background: var(--theme-accent);
   border-color: var(--theme-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 28%, transparent);
 }
 .gdb__attachedtitle {
   flex: 1;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
 import TextInput from '@/components/ui/TextInput.vue'
+import Icon from '@/components/ui/Icon.vue'
 // The task side of the detail dialog (section 18c). Everything here is inline
 // editable — there is no edit mode and no Save button. The free-text fields
 // autosave 600ms after typing stops (useInlineField); every other control writes
@@ -400,7 +401,7 @@ defineExpose({
             :aria-label="sub.done ? 'Mark not done' : 'Mark done'"
             @click.stop="app.toggleTask(sub.id)"
           >
-            <span v-if="sub.done" aria-hidden="true">✓</span>
+            <Icon v-if="sub.done" name="check" size="xs" />
           </button>
           <button
             type="button"
@@ -662,13 +663,19 @@ defineExpose({
   border: 1.5px solid var(--glass-border);
   background: transparent;
   color: var(--theme-on-accent, #fff);
-  font-size: var(--text-xs);
-  line-height: var(--lh-xs);
+  /* No button padding or text line box, so the tick sits dead centre. */
+  padding: 0;
+  line-height: 0;
   cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .tdb__box--on {
   background: var(--theme-accent);
   border-color: var(--theme-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 28%, transparent);
 }
 .tdb__subtitle {
   flex: 1;

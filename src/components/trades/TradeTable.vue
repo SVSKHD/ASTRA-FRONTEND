@@ -244,6 +244,18 @@ const firstOfDay = computed(() => {
   min-width: 0;
   border: 1px solid var(--layer-raised-border);
   border-radius: var(--radius-card);
+  /* The corners have to actually cut. The rail cell and the sticky header carry
+     their own backgrounds, and a square background inside a rounded box paints
+     straight over the curve — which is the green bar and the header ground
+     spilling past the top and bottom left corners.
+
+     `clip` rather than `hidden`, and the distinction is the whole reason the
+     rule above can stay true: `hidden` would make this element a scrollport and
+     the header would stick to THIS box instead of the viewport, which is the
+     420px window the comment above describes escaping. `clip` is specified as
+     non-scrollable, so the document stays the scrollport and the header goes on
+     holding against the top of the screen. */
+  overflow: clip;
   background: var(--layer-raised-bg);
   backdrop-filter: var(--layer-raised-blur);
   -webkit-backdrop-filter: var(--layer-raised-blur);

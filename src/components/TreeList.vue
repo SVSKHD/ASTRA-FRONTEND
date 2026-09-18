@@ -19,16 +19,18 @@ import { useTreeDrag, INDENT_PX, type TreeCollection } from '@/composables/useTr
 import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
 import { richPlain } from '@/utils/richText'
+import TitleTagPill from '@/components/TitleTagPill.vue'
 import {
   DANGER,
   WARNING,
   checkHalo,
+  checkHaloDone,
   checkRing,
+  checkTick,
   doneText,
   merge,
   pxify,
   rowBase,
-  tagChip,
   typeStep,
 } from '@/styles'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
@@ -55,7 +57,7 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [id: number] }>()
 
 const app = useAppStore()
-const { c, dark, s } = useStyles()
+const { c, s } = useStyles()
 const { todos, tasks } = storeToRefs(app)
 const accordion = useAccordionState()
 const { targetState, rootState, isSource, setAnnouncer } = useTreeDrag()
@@ -84,6 +86,17 @@ function expanded(id: number) {
 }
 function toggleExpand(id: number) {
   accordion.toggle(keyOf(id))
+}
+// The chevron sits right beside the drag grip, so a drag that starts or ends on
+// it must not fold the subtree: only a real tap toggles.
+let expandId: number | null = null
+const expandTap = useTapOpen(() => {
+  if (expandId != null) toggleExpand(expandId)
+})
+function onExpandClick(event: MouseEvent, id: number) {
+  expandId = id
+  expandTap.onClick(event)
+  expandId = null
 }
 function hasKids(id: number) {
   return childrenOf(index.value, id).length > 0
@@ -356,9 +369,6 @@ function depthRail(depth: number) {
     borderLeft: '3px solid color-mix(in srgb, ' + c.value.accent + ' 45%, transparent)',
   }
 }
-function chipStyle(tag: string) {
-  return pxify(tagChip(c.value, tag, dark.value))
-}
 // The expand button is only the hit target; the arrow is Caret (medium, 26px
 // box), the same disclosure used by every accordion and detail section.
 const chevronBtn = pxify({
@@ -374,16 +384,16 @@ const chevronBtn = pxify({
 const chevronSpacer = pxify({ width: 26, flexShrink: 0 })
 function boxStyle(id: number) {
   return pxify({
+    position: 'relative',
     width: 18,
     height: 18,
     flexShrink: 0,
     borderRadius: 'var(--radius-control)',
     border: '1.5px solid ' + (done(id) ? c.value.accent : checkRing(c.value)),
-    boxShadow: done(id) ? 'none' : checkHalo(c.value),
+    boxShadow: done(id) ? checkHaloDone(c.value.accent) : checkHalo(c.value),
     background: done(id) ? c.value.accent : 'transparent',
     transition: 'background-color .2s ease, border-color .2s ease, box-shadow .2s ease',
-    display: 'grid',
-    placeItems: 'center',
+    padding: 0,
     cursor: 'pointer',
   })
 }
@@ -524,7 +534,9 @@ const rootStripStyle = computed(() =>
             :style="chevronBtn"
             :aria-label="expanded(row.id) ? 'Collapse' : 'Expand'"
             :aria-expanded="expanded(row.id)"
-            @click.stop="toggleExpand(row.id)"
+            @pointerdown="expandTap.onPointerDown"
+            @pointercancel="expandTap.onPointerCancel"
+            @click.stop="(e: MouseEvent) => onExpandClick(e, row.id)"
           >
             <Caret :open="expanded(row.id)" />
           </button>
@@ -540,7 +552,12 @@ const rootStripStyle = computed(() =>
             aria-label="Toggle done"
             @click.stop="toggleDone(row.id)"
           >
-            <Icon v-if="done(row.id)" name="check" size="xs" :style="{ color: c.onAccent }" />
+            <Icon
+              v-if="done(row.id)"
+              name="check"
+              size="xs"
+              :style="[checkTick, { color: c.onAccent }]"
+            />
           </button>
 
           <div
@@ -550,11 +567,10 @@ const rootStripStyle = computed(() =>
             @click="tap.onClick"
           >
             <div :style="titleLine">
-              <span :style="textStyle(row.id)">{{ title(row.id) }}</span>
+              <span :style="textStyle(row.id)"
+                ><TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" />{{ title(row.id) }}</span
+              >
               <div :style="s.chipRow">
-                <span v-if="tagOf(row.id)" :style="chipStyle(tagOf(row.id))">{{
-                  tagOf(row.id)
-                }}</span>
                 <span v-if="dueLabel(row.id)" :style="dueChipStyle"
                   >due {{ dueLabel(row.id) }}</span
                 >

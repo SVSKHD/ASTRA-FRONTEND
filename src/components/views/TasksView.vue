@@ -10,7 +10,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { DANGER, WARNING, doneText, merge, pxify, rowBase, tagChip, typeStep } from '@/styles'
+import { DANGER, WARNING, doneText, merge, pxify, rowBase, typeStep } from '@/styles'
 import { todayKey, isOverdueTask } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
@@ -24,8 +24,11 @@ import TreeList from '@/components/TreeList.vue'
 import TaskDetail from '@/components/TaskDetail.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import { useTapOpen } from '@/composables/useTapOpen'
+import TitleTagPill from '@/components/TitleTagPill.vue'
 import { nestedChildIds } from '@/utils/links'
-import { buildIndex, progressOf } from '@/utils/taskTree'
+import { buildIndex, descendantsOf, progressOf } from '@/utils/taskTree'
+import { emptyTagQueryMessage, matchesTagQuery } from '@/utils/tagFilter'
+import TagFilterInput from '@/components/TagFilterInput.vue'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useLongList } from '@/composables/useLongList'
 import { useDragNest } from '@/composables/useDragNest'
@@ -33,7 +36,7 @@ import type { LinkRef, Task } from '@/types'
 
 const app = useAppStore()
 const ui = useUiStore()
-const { c, dark, s, panelStyle, isMobile } = useStyles()
+const { c, s, panelStyle, isMobile } = useStyles()
 const { startDrag, targetState } = useDragNest()
 const { tasks, draggingId, hideCompleted } = storeToRefs(app)
 const { now } = storeToRefs(ui)
@@ -60,9 +63,23 @@ const topLevel = computed(() =>
   tasks.value.filter((t) => !nestedIds.value.has(t.id) && !treeNestedIds.value.has(t.id)),
 )
 
+// --- tag filter --------------------------------------------------------------
+// Same rule as the todo list: a top-level task matches on its own tag or any
+// subtask's, and the filter applies before the split so every section narrows.
+const tagQuery = ref('')
+function treeTags(t: Task): string[] {
+  return [t.tag, ...descendantsOf(taskIndex.value, t.id).map((d) => d.tag)]
+}
+const tagGroups = computed(() => topLevel.value.map(treeTags))
+const shownTopLevel = computed(() => {
+  if (!tagQuery.value.trim()) return topLevel.value
+  const inUse = tagGroups.value.flat()
+  return topLevel.value.filter((t) => matchesTagQuery(treeTags(t), tagQuery.value, inUse))
+})
+
 const completedSort = ref<'recent' | 'original'>('recent')
 const split = computed(() =>
-  splitList(topLevel.value, {
+  splitList(shownTopLevel.value, {
     isDone: (t) => t.status === 'done',
     isCarried: (t) => isOverdueTask(t, todayStr.value),
     completedAt: (t) => t.completedAt,
@@ -191,9 +208,6 @@ function textStyle(t: Task) {
   })
 }
 const gripDots = [0, 1, 2, 3, 4, 5]
-function chipStyle(tag: string) {
-  return pxify(tagChip(c.value, tag, dark.value))
-}
 const ageChipStyle = computed(() =>
   pxify({
     ...typeStep('2xs'),
@@ -253,6 +267,15 @@ const splitLayout = pxify({
   flex: 1,
   minHeight: 0,
 })
+// The filter input stays put above the list while the list scrolls under it.
+const leftColumn = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+  flex: 1,
+  minHeight: 0,
+})
+const tagInputRow = pxify({ padding: '4px 10px 0' })
 const listColumn = pxify({
   display: 'flex',
   flexDirection: 'column',
@@ -301,139 +324,153 @@ function onRowDragOver(e: DragEvent) {
       </template>
     </ListToolbar>
     <ProgressLine :done="split.stats.done" :total="split.stats.total" />
-    <div :style="isMobile ? listColumn : splitLayout">
-      <div :style="listColumn">
-        <div v-if="tasks.length === 0" :style="s.empty">Nothing yet — add your first task.</div>
-
-        <!-- 1. Carried over accordion -->
-        <CarriedOverGroup
-          v-if="carried.length > 0"
-          collection="tasks"
-          :count="carried.length"
-          :subtitle="carriedSubtitle"
-        >
-          <div v-for="t in carried" :key="t.id" :style="parentCardStyle">
-            <div
-              :style="[rowStyle(t), selectedRowStyle(t.id), nestHighlight(t.id)]"
-              v-hover-style="s.rowHover"
-              :data-nest-id="t.id"
-              data-nest-collection="tasks"
-              @dragover="onRowDragOver"
-              @drop="onGripDrop($event, t)"
-            >
-              <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
-              <span
-                :style="s.grip"
-                role="button"
-                aria-label="Drag to nest"
-                title="Drag to nest"
-                @pointerdown="onGripDown($event, t)"
-                ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-              ></span>
-              <div
-                :style="s.taskMain"
-                @pointerdown="onRowPointerDown($event, t)"
-                @pointercancel="tap.onPointerCancel"
-                @click="tap.onClick"
-                @dblclick="onRowDblClick(t)"
-              >
-                <span :style="textStyle(t)">{{ t.title }}</span>
-                <div :style="s.chipRow">
-                  <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-                  <span :style="subCountStyle" title="Subtasks done / total"
-                    >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                  >
-                  <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
-                    >rolled over ×{{ t.rolloverCount }}</span
-                  >
-                </div>
-              </div>
-              <RemindBell collection="tasks" :id="t.id" />
-              <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-              <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
-                ×
-              </button>
-            </div>
-            <div v-if="linksOpen(t)" :style="linkBody">
-              <LinkedAccordion
-                v-for="ch in t.linked"
-                :key="ch.collection + ':' + ch.id"
-                :item-ref="ch"
-                :parent-ref="{ id: t.id, collection: 'tasks' }"
-                :depth="0"
-                :is-root="false"
-              />
-            </div>
-          </div>
-        </CarriedOverGroup>
-
-        <!-- 2. Active items as a flat, drag-reorderable tree (grip handle, reorder /
-             nest / promote indicators, root strip). -->
-        <TreeList
-          collection="tasks"
-          :root-ids="activeRootIds"
-          :selectable="!isMobile"
-          :selected-id="selectedId"
-          @select="selectedId = $event"
-        />
-
-        <!-- 3. Completed section -->
-        <CompletedSection
-          v-if="!hideCompleted && completed.length > 0"
-          collection="tasks"
-          :count="completed.length"
-          :sort="completedSort"
-          clearable
-          @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
-          @clear="app.archiveCompleted('tasks')"
-        >
-          <template v-for="t in completedWindow.visible.value" :key="t.id">
-            <div :style="[rowStyle(t, true), selectedRowStyle(t.id)]">
-              <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-              <div
-                :style="s.taskMain"
-                @click="
-                  openTask(
-                    t.id,
-                    completedWindow.visible.value.map((x) => x.id),
-                  )
-                "
-              >
-                <span :style="textStyle(t)">{{ t.title }}</span>
-                <div :style="s.chipRow">
-                  <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-                  <span :style="subCountStyle" title="Subtasks done / total"
-                    >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                  >
-                  <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
-                </div>
-              </div>
-              <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
-                ×
-              </button>
-            </div>
-            <div v-if="linksOpen(t)" :style="linkBody">
-              <LinkedAccordion
-                v-for="ch in t.linked"
-                :key="ch.collection + ':' + ch.id"
-                :item-ref="ch"
-                :parent-ref="{ id: t.id, collection: 'tasks' }"
-                :depth="0"
-                :is-root="false"
-              />
-            </div>
-          </template>
-          <button
-            v-if="completedWindow.remaining.value > 0"
-            :style="s.showMoreRow"
-            @click="completedWindow.more()"
+    <!-- data-own-keys: ↑/↓ scroll this list rather than switch tabs (globalKeys). -->
+    <div :style="isMobile ? leftColumn : splitLayout" data-own-keys>
+      <div :style="leftColumn">
+        <div :style="tagInputRow">
+          <TagFilterInput v-model="tagQuery" :groups="tagGroups" />
+        </div>
+        <div :style="listColumn">
+          <div v-if="tasks.length === 0" :style="s.empty">Nothing yet — add your first task.</div>
+          <div
+            v-else-if="tagQuery.trim() && !carried.length && !active.length && !completed.length"
+            :style="s.empty"
           >
-            Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
-              completedWindow.remaining.value
-            }}
-            hidden)
-          </button>
-        </CompletedSection>
+            {{ emptyTagQueryMessage(tagQuery, 'tasks') }}
+          </div>
+
+          <!-- 1. Carried over accordion -->
+          <CarriedOverGroup
+            v-if="carried.length > 0"
+            collection="tasks"
+            :count="carried.length"
+            :subtitle="carriedSubtitle"
+          >
+            <div v-for="t in carried" :key="t.id" :style="parentCardStyle">
+              <div
+                :style="[rowStyle(t), selectedRowStyle(t.id), nestHighlight(t.id)]"
+                v-hover-style="s.rowHover"
+                :data-nest-id="t.id"
+                data-nest-collection="tasks"
+                @dragover="onRowDragOver"
+                @drop="onGripDrop($event, t)"
+              >
+                <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
+                <span
+                  :style="s.grip"
+                  role="button"
+                  aria-label="Drag to nest"
+                  title="Drag to nest"
+                  @pointerdown="onGripDown($event, t)"
+                  ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+                ></span>
+                <div
+                  :style="s.taskMain"
+                  @pointerdown="onRowPointerDown($event, t)"
+                  @pointercancel="tap.onPointerCancel"
+                  @click="tap.onClick"
+                  @dblclick="onRowDblClick(t)"
+                >
+                  <span :style="textStyle(t)"
+                    ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.title }}</span
+                  >
+                  <div :style="s.chipRow">
+                    <span :style="subCountStyle" title="Subtasks done / total"
+                      >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                    >
+                    <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
+                      >rolled over ×{{ t.rolloverCount }}</span
+                    >
+                  </div>
+                </div>
+                <RemindBell collection="tasks" :id="t.id" />
+                <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+                <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
+                  ×
+                </button>
+              </div>
+              <div v-if="linksOpen(t)" :style="linkBody">
+                <LinkedAccordion
+                  v-for="ch in t.linked"
+                  :key="ch.collection + ':' + ch.id"
+                  :item-ref="ch"
+                  :parent-ref="{ id: t.id, collection: 'tasks' }"
+                  :depth="0"
+                  :is-root="false"
+                />
+              </div>
+            </div>
+          </CarriedOverGroup>
+
+          <!-- 2. Active items as a flat, drag-reorderable tree (grip handle, reorder /
+             nest / promote indicators, root strip). -->
+          <TreeList
+            collection="tasks"
+            :root-ids="activeRootIds"
+            :selectable="!isMobile"
+            :selected-id="selectedId"
+            @select="selectedId = $event"
+          />
+
+          <!-- 3. Completed section -->
+          <CompletedSection
+            v-if="!hideCompleted && completed.length > 0"
+            collection="tasks"
+            :count="completed.length"
+            :sort="completedSort"
+            clearable
+            @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
+            @clear="app.archiveCompleted('tasks')"
+          >
+            <template v-for="t in completedWindow.visible.value" :key="t.id">
+              <div :style="[rowStyle(t, true), selectedRowStyle(t.id)]">
+                <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+                <div
+                  :style="s.taskMain"
+                  @click="
+                    openTask(
+                      t.id,
+                      completedWindow.visible.value.map((x) => x.id),
+                    )
+                  "
+                >
+                  <span :style="textStyle(t)"
+                    ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.title }}</span
+                  >
+                  <div :style="s.chipRow">
+                    <span :style="subCountStyle" title="Subtasks done / total"
+                      >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                    >
+                    <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
+                  </div>
+                </div>
+                <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
+                  ×
+                </button>
+              </div>
+              <div v-if="linksOpen(t)" :style="linkBody">
+                <LinkedAccordion
+                  v-for="ch in t.linked"
+                  :key="ch.collection + ':' + ch.id"
+                  :item-ref="ch"
+                  :parent-ref="{ id: t.id, collection: 'tasks' }"
+                  :depth="0"
+                  :is-root="false"
+                />
+              </div>
+            </template>
+            <button
+              v-if="completedWindow.remaining.value > 0"
+              :style="s.showMoreRow"
+              @click="completedWindow.more()"
+            >
+              Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
+                completedWindow.remaining.value
+              }}
+              hidden)
+            </button>
+          </CompletedSection>
+        </div>
       </div>
 
       <!-- Right column: the selected task's details and subtasks (desktop only). -->

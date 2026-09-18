@@ -9,6 +9,7 @@
 // move from one todo to the next.
 import { computed } from 'vue'
 import { useAccordionState } from '@/composables/useAccordionState'
+import { useTapOpen } from '@/composables/useTapOpen'
 import { useDetailStyles } from '@/composables/useDetailStyles'
 import Caret from '@/components/ui/Caret.vue'
 
@@ -31,6 +32,9 @@ const open = computed(() => acc.isOpen(key.value, props.defaultOpen))
 function toggle() {
   acc.toggle(key.value, props.defaultOpen)
 }
+// Only a real tap toggles — not a text selection dragged across the header, a
+// long press, or a touch scroll that happened to start on it.
+const tap = useTapOpen(toggle)
 </script>
 
 <template>
@@ -40,7 +44,9 @@ function toggle() {
         type="button"
         class="psec__toggle ui-focus-ring"
         :aria-expanded="open"
-        @click="toggle"
+        @pointerdown="tap.onPointerDown"
+        @pointercancel="tap.onPointerCancel"
+        @click="tap.onClick"
       >
         <Caret :open="open" />
         <span class="psec__title">{{ title }}</span>

@@ -1561,3 +1561,21 @@ export function checkRing(c: Theme): string {
 export function checkHalo(c: Theme): string {
   return '0 0 0 3px color-mix(in srgb, ' + c.text + ' 7%, transparent)'
 }
+
+// The ticked box keeps the same halo, shaded in its own fill colour, so the
+// ring still surrounds the box once it fills instead of vanishing.
+export function checkHaloDone(fill: string): string {
+  return '0 0 0 3px color-mix(in srgb, ' + fill + ' 28%, transparent)'
+}
+
+// The tick inside a checkbox button. Grid-centring inside a <button> is at the
+// mercy of the UA's button layout (padding, line box, baseline), which left the
+// tick sitting low and right. Pinning it to the exact centre of the box does not
+// depend on any of that. The box itself needs `position: relative`.
+export const checkTick: CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  pointerEvents: 'none',
+}

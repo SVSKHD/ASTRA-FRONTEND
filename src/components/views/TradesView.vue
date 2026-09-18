@@ -46,6 +46,7 @@ import SessionDesk from '@/components/trades/SessionDesk.vue'
 import SignalTable from '@/components/trades/SignalTable.vue'
 import TradeCalendar from '@/components/trades/TradeCalendar.vue'
 import TradeForm, { type ArmRequest } from '@/components/trades/TradeForm.vue'
+import TradeImport from '@/components/trades/TradeImport.vue'
 import TradeSettingsPanel from '@/components/trades/TradeSettingsPanel.vue'
 import TradeSkeleton from '@/components/trades/TradeSkeleton.vue'
 import TradeTable, { type RowState } from '@/components/trades/TradeTable.vue'
@@ -101,6 +102,7 @@ const MODES = [
   { value: 'journal', label: 'Journal' },
   { value: 'signals', label: 'Signals' },
   { value: 'combined', label: 'Combined' },
+  { value: 'import', label: 'Import' },
 ]
 
 const visibleTrades = computed(() =>
@@ -398,7 +400,13 @@ defineExpose({ focus: openForm })
            have no day to be about. -->
       <NewsStrip :items="news.items.value" :day="route.day.value" />
 
-      <TradeSkeleton v-if="log.loading.value" part="main" />
+      <!-- An imported file is not the month, so it does not wait on the month:
+           this is the one mode that is ready before Firestore is, and it takes
+           the full width because a CSV spanning three years has nothing to say
+           to a month picker. -->
+      <TradeImport v-if="route.mode.value === 'import'" />
+
+      <TradeSkeleton v-else-if="log.loading.value" part="main" />
 
       <!-- CALENDAR | TABLE. One switch, one calendar, three tables. -->
       <div v-else class="tv__main">

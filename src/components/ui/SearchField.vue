@@ -11,7 +11,7 @@ withDefaults(
     label?: string
     disabled?: boolean
   }>(),
-  { placeholder: 'Search…', size: 'md' },
+  { placeholder: 'Search…', size: 'lg' },
 )
 const emit = defineEmits<{ 'update:modelValue': [string] }>()
 const uid = useId()

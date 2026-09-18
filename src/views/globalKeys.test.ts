@@ -62,6 +62,37 @@ describe('the shell stands down', () => {
   })
 })
 
+describe('accidental tab changes', () => {
+  it('stands down on an accordion toggle that kept focus after a click', () => {
+    const el = target('<button data-t aria-expanded="true">Completed · 3</button>')
+    expect(handledByWidget(press(el))).toBe(true)
+    // Closed counts too — the attribute, not its value, marks the disclosure.
+    const shut = target('<div role="button" data-t aria-expanded="false"></div>')
+    expect(handledByWidget(press(shut))).toBe(true)
+  })
+
+  it('stands down inside a region that owns its keys', () => {
+    const el = target('<div data-own-keys><div class="row"><span data-t>Row</span></div></div>')
+    expect(handledByWidget(press(el))).toBe(true)
+  })
+
+  it('reads the last click when the key lands on <body>', () => {
+    // Clicking a plain row does not move focus, so the key's target is <body>.
+    const row = target('<div data-own-keys><div data-t class="row">Row</div></div>')
+    expect(handledByWidget(press(document.body), row)).toBe(true)
+    // A click somewhere ordinary leaves the shortcut working.
+    const plain = target('<nav><button data-t>Todos</button></nav>')
+    expect(handledByWidget(press(document.body), plain)).toBe(false)
+    expect(handledByWidget(press(document.body))).toBe(false)
+  })
+
+  it('does not let a stale click override a focused element', () => {
+    const row = target('<div data-own-keys><div data-t>Row</div></div>')
+    const btn = target('<button data-t>Add income</button>', 'button')
+    expect(handledByWidget(press(btn), row)).toBe(false)
+  })
+})
+
 describe('the shell keeps the key', () => {
   it('on a plain button, so ← / → still step through tabs from anywhere ordinary', () => {
     // The shortcut is the point of the shell. Standing down everywhere would

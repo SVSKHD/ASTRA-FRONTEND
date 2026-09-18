@@ -1,6 +1,7 @@
 // The toolbar's density and its two shapes (section 19c).
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import GoalsToolbar from '@/components/goals/GoalsToolbar.vue'
@@ -12,9 +13,20 @@ function ruleHas(selector: string, declaration: string): boolean {
   return SOURCE.slice(start, SOURCE.indexOf('}', start)).replace(/\s+/g, ' ').includes(declaration)
 }
 
+// The tag filter in the toolbar reads the shared tag vocabulary from the store.
+beforeEach(() => setActivePinia(createPinia()))
+
 function mountToolbar(over: Record<string, unknown> = {}) {
   return mount(GoalsToolbar, {
-    props: { search: '', status: 'all', sort: 'order', showFilters: true, ...over },
+    props: {
+      search: '',
+      status: 'all',
+      tag: '',
+      tagGroups: [],
+      sort: 'order',
+      showFilters: true,
+      ...over,
+    },
     attachTo: document.body,
   })
 }

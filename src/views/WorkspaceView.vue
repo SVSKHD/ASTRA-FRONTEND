@@ -231,15 +231,24 @@ function onKey(e: KeyboardEvent) {
   // (which is what this used to do) misses every one of the composite widgets,
   // and a `<button role="tab">` is not an INPUT.
   if (handledByWidget(e)) return
+  if (e.key.toLowerCase() === 'n') {
+    e.preventDefault()
+    focusPrimaryInput()
+    return
+  }
+  // The bare tab keys also stand down when the last click was inside a region
+  // that owns them (the todo/task list, its detail pane): clicking a row leaves
+  // focus on <body>, and ↓ to scroll it used to switch the whole tab instead.
+  if (handledByWidget(e, lastPointer)) return
   // The rail is vertical now, so ↑/↓ step through tabs; ←/→ are kept as aliases
   // so the old horizontal habit still works.
   if (e.key === 'ArrowDown' || e.key === 'ArrowRight') ui.cycleTab(1)
   else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') ui.cycleTab(-1)
   else if (e.key >= '1' && e.key <= '9') ui.setTabByIndex(parseInt(e.key, 10) - 1)
-  else if (e.key.toLowerCase() === 'n') {
-    e.preventDefault()
-    focusPrimaryInput()
-  }
+}
+let lastPointer: Element | null = null
+function onPointer(e: PointerEvent) {
+  lastPointer = e.target instanceof Element ? e.target : null
 }
 
 // --- timers + listeners -----------------------------------------------------
@@ -310,6 +319,8 @@ onMounted(() => {
   window.addEventListener('focus', onResume)
   document.addEventListener('visibilitychange', onResume)
   document.addEventListener('keydown', onKey)
+  // Capture, so a handler that stops propagation cannot hide where the click was.
+  document.addEventListener('pointerdown', onPointer, true)
 })
 onBeforeUnmount(() => {
   lock.stop()
@@ -319,6 +330,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('focus', onResume)
   document.removeEventListener('visibilitychange', onResume)
   document.removeEventListener('keydown', onKey)
+  document.removeEventListener('pointerdown', onPointer, true)
 })
 </script>
 

@@ -9,8 +9,9 @@ import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
-import { checkHalo, checkRing, doneText, pxify, typeStep } from '@/styles'
+import { checkHalo, checkHaloDone, checkRing, checkTick, doneText, pxify, typeStep } from '@/styles'
 import { MAX_LINK_DEPTH } from '@/utils/links'
+import { useTapOpen } from '@/composables/useTapOpen'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import type { LinkRef, Task, Todo } from '@/types'
@@ -24,8 +25,10 @@ const props = withDefaults(
     parentRef?: LinkRef | null
     isRoot?: boolean
     defaultExpanded?: boolean
+    /** The accordion key of the node this one is nested under (set by the recursion). */
+    parentPath?: string
   }>(),
-  { depth: 0, parentRef: null, isRoot: false, defaultExpanded: false },
+  { depth: 0, parentRef: null, isRoot: false, defaultExpanded: false, parentPath: '' },
 )
 
 const app = useAppStore()
@@ -34,6 +37,20 @@ const accordion = useAccordionState()
 
 const item = computed<Todo | Task | undefined>(() => app.linkableById(props.itemRef))
 const itemKey = computed(() => props.itemRef.collection + ':' + props.itemRef.id)
+// The open state is keyed by WHERE the node sits, not just what it is. The same
+// item can be linked under several parents and shown in the list and a dialog at
+// once; keyed by "tasks:5" alone, expanding it in one place expanded every copy.
+// A root keeps the bare key, which is what the list's "Expand links" writes.
+const parentKey = computed(() =>
+  props.parentPath
+    ? props.parentPath
+    : props.parentRef
+      ? props.parentRef.collection + ':' + props.parentRef.id
+      : '',
+)
+const nodeKey = computed(() =>
+  parentKey.value ? parentKey.value + '>' + itemKey.value : itemKey.value,
+)
 const type = computed<'todo' | 'task'>(() =>
   props.itemRef.collection === 'todos' ? 'todo' : 'task',
 )
@@ -56,10 +73,11 @@ const children = computed<LinkRef[]>(() =>
 const hasChildren = computed(() => children.value.length > 0)
 const progress = computed(() => app.linkProgressOf(props.itemRef))
 
-const expanded = computed(() => accordion.isOpen(itemKey.value, props.defaultExpanded))
+const expanded = computed(() => accordion.isOpen(nodeKey.value, props.defaultExpanded))
 function toggleExpand() {
-  accordion.toggle(itemKey.value, props.defaultExpanded)
+  accordion.toggle(nodeKey.value, props.defaultExpanded)
 }
+const tap = useTapOpen(toggleExpand)
 
 // Breadcrumb for a top-level orphan: it has parents but is not nested under any
 // of them here, so name them ("part of ‹…›") to keep the relationship visible.
@@ -115,14 +133,16 @@ const chevronBtn = pxify({
 const chevronSpacer = pxify({ width: 26, flexShrink: 0 })
 function boxStyle() {
   return pxify({
+    position: 'relative',
     width: 16,
     height: 16,
     flexShrink: 0,
     borderRadius: 5,
     border: '1.5px solid ' + (done.value ? c.value.accent : checkRing(c.value)),
-    boxShadow: done.value ? 'none' : checkHalo(c.value),
+    boxShadow: done.value ? checkHaloDone(c.value.accent) : checkHalo(c.value),
     background: done.value ? c.value.accent : 'transparent',
     transition: 'background-color .2s ease, border-color .2s ease, box-shadow .2s ease',
+    padding: 0,
     display: 'grid',
     placeItems: 'center',
     cursor: 'pointer',
@@ -213,14 +233,16 @@ const nodeWrap = pxify({ display: 'flex', flexDirection: 'column' })
         :style="chevronBtn"
         :aria-label="expanded ? 'Collapse' : 'Expand'"
         :aria-expanded="expanded"
-        @click="toggleExpand"
+        @pointerdown="tap.onPointerDown"
+        @pointercancel="tap.onPointerCancel"
+        @click="tap.onClick"
       >
         <Caret :open="expanded" />
       </button>
       <span v-else :style="chevronSpacer"></span>
 
       <button type="button" :style="boxStyle()" aria-label="Toggle done" @click="toggleDone">
-        <Icon v-if="done" name="check" size="xs" :style="{ color: c.onAccent }" />
+        <Icon v-if="done" name="check" size="xs" :style="[checkTick, { color: c.onAccent }]" />
       </button>
 
       <span :style="titleStyle" @click="openDetail">{{ title }}</span>
@@ -254,6 +276,7 @@ const nodeWrap = pxify({ display: 'flex', flexDirection: 'column' })
             :item-ref="child"
             :depth="depth + 1"
             :parent-ref="itemRef"
+            :parent-path="nodeKey"
             :is-root="false"
             :default-expanded="defaultExpanded"
           />

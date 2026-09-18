@@ -66,6 +66,10 @@ export const ICONS = {
     '<rect x="4" y="3" width="16" height="18" rx="2" /><line x1="7.5" y1="8" x2="16.5" y2="8" /><line x1="7.5" y1="12" x2="16.5" y2="12" /><line x1="7.5" y1="16" x2="13" y2="16" />',
   palette:
     '<path d="M12 3a9 9 0 1 0 0 18c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.5-1.1-.3-.3-.5-.7-.5-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-3.9-4-6.6-9-6.6z" /><circle cx="7.5" cy="11.5" r="1.1" /><circle cx="12" cy="8" r="1.1" /><circle cx="16.5" cy="11.5" r="1.1" />',
+  // Edit. The nib-and-baseline pencil rather than the diagonal-only one: at 14px
+  // a bare diagonal reads as a slash, and this is the glyph that has to say
+  // "change this" beside a bin that says "remove it".
+  pencil: '<path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z" />',
   // The rupee sign, drawn on the same grid as the rest so it sits in a row of
   // icons rather than beside them as a piece of type.
   rupee: '<path d="M6 5h9a4 4 0 0 1 0 8H7l6 6" /><line x1="6" y1="9" x2="16" y2="9" />',

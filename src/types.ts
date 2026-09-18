@@ -350,6 +350,10 @@ export interface Goal extends Timestamped, Hierarchical {
   startDate: string
   color: string
   icon: string
+  // One tag from the shared vocabulary, the same single tag todos and tasks
+  // carry, so the three lists filter on one axis. '' = untagged; goals stored
+  // before the field existed are backfilled to '' on read.
+  tag: string
   source: GoalSource
   // The original import link, for traceability + idempotent re-import merge.
   sourceUrl: string

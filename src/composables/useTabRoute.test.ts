@@ -12,6 +12,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { isTabKey, tabOf, useTabRoute } from '@/composables/useTabRoute'
 import { LAST_ROUTE_KEY, sessionRead } from '@/composables/useTradeRoute'
+import { rememberedTab } from '@/utils/lastTab'
 
 const Blank = defineComponent({ render: () => h('div') })
 
@@ -24,6 +25,7 @@ function makeRouter() {
       { path: '/expenses', name: 'expenses', component: Blank },
       { path: '/news', name: 'news', component: Blank },
       { path: '/code', name: 'code', component: Blank },
+      { path: '/goals/:goalId(\\d+)', name: 'goal-page', component: Blank },
     ],
   })
 }
@@ -57,6 +59,12 @@ describe('reading a tab out of a location', () => {
   it('takes every other tab from ?tab=', () => {
     expect(tabOf('/', { tab: 'finances' })).toBe('finances')
     expect(tabOf('/', { tab: 'goals' })).toBe('goals')
+  })
+
+  it('names the tab a page inside a tab belongs to, so a refresh there keeps it', () => {
+    expect(tabOf('/tasks/12/view', {})).toBe('tasks')
+    expect(tabOf('/goals/3', {})).toBe('goals')
+    expect(tabOf('/goals/import', {})).toBe('')
   })
 
   it('refuses a tab that is not one', () => {
@@ -106,6 +114,23 @@ describe('writing the tab out', () => {
     // bare one and losing the month.
     expect(router.currentRoute.value.query.month).toBe('2026-08')
     expect(router.currentRoute.value.query.day).toBe('2026-08-12')
+    wrapper.unmount()
+  })
+
+  it('remembers the tab beyond this browser tab, for a relaunch on the bare domain', async () => {
+    const { ui, wrapper } = await mountAt('/')
+    ui.setTab('tasks')
+    await flushPromises()
+    expect(rememberedTab()).toBe('tasks')
+    wrapper.unmount()
+  })
+
+  it('leaves a goal page’s own address alone', async () => {
+    const { ui, router, wrapper } = await mountAt('/goals/7')
+    ui.setTab('goals')
+    await flushPromises()
+    // It used to be replaced by `/?tab=goals`, closing the page it was showing.
+    expect(router.currentRoute.value.path).toBe('/goals/7')
     wrapper.unmount()
   })
 

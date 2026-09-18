@@ -79,39 +79,76 @@ const badges = computed<Partial<Record<TabKey, number>>>(() => {
 })
 
 // ---- rotation -------------------------------------------------------------
+// ACCIDENTAL TAB CHANGES. The dock is a carousel, which makes it easy to change
+// tab without meaning to, three ways — each guarded below:
+//   1. a page scroll whose pointer drifts across the dock spun it;
+//   2. a click that wobbled became a drag that rotated, and the release then
+//      also "clicked" whichever icon had slid under the pointer;
+//   3. after any change the icons animate to new places for ~320ms, so a quick
+//      second click (or a double click) landed on a different tab.
+const SETTLE_MS = 350
+let settledAt = 0
 function rotate(step: number) {
   ui.cycleTab(step)
+  settledAt = performance.now() + SETTLE_MS
 }
-function jumpTo(key: TabKey) {
+function jumpTo(key: TabKey, e: MouseEvent) {
+  // A click while the icons are still moving is aimed at where an icon WAS.
+  if (performance.now() < settledAt || e.detail > 1) return
+  if (tab.value === key) return
   ui.setTab(key)
+  settledAt = performance.now() + SETTLE_MS
 }
 
-// Wheel rotates, one detent at a time (accumulated so a trackpad's many small
-// deltas don't spin it wildly).
+// Wheel rotates, one detent at a time — but only once the pointer has rested on
+// the dock, so scrolling the page past it does nothing.
+const WHEEL_DWELL_MS = 300
+let hoverSince = 0
+function onPointerEnter() {
+  hoverSince = performance.now()
+}
+function onPointerLeave() {
+  hoverSince = 0
+  wheelAcc = 0
+}
 let wheelAcc = 0
 let wheelLock = false
 function onWheel(e: WheelEvent) {
   e.preventDefault()
+  if (!hoverSince || performance.now() - hoverSince < WHEEL_DWELL_MS) return
   if (wheelLock) return
   wheelAcc += horizontal.value ? e.deltaX || e.deltaY : e.deltaY
-  if (Math.abs(wheelAcc) < 24) return
+  if (Math.abs(wheelAcc) < 40) return
   rotate(wheelAcc > 0 ? 1 : -1)
   wheelAcc = 0
   wheelLock = true
-  setTimeout(() => (wheelLock = false), 90)
+  setTimeout(() => (wheelLock = false), 180)
 }
 
-// Drag rotates: every SPACING px dragged past the start steps one icon.
+// Drag rotates: every SPACING px dragged past the start steps one icon. Nothing
+// happens until the pointer has clearly moved, and a press that did turn into a
+// drag never also counts as a click on release.
+const DRAG_SLOP_PX = 10
 let dragStart: number | null = null
 let dragAcc = 0
+let dragging = false
+let swallowClick = false
 function onPointerDown(e: PointerEvent) {
+  if (e.button !== 0) return
   dragStart = horizontal.value ? e.clientX : e.clientY
   dragAcc = 0
-  ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  dragging = false
+  swallowClick = false
 }
 function onPointerMove(e: PointerEvent) {
   if (dragStart == null) return
   const pos = horizontal.value ? e.clientX : e.clientY
+  if (!dragging) {
+    if (Math.abs(pos - dragStart) < DRAG_SLOP_PX) return
+    dragging = true
+    swallowClick = true
+    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  }
   const delta = pos - dragStart - dragAcc
   const threshold = SPACING.value
   if (delta <= -threshold) {
@@ -124,6 +161,14 @@ function onPointerMove(e: PointerEvent) {
 }
 function onPointerUp() {
   dragStart = null
+  dragging = false
+}
+// Capture phase, so the item's own click handler never sees a drag's release.
+function onClickCapture(e: MouseEvent) {
+  if (!swallowClick) return
+  swallowClick = false
+  e.stopPropagation()
+  e.preventDefault()
 }
 onBeforeUnmount(() => {
   dragStart = null
@@ -267,10 +312,13 @@ const tip = computed(() =>
     class="dock"
     aria-label="Sections"
     @wheel="onWheel"
+    @pointerenter="onPointerEnter"
+    @pointerleave="onPointerLeave"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
     @pointercancel="onPointerUp"
+    @click.capture="onClickCapture"
   >
     <div :style="track">
       <button
@@ -281,7 +329,7 @@ const tip = computed(() =>
         :aria-label="t.label"
         :aria-current="tab === t.key ? 'page' : undefined"
         :tabindex="opacityFor(ringDelta(i)) === 0 ? -1 : 0"
-        @click="jumpTo(t.key)"
+        @click="jumpTo(t.key, $event)"
       >
         <span
           class="dock-glyph"

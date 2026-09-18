@@ -256,6 +256,7 @@ describe('goals', () => {
         startDate: '',
         color: '',
         icon: '',
+        tag: '',
         source: 'manual',
         sourceUrl: '',
         parentId: null,

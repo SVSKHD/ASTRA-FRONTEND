@@ -13,6 +13,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { debounce } from '@/utils/syncGuard'
 import { daysRemaining } from '@/utils/detailFields'
+import { matchesTagFilter } from '@/utils/tagFilter'
 import GoalsToolbar from '@/components/goals/GoalsToolbar.vue'
 // The wide page is heavy (the metric chart, a TreeList per attachment) and is
 // rendered only once a goal is opened on it, so it stays off the grid's first
@@ -44,6 +45,9 @@ const panelGoalExists = computed(
   () => panelGoalId.value != null && goals.value.some((g) => g.id === panelGoalId.value),
 )
 const statusFilter = ref<GoalStatus | 'all'>('all')
+// '' = every tag. Kept for the session only: a filter that silently survives a
+// reload is a list that looks like it lost its goals.
+const tagFilter = ref('')
 const sortKey = ref<'order' | 'target' | 'progress'>('order')
 
 // Search is debounced (section 19d): `search` is what the field shows, `query`
@@ -170,11 +174,19 @@ interface GoalRow {
   ratio: number
   counts: { checklist: number; tasks: number; todos: number }
 }
-const rows = computed<GoalRow[]>(() => {
+// The status filter first, on its own, because the tag filter's counts are
+// taken from it: "Work · 3" should mean three of the goals this status shows.
+const byStatus = computed(() =>
   // Archived goals are hidden unless explicitly filtered to.
-  let list = goals.value.slice()
-  if (statusFilter.value === 'all') list = list.filter((g) => g.status !== 'archived')
-  else list = list.filter((g) => g.status === statusFilter.value)
+  statusFilter.value === 'all'
+    ? goals.value.filter((g) => g.status !== 'archived')
+    : goals.value.filter((g) => g.status === statusFilter.value),
+)
+const tagGroups = computed(() => byStatus.value.map((g) => [g.tag]))
+
+const rows = computed<GoalRow[]>(() => {
+  let list = byStatus.value
+  if (tagFilter.value) list = list.filter((g) => matchesTagFilter([g.tag], tagFilter.value))
 
   // Free-text search over title + description.
   const q = query.value.trim().toLowerCase()
@@ -288,12 +300,15 @@ function cellStyle(id: number) {
       <GoalsToolbar
         :search="search"
         :status="statusFilter"
+        :tag="tagFilter"
+        :tag-groups="tagGroups"
         :sort="sortKey"
         :mobile="isMobile"
         :show-filters="goals.length > 0"
         @update:search="onSearch"
         @submit-search="onSearchSubmit"
         @update:status="statusFilter = $event"
+        @update:tag="tagFilter = $event"
         @update:sort="sortKey = $event"
         @import="goImport"
         @new="onNew"

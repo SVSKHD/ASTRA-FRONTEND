@@ -10,7 +10,7 @@ import { useAppStore } from '@/stores/app'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, fmtDay, useDetailStyles } from '@/composables/useDetailStyles'
 import { daysRemaining, formatMinutes } from '@/utils/detailFields'
-import { pxify } from '@/styles'
+import { checkTick, pxify } from '@/styles'
 import StatusPill from '@/components/StatusPill.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import PaneSection from '@/components/detail/PaneSection.vue'
@@ -274,7 +274,12 @@ const swatch = computed(() =>
                 aria-label="Toggle done"
                 @click="app.toggleChecklistItem(ci.id)"
               >
-                <Icon v-if="ci.done" name="check" size="xs" :style="{ color: c.onAccent }" />
+                <Icon
+                  v-if="ci.done"
+                  name="check"
+                  size="xs"
+                  :style="[checkTick, { color: c.onAccent }]"
+                />
               </button>
               <TextInput
                 v-if="isEditing('ci:' + ci.id)"

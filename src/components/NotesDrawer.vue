@@ -13,6 +13,8 @@ import { pxify, typeStep } from '@/styles'
 import { noteChecks, notePreview, noteText, noteTitle } from '@/utils/notes'
 import CommandHelp from '@/components/CommandHelp.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
+import Icon from '@/components/ui/Icon.vue'
+import IconButton from '@/components/ui/IconButton.vue'
 import type { Note } from '@/types'
 
 const ui = useUiStore()
@@ -85,6 +87,25 @@ const listStyle = pxify({
   paddingRight: 2,
 })
 
+// The card used to BE the button. It cannot stay one: a pencil and a bin inside
+// a button is a button inside a button, which is invalid markup and which no
+// browser agrees on how to click. So the card is a plain box carrying the
+// chrome — padding, border, the hover lift — and this is the part that opens
+// the note: no box of its own, and the column layout the card used to hold.
+const openStyle = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+  width: '100%',
+  padding: 0,
+  border: 'none',
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  textAlign: 'left',
+  cursor: 'pointer',
+})
+
 function timeLabel(n: Note) {
   const mins = Math.round((now.value - (n.updatedAt ?? n.ts)) / 60000)
   return mins < 1 ? 'just now' : mins < 60 ? mins + 'm ago' : Math.round(mins / 60) + 'h ago'
@@ -124,21 +145,69 @@ function checkLabel(n: Note) {
       {{ notes.length === 0 ? 'No notes yet.' : 'No note matches that.' }}
     </div>
     <div :style="listStyle">
-      <button
+      <div
         v-for="n in shown"
         :key="n.id"
+        class="ncard"
         :style="s.noteCard"
         v-hover-style="s.noteCardHover"
-        @click="app.openNoteView(n.id, query)"
       >
-        <span :style="s.noteCardTitle">{{ noteTitle(n.text) }}</span>
-        <span v-if="notePreview(n.text)" :style="s.noteCardPreview">{{ notePreview(n.text) }}</span>
+        <button :style="openStyle" @click="app.openNoteView(n.id, query)">
+          <span :style="s.noteCardTitle">{{ noteTitle(n.text) }}</span>
+          <span v-if="notePreview(n.text)" :style="s.noteCardPreview">{{
+            notePreview(n.text)
+          }}</span>
+        </button>
         <span :style="s.noteCardFoot">
           <span :style="s.finMeta">{{ timeLabel(n) }}</span>
           <span v-if="checkLabel(n)" :style="s.finMeta">☑ {{ checkLabel(n) }}</span>
+          <OfflineChip :pending="app.isItemPending('note', n.id)" />
+          <!-- Read is the card itself, and Create is the button above the list,
+               so what a card needs is the other two. -->
+          <span class="ncard__actions" :style="s.noteCardActions">
+            <IconButton label="Edit note" size="sm" @click="app.editNoteView(n.id)">
+              <Icon name="pencil" size="xs" />
+            </IconButton>
+            <IconButton
+              label="Delete note"
+              size="sm"
+              @click="app.deleteWithUndo('notes', 'note', n.id)"
+            >
+              <Icon name="trash" size="xs" />
+            </IconButton>
+          </span>
         </span>
-        <OfflineChip :pending="app.isItemPending('note', n.id)" />
-      </button>
+      </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* The actions arrive on approach, the way the trades table's delete and the
+   goal card's grip do: a pencil and a bin sitting on every card is a column of
+   permanent invitations to click the wrong one, and delete is the one action
+   here that spends something.
+
+   Opacity rather than `display`, so the foot row never reflows when they
+   appear, and `focus-within` brings them back for a keyboard — which has no
+   pointer to approach with. */
+.ncard__actions {
+  opacity: 0;
+  transition: opacity var(--dur-fast, 0.15s) var(--ease-out, ease);
+}
+.ncard:hover .ncard__actions,
+.ncard:focus-within .ncard__actions {
+  opacity: 1;
+}
+/* A touch device has no hover, so hiding them there would hide them for good. */
+@media (hover: none) {
+  .ncard__actions {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ncard__actions {
+    transition: none;
+  }
+}
+</style>

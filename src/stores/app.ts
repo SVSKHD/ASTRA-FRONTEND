@@ -72,6 +72,7 @@ import {
   type TaskEffect,
 } from '@/utils/ghSync'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
+import { rememberedTab, tabUrl } from '@/utils/lastTab'
 import { createShare, deleteShare, updateShareItem, writeShareDoc } from '@/utils/shares'
 import {
   CalendarAuthError,
@@ -169,6 +170,7 @@ import {
 } from '@/utils/planning'
 import {
   buildIndex,
+  inheritedTags,
   needsRenormalize,
   orderForPosition,
   recomputeSubtree,
@@ -914,6 +916,14 @@ export const useAppStore = defineStore('app', () => {
     const siblings = (index.children.get(newParentId) ?? []).filter((t) => t.id !== draggedId)
     const order = orderForPosition(siblings, position)
     const drUpdates = recomputeSubtree(index, draggedId, newParentId)
+    // Landing under a different, tagged parent hands that tag down to the moved
+    // node and its whole subtree. A reorder within the same parent leaves tags
+    // alone, so a tag changed on a subtask afterwards sticks.
+    const parentTag =
+      newParentId != null && dragged.parentId !== newParentId
+        ? (index.byId.get(newParentId) as { tag?: unknown } | undefined)?.tag
+        : undefined
+    const inherit = typeof parentTag === 'string' && parentTag !== '' ? { tag: parentTag } : {}
     const snapshot = listRef.value
     const now = Date.now()
     listRef.value = listRef.value.map((t) => {
@@ -921,6 +931,7 @@ export const useAppStore = defineStore('app', () => {
         const dr = drUpdates.get(t.id)
         return {
           ...t,
+          ...inherit,
           parentId: newParentId,
           order,
           depth: dr ? dr.depth : t.depth,
@@ -931,7 +942,7 @@ export const useAppStore = defineStore('app', () => {
         }
       }
       const dr = drUpdates.get(t.id)
-      return dr ? { ...t, depth: dr.depth, rootId: dr.rootId } : t
+      return dr ? { ...t, ...inherit, depth: dr.depth, rootId: dr.rootId } : t
     })
     renormalizeInList(listRef, newParentId)
     void persistMove(listRef, snapshot)
@@ -942,6 +953,27 @@ export const useAppStore = defineStore('app', () => {
   }
   function moveTodo(draggedId: number, newParentId: number | null, position: number): boolean {
     return moveInList(todos, draggedId, newParentId, position)
+  }
+  // Backfill for subtasks nested before tag inheritance existed: any untagged
+  // task/todo under a tagged parent takes the nearest tagged ancestor's tag.
+  // Already-tagged items are never touched, and a list with nothing to fill is
+  // not rewritten, so re-running it is free. Returns how many items changed.
+  function backfillSubtaskTags(): number {
+    let changed = 0
+    const fill = <T extends Movable & { tag: string }>(listRef: Ref<T[]>) => {
+      const tags = inheritedTags(listRef.value)
+      if (tags.size === 0) return
+      changed += tags.size
+      const now = Date.now()
+      listRef.value = listRef.value.map((t) =>
+        tags.has(t.id)
+          ? { ...t, tag: tags.get(t.id) as string, updatedAt: now, localRev: t.localRev + 1 }
+          : t,
+      )
+    }
+    fill(tasks)
+    fill(todos)
+    return changed
   }
   // Commit a move immediately and, if the write is rejected, restore the
   // pre-drag snapshot and surface a toast so an item never appears to have moved
@@ -987,14 +1019,19 @@ export const useAppStore = defineStore('app', () => {
         localRev: 0,
         updatedBy: uid ?? '',
         ...fields,
+        // After the spread, so a tag handed in joins the vocabulary the way a
+        // todo's or a task's does rather than being stored unregistered.
+        tag: registerTag(fields.tag ?? ''),
         ...stamps(),
       },
     ]
     return newId
   }
   function updateGoal(gid: number, fields: Partial<Goal>) {
+    const next =
+      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
     goals.value = goals.value.map((g) =>
-      g.id === gid ? touched({ ...g, ...fields, localRev: g.localRev + 1 }) : g,
+      g.id === gid ? touched({ ...g, ...next, localRev: g.localRev + 1 }) : g,
     )
     // Enabling/retiming recurrence (or reactivating a recurring goal) should
     // materialise its occurrences right away, not only on the next app open, and
@@ -1076,6 +1113,7 @@ export const useAppStore = defineStore('app', () => {
       targetDate: g.targetDate,
       color: g.color,
       icon: g.icon,
+      tag: g.tag,
       source: 'manual',
       sourceUrl: '',
       order: (rootOrders.length ? Math.max(...rootOrders) : 0) + 1000,
@@ -5450,7 +5488,9 @@ export const useAppStore = defineStore('app', () => {
     taskViewId.value = null
     try {
       if (history.state && history.state.taskView != null) history.back()
-      else history.replaceState(null, '', '/')
+      // Back to the tab the task was opened from, not the bare domain: `/` has
+      // no tab in it, so a refresh after closing used to land on Overview.
+      else history.replaceState(null, '', tabUrl(rememberedTab() || 'tasks'))
     } catch {
       /* ignore */
     }
@@ -6182,6 +6222,8 @@ export const useAppStore = defineStore('app', () => {
       startDate: typeof g.startDate === 'string' ? g.startDate : '',
       color: typeof g.color === 'string' ? g.color : '',
       icon: typeof g.icon === 'string' ? g.icon : '',
+      // Goals stored before tags existed have no field at all.
+      tag: typeof g.tag === 'string' ? g.tag : '',
       source: g.source === 'url-import' ? 'url-import' : 'manual',
       sourceUrl: typeof g.sourceUrl === 'string' ? g.sourceUrl : '',
       parentId: null,
@@ -6256,7 +6298,13 @@ export const useAppStore = defineStore('app', () => {
     // fall back to the defaults for a workspace that has none of those either.
     const stored = sanitizeTags(data.tags)
     let vocab = stored.length ? stored : DEFAULT_TAGS.slice()
-    for (const item of [...todos.value, ...tasks.value, ...ideas.value, ...stocks.value])
+    for (const item of [
+      ...todos.value,
+      ...tasks.value,
+      ...ideas.value,
+      ...stocks.value,
+      ...goals.value,
+    ])
       vocab = withTag(vocab, item.tag || '')
     tags.value = vocab
     security.value =
@@ -6472,6 +6520,9 @@ export const useAppStore = defineStore('app', () => {
       // run the auto-rollover if it is enabled and hasn't run today, and lazily
       // materialise recurring-goal occurrences for today + the next 7 days.
       setTimeout(() => {
+        // Existing subtasks that never had a tag pick up their parent's; the
+        // lists' watcher saves the result.
+        backfillSubtaskTags()
         void runAutoRolloverIfDue()
         runGoalGenerationIfDue()
         // Recurring transactions, in the same window and for the same reason:
@@ -6876,6 +6927,7 @@ export const useAppStore = defineStore('app', () => {
     dropOnGroup,
     moveTask,
     moveTodo,
+    backfillSubtaskTags,
     remoteTaskVersion,
     dismissTaskConflict,
     // planning boards

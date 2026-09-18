@@ -10,6 +10,7 @@
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
+import { useTapOpen } from '@/composables/useTapOpen'
 import { pxify, typeStep } from '@/styles'
 import type { ListKey } from '@/types'
 import Caret from '@/components/ui/Caret.vue'
@@ -30,6 +31,8 @@ const open = computed(() => acc.isOpen(key.value, false))
 function toggle() {
   acc.toggle(key.value, false)
 }
+// Only a real tap toggles, as in CarriedOverGroup.
+const tap = useTapOpen(toggle)
 
 const cardStyle = computed(() =>
   pxify({
@@ -94,7 +97,14 @@ const sortLabel = computed(() =>
 
 <template>
   <div :style="cardStyle">
-    <div :style="headStyle" role="button" :aria-expanded="open" @click="toggle">
+    <div
+      :style="headStyle"
+      role="button"
+      :aria-expanded="open"
+      @pointerdown="tap.onPointerDown"
+      @pointercancel="tap.onPointerCancel"
+      @click="tap.onClick"
+    >
       <Caret :open="open" />
       <span :style="titleStyle">Completed · {{ count }}</span>
       <div :style="actionsWrap" @click.stop>

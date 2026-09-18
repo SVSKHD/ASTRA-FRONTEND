@@ -226,6 +226,7 @@ describe('goals (acceptance 89)', () => {
         startDate: '',
         color: '',
         icon: '',
+        tag: '',
         source: 'manual',
         sourceUrl: '',
         parentId: null,

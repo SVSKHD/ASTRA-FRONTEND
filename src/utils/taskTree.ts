@@ -281,3 +281,19 @@ export function recomputeSubtree<T extends TreeNode>(
   }
   return updates
 }
+
+// id → tag for every untagged node that sits below a tagged ancestor: the tag
+// of the nearest such ancestor. Nodes that already carry a tag are left out,
+// so a subtask whose tag was changed keeps it. Empty when nothing needs a tag.
+export function inheritedTags<T extends TreeNode & { tag: string }>(
+  nodes: T[],
+): Map<number, string> {
+  const index = buildIndex(nodes)
+  const out = new Map<number, string>()
+  for (const node of nodes) {
+    if (node.tag || node.parentId == null) continue
+    const tagged = ancestorsOf(index, node.id).find((a) => a.tag)
+    if (tagged) out.set(node.id, tagged.tag)
+  }
+  return out
+}

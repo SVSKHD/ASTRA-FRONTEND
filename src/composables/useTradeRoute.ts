@@ -25,7 +25,12 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { currentMonthKey } from '@/utils/budget'
 
-export const TRADE_MODES = ['journal', 'signals', 'combined'] as const
+// `import` is the odd one: the other three are readings of the month on the
+// server, and it is a file the reader hands over for as long as the tab is open.
+// It is in the list all the same, because a mode is what the URL calls the thing
+// on screen — and a tab that cannot be linked to is a tab that is lost on every
+// refresh.
+export const TRADE_MODES = ['journal', 'signals', 'combined', 'import'] as const
 export type TradeMode = (typeof TRADE_MODES)[number]
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
