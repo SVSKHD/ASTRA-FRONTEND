@@ -107,8 +107,9 @@ function snapshotDoc(id: string, data: JsonRecord | null) {
 function supabaseError(error: unknown): Error & { code?: string } {
   const raw = error as { message?: string; code?: string; status?: number }
   const out = new Error(raw?.message || 'Supabase request failed') as Error & { code?: string }
-  if (raw?.code) out.code = raw.code
-  else if (raw?.status === 401 || raw?.status === 403) out.code = 'permission-denied'
+  if (raw?.code === '42501' || raw?.status === 401 || raw?.status === 403)
+    out.code = 'permission-denied'
+  else if (raw?.code) out.code = raw.code
   else out.code = 'unavailable'
   return out
 }
