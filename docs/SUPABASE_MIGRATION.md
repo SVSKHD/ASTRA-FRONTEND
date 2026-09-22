@@ -16,12 +16,12 @@ the browser stores these namespaces in `public.astra_documents`:
 
 The compatibility table keeps the old Firestore model deliberately:
 
-| Firestore | Supabase |
-| --- | --- |
-| collection/path | `namespace` |
-| document id | `doc_id` |
-| authenticated owner | `user_id` |
-| document fields | `data jsonb` |
+| Firestore           | Supabase     |
+| ------------------- | ------------ |
+| collection/path     | `namespace`  |
+| document id         | `doc_id`     |
+| authenticated owner | `user_id`    |
+| document fields     | `data jsonb` |
 
 This lets the current views/composables move databases without a simultaneous
 application-wide rewrite.

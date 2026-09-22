@@ -50,9 +50,9 @@ function isRef(value: unknown): value is CompatRef {
 function isQuery(value: unknown): value is CompatQuery {
   return Boolean(
     value &&
-      typeof value === 'object' &&
-      '__kind' in value &&
-      (value as { __kind?: string }).__kind === 'query',
+    typeof value === 'object' &&
+    '__kind' in value &&
+    (value as { __kind?: string }).__kind === 'query',
   )
 }
 
@@ -117,8 +117,10 @@ function supabaseError(error: unknown): Error & { code?: string } {
 function querySnapshot(rows: SupabaseRow[], previous?: Map<string, string>) {
   const docs = rows.map((row) => snapshotDoc(row.doc_id, row.data))
   const current = new Map(rows.map((row) => [row.doc_id, JSON.stringify(row.data)]))
-  const changes: Array<{ type: 'added' | 'modified' | 'removed'; doc: ReturnType<typeof snapshotDoc> }> =
-    []
+  const changes: Array<{
+    type: 'added' | 'modified' | 'removed'
+    doc: ReturnType<typeof snapshotDoc>
+  }> = []
 
   if (!previous) {
     for (const doc of docs) changes.push({ type: 'added', doc })
@@ -251,7 +253,10 @@ export async function createSupabaseFirestoreHandle(
 
       if (op === '==') request = request.eq(column, value as any)
       else if (op === 'in' && Array.isArray(value))
-        request = request.in(textColumn, value.map((item) => String(item)))
+        request = request.in(
+          textColumn,
+          value.map((item) => String(item)),
+        )
       else if (op === '>=') request = request.gte(textColumn, String(value ?? ''))
       else if (op === '<=') request = request.lte(textColumn, String(value ?? ''))
     }
@@ -317,11 +322,7 @@ export async function createSupabaseFirestoreHandle(
       const legacyResolved = await legacyTarget(ref)
       return legacyResolved.handle.fs.deleteDoc(legacyResolved.target)
     }
-    const result = await client
-      .from(TABLE)
-      .delete()
-      .eq('namespace', ref.path)
-      .eq('doc_id', ref.id)
+    const result = await client.from(TABLE).delete().eq('namespace', ref.path).eq('doc_id', ref.id)
     if (result.error) throw supabaseError(result.error)
   }
 
