@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Aureon \u2014 a liquid-glass, space-themed personal tracker (todos, tasks, deadlines, reminders, finances) built with Vue 3 + Firebase.",
+  "description": "Aureon — a liquid-glass, space-themed personal tracker built with Vue 3, Firebase Auth and Supabase.",
   "scripts": {
     "dev": "vite",
     "test": "vitest run",
@@ -31,6 +31,7 @@
     "@fullcalendar/timegrid": "^6.1.21",
     "@fullcalendar/vue3": "^6.1.21",
     "@joint/core": "^4.3.1",
+    "@supabase/supabase-js": "2.109.0",
     "@tanstack/vue-virtual": "^3.13.36",
     "dompurify": "^3.4.13",
     "firebase": "^12.8.0",
