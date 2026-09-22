@@ -46,15 +46,38 @@ Do not delete Firestore rules/indexes or the Firebase project yet.
    `supabase/migrations/20260922_firestore_compat.sql`.
 3. In Supabase Authentication, configure Firebase as a third-party auth provider
    for the same Firebase project used by Astra.
-4. Recommended: add the Firebase custom claim `role: "authenticated"`. The
-   migration policies also permit the `anon` PostgREST role and still require
-   the verified Firebase JWT `sub` to equal `user_id`, so existing Firebase
-   users can be rolled over before that claim is added.
+4. Assign the Firebase custom claim `role: "authenticated"` to every Astra user.
+   Supabase uses this literal JWT claim to select the authenticated Postgres role.
 5. Never put a Supabase service-role key in a `VITE_*` environment variable.
 
 The SQL migration enables RLS and Realtime on `astra_documents`. Browser writes
-derive ownership from the verified JWT through `astra_set_document`; the
-client cannot choose another row owner.
+derive ownership from the verified Firebase JWT through `astra_set_document`;
+the client cannot choose another row owner.
+
+### Assign the Firebase role claim
+
+Using the same Firebase Admin credentials used for the data import:
+
+```bash
+cd functions
+
+export GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/firebase-service-account.json
+export FIREBASE_PROJECT_ID=your-firebase-project-id
+
+# Strongly recommended for this single-account app:
+export FIREBASE_UID=your-firebase-uid
+
+node scripts/set-supabase-auth-role.mjs
+```
+
+If `FIREBASE_UID` is omitted, the helper applies the claim to all Firebase Auth
+users and preserves their existing custom claims.
+
+After the claim is assigned, sign out and sign in again so Firebase issues a new
+ID token containing the role.
+
+For future new users, add the same claim in your Firebase Authentication
+sign-up/sign-in flow before broadening access beyond the current allowlist.
 
 ## 2. Configure the frontend
 
@@ -91,7 +114,7 @@ export FIREBASE_PROJECT_ID=your-firebase-project-id
 export SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 export SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVER_ONLY_SERVICE_ROLE_KEY
 
-# Optional but recommended for a first dry migration of one account:
+# Optional but recommended for a first migration of one account:
 export FIREBASE_UID=your-firebase-uid
 ```
 
