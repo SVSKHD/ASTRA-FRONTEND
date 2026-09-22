@@ -3677,7 +3677,7 @@ export const useAppStore = defineStore('app', () => {
     try {
       const shareId = await createShare(uid, pending.type, pending.item, isPublic)
       if (!shareId) {
-        showToastMsg('Sharing needs Firebase configured')
+        showToastMsg('Sharing needs Supabase configured')
         return
       }
       await copyToClipboard(buildShareUrl(pending.type, shareId))
@@ -6449,7 +6449,7 @@ export const useAppStore = defineStore('app', () => {
       })
       .catch((error) => {
         syncState.value = 'error'
-        cloudError.value = 'Could not save changes to Firebase.'
+        cloudError.value = 'Could not save changes to Supabase.'
         reportError('[Aureon] Cloud save failed:', error)
       })
   }
@@ -6478,7 +6478,7 @@ export const useAppStore = defineStore('app', () => {
       })
       .catch((error) => {
         syncState.value = 'error'
-        cloudError.value = 'Could not save changes to Firebase.'
+        cloudError.value = 'Could not save changes to Supabase.'
         reportError('[Aureon] Cloud save failed:', error)
         throw error
       })
@@ -6535,7 +6535,7 @@ export const useAppStore = defineStore('app', () => {
         startGithubPolling()
       }, 0)
     } catch (error) {
-      cloudError.value = 'Could not load your Firebase data.'
+      cloudError.value = 'Could not load your Supabase data.'
       syncState.value = 'error'
       reportError('[Aureon] Cloud load failed:', error)
       return
@@ -6559,7 +6559,7 @@ export const useAppStore = defineStore('app', () => {
         }
       },
       (error) => {
-        cloudError.value = 'Firebase realtime sync was interrupted.'
+        cloudError.value = 'Supabase realtime sync was interrupted.'
         syncState.value = 'error'
         reportError('[Aureon] Cloud listener failed:', error)
       },
