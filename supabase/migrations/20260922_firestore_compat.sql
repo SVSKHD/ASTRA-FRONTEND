@@ -1,11 +1,8 @@
 -- Astra/Aureon Firestore compatibility storage on Supabase.
 --
--- The frontend keeps its existing collection/document API while rows are stored
--- in one Postgres table. "namespace" is the old Firestore collection path,
--- "doc_id" is the old document id, and "data" is the document body.
---
--- Firebase Auth remains the login provider during phase 1. Supabase Third-party
--- Auth must trust the Firebase project so auth.jwt()->>'sub' is the Firebase uid.
+-- Firebase Auth remains the identity provider during phase 1. Supabase
+-- Third-party Auth verifies the Firebase ID token and the required
+-- role='authenticated' custom claim selects the authenticated Postgres role.
 
 create table if not exists public.astra_documents (
   namespace text not null,
@@ -35,34 +32,46 @@ create index if not exists astra_documents_category_idx
   where data ? 'category';
 
 drop policy if exists "astra read own and public" on public.astra_documents;
-create policy "astra read own and public"
+drop policy if exists "astra read own" on public.astra_documents;
+drop policy if exists "astra read public" on public.astra_documents;
+drop policy if exists "astra insert own" on public.astra_documents;
+drop policy if exists "astra update own" on public.astra_documents;
+drop policy if exists "astra delete own" on public.astra_documents;
+
+create policy "astra read own"
+on public.astra_documents
+for select
+to authenticated
+using (
+  user_id = nullif(auth.jwt() ->> 'sub', '')
+  and user_id is not null
+);
+
+create policy "astra read public"
 on public.astra_documents
 for select
 to anon, authenticated
 using (
-  user_id = nullif(auth.jwt() ->> 'sub', '')
-  or namespace = 'forex'
+  namespace = 'forex'
   or (
     namespace = 'aureon-shares'
     and data ->> 'isPublic' = 'true'
   )
 );
 
-drop policy if exists "astra insert own" on public.astra_documents;
 create policy "astra insert own"
 on public.astra_documents
 for insert
-to anon, authenticated
+to authenticated
 with check (
   user_id = nullif(auth.jwt() ->> 'sub', '')
   and user_id is not null
 );
 
-drop policy if exists "astra update own" on public.astra_documents;
 create policy "astra update own"
 on public.astra_documents
 for update
-to anon, authenticated
+to authenticated
 using (
   user_id = nullif(auth.jwt() ->> 'sub', '')
   and user_id is not null
@@ -72,11 +81,10 @@ with check (
   and user_id is not null
 );
 
-drop policy if exists "astra delete own" on public.astra_documents;
 create policy "astra delete own"
 on public.astra_documents
 for delete
-to anon, authenticated
+to authenticated
 using (
   user_id = nullif(auth.jwt() ->> 'sub', '')
   and user_id is not null
@@ -124,10 +132,14 @@ begin
 end;
 $$;
 
-grant select, insert, update, delete on public.astra_documents to anon, authenticated;
+grant select on public.astra_documents to anon;
+grant select, insert, update, delete on public.astra_documents to authenticated;
 grant all on public.astra_documents to service_role;
+
+revoke execute on function public.astra_set_document(text, text, jsonb, boolean)
+  from public, anon;
 grant execute on function public.astra_set_document(text, text, jsonb, boolean)
-  to anon, authenticated, service_role;
+  to authenticated, service_role;
 
 -- Realtime is used to preserve the existing onSnapshot behaviour. Make this
 -- migration idempotent so it can be run again safely.
