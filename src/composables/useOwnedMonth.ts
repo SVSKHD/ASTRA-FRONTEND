@@ -181,7 +181,7 @@ async function attach(entry: CacheEntry): Promise<void> {
   // attaches after the one for what we are looking at, and wins.
   if (mine !== entry.token) return
   if (!cloud) {
-    entry.error.value = 'Firestore is unreachable.'
+    entry.error.value = 'Cloud data is unreachable.'
     entry.loading.value = false
     return
   }

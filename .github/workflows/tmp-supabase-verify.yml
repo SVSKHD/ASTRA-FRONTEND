@@ -1,0 +1,34 @@
+name: Temporary Supabase verify
+
+on:
+  push:
+    branches:
+      - chore/supabase-data-backend
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install
+        run: npm install
+      - name: Format migration files
+        run: npx prettier --write docs/SUPABASE_MIGRATION.md src/supabaseFirestore.ts
+      - name: Commit formatting
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add docs/SUPABASE_MIGRATION.md src/supabaseFirestore.ts
+            git commit -m "Format Supabase migration files"
+            git push
+          fi
+      - name: Build
+        run: npm run build

@@ -281,7 +281,7 @@ function goHome() {
       <!-- Firebase unreachable -->
       <template v-else-if="load.status === 'unavailable'">
         <span :style="s.drawerTitle">Could not open this share</span>
-        <span :style="s.finMeta">Firebase is unreachable right now.</span>
+        <span :style="s.finMeta">Cloud data is unreachable right now.</span>
         <div :style="s.dialogActions">
           <button :style="s.saveBtn" @click="run">Retry</button>
           <button :style="s.cancelBtn" @click="goHome">Back to Aureon</button>
