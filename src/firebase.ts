@@ -1,16 +1,16 @@
-// Firebase initialisation. Missing or invalid configuration keeps the workspace
-// inaccessible; there is intentionally no local data or guest fallback.
+// Identity and cloud-service bootstrap.
 //
-// Firestore is loaded on demand rather than at startup (section 16e). The SDK
-// and its dependencies are the single largest thing in the bundle, and nothing
-// on the first paint — the sign-in card, the starfield, the shell — needs a
-// database. `loadFirestore()` pulls it in the moment a signed-in workspace (or
-// a share page) actually needs to read or write, and caches the handle, so the
-// cost is paid once and after the first paint rather than before it.
+// Phase 1 of the Supabase migration keeps Firebase Authentication, Functions and
+// Storage, but moves the app-owned document database to Supabase. The existing
+// Firestore-shaped data API is retained temporarily so the migration can happen
+// without rewriting every view/composable in the same change.
+//
+// A few function-owned mirrors (news, GitHub webhooks and device security rows)
+// still live in Firestore until their server-side writers are migrated. The
+// Supabase adapter delegates only those namespaces back to legacy Firestore.
 
 import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { getAuth, type Auth } from 'firebase/auth'
-import type { Firestore } from 'firebase/firestore'
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -23,15 +23,21 @@ const config = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 }
 
+const supabaseConfig = {
+  url: import.meta.env.VITE_SUPABASE_URL,
+  key: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
+}
+
 export const AUREON_COLLECTION = 'aureon-notes'
-// Under the test runner Firebase stays OFF even when VITE_FIREBASE_* are set in
-// the environment (they are on the deploy host). Otherwise a unit test that
-// instantiates the store would attach a real auth listener and reset/persist
-// through it — which is exactly what broke the build's `verify` step on the
-// deploy host while passing locally, where those vars are absent.
+
 const isTestRunner = import.meta.env.MODE === 'test'
+
 export const firebaseEnabled =
   Boolean(config.apiKey && config.projectId && config.appId) && !isTestRunner
+
+export const supabaseEnabled =
+  Boolean(supabaseConfig.url && supabaseConfig.key) && firebaseEnabled && !isTestRunner
+
 export const defaultLockMinutes = Math.max(
   1,
   Number.parseInt(import.meta.env.VITE_AUTO_LOCK_MINUTES || '50', 10) || 50,
@@ -40,11 +46,10 @@ export const defaultLockMinutes = Math.max(
 let app: FirebaseApp | null = null
 let auth: Auth | null = null
 
-// 'persistent' = IndexedDB-backed offline cache (queued writes survive reloads
-// and browser restarts, shared across tabs). 'memory' = this session only, the
-// fallback when persistence cannot be enabled (private mode / unsupported
-// browser). 'none' = Firestore not initialised at all. The app reads this to
-// show a one-time "offline mode unavailable" toast.
+// 'persistent' = IndexedDB-backed Firestore fallback.
+// 'memory' = connected cloud data without a durable browser write queue
+// (Supabase primary, or Firestore's in-memory fallback).
+// 'none' = no database initialised.
 export type PersistenceMode = 'persistent' | 'memory' | 'none'
 let persistenceMode: PersistenceMode = 'none'
 
@@ -53,75 +58,104 @@ if (firebaseEnabled) {
     app = initializeApp(config)
     auth = getAuth(app)
   } catch (err) {
-    console.error('[Aureon] Firebase initialisation failed:', err)
+    console.error('[Aureon] Firebase identity initialisation failed:', err)
     app = null
     auth = null
   }
 }
 
-// The Firestore module namespace, obtained dynamically. Callers reach the query
-// builders through the handle rather than importing them, because a static
-// `from 'firebase/firestore'` anywhere would pull the SDK straight back into
-// the initial chunk.
-export type FirestoreModule = typeof import('firebase/firestore')
+// The compatibility handle deliberately exposes the small Firestore-shaped
+// surface used by the app. In Supabase mode the implementation is
+// src/supabaseFirestore.ts; in fallback mode it is the real Firestore SDK.
+export type FirestoreModule = Record<string, any>
+
 export interface FirestoreHandle {
-  db: Firestore
+  db: unknown
   fs: FirestoreModule
 }
 
 let firestoreLoad: Promise<FirestoreHandle | null> | null = null
+let firestoreHandle: FirestoreHandle | null = null
 
 export function loadFirestore(): Promise<FirestoreHandle | null> {
-  // The screenshot fixture (section 38). `import.meta.env.DEV` is a static
-  // false in a production build, so this branch — and the module behind it —
-  // is dropped by the bundler rather than shipped behind a runtime guard.
+  // The screenshot fixture is still an in-memory implementation of the same
+  // compatibility surface and never leaves the browser.
   if (import.meta.env.DEV && String(import.meta.env.VITE_FIXTURE ?? '') === '1') {
     return import('@/dev/fixture').then((m) => m.fixtureHandle(m.forcedState()))
   }
-  if (!firebaseEnabled || !app) return Promise.resolve(null)
-  if (!firestoreLoad) firestoreLoad = initFirestore(app)
+  if (!firebaseEnabled || !app || !auth) return Promise.resolve(null)
+  if (!firestoreLoad) {
+    firestoreLoad = supabaseEnabled ? initSupabaseData() : initFirebaseFirestore(app)
+  }
   return firestoreLoad
 }
 
-// The already-resolved handle, for the synchronous guards that only need to
-// know whether Firestore is up (a debounced save, say, which must not await
-// before deciding to do nothing).
-let firestoreHandle: FirestoreHandle | null = null
 export function firestoreReady(): FirestoreHandle | null {
   return firestoreHandle
 }
 
-async function initFirestore(fbApp: FirebaseApp): Promise<FirestoreHandle | null> {
+async function initSupabaseData(): Promise<FirestoreHandle | null> {
   try {
-    const fs = await import('firebase/firestore')
-    let db: Firestore
-    try {
-      // Offline-first: multi-tab persistent cache so mutations buffer locally
-      // and replay on reconnect, with no custom queue.
-      db = fs.initializeFirestore(fbApp, {
-        localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }),
-      })
-      setPersistence('persistent')
-    } catch (persistErr) {
-      // Private mode / unsupported / a second config call: fall back to an
-      // in-memory cache so the app still works, just without offline durability.
-      console.warn('[Aureon] Firestore persistence unavailable, using memory cache:', persistErr)
-      db = fs.initializeFirestore(fbApp, {})
-      setPersistence('memory')
-    }
-    firestoreHandle = { db, fs }
+    const { createSupabaseFirestoreHandle } = await import('@/supabaseFirestore')
+    const handle = await createSupabaseFirestoreHandle(auth, loadLegacyFirestore)
+    firestoreHandle = handle as FirestoreHandle
+    // Supabase Realtime keeps devices current, but it does not provide
+    // Firestore's IndexedDB-backed queued-write cache.
+    setPersistence('memory')
     return firestoreHandle
   } catch (err) {
-    console.error('[Aureon] Firestore initialisation failed:', err)
+    console.error('[Aureon] Supabase data initialisation failed:', err)
     setPersistence('none')
     return null
   }
 }
 
-// Because Firestore now arrives after the first paint, the persistence mode is
-// not known when the shell mounts. Anyone who wants to react to it (the
-// "offline mode unavailable" notice) subscribes and is called once, whenever
-// the answer exists — immediately if it already does.
+// Firestore is loaded lazily only for namespaces that existing Firebase
+// Functions still own during the transition: forex, gh-* and users/**.
+let legacyFirestoreLoad: Promise<FirestoreHandle | null> | null = null
+
+async function loadLegacyFirestore(): Promise<FirestoreHandle | null> {
+  if (!app) return null
+  if (!legacyFirestoreLoad) {
+    legacyFirestoreLoad = (async () => {
+      try {
+        const fs = await import('firebase/firestore')
+        return { db: fs.getFirestore(app!), fs } as FirestoreHandle
+      } catch (err) {
+        console.error('[Aureon] Legacy Firestore mirror initialisation failed:', err)
+        return null
+      }
+    })()
+  }
+  return legacyFirestoreLoad
+}
+
+// Safe fallback while Supabase environment values are being rolled out. Once
+// VITE_SUPABASE_URL + a publishable/anon key are present, this path is not used
+// for app-owned data.
+async function initFirebaseFirestore(fbApp: FirebaseApp): Promise<FirestoreHandle | null> {
+  try {
+    const fs = await import('firebase/firestore')
+    let db
+    try {
+      db = fs.initializeFirestore(fbApp, {
+        localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }),
+      })
+      setPersistence('persistent')
+    } catch (persistErr) {
+      console.warn('[Aureon] Firestore persistence unavailable, using memory cache:', persistErr)
+      db = fs.initializeFirestore(fbApp, {})
+      setPersistence('memory')
+    }
+    firestoreHandle = { db, fs } as FirestoreHandle
+    return firestoreHandle
+  } catch (err) {
+    console.error('[Aureon] Firestore fallback initialisation failed:', err)
+    setPersistence('none')
+    return null
+  }
+}
+
 type PersistenceListener = (mode: PersistenceMode) => void
 const persistenceListeners = new Set<PersistenceListener>()
 let persistenceResolved = false
@@ -141,14 +175,9 @@ export function onPersistenceResolved(listener: PersistenceListener): void {
   persistenceListeners.add(listener)
 }
 
-// ---- Cloud Functions (section 27a) -----------------------------------------
-// Loaded on demand for the same reason Firestore is: the callables it reaches
-// are used on the Security page and once per app load, and nothing on the first
-// paint needs them.
-//
-// Region matters and is not guessable — a callable deployed to us-central1 and
-// invoked with the default region returns a CORS error that says nothing about
-// regions. It is therefore configurable, defaulting to the Firebase default.
+// ---- Cloud Functions -------------------------------------------------------
+// Kept on Firebase in phase 1. Existing server-side GitHub/news/security jobs
+// continue to run while their storage writers are migrated separately.
 export type FunctionsModule = typeof import('firebase/functions')
 export interface FunctionsHandle {
   functions: import('firebase/functions').Functions
@@ -174,10 +203,9 @@ export function loadFunctions(): Promise<FunctionsHandle | null> {
   return functionsLoad
 }
 
-// ---- Storage (section 27b attachments) -------------------------------------
-// On demand like the rest: a receipt photo is attached by a minority of rows on
-// a minority of sessions, and the SDK has no business in the initial chunk for
-// something most loads never touch.
+// ---- Storage ---------------------------------------------------------------
+// Attachments remain on Firebase Storage in phase 1. Moving binary objects is a
+// separate migration from moving Firestore documents.
 export type StorageModule = typeof import('firebase/storage')
 export interface StorageHandle {
   storage: import('firebase/storage').FirebaseStorage
