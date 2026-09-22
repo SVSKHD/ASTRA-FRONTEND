@@ -75,16 +75,15 @@ function randomId(): string {
 }
 
 function serialise(value: unknown): unknown {
-  return JSON.parse(
-    JSON.stringify(value, (_key, item) => {
-      if (item && typeof item === 'object' && 'toMillis' in item) {
-        const toMillis = (item as { toMillis?: unknown }).toMillis
-        if (typeof toMillis === 'function') return toMillis.call(item)
-      }
-      if (item instanceof Date) return item.getTime()
-      return item
-    }),
-  ) as unknown
+  const encoded = JSON.stringify(value, (_key, item) => {
+    if (item && typeof item === 'object' && 'toMillis' in item) {
+      const toMillis = (item as { toMillis?: unknown }).toMillis
+      if (typeof toMillis === 'function') return toMillis.call(item)
+    }
+    if (item instanceof Date) return item.getTime()
+    return item
+  })
+  return encoded === undefined ? null : (JSON.parse(encoded) as unknown)
 }
 
 function sortable(value: unknown): number | string {
