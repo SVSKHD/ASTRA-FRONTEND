@@ -74,7 +74,7 @@ export async function writeShareDoc(
   refPath: string,
 ): Promise<void> {
   const cloud = await loadFirestore()
-  if (!cloud) throw new Error('Firebase is not configured')
+  if (!cloud) throw new Error('Supabase is not configured')
   const { db, fs } = cloud
   const now = Date.now()
   await fs.setDoc(fs.doc(db, SHARES_COLLECTION, shareId), {
