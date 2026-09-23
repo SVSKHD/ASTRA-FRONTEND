@@ -3,7 +3,7 @@
 // states and reads the trip (plus its attached notes) from the hydrated
 // workspace, then hands off to TripDetail for the actual page — the same
 // component the public shared-link page renders, so the two never drift.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -12,6 +12,7 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import TripDetail from '@/components/trips/TripDetail.vue'
+import AuthDialog from '@/components/AuthDialog.vue'
 import type { Note, Trip } from '@/types'
 
 const props = defineProps<{ id: number }>()
@@ -29,6 +30,12 @@ const trip = computed<Trip | undefined>(() => trips.value.find((t) => t.id === p
 // has not hydrated yet. Once ready, an absent trip is genuinely not-found.
 const loading = computed(() => !authReady.value || (isSignedIn.value && !cloudReady.value))
 const needsAuth = computed(() => authReady.value && !isSignedIn.value)
+// The sign-in card, opened from the signed-out state below.
+const signingIn = ref(false)
+function signIn() {
+  signingIn.value = true
+  auth.openAuth()
+}
 const notFound = computed(() => cloudReady.value && !trip.value)
 const attachedNotes = computed<Note[]>(() =>
   trip.value ? app.notes.filter((n) => trip.value!.noteIds.includes(n.id)) : [],
@@ -79,6 +86,7 @@ const centered = pxify({
 </script>
 
 <template>
+  <AuthDialog v-if="signingIn && !isSignedIn" />
   <!-- Loading: glass skeletons, no missing sections -->
   <div v-if="loading" :style="page">
     <div :style="shell">
@@ -96,7 +104,7 @@ const centered = pxify({
       <span :style="s.drawerTitle">Sign in to view this trip</span>
       <span :style="s.finMeta">This trip lives in your private workspace.</span>
       <div :style="s.dialogActions">
-        <button :style="s.saveBtn" @click="auth.loginGoogle()">Sign in with Google</button>
+        <button :style="s.saveBtn" @click="signIn">Sign in</button>
         <button :style="s.cancelBtn" @click="back">Back to Trips</button>
       </div>
     </div>

@@ -3,6 +3,7 @@
 // items are buttons — a menu built from divs is unreachable by keyboard.
 import { ref } from 'vue'
 import Popover from './Popover.vue'
+import Icon from '@/components/ui/Icon.vue'
 
 export interface MenuItem {
   value: string
@@ -39,7 +40,10 @@ function choose(value: string) {
         @click="open = !open"
       >
         {{ label }}
-        <span aria-hidden="true">▾</span>
+        <!-- The same chevron every menu trigger in the library uses (Select,
+             MultiSelect, Combobox), rather than a `▾` character whose size and
+             weight are whatever the reader's font decides. -->
+        <Icon name="chevron-down" size="xs" />
       </button>
     </template>
     <div

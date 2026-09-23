@@ -21,7 +21,7 @@
 // query string, and never written to storage.
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { auth, firebaseEnabled } from '@/firebase'
+import { supabase, supabaseEnabled } from '@/supabase'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,8 +34,8 @@ onMounted(async () => {
     status.value = 'Not available.'
     return
   }
-  if (!firebaseEnabled) {
-    status.value = 'Firebase is not configured — set VITE_FIREBASE_* in .env.local.'
+  if (!supabaseEnabled || !supabase) {
+    status.value = 'Supabase is not configured — set VITE_SUPABASE_* in .env.local.'
     return
   }
   if (!email || !password) {
@@ -43,14 +43,10 @@ onMounted(async () => {
     return
   }
   try {
-    if (!auth) {
-      status.value = 'Auth could not be loaded.'
-      return
-    }
-    // Imported here rather than at the top so the password path is not part of
-    // any chunk the production build could reach.
-    const { signInWithEmailAndPassword } = await import('firebase/auth')
-    await signInWithEmailAndPassword(auth, email, password)
+    // Sign-in is Supabase Auth now (migration phase 3). The demo account must
+    // exist there with email/password sign-in enabled.
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw Object.assign(new Error(error.message), { code: error.code ?? error.status })
     // `next` is a path within this app and nothing else: an absolute URL here
     // would make this an open redirect that signs somebody in on the way out.
     const next = String(route.query.next ?? '/trades')

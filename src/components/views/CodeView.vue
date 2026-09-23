@@ -18,6 +18,7 @@ import Button from '@/components/ui/Button.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import PullRow from '@/components/code/PullRow.vue'
+import Caret from '@/components/ui/Caret.vue'
 import CommentThread from '@/components/code/CommentThread.vue'
 import GithubSetup from '@/components/code/GithubSetup.vue'
 import { useStyles } from '@/composables/useStyles'
@@ -140,6 +141,7 @@ const silent = computed(() =>
             :aria-expanded="openRepo === repo.repoId"
             @click="toggleRepo(repo.repoId)"
           >
+            <Caret :open="openRepo === repo.repoId" size="sm" />
             <span class="cv__repoName">{{ repo.fullName }}</span>
             <span class="cv__repoCount ui-mono">{{ countOf(repo.openPRCount, 'open PR') }}</span>
             <span class="cv__repoPushed">
@@ -239,8 +241,10 @@ const silent = computed(() =>
 }
 .cv__repoHead {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: baseline;
+  /* The disclosure arrow takes the first column. `center`, not `baseline`: an
+     icon has no baseline of its own and lines up on its box. */
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: var(--sp-3);
   width: 100%;
   min-width: 0;

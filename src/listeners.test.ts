@@ -69,6 +69,11 @@ describe('every listener is torn down', () => {
     //   useGhThread              one pull request's comments, attached when it
     //                            is expanded and torn down when it is collapsed
     //   FeedHealthPanel          one document, read only while the panel is open
+    //   supabaseFirestore        not a consumer: the Supabase adapter's own
+    //                            implementation of `onSnapshot` on Realtime
+    //                            channels (Supabase migration, phase 1). Every
+    //                            listener above goes through it, and it hands
+    //                            back the unsubscribe the owners call.
     const listeners = FILES.filter((f) => f.body.includes('onSnapshot(')).map((f) => f.path)
     expect(listeners.sort()).toEqual([
       'components/news/FeedHealthPanel.vue',
@@ -78,6 +83,7 @@ describe('every listener is torn down', () => {
       'composables/useOwnedMonth.ts',
       'composables/useSettings.ts',
       'stores/app.ts',
+      'supabaseFirestore.ts',
     ])
   })
 

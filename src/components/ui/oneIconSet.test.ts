@@ -43,8 +43,8 @@ function vueFiles(dir: string): string[] {
 //   ProgressRing        a value drawn as an arc — geometry computed from data,
 //                       not a glyph from a set
 //   BotsView            an equity sparkline, likewise
-//   AuthDialog          the Google and GitHub marks: fixed multi-colour brand
-//                       geometry that must NOT be restyled to one weight
+//   AuthDialog          the GitHub mark: fixed brand geometry that must NOT be
+//                       restyled to one weight
 const ALLOWED = new Set([
   'components/ui/Icon.vue',
   'components/ui/IconSprite.vue',

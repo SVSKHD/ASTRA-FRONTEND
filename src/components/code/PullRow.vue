@@ -15,6 +15,7 @@ import IconPrMerged from '@/components/feedicons/IconPrMerged.vue'
 import IconPrClosed from '@/components/feedicons/IconPrClosed.vue'
 import IconReviewApproved from '@/components/feedicons/IconReviewApproved.vue'
 import IconReviewChanges from '@/components/feedicons/IconReviewChanges.vue'
+import Caret from '@/components/ui/Caret.vue'
 import { countOf } from '@/utils/format'
 import type { GhPull, PullState } from '@/types'
 
@@ -57,6 +58,7 @@ const review = computed(() => {
     :class="[`is-${pull.state}`, { 'is-flashing': flashing, 'is-expanded': expanded }]"
   >
     <button type="button" class="prow__main" :aria-expanded="expanded" @click="$emit('toggle')">
+      <Caret :open="expanded" size="sm" />
       <span class="prow__state">
         <component :is="STATE_ICON[pull.state]" :size="16" />
         <span class="prow__stateLabel">{{ STATE_LABEL[pull.state] }}</span>
@@ -106,7 +108,8 @@ const review = computed(() => {
 }
 .prow__main {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+  /* Leading column is the disclosure arrow. */
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--sp-3);
   flex: 1;

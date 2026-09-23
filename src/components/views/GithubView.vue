@@ -8,6 +8,11 @@ import Checkbox from '@/components/ui/Checkbox.vue'
 // in as a task in a click, or bulk-create from a selection. Bodies render as
 // sanitised markdown — never as HTML.
 //
+// Issues can also be WRITTEN here — new issue, edit, comment, close/reopen —
+// because a tab that shows your issues and then sends you to github.com to
+// answer one has failed at the thing it is for. There is no delete: GitHub has
+// none either, an issue is closed, and closing is reversible from the same row.
+//
 // Repos: every linked repo with its metadata and sync toggle, expanding to
 // recent commits on the default branch, open PRs with CI status, and branches.
 // Nothing here pushes, merges or deletes: v1 is read-only apart from issues.
@@ -32,6 +37,11 @@ import {
 } from '@/utils/issueFilters'
 import type { GithubIssue } from '@/types'
 import Tabs from '@/components/ui/Tabs.vue'
+import RepoBrowser from '@/components/github/RepoBrowser.vue'
+import IssueForm from '@/components/github/IssueForm.vue'
+import TextArea from '@/components/ui/TextArea.vue'
+import TechChips from '@/components/github/TechChips.vue'
+import { techBadge } from '@/utils/techBadge'
 
 const app = useAppStore()
 const auth = useAuthStore()
@@ -89,6 +99,81 @@ function toggleRepo(id: string) {
   if (next) void app.loadRepoActivity(next)
 }
 
+// ---- writing issues (13c's other half) -------------------------------------
+// Reading an issue tab and then going to github.com to answer it is the tab
+// failing at the only thing it is for. These write through the same proxy the
+// sync uses; `busy` keeps a double-click from sending two of anything.
+const creating = ref(false)
+const editingId = ref<string | null>(null)
+const commentingId = ref<string | null>(null)
+const commentDraft = ref('')
+const busy = ref(false)
+
+const repoOptions = computed(() =>
+  repos.value.map((r) => ({ value: String(r.id), label: r.fullName })),
+)
+
+function startCreate() {
+  creating.value = true
+  editingId.value = null
+}
+function startEdit(id: string) {
+  editingId.value = id
+  commentingId.value = null
+}
+function startComment(id: string) {
+  commentingId.value = id
+  commentDraft.value = ''
+  editingId.value = null
+}
+
+async function run(work: () => Promise<boolean>): Promise<boolean> {
+  if (busy.value) return false
+  busy.value = true
+  try {
+    return await work()
+  } finally {
+    busy.value = false
+  }
+}
+
+async function submitCreate(draft: {
+  repoId: string
+  title: string
+  body: string
+  labels: string[]
+}) {
+  const ok = await run(() =>
+    app.createGithubIssue(draft.repoId, {
+      title: draft.title,
+      body: draft.body,
+      labels: draft.labels,
+    }),
+  )
+  if (ok) creating.value = false
+}
+
+async function submitEdit(id: string, draft: { title: string; body: string; labels: string[] }) {
+  const ok = await run(() =>
+    app.updateGithubIssue(id, { title: draft.title, body: draft.body, labels: draft.labels }),
+  )
+  if (ok) editingId.value = null
+}
+
+async function submitComment(id: string) {
+  const ok = await run(() => app.commentOnGithubIssue(id, commentDraft.value))
+  if (ok) {
+    commentingId.value = null
+    commentDraft.value = ''
+  }
+}
+
+function toggleState(issue: GithubIssue) {
+  void run(() =>
+    app.updateGithubIssue(issue.id, { state: issue.state === 'open' ? 'closed' : 'open' }),
+  )
+}
+
 const repoRows = computed(() =>
   repos.value
     .slice()
@@ -110,6 +195,19 @@ const filterRow = computed(() =>
   }),
 )
 const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', width: '100%' })
+const issueActions = pxify({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 'var(--sp-2)',
+  paddingTop: 'var(--sp-2)',
+})
+const commentBox = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+  paddingTop: 'var(--sp-2)',
+})
 function stateDot(state: 'open' | 'closed') {
   const col = issueStateColor(state)
   return pxify({
@@ -213,6 +311,9 @@ function progressInner(pct: number) {
         @update:model-value="pane = $event as 'issues' | 'repos'"
       />
       <span style="flex: 1"></span>
+      <button v-if="pane === 'issues' && repos.length" :style="s.importBtn" @click="startCreate">
+        New issue
+      </button>
       <button :style="s.editBtn" @click="auth.openGithubPanel()">Settings</button>
     </div>
 
@@ -263,6 +364,16 @@ function progressInner(pct: number) {
         />
       </div>
       <TextInput placeholder="Search by number or title…" v-model="filter.query" />
+
+      <!-- Writing a new issue. Above the list, where the result will appear. -->
+      <IssueForm
+        v-if="creating"
+        :repos="repoOptions"
+        :repo-id="filter.repoId !== 'all' ? filter.repoId : ''"
+        :busy="busy"
+        @submit="submitCreate"
+        @cancel="creating = false"
+      />
 
       <div v-if="selected.size" :style="bulkBar">
         <span>{{ selected.size }} selected</span>
@@ -316,18 +427,60 @@ function progressInner(pct: number) {
             </button>
             <span v-else :style="s.finMeta">linked</span>
           </div>
-          <!-- Sanitised markdown: raw HTML in an issue body renders as text. -->
-          <div
-            v-if="expandedIssue === issue.id && issue.body"
-            :style="bodyStyle"
-            v-html="renderMarkdown(issue.body)"
-          ></div>
+
+          <!-- The issue's own actions, in the row that is open. Edit and
+               comment write to GitHub; there is no delete, because GitHub has
+               none — an issue is closed, and closing is reversible. -->
+          <template v-if="expandedIssue === issue.id">
+            <!-- Sanitised markdown: raw HTML in an issue body renders as text. -->
+            <div v-if="issue.body && editingId !== issue.id" :style="bodyStyle">
+              <div v-html="renderMarkdown(issue.body)"></div>
+            </div>
+
+            <IssueForm
+              v-if="editingId === issue.id"
+              :issue="issue"
+              :repos="repoOptions"
+              :busy="busy"
+              @submit="submitEdit(issue.id, $event)"
+              @cancel="editingId = null"
+            />
+
+            <div v-else :style="issueActions">
+              <button :style="s.editBtn" @click="startEdit(issue.id)">Edit</button>
+              <button :style="s.editBtn" @click="startComment(issue.id)">Comment</button>
+              <button :style="s.editBtn" @click="toggleState(issue)">
+                {{ issue.state === 'open' ? 'Close issue' : 'Reopen' }}
+              </button>
+            </div>
+
+            <div v-if="commentingId === issue.id" :style="commentBox">
+              <TextArea
+                v-model="commentDraft"
+                :rows="3"
+                placeholder="Leave a comment (markdown)"
+                aria-label="Comment"
+              />
+              <div :style="issueActions">
+                <button :style="s.importBtn" @click="submitComment(issue.id)">
+                  {{ busy ? 'Posting…' : 'Comment' }}
+                </button>
+                <button :style="s.editBtn" @click="commentingId = null">Cancel</button>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </template>
 
     <!-- ---- Repos --------------------------------------------------------- -->
     <template v-else>
+      <!-- Every repository the token can see, with what it is built with. The
+           list below is only the LINKED ones — the repos whose issues are
+           mirrored — which is a much shorter list and never the answer to
+           "what do I have on GitHub". -->
+      <RepoBrowser />
+
       <div v-if="!repoRows.length" :style="s.empty">
         No repositories linked yet — connect GitHub and pick one in Settings.
       </div>
@@ -338,10 +491,12 @@ function progressInner(pct: number) {
               <span :style="s.dlTitle">{{ row.repo.fullName }}</span>
               <span :style="s.finMeta">
                 {{ row.repo.private ? 'private' : 'public' }}
-                <template v-if="row.repo.language"> · {{ row.repo.language }}</template>
                 · {{ row.repo.defaultBranch }} · {{ row.repo.openIssuesCount }} open issues · pushed
                 {{ formatRelative(row.repo.pushedAt, now) }}
               </span>
+              <!-- The language as the same chip the browse list uses, rather
+                   than a bare word in the middle of a metadata sentence. -->
+              <TechChips v-if="row.repo.language" :items="[techBadge(row.repo.language)]" />
             </div>
             <div
               :style="toggleTrack(row.repo.syncEnabled)"

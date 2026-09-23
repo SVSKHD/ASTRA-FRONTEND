@@ -22,7 +22,7 @@ const GoalHelpPanel = defineAsyncComponent(() => import('@/components/goals/Goal
 import { useBackgroundWork } from '@/composables/useBackgroundWork'
 import { useStyles } from '@/composables/useStyles'
 import { useAppStore } from '@/stores/app'
-import { firebaseEnabled, onPersistenceResolved } from '@/firebase'
+import { firebaseEnabled, onPersistenceResolved, supabaseEnabled } from '@/firebase'
 
 const { s } = useStyles()
 const app = useAppStore()
@@ -46,7 +46,9 @@ const showBrand = computed(
 // Firestore now loads after the first paint, so the answer arrives via the
 // subscription rather than being readable at mount.
 onMounted(() => {
-  if (!firebaseEnabled) return
+  // Only the Firestore fallback ever had an offline cache to lose. On Supabase
+  // "memory" is the normal state, and this would announce it on every load.
+  if (!firebaseEnabled || supabaseEnabled) return
   onPersistenceResolved((mode) => {
     if (mode === 'memory') app.showToastMsg('Offline mode unavailable in this browser')
   })

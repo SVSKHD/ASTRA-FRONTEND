@@ -1,24 +1,25 @@
 // The client half of the GitHub integration's trust boundary (section 13a).
 //
-// NO GITHUB TOKEN EVER REACHES THIS FILE. Every call is a POST to the `ghProxy`
-// Cloud Function, authenticated with the caller's Firebase ID token. The function
-// resolves the GitHub App installation for that uid, pulls the installation token
-// out of Secret Manager, calls GitHub, and returns only the response body plus the
-// conditional-request/rate-limit metadata. The browser never holds an
-// installation id secret, a PAT, or an OAuth token, and nothing token-shaped is
-// ever written back into Firestore — `stripSecrets` below is the belt-and-braces
-// check on that (acceptance 59).
+// NO GITHUB TOKEN EVER REACHES THIS FILE. Every call is a POST to the proxy
+// (`VITE_GH_PROXY_URL`, the Netlify function at /api/github), authenticated
+// with the caller's Supabase session token. The function verifies that token
+// with Supabase, checks the owner allowlist, calls GitHub with its server-held
+// token, and returns only the response body plus the conditional-request and
+// rate-limit metadata. The browser never holds a PAT or an OAuth token, and
+// nothing token-shaped is ever stored — `stripSecrets` below is the
+// belt-and-braces check on that (acceptance 59).
 //
 // The transport is deliberately thin; everything worth testing (request shaping,
 // response parsing, secret stripping, backoff) is pure and lives here too.
 
-import { auth } from '@/firebase'
+import { supabase } from '@/supabase'
 
 // The operations the Cloud Function exposes. Kept as a closed union so a typo is
 // a compile error rather than a 400 at runtime.
 export type GhOp =
   | 'installations' // repos visible to the installation, for the picker
   | 'repo' // one repo's metadata
+  | 'languages' // bytes per language for one repo, for the tech chips
   | 'issues' // list issues for a repo (conditional via etag)
   | 'issue' // one issue
   | 'createIssue'
@@ -176,9 +177,11 @@ export function parseGhResponse<T>(status: number, raw: unknown): GhResponse<T> 
 // ---- transport -------------------------------------------------------------
 
 async function idToken(): Promise<string> {
-  const user = auth?.currentUser
-  if (!user) throw new GhNotConfiguredError('Sign in before calling GitHub')
-  return user.getIdToken()
+  // getSession() refreshes an expired access token before handing it over, so
+  // the proxy is never sent a token Supabase would reject as stale.
+  const session = supabase ? (await supabase.auth.getSession()).data.session : null
+  if (!session) throw new GhNotConfiguredError('Sign in before calling GitHub')
+  return session.access_token
 }
 
 export async function ghCall<T>(

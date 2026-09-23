@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Aureon — a liquid-glass, space-themed personal tracker built with Vue 3, Firebase Auth and Supabase.",
+  "description": "Aureon — a liquid-glass, space-themed personal tracker (todos, tasks, deadlines, reminders, finances) built with Vue 3 + Firebase.",
   "scripts": {
     "dev": "vite",
     "test": "vitest run",
@@ -53,6 +53,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@netlify/vite-plugin": "^3.0.1",
     "@types/leaflet": "^1.9.21",
     "@types/markdown-it": "^14.1.2",
     "@types/markdown-it-attrs": "^4.1.3",

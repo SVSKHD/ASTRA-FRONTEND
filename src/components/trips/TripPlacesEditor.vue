@@ -14,6 +14,7 @@ import RichEditor from '@/components/RichEditor.vue'
 import type { GeoResult } from '@/utils/geo'
 import type { TripPlace } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
+import Caret from '@/components/ui/Caret.vue'
 
 const props = defineProps<{ tripId: number; places: TripPlace[]; active: number | null }>()
 const emit = defineEmits<{ (e: 'select', placeId: number): void }>()
@@ -240,7 +241,7 @@ const addBtn = () =>
           :title="isOpen(place.id) ? 'Collapse' : 'Edit'"
           @click="toggle(place.id)"
         >
-          {{ isOpen(place.id) ? '▾' : '✎' }}
+          <Caret :open="isOpen(place.id)" size="sm" />
         </button>
         <button :style="iconBtn()" title="Remove place" @click="remove(place)">×</button>
       </div>

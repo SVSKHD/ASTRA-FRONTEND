@@ -5,10 +5,13 @@
 // Keeping ownership stamping here means every write reaches Postgres with the
 // same uid that Row Level Security validates from the Firebase JWT.
 
+import type { Firestore } from 'firebase/firestore'
 import type { FirestoreModule } from '@/firebase'
 
 export interface OwnedRef {
-  db: unknown
+  // The SDK's type even in Supabase mode: it is the contract, and the adapter
+  // is cast to it once where it is built (src/firebase.ts).
+  db: Firestore
   fs: FirestoreModule
   collection: string
   uid: string

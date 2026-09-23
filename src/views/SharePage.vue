@@ -14,6 +14,7 @@ import { fetchShare, type ShareDoc, type ShareLoad } from '@/utils/shares'
 import { TYPE_BY_PLURAL } from '@/utils/share'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
 import TripDetail from '@/components/trips/TripDetail.vue'
+import AuthDialog from '@/components/AuthDialog.vue'
 import { repFreqLabel } from '@/utils/reminders'
 import { formatINR } from '@/utils/currency'
 import { formatAbsolute, isStamped } from '@/utils/timestamps'
@@ -26,6 +27,13 @@ const router = useRouter()
 const auth = useAuthStore()
 const { c, s } = useStyles()
 const { authReady, isSignedIn } = storeToRefs(auth)
+// The sign-in card, shown only once the visitor asks for it — a public share
+// must not open behind an overlay.
+const signingIn = ref(false)
+function signIn() {
+  signingIn.value = true
+  auth.openAuth()
+}
 
 const load = ref<ShareLoad | null>(null)
 const share = computed<ShareDoc | null>(() =>
@@ -238,6 +246,7 @@ function goHome() {
 </script>
 
 <template>
+  <AuthDialog v-if="signingIn && !isSignedIn" />
   <!-- A shared trip is the full read-only detail page, not a summary card. -->
   <TripDetail
     v-if="sharedTrip"
@@ -262,8 +271,8 @@ function goHome() {
           Sign in with the account that created it to view this item.
         </span>
         <div :style="s.dialogActions">
-          <button v-if="authReady && !isSignedIn" :style="s.saveBtn" @click="auth.loginGoogle()">
-            Sign in with Google
+          <button v-if="authReady && !isSignedIn" :style="s.saveBtn" @click="signIn">
+            Sign in
           </button>
           <button :style="s.cancelBtn" @click="goHome">Back to Aureon</button>
         </div>

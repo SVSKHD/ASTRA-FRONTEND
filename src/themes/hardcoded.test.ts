@@ -37,7 +37,6 @@ const SRC = resolve(__dirname, '..')
  * Every entry is a thing that would be wrong to theme, with why.
  */
 const IDENTITY: Record<string, string> = {
-  'components/AuthDialog.vue': "Google's four-colour G. A themed brand mark is a broken one.",
   'components/Celestial.vue': 'The planets and the moon. Scene art, not chrome.',
   'components/Starfield.vue': 'The sky itself.',
   'components/CursorTail.vue': 'The pointer trail, drawn on the sky.',

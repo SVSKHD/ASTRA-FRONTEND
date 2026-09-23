@@ -14,6 +14,7 @@
 // it, so it is the thing that has to disown it.
 import { computed, ref } from 'vue'
 import IconForex from '@/components/feedicons/IconForex.vue'
+import Caret from '@/components/ui/Caret.vue'
 import { countOf } from '@/utils/format'
 import { forexFor } from '@/composables/useNews'
 import { IST, hhmmOn } from '@/utils/tradeTime'
@@ -41,7 +42,7 @@ const matching = computed(() => forexFor(props.items, props.day, props.tags))
       <span class="nstrip__label">
         {{ countOf(matching.length, 'forex headline') }} on {{ day }}
       </span>
-      <span class="nstrip__chev" aria-hidden="true">{{ open ? '−' : '+' }}</span>
+      <Caret :open="open" size="sm" />
     </button>
 
     <div v-if="open" class="nstrip__body">
@@ -90,9 +91,6 @@ const matching = computed(() => forexFor(props.items, props.day, props.tags))
 .nstrip__label {
   flex: 1;
   min-width: 0;
-}
-.nstrip__chev {
-  font-family: var(--font-mono);
 }
 .nstrip__body {
   display: flex;

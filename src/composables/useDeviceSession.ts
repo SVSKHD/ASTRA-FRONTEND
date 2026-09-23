@@ -16,7 +16,7 @@
 // something tells it to stop. The heartbeat's return value is that something.
 
 import { onScopeDispose, ref, type Ref } from 'vue'
-import { firebaseEnabled } from '@/firebase'
+import { firebaseEnabled, supabaseEnabled } from '@/firebase'
 import { heartbeat, registerSession, type RegisterResult } from '@/services/deviceSessions'
 import { clearSessionId, HEARTBEAT_INTERVAL_MS, shouldHeartbeat } from '@/utils/sessionId'
 
@@ -92,7 +92,14 @@ export function useDeviceSession(options: DeviceSessionOptions): DeviceSessionHa
       lastSentAt = Date.now()
       if (result?.newCountry) options.onNewCountry?.(result)
     } catch (err) {
-      console.warn('[Aureon] session registration failed', err)
+      // No session was registered, so there is nothing for a heartbeat to keep
+      // alive — and each failed heartbeat clears the throttle, so every window
+      // focus would fire another call at a backend that just refused one (a
+      // Functions project out of quota answers with a CORS error, repeatedly).
+      // The next sign-in registers again.
+      console.warn('[Aureon] session registration failed; device heartbeat is off', err)
+      registering.value = false
+      return
     } finally {
       registering.value = false
     }
@@ -118,7 +125,12 @@ export function useDeviceSession(options: DeviceSessionOptions): DeviceSessionHa
   // nothing to register against. Bailing here rather than letting the callable
   // fail keeps a mounted component in a unit test from installing a five-minute
   // interval and two window listeners it will never use.
-  if (firebaseEnabled) void start()
+  //
+  // Also off while sign-in is Supabase (migration phase 3): the session
+  // callables are Firebase Cloud Functions, which authenticate the caller by a
+  // Firebase ID token that nobody holds any more. They come back when the
+  // functions move to Supabase (phase 4); until then calling them only fails.
+  if (firebaseEnabled && !supabaseEnabled) void start()
   onScopeDispose(stop)
 
   return { registering, ping, stop }

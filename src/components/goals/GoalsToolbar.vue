@@ -85,7 +85,8 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
         >
           <Icon name="help" size="sm" />
         </button>
-        <Dropdown label="Import ▾" :items="IMPORT_ITEMS" @select="emit('import')" />
+        <!-- The chevron is Dropdown's own now, so the label is just the word. -->
+        <Dropdown label="Import" :items="IMPORT_ITEMS" @select="emit('import')" />
         <button type="button" class="gtb__new" @click="emit('new')">+ New goal</button>
       </div>
     </div>

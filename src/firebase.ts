@@ -1,16 +1,19 @@
-// Identity and cloud-service bootstrap.
+// Cloud-service bootstrap.
 //
-// Phase 1 of the Supabase migration keeps Firebase Authentication, Functions and
-// Storage, but moves the app-owned document database to Supabase. The existing
-// Firestore-shaped data API is retained temporarily so the migration can happen
-// without rewriting every view/composable in the same change.
+// Sign-in and the app's data are Supabase (src/supabase.ts; migration phases
+// 1–3). What is left here is Firebase for the pieces that have not moved yet —
+// Cloud Functions and Storage (phases 4–5) — plus the Firestore SDK as the
+// fallback data path when Supabase is not configured.
 //
-// A few function-owned mirrors (news, GitHub webhooks and device security rows)
-// still live in Firestore until their server-side writers are migrated. The
-// Supabase adapter delegates only those namespaces back to legacy Firestore.
+// The Firestore-shaped data API is retained so views and composables did not
+// have to be rewritten in the same change as the database underneath them.
 
 import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { getAuth, type Auth } from 'firebase/auth'
+import type { Firestore } from 'firebase/firestore'
+import { supabase, supabaseEnabled } from '@/supabase'
+
+export { supabaseEnabled }
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -23,11 +26,6 @@ const config = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 }
 
-const supabaseConfig = {
-  url: import.meta.env.VITE_SUPABASE_URL,
-  key: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY,
-}
-
 export const AUREON_COLLECTION = 'aureon-notes'
 
 const isTestRunner = import.meta.env.MODE === 'test'
@@ -35,8 +33,8 @@ const isTestRunner = import.meta.env.MODE === 'test'
 export const firebaseEnabled =
   Boolean(config.apiKey && config.projectId && config.appId) && !isTestRunner
 
-export const supabaseEnabled =
-  Boolean(supabaseConfig.url && supabaseConfig.key) && firebaseEnabled && !isTestRunner
+/** Whether the app has a cloud data store at all: Supabase, or the Firestore fallback. */
+export const cloudEnabled = supabaseEnabled || firebaseEnabled
 
 export const defaultLockMinutes = Math.max(
   1,
@@ -67,10 +65,21 @@ if (firebaseEnabled) {
 // The compatibility handle deliberately exposes the small Firestore-shaped
 // surface used by the app. In Supabase mode the implementation is
 // src/supabaseFirestore.ts; in fallback mode it is the real Firestore SDK.
-export type FirestoreModule = Record<string, any>
+//
+// THE TYPE IS THE FIRESTORE SDK'S, EVEN IN SUPABASE MODE. It is the contract
+// every caller is written against, and the adapter is cast to it where it is
+// built. It was loosened to `Record<string, any>` for the adapter's sake, which
+// stripped the types from every snapshot callback in the app (41 `vue-tsc`
+// errors). A type-only import, so nothing of the SDK reaches the bundle.
+//
+// The cost of the cast: nothing checks that the adapter implements every
+// function a caller uses. Today it covers all of them (collection, doc, query,
+// where, orderBy, limit, getDoc, getDocs, setDoc, deleteDoc, onSnapshot,
+// serverTimestamp, Timestamp) — a new `fs.*` call needs adding there too.
+export type FirestoreModule = typeof import('firebase/firestore')
 
 export interface FirestoreHandle {
-  db: unknown
+  db: Firestore
   fs: FirestoreModule
 }
 
@@ -83,9 +92,11 @@ export function loadFirestore(): Promise<FirestoreHandle | null> {
   if (import.meta.env.DEV && String(import.meta.env.VITE_FIXTURE ?? '') === '1') {
     return import('@/dev/fixture').then((m) => m.fixtureHandle(m.forcedState()))
   }
-  if (!firebaseEnabled || !app || !auth) return Promise.resolve(null)
   if (!firestoreLoad) {
-    firestoreLoad = supabaseEnabled ? initSupabaseData() : initFirebaseFirestore(app)
+    // Supabase does not need Firebase at all any more — sign-in included.
+    if (supabaseEnabled && supabase) firestoreLoad = initSupabaseData()
+    else if (firebaseEnabled && app) firestoreLoad = initFirebaseFirestore(app)
+    else return Promise.resolve(null)
   }
   return firestoreLoad
 }
@@ -97,8 +108,17 @@ export function firestoreReady(): FirestoreHandle | null {
 async function initSupabaseData(): Promise<FirestoreHandle | null> {
   try {
     const { createSupabaseFirestoreHandle } = await import('@/supabaseFirestore')
-    const handle = await createSupabaseFirestoreHandle(auth, loadLegacyFirestore)
-    firestoreHandle = handle as FirestoreHandle
+    // No legacy Firestore: its rules admit Firebase-signed-in users only, and
+    // nobody signs in to Firebase now. The namespaces Firebase Functions still
+    // write (news, the GitHub mirror, Dacoit signals) report themselves as
+    // unavailable until those functions move (phase 4). This also means the
+    // app sends Firestore no traffic at all.
+    const handle = await createSupabaseFirestoreHandle(supabase!, async () => null)
+    // The one deliberate cast in the migration: the adapter implements the
+    // subset of the Firestore surface this app calls, not the whole SDK, so
+    // TypeScript cannot see the overlap on its own. Everything downstream is
+    // typed against the real SDK and checked as such.
+    firestoreHandle = handle as unknown as FirestoreHandle
     // Supabase Realtime keeps devices current, but it does not provide
     // Firestore's IndexedDB-backed queued-write cache.
     setPersistence('memory')
@@ -108,26 +128,6 @@ async function initSupabaseData(): Promise<FirestoreHandle | null> {
     setPersistence('none')
     return null
   }
-}
-
-// Firestore is loaded lazily only for namespaces that existing Firebase
-// Functions still own during the transition: forex, gh-* and users/**.
-let legacyFirestoreLoad: Promise<FirestoreHandle | null> | null = null
-
-async function loadLegacyFirestore(): Promise<FirestoreHandle | null> {
-  if (!app) return null
-  if (!legacyFirestoreLoad) {
-    legacyFirestoreLoad = (async () => {
-      try {
-        const fs = await import('firebase/firestore')
-        return { db: fs.getFirestore(app!), fs } as FirestoreHandle
-      } catch (err) {
-        console.error('[Aureon] Legacy Firestore mirror initialisation failed:', err)
-        return null
-      }
-    })()
-  }
-  return legacyFirestoreLoad
 }
 
 // Safe fallback while Supabase environment values are being rolled out. Once

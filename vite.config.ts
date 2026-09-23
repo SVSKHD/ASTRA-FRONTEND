@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
+import netlify from '@netlify/vite-plugin'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -8,8 +9,45 @@ import { visualizer } from 'rollup-plugin-visualizer'
 
 // The PWA/service worker is a build+serve concern only. It is skipped under
 // Vitest so the test run stays a plain module graph with no SW virtual modules.
+// THE NETLIFY FUNCTIONS HAVE TO RUN IN DEV TOO.
+//
+// `netlify/functions/github.ts` declares `config.path = '/api/github'`, and
+// `VITE_GH_PROXY_URL` points at it — but a plain `vite` knows nothing about
+// either, so in development that POST fell through to the SPA fallback and came
+// back as `index.html`. The caller then failed parsing HTML as JSON, which reads
+// like a broken proxy rather than an absent one.
+//
+// The plugin is what serves those functions locally, on the same port and at the
+// same path they answer on in production. Left out under Vitest: the test run is
+// a module graph, not a server.
+if (!process.env.VITEST) {
+  // A FUNCTION READS `process.env`, NOT `import.meta.env`. Vite only exposes
+  // `VITE_`-prefixed values to the client and never touches `process.env`, so
+  // the server-only names in `.env` — GITHUB_TOKEN above all — were simply
+  // absent locally and the function answered "GITHUB_TOKEN is not configured".
+  // Anything already set in the real environment wins, so this cannot override
+  // what a deploy or a shell provides.
+  const fileEnv = loadEnv('development', process.cwd(), '')
+  for (const [key, value] of Object.entries(fileEnv)) {
+    if (process.env[key] === undefined) process.env[key] = value
+  }
+}
+
 const plugins = [vue(), vueDevTools()]
 if (!process.env.VITEST) {
+  // Only what this project uses. The plugin emulates every Netlify feature by
+  // default, and Edge Functions emulation spawns a Deno server with a flag
+  // (`--allow-scripts`) older Deno builds reject — which crashed `vite` on
+  // start, taking the whole dev server down for a feature nothing here uses.
+  // Functions stay on: they are what serve `/api/github`.
+  plugins.push(
+    netlify({
+      edgeFunctions: { enabled: false },
+      blobs: { enabled: false },
+      database: { enabled: false },
+      geolocation: { enabled: false },
+    }),
+  )
   plugins.push(
     VitePWA({
       // A new deploy's SW takes over automatically — no "click to refresh".

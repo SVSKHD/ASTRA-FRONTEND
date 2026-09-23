@@ -18,6 +18,11 @@ import { loadFirestore } from '@/firebase'
 import { useSettings } from '@/composables/useSettings'
 import { copyVerifySwitch, renameWarning } from '@/services/collectionMove'
 import { collectionNameError, type CollectionKey } from '@/utils/collections'
+import { enabledDomains, routeFor } from '@/db/tableRoutes'
+
+function tablesServe(collection: string): boolean {
+  return routeFor(collection, enabledDomains(import.meta.env.VITE_SUPABASE_TABLES)) !== null
+}
 
 export function useCollectionRename() {
   const store = useSettings()
@@ -33,6 +38,14 @@ export function useCollectionRename() {
     }
     const from = store.settings.value[key]
     if (from === next) return false
+    // Once a domain lives in its own table there is no per-user collection to
+    // point at: a rename would copy the rows out of the table and back into
+    // the JSONB compatibility store, and the app would stop reading the table.
+    if (tablesServe(from)) {
+      message.value =
+        'Trades, expenses and the secured ledger now live in their own tables, so their names are fixed. Nothing was changed.'
+      return false
+    }
     const cloud = await loadFirestore()
     if (!cloud || !store.uid.value) {
       message.value = 'Not signed in — nothing was changed.'

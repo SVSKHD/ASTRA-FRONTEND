@@ -5,13 +5,11 @@ import { computed, ref, watch, type Ref } from 'vue'
 import type { Unsubscribe } from 'firebase/firestore'
 import {
   AUREON_COLLECTION,
-  auth,
+  cloudEnabled,
   defaultLockMinutes,
-  firebaseEnabled,
   firestoreReady,
   loadFirestore,
 } from '@/firebase'
-import { onAuthStateChanged, type User as FbUser } from 'firebase/auth'
 import { isThemeSetting, isThemeKey, THEMES, type ThemeSetting, type ThemeKey } from '@/themes'
 import type { DetailKind } from '@/utils/detailUrl'
 import {
@@ -26,7 +24,7 @@ import {
   topOf,
   type DetailFrame,
 } from '@/utils/detailStack'
-import { isFirebaseUserAllowed } from '@/stores/auth'
+import { isUserAllowed } from '@/stores/auth'
 import {
   GhNotConfiguredError,
   GhRateLimitError,
@@ -4639,6 +4637,111 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // ---- Issues, edited as issues -------------------------------------------
+  // The three above are the TASK's side of the contract: they exist so a task
+  // can have an issue. These are the issue's own side, for the GitHub tab —
+  // write an issue, fix its wording, say something on it, close it — with no
+  // task involved and no backlink written into the body.
+  //
+  // Each one ingests what GitHub returned rather than guessing at the new state,
+  // so the row on screen is the row on GitHub even when the server normalised
+  // something (a label that does not exist, a title it trimmed).
+
+  interface IssueDraft {
+    title: string
+    body?: string
+    labels?: string[]
+  }
+
+  async function createGithubIssue(repoId: string, draft: IssueDraft): Promise<boolean> {
+    const parsed = parseRepoKey(repoId)
+    const title = draft.title.trim()
+    if (!parsed || !title) return false
+    if (!canCallGithub()) {
+      showToastMsg('Connect GitHub first')
+      return false
+    }
+    try {
+      const res = await ghCall<Record<string, unknown>>('createIssue', {
+        owner: parsed.owner,
+        repo: parsed.name,
+        title,
+        body: draft.body ?? '',
+        labels: draft.labels ?? [],
+      })
+      noteRateLimit(res.rateLimit)
+      const issue = res.data ? issueFromApi(res.data, repoId) : null
+      if (!issue) {
+        ghError.value = 'GitHub accepted the issue but returned nothing usable.'
+        return false
+      }
+      ingestGithubIssues([issue])
+      showToastMsg('Created #' + issue.number + ' in ' + fullName(repoId))
+      return true
+    } catch (err) {
+      handleGhError(err, 'Could not create the GitHub issue.')
+      return false
+    }
+  }
+
+  async function updateGithubIssue(
+    issueId: string,
+    patch: { title?: string; body?: string; state?: 'open' | 'closed'; labels?: string[] },
+  ): Promise<boolean> {
+    const issue = issueByKey(issueId)
+    const parsed = issue ? parseRepoKey(issue.repoId) : null
+    if (!issue || !parsed) return false
+    if (!canCallGithub()) {
+      showToastMsg('Connect GitHub first')
+      return false
+    }
+    try {
+      const res = await ghCall<Record<string, unknown>>('patchIssue', {
+        owner: parsed.owner,
+        repo: parsed.name,
+        number: issue.number,
+        ...patch,
+      })
+      noteRateLimit(res.rateLimit)
+      const updated = res.data ? issueFromApi(res.data, issue.repoId) : null
+      // The link to a task is the app's own fact and is not in GitHub's answer,
+      // so it is carried across rather than dropped on every edit.
+      if (updated) ingestGithubIssues([{ ...updated, linkedTaskId: issue.linkedTaskId }])
+      return true
+    } catch (err) {
+      handleGhError(err, 'Could not update the GitHub issue.')
+      return false
+    }
+  }
+
+  async function commentOnGithubIssue(issueId: string, body: string): Promise<boolean> {
+    const issue = issueByKey(issueId)
+    const parsed = issue ? parseRepoKey(issue.repoId) : null
+    const text = body.trim()
+    if (!issue || !parsed || !text) return false
+    if (!canCallGithub()) {
+      showToastMsg('Connect GitHub first')
+      return false
+    }
+    try {
+      const res = await ghCall('comment', {
+        owner: parsed.owner,
+        repo: parsed.name,
+        number: issue.number,
+        body: text,
+      })
+      noteRateLimit(res.rateLimit)
+      // The comment count on the row is GitHub's, so it is bumped here rather
+      // than waiting for the next poll to make the row agree with what happened.
+      ingestGithubIssues([{ ...issue, commentsCount: issue.commentsCount + 1 }])
+      showToastMsg('Commented on #' + issue.number)
+      return true
+    } catch (err) {
+      handleGhError(err, 'Could not post the comment.')
+      return false
+    }
+  }
+
   // Link a task to an issue that already exists. The issue body is left exactly
   // as its author wrote it — the link lives on both records instead.
   function linkIssueToTask(taskId: number, issueId: string): boolean {
@@ -5785,6 +5888,10 @@ export const useAppStore = defineStore('app', () => {
     const authStore = useAuthStore()
     const ok = await authStore.reconnectCalendar()
     calendarNeedsAuth.value = !ok
+    // Google sign-in (which is what carries the Calendar token) is off until it
+    // is wired back, so say that rather than letting the button do nothing.
+    if (!ok)
+      showToastMsg('Google Calendar is not connected yet — it comes back with Google sign-in.')
     return ok
   }
   function requestNotifPermission() {
@@ -6439,7 +6546,7 @@ export const useAppStore = defineStore('app', () => {
   }
   function saveCloud() {
     const cloud = firestoreReady()
-    if (!firebaseEnabled || !cloud || !uid || hydrating || !cloudReady.value) return
+    if (!cloudEnabled || !cloud || !uid || hydrating || !cloudReady.value) return
     const ref = cloud.fs.doc(cloud.db, AUREON_COLLECTION, uid)
     syncState.value = 'saving'
     cloud.fs
@@ -6466,8 +6573,7 @@ export const useAppStore = defineStore('app', () => {
   // callers do not have to special-case an offline/unconfigured workspace.
   function saveCloudNow(): Promise<void> {
     const cloud = firestoreReady()
-    if (!firebaseEnabled || !cloud || !uid || hydrating || !cloudReady.value)
-      return Promise.resolve()
+    if (!cloudEnabled || !cloud || !uid || hydrating || !cloudReady.value) return Promise.resolve()
     const ref = cloud.fs.doc(cloud.db, AUREON_COLLECTION, uid)
     clearTimeout(saveTimer)
     syncState.value = 'saving'
@@ -6484,7 +6590,8 @@ export const useAppStore = defineStore('app', () => {
       })
   }
 
-  async function connectCloud(u: FbUser | null) {
+  // The signed-in account, as the sign-in store reports it (Supabase Auth).
+  async function connectCloud(u: { uid: string; email: string } | null) {
     if (cloudUnsub) {
       cloudUnsub()
       cloudUnsub = null
@@ -6494,7 +6601,7 @@ export const useAppStore = defineStore('app', () => {
     cloudReady.value = false
     cloudError.value = ''
     syncState.value = 'idle'
-    uid = u && isFirebaseUserAllowed(u) ? u.uid : null
+    uid = u && isUserAllowed(u) ? u.uid : null
     resetData()
     if (!uid) return
     // Sign-in is where Firestore is first genuinely needed, so this is where it
@@ -6569,11 +6676,25 @@ export const useAppStore = defineStore('app', () => {
   // Re-run the connect for whoever is currently signed in, so a transient
   // Firestore failure does not strand the user on the error card.
   async function retryCloud() {
-    await connectCloud(auth?.currentUser ?? null)
+    await connectCloud(signedInAccount())
   }
 
-  if (firebaseEnabled && auth) {
-    onAuthStateChanged(auth, connectCloud)
+  // Who is signed in, from the sign-in store — the one source of identity.
+  function signedInAccount(): { uid: string; email: string } | null {
+    const user = useAuthStore().user
+    return user ? { uid: user.uid, email: user.email } : null
+  }
+
+  if (cloudEnabled) {
+    // Connect on sign-in, disconnect on sign-out, reconnect on an account
+    // switch. Keyed on the uid, so a token refresh (same user) does nothing.
+    watch(
+      () => useAuthStore().user?.uid ?? null,
+      () => void connectCloud(signedInAccount()),
+      {
+        immediate: true,
+      },
+    )
 
     watch(
       [
@@ -6740,6 +6861,9 @@ export const useAppStore = defineStore('app', () => {
     stopGithubPolling,
     loadRepoActivity,
     createIssueFromTask,
+    createGithubIssue,
+    updateGithubIssue,
+    commentOnGithubIssue,
     linkIssueToTask,
     unlinkIssueFromTask,
     linkableIssues,
