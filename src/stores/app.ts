@@ -119,8 +119,10 @@ import {
   STATUS_LOG_LIMIT,
   emptyFinanceSettings,
   emptyGithubIntegration,
+  isPaneMode,
   isStatus,
   statusFromDone,
+  type PaneMode,
 } from '@/types'
 import { chunk, eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
 import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
@@ -418,6 +420,13 @@ export const useAppStore = defineStore('app', () => {
   // workspace doc so it comes back on refresh and across devices. The ui store
   // reads it; the rail's toggle writes it.
   const railCollapsed = ref(false)
+  // How wide the detail panes open: 'compact' is a column beside a list that
+  // keeps its width, 'large' is the 50/50 split. A per-user preference for the
+  // same reason the rail's is — it is a choice about how much of the screen
+  // this person wants a detail to take, and re-making it on every tab and every
+  // reload is the whole complaint. One setting for every pane: somebody who
+  // wants compact wants it everywhere.
+  const paneMode = ref<PaneMode>('large')
   // "Move pending to today" preferences. autoRollover runs the rollover once on
   // the first load of a new day; lastAutoRolloverDay (a YYYY-MM-DD key) records
   // the last day it did, so it fires at most once per day per device-sync.
@@ -5368,6 +5377,17 @@ export const useAppStore = defineStore('app', () => {
   function setDetailSplit(pct: number) {
     detailSplit.value = clampSplit(pct)
   }
+  // --- detail pane width (compact / large) -----------------------------------
+  // One setting, every pane. Writing it here rather than per tab is the point:
+  // the preference is about how this person reads a detail, and a Todos pane
+  // that opens compact while the Tasks pane opens large is two answers to one
+  // question.
+  function setPaneMode(mode: PaneMode) {
+    paneMode.value = mode
+  }
+  function togglePaneMode() {
+    paneMode.value = paneMode.value === 'compact' ? 'large' : 'compact'
+  }
   // --- "How to add a goal" (section 23) --------------------------------------
   // Opening it is also what marks it seen: a reader who was shown the panel has
   // been shown it, whether they read it or closed it immediately. Marking on
@@ -5994,6 +6014,7 @@ export const useAppStore = defineStore('app', () => {
       preferredDark: preferredDark.value,
       preferredLight: preferredLight.value,
       railCollapsed: railCollapsed.value,
+      paneMode: paneMode.value,
       autoRollover: autoRollover.value,
       lastAutoRolloverDay: lastAutoRolloverDay.value,
       hideCompleted: hideCompleted.value,
@@ -6045,6 +6066,7 @@ export const useAppStore = defineStore('app', () => {
     preferredDark.value = 'deepSpace'
     preferredLight.value = 'daylight'
     railCollapsed.value = false
+    paneMode.value = 'large'
     goalsHelpSeen.value = false
     autoRollover.value = false
     lastAutoRolloverDay.value = ''
@@ -6434,6 +6456,7 @@ export const useAppStore = defineStore('app', () => {
         ? data.preferredLight
         : 'daylight'
     railCollapsed.value = data.railCollapsed === true
+    paneMode.value = isPaneMode(data.paneMode) ? data.paneMode : 'large'
     autoRollover.value = data.autoRollover === true
     lastAutoRolloverDay.value =
       typeof data.lastAutoRolloverDay === 'string' ? data.lastAutoRolloverDay : ''
@@ -6718,6 +6741,7 @@ export const useAppStore = defineStore('app', () => {
         preferredDark,
         preferredLight,
         railCollapsed,
+        paneMode,
         goalsHelpSeen,
         autoRollover,
         lastAutoRolloverDay,
@@ -6771,6 +6795,9 @@ export const useAppStore = defineStore('app', () => {
     preferredDark,
     preferredLight,
     railCollapsed,
+    paneMode,
+    setPaneMode,
+    togglePaneMode,
     autoRollover,
     hideCompleted,
     reminderSound,

@@ -3,8 +3,9 @@
 // accordion for overdue tasks, today's active items flat (no per-deadline
 // grouping), then a collapsed Completed section. Drag-to-nest, linked
 // accordions, the repo/CI chip and the "Remind me" bell all keep working.
-// On desktop the list sits on the left and the selected task's details and
-// subtasks show in the right-hand pane (TaskDetail).
+// On desktop the selected task's details and subtasks open in a floating
+// companion pane over the list (TaskDetail in a SlideOver) rather than in a
+// column cut out of it, so the list keeps the whole tab either way.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -22,8 +23,10 @@ import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
 import TaskDetail from '@/components/TaskDetail.vue'
+import SlideOver from '@/components/ui/SlideOver.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import { useTapOpen } from '@/composables/useTapOpen'
+import { usePaneInset } from '@/composables/usePaneInset'
 import TitleTagPill from '@/components/TitleTagPill.vue'
 import { nestedChildIds } from '@/utils/links'
 import { buildIndex, descendantsOf, progressOf } from '@/utils/taskTree'
@@ -107,6 +110,13 @@ const selectedId = ref<number | null>(null)
 const selectedExists = computed(
   () => selectedId.value != null && tasks.value.some((t) => t.id === selectedId.value),
 )
+// The list narrows to what the pane does not cover while it is open, so the
+// toolbar's New button never ends up behind it. The width comes from the pane
+// itself, so compact, large and a dragged edge all make the right amount of
+// room.
+const paneOpen = computed(() => !isMobile.value && selectedExists.value)
+const paneWidth = ref(0)
+const { host: paneHost, style: paneInset } = usePaneInset(paneOpen, paneWidth)
 function openTask(id: number, siblings: number[] = activeRootIds.value) {
   if (isMobile.value) app.openTaskDialog(id, siblings)
   else selectedId.value = id
@@ -260,13 +270,6 @@ const linkExpandBtn = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-const splitLayout = pxify({
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-  gap: 'var(--sp-4)',
-  flex: 1,
-  minHeight: 0,
-})
 // The filter input stays put above the list while the list scrolls under it.
 const leftColumn = pxify({
   display: 'flex',
@@ -287,15 +290,6 @@ const listColumn = pxify({
   // hovered row's shadow has to be inside it.
   padding: '4px 10px 18px',
 })
-const detailColumn = computed(() =>
-  pxify({
-    display: 'flex',
-    flexDirection: 'column',
-    minHeight: 0,
-    borderLeft: '1px solid ' + c.value.border,
-    paddingLeft: 'var(--sp-4)',
-  }),
-)
 const doneAgo = (t: Task) => (t.completedAt ? relLabel(t.completedAt - now.value) : '')
 
 function onGripDrop(e: DragEvent, t: Task) {
@@ -315,7 +309,7 @@ function onRowDragOver(e: DragEvent) {
 </script>
 
 <template>
-  <div :style="panelStyle">
+  <div ref="paneHost" :style="[panelStyle, paneInset]">
     <ListToolbar title="Tasks" new-label="New task" @new="app.openCreate('task')">
       <template #actions>
         <button v-if="anyLinked" type="button" :style="linkExpandBtn" @click="toggleAll">
@@ -325,7 +319,7 @@ function onRowDragOver(e: DragEvent) {
     </ListToolbar>
     <ProgressLine :done="split.stats.done" :total="split.stats.total" />
     <!-- data-own-keys: ↑/↓ scroll this list rather than switch tabs (globalKeys). -->
-    <div :style="isMobile ? leftColumn : splitLayout" data-own-keys>
+    <div :style="leftColumn" data-own-keys>
       <div :style="leftColumn">
         <div :style="tagInputRow">
           <TagFilterInput v-model="tagQuery" :groups="tagGroups" />
@@ -472,11 +466,23 @@ function onRowDragOver(e: DragEvent) {
           </CompletedSection>
         </div>
       </div>
-
-      <!-- Right column: the selected task's details and subtasks (desktop only). -->
-      <div v-if="!isMobile" :style="detailColumn">
-        <TaskDetail :task-id="selectedExists ? selectedId : null" @select="selectedId = $event" />
-      </div>
     </div>
+
+    <!-- The selected task's details and subtasks (desktop). A companion pane:
+         no scrim, so the list stays live and picking another row swaps what
+         this shows instead of closing it. -->
+    <SlideOver
+      v-if="!isMobile"
+      :open="selectedExists"
+      :modal="false"
+      modes
+      :size="app.paneMode"
+      title="Task details"
+      @update:size="app.setPaneMode($event === 'compact' ? 'compact' : 'large')"
+      @width="paneWidth = $event"
+      @close="selectedId = null"
+    >
+      <TaskDetail :task-id="selectedExists ? selectedId : null" @select="selectedId = $event" />
+    </SlideOver>
   </div>
 </template>

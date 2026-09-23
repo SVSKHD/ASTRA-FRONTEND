@@ -137,6 +137,17 @@ export interface Bot {
 // `status === 'done'`; the store is the only place allowed to set them apart.
 export type ItemStatus = 'pending' | 'progress' | 'done'
 
+// How wide a detail pane opens. Two modes rather than a remembered pixel width,
+// because the choice being made is not "how many pixels" — it is "am I reading
+// this, or glancing at it while I work down the list". `compact` is a column
+// beside a list that stays readable; `large` is the 50/50 split. Either can
+// still be dragged from its edge; the mode is what it returns to.
+export type PaneMode = 'compact' | 'large'
+
+export function isPaneMode(value: unknown): value is PaneMode {
+  return value === 'compact' || value === 'large'
+}
+
 export const STATUS_CYCLE: ItemStatus[] = ['pending', 'progress', 'done']
 
 export const STATUS_LABEL: Record<ItemStatus, string> = {

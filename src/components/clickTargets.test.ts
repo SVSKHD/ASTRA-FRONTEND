@@ -162,7 +162,13 @@ describe('a goal card (acceptance 89)', () => {
     setActivePinia(createPinia())
     app = useAppStore()
     app.goals = [goal]
-    return mount(GoalsView, { attachTo: document.body })
+    // The detail pane teleports to the body in the app (it is fixed to the
+    // window, not to the tab); stubbed so the assertions below can stay about
+    // what the card click produced rather than where it was rendered.
+    return mount(GoalsView, {
+      attachTo: document.body,
+      global: { stubs: { teleport: true } },
+    })
   }
 
   beforeEach(() => push.mockReset())

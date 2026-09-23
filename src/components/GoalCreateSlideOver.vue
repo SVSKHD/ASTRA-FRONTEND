@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import TextInput from '@/components/ui/TextInput.vue'
 import TextArea from '@/components/ui/TextArea.vue'
-// Manual "new goal" slide-over (task 12c). A right-side panel (not a full page)
-// that creates a draft goal on open and edits it live: title, optional timeline,
-// colour, description, an optional "Make it recurring" block (the section-11
-// recurrence/metric editor), and inline points added one after another with a
-// live shorthand-chip preview. Create finalises + routes to the detail; Cancel
-// discards the draft.
+// Manual "new goal" slide-over (task 12c). A floating right-side drawer (not a
+// full page, and not glued to the edge either — the same inset, rounded panel
+// the notes drawer uses) that creates a draft goal on open and edits it live:
+// title, optional timeline, colour, description, an optional "Make it recurring"
+// block (the section-11 recurrence/metric editor), and inline points added one
+// after another with a live shorthand-chip preview. Create finalises + routes to
+// the detail; Cancel discards the draft.
+//
+// It also carries the shape a goal has to have: the example document and the
+// required fields, open on arrival. The form's own labels say what each field
+// is; what they cannot say is which of them a goal cannot do without, or what
+// the same goal looks like as JSON — and that is exactly what somebody about to
+// paste or script one needs before they start typing.
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -16,6 +23,9 @@ import AutoTextarea from '@/components/ui/AutoTextarea.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import { parseItemMetadata } from '@/utils/goals'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
+import SlideOver from '@/components/ui/SlideOver.vue'
+import Caret from '@/components/ui/Caret.vue'
+import { GOAL_SCHEMA_FIELDS, GOAL_SHORTHAND, SAMPLE_GOAL_JSON } from '@/utils/goalHelp'
 
 const emit = defineEmits<{ (e: 'close'): void; (e: 'created', goalId: number): void }>()
 
@@ -81,36 +91,53 @@ function cancel() {
   emit('close')
 }
 
+// --- what a goal has to have -------------------------------------------------
+// Open on arrival, and collapsible: it is a reference, and a reference that
+// cannot be folded away is in the way of the form it describes. The rows come
+// from utils/goalHelp, which is asserted against the real importer — a field
+// list that drifts from the parser is worse than none.
+const showFormat = ref(true)
+const requiredFields = computed(() => GOAL_SCHEMA_FIELDS.filter((f) => f.required))
+const optionalFields = computed(() =>
+  GOAL_SCHEMA_FIELDS.filter((f) => !f.required && f.source === 'json'),
+)
+// Where the field actually sits in the document. `title` on its own is the kind
+// of half-answer that makes somebody nest it wrongly and wonder why the import
+// dropped their goal.
+function fieldPath(f: (typeof GOAL_SCHEMA_FIELDS)[number]): string {
+  if (f.scope === 'goal') return `goals[].${f.field}`
+  if (f.scope === 'point') return `goals[].points[].${f.field}`
+  return f.field
+}
+// goalHelp writes its prose with markdown ticks; this block renders plain text.
+const plain = (text: string) => text.replace(/`/g, '')
+const sampleCopied = ref(false)
+async function copySample() {
+  try {
+    await navigator.clipboard.writeText(SAMPLE_GOAL_JSON)
+    sampleCopied.value = true
+    setTimeout(() => (sampleCopied.value = false), 1500)
+  } catch {
+    // Clipboard blocked. The sample is on screen and selectable, so this is a
+    // convenience that failed rather than an error worth a toast.
+  }
+}
+// The full reference (schema table, the three routes in) lives in the help
+// drawer. Opening it discards nothing: the draft stays as it is.
+function openFullReference() {
+  app.openGoalHelp('json')
+}
+
 // --- styles ------------------------------------------------------------------
-const overlay = pxify({
-  position: 'fixed',
-  inset: '0',
-  background: 'rgba(0,0,0,0.5)',
-  zIndex: 60,
+// The drawer itself (fixed, inset, rounded, glass) is SlideOver's; what is left
+// here is the form inside it.
+const body = pxify({
   display: 'flex',
-  justifyContent: 'flex-end',
+  flexDirection: 'column',
+  gap: 'var(--sp-3)',
+  minWidth: 0,
+  flex: 1,
 })
-const panel = computed(() =>
-  pxify({
-    width: 'min(460px, 100%)',
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--sp-3)',
-    padding: 18,
-    overflowY: 'auto',
-    background: c.value.glass,
-    backdropFilter: 'blur(28px) saturate(1.6)',
-    '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
-    borderLeft: '1px solid ' + c.value.border,
-    boxShadow: c.value.shadow,
-    animation: 'slideInR .22s ease both',
-  }),
-)
-const headRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
-const h1 = computed(() =>
-  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text, flex: 1 }),
-)
 const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const dateRow = pxify({
   display: 'flex',
@@ -167,6 +194,109 @@ const chip = computed(() =>
 const delBtn = computed(() =>
   pxify({ ...s.value.del, ...typeStep('base'), cursor: 'pointer', flexShrink: 0 }),
 )
+// --- the format block --------------------------------------------------------
+const formatBlock = computed(() =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--sp-2)',
+    minWidth: 0,
+    marginTop: 4,
+    padding: '12px 14px',
+    borderRadius: 'var(--radius-card)',
+    border: '1px dashed ' + c.value.border,
+    background: c.value.input,
+  }),
+)
+const formatHead = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-2)',
+  flexWrap: 'wrap',
+  minWidth: 0,
+})
+const discBtn = computed(() =>
+  pxify({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 'var(--sp-1)',
+    flex: 1,
+    minWidth: 0,
+    padding: 0,
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+  }),
+)
+const tinyBtn = computed(() =>
+  pxify({
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
+    padding: '4px 8px',
+    borderRadius: 'var(--radius-control)',
+    border: '1px solid ' + c.value.border,
+    background: 'transparent',
+    color: c.value.dim,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  }),
+)
+const sampleBox = computed(() =>
+  pxify({
+    margin: 0,
+    minWidth: 0,
+    maxHeight: 220,
+    overflow: 'auto',
+    overscrollBehavior: 'contain',
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-control)',
+    border: '1px solid ' + c.value.border,
+    background: c.value.card,
+    ...typeStep('2xs'),
+    lineHeight: 1.6,
+    color: c.value.text,
+    fontFamily: 'var(--font-mono)',
+    whiteSpace: 'pre',
+  }),
+)
+const reqNote = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim, lineHeight: 1.5 }))
+// field → what it is, one per line. A grid rather than a table: five columns of
+// schema belong in the help drawer, and what is needed here is which fields
+// exist and which of them a goal cannot be created without.
+const fieldGrid = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'max-content minmax(0, 1fr)',
+  columnGap: 'var(--sp-3)',
+  rowGap: 2,
+  minWidth: 0,
+})
+const fieldName = computed(() =>
+  pxify({
+    ...typeStep('2xs'),
+    fontFamily: 'var(--font-mono)',
+    color: c.value.accent,
+    whiteSpace: 'nowrap',
+  }),
+)
+const fieldNote = computed(() =>
+  pxify({ ...typeStep('2xs'), color: c.value.dim, minWidth: 0, overflowWrap: 'anywhere' }),
+)
+const reqTag = computed(() =>
+  pxify({
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
+    padding: '1px 6px',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid ' + c.value.accent,
+    color: c.value.accent,
+    whiteSpace: 'nowrap',
+  }),
+)
 const footer = pxify({ display: 'flex', gap: 'var(--sp-3)', marginTop: 'auto', paddingTop: 8 })
 const createBtn = computed(() =>
   pxify({
@@ -196,13 +326,19 @@ const cancelBtn = computed(() =>
 </script>
 
 <template>
-  <div :style="overlay" @click.self="cancel">
-    <div :style="panel">
-      <div :style="headRow">
-        <span :style="h1">New goal</span>
-        <button :style="cancelBtn" @click="cancel">Close</button>
-      </div>
-
+  <!-- Same two modes as the detail panes, and the same setting behind them: a
+       form is one of the things somebody may not want half the screen for. Its
+       large step is `lg` rather than half the window — this is a column of
+       fields, and a 700px-wide text input is not a better text input. -->
+  <SlideOver
+    open
+    modes
+    :size="app.paneMode === 'compact' ? 'compact' : 'lg'"
+    title="New goal"
+    @update:size="app.setPaneMode($event === 'compact' ? 'compact' : 'large')"
+    @close="cancel"
+  >
+    <div :style="body">
       <TextInput
         ref="titleInput"
         :model-value="goal?.title"
@@ -272,10 +408,57 @@ const cancelBtn = computed(() =>
         <span v-for="t in parsedPoint.tags" :key="t" :style="chip">#{{ t }}</span>
       </div>
 
+      <!-- What a goal has to have, and the same goal as a document. Open on
+           arrival; the disclosure folds it away once it has been read. -->
+      <section :style="formatBlock">
+        <div :style="formatHead">
+          <button :style="discBtn" :aria-expanded="showFormat" @click="showFormat = !showFormat">
+            <Caret :open="showFormat" size="xs" />
+            Example JSON &amp; what a goal needs
+          </button>
+          <button v-if="showFormat" :style="tinyBtn" @click="copySample">
+            {{ sampleCopied ? 'Copied ✓' : 'Copy' }}
+          </button>
+          <button v-if="showFormat" :style="tinyBtn" @click="openFullReference">
+            Full reference
+          </button>
+        </div>
+
+        <template v-if="showFormat">
+          <pre :style="sampleBox"><code>{{ SAMPLE_GOAL_JSON }}</code></pre>
+
+          <div :style="reqNote">
+            <span :style="reqTag">Required</span> — everything else is optional, and a goal missing
+            a required field is skipped rather than failing the import.
+          </div>
+          <div :style="fieldGrid">
+            <template v-for="f in requiredFields" :key="`req-${f.scope}.${f.field}`">
+              <span :style="fieldName">{{ fieldPath(f) }}</span>
+              <span :style="fieldNote">{{ f.type }} — {{ plain(f.notes) }}</span>
+            </template>
+          </div>
+
+          <div :style="reqNote">Optional</div>
+          <div :style="fieldGrid">
+            <template v-for="f in optionalFields" :key="`opt-${f.scope}.${f.field}`">
+              <span :style="fieldName">{{ fieldPath(f) }}</span>
+              <span :style="fieldNote">{{ f.type }} — example {{ f.example }}</span>
+            </template>
+          </div>
+
+          <div :style="reqNote">
+            Shorthand inside a point —
+            <template v-for="(sh, i) in GOAL_SHORTHAND" :key="sh.token"
+              ><span v-if="i">, </span><code>{{ sh.token }}</code> {{ plain(sh.means) }}</template
+            >.
+          </div>
+        </template>
+      </section>
+
       <div :style="footer">
         <button :style="createBtn" :disabled="!canCreate" @click="create">Create goal</button>
         <button :style="cancelBtn" @click="cancel">Cancel</button>
       </div>
     </div>
-  </div>
+  </SlideOver>
 </template>

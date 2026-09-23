@@ -4,6 +4,9 @@
 // accordion when anything is pending from before today, then today's active
 // items flat, then a collapsed "Completed" section. Drag-to-nest, linked
 // accordions and the new "Remind me" bell all keep working inside every region.
+// On desktop the selected todo's details open in a floating companion pane over
+// the list (TodoDetail in a SlideOver) rather than in a column cut out of it, so
+// the list keeps the whole tab either way.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -35,6 +38,7 @@ import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
 import TodoDetail from '@/components/TodoDetail.vue'
+import SlideOver from '@/components/ui/SlideOver.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import { nestedChildIds } from '@/utils/links'
 import { richIsEmpty, richPlain } from '@/utils/richText'
@@ -45,6 +49,7 @@ import TagFilterInput from '@/components/TagFilterInput.vue'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useLongList } from '@/composables/useLongList'
 import { useDragNest } from '@/composables/useDragNest'
+import { usePaneInset } from '@/composables/usePaneInset'
 import type { LinkRef, Todo } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 
@@ -127,6 +132,13 @@ const selectedId = ref<number | null>(null)
 const selectedExists = computed(
   () => selectedId.value != null && todos.value.some((t) => t.id === selectedId.value),
 )
+// The list narrows to what the pane does not cover while it is open, so the
+// toolbar's New button never ends up behind it. The width comes from the pane
+// itself, so compact, large and a dragged edge all make the right amount of
+// room.
+const paneOpen = computed(() => !isMobile.value && selectedExists.value)
+const paneWidth = ref(0)
+const { host: paneHost, style: paneInset } = usePaneInset(paneOpen, paneWidth)
 // Subtask counter shown on every row, 0/0 when a todo has none.
 const todoIndex = computed(() => buildIndex(todos.value))
 function subCount(id: number) {
@@ -155,15 +167,6 @@ function selectedRowStyle(id: number) {
       }
     : {}
 }
-const splitLayout = computed(() =>
-  pxify({
-    display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-    gap: 'var(--sp-4)',
-    flex: 1,
-    minHeight: 0,
-  }),
-)
 // The filter input stays put above the list while the list scrolls under it.
 const leftColumn = pxify({
   display: 'flex',
@@ -184,15 +187,6 @@ const listColumn = pxify({
   // hovered row's shadow has to be inside it.
   padding: '4px 10px 18px',
 })
-const detailColumn = computed(() =>
-  pxify({
-    display: 'flex',
-    flexDirection: 'column',
-    minHeight: 0,
-    borderLeft: '1px solid ' + c.value.border,
-    paddingLeft: 'var(--sp-4)',
-  }),
-)
 
 // --- drag-to-nest -----------------------------------------------------------
 function onGripDown(e: PointerEvent, t: Todo) {
@@ -328,7 +322,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
 </script>
 
 <template>
-  <div :style="panelStyle">
+  <div ref="paneHost" :style="[panelStyle, paneInset]">
     <ListToolbar title="Todos" new-label="New todo" @new="app.openCreate('todo')">
       <template #actions>
         <button v-if="anyLinked" type="button" :style="linkExpandBtn" @click="toggleAll">
@@ -338,7 +332,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
     </ListToolbar>
     <ProgressLine :done="split.stats.done" :total="split.stats.total" />
     <!-- data-own-keys: ↑/↓ scroll this list rather than switch tabs (globalKeys). -->
-    <div :style="isMobile ? leftColumn : splitLayout" data-own-keys>
+    <div :style="leftColumn" data-own-keys>
       <div :style="leftColumn">
         <div :style="tagInputRow">
           <TagFilterInput v-model="tagQuery" :groups="tagGroups" />
@@ -477,11 +471,23 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
           </CompletedSection>
         </div>
       </div>
-
-      <!-- Right column: the selected todo's details and subtasks (desktop only). -->
-      <div v-if="!isMobile" :style="detailColumn">
-        <TodoDetail :todo-id="selectedExists ? selectedId : null" @select="selectedId = $event" />
-      </div>
     </div>
+
+    <!-- The selected todo's details and subtasks (desktop). A companion pane:
+         no scrim, so the list stays live and picking another row swaps what
+         this shows instead of closing it. -->
+    <SlideOver
+      v-if="!isMobile"
+      :open="selectedExists"
+      :modal="false"
+      modes
+      :size="app.paneMode"
+      title="Todo details"
+      @update:size="app.setPaneMode($event === 'compact' ? 'compact' : 'large')"
+      @width="paneWidth = $event"
+      @close="selectedId = null"
+    >
+      <TodoDetail :todo-id="selectedExists ? selectedId : null" @select="selectedId = $event" />
+    </SlideOver>
   </div>
 </template>

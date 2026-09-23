@@ -30,7 +30,11 @@ async function mountPanel() {
   await router.push('/')
   await router.isReady()
   const wrapper = mount(GoalHelpPanel, {
-    global: { plugins: [router] },
+    // The drawer teleports to the body in the app, so that `position: fixed` is
+    // measured against the window rather than the glass panel it was declared
+    // in. Stubbed here, so these assertions stay about the drawer's contents
+    // rather than about where in the document it ended up.
+    global: { plugins: [router], stubs: { teleport: true } },
     attachTo: document.body,
   })
   await nextTick()

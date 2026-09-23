@@ -69,7 +69,14 @@ function loadSample() {
 </script>
 
 <template>
-  <SlideOver :open="goalHelpOpen" size="lg" title="How to add a goal" @close="app.closeGoalHelp()">
+  <SlideOver
+    :open="goalHelpOpen"
+    modes
+    :size="app.paneMode === 'compact' ? 'compact' : 'lg'"
+    title="How to add a goal"
+    @update:size="app.setPaneMode($event === 'compact' ? 'compact' : 'large')"
+    @close="app.closeGoalHelp()"
+  >
     <div class="ghelp">
       <p class="ghelp__lede">
         Three ways in, and they end in the same place — a goal with a name, an optional timeline and
