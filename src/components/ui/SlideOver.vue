@@ -8,12 +8,13 @@
 // stay attached to the edge and leave the page they came from visible beside
 // them.
 //
-// `compact` and `large` are also the two the reader chooses between, via the
-// button in the header. Two modes rather than a remembered pixel width: the
-// question being answered is "am I reading this, or glancing at it while I work
-// down the list", and that has two answers. The drag handle is still there for
-// everything between them, and a drag wins over the mode until the mode is
-// changed again.
+// `compact` and `large` are also two of the three steps the reader cycles
+// through with the button in the header — the third, the pane back in the tab's
+// own layout, is not a drawer at all and so is not this component's to draw.
+// What lands here is a button whose icon and label the caller supplies and
+// whose click it handles; the drawer does not know what the modes are. The drag
+// handle is still there for everything between the widths, and a drag wins over
+// the mode until the mode is chosen again.
 //
 // `modal: false` makes it a companion pane instead: no scrim, so the list it
 // was opened from stays clickable and picking another row swaps what the pane
@@ -22,6 +23,7 @@
 // content keeps the full width whether the pane is open or not.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
+import type { IconName } from '@/components/ui/icons'
 
 export type SlideOverSize = 'md' | 'lg' | 'compact' | 'large'
 
@@ -32,19 +34,22 @@ const props = withDefaults(
     side?: 'left' | 'right'
     size?: SlideOverSize
     modal?: boolean
-    /** Show the compact/large toggle in the header. */
-    modes?: boolean
+    /** The mode button in the header. Both of these, or neither. */
+    modeIcon?: IconName | null
+    modeLabel?: string
   }>(),
   {
     side: 'right',
     size: 'md',
     modal: true,
-    modes: false,
+    modeIcon: null,
+    modeLabel: '',
   },
 )
 const emit = defineEmits<{
   close: []
-  'update:size': [size: SlideOverSize]
+  /** The mode button was pressed. What that means is the caller's business. */
+  mode: []
   /** The pane's current width in px, so a view can make room for it. */
   width: [px: number]
 }>()
@@ -104,9 +109,6 @@ function clampWidth(width: number): number {
   const ceiling = props.size === 'md' ? 560 : props.size === 'lg' ? 720 : max
   return Math.max(280, Math.min(Math.min(ceiling, max), width))
 }
-
-const nextMode = computed<SlideOverSize>(() => (props.size === 'compact' ? 'large' : 'compact'))
-const modeLabel = computed(() => (props.size === 'compact' ? 'Maximise pane' : 'Compact pane'))
 
 function beginResize(event: PointerEvent): void {
   // Without this the browser starts a text selection under the cursor and the
@@ -207,15 +209,14 @@ onBeforeUnmount(() => listenForEscape(false))
         <header class="ui-drawer__head">
           <h2 class="ui-drawer__title">{{ title }}</h2>
           <button
-            v-if="modes"
+            v-if="modeIcon"
             class="ui-drawer__mode"
             type="button"
             :aria-label="modeLabel"
             :title="modeLabel"
-            :aria-pressed="size === 'large'"
-            @click="emit('update:size', nextMode)"
+            @click="emit('mode')"
           >
-            <Icon :name="size === 'compact' ? 'maximize' : 'minimize'" size="xs" />
+            <Icon :name="modeIcon" size="xs" />
           </button>
           <button class="ui-drawer__x" type="button" aria-label="Close" @click="emit('close')">
             ×

@@ -91,6 +91,10 @@ function cancel() {
   emit('close')
 }
 
+// The drawer's own width, not the detail panes' mode: a button on this form
+// must not move the pane on the tab behind it (see utils/paneMode).
+const wide = computed(() => app.drawerWide)
+
 // --- what a goal has to have -------------------------------------------------
 // Open on arrival, and collapsible: it is a reference, and a reference that
 // cannot be folded away is in the way of the form it describes. The rows come
@@ -326,16 +330,17 @@ const cancelBtn = computed(() =>
 </script>
 
 <template>
-  <!-- Same two modes as the detail panes, and the same setting behind them: a
-       form is one of the things somebody may not want half the screen for. Its
-       large step is `lg` rather than half the window — this is a column of
+  <!-- A form has no column of this tab to sit in, so it is always a drawer and
+       its button only picks a width — its own, never the detail panes'. The
+       wide step is `lg` rather than half the window: this is a column of
        fields, and a 700px-wide text input is not a better text input. -->
   <SlideOver
     open
-    modes
-    :size="app.paneMode === 'compact' ? 'compact' : 'lg'"
+    :size="wide ? 'lg' : 'compact'"
+    :mode-icon="wide ? 'minimize' : 'maximize'"
+    :mode-label="wide ? 'Compact drawer' : 'Wider drawer'"
     title="New goal"
-    @update:size="app.setPaneMode($event === 'compact' ? 'compact' : 'large')"
+    @mode="app.toggleDrawerWide()"
     @close="cancel"
   >
     <div :style="body">

@@ -538,12 +538,38 @@ export const UI_COMPONENTS: ComponentDoc[] = [
       { name: 'side', type: "'left' | 'right'", default: 'right' },
       {
         name: 'size',
-        type: "'md' | 'lg'",
+        type: "'md' | 'lg' | 'compact' | 'large'",
         default: 'md',
-        note: 'lg (560px) for a drawer that carries a reference table.',
+        note: 'lg (560px) carries a reference table; compact (420px) and large (half the window) are the detail panes’ two drawer widths.',
+      },
+      {
+        name: 'modal',
+        type: 'boolean',
+        default: 'true',
+        note: 'false drops the scrim, so what is behind stays clickable.',
+      },
+      {
+        name: 'modeIcon',
+        type: 'IconName | null',
+        note: 'Adds the header button that switches modes; modeLabel names it.',
       },
     ],
     snippet: '<SlideOver :open="open" title="Details" @close="open = false">…</SlideOver>',
+  },
+  {
+    name: 'DetailPane',
+    group: 'Surfaces',
+    summary: 'A list’s detail, as a column of the tab or a floating drawer.',
+    props: [
+      {
+        name: 'open',
+        type: 'boolean',
+        note: 'Whether a row is selected. The inline column shows either way.',
+      },
+      { name: 'title', type: 'string' },
+    ],
+    snippet:
+      '<DetailPane :open="selected" title="Task details" @close="selected = null">…</DetailPane>',
   },
   {
     name: 'Popover',

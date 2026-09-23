@@ -27,10 +27,17 @@ import {
 } from '@/services/deviceSessions'
 import { mapPoints, newCountryAlert } from '@/utils/sessionView'
 import { locationLabel } from '@/utils/device'
+import { useAppStore } from '@/stores/app'
 import type { ActivityEvent, DeviceSession } from '@/types'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+const app = useAppStore()
+// The width the form and reference drawers share. Not the detail panes' mode:
+// this drawer is mounted on the shell and has no column of any tab to sit in,
+// and its button must not move a pane on the tab behind it (utils/paneMode).
+const wide = computed(() => app.drawerWide)
 
 const sessions = ref<DeviceSession[]>([])
 const events = ref<ActivityEvent[]>([])
@@ -117,7 +124,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <SlideOver :open="open" title="Security" size="lg" @close="emit('close')">
+  <SlideOver
+    :open="open"
+    :size="wide ? 'lg' : 'compact'"
+    :mode-icon="wide ? 'minimize' : 'maximize'"
+    :mode-label="wide ? 'Compact drawer' : 'Wider drawer'"
+    title="Security"
+    @mode="app.toggleDrawerWide()"
+    @close="emit('close')"
+  >
     <div class="sec">
       <Alert v-if="error" tone="danger" title="Could not load">{{ error }}</Alert>
 

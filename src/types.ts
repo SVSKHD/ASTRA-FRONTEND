@@ -137,15 +137,24 @@ export interface Bot {
 // `status === 'done'`; the store is the only place allowed to set them apart.
 export type ItemStatus = 'pending' | 'progress' | 'done'
 
-// How wide a detail pane opens. Two modes rather than a remembered pixel width,
-// because the choice being made is not "how many pixels" — it is "am I reading
-// this, or glancing at it while I work down the list". `compact` is a column
-// beside a list that stays readable; `large` is the 50/50 split. Either can
-// still be dragged from its edge; the mode is what it returns to.
-export type PaneMode = 'compact' | 'large'
+// Where a detail opens, in three steps that go one way.
+//
+// `inline` is the default and the quiet one: the detail is the right-hand
+// column of the tab, in the layout, taking nothing away from anything and
+// covering nothing. It is where the list is worked down — pick a row, glance
+// right, pick the next.
+//
+// The other two are the same detail lifted out into a floating drawer, for
+// when it is being read rather than glanced at: `compact` a column over the
+// tab, `large` half the window. Both can still be dragged from the edge; the
+// mode is what they return to.
+//
+// Modes rather than a remembered pixel width, because the question being
+// answered is not "how many pixels" — it is "am I working, or reading".
+export type PaneMode = 'inline' | 'compact' | 'large'
 
 export function isPaneMode(value: unknown): value is PaneMode {
-  return value === 'compact' || value === 'large'
+  return value === 'inline' || value === 'compact' || value === 'large'
 }
 
 export const STATUS_CYCLE: ItemStatus[] = ['pending', 'progress', 'done']

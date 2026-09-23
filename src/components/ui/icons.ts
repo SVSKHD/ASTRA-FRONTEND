@@ -115,10 +115,14 @@ export const ICONS = {
   coffee:
     '<path d="M4 9h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" /><path d="M17 10.5h1.5a2.5 2.5 0 0 1 0 5H17" /><path d="M8 3v2.5M12 2.5v3" />',
 
-  // ---- the detail pane's two modes ----------------------------------------
-  // Arrows rather than the framed-rectangle pair a window manager uses: this
-  // does not maximise anything to the screen, it widens a pane from a column to
-  // half the window and back. The diagonal says which way the edge is going.
+  // ---- the detail pane's three modes --------------------------------------
+  // `columns` is the pane back in the layout — a panel split in two, which is
+  // literally what the tab becomes. The other two are arrows rather than the
+  // framed-rectangle pair a window manager uses: this does not maximise
+  // anything to the screen, it widens a floating pane from a column to half the
+  // window and back. The diagonal says which way the edge is going.
+  columns:
+    '<rect x="3" y="4" width="18" height="16" rx="2" /><line x1="12" y1="4" x2="12" y2="20" />',
   maximize:
     '<polyline points="14.5 3.5 20.5 3.5 20.5 9.5" /><polyline points="9.5 20.5 3.5 20.5 3.5 14.5" /><line x1="20.5" y1="3.5" x2="13.5" y2="10.5" /><line x1="3.5" y1="20.5" x2="10.5" y2="13.5" />',
   minimize:

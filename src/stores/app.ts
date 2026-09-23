@@ -71,6 +71,7 @@ import {
 } from '@/utils/ghSync'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
 import { rememberedTab, tabUrl } from '@/utils/lastTab'
+import { nextPaneMode } from '@/utils/paneMode'
 import { createShare, deleteShare, updateShareItem, writeShareDoc } from '@/utils/shares'
 import {
   CalendarAuthError,
@@ -420,13 +421,20 @@ export const useAppStore = defineStore('app', () => {
   // workspace doc so it comes back on refresh and across devices. The ui store
   // reads it; the rail's toggle writes it.
   const railCollapsed = ref(false)
-  // How wide the detail panes open: 'compact' is a column beside a list that
-  // keeps its width, 'large' is the 50/50 split. A per-user preference for the
-  // same reason the rail's is — it is a choice about how much of the screen
-  // this person wants a detail to take, and re-making it on every tab and every
-  // reload is the whole complaint. One setting for every pane: somebody who
-  // wants compact wants it everywhere.
-  const paneMode = ref<PaneMode>('large')
+  // Where the detail panes open: the tab's own right-hand column ('inline', the
+  // default), or lifted out into a drawer at one of two widths. A per-user
+  // preference for the same reason the rail's is — it is a choice about how
+  // much of the screen this person wants a detail to take, and re-making it on
+  // every tab and every reload is the whole complaint. One setting for every
+  // pane: somebody who wants the column wants it everywhere.
+  const paneMode = ref<PaneMode>('inline')
+  // The width of the drawers that are NOT detail panes — the goal form, the
+  // help reference, the security panel. Its own setting rather than a reading
+  // of paneMode: those drawers have no column of a tab to sit in, and letting
+  // their width button write a mode meant pressing "wider" on the goal form
+  // pulled every detail pane in the app out of the split view. Wide by default,
+  // because that is the width their content was laid out at.
+  const drawerWide = ref(true)
   // "Move pending to today" preferences. autoRollover runs the rollover once on
   // the first load of a new day; lastAutoRolloverDay (a YYYY-MM-DD key) records
   // the last day it did, so it fires at most once per day per device-sync.
@@ -5385,8 +5393,15 @@ export const useAppStore = defineStore('app', () => {
   function setPaneMode(mode: PaneMode) {
     paneMode.value = mode
   }
-  function togglePaneMode() {
-    paneMode.value = paneMode.value === 'compact' ? 'large' : 'compact'
+  // The button steps forward through the three and wraps, so it is never a
+  // dead end; utils/paneMode owns the order so it can be argued with in a test.
+  function cyclePaneMode() {
+    paneMode.value = nextPaneMode(paneMode.value)
+  }
+  // The form and reference drawers' own width. Deliberately not paneMode: they
+  // are not detail panes, and their button must not move ones that are.
+  function toggleDrawerWide() {
+    drawerWide.value = !drawerWide.value
   }
   // --- "How to add a goal" (section 23) --------------------------------------
   // Opening it is also what marks it seen: a reader who was shown the panel has
@@ -6015,6 +6030,7 @@ export const useAppStore = defineStore('app', () => {
       preferredLight: preferredLight.value,
       railCollapsed: railCollapsed.value,
       paneMode: paneMode.value,
+      drawerWide: drawerWide.value,
       autoRollover: autoRollover.value,
       lastAutoRolloverDay: lastAutoRolloverDay.value,
       hideCompleted: hideCompleted.value,
@@ -6066,7 +6082,8 @@ export const useAppStore = defineStore('app', () => {
     preferredDark.value = 'deepSpace'
     preferredLight.value = 'daylight'
     railCollapsed.value = false
-    paneMode.value = 'large'
+    paneMode.value = 'inline'
+    drawerWide.value = true
     goalsHelpSeen.value = false
     autoRollover.value = false
     lastAutoRolloverDay.value = ''
@@ -6456,7 +6473,8 @@ export const useAppStore = defineStore('app', () => {
         ? data.preferredLight
         : 'daylight'
     railCollapsed.value = data.railCollapsed === true
-    paneMode.value = isPaneMode(data.paneMode) ? data.paneMode : 'large'
+    paneMode.value = isPaneMode(data.paneMode) ? data.paneMode : 'inline'
+    drawerWide.value = data.drawerWide !== false
     autoRollover.value = data.autoRollover === true
     lastAutoRolloverDay.value =
       typeof data.lastAutoRolloverDay === 'string' ? data.lastAutoRolloverDay : ''
@@ -6742,6 +6760,7 @@ export const useAppStore = defineStore('app', () => {
         preferredLight,
         railCollapsed,
         paneMode,
+        drawerWide,
         goalsHelpSeen,
         autoRollover,
         lastAutoRolloverDay,
@@ -6797,7 +6816,9 @@ export const useAppStore = defineStore('app', () => {
     railCollapsed,
     paneMode,
     setPaneMode,
-    togglePaneMode,
+    cyclePaneMode,
+    drawerWide,
+    toggleDrawerWide,
     autoRollover,
     hideCompleted,
     reminderSound,

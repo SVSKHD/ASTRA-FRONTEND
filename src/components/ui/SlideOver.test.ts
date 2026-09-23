@@ -48,19 +48,21 @@ describe('the drawer', () => {
     expect(pane.find('.ui-drawer__scrim').exists()).toBe(false)
   })
 
-  it('shows the mode button only when modes are offered', () => {
+  it('shows the mode button only when the caller supplies one', () => {
     expect(mountDrawer().find('.ui-drawer__mode').exists()).toBe(false)
-    expect(mountDrawer({ modes: true }).find('.ui-drawer__mode').exists()).toBe(true)
+    const wrapper = mountDrawer({ modeIcon: 'columns', modeLabel: 'Switch to split view' })
+    const button = wrapper.find('.ui-drawer__mode')
+    expect(button.exists()).toBe(true)
+    // The drawer does not know what the modes are — it draws what it is given
+    // and reports the press, so the third mode (no drawer at all) can live
+    // somewhere this component never has to hear about.
+    expect(button.attributes('aria-label')).toBe('Switch to split view')
   })
 
-  it('asks for the other mode when the button is used', async () => {
-    const wrapper = mountDrawer({ modes: true, size: 'compact' })
+  it('reports the press and leaves the meaning to the caller', async () => {
+    const wrapper = mountDrawer({ modeIcon: 'maximize', modeLabel: 'Switch to full drawer' })
     await wrapper.find('.ui-drawer__mode').trigger('click')
-    expect(wrapper.emitted('update:size')?.[0]).toEqual(['large'])
-
-    const large = mountDrawer({ modes: true, size: 'large' })
-    await large.find('.ui-drawer__mode').trigger('click')
-    expect(large.emitted('update:size')?.[0]).toEqual(['compact'])
+    expect(wrapper.emitted('mode')).toHaveLength(1)
   })
 
   it('opens compact at a column and large at half the window', async () => {

@@ -32,6 +32,11 @@ const app = useAppStore()
 const router = useRouter()
 const { goalHelpOpen, goalHelpTab } = storeToRefs(app)
 
+// Its own width, not the detail panes' mode: this drawer is mounted globally
+// and has no column of any tab to sit in, and its button must not move a pane
+// on the tab behind it (see utils/paneMode).
+const wide = computed(() => app.drawerWide)
+
 const tab = computed<GoalHelpTab>({
   get: () => goalHelpTab.value,
   set: (value) => app.setGoalHelpTab(value),
@@ -71,10 +76,11 @@ function loadSample() {
 <template>
   <SlideOver
     :open="goalHelpOpen"
-    modes
-    :size="app.paneMode === 'compact' ? 'compact' : 'lg'"
+    :size="wide ? 'lg' : 'compact'"
+    :mode-icon="wide ? 'minimize' : 'maximize'"
+    :mode-label="wide ? 'Compact drawer' : 'Wider drawer'"
     title="How to add a goal"
-    @update:size="app.setPaneMode($event === 'compact' ? 'compact' : 'large')"
+    @mode="app.toggleDrawerWide()"
     @close="app.closeGoalHelp()"
   >
     <div class="ghelp">

@@ -3,9 +3,10 @@
 // accordion for overdue tasks, today's active items flat (no per-deadline
 // grouping), then a collapsed Completed section. Drag-to-nest, linked
 // accordions, the repo/CI chip and the "Remind me" bell all keep working.
-// On desktop the selected task's details and subtasks open in a floating
-// companion pane over the list (TaskDetail in a SlideOver) rather than in a
-// column cut out of it, so the list keeps the whole tab either way.
+// On desktop the selected task's details and subtasks show in the right-hand
+// pane, which is a column of this tab by default and a floating drawer over it
+// on request — one setting, three steps, cycled from the pane's own header
+// (DetailPane).
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -23,7 +24,7 @@ import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
 import TaskDetail from '@/components/TaskDetail.vue'
-import SlideOver from '@/components/ui/SlideOver.vue'
+import DetailPane from '@/components/ui/DetailPane.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { usePaneInset } from '@/composables/usePaneInset'
@@ -110,11 +111,13 @@ const selectedId = ref<number | null>(null)
 const selectedExists = computed(
   () => selectedId.value != null && tasks.value.some((t) => t.id === selectedId.value),
 )
-// The list narrows to what the pane does not cover while it is open, so the
-// toolbar's New button never ends up behind it. The width comes from the pane
-// itself, so compact, large and a dragged edge all make the right amount of
-// room.
-const paneOpen = computed(() => !isMobile.value && selectedExists.value)
+// Which shape the pane is in. `inline` is a second grid column and the list
+// gives it half the tab; the drawer modes float over the tab instead, and the
+// list narrows by however much the drawer covers so the toolbar's New button
+// never ends up behind it. The width comes from the pane itself, so compact,
+// large and a dragged edge all make the right amount of room.
+const splitView = computed(() => !isMobile.value && app.paneMode === 'inline')
+const paneOpen = computed(() => !isMobile.value && !splitView.value && selectedExists.value)
 const paneWidth = ref(0)
 const { host: paneHost, style: paneInset } = usePaneInset(paneOpen, paneWidth)
 function openTask(id: number, siblings: number[] = activeRootIds.value) {
@@ -270,6 +273,14 @@ const linkExpandBtn = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
+// Two columns while the pane is inline; the list alone once it floats.
+const splitLayout = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+  gap: 'var(--sp-4)',
+  flex: 1,
+  minHeight: 0,
+})
 // The filter input stays put above the list while the list scrolls under it.
 const leftColumn = pxify({
   display: 'flex',
@@ -319,7 +330,7 @@ function onRowDragOver(e: DragEvent) {
     </ListToolbar>
     <ProgressLine :done="split.stats.done" :total="split.stats.total" />
     <!-- data-own-keys: ↑/↓ scroll this list rather than switch tabs (globalKeys). -->
-    <div :style="leftColumn" data-own-keys>
+    <div :style="splitView ? splitLayout : leftColumn" data-own-keys>
       <div :style="leftColumn">
         <div :style="tagInputRow">
           <TagFilterInput v-model="tagQuery" :groups="tagGroups" />
@@ -466,23 +477,19 @@ function onRowDragOver(e: DragEvent) {
           </CompletedSection>
         </div>
       </div>
-    </div>
 
-    <!-- The selected task's details and subtasks (desktop). A companion pane:
-         no scrim, so the list stays live and picking another row swaps what
-         this shows instead of closing it. -->
-    <SlideOver
-      v-if="!isMobile"
-      :open="selectedExists"
-      :modal="false"
-      modes
-      :size="app.paneMode"
-      title="Task details"
-      @update:size="app.setPaneMode($event === 'compact' ? 'compact' : 'large')"
-      @width="paneWidth = $event"
-      @close="selectedId = null"
-    >
-      <TaskDetail :task-id="selectedExists ? selectedId : null" @select="selectedId = $event" />
-    </SlideOver>
+      <!-- The selected task's details and subtasks (desktop). Inline it is the
+           second column of this grid; in either drawer mode it floats over the
+           tab instead and this contributes nothing to the layout. -->
+      <DetailPane
+        v-if="!isMobile"
+        :open="selectedExists"
+        title="Task details"
+        @width="paneWidth = $event"
+        @close="selectedId = null"
+      >
+        <TaskDetail :task-id="selectedExists ? selectedId : null" @select="selectedId = $event" />
+      </DetailPane>
+    </div>
   </div>
 </template>

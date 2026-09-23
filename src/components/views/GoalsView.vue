@@ -2,11 +2,11 @@
 // Goals tab (task 8). A goal is a container above tasks/todos: it owns a
 // checklist and can have existing tasks/todos attached by reference. This view is
 // the list (card grid / mobile list) with status filter, sort, and grip-drag
-// reorder. On desktop the selected goal's details open in a floating pane over
-// the grid (GoalSideDetail in a companion SlideOver) rather than in a column cut
-// out of it — the cards keep the whole tab whether the pane is open or not, the
-// way the notes drawer floats over whatever is behind it. On mobile a card opens
-// the goal dialog. The wide page (GoalDetail) still opens in place.
+// reorder. On desktop the selected goal's details show in the right-hand pane,
+// which is a column of this tab by default and a floating drawer over it on
+// request — one setting, three steps, cycled from the pane's own header
+// (DetailPane). On mobile a card opens the goal dialog. The wide page
+// (GoalDetail) still opens in place.
 import { computed, defineAsyncComponent, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -22,7 +22,7 @@ import GoalsToolbar from '@/components/goals/GoalsToolbar.vue'
 // paint (section 19d).
 const GoalDetail = defineAsyncComponent(() => import('@/components/GoalDetail.vue'))
 import GoalSideDetail from '@/components/GoalSideDetail.vue'
-import SlideOver from '@/components/ui/SlideOver.vue'
+import DetailPane from '@/components/ui/DetailPane.vue'
 import GoalsEmptyState from '@/components/GoalsEmptyState.vue'
 import GoalCreateSlideOver from '@/components/GoalCreateSlideOver.vue'
 import GoalCard from '@/components/goals/GoalCard.vue'
@@ -48,11 +48,13 @@ const panelGoalId = ref<number | null>(null)
 const panelGoalExists = computed(
   () => panelGoalId.value != null && goals.value.some((g) => g.id === panelGoalId.value),
 )
-// The grid narrows to what the pane does not cover while it is open, so the
-// toolbar's New and Import buttons never end up behind it. The width comes from
-// the pane itself, so compact, large and a dragged edge all make the right
-// amount of room.
-const paneOpen = computed(() => !isMobile.value && panelGoalExists.value)
+// Which shape the pane is in. `inline` is a second grid column and the cards
+// give it half the tab; the drawer modes float over the tab instead, and the
+// grid narrows by however much the drawer covers so the toolbar's New and
+// Import buttons never end up behind it. The width comes from the pane itself,
+// so compact, large and a dragged edge all make the right amount of room.
+const splitView = computed(() => !isMobile.value && app.paneMode === 'inline')
+const paneOpen = computed(() => !isMobile.value && !splitView.value && panelGoalExists.value)
 const paneWidth = ref(0)
 const { host: paneHost, style: paneInset } = usePaneInset(paneOpen, paneWidth)
 const statusFilter = ref<GoalStatus | 'all'>('all')
@@ -260,6 +262,14 @@ const grid = computed(() =>
     alignContent: 'start',
   }),
 )
+// Two columns while the pane is inline; the grid alone once it floats.
+const splitLayout = pxify({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+  gap: 'var(--sp-4)',
+  flex: 1,
+  minHeight: 0,
+})
 const listColumn = pxify({
   display: 'flex',
   flexDirection: 'column',
@@ -310,77 +320,75 @@ function cellStyle(id: number) {
         @help="app.openGoalHelp()"
       />
 
-      <div :style="listColumn">
-        <!-- Skeletons while the workspace is still arriving. Same box model as
-             the real card, so the swap moves nothing (acceptance 95). First,
-             because "nothing here" and "not here yet" are different answers. -->
-        <div v-if="loading" :style="grid" aria-busy="true" aria-label="Loading goals">
-          <GoalCardSkeleton v-for="n in SKELETON_COUNT" :key="n" />
+      <div :style="splitView ? splitLayout : listColumn">
+        <div :style="listColumn">
+          <!-- Skeletons while the workspace is still arriving. Same box model as
+               the real card, so the swap moves nothing (acceptance 95). First,
+               because "nothing here" and "not here yet" are different answers. -->
+          <div v-if="loading" :style="grid" aria-busy="true" aria-label="Loading goals">
+            <GoalCardSkeleton v-for="n in SKELETON_COUNT" :key="n" />
+          </div>
+
+          <GoalsEmptyState
+            v-else-if="goals.length === 0"
+            @new="onNew"
+            @paste-json="goImport"
+            @import-link="goImport"
+          />
+          <div v-else-if="rows.length === 0" :style="s.empty">No goals match this filter.</div>
+
+          <!-- One column while the pane is beside it; the whole tab once the
+               pane floats over it instead. -->
+          <GoalGrid v-else :items="visibleGoals" :mobile="isMobile || splitView">
+            <template #default="{ item }">
+              <div
+                :key="item.id"
+                v-memo="[
+                  item.id,
+                  item.updatedAt,
+                  sortKey,
+                  dragId === item.id,
+                  panelGoalId === item.id,
+                ]"
+                :style="cellStyle(item.id)"
+                :draggable="sortKey === 'order'"
+                @dragstart="onDragStart($event, item.id)"
+                @dragover="onDragOver"
+                @drop="onDropOn(indexOf(item.id))"
+                @pointerdown="onCardPointerDown($event, item.id)"
+                @pointercancel="tap.onPointerCancel"
+                @click="tap.onClick"
+              >
+                <GoalCard
+                  :goal="item"
+                  :ratio="app.goalProgress(item.id).ratio"
+                  :counts="app.goalCounts(item.id)"
+                  :days-chip="daysChip(item.targetDate)"
+                  :menu="CARD_MENU"
+                  :draggable="sortKey === 'order'"
+                  @menu="onCardMenu(item.id, $event)"
+                />
+              </div>
+            </template>
+          </GoalGrid>
         </div>
 
-        <GoalsEmptyState
-          v-else-if="goals.length === 0"
-          @new="onNew"
-          @paste-json="goImport"
-          @import-link="goImport"
-        />
-        <div v-else-if="rows.length === 0" :style="s.empty">No goals match this filter.</div>
-
-        <!-- The full width of the tab: the detail pane floats over this grid
-             rather than taking a column out of it. -->
-        <GoalGrid v-else :items="visibleGoals" :mobile="isMobile">
-          <template #default="{ item }">
-            <div
-              :key="item.id"
-              v-memo="[
-                item.id,
-                item.updatedAt,
-                sortKey,
-                dragId === item.id,
-                panelGoalId === item.id,
-              ]"
-              :style="cellStyle(item.id)"
-              :draggable="sortKey === 'order'"
-              @dragstart="onDragStart($event, item.id)"
-              @dragover="onDragOver"
-              @drop="onDropOn(indexOf(item.id))"
-              @pointerdown="onCardPointerDown($event, item.id)"
-              @pointercancel="tap.onPointerCancel"
-              @click="tap.onClick"
-            >
-              <GoalCard
-                :goal="item"
-                :ratio="app.goalProgress(item.id).ratio"
-                :counts="app.goalCounts(item.id)"
-                :days-chip="daysChip(item.targetDate)"
-                :menu="CARD_MENU"
-                :draggable="sortKey === 'order'"
-                @menu="onCardMenu(item.id, $event)"
-              />
-            </div>
-          </template>
-        </GoalGrid>
+        <!-- The selected goal's details (desktop). Inline it is the second
+             column of this grid; in either drawer mode it floats over the tab
+             instead and contributes nothing to the layout. -->
+        <DetailPane
+          v-if="!isMobile"
+          :open="panelGoalExists"
+          title="Goal details"
+          @width="paneWidth = $event"
+          @close="panelGoalId = null"
+        >
+          <GoalSideDetail
+            :goal-id="panelGoalExists ? panelGoalId : null"
+            @select="panelGoalId = $event"
+          />
+        </DetailPane>
       </div>
-
-      <!-- The selected goal's details (desktop). A companion pane: no scrim, so
-           the grid behind stays live and clicking another card swaps what this
-           shows instead of closing it. -->
-      <SlideOver
-        v-if="!isMobile"
-        :open="panelGoalExists"
-        :modal="false"
-        modes
-        :size="app.paneMode"
-        title="Goal details"
-        @update:size="app.setPaneMode($event === 'compact' ? 'compact' : 'large')"
-        @width="paneWidth = $event"
-        @close="panelGoalId = null"
-      >
-        <GoalSideDetail
-          :goal-id="panelGoalExists ? panelGoalId : null"
-          @select="panelGoalId = $event"
-        />
-      </SlideOver>
     </template>
 
     <GoalCreateSlideOver v-if="showCreate" @close="showCreate = false" @created="onCreated" />
