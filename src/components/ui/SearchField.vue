@@ -2,6 +2,7 @@
 // Search, with the clear affordance built in — the thing every ad-hoc search box
 // forgets.
 import { useId } from 'vue'
+import Icon from '@/components/ui/Icon.vue'
 
 withDefaults(
   defineProps<{
@@ -20,7 +21,7 @@ const uid = useId()
 <template>
   <div class="ui-control ui-search" :class="[`ui-control--${size}`, { 'is-disabled': disabled }]">
     <label v-if="label" class="ui-sr-only" :for="uid">{{ label }}</label>
-    <span class="ui-search__glyph" aria-hidden="true">⌕</span>
+    <span class="ui-search__glyph" aria-hidden="true"><Icon name="search" size="sm" /></span>
     <input
       :id="uid"
       class="ui-control__input ui-search__input"
@@ -37,7 +38,7 @@ const uid = useId()
       aria-label="Clear search"
       @click="emit('update:modelValue', '')"
     >
-      ×
+      <Icon name="x" size="sm" />
     </button>
   </div>
 </template>
@@ -49,7 +50,12 @@ const uid = useId()
 .ui-search {
   border-radius: var(--radius-pill);
 }
+/* Both of these are real icons now, at the set's `sm` step — the size every
+   other icon in the app is drawn at — rather than characters taking whatever
+   the surrounding font happens to be. */
 .ui-search__glyph {
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
   color: var(--text-muted, var(--theme-dim));
 }
@@ -61,8 +67,10 @@ const uid = useId()
   border: none;
   background: transparent;
   color: var(--text-muted, var(--theme-dim));
+  display: grid;
+  place-items: center;
+  padding: 0;
   cursor: pointer;
-  font-size: var(--text-md);
   line-height: 1;
 }
 .ui-search__clear:hover {

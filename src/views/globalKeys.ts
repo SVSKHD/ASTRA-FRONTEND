@@ -76,6 +76,71 @@ const OWNS_KEYS = '[aria-expanded],[data-own-keys]'
 /** Elements that swallow every key by nature, role or no role. */
 const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
+// --- "/" then "n": make one of whatever this tab makes ----------------------
+//
+// One shortcut, every tab, and the tab decides what it means: a goal on Goals,
+// a todo on Todos, a task on Tasks, a trip on Trips. It runs the same `focus()`
+// hook ⌘K does, because "the thing this tab is for" is one idea and having two
+// lists of it is how they drift apart.
+//
+// A two-key sequence rather than a bare letter, because this one FIRES rather
+// than focusing: a stray keypress that opens a create dialog over what somebody
+// was reading is a different kind of wrong from one that moves the caret. The
+// "/" is the prefix the editor already uses for "I am about to name a command".
+
+/**
+ * How many uses it takes before the hint that teaches this shortcut stops.
+ *
+ * Three, because that is enough to have chosen it rather than stumbled into it
+ * — and because a tip that never leaves is furniture, not a tip.
+ */
+export const NEW_ITEM_HINT_USES = 3
+
+/** How long a "/" stays armed, waiting for its "n". */
+export const NEW_ITEM_SEQUENCE_MS = 900
+
+/**
+ * Everything that counts as "something is already open".
+ *
+ * The overlays only — the dialogs, the panels, the notes drawer. NOT the detail
+ * pane: that is open for as long as a row is selected, which is most of the
+ * time somebody is working down a list, and refusing to make a new todo because
+ * one is selected would leave the shortcut useless exactly where it is wanted.
+ */
+export interface ShellOverlays {
+  detailDialog: boolean
+  itemDialog: boolean
+  noteView: boolean
+  taskView: boolean
+  share: boolean
+  notesDrawer: boolean
+  themePanel: boolean
+  securityPanel: boolean
+  githubPanel: boolean
+  avatarMenu: boolean
+  goalHelp: boolean
+}
+
+export function anyOverlayOpen(open: ShellOverlays): boolean {
+  return Object.values(open).some(Boolean)
+}
+
+/** The "/" that arms the sequence. Bare — a modified slash is somebody else's. */
+export function armsNewItem(event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey'>) {
+  return event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey
+}
+
+/** The "n" that completes it, if it lands inside the window. */
+export function firesNewItem(
+  event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey'>,
+  armedAt: number,
+  now: number,
+): boolean {
+  if (event.key.toLowerCase() !== 'n') return false
+  if (event.metaKey || event.ctrlKey || event.altKey) return false
+  return armedAt > 0 && now - armedAt < NEW_ITEM_SEQUENCE_MS
+}
+
 /**
  * True when this keystroke belongs to something more specific than the shell.
  *

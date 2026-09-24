@@ -85,10 +85,30 @@ export function noteText(html: string): string {
 
 // The heading the list and the full view show. First line, capped so a note
 // pasted as one long paragraph does not blow the row out.
+//
+// Body only — this is what a note reads as when all you have is its text. It is
+// NOT the answer to "what is this note called": a note carries a `title` field
+// of its own, and `noteLabel` below is the one function that knows that.
 export function noteTitle(html: string, max = 60): string {
   const first = noteLines(html)[0]
   if (!first) return 'Untitled note'
   return first.length > max ? first.slice(0, max - 1).trimEnd() + '…' : first
+}
+
+/**
+ * What a note is called, wherever it is shown.
+ *
+ * Its own `title` if it has one, the first line of the body if it does not.
+ * One function, because there were two: the drawer and the full reader asked
+ * `noteTitle(n.text)`, which cannot see a title at all, while the panes and
+ * columns asked `noteRowLabel(note)`, which prefers it. A note called
+ * "Groceries" in a detail pane was "Untitled note" in the drawer and in the
+ * reader — the same note, named three ways, depending on where you looked.
+ */
+export function noteLabel(note: { title?: string; text?: string }, max = 60): string {
+  const own = (note.title ?? '').trim()
+  if (!own) return noteTitle(note.text ?? '', max)
+  return own.length > max ? own.slice(0, max - 1).trimEnd() + '…' : own
 }
 
 // Everything after the title, flattened — the two-line preview under it.

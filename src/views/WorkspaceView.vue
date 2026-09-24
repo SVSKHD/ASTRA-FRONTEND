@@ -12,11 +12,12 @@ import { useDeviceSession } from '@/composables/useDeviceSession'
 import { useScrollMemory } from '@/composables/useScrollMemory'
 import { useTabRoute } from '@/composables/useTabRoute'
 import { stageGeometry, stageWrapGeometry } from '@/views/workspaceStage'
-import { handledByWidget } from '@/views/globalKeys'
+import { anyOverlayOpen, armsNewItem, firesNewItem, handledByWidget } from '@/views/globalKeys'
 
 import AppShell from '@/components/shell/AppShell.vue'
 import DragGhost from '@/components/DragGhost.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
+import NewItemHint from '@/components/NewItemHint.vue'
 import NoteView from '@/components/NoteView.vue'
 import DetailHost from '@/components/detail/DetailHost.vue'
 import ItemDialog from '@/components/ItemDialog.vue'
@@ -162,10 +163,34 @@ const viewMap = {
   calendar: CalendarView,
 }
 const currentView = computed(() => viewMap[tab.value])
-const activeView = ref<{ focus: () => void } | null>(null)
+// Every tab exposes `focus()` — "do the thing this tab is for", which for most
+// of them is opening their create form. `?.()` rather than a bare call: News
+// and Code have nothing to create and expose nothing, and reaching for a method
+// that is not there threw a TypeError rather than doing nothing.
+const activeView = ref<{ focus?: () => void } | null>(null)
 
 function focusPrimaryInput() {
-  activeView.value?.focus()
+  activeView.value?.focus?.()
+}
+
+// --- "/" then "n" -----------------------------------------------------------
+// Makes one of whatever the current tab makes. Armed by the "/", fired by the
+// "n", and only while nothing is already open over the tab (globalKeys).
+const slashArmedAt = ref(0)
+function overlaysOpen(): boolean {
+  return anyOverlayOpen({
+    detailDialog: app.detailOpen,
+    itemDialog: app.itemDialog != null,
+    noteView: app.noteView != null,
+    taskView: app.taskViewId != null,
+    share: app.pendingShare != null,
+    notesDrawer: ui.drawerOpen,
+    themePanel: ui.themePanelOpen,
+    securityPanel: auth.securityPanelOpen,
+    githubPanel: auth.githubPanelOpen,
+    avatarMenu: auth.avatarMenuOpen,
+    goalHelp: app.goalHelpOpen,
+  })
 }
 
 // Device session tracking (section 27a). Set up once here, in setup scope, and
@@ -231,6 +256,25 @@ function onKey(e: KeyboardEvent) {
   // (which is what this used to do) misses every one of the composite widgets,
   // and a `<button role="tab">` is not an INPUT.
   if (handledByWidget(e)) return
+  // "/" then "n" — a new one of whatever this tab makes. Refused while anything
+  // is open over the tab: a create form arriving on top of the dialog somebody
+  // is reading is the failure this sequence exists to avoid, and it is why this
+  // fires rather than merely focusing.
+  if (armsNewItem(e)) {
+    // Firefox opens quick-find on a bare "/", which would eat the "n".
+    if (!overlaysOpen()) e.preventDefault()
+    slashArmedAt.value = overlaysOpen() ? 0 : Date.now()
+    return
+  }
+  if (firesNewItem(e, slashArmedAt.value, Date.now())) {
+    slashArmedAt.value = 0
+    if (overlaysOpen()) return
+    e.preventDefault()
+    app.countNewItemUse()
+    focusPrimaryInput()
+    return
+  }
+  slashArmedAt.value = 0
   if (e.key.toLowerCase() === 'n') {
     e.preventDefault()
     focusPrimaryInput()
@@ -344,6 +388,8 @@ onBeforeUnmount(() => {
       <div :style="stageStyle">
         <div :style="stageBody" class="workspace-stage__body">
           <component :is="currentView" ref="activeView" />
+          <!-- Teaches "/n", counts the times it is used, and stops after three. -->
+          <NewItemHint />
         </div>
       </div>
     </div>

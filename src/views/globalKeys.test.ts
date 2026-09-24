@@ -6,7 +6,15 @@
 // the shell's `document` listener only stood down for INPUT, TEXTAREA, SELECT
 // and contenteditable — four ELEMENTS, in a problem that is about ROLES.
 import { afterEach, describe, expect, it } from 'vitest'
-import { WIDGET_ROLES, handledByWidget } from '@/views/globalKeys'
+import {
+  NEW_ITEM_SEQUENCE_MS,
+  WIDGET_ROLES,
+  anyOverlayOpen,
+  armsNewItem,
+  firesNewItem,
+  handledByWidget,
+  type ShellOverlays,
+} from '@/views/globalKeys'
 
 /** A real element in a real tree, because `closest` is the thing under test. */
 function target(html: string, selector = '[data-t]'): HTMLElement {
@@ -107,5 +115,63 @@ describe('the shell keeps the key', () => {
 
   it('when there is no target at all', () => {
     expect(handledByWidget({ defaultPrevented: false, target: null })).toBe(false)
+  })
+})
+
+describe('"/" then "n" — a new one of whatever the tab makes', () => {
+  const key = (k: string, mods: Partial<KeyboardEvent> = {}) =>
+    ({ key: k, metaKey: false, ctrlKey: false, altKey: false, ...mods }) as KeyboardEvent
+
+  const NOTHING_OPEN: ShellOverlays = {
+    detailDialog: false,
+    itemDialog: false,
+    noteView: false,
+    taskView: false,
+    share: false,
+    notesDrawer: false,
+    themePanel: false,
+    securityPanel: false,
+    githubPanel: false,
+    avatarMenu: false,
+    goalHelp: false,
+  }
+
+  it('arms on a bare slash only', () => {
+    expect(armsNewItem(key('/'))).toBe(true)
+    expect(armsNewItem(key('/', { metaKey: true }))).toBe(false)
+    expect(armsNewItem(key('n'))).toBe(false)
+  })
+
+  it('fires on the n that follows, in either case', () => {
+    const armed = 1_000
+    expect(firesNewItem(key('n'), armed, armed + 10)).toBe(true)
+    expect(firesNewItem(key('N'), armed, armed + 10)).toBe(true)
+  })
+
+  it('does not fire on an n that arrives alone', () => {
+    // 0 is "never armed". Without this the sequence would be no sequence at
+    // all and every stray n would open a create form.
+    expect(firesNewItem(key('n'), 0, 5_000)).toBe(false)
+  })
+
+  it('lets the slash go stale, so yesterday\u2019s keypress cannot fire it', () => {
+    const armed = 1_000
+    expect(firesNewItem(key('n'), armed, armed + NEW_ITEM_SEQUENCE_MS - 1)).toBe(true)
+    expect(firesNewItem(key('n'), armed, armed + NEW_ITEM_SEQUENCE_MS)).toBe(false)
+  })
+
+  it('stands down for a modified n, which belongs to the browser', () => {
+    const armed = 1_000
+    expect(firesNewItem(key('n', { metaKey: true }), armed, armed + 10)).toBe(false)
+    expect(firesNewItem(key('n', { ctrlKey: true }), armed, armed + 10)).toBe(false)
+  })
+
+  it('is refused while anything is open over the tab', () => {
+    expect(anyOverlayOpen(NOTHING_OPEN)).toBe(false)
+    for (const k of Object.keys(NOTHING_OPEN) as (keyof ShellOverlays)[]) {
+      // Each one on its own is enough: a create form arriving on top of what
+      // somebody is reading is the failure this guard exists for.
+      expect(anyOverlayOpen({ ...NOTHING_OPEN, [k]: true })).toBe(true)
+    }
   })
 })

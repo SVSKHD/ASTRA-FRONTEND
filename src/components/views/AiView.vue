@@ -19,7 +19,7 @@ import { useConnectivity } from '@/composables/useConnectivity'
 import { pxify, typeStep } from '@/styles'
 import { AI_MODELS, type AiChat } from '@/types'
 import { buildAiContext, SUGGESTION_CHIPS, type AiContextInput } from '@/utils/ai'
-import { noteTitle } from '@/utils/notes'
+import { noteLabel } from '@/utils/notes'
 import { currentMonthKey, resolveIncome } from '@/utils/budget'
 import { toMinor } from '@/utils/money'
 
@@ -114,7 +114,7 @@ function contextInput(): AiContextInput {
     spent,
     remaining: income - spent,
     trips: app.trips.filter((t) => t.status !== 'done').map((t) => t.title),
-    noteTitles: app.notes.slice(-6).map((n) => noteTitle(n.text)),
+    noteTitles: app.notes.slice(-6).map((n) => noteLabel(n)),
     bots: app.bots.map((b) => ({ name: b.name, status: b.status, enabled: b.enabled })),
   }
 }

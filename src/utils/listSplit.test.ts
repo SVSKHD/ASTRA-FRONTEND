@@ -85,6 +85,27 @@ describe('splitList', () => {
     expect(r.stats.done).toBe(1)
   })
 
+  it('without a Today filter, Completed keeps everything ever finished', () => {
+    // This is what the todo and task lists do now. They used to pass
+    // `completedOnDay`, so at midnight yesterday's completed work left the
+    // Completed section and landed in no list at all — unreachable, with
+    // nothing to say it had ever been there. It stays until it is cleared or
+    // deleted; `useLongList` in the views is what keeps an unbounded section
+    // affordable to render.
+    const todayMs = new Date(TODAY + 'T09:00:00').getTime()
+    const yesterdayMs = new Date('2026-08-05T09:00:00').getTime()
+    const lastYearMs = new Date('2025-01-02T09:00:00').getTime()
+    const rows = [
+      row(1, 'done', TODAY, todayMs),
+      row(2, 'done', '2026-08-05', yesterdayMs),
+      row(3, 'done', '2025-01-02', lastYearMs),
+      row(4, 'pending', TODAY),
+    ]
+    const r = split(rows, {})
+    expect(r.completed.map((x) => x.id).sort()).toEqual([1, 2, 3])
+    expect(r.stats.done).toBe(3)
+  })
+
   it('excludes archived items from every region', () => {
     const rows = [row(1, 'done', TODAY, 1000), row(2, 'pending', TODAY)]
     const r = split(rows, { archivedAt: (x) => (x.id === 1 ? 5000 : null) })

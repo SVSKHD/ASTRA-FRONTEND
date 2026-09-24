@@ -10,7 +10,7 @@ import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
-import { noteChecks, notePreview, noteText, noteTitle } from '@/utils/notes'
+import { noteChecks, noteLabel, notePreview, noteText } from '@/utils/notes'
 import CommandHelp from '@/components/CommandHelp.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import Icon from '@/components/ui/Icon.vue'
@@ -153,7 +153,7 @@ function checkLabel(n: Note) {
         v-hover-style="s.noteCardHover"
       >
         <button :style="openStyle" @click="app.openNoteView(n.id, query)">
-          <span :style="s.noteCardTitle">{{ noteTitle(n.text) }}</span>
+          <span :style="s.noteCardTitle">{{ noteLabel(n) }}</span>
           <span v-if="notePreview(n.text)" :style="s.noteCardPreview">{{
             notePreview(n.text)
           }}</span>

@@ -115,6 +115,11 @@ export const ICONS = {
   coffee:
     '<path d="M4 9h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" /><path d="M17 10.5h1.5a2.5 2.5 0 0 1 0 5H17" /><path d="M8 3v2.5M12 2.5v3" />',
 
+  // The search field drew its magnifier as the text character "⌕", which is
+  // not an icon: it takes the font's size and weight rather than the set's, so
+  // it landed small and thin beside every real 16px stroked glyph next to it.
+  search: '<circle cx="10.5" cy="10.5" r="6.5" /><line x1="15.4" y1="15.4" x2="20.5" y2="20.5" />',
+
   // ---- the detail pane's three modes --------------------------------------
   // `columns` is the pane back in the layout — a panel split in two, which is
   // literally what the tab becomes. The other two are arrows rather than the

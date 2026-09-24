@@ -92,6 +92,10 @@ const silent = computed(() =>
     (name) => !live.repos.value.some((r) => r.fullName.toLowerCase() === name),
   ),
 )
+
+// A view onto GitHub: nothing here is created locally, so ⌘K and "/n" do
+// nothing rather than something surprising.
+defineExpose({ focus: () => {} })
 </script>
 
 <template>

@@ -1,20 +1,29 @@
 <script setup lang="ts">
-// The full view of a note. Opening one from the drawer puts it here and leaves
-// it here — clicking the backdrop does nothing on purpose, so a note you are
-// reading or writing cannot be dismissed by a stray click. Only ×, Close, or
-// Escape puts it away.
+// The full view of a note.
+//
+// It is a dialog, and it now behaves like the app's other dialogs: the backdrop
+// closes it while READING, as ItemDialog, ReminderDialog and the notes drawer
+// all do. While EDITING it still does not — that is the case the old
+// no-backdrop rule was really protecting, and a stray click landing on the page
+// behind an open editor should not put the editor away.
+//
+// Cancel is a real cancel. It used to be a lie: the autosave rebinds the view
+// to the newly created note after ~700ms, so by the time anybody pressed Cancel
+// the text was already stored and "Cancel" just flipped to read mode over it.
+// The body as it stood when editing began is captured below and put back.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { noteViewCard, pxify, typeStep } from '@/styles'
-import { isHtmlNote, noteChecks, noteTitle } from '@/utils/notes'
+import { isHtmlNote, noteChecks, noteLabel } from '@/utils/notes'
 import { sanitize } from '@/utils/sanitizeHtml'
 import { toMarkdown } from '@/utils/noteMigrate'
 import { toggleTaskAt } from '@/utils/mdTyping'
 import { copyAsMarkdown, copyAsRichText, downloadMarkdown } from '@/utils/noteExport'
 import { checklistItems } from '@/utils/mdTyping'
+import TextInput from '@/components/ui/TextInput.vue'
 import NoteEditor from '@/components/notes/NoteEditor.vue'
 import MarkdownView from '@/components/notes/MarkdownView.vue'
 import NoteToc from '@/components/notes/NoteToc.vue'
@@ -33,11 +42,16 @@ const source = computed(() => openNote.value?.text ?? '')
 // same allow-list as before — rather than being converted just to be read.
 const isLegacy = computed(() => isHtmlNote(source.value))
 const legacyHtml = computed(() => (isLegacy.value ? sanitize(source.value) : ''))
-const title = computed(() =>
-  isNew.value
-    ? 'New note'
-    : noteTitle(isEdit.value ? String(draft.value.text ?? '') : source.value),
-)
+// What this note is called, asked the same way the drawer, the panes and the
+// columns ask it — its own title first, the body's first line otherwise.
+const title = computed(() => {
+  if (isNew.value) return 'New note'
+  const note = openNote.value
+  if (!note) return 'Note'
+  return noteLabel(
+    isEdit.value ? { title: draftTitle(), text: String(draft.value.text ?? '') } : note,
+  )
+})
 const checks = computed(() => noteChecks(source.value))
 
 const editorRef = ref<{ focus: () => void } | null>(null)
@@ -85,14 +99,51 @@ const savedLabel = computed(() => {
 function draftText(): string {
   return String(draft.value.text ?? '')
 }
+function draftTitle(): string {
+  return String(draft.value.title ?? '')
+}
+
+// The note as it stood when this edit began, so Cancel has something to put
+// back. Captured on entering edit mode rather than on open: an edit started
+// from read mode should revert to what was on screen a moment ago.
+const beforeEdit = ref<{ text: string; title: string } | null>(null)
+watch(
+  isEdit,
+  (editing) => {
+    if (!editing) return (beforeEdit.value = null)
+    const note = openNote.value
+    beforeEdit.value = { text: note?.text ?? '', title: note?.title ?? '' }
+  },
+  { immediate: true },
+)
+
+// A note deleted from somewhere else while it is open here leaves this dialog
+// showing an empty body under the heading "Untitled note". The note column and
+// the pane row both guard on the note still existing; this one did not.
+watch(
+  () => [noteView.value?.id, openNote.value == null] as const,
+  ([id, gone]) => {
+    if (id != null && gone && !noteViewClosing.value) app.closeNoteView()
+  },
+)
 
 // Autosave: while editing, the draft is persisted in place a short beat after
 // you stop typing, so a note is never lost to a stray close. Manual Save / Esc
 // still finalise to read mode; the store's own debounce flushes to Firestore.
 const saveState = ref<'idle' | 'saving' | 'saved'>('idle')
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
+// The title is its own field on a note and is editable from the detail panes,
+// the note column and the create-dialog draft editor — but not, until now, from
+// the note's own full view. It autosaves on the same beat as the body.
+function onDraftTitle(v: string) {
+  app.setDraft('title', v)
+  queueAutosave()
+}
 function onDraft(v: string) {
   app.setDraft('text', v)
+  queueAutosave()
+}
+function queueAutosave() {
   if (!isEdit.value) return
   saveState.value = 'saving'
   clearTimeout(autosaveTimer)
@@ -110,9 +161,20 @@ function save() {
   clearTimeout(autosaveTimer)
   app.saveNoteView(draftText())
 }
+// Put back what was there when editing began. The autosave has almost certainly
+// written by now — that is the whole reason this has to restore rather than
+// merely switch modes.
 function cancel() {
-  if (isNew.value) app.closeNoteView()
-  else if (noteView.value) app.openNoteView(noteView.value.id as number)
+  clearTimeout(autosaveTimer)
+  saveState.value = 'idle'
+  const id = noteView.value?.id
+  const before = beforeEdit.value
+  if (id == null) return app.closeNoteView()
+  if (before) {
+    app.setNoteText(id, before.text)
+    app.setNoteTitle(id, before.title)
+  }
+  app.openNoteView(id)
 }
 function onEsc() {
   if (isEdit.value) cancel()
@@ -122,6 +184,12 @@ function remove() {
   const id = noteView.value?.id
   app.closeNoteView()
   if (id != null) app.deleteWithUndo('notes', 'note', id)
+}
+// Reading: a click outside puts it away, like every other dialog in the app.
+// Editing: it does not, because the click that lands outside an open editor is
+// usually the one that was meant for the editor.
+function onBackdrop() {
+  if (!isEdit.value) app.closeNoteView()
 }
 function shareNote() {
   const n = openNote.value
@@ -216,7 +284,7 @@ const spacer = pxify({ flex: 1 })
 
 <template>
   <template v-if="noteView">
-    <div :style="s.noteViewOverlay"></div>
+    <div :style="s.noteViewOverlay" @click="onBackdrop"></div>
     <div :style="cardStyle" role="dialog" aria-modal="true" tabindex="-1" @keydown.esc="onEsc">
       <div :style="headStyle">
         <span :style="s.noteViewTitle">{{ title }}</span>
@@ -229,6 +297,12 @@ const spacer = pxify({ flex: 1 })
       </div>
 
       <template v-if="isEdit">
+        <TextInput
+          :model-value="draftTitle()"
+          placeholder="Title (optional — the first line is used without one)"
+          aria-label="Note title"
+          @update:model-value="onDraftTitle"
+        />
         <NoteEditor
           ref="editorRef"
           :model-value="draftText()"

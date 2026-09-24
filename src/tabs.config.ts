@@ -56,3 +56,32 @@ export const SECONDARY_TABS: readonly TabDef[] = TABS.filter((t) => !t.primary)
 export function tabLabel(key: TabKey): string {
   return TABS.find((t) => t.key === key)?.label ?? key
 }
+
+// What "/" then "n" makes on each tab, in the words the hint uses: "a new
+// todo", "a new goal". Named here beside the tabs themselves rather than in the
+// shell, so a tab that gains a create says so in the same file that says it
+// exists.
+//
+// A tab missing from this map makes nothing — News and Code are reading
+// surfaces — and the hint stays quiet there rather than promising a shortcut
+// that does nothing.
+export const TAB_NEW_ITEM: Partial<Record<TabKey, string>> = {
+  todo: 'todo',
+  tasks: 'task',
+  goals: 'goal',
+  deadlines: 'deadline',
+  reminders: 'reminder',
+  ideas: 'idea',
+  stocks: 'stock',
+  trips: 'trip',
+  trades: 'trade',
+  expenses: 'expense',
+  finances: 'transaction',
+  wallets: 'wallet',
+  github: 'issue',
+  planning: 'node',
+}
+
+export function tabNewItem(key: TabKey): string | null {
+  return TAB_NEW_ITEM[key] ?? null
+}

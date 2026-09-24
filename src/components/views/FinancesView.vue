@@ -6,7 +6,7 @@ import TextInput from '@/components/ui/TextInput.vue'
 // the stage: Overview · Transactions · Debts · Tags. Everything derives from the
 // pure selectors in utils/finance so nothing leaks across scopes and no running
 // total is stored. Every figure goes through money() → formatCurrency().
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -57,7 +57,15 @@ const { now } = storeToRefs(useUiStore())
 const route = useRoute()
 const router = useRouter()
 
-defineExpose({ focus: () => {} })
+// ⌘K and "/n" land on the quick-add row — one number and Enter is what this
+// tab is for. It only exists on the transactions sub-tab, so go there first.
+const quickAdd_ = ref<{ focus: () => void } | null>(null)
+defineExpose({
+  focus: () => {
+    subtab.value = 'transactions'
+    nextTick(() => quickAdd_.value?.focus())
+  },
+})
 
 // Tokens, not literals (section 44, item 10): derived per theme, and
 // achromatic on the two themes that carry status by weight instead of hue.
@@ -810,6 +818,7 @@ const debtCard = computed(() =>
              one number and Enter: the detailed form below is for the row that
              needs a source or a counterparty, not for the ₹40 chai. -->
         <QuickAddRow
+          ref="quickAdd_"
           :categories="txnCategories"
           :last-category="lastCategory"
           :last-method="lastMethod"

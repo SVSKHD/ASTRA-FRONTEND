@@ -16,6 +16,8 @@
 //   'sheet'  its own sheet above the dialog's
 // Two half-width columns on a phone is 160px of note beside 160px of task,
 // which is nobody's idea of reading it beside the task.
+import { noteLabel } from '@/utils/notes'
+
 export type NoteColumnMode = 'split' | 'over' | 'sheet'
 
 // Below this the panel is not wide enough for two readable columns: 1180px of
@@ -75,12 +77,9 @@ export function columnTemplate(open: boolean, mode: NoteColumnMode, split: numbe
 // What one attached note reads as in the list. A note's title is its own field
 // since section 21a, but most notes do not have one, so the first line of the
 // body stands in — which is exactly what the notes drawer has always shown.
+// Delegates, so the drawer, the reader, the panes and the columns all answer
+// "what is this note called" the same way (utils/notes → noteLabel). Kept as a
+// name of its own because the row is where it is read most.
 export function noteRowLabel(note: { title?: string; text?: string }): string {
-  const title = (note.title ?? '').trim()
-  if (title) return title
-  const firstLine = (note.text ?? '')
-    .split('\n')
-    .map((line) => line.replace(/^\s*#{1,6}\s+/, '').trim())
-    .find((line) => line.length > 0)
-  return firstLine || 'Untitled note'
+  return noteLabel(note)
 }

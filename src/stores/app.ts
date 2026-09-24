@@ -72,6 +72,7 @@ import {
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
 import { rememberedTab, tabUrl } from '@/utils/lastTab'
 import { nextPaneMode } from '@/utils/paneMode'
+import { NEW_ITEM_HINT_USES } from '@/views/globalKeys'
 import { createShare, deleteShare, updateShareItem, writeShareDoc } from '@/utils/shares'
 import {
   CalendarAuthError,
@@ -435,6 +436,11 @@ export const useAppStore = defineStore('app', () => {
   // pulled every detail pane in the app out of the split view. Wide by default,
   // because that is the width their content was laid out at.
   const drawerWide = ref(true)
+  // How many times "/" then "n" has actually been used. The hint that teaches
+  // the shortcut counts down against this and then stops for good: a tip is
+  // for somebody who does not know the thing yet, and one that keeps arriving
+  // after they plainly do is no longer a tip.
+  const newItemUses = ref(0)
   // "Move pending to today" preferences. autoRollover runs the rollover once on
   // the first load of a new day; lastAutoRolloverDay (a YYYY-MM-DD key) records
   // the last day it did, so it fires at most once per day per device-sync.
@@ -2879,26 +2885,36 @@ export const useAppStore = defineStore('app', () => {
     noteViewClosing.value = false
     draft.value = { text: target == null ? '' : (openNote.value?.text ?? '') }
   }
-  // Commit the editor's HTML. A note whose markup carries no text at all is
-  // dropped rather than saved — an empty <div> would be an unreadable row.
+  // Commit the editor's draft — the body and the note's own title together.
+  //
+  // Emptying a note does NOT delete it. It used to: blanking the body and
+  // pressing Done ran deleteWithUndo, so select-all + Delete + Done destroyed
+  // the note, while the very same keystrokes in a detail pane or a note column
+  // simply stored an empty note (which those surfaces then render as "This note
+  // is empty."). Two surfaces, the same keystrokes, opposite outcomes — and the
+  // destructive one was the one that looked like a text editor. Deleting is the
+  // bin button, in one place, the way it is for every other kind of item.
+  //
+  // A note that was never created is the one exception, and it is not a
+  // deletion: there is no row yet, and nothing blank is worth making one for.
   function saveNoteView(text: string) {
     const v = noteView.value
     if (!v) return
-    if (isBlankNote(text)) {
-      if (v.id == null) return closeNoteView()
-      deleteWithUndo('notes', 'note', v.id)
-      return closeNoteView()
-    }
+    const title = String(draft.value.title ?? '').trim()
     if (v.id == null) {
+      if (isBlankNote(text) && !title) return closeNoteView()
       const newId = id()
-      notes.value = [...notes.value, { id: newId, text, format: 'md', ts: Date.now(), ...stamps() }]
+      notes.value = [
+        ...notes.value,
+        { id: newId, text, title, format: 'md', ts: Date.now(), ...stamps() },
+      ]
       noteView.value = { id: newId, mode: 'read' }
     } else {
       const target = v.id
       // Saving through the markdown editor also settles the format: a note
       // converted from the old HTML is markdown from here on.
       notes.value = notes.value.map((n) =>
-        n.id === target ? touched({ ...n, text, format: 'md' as const }) : n,
+        n.id === target ? touched({ ...n, text, title, format: 'md' as const }) : n,
       )
       noteView.value = { id: target, mode: 'read' }
     }
@@ -2928,15 +2944,19 @@ export const useAppStore = defineStore('app', () => {
   function autosaveNoteDraft(text: string) {
     const v = noteView.value
     if (!v || v.mode !== 'edit') return
-    if (isBlankNote(text)) return
+    const title = String(draft.value.title ?? '').trim()
+    if (isBlankNote(text) && !title) return
     if (v.id == null) {
       const newId = id()
-      notes.value = [...notes.value, { id: newId, text, format: 'md', ts: Date.now(), ...stamps() }]
+      notes.value = [
+        ...notes.value,
+        { id: newId, text, title, format: 'md', ts: Date.now(), ...stamps() },
+      ]
       noteView.value = { id: newId, mode: 'edit' }
     } else {
       const target = v.id
       notes.value = notes.value.map((n) =>
-        n.id === target ? touched({ ...n, text, format: 'md' as const }) : n,
+        n.id === target ? touched({ ...n, text, title, format: 'md' as const }) : n,
       )
     }
   }
@@ -3548,7 +3568,11 @@ export const useAppStore = defineStore('app', () => {
                     ? (item.title as string)
                     : type === 'stock'
                       ? (item.symbol as string)
-                      : (item.text as string)
+                      : type === 'note'
+                        ? // A note's name is its title when it has one, the way
+                          // every other surface reads it (utils/notes.noteLabel).
+                          (item.title as string) || (item.text as string)
+                        : (item.text as string)
     const short = label && label.length > 28 ? label.slice(0, 28) + '…' : label
     accessor.set(list.filter((x) => x.id !== itemId))
     // Linked todos/tasks: strip this item from every counterpart's links so no
@@ -5403,6 +5427,11 @@ export const useAppStore = defineStore('app', () => {
   function toggleDrawerWide() {
     drawerWide.value = !drawerWide.value
   }
+  // Counted up to the threshold and then left alone, so this is a handful of
+  // writes in a workspace's lifetime rather than one per keypress forever.
+  function countNewItemUse() {
+    if (newItemUses.value < NEW_ITEM_HINT_USES) newItemUses.value += 1
+  }
   // --- "How to add a goal" (section 23) --------------------------------------
   // Opening it is also what marks it seen: a reader who was shown the panel has
   // been shown it, whether they read it or closed it immediately. Marking on
@@ -6031,6 +6060,7 @@ export const useAppStore = defineStore('app', () => {
       railCollapsed: railCollapsed.value,
       paneMode: paneMode.value,
       drawerWide: drawerWide.value,
+      newItemUses: newItemUses.value,
       autoRollover: autoRollover.value,
       lastAutoRolloverDay: lastAutoRolloverDay.value,
       hideCompleted: hideCompleted.value,
@@ -6084,6 +6114,7 @@ export const useAppStore = defineStore('app', () => {
     railCollapsed.value = false
     paneMode.value = 'inline'
     drawerWide.value = true
+    newItemUses.value = 0
     goalsHelpSeen.value = false
     autoRollover.value = false
     lastAutoRolloverDay.value = ''
@@ -6475,6 +6506,8 @@ export const useAppStore = defineStore('app', () => {
     railCollapsed.value = data.railCollapsed === true
     paneMode.value = isPaneMode(data.paneMode) ? data.paneMode : 'inline'
     drawerWide.value = data.drawerWide !== false
+    newItemUses.value =
+      typeof data.newItemUses === 'number' && data.newItemUses > 0 ? data.newItemUses : 0
     autoRollover.value = data.autoRollover === true
     lastAutoRolloverDay.value =
       typeof data.lastAutoRolloverDay === 'string' ? data.lastAutoRolloverDay : ''
@@ -6761,6 +6794,7 @@ export const useAppStore = defineStore('app', () => {
         railCollapsed,
         paneMode,
         drawerWide,
+        newItemUses,
         goalsHelpSeen,
         autoRollover,
         lastAutoRolloverDay,
@@ -6819,6 +6853,8 @@ export const useAppStore = defineStore('app', () => {
     cyclePaneMode,
     drawerWide,
     toggleDrawerWide,
+    newItemUses,
+    countNewItemUse,
     autoRollover,
     hideCompleted,
     reminderSound,

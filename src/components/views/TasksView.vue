@@ -88,7 +88,8 @@ const split = computed(() =>
     isCarried: (t) => isOverdueTask(t, todayStr.value),
     completedAt: (t) => t.completedAt,
     archivedAt: (t) => t.archivedAt ?? null,
-    completedOnDay: todayStr.value,
+    // No day filter: Completed keeps everything finished until it is cleared
+    // or deleted (see the same note in TodoView).
     completedSort: completedSort.value,
   }),
 )

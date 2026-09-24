@@ -107,7 +107,11 @@ const split = computed(() =>
     isCarried: (t) => isOverdueTodo(t, todayStr.value),
     completedAt: (t) => t.completedAt,
     archivedAt: (t) => t.archivedAt ?? null,
-    completedOnDay: todayStr.value, // Completed shows what was done today
+    // No day filter: Completed keeps everything finished until it is cleared
+    // or deleted. It used to show only what was ticked TODAY, so yesterday's
+    // work vanished at midnight — into no list, with no way to reach it and no
+    // sign it had ever existed. `useLongList` below is what makes an unbounded
+    // section affordable; a day filter is not the right way to bound it.
     completedSort: completedSort.value,
   }),
 )

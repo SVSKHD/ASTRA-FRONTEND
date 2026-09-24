@@ -55,7 +55,14 @@ const expandedIssue = ref<string | null>(null)
 const expandedRepo = ref<string | null>(null)
 const now = Date.now()
 
-defineExpose({ focus: () => (pane.value = 'issues') })
+// The issues pane AND its create form: "the thing this tab is for" is filing
+// an issue, and landing on the list with nothing open was half an answer.
+defineExpose({
+  focus: () => {
+    pane.value = 'issues'
+    startCreate()
+  },
+})
 
 const visibleIssues = computed(() =>
   sortIssues(filterIssues(ghIssues.value, filter.value, tasks.value)),

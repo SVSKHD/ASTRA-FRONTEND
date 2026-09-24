@@ -21,7 +21,7 @@ const TripMap = defineAsyncComponent(() => import('@/components/trips/TripMap.vu
 import TripTimeline from '@/components/trips/TripTimeline.vue'
 import TripPlacesEditor from '@/components/trips/TripPlacesEditor.vue'
 import Tabs from '@/components/ui/Tabs.vue'
-import { noteTitle } from '@/utils/notes'
+import { noteLabel } from '@/utils/notes'
 import type { Note, Trip } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
@@ -521,7 +521,7 @@ const dangerBtn = computed(() =>
             title="Open note"
             @click="app.openNoteView(n.id)"
           >
-            {{ noteTitle(n.text) }}
+            {{ noteLabel(n) }}
             <span
               :style="pxify({ color: c.dim, cursor: 'pointer' })"
               title="Detach"
@@ -538,7 +538,7 @@ const dangerBtn = computed(() =>
               value: '',
               label: `${unattachedNotes.length ? 'Attach a note…' : 'No more notes to attach'}`,
             },
-            ...unattachedNotes.map((n) => ({ value: String(n.id), label: `${noteTitle(n.text)}` })),
+            ...unattachedNotes.map((n) => ({ value: String(n.id), label: `${noteLabel(n)}` })),
           ]"
         />
 

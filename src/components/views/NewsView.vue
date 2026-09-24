@@ -56,6 +56,10 @@ const counts = computed<Record<string, number>>(() => {
   for (const item of news.items.value) out[item.category] = (out[item.category] ?? 0) + 1
   return out
 })
+
+// A reading list: there is nothing here to create, so ⌘K and "/n" do
+// nothing rather than something surprising.
+defineExpose({ focus: () => {} })
 </script>
 
 <template>

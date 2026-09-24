@@ -854,7 +854,18 @@ const OverlapDetector = import.meta.env.DEV
 </template>
 
 <style scoped>
+/* The page paints the surface edge to edge; its CONTENT sits in a container.
+   Without one every section ran the full width of the monitor — a type scale
+   measured across 2500px, an icon grid eleven columns wide, a "listrow" sample
+   nothing in the app is ever that wide. A design system read at a width the app
+   never uses is a design system showing you the wrong thing.
+
+   1500px is not a new number: it is `maxWidth` in `views/workspaceStage.ts`,
+   the cap every tab's stage already has. The components are reviewed here at
+   the width they are shipped at. */
 .ui-page {
+  --ui-page-container: 1500px;
+
   position: relative;
   z-index: 1;
   min-height: 100vh;
@@ -864,6 +875,14 @@ const OverlapDetector = import.meta.env.DEV
   gap: var(--sp-5);
   color: var(--theme-text);
   background: var(--theme-surface);
+}
+/* Each block centres itself rather than a wrapper doing it, so the sticky bar
+   stays sticky — a scroll container in between would pin it to that instead of
+   to the page. */
+.ui-page > * {
+  width: 100%;
+  max-width: var(--ui-page-container);
+  margin-inline: auto;
 }
 .ui-page__bar {
   position: sticky;
