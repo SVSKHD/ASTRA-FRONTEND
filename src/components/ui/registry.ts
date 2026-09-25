@@ -588,6 +588,7 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     props: [
       { name: 'items', type: '{ value, label, disabled? }[]' },
       { name: 'label', type: 'string' },
+      { name: 'variant', type: "'default' | 'toolbar'", default: "'default'" },
     ],
     snippet: '<Dropdown :items="items" label="Actions" @select="onSelect" />',
   },

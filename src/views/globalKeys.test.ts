@@ -134,6 +134,7 @@ describe('"/" then "n" — a new one of whatever the tab makes', () => {
     githubPanel: false,
     avatarMenu: false,
     goalHelp: false,
+    taskTransferHelp: false,
   }
 
   it('arms on a bare slash only', () => {

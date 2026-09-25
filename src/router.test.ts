@@ -52,6 +52,11 @@ describe('routes', () => {
     expect(r.resolve('/').name).toBe('workspace')
   })
 
+  it('resolves the forgiving task transfer route', async () => {
+    const r = await makeRouter()
+    expect(r.resolve('/tab?=todo=read').name).toBe('tab-transfer')
+  })
+
   it('resolves a share page for every item type', async () => {
     const r = await makeRouter()
     for (const type of ALL_TYPES) {

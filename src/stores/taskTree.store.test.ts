@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
+import { SAMPLE_TASKS_JSON } from '@/utils/taskTransferHelp'
 import type { Task, Todo } from '@/types'
 
 function makeTask(id: number, over: Partial<Task> = {}): Task {
@@ -162,6 +163,44 @@ describe('moveTodo — flat hierarchy parity with tasks', () => {
   })
 })
 
+describe('convertTodoToTask', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('moves a todo subtree into tasks and keeps linked task children under it', () => {
+    const app = useAppStore()
+    app.todos = [
+      makeTodo(1, {
+        text: 'Launch checklist',
+        description: 'Ship the thing',
+        tag: 'ship',
+        linked: [{ id: 9, collection: 'tasks' }],
+      }),
+      makeTodo(2, { text: 'QA pass', parentId: 1, depth: 1, rootId: 1, tag: 'ship' }),
+    ]
+    app.tasks = [makeTask(9, { title: 'Build API', tag: 'ship' })]
+
+    const rootTaskId = app.convertTodoToTask(1)
+
+    expect(rootTaskId).toBeTypeOf('number')
+    const root = app.tasks.find((task) => task.id === rootTaskId) as Task
+    const child = app.tasks.find((task) => task.title === 'QA pass') as Task
+    expect(root).toMatchObject({
+      title: 'Launch checklist',
+      notes: 'Ship the thing',
+      tag: 'ship',
+      parentId: null,
+      rootId: root.id,
+    })
+    expect(child).toMatchObject({ parentId: root.id, depth: 1, rootId: root.id })
+    expect(app.tasks.find((task) => task.id === 9)).toMatchObject({
+      parentId: root.id,
+      depth: 1,
+      rootId: root.id,
+    })
+    expect(app.todos).toEqual([])
+  })
+})
+
 describe('move — subtasks inherit the parent tag', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
@@ -225,6 +264,84 @@ describe('backfillSubtaskTags — existing untagged subtasks', () => {
     expect(app.todos.find((t) => t.id === 11)?.tag).toBe('errands')
     // Idempotent: a second run finds nothing to fill.
     expect(app.backfillSubtaskTags()).toBe(0)
+  })
+})
+
+describe('task/todo transfer import', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('imports a nested task JSON document into real task rows', () => {
+    const app = useAppStore()
+    const result = app.importTaskTransferJson({
+      collection: 'tasks',
+      items: [
+        {
+          sourceId: 'a',
+          parentSourceId: null,
+          title: 'Parent task',
+          description: 'Parent notes',
+          status: 'progress',
+          tag: 'ship',
+          deadline: '2026-10-02',
+        },
+        {
+          sourceId: 'b',
+          parentSourceId: 'a',
+          title: 'Child task',
+          description: 'Child notes',
+          status: 'done',
+          tag: 'ship',
+        },
+      ],
+    })
+
+    expect(result).toMatchObject({ collection: 'tasks', count: 2 })
+    const parent = app.tasks.find((t) => t.title === 'Parent task') as Task
+    const child = app.tasks.find((t) => t.title === 'Child task') as Task
+    expect(parent).toMatchObject({
+      notes: 'Parent notes',
+      status: 'progress',
+      done: false,
+      deadline: '2026-10-02',
+    })
+    expect(child).toMatchObject({
+      parentId: parent.id,
+      depth: 1,
+      rootId: parent.id,
+      notes: 'Child notes',
+      status: 'done',
+      done: true,
+    })
+  })
+
+  it('imports todos from a URL with title and description params', () => {
+    const app = useAppStore()
+    const result = app.importTaskTransferUrl('/?tab=todo&title=Read&description=Paper')
+    expect(result).toMatchObject({ collection: 'todos', count: 1 })
+    expect(app.todos[0]).toMatchObject({ text: 'Read', description: 'Paper' })
+  })
+
+  it('imports the documented Aquakart-style sample into app task fields', () => {
+    const app = useAppStore()
+    const result = app.importTaskTransferJson(SAMPLE_TASKS_JSON, 'tasks')
+    expect(result).toMatchObject({ collection: 'tasks', count: 3 })
+
+    const lead = app.tasks.find((t) => t.title === 'Real Lead Backend') as Task
+    const activities = app.tasks.find((t) => t.title === 'Sales Activities Backend') as Task
+    expect(lead).toMatchObject({
+      tag: 'CRM',
+      priority: 'high',
+      status: 'pending',
+      done: false,
+    })
+    expect(lead.notes).toContain('Test criteria:')
+    expect(activities).toMatchObject({
+      parentId: lead.id,
+      rootId: lead.id,
+      depth: 1,
+      status: 'progress',
+      priority: 'high',
+    })
   })
 })
 

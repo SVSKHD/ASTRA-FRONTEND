@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
@@ -13,6 +13,7 @@ import { useScrollMemory } from '@/composables/useScrollMemory'
 import { useTabRoute } from '@/composables/useTabRoute'
 import { stageGeometry, stageWrapGeometry } from '@/views/workspaceStage'
 import { anyOverlayOpen, armsNewItem, firesNewItem, handledByWidget } from '@/views/globalKeys'
+import { hasTaskTransferUrlPayload, tabForTaskTransferCollection } from '@/utils/taskTransfer'
 
 import AppShell from '@/components/shell/AppShell.vue'
 import DragGhost from '@/components/DragGhost.vue'
@@ -26,6 +27,7 @@ import ReminderDialog from '@/components/ReminderDialog.vue'
 import TaskView from '@/components/TaskView.vue'
 import GithubPanel from '@/components/GithubPanel.vue'
 import SecurityPanel from '@/components/security/SecurityPanel.vue'
+import TaskTransferHelpPanel from '@/components/TaskTransferHelpPanel.vue'
 import AuthDialog from '@/components/AuthDialog.vue'
 import ToastHost from '@/components/ToastHost.vue'
 import NotifBanner from '@/components/NotifBanner.vue'
@@ -66,6 +68,7 @@ const ui = useUiStore()
 const app = useAppStore()
 const auth = useAuthStore()
 const lock = useLockStore()
+const router = useRouter()
 const { c } = useStyles()
 const { tab, vw, isPhone } = storeToRefs(ui)
 
@@ -190,6 +193,7 @@ function overlaysOpen(): boolean {
     githubPanel: auth.githubPanelOpen,
     avatarMenu: auth.avatarMenuOpen,
     goalHelp: app.goalHelpOpen,
+    taskTransferHelp: app.taskTransferHelpOpen,
   })
 }
 
@@ -310,6 +314,7 @@ function onResume() {
 // /tasks/:id/view is a real route now, so the open task follows route params
 // rather than a hand-parsed popstate handler.
 const route = useRoute()
+const importedTransferRoutes = new Set<string>()
 watch(
   () => (route.name === 'task-view' ? String(route.params.id ?? '') : ''),
   (raw) => {
@@ -319,6 +324,34 @@ watch(
     }
     const parsed = Number.parseInt(raw, 10)
     app.taskViewId = Number.isNaN(parsed) ? null : parsed
+  },
+  { immediate: true },
+)
+
+watch(
+  [showWorkspace, () => route.fullPath],
+  ([ready, fullPath]) => {
+    if (!ready || importedTransferRoutes.has(fullPath)) return
+    const href = typeof window !== 'undefined' ? window.location.href : fullPath
+    if (!hasTaskTransferUrlPayload(href)) return
+    importedTransferRoutes.add(fullPath)
+    const result = app.importTaskTransferUrl(href)
+    const tabKey = tabForTaskTransferCollection(result.collection)
+    ui.setTab(tabKey)
+    if (result.error) {
+      app.showToastMsg('Could not import list: ' + result.error)
+      return
+    }
+    if (result.count === 0) {
+      app.showToastMsg('No todo or task items found in that link')
+      return
+    }
+    app.showToastMsg(
+      `Imported ${result.count} ${result.collection === 'todos' ? 'todo' : 'task'}${
+        result.count === 1 ? '' : 's'
+      }`,
+    )
+    void router.replace({ path: '/', query: { tab: tabKey } })
   },
   { immediate: true },
 )
@@ -405,6 +438,7 @@ onBeforeUnmount(() => {
     <TaskView />
     <GithubPanel />
     <SecurityPanel :open="auth.securityPanelOpen" @close="auth.closeSecurityPanel()" />
+    <TaskTransferHelpPanel />
     <NotifBanner />
     <SharedBanner />
     <ShareDialog />

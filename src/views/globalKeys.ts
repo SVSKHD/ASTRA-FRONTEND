@@ -119,6 +119,7 @@ export interface ShellOverlays {
   githubPanel: boolean
   avatarMenu: boolean
   goalHelp: boolean
+  taskTransferHelp: boolean
 }
 
 export function anyOverlayOpen(open: ShellOverlays): boolean {

@@ -240,6 +240,13 @@ import type { ParsedGoalItem, GoalDoc, GoalPoint } from '@/utils/goals'
 import { horizonDates, localDateInTz } from '@/utils/recurrence'
 import { captureOutcome } from '@/utils/goalMetrics'
 import { exportGoalsJson } from '@/utils/goals'
+import {
+  parseTaskTransferJson,
+  parseTaskTransferUrl,
+  type TaskTransferCollection,
+  type TaskTransferItem,
+} from '@/utils/taskTransfer'
+import { buildSharedItemSnapshot, sharedTreeContains, type ShareTreeType } from '@/utils/shareTree'
 
 function rel(days: number): string {
   const d = new Date()
@@ -454,6 +461,8 @@ export const useAppStore = defineStore('app', () => {
   // than in whichever surface happened to open it.
   const goalHelpTab = ref<GoalHelpTab>('manual')
   const goalHelpOpen = ref(false)
+  const taskTransferHelpOpen = ref(false)
+  const taskTransferHelpCollection = ref<TaskTransferCollection>('tasks')
   // Whether this user has met the panel. On the user document rather than in
   // local storage, so a first-timer is offered it once per person and not once
   // per browser they happen to sign in from.
@@ -752,7 +761,7 @@ export const useAppStore = defineStore('app', () => {
       'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
     todos.value = todos.value.map((t) => (t.id === tid ? touched({ ...t, ...next }) : t))
     // Keep a public share's frozen snapshot in step with the edit just made.
-    syncShareIfPublic('todo', tid)
+    syncRelatedPublicShares('todo', tid)
   }
   function setTodoStatus(tid: number, next: ItemStatus) {
     const cur = todos.value.find((t) => t.id === tid)
@@ -763,7 +772,7 @@ export const useAppStore = defineStore('app', () => {
       cancelRemindersFor('todos', tid)
     }
     // A shared todo's status is part of its public page; keep it in sync.
-    syncShareIfPublic('todo', tid)
+    syncRelatedPublicShares('todo', tid)
   }
   function cycleTodoStatus(tid: number) {
     const cur = todos.value.find((t) => t.id === tid)
@@ -772,6 +781,116 @@ export const useAppStore = defineStore('app', () => {
   function toggleTodo(tid: number) {
     const cur = todos.value.find((t) => t.id === tid)
     if (cur) setTodoStatus(tid, cur.done ? 'pending' : 'done')
+  }
+
+  function convertTodoToTask(todoId: number): number | null {
+    const todoIndex = buildIndex(todos.value)
+    const root = todoIndex.byId.get(todoId)
+    if (!root) return null
+
+    const orderedTodoIds: number[] = []
+    const parentOf = new Map<number, number | null>()
+    const seenTodos = new Set<number>()
+    const collectTodo = (id: number, parentId: number | null) => {
+      if (seenTodos.has(id)) return
+      const todo = todoIndex.byId.get(id)
+      if (!todo) return
+      seenTodos.add(id)
+      orderedTodoIds.push(id)
+      parentOf.set(id, parentId)
+      for (const child of todoIndex.children.get(id) ?? []) collectTodo(child.id, id)
+      for (const child of todo.linked) {
+        if (child.collection === 'todos') collectTodo(child.id, id)
+      }
+    }
+    collectTodo(todoId, null)
+
+    const idMap = new Map<number, number>()
+    for (const oldId of orderedTodoIds) {
+      const todo = todoIndex.byId.get(oldId)
+      if (!todo) continue
+      const nextId = addTask(todo.text, todo.tag, {
+        status: todo.status,
+        done: todo.done,
+        notes: todo.description,
+        rolledOverAt: todo.rolledOverAt,
+        rolloverCount: todo.rolloverCount,
+        completedAt: todo.completedAt,
+        reminderIds: [...todo.reminderIds],
+        sourceRef: todo.sourceRef,
+        goalIds: [...(todo.goalIds ?? [])],
+        noteIds: [...(todo.noteIds ?? [])],
+        graphRefs: [...(todo.graphRefs ?? [])],
+        startAt: todo.startAt,
+        endAt: todo.endAt,
+        allDay: todo.allDay,
+        durationMins: todo.durationMins,
+      })
+      if (nextId != null) idMap.set(oldId, nextId)
+    }
+
+    const siblingPositions = new Map<number | null, number>()
+    for (const oldId of orderedTodoIds) {
+      const newId = idMap.get(oldId)
+      if (newId == null) continue
+      const oldParentId = parentOf.get(oldId) ?? null
+      const newParentId = oldParentId == null ? null : (idMap.get(oldParentId) ?? null)
+      if (newParentId == null) continue
+      const pos = siblingPositions.get(oldParentId) ?? 0
+      moveTask(newId, newParentId, pos)
+      siblingPositions.set(oldParentId, pos + 1)
+    }
+
+    const movedTaskIds = new Set<number>()
+    for (const oldId of orderedTodoIds) {
+      const oldTodo = todoIndex.byId.get(oldId)
+      const newTaskId = idMap.get(oldId)
+      if (!oldTodo || newTaskId == null) continue
+      const newTaskRef: LinkRef = { id: newTaskId, collection: 'tasks' }
+
+      for (const parent of oldTodo.parents) {
+        if (parent.collection === 'todos' && idMap.has(parent.id)) continue
+        linkItems(parent, newTaskRef)
+      }
+
+      let linkedTaskPosition = 0
+      for (const child of oldTodo.linked) {
+        if (child.collection !== 'tasks') continue
+        if (movedTaskIds.has(child.id)) continue
+        if (moveTask(child.id, newTaskId, linkedTaskPosition)) {
+          movedTaskIds.add(child.id)
+          linkedTaskPosition++
+        }
+      }
+    }
+
+    reminders.value = reminders.value.map((reminder) => {
+      const source = reminder.sourceRef
+      if (source?.collection !== 'todos') return reminder
+      const newId = idMap.get(source.id)
+      return newId == null
+        ? reminder
+        : { ...reminder, sourceRef: { collection: 'tasks', id: newId } }
+    })
+    notes.value = notes.value.map((note) => ({
+      ...note,
+      attachedTo: (note.attachedTo ?? []).map((ref) => {
+        if (ref.type !== 'todo') return ref
+        const newId = idMap.get(ref.id)
+        return newId == null ? ref : { type: 'task', id: newId }
+      }),
+    }))
+    boardNodes.value = boardNodes.value.map((node) => {
+      if (node.linkedType !== 'todo' || node.linkedId == null) return node
+      const newId = idMap.get(node.linkedId)
+      return newId == null ? node : { ...node, linkedType: 'task', linkedId: newId }
+    })
+
+    for (const oldId of idMap.keys()) cleanupLinksForDelete({ id: oldId, collection: 'todos' })
+    todos.value = todos.value.filter((todo) => !idMap.has(todo.id))
+    reconcileNoteRefs()
+    showToastMsg(`Moved ${idMap.size} todo${idMap.size === 1 ? '' : 's'} to Tasks`)
+    return idMap.get(todoId) ?? null
   }
 
   // ---- Tasks --------------------------------------------------------------
@@ -829,6 +948,7 @@ export const useAppStore = defineStore('app', () => {
     if (next === 'done') cancelRemindersFor('tasks', tid)
     // A linked task that changes state closes/reopens its issue (13c).
     scheduleIssuePush(tid)
+    syncRelatedPublicShares('task', tid)
   }
   function cycleTaskStatus(tid: number) {
     const cur = tasks.value.find((t) => t.id === tid)
@@ -847,6 +967,7 @@ export const useAppStore = defineStore('app', () => {
     // Title/description are the only fields that flow out to a linked issue,
     // debounced so a burst of keystrokes is one PATCH.
     if (field === 'title' || field === 'notes') scheduleIssuePush(tid)
+    syncRelatedPublicShares('task', tid)
   }
   // The typed sibling of updateTask, for the detail dialog's non-string fields
   // (priority, estimate, schedule). Same guard bookkeeping, same one write.
@@ -856,6 +977,7 @@ export const useAppStore = defineStore('app', () => {
     tasks.value = tasks.value.map((t) => (t.id === tid ? touched({ ...t, ...patch }) : t))
     for (const key of keys) syncGuard.markTouched(tid, key)
     if ('title' in patch || 'notes' in patch) scheduleIssuePush(tid)
+    syncRelatedPublicShares('task', tid)
   }
   // ⋯ → Duplicate. A copy of the task itself, dropped in beside it: the subtree,
   // the GitHub link and the reminders are deliberately NOT copied — a duplicated
@@ -886,6 +1008,115 @@ export const useAppStore = defineStore('app', () => {
   function archiveTask(tid: number) {
     patchTask(tid, { archivedAt: Date.now() })
   }
+
+  interface TaskTransferImportResult {
+    collection: TaskTransferCollection
+    count: number
+    error?: string
+  }
+
+  function applyImportedHierarchy(
+    collection: TaskTransferCollection,
+    rows: { newId: number; item: TaskTransferItem; sourceKey: string }[],
+  ) {
+    if (rows.length === 0) return
+    const importedIds = new Set(rows.map((row) => row.newId))
+    const bySource = new Map<string, number>()
+    for (const row of rows) if (!bySource.has(row.sourceKey)) bySource.set(row.sourceKey, row.newId)
+
+    const children = new Map<number | null, number[]>()
+    for (const row of rows) {
+      const parent =
+        row.item.parentSourceId != null ? (bySource.get(row.item.parentSourceId) ?? null) : null
+      const parentId = parent === row.newId ? null : parent
+      const group = children.get(parentId)
+      if (group) group.push(row.newId)
+      else children.set(parentId, [row.newId])
+    }
+
+    const list = collection === 'todos' ? todos.value : tasks.value
+    const rootOrders = list
+      .filter((item) => !importedIds.has(item.id) && item.parentId == null)
+      .map((item) => item.order)
+    const rootBase = rootOrders.length ? Math.max(...rootOrders) + 1 : 0
+    const meta = new Map<
+      number,
+      { parentId: number | null; order: number; depth: number; rootId: number }
+    >()
+
+    const visit = (parentId: number | null, depth: number, rootId: number) => {
+      const group = children.get(parentId) ?? []
+      group.forEach((id, index) => {
+        const nodeRoot = parentId == null ? id : rootId
+        meta.set(id, {
+          parentId,
+          order: parentId == null ? rootBase + index : index,
+          depth,
+          rootId: nodeRoot,
+        })
+        visit(id, depth + 1, nodeRoot)
+      })
+    }
+    visit(null, 0, 0)
+
+    if (collection === 'todos') {
+      todos.value = todos.value.map((todo) => {
+        const patch = meta.get(todo.id)
+        return patch ? { ...todo, ...patch } : todo
+      })
+    } else {
+      tasks.value = tasks.value.map((task) => {
+        const patch = meta.get(task.id)
+        return patch ? { ...task, ...patch } : task
+      })
+    }
+  }
+
+  function importTaskTransferItems(
+    collection: TaskTransferCollection,
+    items: TaskTransferItem[],
+  ): number {
+    const rows: { newId: number; item: TaskTransferItem; sourceKey: string }[] = []
+    const completedAt = Date.now()
+    items.forEach((item, index) => {
+      const status = isStatus(item.status) ? item.status : 'pending'
+      const state = {
+        status,
+        done: status === 'done',
+        completedAt: status === 'done' ? completedAt : null,
+      }
+      const newId =
+        collection === 'todos'
+          ? addTodo(item.title, item.tag, item.description, state)
+          : addTask(item.title, item.tag, {
+              ...state,
+              deadline: item.deadline ?? '',
+              notes: item.description,
+              repo: item.repo ?? '',
+              ...(item.priority ? { priority: item.priority } : {}),
+              ...(item.estimateMins !== undefined ? { estimateMins: item.estimateMins } : {}),
+            })
+      if (newId != null) rows.push({ newId, item, sourceKey: item.sourceId || String(index) })
+    })
+    applyImportedHierarchy(collection, rows)
+    return rows.length
+  }
+
+  function importTaskTransferJson(
+    input: string | unknown,
+    hint?: TaskTransferCollection,
+  ): TaskTransferImportResult {
+    const doc = parseTaskTransferJson(input, hint)
+    if (doc.parseError) return { collection: doc.collection, count: 0, error: doc.parseError }
+    return { collection: doc.collection, count: importTaskTransferItems(doc.collection, doc.items) }
+  }
+
+  function importTaskTransferUrl(input: string): TaskTransferImportResult {
+    const doc = parseTaskTransferUrl(input)
+    if (doc.parseError) return { collection: doc.collection, count: 0, error: doc.parseError }
+    return { collection: doc.collection, count: importTaskTransferItems(doc.collection, doc.items) }
+  }
+
   // ⋯ → Convert to goal point. The task becomes a checklist point on the goal and
   // is archived rather than deleted, so nothing that referenced it dangles.
   function convertTaskToGoalPoint(tid: number, goalId: number): number | null {
@@ -970,10 +1201,22 @@ export const useAppStore = defineStore('app', () => {
     return true
   }
   function moveTask(draggedId: number, newParentId: number | null, position: number): boolean {
-    return moveInList(tasks, draggedId, newParentId, position)
+    const beforeParentId = tasks.value.find((task) => task.id === draggedId)?.parentId ?? null
+    const ok = moveInList(tasks, draggedId, newParentId, position)
+    if (ok) {
+      syncRelatedPublicShares('task', draggedId)
+      if (beforeParentId != null) syncRelatedPublicShares('task', beforeParentId)
+    }
+    return ok
   }
   function moveTodo(draggedId: number, newParentId: number | null, position: number): boolean {
-    return moveInList(todos, draggedId, newParentId, position)
+    const beforeParentId = todos.value.find((todo) => todo.id === draggedId)?.parentId ?? null
+    const ok = moveInList(todos, draggedId, newParentId, position)
+    if (ok) {
+      syncRelatedPublicShares('todo', draggedId)
+      if (beforeParentId != null) syncRelatedPublicShares('todo', beforeParentId)
+    }
+    return ok
   }
   // Backfill for subtasks nested before tag inheritance existed: any untagged
   // task/todo under a tagged parent takes the nearest tagged ancestor's tag.
@@ -2379,6 +2622,9 @@ export const useAppStore = defineStore('app', () => {
   function linkableById(ref: LinkRef): Todo | Task | undefined {
     return linkableList(ref.collection).value.find((i) => i.id === ref.id)
   }
+  function itemTypeOfRef(ref: LinkRef): 'todo' | 'task' {
+    return ref.collection === 'todos' ? 'todo' : 'task'
+  }
   function linkGraph(): Graph {
     return {
       children: (r) => linkableById(r)?.linked ?? [],
@@ -2409,6 +2655,8 @@ export const useAppStore = defineStore('app', () => {
     if (!check.ok) return check
     applyLinkPatch(parent, { linked: [...p.linked, child] })
     applyLinkPatch(child, { parents: [...c.parents, parent] })
+    syncRelatedPublicShares(itemTypeOfRef(parent), parent.id)
+    syncRelatedPublicShares(itemTypeOfRef(child), child.id)
     return { ok: true }
   }
   function unlinkItems(parent: LinkRef, child: LinkRef) {
@@ -2416,6 +2664,8 @@ export const useAppStore = defineStore('app', () => {
     const c = linkableById(child)
     if (p) applyLinkPatch(parent, { linked: p.linked.filter((r) => !sameRef(r, child)) })
     if (c) applyLinkPatch(child, { parents: c.parents.filter((r) => !sameRef(r, parent)) })
+    syncRelatedPublicShares(itemTypeOfRef(parent), parent.id)
+    syncRelatedPublicShares(itemTypeOfRef(child), child.id)
   }
   // Drag-to-nest: link one or more children under `target`, re-parenting each out
   // of the parent it was dragged from (sourceParents, keyed `collection:id`).
@@ -3714,7 +3964,12 @@ export const useAppStore = defineStore('app', () => {
     if (!pending || !uid || shareBusy.value) return
     shareBusy.value = true
     try {
-      const shareId = await createShare(uid, pending.type, pending.item, isPublic)
+      const shareId = await createShare(
+        uid,
+        pending.type,
+        shareItemSnapshot(pending.type, pending.item.id) ?? pending.item,
+        isPublic,
+      )
       if (!shareId) {
         showToastMsg('Sharing needs Supabase configured')
         return
@@ -5208,8 +5463,21 @@ export const useAppStore = defineStore('app', () => {
 
   // Where the private item lives. A public reader never follows it — they render
   // the frozen snapshot — but it keeps the mirror doc traceable to its source.
-  function shareRefPath(itemId: number): string {
-    return `${AUREON_COLLECTION}/${uid}#todo-${itemId}`
+  function treeShareType(type: ItemType): ShareTreeType | null {
+    return type === 'todo' || type === 'task' ? type : null
+  }
+
+  function shareItemSnapshot(type: ItemType, itemId: number): Record<string, unknown> | undefined {
+    const treeType = treeShareType(type)
+    if (treeType) {
+      const snapshot = buildSharedItemSnapshot(treeType, itemId, todos.value, tasks.value)
+      return snapshot ? (snapshot as unknown as Record<string, unknown>) : undefined
+    }
+    return itemById(type, itemId)
+  }
+
+  function shareRefPath(type: ItemType, itemId: number): string {
+    return `${AUREON_COLLECTION}/${uid}#${type}-${itemId}`
   }
 
   // Publish (or fully rewrite) the mirror doc from the item's current state.
@@ -5219,7 +5487,14 @@ export const useAppStore = defineStore('app', () => {
     const item = itemById(type, itemId)
     const shareId = item?.shareId
     if (!item || typeof shareId !== 'string' || !shareId) throw new Error('Missing share id')
-    await writeShareDoc(shareId, uid, type, item, true, shareRefPath(itemId))
+    await writeShareDoc(
+      shareId,
+      uid,
+      type,
+      shareItemSnapshot(type, itemId) ?? item,
+      true,
+      shareRefPath(type, itemId),
+    )
   }
 
   async function unpublishShare(shareId: string): Promise<void> {
@@ -5229,14 +5504,66 @@ export const useAppStore = defineStore('app', () => {
   // Fire-and-forget snapshot refresh: called after a content edit so a shared
   // item's public page keeps up. A failure here is logged, never surfaced — the
   // owner's edit still succeeded locally and will re-sync on the next change.
-  function syncShareIfPublic(type: ItemType, itemId: number) {
+  function syncPublicShareRoot(type: ItemType, itemId: number, seen = new Set<string>()) {
     if (!uid) return
+    const key = `${type}:${itemId}`
+    if (seen.has(key)) return
+    seen.add(key)
     const item = itemById(type, itemId)
     const shareId = item?.shareId
     if (!item || item.isPublic !== true || typeof shareId !== 'string' || !shareId) return
-    updateShareItem(shareId, uid, item).catch((error) => {
+    updateShareItem(shareId, uid, shareItemSnapshot(type, itemId) ?? item).catch((error) => {
       reportError('[Aureon] Share snapshot sync failed:', error)
     })
+  }
+
+  function syncShareIfPublic(type: ItemType, itemId: number) {
+    syncPublicShareRoot(type, itemId)
+  }
+
+  function linkRefForItemType(type: ItemType, itemId: number): LinkRef | null {
+    if (type === 'todo') return { collection: 'todos', id: itemId }
+    if (type === 'task') return { collection: 'tasks', id: itemId }
+    return null
+  }
+
+  function syncRelatedPublicShares(type: ItemType, itemId: number) {
+    if (!uid) return
+    const target = linkRefForItemType(type, itemId)
+    const synced = new Set<string>()
+    syncPublicShareRoot(type, itemId, synced)
+    if (!target) return
+
+    const candidates = [
+      ...todos.value.map((todo) => ({
+        type: 'todo' as const,
+        id: todo.id,
+        isPublic: todo.isPublic,
+        shareId: todo.shareId,
+      })),
+      ...tasks.value.map((task) => {
+        const shared = task as Task & Partial<{ isPublic: boolean; shareId: string | null }>
+        return {
+          type: 'task' as const,
+          id: task.id,
+          isPublic: shared.isPublic,
+          shareId: shared.shareId,
+        }
+      }),
+    ]
+
+    for (const candidate of candidates) {
+      if (
+        candidate.isPublic !== true ||
+        typeof candidate.shareId !== 'string' ||
+        !candidate.shareId
+      )
+        continue
+      const root = linkRefForItemType(candidate.type, candidate.id)
+      if (root && sharedTreeContains(root, target, todos.value, tasks.value)) {
+        syncPublicShareRoot(candidate.type, candidate.id, synced)
+      }
+    }
   }
 
   // ---- Detail dialog (section 18) -----------------------------------------
@@ -5447,6 +5774,16 @@ export const useAppStore = defineStore('app', () => {
   }
   function setGoalHelpTab(tab: GoalHelpTab) {
     goalHelpTab.value = tab
+  }
+  function openTaskTransferHelp(collection: TaskTransferCollection = 'tasks') {
+    taskTransferHelpCollection.value = collection
+    taskTransferHelpOpen.value = true
+  }
+  function closeTaskTransferHelp() {
+    taskTransferHelpOpen.value = false
+  }
+  function setTaskTransferHelpCollection(collection: TaskTransferCollection) {
+    taskTransferHelpCollection.value = collection
   }
   // The one automatic open, decided by utils/goalHelp so the guards can be
   // argued with in a test rather than inferred from a template condition.
@@ -6152,6 +6489,8 @@ export const useAppStore = defineStore('app', () => {
     draft.value = {}
     noteView.value = null
     noteViewClosing.value = false
+    taskTransferHelpOpen.value = false
+    taskTransferHelpCollection.value = 'tasks'
     // A detail dialog left open across a sign-out would point at an id that no
     // longer exists. Cleared directly rather than through closeDetail, which
     // would try to flush an edit into a workspace that has just been emptied.
@@ -6975,6 +7314,7 @@ export const useAppStore = defineStore('app', () => {
     toggleTodo,
     setTodoStatus,
     cycleTodoStatus,
+    convertTodoToTask,
     addTask,
     toggleTask,
     setTaskStatus,
@@ -6983,6 +7323,8 @@ export const useAppStore = defineStore('app', () => {
     patchTask,
     duplicateTask,
     archiveTask,
+    importTaskTransferJson,
+    importTaskTransferUrl,
     convertTaskToGoalPoint,
     addDeadline,
     updateDeadline,
@@ -7055,9 +7397,14 @@ export const useAppStore = defineStore('app', () => {
     goalHelpTab,
     goalsHelpSeen,
     goalImportSeed,
+    taskTransferHelpOpen,
+    taskTransferHelpCollection,
     openGoalHelp,
     closeGoalHelp,
     setGoalHelpTab,
+    openTaskTransferHelp,
+    closeTaskTransferHelp,
+    setTaskTransferHelpCollection,
     maybeAutoOpenGoalHelp,
     seedGoalImport,
     takeGoalImportSeed,

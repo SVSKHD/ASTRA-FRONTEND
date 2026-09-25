@@ -59,8 +59,8 @@ watch(isSignedIn, (signedIn) => {
   if (signedIn && load.value?.status === 'needs-auth') run()
 })
 
-const item = computed<Record<string, string | number>>(
-  () => (share.value?.item || {}) as Record<string, string | number>,
+const item = computed<Record<string, unknown>>(
+  () => (share.value?.item || {}) as Record<string, unknown>,
 )
 
 const heading = computed(() => {
@@ -73,6 +73,62 @@ function sharedStatus(it: Record<string, unknown>): string {
   const s = it.status
   return STATUS_LABEL[isStatus(s) ? s : statusFromDone(it.done)]
 }
+
+interface SharedTreeRow {
+  key: string
+  depth: number
+  title: string
+  meta: string[]
+}
+
+function sharedRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function sharedChildren(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.map(sharedRecord).filter((node): node is Record<string, unknown> => node != null)
+    : []
+}
+
+function treeTypeLabel(node: Record<string, unknown>): string {
+  return node.type === 'todo' ? 'Todo' : node.type === 'task' ? 'Task' : 'Item'
+}
+
+function treeTitle(node: Record<string, unknown>): string {
+  return String(node.title || node.text || '(untitled)')
+}
+
+function treeMeta(node: Record<string, unknown>): string[] {
+  const meta = [treeTypeLabel(node), sharedStatus(node)]
+  if (typeof node.tag === 'string' && node.tag) meta.push(node.tag)
+  if (typeof node.deadline === 'string' && node.deadline) meta.push('Due: ' + node.deadline)
+  if (typeof node.repo === 'string' && node.repo) meta.push(node.repo)
+  return meta
+}
+
+function flattenSharedTree(
+  nodes: Record<string, unknown>[],
+  depth = 0,
+  prefix = 'root',
+): SharedTreeRow[] {
+  return nodes.flatMap((node, index) => {
+    const id = typeof node.id === 'number' || typeof node.id === 'string' ? String(node.id) : index
+    const key = `${prefix}:${treeTypeLabel(node)}:${id}:${index}`
+    return [
+      { key, depth, title: treeTitle(node), meta: treeMeta(node) },
+      ...flattenSharedTree(sharedChildren(node.children), depth + 1, key),
+    ]
+  })
+}
+
+const treeRows = computed<SharedTreeRow[]>(() => {
+  if (!share.value || typeMismatch.value) return []
+  if (share.value.type !== 'todo' && share.value.type !== 'task') return []
+  return flattenSharedTree(sharedChildren(item.value.children))
+})
 
 // Per-type summary lines. Notes render their stored HTML instead.
 const lines = computed<string[]>(() => {
@@ -215,6 +271,64 @@ const linesStyle = pxify({
   gap: 'var(--sp-2)',
   ...typeStep('sm'),
 })
+const treeStyle = computed(() =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--sp-2)',
+    marginTop: 'var(--sp-3)',
+    paddingTop: 'var(--sp-3)',
+    borderTop: '1px solid ' + c.value.border,
+  }),
+)
+const treeTitleStyle = computed(() =>
+  pxify({
+    alignSelf: 'flex-start',
+    ...typeStep('2xs'),
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: c.value.dim,
+  }),
+)
+const treeDotStyle = computed(() =>
+  pxify({
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    flexShrink: 0,
+    marginTop: 8,
+    background: c.value.accent,
+  }),
+)
+const treeBodyStyle = pxify({
+  display: 'flex',
+  minWidth: 0,
+  flexDirection: 'column',
+  gap: 2,
+})
+const treeNameStyle = computed(() =>
+  pxify({
+    ...typeStep('sm'),
+    color: c.value.text,
+    lineHeight: 1.35,
+  }),
+)
+const treeMetaStyle = computed(() =>
+  pxify({
+    ...typeStep('2xs'),
+    color: c.value.dim,
+    lineHeight: 1.35,
+  }),
+)
+function treeRowStyle(depth: number) {
+  return pxify({
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 'var(--sp-2)',
+    minWidth: 0,
+    paddingLeft: depth * 16,
+  })
+}
 const noteStyle = computed(() => pxify({ ...typeStep('sm'), lineHeight: 1.5, color: c.value.text }))
 const centeredPage = computed(() =>
   pxify({
@@ -305,6 +419,16 @@ function goHome() {
           <div v-if="isNote" :style="noteStyle" v-html="noteHtml"></div>
           <div v-else :style="[linesStyle, { color: c.text }]">
             <span v-for="(line, i) in lines" :key="i">{{ line }}</span>
+          </div>
+          <div v-if="treeRows.length" :style="treeStyle">
+            <span :style="treeTitleStyle">Nested items</span>
+            <div v-for="row in treeRows" :key="row.key" :style="treeRowStyle(row.depth)">
+              <span :style="treeDotStyle"></span>
+              <span :style="treeBodyStyle">
+                <span :style="treeNameStyle">{{ row.title }}</span>
+                <span :style="treeMetaStyle">{{ row.meta.join(' · ') }}</span>
+              </span>
+            </div>
           </div>
         </div>
         <ReminderTimeline

@@ -36,6 +36,14 @@ const routes: RouteRecordRaw[] = [
     name: 'workspace',
     component: () => import('@/views/WorkspaceView.vue'),
   },
+  // Forgiving task/todo transfer links. The canonical shape is
+  // /?tab=todo&title=..., but /tab?=todo=... is accepted too because it is the
+  // form people tend to type when sketching a quick capture URL by hand.
+  {
+    path: '/tab',
+    name: 'tab-transfer',
+    component: () => import('@/views/WorkspaceView.vue'),
+  },
   ...Object.entries(TAB_ROUTES).map(([path, key]): RouteRecordRaw => ({
     path,
     name: `tab-${key}-${path.slice(1)}`,

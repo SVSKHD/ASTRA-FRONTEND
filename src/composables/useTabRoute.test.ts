@@ -25,6 +25,7 @@ function makeRouter() {
       { path: '/expenses', name: 'expenses', component: Blank },
       { path: '/news', name: 'news', component: Blank },
       { path: '/code', name: 'code', component: Blank },
+      { path: '/tab', name: 'tab-transfer', component: Blank },
       { path: '/goals/:goalId(\\d+)', name: 'goal-page', component: Blank },
     ],
   })
@@ -65,6 +66,11 @@ describe('reading a tab out of a location', () => {
     expect(tabOf('/tasks/12/view', {})).toBe('tasks')
     expect(tabOf('/goals/3', {})).toBe('goals')
     expect(tabOf('/goals/import', {})).toBe('')
+  })
+
+  it('reads task transfer links into the matching list tab', () => {
+    expect(tabOf('/tab', { '': 'todo=read papers' })).toBe('todo')
+    expect(tabOf('/tab', { tasks: 'A|B' })).toBe('tasks')
   })
 
   it('refuses a tab that is not one', () => {

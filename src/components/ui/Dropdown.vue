@@ -11,7 +11,9 @@ export interface MenuItem {
   disabled?: boolean
 }
 
-defineProps<{ items: MenuItem[]; label: string }>()
+withDefaults(defineProps<{ items: MenuItem[]; label: string; variant?: 'default' | 'toolbar' }>(), {
+  variant: 'default',
+})
 const emit = defineEmits<{ select: [string] }>()
 const open = ref(false)
 const itemsEl = ref<HTMLElement | null>(null)
@@ -34,6 +36,7 @@ function choose(value: string) {
     <template #trigger>
       <button
         class="ui-dropdown__trigger ui-focus-ring"
+        :class="`ui-dropdown__trigger--${variant}`"
         type="button"
         :aria-expanded="open"
         aria-haspopup="menu"
@@ -72,15 +75,48 @@ function choose(value: string) {
 .ui-dropdown__trigger {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--sp-2);
+  border: 1px solid;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.ui-dropdown__trigger:active {
+  transform: translateY(1px);
+}
+.ui-dropdown__trigger--default {
   min-height: var(--control-md);
   padding: 0 var(--sp-3);
   border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
+  border-color: var(--glass-border);
   background: var(--theme-input);
   color: var(--theme-text);
   font-size: var(--text-sm);
-  cursor: pointer;
+}
+.ui-dropdown__trigger--default:hover {
+  border-color: var(--theme-accent);
+}
+.ui-dropdown__trigger--toolbar {
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  border-color: var(--glass-border);
+  background: transparent;
+  color: var(--theme-dim);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ui-dropdown__trigger--toolbar:hover,
+.ui-dropdown__trigger--toolbar[aria-expanded='true'] {
+  border-color: var(--theme-accent);
+  color: var(--theme-accent);
 }
 .ui-dropdown__items {
   display: flex;

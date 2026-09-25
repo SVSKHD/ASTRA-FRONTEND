@@ -27,6 +27,7 @@ import { useUiStore } from '@/stores/ui'
 import { TAB_ORDER } from '@/tabs.config'
 import { LAST_ROUTE_KEY, sessionWrite } from '@/composables/useTradeRoute'
 import { TAB_PATHS, rememberTab } from '@/utils/lastTab'
+import { collectionFromTaskTransferQuery, tabForTaskTransferCollection } from '@/utils/taskTransfer'
 import type { TabKey } from '@/types'
 
 export { TAB_PATHS }
@@ -49,6 +50,10 @@ export function tabOf(path: string, query: Record<string, unknown>): TabKey | ''
   for (const [key, p] of Object.entries(TAB_PATHS)) if (p === path) return key as TabKey
   if (TASK_VIEW_RE.test(path)) return 'tasks'
   if (GOAL_PAGE_RE.test(path)) return 'goals'
+  if (path === '/tab') {
+    const transferCollection = collectionFromTaskTransferQuery(query)
+    if (transferCollection) return tabForTaskTransferCollection(transferCollection)
+  }
   const raw = query.tab
   const value = typeof raw === 'string' ? raw : Array.isArray(raw) ? String(raw[0] ?? '') : ''
   return isTabKey(value) ? value : ''

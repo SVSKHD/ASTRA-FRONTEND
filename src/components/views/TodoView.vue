@@ -39,9 +39,18 @@ import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
 import TodoDetail from '@/components/TodoDetail.vue'
 import DetailPane from '@/components/ui/DetailPane.vue'
+import Dropdown from '@/components/ui/Dropdown.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
+import TaskTransferPasteDialog from '@/components/TaskTransferPasteDialog.vue'
 import { nestedChildIds } from '@/utils/links'
 import { richIsEmpty, richPlain } from '@/utils/richText'
+import { copyToClipboard } from '@/utils/share'
+import { downloadText } from '@/utils/noteExport'
+import {
+  buildTaskTransferUrl,
+  exportTaskTransferJson,
+  taskTransferFilename,
+} from '@/utils/taskTransfer'
 import TitleTagPill from '@/components/TitleTagPill.vue'
 import { buildIndex, descendantsOf, progressOf } from '@/utils/taskTree'
 import { emptyTagQueryMessage, matchesTagQuery } from '@/utils/tagFilter'
@@ -61,6 +70,57 @@ const { todos, hideCompleted } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
 defineExpose({ focus: () => app.openCreate('todo') })
+
+const importFile = ref<HTMLInputElement | null>(null)
+const pasteDialogOpen = ref(false)
+const transferMenu = computed(() => [
+  { value: 'export-json', label: 'Export JSON', disabled: todos.value.length === 0 },
+  { value: 'copy-url', label: 'Copy import URL', disabled: todos.value.length === 0 },
+  { value: 'paste-json', label: 'Paste JSON' },
+  { value: 'import-file', label: 'Import file' },
+  { value: 'sample-json', label: 'Example JSON' },
+])
+
+function exportTodosJson() {
+  downloadText(
+    exportTaskTransferJson('todos', todos.value, new Date().toISOString()),
+    taskTransferFilename('todos'),
+    'application/json;charset=utf-8',
+  )
+  app.showToastMsg('Todos exported')
+}
+
+async function copyTodosUrl() {
+  try {
+    await copyToClipboard(buildTaskTransferUrl('todos', todos.value))
+    app.showToastMsg('Todo import URL copied')
+  } catch {
+    app.showToastMsg('Could not copy import URL')
+  }
+}
+
+function onTransfer(action: string) {
+  if (action === 'export-json') exportTodosJson()
+  else if (action === 'copy-url') void copyTodosUrl()
+  else if (action === 'paste-json') pasteDialogOpen.value = true
+  else if (action === 'import-file') importFile.value?.click()
+  else if (action === 'sample-json') app.openTaskTransferHelp('todos')
+}
+
+function onImportFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const result = app.importTaskTransferJson(String(reader.result ?? ''), 'todos')
+    if (result.error) app.showToastMsg('Could not import todos: ' + result.error)
+    else app.showToastMsg(`Imported ${result.count} todo${result.count === 1 ? '' : 's'} from JSON`)
+  }
+  reader.onerror = () => app.showToastMsg('Could not read that JSON file')
+  reader.readAsText(file)
+}
 
 const todayStr = computed(() => todayKey(new Date(now.value)))
 function dayOf(t: Todo): string {
@@ -339,11 +399,24 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
   <div ref="paneHost" :style="[panelStyle, paneInset]">
     <ListToolbar title="Todos" new-label="New todo" @new="app.openCreate('todo')">
       <template #actions>
+        <Dropdown :items="transferMenu" label="Export" variant="toolbar" @select="onTransfer" />
+        <input
+          ref="importFile"
+          type="file"
+          accept="application/json,.json"
+          hidden
+          @change="onImportFile"
+        />
         <button v-if="anyLinked" type="button" :style="linkExpandBtn" @click="toggleAll">
           {{ allExpanded ? 'Collapse links' : 'Expand links' }}
         </button>
       </template>
     </ListToolbar>
+    <TaskTransferPasteDialog
+      :open="pasteDialogOpen"
+      collection="todos"
+      @close="pasteDialogOpen = false"
+    />
     <ProgressLine :done="split.stats.done" :total="split.stats.total" />
     <!-- data-own-keys: ↑/↓ scroll this list rather than switch tabs (globalKeys). -->
     <div :style="splitView ? splitLayout : leftColumn" data-own-keys>
