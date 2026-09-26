@@ -30,8 +30,14 @@
 // is: the rules that matter here are things that must NOT come back, and an
 // absence is only enforceable if a test can read it.
 
-/** The bottom utility bar's height, in px. Content reserves exactly this. */
-export const BAR_HEIGHT = 52
+/**
+ * The bottom utility bar's height, in px. Content reserves exactly this.
+ * Includes BAR_LIFT, so the pill floats above the window edge instead of
+ * sitting on it.
+ */
+export const BAR_HEIGHT = 72
+/** Desktop gap between the pill and the bottom of the window, in px. */
+export const BAR_LIFT = 16
 /** Phones give the bar a little more room; a thumb is not a cursor. */
 export const BAR_HEIGHT_PHONE = 56
 /** The rail's width on a desktop, and on a tablet where it is narrower. */
@@ -173,7 +179,7 @@ export function barGeometry({ isPhone }: { isPhone: boolean }) {
     gap: 'var(--sp-2)',
     minWidth: 0,
     height: barHeight(isPhone) + 'px',
-    padding: isPhone ? '0 10px' : '0 16px',
+    padding: isPhone ? '0 10px' : `0 16px ${BAR_LIFT}px`,
   } as const
 }
 

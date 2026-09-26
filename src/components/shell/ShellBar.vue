@@ -15,9 +15,11 @@
 // same four live in the tab bar's More sheet (MobileTabBar), because two bars
 // stacked on a 390px screen is one too many.
 //
-// A ROW, NOT AN ISLAND, still. The pill is centred INSIDE the bar's grid region
-// rather than floating over the page, so the content area above keeps stopping
-// where the bar starts and the last row of a table stays clear (appShell.ts).
+// IT FLOATS, BUT IN ITS OWN ROW. The pill is centred INSIDE the bar's grid
+// region, lifted off the window edge by the bar's bottom padding and shadowed
+// like floating glass — but never `position: fixed` over the page, so the
+// content area above keeps stopping where the bar starts and the last row of a
+// table stays clear (appShell.ts).
 //
 // Popovers open upward, absolutely positioned against their own button's
 // wrapper. An overlay that opens on demand and closes on Escape is not
@@ -70,11 +72,13 @@ const pill = computed(() =>
     gap: 2,
     minWidth: 0,
     maxWidth: '100%',
-    padding: 5,
+    padding: 6,
     borderRadius: 'var(--radius-pill)',
     '--pill-glass': c.value.glass,
     border: B.value,
-    boxShadow: 'inset 0 1px 0 color-mix(in srgb, white 7%, transparent)',
+    // A floating island: lifted off the window edge by the bar's bottom padding
+    // (BAR_LIFT) and given the same drop shadow as the app's other floating glass.
+    boxShadow: c.value.shadow + ', inset 0 1px 0 color-mix(in srgb, white 7%, transparent)',
   }),
 )
 const wrapRel = pxify({ position: 'relative', display: 'inline-flex' })
