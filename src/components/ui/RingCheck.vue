@@ -88,8 +88,15 @@ onBeforeUnmount(() => clearTimeout(popTimer))
     var(--theme-accent) var(--ring-pct),
     color-mix(in srgb, var(--theme-text) 12%, transparent) var(--ring-pct) 100%
   );
-  -webkit-mask: radial-gradient(circle, transparent calc(50% - 3px), black calc(50% - 2px));
-  mask: radial-gradient(circle, transparent calc(50% - 3px), black calc(50% - 2px));
+  /* `closest-side`, so 100% is the ring's own radius. Left at the default
+     (farthest corner) the percentages measure to the box's corner, the hole
+     comes out 8px instead of 12px, and the arc runs under the button. */
+  -webkit-mask: radial-gradient(
+    circle closest-side,
+    transparent calc(100% - 3px),
+    black calc(100% - 2px)
+  );
+  mask: radial-gradient(circle closest-side, transparent calc(100% - 3px), black calc(100% - 2px));
   transition: background var(--dur-pop) ease;
 }
 .ring--empty {
