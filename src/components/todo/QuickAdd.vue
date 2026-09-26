@@ -5,6 +5,12 @@
 // and its reminder are made together. The parse runs on every keystroke and
 // shows what it understood as chips under the field, so nothing is inferred
 // silently.
+//
+// DETAILS, on demand. The create dialog this replaced asked for a description
+// and a tag, and a one-line field silently dropped both. The caret at the end
+// of the line unfolds them under the field: the same TagPicker the dialog
+// uses, and a description. "+ New todo" and /n open the field with the
+// details already unfolded; a typed #tag still wins over the picked one.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -12,8 +18,12 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { parseQuickAdd, quickAddReminderStart } from '@/utils/quickAdd'
 import TextInput from '@/components/ui/TextInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
+import IconButton from '@/components/ui/IconButton.vue'
+import Caret from '@/components/ui/Caret.vue'
 import Icon from '@/components/ui/Icon.vue'
 import Chip from '@/components/ui/Chip.vue'
+import TagPicker from '@/components/TagPicker.vue'
 
 withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
 const emit = defineEmits<{ added: [id: number] }>()
@@ -26,13 +36,18 @@ const text = ref('')
 const parsed = computed(() => parseQuickAdd(text.value))
 const field = ref<InstanceType<typeof TextInput> | null>(null)
 
+const detailsOpen = ref(false)
+const tag = ref('')
+const description = ref('')
+const hasDetails = computed(() => !!tag.value || !!description.value.trim())
+
 function submit() {
   const q = parseQuickAdd(text.value)
   if (!q.title) return
   // New todos enter at the top of the list, where the reader is looking.
   const rootOrders = todos.value.filter((t) => t.parentId == null).map((t) => t.order)
   const order = rootOrders.length ? Math.min(...rootOrders) - 1 : 0
-  const id = app.addTodo(q.title, q.tag, '', { order })
+  const id = app.addTodo(q.title, q.tag || tag.value, description.value.trim(), { order })
   if (id == null) return
   const start = quickAddReminderStart(q)
   if (start) {
@@ -43,10 +58,22 @@ function submit() {
     })
   }
   text.value = ''
+  tag.value = ''
+  description.value = ''
   emit('added', id)
 }
+function onEscape() {
+  if (text.value) text.value = ''
+  else detailsOpen.value = false
+}
 
-defineExpose({ focus: () => field.value?.focus() })
+defineExpose({
+  /** Focus the field; `withDetails` also unfolds the description and tag. */
+  focus: (withDetails = false) => {
+    if (withDetails) detailsOpen.value = true
+    field.value?.focus()
+  },
+})
 
 // --- styles -----------------------------------------------------------------
 const box = computed(() =>
@@ -55,7 +82,7 @@ const box = computed(() =>
     flexDirection: 'column',
     gap: 'var(--sp-2)',
     padding: '8px 12px',
-    borderRadius: 'var(--radius-card)',
+    borderRadius: 14,
     background: c.value.input,
     border:
       '1px solid ' +
@@ -69,6 +96,15 @@ const hint = computed(() =>
 )
 const chips = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', paddingLeft: 26 })
 const inputStyle = pxify({ flex: 1, minWidth: 0 })
+const details = computed(() =>
+  pxify({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--sp-3)',
+    paddingTop: 'var(--sp-2)',
+    borderTop: '1px solid ' + c.value.border,
+  }),
+)
 </script>
 
 <template>
@@ -84,9 +120,18 @@ const inputStyle = pxify({ flex: 1, minWidth: 0 })
         aria-label="Add a todo"
         :placeholder="compact ? 'Add a todo…' : 'Add a todo… try “Call vendor fri 5pm #CRM !high”'"
         @keydown.enter.prevent="submit"
-        @keydown.esc="text = ''"
+        @keydown.esc="onEscape"
       />
       <span v-if="!compact" :style="hint" aria-hidden="true">↵</span>
+      <IconButton
+        size="sm"
+        tone="default"
+        :label="detailsOpen ? 'Hide description and tag' : 'Add a description and a tag'"
+        :active="detailsOpen || hasDetails"
+        @click="detailsOpen = !detailsOpen"
+      >
+        <Caret :open="detailsOpen" size="sm" />
+      </IconButton>
     </div>
     <div v-if="parsed.chips.length" :style="chips" aria-live="polite">
       <Chip
@@ -96,6 +141,18 @@ const inputStyle = pxify({ flex: 1, minWidth: 0 })
         :icon="ch.icon"
         :label="ch.text"
       />
+    </div>
+    <div v-if="detailsOpen" :style="details">
+      <!-- Both fields draw their own labels, the same ones the dialog shows. -->
+      <TextArea
+        v-model="description"
+        label="Description"
+        size="sm"
+        :rows="2"
+        placeholder="What this is about, for the details pane"
+        @keydown.esc="onEscape"
+      />
+      <TagPicker v-model="tag" label="Tag" />
     </div>
   </div>
 </template>

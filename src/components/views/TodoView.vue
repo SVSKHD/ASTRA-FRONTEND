@@ -69,11 +69,12 @@ const { startDrag, targetState } = useDragNest()
 const { todos, hideCompleted } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
-// "/n" and "+ New todo" land in quick add; the full create dialog is still in
-// the details pane's editor for everything quick add does not cover.
+// "/n" and "+ New todo" land in quick add with its details open, so the
+// description and the tag the create dialog used to ask for are right there;
+// the full dialog is still in the details pane's editor for everything else.
 const quickAdd = ref<InstanceType<typeof QuickAdd> | null>(null)
 function focusQuickAdd() {
-  if (quickAdd.value) quickAdd.value.focus()
+  if (quickAdd.value) quickAdd.value.focus(true)
   else app.openCreate('todo')
 }
 defineExpose({ focus: focusQuickAdd })
