@@ -51,9 +51,9 @@ onBeforeUnmount(() => clearTimeout(popTimer))
   cursor: pointer;
   transform: scale(1);
   transition:
-    transform 0.35s cubic-bezier(0.3, 1.9, 0.5, 1),
-    background 0.2s ease,
-    border-color 0.2s ease;
+    transform var(--dur-strike) var(--ease-pop),
+    background var(--dur-med) ease,
+    border-color var(--dur-med) ease;
 }
 .subcheck--sm {
   width: 18px;
@@ -72,7 +72,7 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 }
 .subcheck__tick {
   opacity: 0;
-  transition: opacity 0.2s ease 0.1s;
+  transition: opacity var(--dur-med) ease 100ms;
 }
 .subcheck.is-done .subcheck__tick {
   opacity: 1;

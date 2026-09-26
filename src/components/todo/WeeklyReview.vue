@@ -10,6 +10,8 @@ import { useStyles } from '@/composables/useStyles'
 import { useWeeklyReview } from '@/composables/useWeeklyReview'
 import { pxify, typeStep, WARNING } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
+import Button from '@/components/ui/Button.vue'
+import IconButton from '@/components/ui/IconButton.vue'
 
 const ui = useUiStore()
 const { reviewOpen, isPhone } = storeToRefs(ui)
@@ -99,20 +101,6 @@ const rolled = pxify({ ...typeStep('xs'), color: WARNING })
 const foot = computed(() =>
   pxify({ ...typeStep('sm'), color: c.value.dim, opacity: 0.8, marginTop: 'auto' }),
 )
-const closeBtn = computed(() =>
-  pxify({
-    width: 32,
-    height: 32,
-    padding: 0,
-    display: 'grid',
-    placeItems: 'center',
-    borderRadius: 'var(--radius-control)',
-    border: '1px solid ' + c.value.border,
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-  }),
-)
 </script>
 
 <template>
@@ -123,9 +111,9 @@ const closeBtn = computed(() =>
     <aside v-if="reviewOpen" :style="drawer" role="dialog" aria-label="Weekly review">
       <div :style="head">
         <h2 :style="title">Weekly review</h2>
-        <button type="button" :style="closeBtn" aria-label="Close" @click="close">
+        <IconButton label="Close" variant="outline" tone="default" @click="close">
           <Icon name="x" size="sm" />
-        </button>
+        </IconButton>
       </div>
       <span :style="dim">Week of {{ weekLabel }}</span>
       <div :style="grid">
@@ -140,23 +128,22 @@ const closeBtn = computed(() =>
           <span :style="rowText" :title="t.text">{{ t.text || '(untitled)' }}</span>
           <span :style="rolled">rolled over ×{{ t.rolloverCount }}</span>
         </div>
-        <button
-          type="button"
-          class="wr-btn wr-btn--keep"
-          :class="{ 'is-on': decisions[t.id]?.kind === 'keep' }"
+        <Button
+          size="sm"
+          :variant="decisions[t.id]?.kind === 'keep' ? 'tinted' : 'secondary'"
           :aria-pressed="decisions[t.id]?.kind === 'keep'"
           @click="decide(t, 'keep')"
         >
           {{ decisions[t.id]?.kind === 'keep' ? 'Moved ✓' : 'Move to today' }}
-        </button>
-        <button
-          type="button"
-          class="wr-btn wr-btn--drop"
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
           :aria-pressed="decisions[t.id]?.kind === 'drop'"
           @click="decide(t, 'drop')"
         >
           {{ decisions[t.id]?.kind === 'drop' ? 'Dropped' : 'Drop' }}
-        </button>
+        </Button>
       </div>
       <span v-if="!items.length" :style="dim">
         Nothing has rolled over more than twice. A clean week.
@@ -173,31 +160,9 @@ const closeBtn = computed(() =>
   z-index: 55;
   background: color-mix(in srgb, var(--glass-solid, #000) 50%, transparent);
 }
-.wr-btn {
-  flex-shrink: 0;
-  padding: 5px 10px;
-  border-radius: var(--radius-pill);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.wr-btn--keep {
-  border: 1px solid var(--theme-border);
-  background: transparent;
-  color: var(--theme-text);
-}
-.wr-btn--keep.is-on {
-  background: color-mix(in srgb, var(--theme-accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--theme-accent) 40%, transparent);
-}
-.wr-btn--drop {
-  border: none;
-  background: transparent;
-  color: var(--theme-dim);
-}
 .wr-fade-enter-active,
 .wr-fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 300ms ease;
 }
 .wr-fade-enter-from,
 .wr-fade-leave-to {
@@ -207,7 +172,7 @@ const closeBtn = computed(() =>
 .wr-slide-leave-active,
 .wr-up-enter-active,
 .wr-up-leave-active {
-  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform var(--dur-slide) var(--ease-soft);
 }
 .wr-slide-enter-from,
 .wr-slide-leave-to {

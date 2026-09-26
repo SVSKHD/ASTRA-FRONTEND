@@ -13,6 +13,7 @@ import { pxify, typeStep } from '@/styles'
 import { parseQuickAdd, quickAddReminderStart } from '@/utils/quickAdd'
 import TextInput from '@/components/ui/TextInput.vue'
 import Icon from '@/components/ui/Icon.vue'
+import Chip from '@/components/ui/Chip.vue'
 
 withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
 const emit = defineEmits<{ added: [id: number] }>()
@@ -67,19 +68,6 @@ const hint = computed(() =>
   pxify({ ...typeStep('xs'), color: c.value.dim, fontFamily: 'var(--font-mono)', flexShrink: 0 }),
 )
 const chips = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', paddingLeft: 26 })
-const chip = computed(() =>
-  pxify({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 5,
-    padding: '3px 9px',
-    borderRadius: 'var(--radius-pill)',
-    background: 'color-mix(in srgb, ' + c.value.accent + ' 12%, transparent)',
-    border: '1px solid color-mix(in srgb, ' + c.value.accent + ' 32%, transparent)',
-    color: c.value.text,
-    ...typeStep('xs'),
-  }),
-)
 const inputStyle = pxify({ flex: 1, minWidth: 0 })
 </script>
 
@@ -101,9 +89,13 @@ const inputStyle = pxify({ flex: 1, minWidth: 0 })
       <span v-if="!compact" :style="hint" aria-hidden="true">↵</span>
     </div>
     <div v-if="parsed.chips.length" :style="chips" aria-live="polite">
-      <span v-for="ch in parsed.chips" :key="ch.kind" :style="chip">
-        <Icon :name="ch.icon" size="xs" :style="{ color: c.accent }" />{{ ch.text }}
-      </span>
+      <Chip
+        v-for="ch in parsed.chips"
+        :key="ch.kind"
+        tone="accent"
+        :icon="ch.icon"
+        :label="ch.text"
+      />
     </div>
   </div>
 </template>

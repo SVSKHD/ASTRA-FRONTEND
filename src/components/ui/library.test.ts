@@ -150,7 +150,7 @@ describe('components render in their documented states', () => {
 
   it('ProgressBar clamps its fill and exposes progressbar semantics', () => {
     const over = mount(ProgressBar, { props: { value: 40, max: 10, label: 'x' } })
-    expect(over.get('.ui-progress__fill').attributes('style')).toContain('width: 100%')
+    expect(over.get('.ui-progress__fill').attributes('style')).toContain('scaleX(1)')
     expect(over.get('[role="progressbar"]').attributes('aria-valuemax')).toBe('10')
   })
 

@@ -174,7 +174,7 @@ const avatarDisc = computed(() => ({
   backdrop-filter: blur(24px) saturate(1.5);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
   border: 1px solid var(--theme-border);
-  transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.25, 1);
+  transition: transform var(--dur-slide) var(--ease-sheet);
 }
 .mtb.is-hidden {
   transform: translateY(120px);

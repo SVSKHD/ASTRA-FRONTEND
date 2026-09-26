@@ -1,5 +1,8 @@
 <script setup lang="ts">
 // A todo's checkbox with its subtask progress drawn round it (Todo v2, 4b).
+// In the library rather than beside the todo list because the /ui page shows
+// it, and because the ring is the one place the whole app draws progress round
+// a control.
 //
 // It replaces the "☑ 3/35" chip as the at-a-glance progress: the ring fills as
 // subtasks close, so a scan down the list reads progress without reading
@@ -15,12 +18,9 @@ const props = withDefaults(
     done: boolean
     subDone: number
     subTotal: number
-    /** The surface the ring sits on, so the gap between ring and button reads
-     *  as a gap rather than as a second ring. */
-    surface?: string
     size?: 'sm' | 'md'
   }>(),
-  { surface: 'var(--theme-card)', size: 'md' },
+  { size: 'md' },
 )
 const emit = defineEmits<{ toggle: [] }>()
 
@@ -42,11 +42,12 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 
 <template>
   <span
-    class="ring"
-    :class="[`ring--${size}`, { 'ring--empty': !subTotal }]"
-    :style="{ '--ring-pct': pct + '%', '--ring-surface': surface }"
+    class="ring-wrap"
+    :class="[`ring-wrap--${size}`]"
+    :style="{ '--ring-pct': pct + '%' }"
     :title="title"
   >
+    <span class="ring" :class="{ 'ring--empty': !subTotal }" aria-hidden="true"></span>
     <button
       type="button"
       class="ring__btn"
@@ -62,45 +63,56 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 </template>
 
 <style scoped>
-.ring {
+/* The ring is an annulus: a conic gradient with its centre masked out, so the
+   2px gap between ring and button is the row's own background whatever that
+   is — a glass card, the phone's solid ground, the /ui page — rather than a
+   painted disc that has to be told which colour to pretend to be. */
+.ring-wrap {
   position: relative;
   flex-shrink: 0;
-  display: grid;
-  place-items: center;
+  display: block;
+}
+.ring-wrap--md {
+  width: 30px;
+  height: 30px;
+}
+.ring-wrap--sm {
+  width: 26px;
+  height: 26px;
+}
+.ring {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
   background: conic-gradient(
     var(--theme-accent) var(--ring-pct),
     color-mix(in srgb, var(--theme-text) 12%, transparent) var(--ring-pct) 100%
   );
-  transition: background 0.4s ease;
-}
-.ring--md {
-  width: 30px;
-  height: 30px;
-}
-.ring--sm {
-  width: 26px;
-  height: 26px;
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 3px), black calc(50% - 2px));
+  mask: radial-gradient(circle, transparent calc(50% - 3px), black calc(50% - 2px));
+  transition: background var(--dur-pop) ease;
 }
 .ring--empty {
   background: color-mix(in srgb, var(--theme-text) 8%, transparent);
 }
+/* The button is a sibling of the ring, not a child: a mask clips everything
+   inside the element it is on, so the button sits on top in the same box. */
 .ring__btn {
-  position: relative;
-  width: calc(100% - 6px);
-  height: calc(100% - 6px);
+  position: absolute;
+  inset: 3px;
+  width: auto;
+  height: auto;
   padding: 0;
   border-radius: 50%;
   border: 1.5px solid color-mix(in srgb, var(--theme-text) 45%, transparent);
-  background: var(--ring-surface);
-  box-shadow: 0 0 0 2px var(--ring-surface);
+  background: transparent;
   color: var(--theme-on-accent);
   cursor: pointer;
   transform: scale(1);
   transition:
-    transform 0.4s cubic-bezier(0.3, 1.9, 0.5, 1),
-    background 0.2s ease,
-    border-color 0.2s ease;
+    transform var(--dur-pop) var(--ease-pop),
+    background var(--dur-med) ease,
+    border-color var(--dur-med) ease;
 }
 .ring__btn.is-done {
   background: var(--theme-accent);
@@ -111,7 +123,7 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 }
 .ring__tick {
   opacity: 0;
-  transition: opacity 0.2s ease 0.1s;
+  transition: opacity var(--dur-med) ease 100ms;
 }
 .ring__btn.is-done .ring__tick {
   opacity: 1;

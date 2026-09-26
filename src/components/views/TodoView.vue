@@ -55,8 +55,9 @@ import { useDragNest } from '@/composables/useDragNest'
 import { usePaneInset } from '@/composables/usePaneInset'
 import type { LinkRef, Todo } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
+import IconButton from '@/components/ui/IconButton.vue'
 import QuickAdd from '@/components/todo/QuickAdd.vue'
-import RingCheck from '@/components/todo/RingCheck.vue'
+import RingCheck from '@/components/ui/RingCheck.vue'
 import NextUpPanel from '@/components/todo/NextUpPanel.vue'
 import { useWeeklyReview } from '@/composables/useWeeklyReview'
 import { focusTargetOf } from '@/utils/todoV2'
@@ -538,29 +539,6 @@ const iconToggle = computed(() =>
     flexShrink: 0,
   }),
 )
-const rowActBtn = computed(() =>
-  pxify({
-    width: 32,
-    height: 32,
-    padding: 0,
-    display: 'grid',
-    placeItems: 'center',
-    borderRadius: 'var(--radius-control)',
-    border: 'none',
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    flexShrink: 0,
-  }),
-)
-const rowActHover = computed(() => ({
-  background: 'color-mix(in srgb, ' + c.value.accent + ' 10%, transparent)',
-  color: c.value.accent,
-}))
-const rowDelHover = {
-  background: 'color-mix(in srgb, ' + DANGER + ' 12%, transparent)',
-  color: DANGER,
-}
 const shortcutHint = computed(() =>
   pxify({
     alignSelf: 'center',
@@ -865,27 +843,17 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   </div>
                   <OfflineChip :pending="app.isItemPending('todo', t.id)" />
                 </div>
-                <button
-                  type="button"
-                  :style="rowActBtn"
-                  v-hover-style="rowActHover"
-                  title="Focus on the next subtask"
-                  aria-label="Focus on the next subtask"
-                  @click.stop="focusOn(t.id)"
-                >
+                <IconButton label="Focus on the next subtask" @click.stop="focusOn(t.id)">
                   <Icon name="timer" size="sm" />
-                </button>
+                </IconButton>
                 <RemindBell collection="todos" :id="t.id" />
-                <button
-                  type="button"
-                  :style="rowActBtn"
-                  v-hover-style="rowDelHover"
-                  title="Delete"
-                  aria-label="Delete todo"
+                <IconButton
+                  label="Delete todo"
+                  tone="danger"
                   @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
                 >
                   <Icon name="x" size="sm" />
-                </button>
+                </IconButton>
               </div>
               <div v-if="linksOpen(t)" :style="linkBody">
                 <LinkedAccordion
@@ -952,16 +920,13 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                     <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  :style="rowActBtn"
-                  v-hover-style="rowDelHover"
-                  title="Delete"
-                  aria-label="Delete todo"
+                <IconButton
+                  label="Delete todo"
+                  tone="danger"
                   @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
                 >
                   <Icon name="x" size="sm" />
-                </button>
+                </IconButton>
               </div>
               <div v-if="linksOpen(t)" :style="linkBody">
                 <LinkedAccordion

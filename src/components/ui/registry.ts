@@ -25,10 +25,16 @@ export const UI_COMPONENTS: ComponentDoc[] = [
   {
     name: 'Button',
     group: 'Actions',
-    summary: 'Primary action control, four variants and three sizes.',
+    summary: 'The pill button: five variants, three sizes, an optional count badge.',
     props: [
-      { name: 'variant', type: "'primary' | 'secondary' | 'ghost' | 'danger'", default: 'primary' },
+      {
+        name: 'variant',
+        type: "'primary' | 'secondary' | 'ghost' | 'tinted' | 'danger'",
+        default: 'primary',
+      },
       { name: 'size', type: "'sm' | 'md' | 'lg'", default: 'md' },
+      { name: 'caps', type: 'boolean', note: 'Uppercase, tracked: the toolbar EXPORT / SELECT.' },
+      { name: 'count', type: 'number', note: 'A count badge after the label; 0 draws nothing.' },
       { name: 'loading', type: 'boolean', note: 'Disables and shows a spinner.' },
       { name: 'block', type: 'boolean', note: 'Full width.' },
     ],
@@ -59,13 +65,20 @@ export const UI_COMPONENTS: ComponentDoc[] = [
   {
     name: 'IconButton',
     group: 'Actions',
-    summary: 'Square glyph button. The label is required and becomes aria-label.',
+    summary: 'Square glyph button at 28 / 32 / 40px. The label is required and becomes aria-label.',
     props: [
       { name: 'label', type: 'string', note: 'Required — icon-only needs a name.' },
-      { name: 'variant', type: "'ghost' | 'solid'", default: 'ghost' },
+      { name: 'size', type: "'sm' | 'md' | 'lg'", default: 'md', note: '28, 32 and 40px.' },
+      { name: 'variant', type: "'ghost' | 'solid' | 'outline'", default: 'ghost' },
+      {
+        name: 'tone',
+        type: "'default' | 'accent' | 'danger'",
+        default: 'accent',
+        note: 'What hovering it means: the glyph and its tint take the tone.',
+      },
       { name: 'active', type: 'boolean' },
     ],
-    snippet: '<IconButton label="Delete">×</IconButton>',
+    snippet: '<IconButton label="Delete" tone="danger"><Icon name="x" /></IconButton>',
   },
   {
     name: 'TextInput',
@@ -215,6 +228,28 @@ export const UI_COMPONENTS: ComponentDoc[] = [
       { name: 'indeterminate', type: 'boolean' },
     ],
     snippet: '<Checkbox v-model="done" label="Include archived" />',
+  },
+  {
+    name: 'RingCheck',
+    group: 'Inputs',
+    summary:
+      "A todo's checkbox with its subtask progress drawn round it as a conic ring. Pops on tick.",
+    props: [
+      { name: 'done', type: 'boolean' },
+      { name: 'subDone / subTotal', type: 'number', note: 'The ring fills by their ratio.' },
+      { name: 'size', type: "'sm' | 'md'", default: 'md', note: '26 and 30px.' },
+    ],
+    snippet: '<RingCheck :done="false" :sub-done="6" :sub-total="23" @toggle="tick" />',
+  },
+  {
+    name: 'SubCheck',
+    group: 'Inputs',
+    summary: 'A subtask checkbox: a rounded square that pops to 1.25 on tick and fills.',
+    props: [
+      { name: 'done', type: 'boolean' },
+      { name: 'size', type: "'sm' | 'md'", default: 'sm', note: '18px desktop, 20px phone.' },
+    ],
+    snippet: '<SubCheck :done="sub.done" @toggle="tick(sub)" />',
   },
   {
     name: 'Radio',
@@ -371,10 +406,25 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     summary: 'Tag with an optional colour dot and remove affordance.',
     props: [
       { name: 'label', type: 'string' },
-      { name: 'color', type: 'string' },
+      { name: 'color', type: 'string', note: 'On the border and the dot, never on the text.' },
+      { name: 'icon', type: 'IconName', note: 'Replaces the dot: a parsed quick-add token.' },
+      { name: 'tone', type: "'neutral' | 'accent'", default: 'neutral' },
+      {
+        name: 'size',
+        type: "'sm' | 'md'",
+        default: 'md',
+        note: '11px beside a subtask, 12px on a row.',
+      },
       { name: 'removable', type: 'boolean' },
     ],
     snippet: '<Chip label="work" color="oklch(0.7 0.15 250)" removable />',
+  },
+  {
+    name: 'StrikeText',
+    group: 'Display',
+    summary: 'Text whose strike draws across it from the left when done, then fades to 55%.',
+    props: [{ name: 'done', type: 'boolean' }],
+    snippet: '<StrikeText :done="todo.done">{{ todo.text }}</StrikeText>',
   },
   {
     name: 'Badge',
@@ -403,7 +453,9 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     summary: 'Determinate line using the accent gradient pair.',
     props: [
       { name: 'value / max', type: 'number' },
-      { name: 'size', type: "'sm' | 'md'" },
+      { name: 'size', type: "'sm' | 'md' | 'lg'", default: 'md', note: '4, 5 and 6px.' },
+      { name: 'solid', type: 'boolean', note: 'Flat accent instead of the gradient.' },
+      { name: 'delay', type: 'number', note: 'ms before the fill moves, to sequence it.' },
     ],
     snippet: '<ProgressBar :value="7" :max="18" label="Checklist" />',
   },
