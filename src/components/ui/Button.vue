@@ -2,17 +2,30 @@
 // The primary action control. Variant, size and state are props — a button never
 // carries page-specific styling, which is what lets the same component serve a
 // dialog footer and a toolbar.
+//
+// A PILL, per the Todo v2 sheet: every button in the shell — "+ New todo",
+// "Done, next", "Move to today", "Undo", EXPORT — is a fully rounded capsule,
+// and a rounded-rectangle button beside them read as belonging to a different
+// app. The five variants are the sheet's five rows: primary (solid accent),
+// secondary (outline), ghost (text), tinted (accent at 18%, the Undo button)
+// and danger. `caps` is the small uppercase tracked label of the toolbar's
+// EXPORT and SELECT; `count` hangs a number badge after the label, as the
+// Weekly review button carries its undecided count.
 import SaveState from '@/components/ui/SaveState.vue'
 import type { SaveState as SaveStateValue } from '@/composables/useSaveState'
 
 const props = withDefaults(
   defineProps<{
-    variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
+    variant?: 'primary' | 'secondary' | 'ghost' | 'tinted' | 'danger'
     size?: 'sm' | 'md' | 'lg'
     disabled?: boolean
     loading?: boolean
     block?: boolean
     type?: 'button' | 'submit'
+    /** Uppercase, tracked, one step smaller: the toolbar's EXPORT / SELECT. */
+    caps?: boolean
+    /** A count badge after the label. Omitted (or 0) draws nothing. */
+    count?: number
     /**
      * The three states of a save (section 41).
      *
@@ -25,7 +38,7 @@ const props = withDefaults(
      */
     state?: SaveStateValue
   }>(),
-  { variant: 'primary', size: 'md', type: 'button' },
+  { variant: 'primary', size: 'md', type: 'button', caps: false, count: 0 },
 )
 
 /** Working is busy; so is `loading`. Done and failed are not — the button works. */
@@ -35,7 +48,11 @@ const busy = () => props.loading || props.state === 'working'
 <template>
   <button
     class="ui-btn ui-focus-ring"
-    :class="[`ui-btn--${variant}`, `ui-btn--${size}`, { 'ui-btn--block': block }]"
+    :class="[
+      `ui-btn--${variant}`,
+      `ui-btn--${size}`,
+      { 'ui-btn--block': block, 'ui-btn--caps': caps },
+    ]"
     :type="type"
     :disabled="disabled || busy()"
     :aria-busy="busy()"
@@ -43,6 +60,7 @@ const busy = () => props.loading || props.state === 'working'
     <span v-if="loading" class="ui-btn__spinner" aria-hidden="true"></span>
     <SaveState v-if="state" :state="state" />
     <slot />
+    <span v-if="count" class="ui-btn__count">{{ count }}</span>
   </button>
 </template>
 
@@ -52,7 +70,7 @@ const busy = () => props.loading || props.state === 'working'
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   font-weight: var(--weight-semibold);
   cursor: pointer;
@@ -60,6 +78,7 @@ const busy = () => props.loading || props.state === 'working'
   transition:
     background var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-out);
 }
 .ui-btn:active:not(:disabled) {
@@ -85,28 +104,32 @@ const busy = () => props.loading || props.state === 'working'
 .ui-btn--lg {
   min-height: var(--control-lg);
   padding: 0 var(--sp-5);
-  font-size: var(--text-md);
+  font-size: var(--text-base);
 }
-/* The accent gradient is a token pair, so a theme that has no gradient still
-   renders a solid accent rather than a broken background. */
+.ui-btn--caps {
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Solid accent, and no glow: the sheet's "+ New todo" is a flat pill, and the
+   old 18px accent halo was the one glowing control in a strip of things that
+   do not glow. Hover lifts it a pixel and lightens the fill a step instead. */
 .ui-btn--primary {
-  background: linear-gradient(
-    135deg,
-    var(--accent-grad-from, var(--theme-accent)),
-    var(--accent-grad-to, var(--theme-accent))
-  );
+  background: var(--theme-accent);
   color: var(--theme-on-accent);
 }
 .ui-btn--primary:hover:not(:disabled) {
-  box-shadow: 0 0 18px color-mix(in oklch, var(--theme-accent) 45%, transparent);
+  background: color-mix(in oklch, var(--theme-accent) 92%, var(--theme-text));
+  transform: translateY(-1px);
 }
 .ui-btn--secondary {
-  background: var(--glass-card);
-  border-color: var(--glass-border);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--theme-text) 18%, transparent);
   color: var(--theme-text);
 }
 .ui-btn--secondary:hover:not(:disabled) {
-  border-color: var(--theme-accent);
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  border-color: color-mix(in srgb, var(--theme-text) 28%, transparent);
 }
 .ui-btn--ghost {
   background: transparent;
@@ -114,7 +137,16 @@ const busy = () => props.loading || props.state === 'working'
 }
 .ui-btn--ghost:hover:not(:disabled) {
   color: var(--theme-text);
-  background: color-mix(in oklch, var(--theme-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+}
+/* A tint of the accent under primary text: the label stays readable on every
+   theme because the hue is on the surface, not on the words (section 24b). */
+.ui-btn--tinted {
+  background: color-mix(in srgb, var(--theme-accent) 18%, transparent);
+  color: var(--theme-text);
+}
+.ui-btn--tinted:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-accent) 26%, transparent);
 }
 .ui-btn--danger {
   background: transparent;
@@ -123,6 +155,21 @@ const busy = () => props.loading || props.state === 'working'
 }
 .ui-btn--danger:hover:not(:disabled) {
   background: color-mix(in oklch, var(--theme-danger, var(--theme-text)) 14%, transparent);
+}
+.ui-btn__count {
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--theme-accent) 18%, transparent);
+  color: var(--theme-text);
+  font-size: var(--text-2xs);
+  line-height: var(--lh-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.ui-btn--primary .ui-btn__count {
+  background: color-mix(in srgb, var(--theme-on-accent) 16%, transparent);
+  color: inherit;
 }
 .ui-btn__spinner {
   width: 12px;
@@ -140,6 +187,9 @@ const busy = () => props.loading || props.state === 'working'
 @media (prefers-reduced-motion: reduce) {
   .ui-btn__spinner {
     animation-duration: 2s;
+  }
+  .ui-btn--primary:hover:not(:disabled) {
+    transform: none;
   }
 }
 </style>

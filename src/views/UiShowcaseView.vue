@@ -56,6 +56,7 @@ import {
   ProgressBar,
   ProgressRing,
   Radio,
+  RingCheck,
   SearchField,
   SegmentedControl,
   Select,
@@ -67,6 +68,8 @@ import {
   StatRow,
   Slider,
   Stepper,
+  StrikeText,
+  SubCheck,
   Switch,
   Table,
   Tabs,
@@ -153,6 +156,87 @@ const unsavedDemo = ref(false)
 const sheetOpen = ref(false)
 const drawerOpen = ref(false)
 const popoverOpen = ref(false)
+
+// ---- Todo v2: the checks, the strike and the motion sheet -----------------
+// Live rather than posed: a ring that can be ticked shows the pop, a bar that
+// can be replayed shows the fill, and the four easings each drive a dot along
+// a track so the difference between them is something you watch, not read.
+const rings = ref([
+  { label: 'No subtasks', done: false, subDone: 0, subTotal: 0 },
+  { label: '6 of 23', done: false, subDone: 6, subTotal: 23 },
+  { label: '16 of 23', done: false, subDone: 16, subTotal: 23 },
+  { label: 'Done', done: true, subDone: 23, subTotal: 23 },
+])
+const subs = ref([
+  { text: 'Checkout address autofill', done: false },
+  { text: 'Razorpay webhook retries', done: true },
+])
+const strikeDemo = ref(false)
+const barValue = ref(7)
+function replayBar() {
+  barValue.value = 0
+  requestAnimationFrame(() => requestAnimationFrame(() => (barValue.value = 7)))
+}
+const EASINGS = [
+  {
+    name: 'pop',
+    token: '--ease-pop',
+    curve: 'cubic-bezier(.3, 1.9, .5, 1)',
+    dur: '--dur-pop',
+    ms: 400,
+    use: 'A control acknowledging a tick: 1 → 1.22 → 1, overshooting.',
+  },
+  {
+    name: 'spring',
+    token: '--ease-spring',
+    curve: 'cubic-bezier(.3, 1.4, .5, 1)',
+    dur: '--dur-slide',
+    ms: 450,
+    use: 'A card or a toast arriving with a little bounce.',
+  },
+  {
+    name: 'soft',
+    token: '--ease-soft',
+    curve: 'cubic-bezier(.2, .8, .2, 1)',
+    dur: '--dur-fill',
+    ms: 700,
+    use: 'A fill or a drawer easing out, no overshoot.',
+  },
+  {
+    name: 'sheet',
+    token: '--ease-sheet',
+    curve: 'cubic-bezier(.2, .9, .25, 1)',
+    dur: '--dur-slide',
+    ms: 450,
+    use: 'A bottom sheet, which settles a touch faster than a drawer.',
+  },
+]
+const motionRun = ref(false)
+const motionSlide = ref(false)
+const motionPop = ref(false)
+function replayMotion() {
+  motionRun.value = false
+  motionSlide.value = false
+  motionPop.value = false
+  strikeDemo.value = false
+  barValue.value = 0
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      motionRun.value = true
+      motionSlide.value = true
+      motionPop.value = true
+      strikeDemo.value = true
+      barValue.value = 7
+      setTimeout(() => (motionPop.value = false), 180)
+    }),
+  )
+}
+const parsedChips = [
+  { icon: 'tag', text: 'CRM' },
+  { icon: 'flag', text: 'High priority' },
+  { icon: 'calendar', text: 'Fri' },
+  { icon: 'clock', text: '5pm reminder' },
+] as const
 
 const selectOptions = [
   { value: 'all', label: 'All projects' },
@@ -333,11 +417,50 @@ const OverlapDetector = import.meta.env.DEV
         </div>
       </div>
 
-      <h3>Motion</h3>
+      <h3>Motion — four named moves, and the four curves behind them</h3>
       <p class="ui-page__note">
-        150–200ms ease-out on hover and press, a spring on drop, 30ms list stagger — all gated on
-        <code>prefers-reduced-motion</code>, which zeroes the duration tokens in one place.
+        150–200ms ease-out on hover and press, a spring on drop, 30ms list stagger — and the Todo v2
+        sheet's four moves below. All of it is gated on <code>prefers-reduced-motion</code>, which
+        zeroes the duration tokens in one place.
       </p>
+      <div class="ui-page__motion">
+        <div class="ui-page__motionHead">
+          <Button size="sm" variant="secondary" @click="replayMotion">
+            <Icon name="play" size="xs" />Replay all
+          </Button>
+        </div>
+        <div v-for="e in EASINGS" :key="e.name" class="ui-page__easing">
+          <div class="ui-page__easingMeta">
+            <code>{{ e.token }}</code>
+            <span class="ui-page__typePx">{{ e.curve }} · {{ e.ms }}ms</span>
+            <span class="ui-page__typeUse">{{ e.use }}</span>
+          </div>
+          <div class="ui-page__track">
+            <span
+              class="ui-page__dot"
+              :class="{ 'is-run': motionRun }"
+              :style="{ '--easing': `var(${e.token})`, '--dur': `var(${e.dur})` }"
+            ></span>
+          </div>
+        </div>
+        <div class="ui-page__sequence">
+          <span class="ui-page__typeUse">The completion sequence, in order:</span>
+          <div class="ui-page__seqRow">
+            <RingCheck
+              :done="strikeDemo"
+              :sub-done="6"
+              :sub-total="23"
+              surface="var(--glass-solid)"
+              @toggle="strikeDemo = !strikeDemo"
+            />
+            <StrikeText :done="strikeDemo">1 · pop &nbsp; 2 · check &nbsp; 3 · strike</StrikeText>
+          </div>
+          <ProgressBar :value="strikeDemo ? 7 : 6" :max="18" :delay="150" label="4 · fill" />
+          <div class="ui-page__slideTrack">
+            <div class="ui-page__slidePanel" :class="{ 'is-in': motionSlide }">slide · sheet</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ---- Forms (section 25d) ---------------------------------------- -->
@@ -443,20 +566,33 @@ const OverlapDetector = import.meta.env.DEV
         <div class="ui-page__demo">
           <!-- Actions -->
           <template v-if="doc.name === 'Button'">
-            <Button>Primary</Button>
-            <Button variant="secondary">Secondary</Button>
-            <Button variant="ghost">Ghost</Button>
-            <Button variant="danger">Danger</Button>
+            <Button>+ New todo</Button>
+            <Button variant="secondary">Done, next</Button>
+            <Button variant="ghost">Exit</Button>
+            <Button variant="tinted" size="sm">Undo</Button>
+            <Button variant="danger">Delete</Button>
+            <Button variant="secondary" caps size="sm">Export</Button>
+            <Button variant="secondary" :count="4">
+              <Icon name="calendar-check" size="sm" class="ui-page__accentIcon" />Weekly review
+            </Button>
             <Button size="sm">Small</Button>
-            <Button size="lg">Large</Button>
+            <Button size="lg"><Icon name="pause" size="sm" />Pause</Button>
             <Button loading>Loading</Button>
             <Button disabled>Disabled</Button>
           </template>
           <template v-else-if="doc.name === 'IconButton'">
-            <IconButton label="Refresh">↻</IconButton>
-            <IconButton label="Solid" variant="solid">★</IconButton>
-            <IconButton label="Active" active>◉</IconButton>
-            <IconButton label="Disabled" disabled>×</IconButton>
+            <IconButton label="Focus on the next subtask"
+              ><Icon name="timer" size="sm"
+            /></IconButton>
+            <IconButton label="Remind me"><Icon name="bell" size="sm" /></IconButton>
+            <IconButton label="Delete" tone="danger"><Icon name="x" size="sm" /></IconButton>
+            <IconButton label="Focus" size="sm"><Icon name="timer" size="sm" /></IconButton>
+            <IconButton label="Close" variant="outline" tone="default" size="sm">
+              <Icon name="x" size="xs" />
+            </IconButton>
+            <IconButton label="Focus" size="lg" active><Icon name="timer" size="md" /></IconButton>
+            <IconButton label="Solid" variant="solid"><Icon name="star" size="sm" /></IconButton>
+            <IconButton label="Disabled" disabled><Icon name="x" size="sm" /></IconButton>
           </template>
           <template v-else-if="doc.name === 'DragHandle'">
             <DragHandle />
@@ -579,10 +715,18 @@ const OverlapDetector = import.meta.env.DEV
 
           <!-- Display -->
           <template v-else-if="doc.name === 'Chip'">
-            <Chip label="work" />
-            <Chip label="goal" color="oklch(0.72 0.15 150)" />
+            <Chip label="Frontend" :color="theme.accent" />
+            <Chip label="Inbox" />
+            <Chip label="Frontend" :color="theme.accent" size="sm" />
             <Chip label="selected" selected />
             <Chip label="removable" removable />
+            <Chip
+              v-for="ch in parsedChips"
+              :key="ch.text"
+              tone="accent"
+              :icon="ch.icon"
+              :label="ch.text"
+            />
           </template>
           <template v-else-if="doc.name === 'Badge'">
             <Badge tone="neutral" label="Neutral" />
@@ -597,8 +741,43 @@ const OverlapDetector = import.meta.env.DEV
             <Avatar name="Alan Turing" size="lg" />
           </template>
           <template v-else-if="doc.name === 'ProgressBar'">
-            <ProgressBar :value="7" :max="18" label="Checklist" />
-            <ProgressBar :value="18" :max="18" size="sm" label="Complete" />
+            <div class="ui-page__stack ui-page__wide">
+              <span class="ui-page__note">Page · 5px, gradient, moves 150ms after the tick</span>
+              <ProgressBar :value="barValue" :max="18" label="Checklist" :delay="150" />
+              <span class="ui-page__note">Detail · 6px, solid accent</span>
+              <ProgressBar :value="barValue" :max="18" size="lg" solid label="Subtasks" />
+              <span class="ui-page__note">Phone · 4px</span>
+              <ProgressBar :value="barValue" :max="18" size="sm" label="Today" />
+              <Button size="sm" variant="secondary" @click="replayBar">Replay the fill</Button>
+            </div>
+          </template>
+          <template v-else-if="doc.name === 'RingCheck'">
+            <div v-for="r in rings" :key="r.label" class="ui-page__ringDemo">
+              <RingCheck
+                :done="r.done"
+                :sub-done="r.subDone"
+                :sub-total="r.subTotal"
+                surface="var(--glass-solid)"
+                @toggle="r.done = !r.done"
+              />
+              <span class="ui-page__note">{{ r.label }}</span>
+            </div>
+          </template>
+          <template v-else-if="doc.name === 'SubCheck'">
+            <div v-for="sub in subs" :key="sub.text" class="ui-page__subRow">
+              <SubCheck :done="sub.done" @toggle="sub.done = !sub.done" />
+              <StrikeText :done="sub.done">{{ sub.text }}</StrikeText>
+            </div>
+            <div class="ui-page__subRow">
+              <SubCheck :done="subs[0].done" size="md" @toggle="subs[0].done = !subs[0].done" />
+              <span class="ui-page__note">md · 20px, the phone sheet</span>
+            </div>
+          </template>
+          <template v-else-if="doc.name === 'StrikeText'">
+            <StrikeText :done="strikeDemo">Aquakart Frontend Pending</StrikeText>
+            <Button size="sm" variant="secondary" @click="strikeDemo = !strikeDemo">
+              {{ strikeDemo ? 'Undo' : 'Mark done' }}
+            </Button>
           </template>
           <template v-else-if="doc.name === 'ProgressRing'">
             <ProgressRing :ratio="0.24" />
@@ -642,7 +821,7 @@ const OverlapDetector = import.meta.env.DEV
             <Skeleton :lines="3" />
           </template>
           <template v-else-if="doc.name === 'Toast'">
-            <Toast message="Task deleted" action-label="Undo" />
+            <Toast message="Deleted “Aquakart CRM Pending”" action-label="Undo" />
             <Toast message="Could not save" tone="danger" />
           </template>
           <template v-else-if="doc.name === 'EmptyState'">
@@ -832,6 +1011,118 @@ const OverlapDetector = import.meta.env.DEV
           </div>
         </div>
       </Card>
+
+      <h3>Todo row (desktop) — rest, selected, done</h3>
+      <div class="ui-page__stack">
+        <div
+          v-for="(r, i) in rings.slice(1)"
+          :key="r.label"
+          class="ui-page__todoRow"
+          :class="{ 'is-selected': i === 1 }"
+        >
+          <DragHandle />
+          <RingCheck
+            :done="r.done"
+            :sub-done="r.subDone"
+            :sub-total="r.subTotal"
+            surface="var(--glass-solid)"
+            @toggle="r.done = !r.done"
+          />
+          <div class="ui-page__todoMain" :class="{ 'is-done': r.done }">
+            <div class="ui-page__todoTitle">
+              <Chip label="Frontend" :color="theme.accent" />
+              <StrikeText :done="r.done">Aquakart Frontend Pending</StrikeText>
+              <span class="ui-mono ui-tabular ui-page__count"
+                >{{ r.subDone }}/{{ r.subTotal }}</span
+              >
+            </div>
+            <span class="ui-page__todoDesc"
+              >Pending Aquakart ecommerce frontend, conversion, SEO and customer-facing work.</span
+            >
+          </div>
+          <IconButton label="Focus on the next subtask"><Icon name="timer" size="sm" /></IconButton>
+          <IconButton label="Remind me"><Icon name="bell" size="sm" /></IconButton>
+          <IconButton label="Delete" tone="danger"><Icon name="x" size="sm" /></IconButton>
+        </div>
+      </div>
+
+      <h3>Subtask row — Next up</h3>
+      <div class="ui-page__stack">
+        <div v-for="sub in subs" :key="sub.text" class="ui-page__nextRow">
+          <SubCheck :done="sub.done" @toggle="sub.done = !sub.done" />
+          <StrikeText :done="sub.done">{{ sub.text }}</StrikeText>
+          <Chip label="Frontend" :color="theme.accent" size="sm" />
+          <IconButton label="Focus" size="sm" :disabled="sub.done">
+            <Icon name="timer" size="sm" />
+          </IconButton>
+        </div>
+      </div>
+
+      <h3>Quick add — typing, with the parsed chips</h3>
+      <div class="ui-page__quickAdd is-typing">
+        <div class="ui-page__quickLine">
+          <Icon name="plus" size="sm" class="ui-page__accentIcon" />
+          <span class="ui-page__quickText">Call vendor fri 5pm #CRM !high</span>
+          <span class="ui-mono ui-page__quickHint">↵</span>
+        </div>
+        <div class="ui-page__quickChips">
+          <Chip
+            v-for="ch in parsedChips"
+            :key="ch.text"
+            tone="accent"
+            :icon="ch.icon"
+            :label="ch.text"
+          />
+        </div>
+      </div>
+
+      <h3>Bottom pill (desktop) and tab bar (phone)</h3>
+      <div class="ui-page__row">
+        <div class="ui-page__pill">
+          <span class="ui-page__pillBtn"><Icon name="notebook" size="sm" />Notes</span>
+          <span class="ui-page__pillBtn is-on"><Icon name="palette" size="sm" />Appearance</span>
+          <span class="ui-page__pillBtn"><Icon name="user-circle" size="sm" />Account</span>
+          <span class="ui-page__pillBtn"><Icon name="github" size="sm" />GitHub</span>
+          <span class="ui-page__pillDivider"></span>
+          <span class="ui-page__pillSync"><span class="ui-page__okDot"></span>Synced</span>
+        </div>
+        <div class="ui-page__tabbar">
+          <span class="ui-page__tab"
+            ><span class="ui-page__tabCap"><Icon name="columns" size="md" /></span>Overview</span
+          >
+          <span class="ui-page__tab is-on"
+            ><span class="ui-page__tabCap"><Icon name="check-square" size="md" /></span>Todo</span
+          >
+          <span class="ui-page__tab"
+            ><span class="ui-page__tabCap"><Icon name="list" size="md" /></span>Tasks</span
+          >
+          <span class="ui-page__tab"
+            ><span class="ui-page__tabCap"><Icon name="bell" size="md" /></span>Remind</span
+          >
+          <span class="ui-page__tab"
+            ><span class="ui-page__tabCap"><Icon name="rupee" size="md" /></span>Finance</span
+          >
+          <span class="ui-page__tab"
+            ><span class="ui-page__tabCap"><Icon name="more-horizontal" size="md" /></span
+            >More</span
+          >
+        </div>
+      </div>
+
+      <h3>Focus timer ring</h3>
+      <div class="ui-page__row">
+        <span class="ui-page__focusRing" :style="{ '--pct': '38%' }">
+          <span class="ui-page__focusTime ui-tabular">15:30</span>
+        </span>
+        <div class="ui-page__stack">
+          <span class="ui-page__note">200px conic ring, fills as the 25 minutes elapse.</span>
+          <div class="ui-page__row">
+            <Button size="lg"><Icon name="pause" size="sm" />Pause</Button>
+            <Button variant="secondary" size="lg">Done, next</Button>
+            <Button variant="ghost" size="lg">Exit</Button>
+          </div>
+        </div>
+      </div>
 
       <h3>Empty state</h3>
       <GlassPanel>
@@ -1164,6 +1455,310 @@ const OverlapDetector = import.meta.env.DEV
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+}
+/* ---- Todo v2 demos ------------------------------------------------------- */
+.ui-page__accentIcon {
+  color: var(--theme-accent);
+}
+.ui-page__wide {
+  width: 100%;
+  max-width: 520px;
+}
+.ui-page__ringDemo,
+.ui-page__subRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.ui-page__motion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-solid);
+}
+.ui-page__motionHead {
+  display: flex;
+  justify-content: flex-end;
+}
+.ui-page__easing {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: center;
+  min-width: 0;
+}
+.ui-page__easingMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ui-page__track {
+  position: relative;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+}
+.ui-page__dot {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--theme-accent);
+  transform: translateX(0);
+  transition: transform var(--dur) var(--easing);
+}
+.ui-page__dot.is-run {
+  transform: translateX(calc(100% * 12));
+}
+.ui-page__sequence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--glass-border);
+}
+.ui-page__seqRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--text-base);
+}
+.ui-page__slideTrack {
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--glass-border);
+}
+.ui-page__slidePanel {
+  padding: var(--sp-2) var(--sp-3);
+  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+  font-size: var(--text-xs);
+  transform: translateX(-100%);
+  transition: transform var(--dur-slide) var(--ease-sheet);
+}
+.ui-page__slidePanel.is-in {
+  transform: translateX(0);
+}
+.ui-page__todoRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 12px 12px 12px 14px;
+  border-radius: 14px;
+  background: var(--glass-solid);
+  border: 1px solid var(--glass-border);
+  transition:
+    background var(--dur-med) ease,
+    border-color var(--dur-med) ease;
+}
+.ui-page__todoRow:hover {
+  background: color-mix(in srgb, var(--theme-text) 4%, var(--glass-solid));
+}
+.ui-page__todoRow.is-selected {
+  border-color: color-mix(in srgb, var(--theme-accent) 50%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 8%, var(--glass-solid));
+}
+.ui-page__todoMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: opacity var(--dur-pop) ease 250ms;
+}
+.ui-page__todoMain.is-done {
+  opacity: 0.55;
+}
+.ui-page__todoTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+.ui-page__count {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+}
+.ui-page__todoDesc {
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-page__nextRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  background: var(--glass-solid);
+  border: 1px solid var(--glass-border);
+  font-size: var(--text-base);
+}
+.ui-page__nextRow > :nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.ui-page__quickAdd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 620px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--glass-solid);
+  border: 1px solid var(--glass-border);
+}
+.ui-page__quickAdd.is-typing {
+  border-color: color-mix(in srgb, var(--theme-accent) 50%, transparent);
+}
+.ui-page__quickLine {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-base);
+}
+.ui-page__quickText {
+  flex: 1;
+  min-width: 0;
+}
+.ui-page__quickHint {
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+}
+.ui-page__quickChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: 26px;
+}
+.ui-page__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--theme-text) 7%, transparent);
+}
+.ui-page__pillBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  color: var(--theme-dim);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.ui-page__pillBtn .ui-icon {
+  color: var(--theme-accent);
+}
+.ui-page__pillBtn.is-on {
+  background: color-mix(in srgb, var(--theme-text) 12%, transparent);
+  border-color: color-mix(in srgb, var(--theme-text) 20%, transparent);
+  color: var(--theme-text);
+}
+.ui-page__pillDivider {
+  width: 1px;
+  height: 22px;
+  margin: 0 6px;
+  background: var(--glass-border);
+}
+.ui-page__pillSync {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px 0 4px;
+  font-size: var(--text-sm);
+  color: var(--theme-dim);
+}
+.ui-page__okDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--theme-success);
+}
+.ui-page__tabbar {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  align-items: center;
+  width: 366px;
+  max-width: 100%;
+  height: 64px;
+  padding: 0 4px;
+  border-radius: 32px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+.ui-page__tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  font-size: var(--text-2xs);
+  color: var(--theme-dim);
+}
+.ui-page__tabCap {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 32px;
+  border-radius: 16px;
+}
+.ui-page__tab.is-on {
+  color: var(--theme-accent);
+}
+.ui-page__tab.is-on .ui-page__tabCap {
+  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+}
+.ui-page__focusRing {
+  display: grid;
+  place-items: center;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--theme-accent) var(--pct),
+    color-mix(in srgb, var(--theme-text) 10%, transparent) var(--pct) 100%
+  );
+}
+.ui-page__focusTime {
+  display: grid;
+  place-items: center;
+  width: 184px;
+  height: 184px;
+  border-radius: 50%;
+  background: var(--glass-solid);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.03em;
+}
+@media (max-width: 640px) {
+  .ui-page__easing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-page__dot,
+  .ui-page__slidePanel,
+  .ui-page__todoMain,
+  .ui-page__todoRow {
+    transition: none;
+  }
 }
 .ui-page__iconscale {
   display: flex;

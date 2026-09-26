@@ -31,8 +31,10 @@ import IssueChip from '@/components/IssueChip.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import type { LinkRef, Task, Todo } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
+import IconButton from '@/components/ui/IconButton.vue'
+import StrikeText from '@/components/ui/StrikeText.vue'
 import Caret from '@/components/ui/Caret.vue'
-import RingCheck from '@/components/todo/RingCheck.vue'
+import RingCheck from '@/components/ui/RingCheck.vue'
 import { useUiStore } from '@/stores/ui'
 import { focusTargetOf } from '@/utils/todoV2'
 import type { TreeIndex } from '@/utils/taskTree'
@@ -324,7 +326,7 @@ function swipeStyle(id: number) {
     transition:
       swiping.value === id
         ? 'none'
-        : 'transform .35s cubic-bezier(.3,1.3,.5,1), border-color .2s ease',
+        : 'transform var(--dur-strike) var(--ease-spring), border-color var(--dur-med) ease',
     touchAction: 'pan-y',
     userSelect: 'none' as const,
     zIndex: 1,
@@ -722,14 +724,11 @@ const rootStripStyle = computed(() =>
               <span v-if="isTasks" :style="textStyle(row.id)"
                 ><TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" />{{ title(row.id) }}</span
               >
-              <span
-                v-else
-                class="todo-title"
-                :class="{ 'is-done': done(row.id) }"
-                :style="textStyle(row.id)"
-                ><TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" /><span class="strike">{{
-                  title(row.id)
-                }}</span></span
+              <span v-else :style="textStyle(row.id)"
+                ><TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" /><StrikeText
+                  :done="done(row.id)"
+                  >{{ title(row.id) }}</StrikeText
+                ></span
               >
               <div :style="s.chipRow">
                 <span v-if="dueLabel(row.id)" :style="dueChipStyle"
@@ -785,27 +784,22 @@ const rootStripStyle = computed(() =>
           <!-- Todos (Todo v2): focus, remind, delete. Adding a subtask and the
                status cycle live in the details pane. -->
           <template v-else-if="!isTasks">
-            <button
-              type="button"
-              class="row-act"
-              title="Focus on the next subtask"
-              aria-label="Focus on the next subtask"
+            <IconButton
+              label="Focus on the next subtask"
               @pointerdown.stop
               @click.stop="focusOn(row.id)"
             >
               <Icon name="timer" size="sm" />
-            </button>
+            </IconButton>
             <RemindBell :collection="collection" :id="row.id" />
-            <button
-              type="button"
-              class="row-act row-act--danger"
-              title="Delete"
-              aria-label="Delete todo"
+            <IconButton
+              label="Delete todo"
+              tone="danger"
               @pointerdown.stop
               @click.stop="del(row.id)"
             >
               <Icon name="x" size="sm" />
-            </button>
+            </IconButton>
           </template>
           <template v-else>
             <button
@@ -881,57 +875,11 @@ const rootStripStyle = computed(() =>
 .tree-row__quiet {
   opacity: 0.58;
 }
-/* Todo v2 row actions: 32px squares, quiet until hovered. */
-.row-act {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--theme-dim);
-  cursor: pointer;
-  transition:
-    background 0.18s ease,
-    color 0.18s ease;
-}
-.row-act:hover {
-  background: color-mix(in srgb, var(--theme-accent) 10%, transparent);
-  color: var(--theme-accent);
-}
-.row-act--danger:hover {
-  background: color-mix(in srgb, var(--theme-danger) 12%, transparent);
-  color: var(--theme-danger);
-}
-/* Completion (Todo v2, 4a): after the checkbox pops, a line draws across the
-   title from the left, then the row's text fades. */
-.todo-title .strike {
-  position: relative;
-}
-.todo-title .strike::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 52%;
-  height: 1.5px;
-  background: currentColor;
-  opacity: 0.7;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.35s ease 0.1s;
-}
-.todo-title.is-done .strike::after {
-  transform: scaleX(1);
-}
-.todo-title,
+/* Completion (Todo v2, 4a): the title is a StrikeText — the line draws after
+   the checkbox pops — and the description fades on the same delay. */
 .todo-desc {
-  transition: opacity 0.4s ease 0.25s;
+  transition: opacity var(--dur-pop) ease 250ms;
 }
-.todo-title.is-done,
 .todo-desc.is-done {
   opacity: 0.55;
 }
@@ -966,10 +914,7 @@ const rootStripStyle = computed(() =>
   background: var(--theme-danger);
 }
 @media (prefers-reduced-motion: reduce) {
-  .row-act,
-  .todo-title,
-  .todo-desc,
-  .todo-title .strike::after {
+  .todo-desc {
     transition: none;
   }
 }

@@ -18,7 +18,8 @@ import { richPlain } from '@/utils/richText'
 import { clampOffset, offsetFor, snapFor, velocityOf, type SheetSnap } from '@/utils/sheetSnap'
 import RemindBell from '@/components/RemindBell.vue'
 import Icon from '@/components/ui/Icon.vue'
-import SubCheck from '@/components/todo/SubCheck.vue'
+import IconButton from '@/components/ui/IconButton.vue'
+import SubCheck from '@/components/ui/SubCheck.vue'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -174,13 +175,13 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
       <div :style="topRow">
         <span v-if="todo.tag" :style="tagStyle">{{ todo.tag }}</span>
         <span style="flex: 1"></span>
-        <button type="button" class="ts-icon" aria-label="Focus" @click="focusNext">
+        <IconButton label="Focus" size="lg" active @click="focusNext">
           <Icon name="timer" size="md" />
-        </button>
+        </IconButton>
         <RemindBell collection="todos" :id="todo.id" />
-        <button type="button" class="ts-icon" aria-label="Open in editor" @click="openEditor">
+        <IconButton label="Open in editor" size="lg" active @click="openEditor">
           <Icon name="external-link" size="md" />
-        </button>
+        </IconButton>
       </div>
       <h2 :style="title">{{ todo.text || '(untitled)' }}</h2>
       <p v-if="desc" :style="descStyle">{{ desc }}</p>
@@ -225,7 +226,7 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
   border-top: 1px solid var(--theme-border);
   box-shadow: 0 -20px 40px -10px rgba(0, 0, 0, 0.6);
   color: var(--theme-text);
-  transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.25, 1);
+  transition: transform var(--dur-slide) var(--ease-sheet);
 }
 .ts-handle {
   align-self: center;
@@ -245,18 +246,6 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
   border-radius: 3px;
   background: color-mix(in srgb, var(--theme-text) 22%, transparent);
 }
-.ts-icon {
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--theme-accent);
-  cursor: pointer;
-}
 .ts-sub {
   display: flex;
   align-items: center;
@@ -267,7 +256,7 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
 }
 .ts-fade-enter-active,
 .ts-fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 300ms ease;
 }
 .ts-fade-enter-from,
 .ts-fade-leave-to {

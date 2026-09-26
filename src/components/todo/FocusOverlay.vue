@@ -15,6 +15,7 @@ import { pxify, typeStep } from '@/styles'
 import { buildIndex, childrenOf } from '@/utils/taskTree'
 import { nextFocusAfter } from '@/utils/todoV2'
 import Icon from '@/components/ui/Icon.vue'
+import Button from '@/components/ui/Button.vue'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -159,12 +160,12 @@ const actions = pxify({
           <span :style="ringInner">{{ time }}</span>
         </span>
         <div :style="actions">
-          <button type="button" class="fo-btn fo-btn--solid" @click="toggle">
+          <Button size="lg" @click="toggle">
             <Icon :name="running ? 'pause' : 'play'" size="sm" />
             {{ finished ? 'Restart' : running ? 'Pause' : 'Resume' }}
-          </button>
-          <button type="button" class="fo-btn fo-btn--line" @click="doneNext">Done, next</button>
-          <button type="button" class="fo-btn fo-btn--text" @click="ui.stopFocus()">Exit</button>
+          </Button>
+          <Button variant="secondary" size="lg" @click="doneNext">Done, next</Button>
+          <Button variant="ghost" size="lg" @click="ui.stopFocus()">Exit</Button>
         </div>
       </div>
     </div>
@@ -183,11 +184,11 @@ const actions = pxify({
   -webkit-backdrop-filter: blur(10px);
 }
 .focus-card {
-  transition: transform 0.45s cubic-bezier(0.3, 1.4, 0.5, 1);
+  transition: transform var(--dur-slide) var(--ease-spring);
 }
 .focus-fade-enter-active,
 .focus-fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 300ms ease;
 }
 .focus-fade-enter-from,
 .focus-fade-leave-to {
@@ -195,31 +196,6 @@ const actions = pxify({
 }
 .focus-fade-enter-from .focus-card {
   transform: scale(0.94);
-}
-.fo-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 10px 18px;
-  border-radius: var(--radius-pill);
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-}
-.fo-btn--solid {
-  border: none;
-  background: var(--theme-accent);
-  color: var(--theme-on-accent);
-}
-.fo-btn--line {
-  border: 1px solid var(--theme-border);
-  background: transparent;
-  color: var(--theme-text);
-}
-.fo-btn--text {
-  border: none;
-  background: transparent;
-  color: var(--theme-dim);
 }
 @media (prefers-reduced-motion: reduce) {
   .focus-card,

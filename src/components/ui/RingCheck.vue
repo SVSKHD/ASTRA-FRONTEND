@@ -1,5 +1,8 @@
 <script setup lang="ts">
 // A todo's checkbox with its subtask progress drawn round it (Todo v2, 4b).
+// In the library rather than beside the todo list because the /ui page shows
+// it, and because the ring is the one place the whole app draws progress round
+// a control.
 //
 // It replaces the "☑ 3/35" chip as the at-a-glance progress: the ring fills as
 // subtasks close, so a scan down the list reads progress without reading
@@ -72,7 +75,7 @@ onBeforeUnmount(() => clearTimeout(popTimer))
     var(--theme-accent) var(--ring-pct),
     color-mix(in srgb, var(--theme-text) 12%, transparent) var(--ring-pct) 100%
   );
-  transition: background 0.4s ease;
+  transition: background var(--dur-pop) ease;
 }
 .ring--md {
   width: 30px;
@@ -98,9 +101,9 @@ onBeforeUnmount(() => clearTimeout(popTimer))
   cursor: pointer;
   transform: scale(1);
   transition:
-    transform 0.4s cubic-bezier(0.3, 1.9, 0.5, 1),
-    background 0.2s ease,
-    border-color 0.2s ease;
+    transform var(--dur-pop) var(--ease-pop),
+    background var(--dur-med) ease,
+    border-color var(--dur-med) ease;
 }
 .ring__btn.is-done {
   background: var(--theme-accent);
@@ -111,7 +114,7 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 }
 .ring__tick {
   opacity: 0;
-  transition: opacity 0.2s ease 0.1s;
+  transition: opacity var(--dur-med) ease 100ms;
 }
 .ring__btn.is-done .ring__tick {
   opacity: 1;

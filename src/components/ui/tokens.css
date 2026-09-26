@@ -116,6 +116,21 @@
   --dur-med: 200ms;
   --stagger: 30ms;
 
+  /* The four named moves of the Todo v2 sheet, so a component names the move
+     rather than re-typing a curve:
+       pop    — a control acknowledging a tick: 1 → 1.22 → 1, overshooting
+       spring — a card or toast arriving with a little bounce
+       soft   — a fill or a drawer easing out, no overshoot
+       sheet  — a bottom sheet, which settles a touch faster than a drawer */
+  --ease-pop: cubic-bezier(0.3, 1.9, 0.5, 1);
+  --ease-spring: cubic-bezier(0.3, 1.4, 0.5, 1);
+  --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-sheet: cubic-bezier(0.2, 0.9, 0.25, 1);
+  --dur-pop: 400ms;
+  --dur-strike: 350ms;
+  --dur-slide: 450ms;
+  --dur-fill: 700ms;
+
   /* Elevation, expressed through the theme's own shadow token. */
   --elev-1: var(--glass-shadow);
 
@@ -224,6 +239,10 @@
     --dur-fast: 0ms;
     --dur-med: 0ms;
     --stagger: 0ms;
+    --dur-pop: 0ms;
+    --dur-strike: 0ms;
+    --dur-slide: 0ms;
+    --dur-fill: 0ms;
   }
 }
 

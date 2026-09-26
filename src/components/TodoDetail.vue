@@ -23,7 +23,7 @@ import PaneToolbar from '@/components/detail/PaneToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import RichDescription from '@/components/detail/RichDescription.vue'
 import Icon from '@/components/ui/Icon.vue'
-import SubCheck from '@/components/todo/SubCheck.vue'
+import SubCheck from '@/components/ui/SubCheck.vue'
 import { STATUS_LABEL } from '@/types'
 
 // The attached-notes count on a subtask row: icon and number on one line.

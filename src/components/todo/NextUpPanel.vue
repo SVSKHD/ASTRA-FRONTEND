@@ -12,7 +12,8 @@ import { pxify, typeStep, tagChip } from '@/styles'
 import { buildIndex } from '@/utils/taskTree'
 import { nextUpOf } from '@/utils/todoV2'
 import Icon from '@/components/ui/Icon.vue'
-import SubCheck from '@/components/todo/SubCheck.vue'
+import IconButton from '@/components/ui/IconButton.vue'
+import SubCheck from '@/components/ui/SubCheck.vue'
 import type { Todo } from '@/types'
 
 const props = defineProps<{ roots: Todo[] }>()
@@ -91,16 +92,14 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
           r.sub.text || '(untitled)'
         }}</span>
         <span v-if="r.parent.tag" :style="tagStyle(r.parent.tag)">{{ r.parent.tag }}</span>
-        <button
-          type="button"
-          class="nu-focus"
-          title="Focus on this"
-          aria-label="Focus on this"
+        <IconButton
+          label="Focus on this"
+          size="sm"
           :disabled="r.sub.status === 'done'"
           @click="ui.startFocus(r.sub.id)"
         >
           <Icon name="timer" size="sm" />
-        </button>
+        </IconButton>
       </div>
       <div v-if="!rows.length" :style="empty">
         No open subtasks. Add subtasks to a todo and the next ones show up here.
@@ -109,27 +108,3 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
     <span :style="footer">Select a todo for its full details</span>
   </div>
 </template>
-
-<style scoped>
-.nu-focus {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--theme-dim);
-  cursor: pointer;
-}
-.nu-focus:hover:not(:disabled) {
-  color: var(--theme-accent);
-  background: color-mix(in srgb, var(--theme-accent) 10%, transparent);
-}
-.nu-focus:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-</style>

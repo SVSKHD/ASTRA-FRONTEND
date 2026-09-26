@@ -1,16 +1,27 @@
 <script setup lang="ts">
-// A tag/chip: label, optional colour dot, optional remove. Under a mono theme the
-// dot becomes an outlined shape, which is why the dot is a slot-free prop rather
-// than a caller-drawn span.
+// A tag/chip: label, optional colour, optional icon, optional remove.
+//
+// The Todo v2 sheet has two chips and this is both. A TAG is an outlined pill:
+// the tag's hue on its border and its dot, primary text inside, at 12px on a
+// row and 11px (`sm`) beside a subtask. A PARSED chip — what quick add
+// understood: "CRM", "Fri", "5pm reminder" — is the `accent` tone: an accent
+// tint with an icon saying which kind of token it was. Under a mono theme the
+// dot becomes an outlined shape, which is why the dot is a prop rather than a
+// caller-drawn span.
+import Icon from '@/components/ui/Icon.vue'
+import type { IconName } from '@/components/ui/icons'
+
 withDefaults(
   defineProps<{
     label: string
     color?: string
+    icon?: IconName
+    tone?: 'neutral' | 'accent'
     removable?: boolean
     selected?: boolean
     size?: 'sm' | 'md'
   }>(),
-  { size: 'sm' },
+  { size: 'md', tone: 'neutral' },
 )
 defineEmits<{ remove: []; click: [] }>()
 </script>
@@ -18,10 +29,11 @@ defineEmits<{ remove: []; click: [] }>()
 <template>
   <span
     class="ui-chip"
-    :class="[`ui-chip--${size}`, { 'is-selected': selected }]"
+    :class="[`ui-chip--${size}`, `ui-chip--${tone}`, { 'is-selected': selected }]"
     :style="color ? { '--chip-color': color } : undefined"
   >
-    <span v-if="color" class="ui-chip__dot" aria-hidden="true"></span>
+    <Icon v-if="icon" :name="icon" size="xs" class="ui-chip__icon" />
+    <span v-else-if="color" class="ui-chip__dot" aria-hidden="true"></span>
     {{ label }}
     <button
       v-if="removable"
@@ -42,25 +54,31 @@ defineEmits<{ remove: []; click: [] }>()
 .ui-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-1);
+  gap: 5px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--chip-color, var(--glass-border));
+  border: 1px solid var(--chip-color, color-mix(in srgb, var(--theme-text) 22%, transparent));
   color: var(--text-primary, var(--theme-text));
-  background: color-mix(
-    in oklch,
-    var(--chip-color, var(--theme-accent)) 12%,
-    var(--bg-base, transparent)
-  );
+  background: transparent;
   white-space: nowrap;
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
 }
 .ui-chip--sm {
-  padding: 2px var(--sp-2);
+  padding: 1px var(--sp-2);
   font-size: var(--text-2xs);
+  line-height: var(--lh-xs);
 }
 .ui-chip--md {
-  padding: var(--sp-1) var(--sp-3);
+  padding: 1px 9px;
   font-size: var(--text-xs);
+  line-height: var(--lh-sm);
+}
+.ui-chip--accent {
+  padding-block: 3px;
+  border-color: color-mix(in srgb, var(--theme-accent) 32%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 12%, transparent);
+}
+.ui-chip--accent .ui-chip__icon {
+  color: var(--theme-accent);
 }
 .ui-chip.is-selected {
   border-color: var(--theme-accent);
