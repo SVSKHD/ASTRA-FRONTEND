@@ -11,7 +11,9 @@
 //
 // Mode (dark / light / auto), the espresso roast and the theme grid all live in
 // the Appearance popover, and only one panel is open at a time. Under 900px the
-// labels drop and it is icons only.
+// labels drop and it is icons only. On a phone the bar is not drawn at all: the
+// same four live in the tab bar's More sheet (MobileTabBar), because two bars
+// stacked on a 390px screen is one too many.
 //
 // A ROW, NOT AN ISLAND, still. The pill is centred INSIDE the bar's grid region
 // rather than floating over the page, so the content area above keeps stopping
@@ -24,26 +26,19 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
-import { useAppStore } from '@/stores/app'
-import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { barGeometry } from '@/views/appShell'
-import { THEME_DESCRIPTORS, type ThemeKey } from '@/themes'
 import Icon from '@/components/ui/Icon.vue'
-import Checkbox from '@/components/ui/Checkbox.vue'
 import ShellSync from '@/components/shell/ShellSync.vue'
+import AppearancePanel from '@/components/shell/AppearancePanel.vue'
+import AccountMenu from '@/components/shell/AccountMenu.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
-const app = useAppStore()
-const lock = useLockStore()
 const { c, B } = useStyles()
-const { themePanelOpen, themeSetting, isPhone, dark, preferredLight, preferredDark, drawerOpen } =
-  storeToRefs(ui)
-const { avatarMenuOpen, avatarInitial, avatarName, avatarSub, avatarColor, ghMenuLabel } =
-  storeToRefs(auth)
-const { security, autoRollover, hideCompleted, reminderSound } = storeToRefs(app)
+const { themePanelOpen, isPhone, drawerOpen } = storeToRefs(ui)
+const { avatarMenuOpen, avatarInitial, avatarColor } = storeToRefs(auth)
 
 const bar = computed(() =>
   pxify({ ...barGeometry({ isPhone: isPhone.value }), justifyContent: 'center' }),
@@ -51,48 +46,6 @@ const bar = computed(() =>
 
 function open(name: 'notes' | 'appearance' | 'account') {
   ui.openShellPanel(name, avatarMenuOpen)
-}
-
-// --- appearance ---------------------------------------------------------------
-const autoActive = computed(() => themeSetting.value === 'auto')
-function isThemeActive(key: ThemeKey) {
-  return !autoActive.value && themeSetting.value === key
-}
-type Mode = 'dark' | 'light' | 'auto'
-const mode = computed<Mode>(() => (autoActive.value ? 'auto' : dark.value ? 'dark' : 'light'))
-const modes: { id: Mode; label: string; icon: 'moon' | 'sun' | 'clock' }[] = [
-  { id: 'dark', label: 'Dark', icon: 'moon' },
-  { id: 'light', label: 'Light', icon: 'sun' },
-  { id: 'auto', label: 'Auto', icon: 'clock' },
-]
-// Picking a mode is not picking a theme, so the popover stays open for the
-// theme choice that usually follows. setTheme closes it; this puts it back.
-function setMode(m: Mode) {
-  ui.setTheme(m === 'auto' ? 'auto' : m === 'dark' ? preferredDark.value : preferredLight.value)
-  themePanelOpen.value = true
-}
-const groups = computed(() =>
-  [
-    {
-      label: 'Dark',
-      items: THEME_DESCRIPTORS.filter((t) => t.mode === 'dark' && !t.special && !t.standalone),
-    },
-    {
-      label: 'Light',
-      items: THEME_DESCRIPTORS.filter((t) => t.mode === 'light' && !t.special && !t.standalone),
-    },
-    { label: 'Special', items: THEME_DESCRIPTORS.filter((t) => t.special) },
-    { label: 'Standalone', items: THEME_DESCRIPTORS.filter((t) => t.standalone) },
-  ].filter((g) => g.items.length),
-)
-
-// --- account ------------------------------------------------------------------
-function onAutoLockChange(on: boolean) {
-  lock.setAutoLock(on)
-}
-function onLockNow() {
-  auth.avatarMenuOpen = false
-  lock.lockNow()
 }
 function openGithub() {
   ui.openShellPanel(null, avatarMenuOpen)
@@ -165,81 +118,9 @@ function popover(width: number) {
     zIndex: 30,
   })
 }
-const accountPopover = computed(() => ({ ...popover(240), gap: '2px', padding: '10px' }))
+const accountPopover = computed(() => ({ ...popover(240), padding: '10px' }))
 const appearancePopover = computed(() => popover(300))
 const groupLabel = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim }))
-const segment = computed(() =>
-  pxify({
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: 4,
-    padding: 4,
-    borderRadius: 'var(--radius-card)',
-    background: 'color-mix(in srgb, ' + c.value.text + ' 6%, transparent)',
-  }),
-)
-const swatchGrid = pxify({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 })
-function swatchRow(preview: readonly [string, string, string]) {
-  return pxify({
-    display: 'flex',
-    height: 22,
-    borderRadius: 'var(--radius-control)',
-    overflow: 'hidden',
-    border: '1px solid ' + c.value.border,
-    background: preview[0],
-  })
-}
-const swatchName = computed(() =>
-  pxify({
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-medium)',
-    color: c.value.text,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  }),
-)
-const autoWheel = pxify({
-  width: 18,
-  height: 18,
-  borderRadius: '50%',
-  flexShrink: 0,
-  background:
-    'conic-gradient(from 0deg, oklch(0.85 0.15 85), oklch(0.74 0.13 250), oklch(0.78 0.15 340), oklch(0.83 0.13 88), oklch(0.85 0.15 85))',
-})
-const menuItem = computed(() =>
-  pxify({
-    padding: '9px 10px',
-    borderRadius: 'var(--radius-card)',
-    ...typeStep('xs'),
-    color: c.value.text,
-    cursor: 'pointer',
-    background: 'transparent',
-    border: 'none',
-    width: '100%',
-    textAlign: 'left',
-  }),
-)
-const menuHover = computed(() => pxify({ background: c.value.card }))
-const menuToggle = computed(() =>
-  pxify({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--sp-2)',
-    padding: '9px 10px',
-    ...typeStep('xs'),
-    color: c.value.dim,
-  }),
-)
-const nameStyle = computed(() =>
-  pxify({
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    color: c.value.text,
-    whiteSpace: 'nowrap',
-  }),
-)
-const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 </script>
 
 <template>
@@ -271,43 +152,7 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
         </button>
         <div v-if="themePanelOpen" :style="appearancePopover" role="menu">
           <span :style="groupLabel">Appearance</span>
-          <div :style="segment" role="radiogroup" aria-label="Mode">
-            <button
-              v-for="m in modes"
-              :key="m.id"
-              type="button"
-              class="seg-btn"
-              :class="{ 'is-on': mode === m.id }"
-              role="radio"
-              :aria-checked="mode === m.id"
-              @click="setMode(m.id)"
-            >
-              <span v-if="m.id === 'auto'" :style="autoWheel"></span>
-              <Icon v-else :name="m.icon" size="xs" />
-              {{ m.label }}
-            </button>
-          </div>
-          <template v-for="g in groups" :key="g.label">
-            <span :style="groupLabel">{{ g.label }}</span>
-            <div :style="swatchGrid">
-              <button
-                v-for="t in g.items"
-                :key="t.id"
-                type="button"
-                class="swatch"
-                :class="{ 'is-on': isThemeActive(t.id) }"
-                :aria-pressed="isThemeActive(t.id)"
-                @click="ui.setTheme(t.id)"
-              >
-                <span :style="swatchRow(t.preview)">
-                  <span style="flex: 1" />
-                  <span :style="{ flex: 1, background: t.preview[1] }" />
-                  <span :style="{ flex: 1, background: t.preview[2] }" />
-                </span>
-                <span :style="swatchName">{{ t.name }}</span>
-              </button>
-            </div>
-          </template>
+          <AppearancePanel />
         </div>
       </div>
 
@@ -324,48 +169,7 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
           <span class="pill-label">Account</span>
         </button>
         <div v-if="avatarMenuOpen" :style="accountPopover">
-          <div style="padding: 6px 8px">
-            <div :style="nameStyle">{{ avatarName }}</div>
-            <div :style="subStyle">{{ avatarSub }}</div>
-          </div>
-          <label :style="menuToggle">
-            <Checkbox
-              :model-value="security.autoLockEnabled"
-              @update:model-value="onAutoLockChange"
-            />
-            <span>Auto-lock after 50 min</span>
-          </label>
-          <label :style="menuToggle">
-            <Checkbox
-              :model-value="autoRollover"
-              @update:model-value="app.setAutoRollover($event)"
-            />
-            <span>Auto-roll overdue to today</span>
-          </label>
-          <label :style="menuToggle">
-            <Checkbox
-              :model-value="hideCompleted"
-              @update:model-value="app.setHideCompleted($event)"
-            />
-            <span>Hide completed items</span>
-          </label>
-          <label :style="menuToggle">
-            <Checkbox
-              :model-value="reminderSound"
-              @update:model-value="app.setReminderSound($event)"
-            />
-            <span>Reminder sound</span>
-          </label>
-          <button :style="menuItem" v-hover-style="menuHover" @click="onLockNow">Lock now</button>
-          <button :style="menuItem" v-hover-style="menuHover" @click="auth.openSecurityPanel()">
-            Security &amp; devices
-          </button>
-          <button :style="menuItem" v-hover-style="menuHover" @click="openGithub">
-            {{ ghMenuLabel }}
-          </button>
-          <button :style="menuItem" v-hover-style="menuHover" @click="auth.signOut()">
-            Sign out
-          </button>
+          <AccountMenu />
         </div>
       </div>
 
@@ -387,7 +191,6 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
  * toggle clicked while the pointer is on it.
  */
 .shell-pill::before {
-  /* hide the bottom border */
   content: '';
   position: absolute;
   inset: 0;
@@ -426,42 +229,6 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
   background: color-mix(in srgb, var(--theme-text) 12%, transparent);
   border-color: color-mix(in srgb, var(--theme-text) 20%, transparent);
   color: var(--theme-text);
-}
-.seg-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 0;
-  border-radius: var(--radius-control);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--theme-text);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-}
-.seg-btn.is-on {
-  background: color-mix(in srgb, var(--theme-text) 12%, transparent);
-  border-color: color-mix(in srgb, var(--theme-text) 22%, transparent);
-}
-.swatch {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding: 6px;
-  border-radius: var(--radius-card);
-  border: 1.5px solid transparent;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-.swatch:hover {
-  background: var(--theme-card);
-}
-.swatch.is-on {
-  border-color: var(--theme-accent);
 }
 @media (max-width: 900px) {
   .pill-label {

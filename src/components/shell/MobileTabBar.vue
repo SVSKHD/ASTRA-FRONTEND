@@ -5,22 +5,33 @@
 // a screen you hold in one hand, and tabs.config already names the five that
 // matter most. The other fifteen are one tap away in the More sheet.
 //
+// The More sheet also carries what the desktop's bottom pill carries — Notes,
+// Appearance, Account, GitHub and the sync status — because a phone has room
+// for one bar at the bottom edge, and this is it. Appearance and Account open
+// as sheets of their own rather than as popovers over a bar that is not there.
+//
 // While a bottom sheet is open over the page the bar slides out of the way,
 // because two things anchored to the bottom edge is one too many.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
 import { PRIMARY_TABS, SECONDARY_TABS } from '@/tabs.config'
 import TabGlyph from '@/components/TabGlyph.vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import Icon from '@/components/ui/Icon.vue'
+import ShellSync from '@/components/shell/ShellSync.vue'
+import AppearancePanel from '@/components/shell/AppearancePanel.vue'
+import AccountMenu from '@/components/shell/AccountMenu.vue'
 import type { TabKey } from '@/types'
 
 const ui = useUiStore()
 const app = useAppStore()
+const auth = useAuthStore()
 const { tab, moreSheetOpen, sheetTodoId, now } = storeToRefs(ui)
+const { avatarMenuOpen, avatarInitial, avatarColor } = storeToRefs(auth)
 const { c } = useStyles()
 
 const SHORT: Partial<Record<TabKey, string>> = { reminders: 'Remind', finances: 'Finance' }
@@ -35,6 +46,32 @@ function go(key: TabKey) {
   ui.setMoreSheet(false)
   if (tab.value !== key) ui.setTab(key)
 }
+
+// --- the utilities, from the More sheet ---------------------------------------
+const panel = ref<'appearance' | 'account' | null>(null)
+function openNotes() {
+  ui.setMoreSheet(false)
+  ui.openShellPanel('notes', avatarMenuOpen)
+}
+function openPanel(name: 'appearance' | 'account') {
+  ui.setMoreSheet(false)
+  panel.value = name
+}
+function openGithub() {
+  ui.setMoreSheet(false)
+  auth.openGithubPanel()
+}
+const avatarDisc = computed(() => ({
+  width: '22px',
+  height: '22px',
+  borderRadius: '50%',
+  display: 'grid',
+  placeItems: 'center',
+  fontSize: 'var(--text-2xs)',
+  fontWeight: 'var(--weight-semibold)',
+  color: 'var(--theme-on-accent)',
+  background: avatarColor.value,
+}))
 </script>
 
 <template>
@@ -73,7 +110,28 @@ function go(key: TabKey) {
   </nav>
 
   <BottomSheet :open="moreSheetOpen" title="More" @close="ui.setMoreSheet(false)">
-    <div class="mtb-more">
+    <!-- What the desktop's bottom pill holds, first: four controls and the
+         sync status, above the fold of a 360px sheet. -->
+    <div class="mtb-more mtb-more--utils" role="group" aria-label="Workspace">
+      <button type="button" class="mtb-more__item" @click="openNotes">
+        <Icon name="notebook" size="md" class="mtb-more__icon" />
+        <span>Notes</span>
+      </button>
+      <button type="button" class="mtb-more__item" @click="openPanel('appearance')">
+        <Icon name="palette" size="md" class="mtb-more__icon" />
+        <span>Appearance</span>
+      </button>
+      <button type="button" class="mtb-more__item" @click="openPanel('account')">
+        <span :style="avatarDisc">{{ avatarInitial }}</span>
+        <span>Account</span>
+      </button>
+      <button type="button" class="mtb-more__item" @click="openGithub">
+        <Icon name="github" size="md" class="mtb-more__icon" />
+        <span>GitHub</span>
+      </button>
+    </div>
+    <div class="mtb-more__sync"><ShellSync inline /></div>
+    <div class="mtb-more mtb-more--sections">
       <button
         v-for="t in SECONDARY_TABS"
         :key="t.key"
@@ -92,6 +150,13 @@ function go(key: TabKey) {
         <span>{{ t.label }}</span>
       </button>
     </div>
+  </BottomSheet>
+
+  <BottomSheet :open="panel === 'appearance'" title="Appearance" @close="panel = null">
+    <AppearancePanel @pick="panel = null" />
+  </BottomSheet>
+  <BottomSheet :open="panel === 'account'" title="Account" @close="panel = null">
+    <AccountMenu @done="panel = null" />
   </BottomSheet>
 </template>
 
@@ -160,6 +225,17 @@ function go(key: TabKey) {
   grid-template-columns: repeat(3, 1fr);
   gap: var(--sp-2);
 }
+.mtb-more--utils {
+  grid-template-columns: repeat(4, 1fr);
+}
+.mtb-more--utils .mtb-more__item {
+  padding: 8px 4px;
+}
+.mtb-more--sections {
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--theme-border);
+}
 .mtb-more__item {
   display: flex;
   flex-direction: column;
@@ -176,6 +252,13 @@ function go(key: TabKey) {
 .mtb-more__item.is-on {
   border-color: color-mix(in srgb, var(--theme-accent) 40%, transparent);
   background: color-mix(in srgb, var(--theme-accent) 12%, transparent);
+}
+.mtb-more__icon {
+  color: var(--theme-accent);
+}
+.mtb-more__sync {
+  display: flex;
+  justify-content: center;
 }
 @media (prefers-reduced-motion: reduce) {
   .mtb {

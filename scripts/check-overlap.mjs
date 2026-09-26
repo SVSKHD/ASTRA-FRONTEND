@@ -119,9 +119,11 @@ const MEASURE = `() => {
   const bar = document.querySelector('.shell-bar')
   const rail = document.querySelector('.app-shell__rail')
   const content = document.querySelector('.app-shell__content')
-  if (!strip || !bar || !rail || !content) return { error: 'a shell region is missing' }
+  if (!strip || !rail || !content) return { error: 'a shell region is missing' }
 
-  const regions = { strip, bar, rail }
+  // The bar is desktop chrome; on a phone its controls live in the tab bar's
+  // More sheet and there is no bar region to measure.
+  const regions = bar ? { strip, bar, rail } : { strip, rail }
   const contentBox = box(content)
   const regionOverlaps = []
   for (const [name, el] of Object.entries(regions)) {
@@ -139,7 +141,7 @@ const MEASURE = `() => {
     [...root.querySelectorAll('*')].filter(
       (el) => visible(el) && !el.querySelector('*') || (visible(el) && el.matches('button, a, input'))
     )
-  const chromeEls = [strip, bar, rail].flatMap((r) => leaves(r))
+  const chromeEls = Object.values(regions).flatMap((r) => leaves(r))
   const contentEls = [...content.querySelectorAll('*')].filter(
     (el) =>
       visible(el) &&

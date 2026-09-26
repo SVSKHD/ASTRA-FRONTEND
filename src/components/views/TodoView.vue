@@ -557,6 +557,10 @@ const rowActHover = computed(() => ({
   background: 'color-mix(in srgb, ' + c.value.accent + ' 10%, transparent)',
   color: c.value.accent,
 }))
+const rowDelHover = {
+  background: 'color-mix(in srgb, ' + DANGER + ' 12%, transparent)',
+  color: DANGER,
+}
 const shortcutHint = computed(() =>
   pxify({
     alignSelf: 'center',
@@ -684,7 +688,9 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
 
 <template>
   <div ref="paneHost" :style="[panelStyle, paneInset]">
-    <ListToolbar title="Todos" new-label="New todo" @new="focusQuickAdd">
+    <!-- On a phone quick add is already in view, so the strip keeps only what
+         the list column does not carry. -->
+    <ListToolbar title="Todos" :new-label="isMobile ? undefined : 'New todo'" @new="focusQuickAdd">
       <template #actions>
         <Dropdown :items="transferMenu" label="Export" variant="toolbar" @select="onTransfer" />
         <input
@@ -870,8 +876,15 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   <Icon name="timer" size="sm" />
                 </button>
                 <RemindBell collection="todos" :id="t.id" />
-                <button :style="s.del" @click.stop="app.deleteWithUndo('todos', 'todo', t.id)">
-                  ×
+                <button
+                  type="button"
+                  :style="rowActBtn"
+                  v-hover-style="rowDelHover"
+                  title="Delete"
+                  aria-label="Delete todo"
+                  @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
+                >
+                  <Icon name="x" size="sm" />
                 </button>
               </div>
               <div v-if="linksOpen(t)" :style="linkBody">
@@ -939,8 +952,15 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                     <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
                   </div>
                 </div>
-                <button :style="s.del" @click.stop="app.deleteWithUndo('todos', 'todo', t.id)">
-                  ×
+                <button
+                  type="button"
+                  :style="rowActBtn"
+                  v-hover-style="rowDelHover"
+                  title="Delete"
+                  aria-label="Delete todo"
+                  @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
+                >
+                  <Icon name="x" size="sm" />
                 </button>
               </div>
               <div v-if="linksOpen(t)" :style="linkBody">

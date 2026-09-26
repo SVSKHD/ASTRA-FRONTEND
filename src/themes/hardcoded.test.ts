@@ -47,7 +47,7 @@ const IDENTITY: Record<string, string> = {
   'components/trips/TripDetail.vue': 'Likewise, over imagery.',
   'components/trips/TripItinerary.vue': 'Likewise, over imagery.',
   'components/views/FinancesView.vue': 'A categorical series palette for the chart.',
-  'components/shell/ShellBar.vue': "The Auto theme's swatch is a wheel of every theme.",
+  'components/shell/AppearancePanel.vue': "The Auto theme's swatch is a wheel of every theme.",
   'utils/chains.ts': 'Chain brand colours — Ethereum purple is Ethereum purple.',
   'utils/txnCategories.ts': 'Category identity swatches.',
   'utils/colors.ts': 'The urgency ramp itself, which is where that ramp is defined.',

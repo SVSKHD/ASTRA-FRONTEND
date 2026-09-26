@@ -23,6 +23,7 @@ import PaneToolbar from '@/components/detail/PaneToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import RichDescription from '@/components/detail/RichDescription.vue'
 import Icon from '@/components/ui/Icon.vue'
+import SubCheck from '@/components/todo/SubCheck.vue'
 import { STATUS_LABEL } from '@/types'
 
 // The attached-notes count on a subtask row: icon and number on one line.
@@ -41,7 +42,6 @@ const app = useAppStore()
 const ui = useUiStore()
 const { todos } = storeToRefs(app)
 const {
-  c,
   s,
   pane,
   card,
@@ -62,7 +62,6 @@ const {
   pill,
   accentPill,
   subRow,
-  boxStyle,
   subText,
   addBtn,
   chipStyle,
@@ -277,19 +276,7 @@ function moveTodoToTasks() {
             <ProgressBar v-if="subtasks.length" :value="subDone" :max="subtasks.length" size="sm" />
 
             <div v-for="st in subtasks" :key="st.id" :style="subRow">
-              <button
-                type="button"
-                :style="boxStyle(st.status === 'done')"
-                aria-label="Toggle done"
-                @click="app.toggleTodo(st.id)"
-              >
-                <Icon
-                  v-if="st.status === 'done'"
-                  name="check"
-                  size="xs"
-                  :style="{ color: c.onAccent }"
-                />
-              </button>
+              <SubCheck :done="st.status === 'done'" size="md" @toggle="app.toggleTodo(st.id)" />
               <TextInput
                 v-if="isEditing('sub:' + st.id)"
                 v-model="draft"
@@ -315,6 +302,13 @@ function moveTodoToTasks() {
                 ><Icon name="notebook" size="xs" /> {{ st.noteIds.length }}</span
               >
               <span :style="pill">{{ kidCount(st.id) }} sub</span>
+              <!-- Focus mode (Todo v2, 5b) from any open subtask. -->
+              <PaneButton
+                v-if="st.status !== 'done'"
+                icon="timer"
+                label="Focus on this subtask"
+                @click="ui.startFocus(st.id)"
+              />
               <PaneButton
                 icon="chevron-right"
                 label="Open subtask"
