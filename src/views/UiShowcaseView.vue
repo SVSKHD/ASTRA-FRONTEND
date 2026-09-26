@@ -450,7 +450,6 @@ const OverlapDetector = import.meta.env.DEV
               :done="strikeDemo"
               :sub-done="6"
               :sub-total="23"
-              surface="var(--glass-solid)"
               @toggle="strikeDemo = !strikeDemo"
             />
             <StrikeText :done="strikeDemo">1 · pop &nbsp; 2 · check &nbsp; 3 · strike</StrikeText>
@@ -757,7 +756,6 @@ const OverlapDetector = import.meta.env.DEV
                 :done="r.done"
                 :sub-done="r.subDone"
                 :sub-total="r.subTotal"
-                surface="var(--glass-solid)"
                 @toggle="r.done = !r.done"
               />
               <span class="ui-page__note">{{ r.label }}</span>
@@ -1025,7 +1023,6 @@ const OverlapDetector = import.meta.env.DEV
             :done="r.done"
             :sub-done="r.subDone"
             :sub-total="r.subTotal"
-            surface="var(--glass-solid)"
             @toggle="r.done = !r.done"
           />
           <div class="ui-page__todoMain" :class="{ 'is-done': r.done }">

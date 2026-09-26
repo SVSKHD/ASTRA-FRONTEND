@@ -331,6 +331,8 @@ function swipeStyle(id: number) {
     userSelect: 'none' as const,
     zIndex: 1,
     background: c.value.bgSolid,
+    borderRadius: SWIPE_RADIUS + 'px',
+    padding: '14px',
   }
 }
 function swipeRemind(id: number) {
@@ -487,7 +489,10 @@ const monoCount = computed(() =>
     flexShrink: 0,
   }),
 )
-const swipeClip = pxify({ position: 'relative', overflow: 'hidden', borderRadius: 16 })
+// The clip and the row share one radius, or the row's corners get cut on the
+// diagonal where a 12px corner pokes out of a 16px one.
+const SWIPE_RADIUS = 16
+const swipeClip = pxify({ position: 'relative', overflow: 'hidden', borderRadius: SWIPE_RADIUS })
 // Compact rows: title and chips share one line, the description is a single
 // truncated line under it (full text on hover and in the detail pane).
 const descStyle = computed(() =>
@@ -501,14 +506,27 @@ const descStyle = computed(() =>
   }),
 )
 const mainTight = pxify({ gap: 2 })
-const titleLine = pxify({
-  display: 'flex',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  columnGap: 'var(--sp-2)',
-  rowGap: 2,
+// Tasks wrap their chips under a long title; a todo's title is one line with
+// an ellipsis (the Todo v2 row) and its chips stay beside it.
+const titleLine = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: isTasks.value ? 'wrap' : 'nowrap',
+    columnGap: 'var(--sp-2)',
+    rowGap: 2,
+    minWidth: 0,
+  }),
+)
+const todoTitle = pxify({
   minWidth: 0,
+  flex: '0 1 auto',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 })
+// The phone row's second line: tag and count under a one-line title.
+const metaLine = pxify({ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 })
 // Nested rows carry an accent rail on their left edge, so a subtask's level
 // reads at a glance even several levels deep.
 function depthRail(depth: number) {
@@ -710,7 +728,6 @@ const rootStripStyle = computed(() =>
             :done="done(row.id)"
             :sub-done="progress(row.id).done"
             :sub-total="progress(row.id).total"
-            :surface="swipeRows ? c.bgSolid : c.card"
             @toggle="toggleDone(row.id)"
           />
 
@@ -724,12 +741,12 @@ const rootStripStyle = computed(() =>
               <span v-if="isTasks" :style="textStyle(row.id)"
                 ><TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" />{{ title(row.id) }}</span
               >
-              <span v-else :style="textStyle(row.id)"
-                ><TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" /><StrikeText
-                  :done="done(row.id)"
-                  >{{ title(row.id) }}</StrikeText
-                ></span
-              >
+              <template v-else>
+                <TitleTagPill v-if="tagOf(row.id) && !swipeRows" :tag="tagOf(row.id)" />
+                <span :style="[textStyle(row.id), todoTitle]" :title="title(row.id)"
+                  ><StrikeText :done="done(row.id)">{{ title(row.id) }}</StrikeText></span
+                >
+              </template>
               <div :style="s.chipRow">
                 <span v-if="dueLabel(row.id)" :style="dueChipStyle"
                   >due {{ dueLabel(row.id) }}</span
@@ -749,7 +766,7 @@ const rootStripStyle = computed(() =>
                   >☑ {{ progress(row.id).done }}/{{ progress(row.id).total }}</span
                 >
                 <span
-                  v-else-if="progress(row.id).total"
+                  v-else-if="progress(row.id).total && !swipeRows"
                   :style="monoCount"
                   title="Subtasks done / total"
                   >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
@@ -761,6 +778,12 @@ const rootStripStyle = computed(() =>
                   Selected
                 </span>
               </div>
+            </div>
+            <div v-if="swipeRows && (tagOf(row.id) || progress(row.id).total)" :style="metaLine">
+              <TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" />
+              <span v-if="progress(row.id).total" :style="monoCount" title="Subtasks done / total"
+                >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
+              >
             </div>
             <span
               v-if="desc(row.id) && !swipeRows"

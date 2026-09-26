@@ -86,9 +86,23 @@ export function seedTodos(): Todo[] {
     // over" accordion.
     todo(1, 'Reconcile the August secured ledger', { createdAt: noon(shift(-6)) }),
     todo(2, 'Chase the broker about the London spread', { createdAt: noon(shift(-3)) }),
-    todo(3, 'Size XAGUSD before the New York open'),
-    todo(4, 'Write up the Tuesday drawdown'),
-    todo(5, 'Renew the data subscription'),
+    // Tagged, with subtasks, so the ring, the tag line and Next up have
+    // something to show (Todo v2). The subtasks are parentId children.
+    todo(3, 'Size XAGUSD before the New York open and log the plan', { tag: 'Trading' }),
+    todo(31, 'Check the overnight range', {
+      parentId: 3,
+      rootId: 3,
+      depth: 1,
+      status: 'done',
+      done: true,
+      completedAt: noon(SEED_TODAY),
+    }),
+    todo(32, 'Set the stop below Asia low', { parentId: 3, rootId: 3, depth: 1 }),
+    todo(33, 'Write the size into the journal', { parentId: 3, rootId: 3, depth: 1 }),
+    todo(4, 'Write up the Tuesday drawdown', { tag: 'Journal' }),
+    todo(41, 'Pull the fills from the broker', { parentId: 4, rootId: 4, depth: 1 }),
+    todo(42, 'Note what the plan said', { parentId: 4, rootId: 4, depth: 1 }),
+    todo(5, 'Renew the data subscription', { tag: 'Admin' }),
     todo(6, 'Move the standing order to the 3rd'),
     todo(7, 'Book the dentist'),
     todo(8, 'Read the ECB statement properly', {

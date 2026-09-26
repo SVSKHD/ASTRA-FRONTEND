@@ -18,12 +18,9 @@ const props = withDefaults(
     done: boolean
     subDone: number
     subTotal: number
-    /** The surface the ring sits on, so the gap between ring and button reads
-     *  as a gap rather than as a second ring. */
-    surface?: string
     size?: 'sm' | 'md'
   }>(),
-  { surface: 'var(--theme-card)', size: 'md' },
+  { size: 'md' },
 )
 const emit = defineEmits<{ toggle: [] }>()
 
@@ -45,11 +42,12 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 
 <template>
   <span
-    class="ring"
-    :class="[`ring--${size}`, { 'ring--empty': !subTotal }]"
-    :style="{ '--ring-pct': pct + '%', '--ring-surface': surface }"
+    class="ring-wrap"
+    :class="[`ring-wrap--${size}`]"
+    :style="{ '--ring-pct': pct + '%' }"
     :title="title"
   >
+    <span class="ring" :class="{ 'ring--empty': !subTotal }" aria-hidden="true"></span>
     <button
       type="button"
       class="ring__btn"
@@ -65,38 +63,49 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 </template>
 
 <style scoped>
-.ring {
+/* The ring is an annulus: a conic gradient with its centre masked out, so the
+   2px gap between ring and button is the row's own background whatever that
+   is — a glass card, the phone's solid ground, the /ui page — rather than a
+   painted disc that has to be told which colour to pretend to be. */
+.ring-wrap {
   position: relative;
   flex-shrink: 0;
-  display: grid;
-  place-items: center;
+  display: block;
+}
+.ring-wrap--md {
+  width: 30px;
+  height: 30px;
+}
+.ring-wrap--sm {
+  width: 26px;
+  height: 26px;
+}
+.ring {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
   background: conic-gradient(
     var(--theme-accent) var(--ring-pct),
     color-mix(in srgb, var(--theme-text) 12%, transparent) var(--ring-pct) 100%
   );
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 3px), black calc(50% - 2px));
+  mask: radial-gradient(circle, transparent calc(50% - 3px), black calc(50% - 2px));
   transition: background var(--dur-pop) ease;
-}
-.ring--md {
-  width: 30px;
-  height: 30px;
-}
-.ring--sm {
-  width: 26px;
-  height: 26px;
 }
 .ring--empty {
   background: color-mix(in srgb, var(--theme-text) 8%, transparent);
 }
+/* The button is a sibling of the ring, not a child: a mask clips everything
+   inside the element it is on, so the button sits on top in the same box. */
 .ring__btn {
-  position: relative;
-  width: calc(100% - 6px);
-  height: calc(100% - 6px);
+  position: absolute;
+  inset: 3px;
+  width: auto;
+  height: auto;
   padding: 0;
   border-radius: 50%;
   border: 1.5px solid color-mix(in srgb, var(--theme-text) 45%, transparent);
-  background: var(--ring-surface);
-  box-shadow: 0 0 0 2px var(--ring-surface);
+  background: transparent;
   color: var(--theme-on-accent);
   cursor: pointer;
   transform: scale(1);

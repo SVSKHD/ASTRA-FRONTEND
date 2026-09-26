@@ -237,7 +237,6 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     props: [
       { name: 'done', type: 'boolean' },
       { name: 'subDone / subTotal', type: 'number', note: 'The ring fills by their ratio.' },
-      { name: 'surface', type: 'string', note: 'The colour behind it, for the gap ring.' },
       { name: 'size', type: "'sm' | 'md'", default: 'md', note: '26 and 30px.' },
     ],
     snippet: '<RingCheck :done="false" :sub-done="6" :sub-total="23" @toggle="tick" />',
