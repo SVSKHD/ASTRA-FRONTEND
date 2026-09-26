@@ -30,6 +30,11 @@ import { pxify, typeStep } from '@/styles'
 import { formatRelative } from '@/utils/timestamps'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 
+// `inline`: drawn as text inside the bottom pill (Todo v2, 1b). There, silence
+// would leave a divider pointing at nothing, so the healthy state gets a quiet
+// "Synced" label — still not a button, still not a notification.
+const props = defineProps<{ inline?: boolean }>()
+
 const { c, s, B } = useStyles()
 const { now } = storeToRefs(useUiStore())
 const { isOnline, isSyncing, pendingCount, lastSyncedAt, retry } = useConnectivity()
@@ -49,6 +54,7 @@ const state = computed<SyncState>(() => {
 
 /** Synced shows nothing. Everything else is worth a glance. */
 const visible = computed(() => state.value !== 'synced')
+const showSynced = computed(() => props.inline && !visible.value)
 
 const count = computed(() =>
   state.value === 'blocked' ? outbox.entries.value.length : pendingCount.value,
@@ -103,7 +109,7 @@ const item = computed(() =>
     maxWidth: 200,
     padding: '5px 10px',
     borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + tone.value,
+    border: props.inline ? '1px solid transparent' : '1px solid ' + tone.value,
     background: 'transparent',
     color: c.value.text,
     ...typeStep('2xs'),
@@ -150,6 +156,24 @@ const menu = computed(() =>
   }),
 )
 const meta = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, lineHeight: 1.5 }))
+const syncedStyle = computed(() =>
+  pxify({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 7,
+    padding: '0 12px 0 4px',
+    ...typeStep('sm'),
+    color: c.value.dim,
+    whiteSpace: 'nowrap',
+  }),
+)
+const okDot = pxify({
+  width: 7,
+  height: 7,
+  borderRadius: '50%',
+  flexShrink: 0,
+  background: 'var(--theme-success)',
+})
 const scrim = pxify({ position: 'fixed', inset: 0, zIndex: 29 })
 
 function doRetry() {
@@ -159,6 +183,9 @@ function doRetry() {
 </script>
 
 <template>
+  <span v-if="showSynced" :style="syncedStyle" :title="'Last synced: ' + lastSyncedLabel">
+    <span :style="okDot"></span><span class="ssync-label">Synced</span>
+  </span>
   <div v-if="visible" :style="wrap" aria-live="polite">
     <div v-if="open" :style="scrim" @click="open = false"></div>
     <button
@@ -184,3 +211,11 @@ function doRetry() {
     </div>
   </div>
 </template>
+
+<style scoped>
+@media (max-width: 900px) {
+  .ssync-label {
+    display: none;
+  }
+}
+</style>

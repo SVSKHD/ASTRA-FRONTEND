@@ -35,6 +35,19 @@ const headStyle = computed(() =>
       <span :style="labelStyle">{{ done }} of {{ total }} done · {{ pct }}%</span>
       <slot />
     </div>
-    <ProgressBar :value="done" :max="total" />
+    <ProgressBar class="progress-line__bar" :value="done" :max="total" />
   </div>
 </template>
+
+<style scoped>
+/* The last beat of a completion (Todo v2, 4a): the bar moves after the
+   checkbox has popped and the strike has drawn, not at the same instant. */
+.progress-line__bar :deep(.ui-progress__fill) {
+  transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-line__bar :deep(.ui-progress__fill) {
+    transition: none;
+  }
+}
+</style>

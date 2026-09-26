@@ -7,31 +7,23 @@
 // On desktop the selected todo's details show in the right-hand pane, which is
 // a column of this tab by default and a floating drawer over it on request —
 // one setting, three steps, cycled from the pane's own header (DetailPane).
-import { computed, ref, watch } from 'vue'
+//
+// TODO V2. Quick add sits where the tag filter was (the filter is behind the
+// search toggle in the header); rows wear their subtask progress as a ring
+// round the checkbox; with nothing selected the pane lists the next open
+// subtasks instead of one line of text; and on a phone a row opens a bottom
+// sheet rather than the full-screen dialog.
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import {
-  DANGER,
-  SUCCESS,
-  WARNING,
-  checkHalo,
-  checkHaloDone,
-  checkTick,
-  checkRing,
-  doneText,
-  merge,
-  pxify,
-  rowBase,
-  typeStep,
-} from '@/styles'
+import { DANGER, SUCCESS, WARNING, merge, pxify, rowBase, typeStep } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import { todayKey, isOverdueTodo } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
 import ListToolbar from '@/components/ListToolbar.vue'
-import StatusPill from '@/components/StatusPill.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
 import CompletedSection from '@/components/CompletedSection.vue'
@@ -63,6 +55,11 @@ import { useDragNest } from '@/composables/useDragNest'
 import { usePaneInset } from '@/composables/usePaneInset'
 import type { LinkRef, Todo } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
+import QuickAdd from '@/components/todo/QuickAdd.vue'
+import RingCheck from '@/components/todo/RingCheck.vue'
+import NextUpPanel from '@/components/todo/NextUpPanel.vue'
+import { useWeeklyReview } from '@/composables/useWeeklyReview'
+import { focusTargetOf } from '@/utils/todoV2'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -71,7 +68,21 @@ const { startDrag, targetState } = useDragNest()
 const { todos, hideCompleted } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
-defineExpose({ focus: () => app.openCreate('todo') })
+// "/n" and "+ New todo" land in quick add; the full create dialog is still in
+// the details pane's editor for everything quick add does not cover.
+const quickAdd = ref<InstanceType<typeof QuickAdd> | null>(null)
+function focusQuickAdd() {
+  if (quickAdd.value) quickAdd.value.focus()
+  else app.openCreate('todo')
+}
+defineExpose({ focus: focusQuickAdd })
+
+const review = useWeeklyReview()
+const showTagFilter = ref(false)
+function toggleTagFilter() {
+  showTagFilter.value = !showTagFilter.value
+  if (!showTagFilter.value) tagQuery.value = ''
+}
 
 const importFile = ref<HTMLInputElement | null>(null)
 const pasteDialogOpen = ref(false)
@@ -311,12 +322,10 @@ watch(moveSelectableIds, (ids) => {
 })
 const subCountStyle = computed(() =>
   pxify({
-    ...typeStep('2xs'),
+    ...typeStep('xs'),
     color: c.value.dim,
-    padding: '1px 6px',
-    borderRadius: 'var(--radius-pill)',
-    background: c.value.input,
-    border: '1px solid ' + c.value.border,
+    fontFamily: 'var(--font-mono)',
+    fontVariantNumeric: 'tabular-nums',
     flexShrink: 0,
   }),
 )
@@ -333,9 +342,34 @@ function openTodo(id: number, event?: MouseEvent) {
     toggleMoveSelection(id)
     return
   }
-  if (isMobile.value) app.openEdit('todo', id)
+  if (isMobile.value) ui.setSheetTodo(id)
   else selectedId.value = id
 }
+// The list's own tap: the pane on a desktop, the sheet on a phone.
+function onTreeSelect(id: number) {
+  if (isMobile.value) ui.setSheetTodo(id)
+  else selectedId.value = id
+}
+function focusOn(id: number) {
+  const target = focusTargetOf(todoIndex.value, id)
+  if (target == null) app.showToastMsg('Nothing open to focus on')
+  else ui.startFocus(target)
+}
+// Escape clears the selection and the pane goes back to Next up.
+function onKey(e: KeyboardEvent) {
+  if (e.key !== 'Escape' || selectedId.value == null) return
+  const t = e.target as HTMLElement | null
+  if (
+    t &&
+    (t.closest('input, textarea, [contenteditable="true"], [role="dialog"]') || t.isContentEditable)
+  )
+    return
+  selectedId.value = null
+}
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+// Open top-level todos in list order, for Next up.
+const nextUpRoots = computed(() => [...carried.value, ...active.value])
 function shouldSelectRow(event?: MouseEvent) {
   return selectionVisible.value || isTripleClick(event)
 }
@@ -387,7 +421,12 @@ const leftColumn = pxify({
   flex: 1,
   minHeight: 0,
 })
-const tagInputRow = pxify({ padding: '4px 10px 0' })
+const tagInputRow = pxify({
+  padding: '4px 10px 0',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-2)',
+})
 const listColumn = pxify({
   display: 'flex',
   flexDirection: 'column',
@@ -445,36 +484,94 @@ const linkBody = pxify({
 })
 
 // --- styles -----------------------------------------------------------------
-const checkIcon = checkTick
-function boxStyle(t: Todo) {
-  return pxify({
-    position: 'relative',
-    flexShrink: 0,
-    width: 18,
-    height: 18,
-    borderRadius: 'var(--radius-control)',
-    border: '1.5px solid ' + (t.done ? c.value.accent : checkRing(c.value)),
-    background: t.done ? c.value.accent : 'transparent',
-    padding: 0,
-    display: 'grid',
-    placeItems: 'center',
-    cursor: 'pointer',
-    boxShadow: t.done
-      ? checkHaloDone(c.value.accent) + ', inset 0 1px 0 rgba(255,255,255,0.35)'
-      : checkHalo(c.value),
-    transition:
-      'background .3s cubic-bezier(.5,1.5,.5,1), border-color .3s ease, box-shadow .3s ease',
-  })
-}
 function textStyle(t: Todo) {
   return pxify({
     ...typeStep('base'),
+    fontWeight: 'var(--weight-medium)',
     lineHeight: 1.4,
     color: c.value.text,
     cursor: 'pointer',
-    ...doneText(t.done),
+    opacity: t.done ? 0.55 : 1,
+    textDecoration: t.done ? 'line-through' : 'none',
   })
 }
+const reviewBtn = computed(() =>
+  pxify({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 7,
+    padding: '6px 12px',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid ' + c.value.border,
+    background: 'transparent',
+    color: c.value.text,
+    ...typeStep('sm'),
+    fontWeight: 'var(--weight-medium)',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  }),
+)
+const reviewBadge = computed(() =>
+  pxify({
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    padding: '0 6px',
+    borderRadius: 'var(--radius-pill)',
+    background: 'color-mix(in srgb, ' + c.value.accent + ' 18%, transparent)',
+    color: c.value.accent,
+  }),
+)
+const iconToggle = computed(() =>
+  pxify({
+    width: 32,
+    height: 32,
+    padding: 0,
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid ' + (showTagFilter.value ? c.value.accent : c.value.border),
+    background: showTagFilter.value
+      ? 'color-mix(in srgb, ' + c.value.accent + ' 12%, transparent)'
+      : 'transparent',
+    color: showTagFilter.value ? c.value.accent : c.value.dim,
+    cursor: 'pointer',
+    flexShrink: 0,
+  }),
+)
+const rowActBtn = computed(() =>
+  pxify({
+    width: 32,
+    height: 32,
+    padding: 0,
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-control)',
+    border: 'none',
+    background: 'transparent',
+    color: c.value.dim,
+    cursor: 'pointer',
+    flexShrink: 0,
+  }),
+)
+const rowActHover = computed(() => ({
+  background: 'color-mix(in srgb, ' + c.value.accent + ' 10%, transparent)',
+  color: c.value.accent,
+}))
+const shortcutHint = computed(() =>
+  pxify({
+    alignSelf: 'center',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '5px 12px',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid ' + c.value.border,
+    ...typeStep('xs'),
+    color: c.value.dim,
+    flexShrink: 0,
+  }),
+)
+const shortcutKey = computed(() => pxify({ fontFamily: 'var(--font-mono)', color: c.value.accent }))
 const descStyle = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -587,7 +684,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
 
 <template>
   <div ref="paneHost" :style="[panelStyle, paneInset]">
-    <ListToolbar title="Todos" new-label="New todo" @new="app.openCreate('todo')">
+    <ListToolbar title="Todos" new-label="New todo" @new="focusQuickAdd">
       <template #actions>
         <Dropdown :items="transferMenu" label="Export" variant="toolbar" @select="onTransfer" />
         <input
@@ -599,6 +696,29 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
         />
         <button v-if="anyLinked" type="button" :style="linkExpandBtn" @click="toggleAll">
           {{ allExpanded ? 'Collapse links' : 'Expand links' }}
+        </button>
+        <button
+          type="button"
+          :style="iconToggle"
+          :aria-pressed="showTagFilter"
+          aria-label="Filter by tag"
+          title="Filter by tag"
+          @click="toggleTagFilter"
+        >
+          <Icon name="search" size="sm" />
+        </button>
+        <button
+          type="button"
+          :style="reviewBtn"
+          v-hover-style="{ background: c.card }"
+          :aria-label="'Weekly review, ' + review.undecided.value + ' to decide'"
+          @click="ui.setReviewOpen(true)"
+        >
+          <Icon name="calendar-check" size="sm" :style="{ color: c.accent }" />
+          <span v-if="!isMobile">Weekly review</span>
+          <span v-if="review.undecided.value" :style="reviewBadge">{{
+            review.undecided.value
+          }}</span>
         </button>
       </template>
     </ListToolbar>
@@ -669,7 +789,8 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
     <div :style="splitView ? splitLayout : leftColumn" data-own-keys>
       <div :style="leftColumn">
         <div :style="tagInputRow">
-          <TagFilterInput v-model="tagQuery" :groups="tagGroups" />
+          <QuickAdd ref="quickAdd" :compact="isMobile" />
+          <TagFilterInput v-if="showTagFilter || tagQuery" v-model="tagQuery" :groups="tagGroups" />
         </div>
         <div :style="listColumn">
           <div v-if="todos.length === 0" :style="s.empty">Nothing yet — add your first todo.</div>
@@ -712,7 +833,12 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   @click.stop
                   ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
                 ></span>
-                <button :style="boxStyle(t)" @click.stop="app.toggleTodo(t.id)"></button>
+                <RingCheck
+                  :done="t.done"
+                  :sub-done="subCount(t.id).done"
+                  :sub-total="subCount(t.id).total"
+                  @toggle="app.toggleTodo(t.id)"
+                />
                 <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
                   <span :style="textStyle(t)"
                     ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.text }}</span
@@ -721,8 +847,11 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                     richPlain(t.description).replace(/\s+/g, ' ')
                   }}</span>
                   <div :style="s.chipRow">
-                    <span :style="subCountStyle" title="Subtasks done / total"
-                      >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                    <span
+                      v-if="subCount(t.id).total"
+                      :style="subCountStyle"
+                      title="Subtasks done / total"
+                      >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
                     >
                     <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
                       >rolled over ×{{ t.rolloverCount }}</span
@@ -730,8 +859,17 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   </div>
                   <OfflineChip :pending="app.isItemPending('todo', t.id)" />
                 </div>
+                <button
+                  type="button"
+                  :style="rowActBtn"
+                  v-hover-style="rowActHover"
+                  title="Focus on the next subtask"
+                  aria-label="Focus on the next subtask"
+                  @click.stop="focusOn(t.id)"
+                >
+                  <Icon name="timer" size="sm" />
+                </button>
                 <RemindBell collection="todos" :id="t.id" />
-                <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
                 <button :style="s.del" @click.stop="app.deleteWithUndo('todos', 'todo', t.id)">
                   ×
                 </button>
@@ -754,11 +892,13 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
           <TreeList
             collection="todos"
             :root-ids="activeRootIds"
-            :selectable="!isMobile"
+            selectable
+            :swipe-rows="isMobile"
             :selected-id="selectedId"
             :selected-ids="selectedMoveIds"
             :selection-mode="selectionVisible"
-            @select="selectedId = $event"
+            @select="onTreeSelect"
+            @remind="ui.setSheetTodo($event)"
             @toggle-select="toggleMoveSelection"
           />
 
@@ -779,21 +919,22 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                 @pointerdown.capture="onTodoRowPointerDown"
                 @click.capture="onTodoRowClick($event, t.id)"
               >
-                <button :style="boxStyle(t)" @click.stop="app.toggleTodo(t.id)">
-                  <Icon
-                    v-if="t.done"
-                    name="check"
-                    size="xs"
-                    :style="[checkIcon, { color: c.onAccent }]"
-                  />
-                </button>
+                <RingCheck
+                  :done="t.done"
+                  :sub-done="subCount(t.id).done"
+                  :sub-total="subCount(t.id).total"
+                  @toggle="app.toggleTodo(t.id)"
+                />
                 <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
                   <span :style="textStyle(t)"
                     ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.text }}</span
                   >
                   <div :style="s.chipRow">
-                    <span :style="subCountStyle" title="Subtasks done / total"
-                      >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                    <span
+                      v-if="subCount(t.id).total"
+                      :style="subCountStyle"
+                      title="Subtasks done / total"
+                      >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
                     >
                     <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
                   </div>
@@ -825,6 +966,9 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
             </button>
           </CompletedSection>
         </div>
+        <span v-if="!isMobile" :style="shortcutHint"
+          ><span :style="shortcutKey">/n</span>focus quick add</span
+        >
       </div>
 
       <!-- The selected todo's details and subtasks (desktop). Inline it is the
@@ -833,11 +977,13 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
       <DetailPane
         v-if="!isMobile"
         :open="selectedExists"
-        title="Todo details"
+        :title="selectedExists ? 'Todo details' : 'Next up'"
         @width="paneWidth = $event"
         @close="selectedId = null"
       >
-        <TodoDetail :todo-id="selectedExists ? selectedId : null" @select="selectedId = $event" />
+        <TodoDetail v-if="selectedExists" :todo-id="selectedId" @select="selectedId = $event" />
+        <!-- Nothing selected (Todo v2, 2c): the next open subtasks, tickable here. -->
+        <NextUpPanel v-else :roots="nextUpRoots" />
       </DetailPane>
     </div>
   </div>

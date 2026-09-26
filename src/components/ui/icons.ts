@@ -132,6 +132,23 @@ export const ICONS = {
     '<polyline points="14.5 3.5 20.5 3.5 20.5 9.5" /><polyline points="9.5 20.5 3.5 20.5 3.5 14.5" /><line x1="20.5" y1="3.5" x2="13.5" y2="10.5" /><line x1="3.5" y1="20.5" x2="10.5" y2="13.5" />',
   minimize:
     '<polyline points="3.5 14.5 9.5 14.5 9.5 20.5" /><polyline points="20.5 9.5 14.5 9.5 14.5 3.5" /><line x1="14.5" y1="9.5" x2="20.5" y2="3.5" /><line x1="3.5" y1="20.5" x2="9.5" y2="14.5" />',
+
+  // ---- Todo v2: focus mode, weekly review, the bottom pill, the tab bar ----
+  timer:
+    '<line x1="10" y1="2.5" x2="14" y2="2.5" /><line x1="12" y1="14" x2="15" y2="11" /><circle cx="12" cy="14" r="7.5" />',
+  'calendar-check':
+    '<rect x="3" y="4" width="18" height="17" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="16" y1="2" x2="16" y2="6" /><polyline points="9 15 11.2 17.2 15.5 12.8" />',
+  'user-circle':
+    '<circle cx="12" cy="12" r="9" /><circle cx="12" cy="10" r="3" /><path d="M6.7 18.4a6 6 0 0 1 10.6 0" />',
+  github:
+    '<path d="M15 22v-3.9a3.4 3.4 0 0 0-.9-2.6c3.1-.4 6.4-1.5 6.4-6.9a5.4 5.4 0 0 0-1.5-3.7 5 5 0 0 0-.1-3.8s-1.2-.4-3.9 1.4a13.4 13.4 0 0 0-7 0C5.3.7 4.1 1.1 4.1 1.1A5 5 0 0 0 4 4.9a5.4 5.4 0 0 0-1.5 3.7c0 5.4 3.3 6.5 6.4 6.9a3.4 3.4 0 0 0-.9 2.6V22" /><path d="M9 18c-4.5 2-5-2-7-2" />',
+  'more-horizontal':
+    '<circle cx="5" cy="12" r="1.3" /><circle cx="12" cy="12" r="1.3" /><circle cx="19" cy="12" r="1.3" />',
+  flag: '<path d="M4.5 21V4" /><path d="M4.5 4.5h12l-2.5 4 2.5 4h-12" />',
+  clock: '<circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" />',
+  play: '<polygon points="7 4.5 19 12 7 19.5 7 4.5" />',
+  pause:
+    '<rect x="6" y="4.5" width="4" height="15" rx="1" /><rect x="14" y="4.5" width="4" height="15" rx="1" />',
 } as const
 
 export type IconName = keyof typeof ICONS

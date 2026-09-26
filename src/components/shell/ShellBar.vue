@@ -1,22 +1,24 @@
 <script setup lang="ts">
-// The bottom utility bar (section 44, items 4–5).
+// The bottom utility bar (section 44, items 4–5; Todo v2, 1b).
 //
-// Everything that used to float over the bottom of the viewport now lives here,
-// in one row: the notes and settings orbs that were fixed bottom-left, the sync
-// indicator that was fixed bottom-left on top of them, and the theme / espresso
-// / appearance / account / GitHub cluster that was fixed bottom-right on top of
-// the trades table's last rows.
+// ONE CENTRED, LABELLED PILL. The bar used to be eight icon buttons in two
+// groups, and two of them were suns that did different things — the left one
+// opened the account menu, which the avatar also opened — while three separate
+// buttons changed the theme and GitHub wore a share icon. It is now four
+// labelled controls and the sync status:
 //
-// A ROW, NOT AN ISLAND. The cluster was a floating capsule with its own shadow
-// and its own coordinates; docked, it is four buttons at the end of a flex row.
-// The bar is a grid region, so the content area above it stops where the bar
-// starts and there is nothing left for it to cover. The `padding-bottom` the
-// content area carries (equal to this bar's height) is the second half of the
-// same promise: the last row of a table is not merely uncovered, it is clear.
+//   Notes · Appearance · Account · GitHub  |  ● Synced
 //
-// The popovers still open upward, and they are still absolutely positioned —
-// against their own button's wrapper, which is what `position: relative` on the
-// wrapper is for. An overlay that opens on demand and closes on Escape is not
+// Mode (dark / light / auto), the espresso roast and the theme grid all live in
+// the Appearance popover, and only one panel is open at a time. Under 900px the
+// labels drop and it is icons only.
+//
+// A ROW, NOT AN ISLAND, still. The pill is centred INSIDE the bar's grid region
+// rather than floating over the page, so the content area above keeps stopping
+// where the bar starts and the last row of a table stays clear (appShell.ts).
+//
+// Popovers open upward, absolutely positioned against their own button's
+// wrapper. An overlay that opens on demand and closes on Escape is not
 // persistent chrome and does not need a region.
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -37,30 +39,54 @@ const auth = useAuthStore()
 const app = useAppStore()
 const lock = useLockStore()
 const { c, B } = useStyles()
-const { themePanelOpen, themeSetting, isPhone, dark, preferredLight, drawerOpen } = storeToRefs(ui)
+const { themePanelOpen, themeSetting, isPhone, dark, preferredLight, preferredDark, drawerOpen } =
+  storeToRefs(ui)
 const { avatarMenuOpen, avatarInitial, avatarName, avatarSub, avatarColor, ghMenuLabel } =
   storeToRefs(auth)
 const { security, autoRollover, hideCompleted, reminderSound } = storeToRefs(app)
 
-const bar = computed(() => pxify(barGeometry({ isPhone: isPhone.value })))
+const bar = computed(() =>
+  pxify({ ...barGeometry({ isPhone: isPhone.value }), justifyContent: 'center' }),
+)
 
+function open(name: 'notes' | 'appearance' | 'account') {
+  ui.openShellPanel(name, avatarMenuOpen)
+}
+
+// --- appearance ---------------------------------------------------------------
 const autoActive = computed(() => themeSetting.value === 'auto')
 function isThemeActive(key: ThemeKey) {
   return !autoActive.value && themeSetting.value === key
 }
-const darkThemes = computed(() =>
-  THEME_DESCRIPTORS.filter((t) => t.mode === 'dark' && !t.special && !t.standalone),
-)
-const lightThemes = computed(() =>
-  THEME_DESCRIPTORS.filter((t) => t.mode === 'light' && !t.special && !t.standalone),
-)
-const specialThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.special))
-const standaloneThemes = computed(() => THEME_DESCRIPTORS.filter((t) => t.standalone))
-
-const espressoOn = computed(() => themeSetting.value === 'espresso')
-function toggleEspresso() {
-  ui.setTheme(espressoOn.value ? preferredLight.value : 'espresso')
+type Mode = 'dark' | 'light' | 'auto'
+const mode = computed<Mode>(() => (autoActive.value ? 'auto' : dark.value ? 'dark' : 'light'))
+const modes: { id: Mode; label: string; icon: 'moon' | 'sun' | 'clock' }[] = [
+  { id: 'dark', label: 'Dark', icon: 'moon' },
+  { id: 'light', label: 'Light', icon: 'sun' },
+  { id: 'auto', label: 'Auto', icon: 'clock' },
+]
+// Picking a mode is not picking a theme, so the popover stays open for the
+// theme choice that usually follows. setTheme closes it; this puts it back.
+function setMode(m: Mode) {
+  ui.setTheme(m === 'auto' ? 'auto' : m === 'dark' ? preferredDark.value : preferredLight.value)
+  themePanelOpen.value = true
 }
+const groups = computed(() =>
+  [
+    {
+      label: 'Dark',
+      items: THEME_DESCRIPTORS.filter((t) => t.mode === 'dark' && !t.special && !t.standalone),
+    },
+    {
+      label: 'Light',
+      items: THEME_DESCRIPTORS.filter((t) => t.mode === 'light' && !t.special && !t.standalone),
+    },
+    { label: 'Special', items: THEME_DESCRIPTORS.filter((t) => t.special) },
+    { label: 'Standalone', items: THEME_DESCRIPTORS.filter((t) => t.standalone) },
+  ].filter((g) => g.items.length),
+)
+
+// --- account ------------------------------------------------------------------
 function onAutoLockChange(on: boolean) {
   lock.setAutoLock(on)
 }
@@ -68,142 +94,92 @@ function onLockNow() {
   auth.avatarMenuOpen = false
   lock.lockNow()
 }
+function openGithub() {
+  ui.openShellPanel(null, avatarMenuOpen)
+  auth.openGithubPanel()
+}
 
-// --- styles -----------------------------------------------------------------
-// Bar buttons, not orbs. A 44px floating disc made sense when it hovered over a
-// starfield; in a 52px row it is the row. These are 32px and square-ish, which
-// is what a utility bar's controls look like.
-// GEOMETRY HERE, PAINT IN THE STYLESHEET.
+// --- styles -------------------------------------------------------------------
+// The glass is painted by `.shell-pill::before` in the stylesheet, not here: an
+// element with a backdrop-filter becomes the backdrop root for everything inside
+// it, so the popovers — which are inside it — would blur the pill's own empty
+// box instead of the page and render see-through.
 //
-// The split is not cosmetic. `v-hover-style` snapshots the element's style
-// attribute on mouseenter and writes it back on mouseleave — which is fine for
-// a button whose style never changes, and wrong for a toggle, because clicking
-// one while the pointer is on it changes the style underneath the snapshot and
-// the restore then puts the pre-click appearance back. Hover and the on-state
-// are CSS, so there is nothing to snapshot and nothing to get stale.
-const btn = pxify({
-  position: 'relative',
-  // 36, not 32: a 16px icon in a 32px box leaves 8px of padding, which is
-  // enough to tap and not enough to SEE — the hover fill came out as a tight
-  // square wrapped round the glyph. Four more pixels turns the same fill into
-  // a shape the icon sits inside.
-  width: 36,
-  height: 36,
-  padding: 6,
-  flexShrink: 0,
-  display: 'grid',
-  placeItems: 'center',
-  cursor: 'pointer',
-})
+// The pill is a stacking context (so `::before` can sit under its buttons), and
+// its popovers are trapped inside it — so the pill itself carries the popover
+// layer, above whatever the page stacks in the content region.
+const pill = computed(() =>
+  pxify({
+    position: 'relative',
+    zIndex: 30,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 2,
+    minWidth: 0,
+    maxWidth: '100%',
+    padding: 5,
+    borderRadius: 'var(--radius-pill)',
+    '--pill-glass': c.value.glass,
+    border: B.value,
+    boxShadow: 'inset 0 1px 0 color-mix(in srgb, white 7%, transparent)',
+  }),
+)
 const wrapRel = pxify({ position: 'relative', display: 'inline-flex' })
-/** The slack between the left group and the right cluster. */
-const spacer = pxify({ flex: '1 1 auto', minWidth: 0 })
-
+const divider = computed(() =>
+  pxify({ width: 1, height: 22, background: c.value.border, margin: '0 6px', flexShrink: 0 }),
+)
 const avatarDisc = computed(() =>
   pxify({
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     borderRadius: '50%',
     display: 'grid',
     placeItems: 'center',
     ...typeStep('2xs'),
-    fontWeight: 'var(--weight-semibold)',
     color: 'var(--theme-on-accent)',
     background: avatarColor.value,
-  }),
-)
-
-const popover = computed(() =>
-  pxify({
-    position: 'absolute',
-    bottom: 'calc(100% + 10px)',
-    right: 0,
-    width: 224,
-    background: c.value.glass,
-    backdropFilter: 'blur(28px) saturate(1.6)',
-    '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
-    border: B.value,
-    borderRadius: 'var(--radius-dialog)',
-    padding: 10,
-    boxShadow: c.value.shadow,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
-    zIndex: 30,
-  }),
-)
-const themePopover = computed(() =>
-  pxify({
-    position: 'absolute',
-    bottom: 'calc(100% + 10px)',
-    right: 0,
-    width: 268,
-    maxHeight: 'min(70vh, 520px)',
-    overflowY: 'auto',
-    background: c.value.glass,
-    backdropFilter: 'blur(28px) saturate(1.6)',
-    '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
-    border: B.value,
-    borderRadius: 'var(--radius-dialog)',
-    padding: 10,
-    boxShadow: c.value.shadow,
-    zIndex: 30,
-  }),
-)
-function themeRow(active: boolean) {
-  return pxify({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--sp-3)',
-    padding: '7px 8px',
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + (active ? c.value.border : 'transparent'),
-    background: active ? c.value.card : 'transparent',
-    cursor: 'pointer',
-    width: '100%',
-    textAlign: 'left',
-  })
-}
-function swatch(bg: string, active: boolean) {
-  return pxify({
-    width: 18,
-    height: 18,
-    borderRadius: '50%',
     flexShrink: 0,
-    background: bg,
-    border: '2px solid ' + (active ? c.value.accent : 'transparent'),
-  })
-}
-const groupLabel = computed(() =>
-  pxify({
-    ...typeStep('2xs'),
-    letterSpacing: '0.12em',
-    textTransform: 'uppercase',
-    color: c.value.dim,
-    padding: '6px 8px 2px',
   }),
 )
-const pickerGrid = pxify({
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 'var(--sp-2)',
-  padding: '2px 2px 4px',
-})
-function themeCard(active: boolean) {
+function popover(width: number) {
   return pxify({
+    position: 'absolute',
+    bottom: 'calc(100% + 14px)',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width,
+    maxWidth: 'calc(100vw - 24px)',
+    maxHeight: 'min(70vh, 560px)',
+    overflowY: 'auto',
+    boxSizing: 'border-box',
+    background: c.value.glass,
+    backdropFilter: 'blur(28px) saturate(1.6)',
+    '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
+    border: B.value,
+    borderRadius: 'var(--radius-dialog)',
+    padding: 12,
+    boxShadow: c.value.shadow,
     display: 'flex',
     flexDirection: 'column',
-    gap: 'var(--sp-2)',
-    padding: 8,
-    borderRadius: 'var(--radius-card)',
-    border: '2px solid ' + (active ? c.value.accent : 'transparent'),
-    background: active ? c.value.card : 'transparent',
-    cursor: 'pointer',
-    textAlign: 'left',
-    width: '100%',
+    gap: 'var(--sp-3)',
+    zIndex: 30,
   })
 }
-function cardSwatchRow(preview: readonly [string, string, string]) {
+const accountPopover = computed(() => ({ ...popover(240), gap: '2px', padding: '10px' }))
+const appearancePopover = computed(() => popover(300))
+const groupLabel = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim }))
+const segment = computed(() =>
+  pxify({
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: 4,
+    padding: 4,
+    borderRadius: 'var(--radius-card)',
+    background: 'color-mix(in srgb, ' + c.value.text + ' 6%, transparent)',
+  }),
+)
+const swatchGrid = pxify({ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 })
+function swatchRow(preview: readonly [string, string, string]) {
   return pxify({
     display: 'flex',
     height: 22,
@@ -213,15 +189,24 @@ function cardSwatchRow(preview: readonly [string, string, string]) {
     background: preview[0],
   })
 }
-const cardName = computed(() =>
+const swatchName = computed(() =>
   pxify({
     ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
+    fontWeight: 'var(--weight-medium)',
     color: c.value.text,
-    lineHeight: 1.1,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   }),
 )
-const rowText = computed(() => pxify({ ...typeStep('xs'), color: c.value.text }))
+const autoWheel = pxify({
+  width: 18,
+  height: 18,
+  borderRadius: '50%',
+  flexShrink: 0,
+  background:
+    'conic-gradient(from 0deg, oklch(0.85 0.15 85), oklch(0.74 0.13 250), oklch(0.78 0.15 340), oklch(0.83 0.13 88), oklch(0.85 0.15 85))',
+})
 const menuItem = computed(() =>
   pxify({
     padding: '9px 10px',
@@ -259,240 +244,235 @@ const subStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim })
 
 <template>
   <footer :style="bar" class="shell-bar">
-    <!-- Left: the two utilities, then the sync status. -->
-    <button
-      class="shell-btn"
-      :class="{ 'is-on': drawerOpen }"
-      :style="btn"
-      aria-label="Notes"
-      :aria-expanded="drawerOpen"
-      @click="ui.toggleDrawer()"
-    >
-      <Icon name="notebook" size="sm" :style="{ color: c.accent }" />
-    </button>
-    <button class="shell-btn" :style="btn" aria-label="Settings" @click="auth.toggleAvatarMenu()">
-      <Icon name="sun" size="sm" :style="{ color: c.accent }" />
-    </button>
-
-    <ShellSync />
-
-    <span :style="spacer"></span>
-
-    <!-- Right: the action cluster, docked as a row rather than floating. -->
-    <button
-      class="shell-btn"
-      :style="btn"
-      :aria-label="dark ? 'Switch to light theme' : 'Switch to dark theme'"
-      @click="ui.toggleThemeMode()"
-    >
-      <Icon v-if="dark" name="sun" size="sm" :style="{ color: c.accent }" />
-      <Icon v-else name="moon" size="sm" :style="{ color: c.accent }" />
-    </button>
-
-    <button
-      class="shell-btn"
-      :class="{ 'is-on': espressoOn }"
-      :style="btn"
-      :aria-pressed="espressoOn"
-      :aria-label="espressoOn ? 'Leave the espresso theme' : 'Switch to the espresso theme'"
-      @click="toggleEspresso()"
-    >
-      <Icon name="coffee" size="sm" :style="{ color: c.accent }" />
-    </button>
-
-    <div :style="wrapRel">
+    <div :style="pill" class="shell-pill">
       <button
-        class="shell-btn"
-        :class="{ 'is-on': themePanelOpen }"
-        :style="btn"
-        aria-label="Appearance"
-        :aria-expanded="themePanelOpen"
-        @click="ui.toggleThemePanel()"
+        type="button"
+        class="pill-btn"
+        :class="{ 'is-on': drawerOpen }"
+        aria-label="Notes"
+        :aria-expanded="drawerOpen"
+        @click="open('notes')"
       >
-        <Icon name="palette" size="sm" :style="{ color: c.accent }" />
+        <Icon name="notebook" size="sm" class="pill-icon" />
+        <span class="pill-label">Notes</span>
       </button>
-      <div v-if="themePanelOpen" :style="themePopover" role="menu">
-        <button :style="themeRow(autoActive)" @click="ui.setTheme('auto')">
-          <span
-            :style="
-              swatch(
-                'conic-gradient(from 0deg, oklch(0.85 0.15 85), oklch(0.74 0.13 250), oklch(0.78 0.15 340), oklch(0.83 0.13 88), oklch(0.85 0.15 85))',
-                autoActive,
-              )
-            "
-          ></span>
-          <span :style="rowText">Auto (follows time)</span>
+
+      <div :style="wrapRel">
+        <button
+          type="button"
+          class="pill-btn"
+          :class="{ 'is-on': themePanelOpen }"
+          aria-label="Appearance"
+          :aria-expanded="themePanelOpen"
+          @click="open('appearance')"
+        >
+          <Icon name="palette" size="sm" class="pill-icon" />
+          <span class="pill-label">Appearance</span>
         </button>
-        <span :style="groupLabel">Dark</span>
-        <div :style="pickerGrid">
-          <button
-            v-for="t in darkThemes"
-            :key="t.id"
-            :style="themeCard(isThemeActive(t.id))"
-            :aria-pressed="isThemeActive(t.id)"
-            @click="ui.setTheme(t.id)"
-          >
-            <span :style="cardSwatchRow(t.preview)">
-              <span style="flex: 1" />
-              <span :style="{ flex: 1, background: t.preview[1] }" />
-              <span :style="{ flex: 1, background: t.preview[2] }" />
-            </span>
-            <span :style="cardName">{{ t.name }}</span>
-          </button>
-        </div>
-        <span :style="groupLabel">Light</span>
-        <div :style="pickerGrid">
-          <button
-            v-for="t in lightThemes"
-            :key="t.id"
-            :style="themeCard(isThemeActive(t.id))"
-            :aria-pressed="isThemeActive(t.id)"
-            @click="ui.setTheme(t.id)"
-          >
-            <span :style="cardSwatchRow(t.preview)">
-              <span style="flex: 1" />
-              <span :style="{ flex: 1, background: t.preview[1] }" />
-              <span :style="{ flex: 1, background: t.preview[2] }" />
-            </span>
-            <span :style="cardName">{{ t.name }}</span>
-          </button>
-        </div>
-        <template v-if="specialThemes.length">
-          <span :style="groupLabel">Special</span>
-          <div :style="pickerGrid">
+        <div v-if="themePanelOpen" :style="appearancePopover" role="menu">
+          <span :style="groupLabel">Appearance</span>
+          <div :style="segment" role="radiogroup" aria-label="Mode">
             <button
-              v-for="t in specialThemes"
-              :key="t.id"
-              :style="themeCard(isThemeActive(t.id))"
-              :aria-pressed="isThemeActive(t.id)"
-              @click="ui.setTheme(t.id)"
+              v-for="m in modes"
+              :key="m.id"
+              type="button"
+              class="seg-btn"
+              :class="{ 'is-on': mode === m.id }"
+              role="radio"
+              :aria-checked="mode === m.id"
+              @click="setMode(m.id)"
             >
-              <span :style="cardSwatchRow(t.preview)">
-                <span style="flex: 1" />
-                <span :style="{ flex: 1, background: t.preview[1] }" />
-                <span :style="{ flex: 1, background: t.preview[2] }" />
-              </span>
-              <span :style="cardName">{{ t.name }}</span>
+              <span v-if="m.id === 'auto'" :style="autoWheel"></span>
+              <Icon v-else :name="m.icon" size="xs" />
+              {{ m.label }}
             </button>
           </div>
-        </template>
-        <template v-if="standaloneThemes.length">
-          <span :style="groupLabel">Standalone</span>
-          <div :style="pickerGrid">
-            <button
-              v-for="t in standaloneThemes"
-              :key="t.id"
-              :style="themeCard(isThemeActive(t.id))"
-              :aria-pressed="isThemeActive(t.id)"
-              @click="ui.setTheme(t.id)"
-            >
-              <span :style="cardSwatchRow(t.preview)">
-                <span style="flex: 1" />
-                <span :style="{ flex: 1, background: t.preview[1] }" />
-                <span :style="{ flex: 1, background: t.preview[2] }" />
-              </span>
-              <span :style="cardName">{{ t.name }}</span>
-            </button>
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <div :style="wrapRel">
-      <button
-        class="shell-btn"
-        :class="{ 'is-on': avatarMenuOpen }"
-        :style="btn"
-        aria-label="Account"
-        :aria-expanded="avatarMenuOpen"
-        @click="auth.toggleAvatarMenu()"
-      >
-        <span :style="avatarDisc">{{ avatarInitial }}</span>
-      </button>
-      <div v-if="avatarMenuOpen" :style="popover">
-        <div style="padding: 6px 8px">
-          <div :style="nameStyle">{{ avatarName }}</div>
-          <div :style="subStyle">{{ avatarSub }}</div>
+          <template v-for="g in groups" :key="g.label">
+            <span :style="groupLabel">{{ g.label }}</span>
+            <div :style="swatchGrid">
+              <button
+                v-for="t in g.items"
+                :key="t.id"
+                type="button"
+                class="swatch"
+                :class="{ 'is-on': isThemeActive(t.id) }"
+                :aria-pressed="isThemeActive(t.id)"
+                @click="ui.setTheme(t.id)"
+              >
+                <span :style="swatchRow(t.preview)">
+                  <span style="flex: 1" />
+                  <span :style="{ flex: 1, background: t.preview[1] }" />
+                  <span :style="{ flex: 1, background: t.preview[2] }" />
+                </span>
+                <span :style="swatchName">{{ t.name }}</span>
+              </button>
+            </div>
+          </template>
         </div>
-        <label :style="menuToggle">
-          <Checkbox
-            :model-value="security.autoLockEnabled"
-            @update:model-value="onAutoLockChange"
-          />
-          <span>Auto-lock after 50 min</span>
-        </label>
-        <label :style="menuToggle">
-          <Checkbox :model-value="autoRollover" @update:model-value="app.setAutoRollover($event)" />
-          <span>Auto-roll overdue to today</span>
-        </label>
-        <label :style="menuToggle">
-          <Checkbox
-            :model-value="hideCompleted"
-            @update:model-value="app.setHideCompleted($event)"
-          />
-          <span>Hide completed items</span>
-        </label>
-        <label :style="menuToggle">
-          <Checkbox
-            :model-value="reminderSound"
-            @update:model-value="app.setReminderSound($event)"
-          />
-          <span>Reminder sound</span>
-        </label>
-        <button :style="menuItem" v-hover-style="menuHover" @click="onLockNow">Lock now</button>
-        <button :style="menuItem" v-hover-style="menuHover" @click="auth.openSecurityPanel()">
-          Security &amp; devices
-        </button>
-        <button :style="menuItem" v-hover-style="menuHover" @click="auth.openGithubPanel()">
-          {{ ghMenuLabel }}
-        </button>
-        <button :style="menuItem" v-hover-style="menuHover" @click="auth.signOut()">
-          Sign out
-        </button>
       </div>
-    </div>
 
-    <button class="shell-btn" :style="btn" aria-label="GitHub" @click="auth.openGithubPanel()">
-      <Icon name="share" size="sm" :style="{ color: c.accent }" />
-    </button>
+      <div :style="wrapRel">
+        <button
+          type="button"
+          class="pill-btn"
+          :class="{ 'is-on': avatarMenuOpen }"
+          aria-label="Account"
+          :aria-expanded="avatarMenuOpen"
+          @click="open('account')"
+        >
+          <span :style="avatarDisc">{{ avatarInitial }}</span>
+          <span class="pill-label">Account</span>
+        </button>
+        <div v-if="avatarMenuOpen" :style="accountPopover">
+          <div style="padding: 6px 8px">
+            <div :style="nameStyle">{{ avatarName }}</div>
+            <div :style="subStyle">{{ avatarSub }}</div>
+          </div>
+          <label :style="menuToggle">
+            <Checkbox
+              :model-value="security.autoLockEnabled"
+              @update:model-value="onAutoLockChange"
+            />
+            <span>Auto-lock after 50 min</span>
+          </label>
+          <label :style="menuToggle">
+            <Checkbox
+              :model-value="autoRollover"
+              @update:model-value="app.setAutoRollover($event)"
+            />
+            <span>Auto-roll overdue to today</span>
+          </label>
+          <label :style="menuToggle">
+            <Checkbox
+              :model-value="hideCompleted"
+              @update:model-value="app.setHideCompleted($event)"
+            />
+            <span>Hide completed items</span>
+          </label>
+          <label :style="menuToggle">
+            <Checkbox
+              :model-value="reminderSound"
+              @update:model-value="app.setReminderSound($event)"
+            />
+            <span>Reminder sound</span>
+          </label>
+          <button :style="menuItem" v-hover-style="menuHover" @click="onLockNow">Lock now</button>
+          <button :style="menuItem" v-hover-style="menuHover" @click="auth.openSecurityPanel()">
+            Security &amp; devices
+          </button>
+          <button :style="menuItem" v-hover-style="menuHover" @click="openGithub">
+            {{ ghMenuLabel }}
+          </button>
+          <button :style="menuItem" v-hover-style="menuHover" @click="auth.signOut()">
+            Sign out
+          </button>
+        </div>
+      </div>
+
+      <button type="button" class="pill-btn" aria-label="GitHub" @click="openGithub">
+        <Icon name="github" size="sm" class="pill-icon" />
+        <span class="pill-label">GitHub</span>
+      </button>
+
+      <span :style="divider"></span>
+      <ShellSync inline />
+    </div>
   </footer>
 </template>
 
 <style scoped>
 /*
- * The bar's icon buttons.
- *
- * Two things were missing and both were about being able to SEE the control.
- * The box was 32px around a 16px icon, so the hover fill was a tight square
- * that read as a border on the glyph rather than a surface behind it — the
- * padding is in the geometry object above. And three of these are toggles whose
- * on-state existed only in `aria-pressed`: the espresso theme, the appearance
- * panel and the account menu all looked identical open and shut, so the only
- * way to learn which button owned the panel floating above the bar was to press
- * one and watch. `is-on` is the accent tint the dock's active tab uses, at bar
- * scale, so the two pieces of chrome say "this one" the same way.
+ * Hover and the open state are CSS, not v-hover-style: that directive snapshots
+ * the style attribute on enter and restores it on leave, which is wrong for a
+ * toggle clicked while the pointer is on it.
  */
-.shell-btn {
+.shell-pill::before {
+  /* hide the bottom border */
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--pill-glass);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+}
+.pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--theme-dim);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+}
+.pill-icon {
+  color: var(--theme-accent);
+}
+.pill-btn:hover {
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  color: var(--theme-text);
+}
+.pill-btn.is-on {
+  background: color-mix(in srgb, var(--theme-text) 12%, transparent);
+  border-color: color-mix(in srgb, var(--theme-text) 20%, transparent);
+  color: var(--theme-text);
+}
+.seg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0;
   border-radius: var(--radius-control);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--theme-accent);
-  transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
+  color: var(--theme-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
 }
-.shell-btn:hover {
+.seg-btn.is-on {
+  background: color-mix(in srgb, var(--theme-text) 12%, transparent);
+  border-color: color-mix(in srgb, var(--theme-text) 22%, transparent);
+}
+.swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border-radius: var(--radius-card);
+  border: 1.5px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.swatch:hover {
   background: var(--theme-card);
-  border-color: var(--theme-border);
 }
-.shell-btn.is-on {
-  background: color-mix(in oklch, var(--theme-accent) 20%, transparent);
-  border-color: color-mix(in oklch, var(--theme-accent) 55%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in oklch, var(--theme-accent) 14%, transparent);
+.swatch.is-on {
+  border-color: var(--theme-accent);
+}
+@media (max-width: 900px) {
+  .pill-label {
+    display: none;
+  }
+  .pill-btn {
+    padding: 8px 10px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .shell-btn {
+  .pill-btn {
     transition: none;
   }
 }

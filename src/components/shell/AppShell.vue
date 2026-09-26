@@ -21,6 +21,10 @@ import { registerShell, unregisterShell } from '@/components/shell/shellKeys'
 import FloatingDock from '@/components/FloatingDock.vue'
 import ShellStrip from '@/components/shell/ShellStrip.vue'
 import ShellBar from '@/components/shell/ShellBar.vue'
+import MobileTabBar from '@/components/shell/MobileTabBar.vue'
+import FocusOverlay from '@/components/todo/FocusOverlay.vue'
+import WeeklyReview from '@/components/todo/WeeklyReview.vue'
+import TodoSheet from '@/components/todo/TodoSheet.vue'
 
 const { isPhone, isTablet } = storeToRefs(useUiStore())
 
@@ -50,7 +54,12 @@ onBeforeUnmount(() => unregisterShell())
 
 <template>
   <div :style="shell" class="app-shell">
-    <nav :style="rail" class="app-shell__rail"><FloatingDock /></nav>
+    <!-- Phones get a labelled tab bar of the five primary tabs (Todo v2, 3a);
+         wider screens keep the carousel rail. -->
+    <nav :style="rail" class="app-shell__rail">
+      <MobileTabBar v-if="isPhone" />
+      <FloatingDock v-else />
+    </nav>
 
     <ShellStrip />
 
@@ -59,6 +68,11 @@ onBeforeUnmount(() => unregisterShell())
     </main>
 
     <ShellBar />
+
+    <!-- Overlays that belong to no one tab: they cover the whole shell. -->
+    <TodoSheet v-if="isPhone" />
+    <WeeklyReview />
+    <FocusOverlay />
   </div>
 </template>
 

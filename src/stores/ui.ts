@@ -11,6 +11,36 @@ export type StatusFilter = ItemStatus | 'all'
 
 export type { ThemeSetting }
 
+/**
+ * A focus session on one todo (Todo v2, 5b). Running while `endsAt` is set;
+ * paused, the time left is held in `remainingMs`. Persisted, so a reload picks
+ * the timer up where it was rather than silently dropping it.
+ */
+export interface FocusSession {
+  todoId: number
+  remainingMs: number
+  endsAt: number | null
+}
+export const FOCUS_MS = 25 * 60 * 1000
+const FOCUS_KEY = 'aureon.focus'
+
+function loadFocus(): FocusSession | null {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(FOCUS_KEY) : null
+    if (!raw) return null
+    const v = JSON.parse(raw) as FocusSession
+    return typeof v?.todoId === 'number' && typeof v.remainingMs === 'number' ? v : null
+  } catch {
+    return null
+  }
+}
+
+/** A weekly-review decision, with what it replaced so it can be taken back. */
+export interface ReviewDecision {
+  kind: 'keep' | 'drop'
+  prior: { createdAt: number; archivedAt: number | null }
+}
+
 // Global UI state: theme selection, current tab, viewport width and a coarse clock.
 export const useUiStore = defineStore('ui', () => {
   // The choice itself lives in the app store so it persists to the user's
@@ -105,6 +135,85 @@ export const useUiStore = defineStore('ui', () => {
   function toggleDrawer() {
     drawerOpen.value = !drawerOpen.value
   }
+
+  // --- Todo v2 ----------------------------------------------------------------
+  // The bottom pill's panels. Opening one closes the others, so there is only
+  // ever one popover standing over the bar. The account menu's flag lives on the
+  // auth store and is handed in, which keeps this store free of a dependency on
+  // that one.
+  function openShellPanel(
+    name: 'notes' | 'appearance' | 'account' | null,
+    account: { value: boolean },
+  ) {
+    const was = {
+      notes: drawerOpen.value,
+      appearance: themePanelOpen.value,
+      account: account.value,
+    }
+    drawerOpen.value = name === 'notes' && !was.notes
+    themePanelOpen.value = name === 'appearance' && !was.appearance
+    account.value = name === 'account' && !was.account
+  }
+
+  // Focus mode (5b).
+  const focus = ref<FocusSession | null>(loadFocus())
+  watch(
+    focus,
+    (v) => {
+      try {
+        if (v) localStorage.setItem(FOCUS_KEY, JSON.stringify(v))
+        else localStorage.removeItem(FOCUS_KEY)
+      } catch {
+        /* private mode: the session just does not survive a reload */
+      }
+    },
+    { deep: true },
+  )
+  function focusRemaining(at = Date.now()): number {
+    const f = focus.value
+    if (!f) return 0
+    return f.endsAt != null ? Math.max(0, f.endsAt - at) : f.remainingMs
+  }
+  function startFocus(todoId: number) {
+    focus.value = { todoId, remainingMs: FOCUS_MS, endsAt: Date.now() + FOCUS_MS }
+  }
+  function pauseFocus() {
+    const f = focus.value
+    if (!f || f.endsAt == null) return
+    focus.value = { ...f, remainingMs: focusRemaining(), endsAt: null }
+  }
+  function resumeFocus() {
+    const f = focus.value
+    if (!f || f.endsAt != null) return
+    focus.value = { ...f, endsAt: Date.now() + f.remainingMs }
+  }
+  function stopFocus() {
+    focus.value = null
+  }
+
+  // Weekly review (5c). Decisions are this session's: each one is applied to the
+  // todo straight away and remembers what it replaced, so a second click undoes it.
+  const reviewOpen = ref(false)
+  const reviewDecisions = ref<Record<number, ReviewDecision>>({})
+  function setReviewOpen(v: boolean) {
+    reviewOpen.value = v
+  }
+  function setReviewDecision(todoId: number, d: ReviewDecision | null) {
+    const next = { ...reviewDecisions.value }
+    if (d) next[todoId] = d
+    else delete next[todoId]
+    reviewDecisions.value = next
+  }
+
+  // Phone: the todo shown in the bottom sheet (3b), and the tab bar's More sheet.
+  const sheetTodoId = ref<number | null>(null)
+  const moreSheetOpen = ref(false)
+  function setSheetTodo(id: number | null) {
+    sheetTodoId.value = id
+  }
+  function setMoreSheet(v: boolean) {
+    moreSheetOpen.value = v
+  }
   function toggleRail() {
     railCollapsed.value = !railCollapsed.value
   }
@@ -155,6 +264,21 @@ export const useUiStore = defineStore('ui', () => {
     toggleThemeMode,
     toggleThemePanel,
     toggleDrawer,
+    openShellPanel,
+    focus,
+    focusRemaining,
+    startFocus,
+    pauseFocus,
+    resumeFocus,
+    stopFocus,
+    reviewOpen,
+    reviewDecisions,
+    setReviewOpen,
+    setReviewDecision,
+    sheetTodoId,
+    moreSheetOpen,
+    setSheetTodo,
+    setMoreSheet,
     toggleRail,
     setRailCollapsed,
     setTab,
