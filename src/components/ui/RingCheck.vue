@@ -63,11 +63,19 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 </template>
 
 <style scoped>
-/* The ring is an annulus: a conic gradient with its centre masked out, so the
-   2px gap between ring and button is the row's own background whatever that
-   is — a glass card, the phone's solid ground, the /ui page — rather than a
-   painted disc that has to be told which colour to pretend to be. */
+/* Three concentric bands, outermost first, read by anyone scanning the list:
+     ring   — the progress. A conic fill on a track that is always visible, so
+              a 26% arc reads as 26% of a circle rather than as a stray curve.
+     gap    — the row's own background showing through a mask, so the ring
+              and the checkbox never touch and blend into one "target" shape.
+     button — the todo's done state, with a border quiet enough that the
+              accent arc is the loudest thing in the box.
+   The mask is sized `closest-side` so its stops are real pixels from the edge;
+   the default (farthest-corner) makes 50% mean the half-diagonal, which is
+   how an earlier version ended up with no gap at all. */
 .ring-wrap {
+  --ring-w: 3px;
+  --ring-gap: 2px;
   position: relative;
   flex-shrink: 0;
   display: block;
@@ -77,6 +85,8 @@ onBeforeUnmount(() => clearTimeout(popTimer))
   height: 30px;
 }
 .ring-wrap--sm {
+  --ring-w: 2.5px;
+  --ring-gap: 1.5px;
   width: 26px;
   height: 26px;
 }
@@ -86,25 +96,33 @@ onBeforeUnmount(() => clearTimeout(popTimer))
   border-radius: 50%;
   background: conic-gradient(
     var(--theme-accent) var(--ring-pct),
-    color-mix(in srgb, var(--theme-text) 12%, transparent) var(--ring-pct) 100%
+    color-mix(in srgb, var(--theme-text) 16%, transparent) var(--ring-pct) 100%
   );
-  -webkit-mask: radial-gradient(circle, transparent calc(50% - 3px), black calc(50% - 2px));
-  mask: radial-gradient(circle, transparent calc(50% - 3px), black calc(50% - 2px));
+  -webkit-mask: radial-gradient(
+    circle closest-side,
+    transparent calc(100% - var(--ring-w) - 0.5px),
+    black calc(100% - var(--ring-w) + 0.5px)
+  );
+  mask: radial-gradient(
+    circle closest-side,
+    transparent calc(100% - var(--ring-w) - 0.5px),
+    black calc(100% - var(--ring-w) + 0.5px)
+  );
   transition: background var(--dur-pop) ease;
 }
 .ring--empty {
-  background: color-mix(in srgb, var(--theme-text) 8%, transparent);
+  background: color-mix(in srgb, var(--theme-text) 10%, transparent);
 }
 /* The button is a sibling of the ring, not a child: a mask clips everything
    inside the element it is on, so the button sits on top in the same box. */
 .ring__btn {
   position: absolute;
-  inset: 3px;
+  inset: calc(var(--ring-w) + var(--ring-gap));
   width: auto;
   height: auto;
   padding: 0;
   border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, var(--theme-text) 45%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--theme-text) 38%, transparent);
   background: transparent;
   color: var(--theme-on-accent);
   cursor: pointer;
