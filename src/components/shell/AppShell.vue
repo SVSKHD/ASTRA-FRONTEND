@@ -67,7 +67,9 @@ onBeforeUnmount(() => unregisterShell())
       <slot />
     </main>
 
-    <ShellBar />
+    <!-- The utility pill is desktop chrome; on a phone its four controls sit
+         in the tab bar's More sheet instead of stacking a second bar. -->
+    <ShellBar v-if="!isPhone" />
 
     <!-- Overlays that belong to no one tab: they cover the whole shell. -->
     <TodoSheet v-if="isPhone" />

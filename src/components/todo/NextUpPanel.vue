@@ -12,6 +12,7 @@ import { pxify, typeStep, tagChip } from '@/styles'
 import { buildIndex } from '@/utils/taskTree'
 import { nextUpOf } from '@/utils/todoV2'
 import Icon from '@/components/ui/Icon.vue'
+import SubCheck from '@/components/todo/SubCheck.vue'
 import type { Todo } from '@/types'
 
 const props = defineProps<{ roots: Todo[] }>()
@@ -27,11 +28,8 @@ const index = computed(() => buildIndex(todos.value))
 const kept = ref(new Set<number>())
 const rows = computed(() => nextUpOf(index.value, props.roots, kept.value))
 
-const popping = ref<number | null>(null)
 function tick(id: number) {
   kept.value = new Set(kept.value).add(id)
-  popping.value = id
-  setTimeout(() => popping.value === id && (popping.value = null), 180)
   app.toggleTodo(id)
 }
 
@@ -88,16 +86,7 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
     </div>
     <div :style="list">
       <div v-for="r in rows" :key="r.sub.id" :style="row">
-        <button
-          type="button"
-          class="nu-box"
-          :class="{ 'is-done': r.sub.status === 'done', 'is-pop': popping === r.sub.id }"
-          :aria-label="r.sub.status === 'done' ? 'Mark not done' : 'Mark done'"
-          :aria-pressed="r.sub.status === 'done'"
-          @click="tick(r.sub.id)"
-        >
-          <Icon name="check" size="xs" class="nu-box__tick" />
-        </button>
+        <SubCheck :done="r.sub.status === 'done'" @toggle="tick(r.sub.id)" />
         <span :style="text(r.sub.status === 'done')" :title="r.sub.text">{{
           r.sub.text || '(untitled)'
         }}</span>
@@ -122,37 +111,6 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
 </template>
 
 <style scoped>
-.nu-box {
-  position: relative;
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-control);
-  border: 1.5px solid color-mix(in srgb, var(--theme-text) 45%, transparent);
-  background: transparent;
-  color: var(--theme-on-accent);
-  cursor: pointer;
-  transition:
-    transform 0.35s cubic-bezier(0.3, 1.9, 0.5, 1),
-    background 0.2s ease,
-    border-color 0.2s ease;
-}
-.nu-box.is-done {
-  background: var(--theme-accent);
-  border-color: var(--theme-accent);
-}
-.nu-box.is-pop {
-  transform: scale(1.25);
-}
-.nu-box__tick {
-  opacity: 0;
-}
-.nu-box.is-done .nu-box__tick {
-  opacity: 1;
-}
 .nu-focus {
   flex-shrink: 0;
   width: 28px;
@@ -173,13 +131,5 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
 .nu-focus:disabled {
   opacity: 0.35;
   cursor: default;
-}
-@media (prefers-reduced-motion: reduce) {
-  .nu-box {
-    transition: none;
-  }
-  .nu-box.is-pop {
-    transform: none;
-  }
 }
 </style>

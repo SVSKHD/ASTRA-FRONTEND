@@ -18,6 +18,7 @@ import { richPlain } from '@/utils/richText'
 import { clampOffset, offsetFor, snapFor, velocityOf, type SheetSnap } from '@/utils/sheetSnap'
 import RemindBell from '@/components/RemindBell.vue'
 import Icon from '@/components/ui/Icon.vue'
+import SubCheck from '@/components/todo/SubCheck.vue'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -188,19 +189,12 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
         <span :style="count">{{ subDone }} of {{ subs.length }}</span>
       </div>
       <div :style="list">
-        <button
-          v-for="s in subs"
-          :key="s.id"
-          type="button"
-          class="ts-sub"
-          :aria-pressed="s.status === 'done'"
-          @click="app.toggleTodo(s.id)"
-        >
-          <span class="ts-box" :class="{ 'is-done': s.status === 'done' }">
-            <Icon name="check" size="xs" class="ts-box__tick" />
-          </span>
+        <!-- The whole 48px row toggles; the box is the same control with
+             its pop, and stops the tap so it does not count twice. -->
+        <div v-for="s in subs" :key="s.id" class="ts-sub" @click="app.toggleTodo(s.id)">
+          <SubCheck :done="s.status === 'done'" size="md" @toggle="app.toggleTodo(s.id)" />
           <span :style="subText(s.status === 'done')">{{ s.text || '(untitled)' }}</span>
-        </button>
+        </div>
         <span v-if="!subs.length" :style="empty">No subtasks. Open the editor to add some.</span>
       </div>
     </section>
@@ -268,35 +262,8 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
   align-items: center;
   gap: 14px;
   min-height: 48px;
-  padding: 0;
-  border: none;
   border-bottom: 1px solid var(--theme-border);
-  background: transparent;
-  text-align: left;
-  color: inherit;
   cursor: pointer;
-}
-.ts-box {
-  position: relative;
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-control);
-  border: 1.5px solid color-mix(in srgb, var(--theme-text) 45%, transparent);
-  color: var(--theme-on-accent);
-  transition: background 0.2s ease;
-}
-.ts-box.is-done {
-  background: var(--theme-accent);
-  border-color: var(--theme-accent);
-}
-.ts-box__tick {
-  opacity: 0;
-}
-.ts-box.is-done .ts-box__tick {
-  opacity: 1;
 }
 .ts-fade-enter-active,
 .ts-fade-leave-active {

@@ -385,17 +385,19 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     tagRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap' },
     // The one control that opens a create dialog, in place of the add-form each
     // tab used to carry.
+    // A solid accent pill (Todo v2). It used to be an outlined card-coloured
+    // button with a 14px accent glow — the one glowing control in the strip,
+    // beside a reminder pill and an export menu that do not glow.
     newBtn: {
-      ...typeStep('xs'),
+      ...typeStep('sm'),
       fontWeight: 'var(--weight-semibold)',
-      padding: '6px 13px',
+      padding: '7px 16px',
       borderRadius: 'var(--radius-pill)',
-      border: '1px solid ' + c.border,
-      background: c.card,
-      color: c.accent,
+      border: '1px solid transparent',
+      background: c.accent,
+      color: c.onAccent,
       cursor: 'pointer',
       whiteSpace: 'nowrap',
-      boxShadow: dark ? '0 0 14px ' + c.accent : 'none',
       transition: 'transform .25s ease, box-shadow .25s ease',
     },
     foldBtn: {

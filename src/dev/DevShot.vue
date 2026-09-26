@@ -39,6 +39,12 @@ import { useTrades } from '@/composables/useTrades'
 import { DEMO_UID, forcedState, loadFixture } from '@/dev/fixture'
 import { SEED_TODAY } from '@/dev/seed'
 import { isThemeKey, type ThemeSetting } from '@/themes'
+import { TAB_ORDER } from '@/tabs.config'
+import type { TabKey } from '@/types'
+
+function isTabKey(v: string): v is TabKey {
+  return (TAB_ORDER as readonly string[]).includes(v)
+}
 
 const route = useRoute()
 const state = forcedState()
@@ -65,6 +71,9 @@ const ui = useUiStore()
 onMounted(() => {
   const theme = String(route.query.theme ?? '')
   if (isThemeKey(theme)) ui.setTheme(theme as ThemeSetting)
+  // The chrome reads the current tab for its title and the active rail slot,
+  // so a shot of the Todos tab says "Todo" rather than "Dashboard".
+  if (withShell && isTabKey(which.value)) ui.setTab(which.value)
 })
 
 const settings = useSettings()

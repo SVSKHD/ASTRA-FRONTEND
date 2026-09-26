@@ -117,6 +117,20 @@ const modeBtnHover = computed(() => ({ color: c.value.accent, borderColor: c.val
       >
         <Icon :name="modeIcon" size="xs" />
       </button>
+      <!-- Escape does the same; the button is for the pointer. With nothing
+           selected the column shows its own idle state and there is nothing
+           to close. -->
+      <button
+        v-if="props.open"
+        type="button"
+        :style="modeBtn"
+        v-hover-style="modeBtnHover"
+        title="Close"
+        aria-label="Close details"
+        @click="emit('close')"
+      >
+        <Icon name="x" size="xs" />
+      </button>
     </div>
     <slot />
   </div>
