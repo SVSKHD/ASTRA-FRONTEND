@@ -53,8 +53,10 @@ const props = defineProps<{
   rootIds: number[]
   selectable?: boolean
   selectedId?: number | null
+  selectedIds?: number[]
+  selectionMode?: boolean
 }>()
-const emit = defineEmits<{ select: [id: number] }>()
+const emit = defineEmits<{ select: [id: number]; toggleSelect: [id: number] }>()
 
 const app = useAppStore()
 const { c, s } = useStyles()
@@ -79,6 +81,7 @@ const srOnly = {
 const isTasks = computed(() => props.collection === 'tasks')
 const list = computed<(Task | Todo)[]>(() => (isTasks.value ? tasks.value : todos.value))
 const index = computed(() => buildIndex(list.value))
+const selectedSet = computed(() => new Set(props.selectedIds ?? []))
 
 const keyOf = (id: number) => (isTasks.value ? 'tasktree:' : 'todotree:') + id
 function expanded(id: number) {
@@ -183,7 +186,19 @@ function dueLabel(id: number) {
   })
 }
 
-function openDetail(id: number) {
+function isTripleClick(event?: MouseEvent) {
+  return (event?.detail ?? 0) >= 3
+}
+function openDetail(id: number, event?: MouseEvent) {
+  if (isTripleClick(event)) {
+    event?.preventDefault()
+    toggleSelect(id)
+    return
+  }
+  if (props.selectionMode) {
+    toggleSelect(id)
+    return
+  }
   if (props.selectable) {
     emit('select', id)
     return
@@ -205,14 +220,28 @@ function openGoal(goalId: number) {
 // The row's open zone is a tap target, not a press-and-hold one: holding starts
 // a drag, and releasing from a drag must not leave a dialog open behind it.
 const pressedRow = ref<number | null>(null)
-const tap = useTapOpen(() => {
+const tap = useTapOpen((event) => {
   const id = pressedRow.value
   pressedRow.value = null
-  if (id != null) openDetail(id)
+  if (id != null) openDetail(id, event)
 })
 function onRowPointerDown(event: PointerEvent, id: number) {
   pressedRow.value = id
   tap.onPointerDown(event)
+}
+function onRowCardClick(event: MouseEvent, id: number) {
+  if (!props.selectionMode && !isTripleClick(event)) return
+  event.preventDefault()
+  event.stopPropagation()
+  toggleSelect(id)
+}
+function onRowCardPointerDown(event: PointerEvent) {
+  if (!props.selectionMode) return
+  event.stopPropagation()
+}
+function onMainClick(event: MouseEvent) {
+  if (props.selectionMode || isTripleClick(event)) return
+  tap.onClick(event)
 }
 function toggleDone(id: number) {
   if (isTasks.value) app.cycleTaskStatus(id)
@@ -299,13 +328,29 @@ function nestStyle(id: number) {
   }
 }
 function selectedStyle(id: number) {
-  if (!props.selectable || props.selectedId !== id) return {}
+  const detailSelected = props.selectable && props.selectedId === id
+  const bulkSelected = props.selectionMode && selectedSet.value.has(id)
+  if (!detailSelected && !bulkSelected) return {}
   // Border + tint rather than an outline: an outline cannot transition, so it
   // popped in; these two glide with the row's own transition.
   return {
     borderColor: c.value.accent,
     backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 8%, ' + c.value.card + ')',
+    boxShadow: 'inset 3px 0 0 ' + c.value.accent,
   }
+}
+function selectedBadgeStyle(id: number) {
+  return props.selectionMode && selectedSet.value.has(id)
+    ? pxify({
+        ...typeStep('2xs'),
+        color: c.value.accent,
+        padding: '1px 7px',
+        borderRadius: 'var(--radius-pill)',
+        border: '1px solid ' + c.value.accent,
+        background: 'color-mix(in srgb, ' + c.value.accent + ' 10%, transparent)',
+        flexShrink: 0,
+      })
+    : {}
 }
 function sourceStyle(id: number) {
   if (!isSource(props.collection, id)) return {}
@@ -317,6 +362,9 @@ function sourceStyle(id: number) {
   }
 }
 const root = computed(() => rootState(props.collection))
+function toggleSelect(id: number) {
+  emit('toggleSelect', id)
+}
 
 // --- styles -----------------------------------------------------------------
 const wrap = pxify({
@@ -444,15 +492,18 @@ const conflictBadge = computed(() =>
 const progressWrap = pxify({ padding: '4px 4px 0' })
 const addSubBtn = computed(() =>
   pxify({
-    ...typeStep('2xs'),
+    display: 'grid',
+    placeItems: 'center',
     flexShrink: 0,
-    padding: '2px 7px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px dashed ' + c.value.border,
+    width: 32,
+    height: 32,
+    padding: 0,
+    borderRadius: 'var(--radius-control)',
+    border: '1px solid transparent',
     background: 'transparent',
     color: c.value.dim,
     cursor: 'pointer',
-    whiteSpace: 'nowrap',
+    transition: 'background .2s ease, color .2s ease, border-color .2s ease',
   }),
 )
 const subForm = pxify({
@@ -527,6 +578,9 @@ const rootStripStyle = computed(() =>
           :data-tree-id="row.id"
           :data-tree-depth="row.depth"
           :data-tree-parent="row.parentId ?? ''"
+          :aria-selected="selectionMode ? selectedSet.has(row.id) : undefined"
+          @pointerdown.capture="onRowCardPointerDown"
+          @click.capture="onRowCardClick($event, row.id)"
         >
           <button
             v-if="hasKids(row.id)"
@@ -564,7 +618,7 @@ const rootStripStyle = computed(() =>
             :style="[s.taskMain, mainTight]"
             @pointerdown="onRowPointerDown($event, row.id)"
             @pointercancel="tap.onPointerCancel"
-            @click="tap.onClick"
+            @click="onMainClick"
           >
             <div :style="titleLine">
               <span :style="textStyle(row.id)"
@@ -588,6 +642,12 @@ const rootStripStyle = computed(() =>
                 <span :style="countChip" title="Subtasks done / total"
                   >☑ {{ progress(row.id).done }}/{{ progress(row.id).total }}</span
                 >
+                <span
+                  v-if="selectionMode && selectedSet.has(row.id)"
+                  :style="selectedBadgeStyle(row.id)"
+                >
+                  Selected
+                </span>
               </div>
             </div>
             <span v-if="desc(row.id)" :style="descStyle" :title="desc(row.id)">{{
@@ -605,12 +665,15 @@ const rootStripStyle = computed(() =>
           >
           <button
             type="button"
+            class="tree-row__quiet"
             :style="addSubBtn"
+            v-hover-style="s.toolBtnHover"
+            :aria-label="'Add a subtask to this ' + itemType()"
             :title="'Add a subtask to this ' + itemType()"
             @pointerdown.stop
             @click.stop="startAddSub(row.id)"
           >
-            ＋ Subtask
+            <Icon name="plus" size="xs" />
           </button>
           <RemindBell :collection="collection" :id="row.id" />
           <ShareGlobeButton
@@ -675,3 +738,13 @@ const rootStripStyle = computed(() =>
 
   <div :style="srOnly" role="status" aria-live="assertive">{{ liveMsg }}</div>
 </template>
+
+<style scoped>
+.tree-row__quiet {
+  opacity: 0.58;
+}
+.tree-row:hover .tree-row__quiet,
+.tree-row:focus-within .tree-row__quiet {
+  opacity: 1;
+}
+</style>

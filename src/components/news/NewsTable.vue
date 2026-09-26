@@ -41,6 +41,11 @@ const CATEGORY_ICON = {
   ai: IconAi,
   code: IconCode,
 } satisfies Record<NewsCategory, unknown>
+const CATEGORY_LABEL = {
+  forex: 'Forex',
+  ai: 'AI',
+  code: 'Code',
+} satisfies Record<NewsCategory, string>
 
 /** One dated divider per day, on the first row of it. */
 const firstOfDay = computed(() => {
@@ -69,6 +74,7 @@ function day(item: NewsItem): string {
       <thead>
         <tr>
           <th scope="col" class="ntable__rail"><span class="ui-sr-only">Category</span></th>
+          <th scope="col">Category</th>
           <th scope="col">Day</th>
           <th scope="col">IST</th>
           <th scope="col">Source</th>
@@ -83,17 +89,18 @@ function day(item: NewsItem): string {
           :class="[`is-${item.category}`, { 'is-dayStart': firstOfDay.has(item.id) }]"
         >
           <td class="ntable__rail" aria-hidden="true"></td>
+          <td class="ntable__category">
+            <span class="ntable__catPill">
+              <component :is="CATEGORY_ICON[item.category]" :size="14" />
+              {{ CATEGORY_LABEL[item.category] }}
+            </span>
+          </td>
           <td class="is-mono ntable__day">
             <span v-if="firstOfDay.has(item.id)">{{ dayLabel(day(item)) }}</span>
             <span v-else class="ui-sr-only">{{ day(item) }}</span>
           </td>
           <td class="is-mono ntable__time">{{ hhmmOn(IST, item.publishedAt) }}</td>
-          <td class="ntable__source">
-            <span class="ntable__with">
-              <component :is="CATEGORY_ICON[item.category]" :size="14" />
-              {{ item.source }}
-            </span>
-          </td>
+          <td class="ntable__source">{{ item.source }}</td>
           <!-- The whole row's point. New tab and `noopener`, because this is
                somebody else's page and it does not get a handle on ours. -->
           <td class="ntable__title">
@@ -196,14 +203,35 @@ function day(item: NewsItem): string {
 .ntable__tags {
   color: var(--text-secondary, var(--theme-dim));
 }
-.ntable__tags {
-  font-size: var(--text-xs);
+.ntable__category {
+  color: var(--text-secondary, var(--theme-dim));
 }
-.ntable__with {
+.ntable__catPill {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
-  min-width: 0;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in oklch, currentcolor 34%, transparent);
+  background: color-mix(in oklch, currentcolor 10%, transparent);
+  color: var(--text-secondary, var(--theme-dim));
+  font-size: var(--text-2xs);
+  line-height: var(--lh-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ntable tbody tr.is-forex .ntable__catPill {
+  color: var(--accent, var(--theme-accent));
+}
+.ntable tbody tr.is-ai .ntable__catPill {
+  color: var(--theme-info, var(--theme-accent));
+}
+.ntable tbody tr.is-code .ntable__catPill {
+  color: var(--text-muted, var(--theme-dim));
+}
+.ntable__tags {
+  font-size: var(--text-xs);
 }
 /* The one column allowed to be long. It wraps rather than truncating: a
    headline cut at 40 characters is a headline nobody can judge.

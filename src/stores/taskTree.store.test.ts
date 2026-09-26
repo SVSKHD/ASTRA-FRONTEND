@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
+import { warningEntries } from '@/services/warnings'
 import { SAMPLE_TASKS_JSON } from '@/utils/taskTransferHelp'
 import type { Task, Todo } from '@/types'
 
@@ -198,6 +199,129 @@ describe('convertTodoToTask', () => {
       rootId: root.id,
     })
     expect(app.todos).toEqual([])
+  })
+
+  it('bulk moves selected todo roots once when a child is also selected', () => {
+    const app = useAppStore()
+    app.todos = [
+      makeTodo(1, { text: 'Parent' }),
+      makeTodo(2, { text: 'Child', parentId: 1, depth: 1, rootId: 1 }),
+    ]
+
+    const created = app.convertTodosToTasks([1, 2])
+
+    expect(created).toHaveLength(1)
+    expect(app.tasks.map((task) => task.title).sort()).toEqual(['Child', 'Parent'])
+    const root = app.tasks.find((task) => task.title === 'Parent') as Task
+    expect(app.tasks.find((task) => task.title === 'Child')).toMatchObject({
+      parentId: root.id,
+      rootId: root.id,
+      depth: 1,
+    })
+    expect(app.todos).toEqual([])
+  })
+})
+
+describe('convertTaskToTodo', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('moves a task subtree into todos and keeps linked todo children under it', () => {
+    const app = useAppStore()
+    app.tasks = [
+      makeTask(1, {
+        title: 'Launch plan',
+        notes: 'Coordinate the launch.',
+        tag: 'ship',
+        deadline: '2026-10-02',
+        linked: [{ id: 9, collection: 'todos' }],
+      }),
+      makeTask(2, { title: 'Write copy', parentId: 1, depth: 1, rootId: 1, tag: 'ship' }),
+    ]
+    app.todos = [makeTodo(9, { text: 'Existing checklist', tag: 'ship' })]
+
+    const rootTodoId = app.convertTaskToTodo(1)
+
+    expect(rootTodoId).toBeTypeOf('number')
+    const root = app.todos.find((todo) => todo.id === rootTodoId) as Todo
+    const child = app.todos.find((todo) => todo.text === 'Write copy') as Todo
+    expect(root).toMatchObject({
+      text: 'Launch plan',
+      tag: 'ship',
+      parentId: null,
+      rootId: root.id,
+    })
+    expect(root.description).toContain('Coordinate the launch.')
+    expect(root.description).toContain('Due: 2026-10-02')
+    expect(child).toMatchObject({ parentId: root.id, depth: 1, rootId: root.id })
+    expect(app.todos.find((todo) => todo.id === 9)).toMatchObject({
+      parentId: root.id,
+      depth: 1,
+      rootId: root.id,
+    })
+    expect(app.tasks).toEqual([])
+  })
+
+  it('bulk moves selected task roots once when a subtask is also selected', () => {
+    const app = useAppStore()
+    app.tasks = [
+      makeTask(1, { title: 'Parent' }),
+      makeTask(2, { title: 'Child', parentId: 1, depth: 1, rootId: 1 }),
+    ]
+
+    const created = app.convertTasksToTodos([1, 2])
+
+    expect(created).toHaveLength(1)
+    expect(app.todos.map((todo) => todo.text).sort()).toEqual(['Child', 'Parent'])
+    const root = app.todos.find((todo) => todo.text === 'Parent') as Todo
+    expect(app.todos.find((todo) => todo.text === 'Child')).toMatchObject({
+      parentId: root.id,
+      rootId: root.id,
+      depth: 1,
+    })
+    expect(app.tasks).toEqual([])
+  })
+})
+
+describe('deleteManyWithProgress', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    warningEntries.splice(0)
+  })
+
+  it('deletes a selected todo tree once when a child is also selected', async () => {
+    const app = useAppStore()
+    app.todos = [
+      makeTodo(1, { text: 'Parent' }),
+      makeTodo(2, { text: 'Child', parentId: 1, depth: 1, rootId: 1 }),
+      makeTodo(3, { text: 'Keep' }),
+    ]
+
+    const deleted = await app.deleteManyWithProgress('todos', [1, 2])
+
+    expect(deleted).toBe(2)
+    expect(app.todos.map((todo) => todo.id)).toEqual([3])
+    expect(warningEntries.at(-1)).toMatchObject({
+      tone: 'success',
+      title: 'Deleted 2 todos',
+    })
+  })
+
+  it('includes same-collection linked task children under a selected task', async () => {
+    const app = useAppStore()
+    app.tasks = [
+      makeTask(1, { title: 'Parent', linked: [{ id: 2, collection: 'tasks' }] }),
+      makeTask(2, { title: 'Linked child', parents: [{ id: 1, collection: 'tasks' }] }),
+      makeTask(3, { title: 'Keep' }),
+    ]
+
+    const deleted = await app.deleteManyWithProgress('tasks', [1])
+
+    expect(deleted).toBe(2)
+    expect(app.tasks.map((task) => task.id)).toEqual([3])
+    expect(warningEntries.at(-1)).toMatchObject({
+      tone: 'success',
+      title: 'Deleted 2 tasks',
+    })
   })
 })
 

@@ -7,13 +7,14 @@
 // On desktop the selected todo's details show in the right-hand pane, which is
 // a column of this tab by default and a floating drawer over it on request —
 // one setting, three steps, cycled from the pane's own header (DetailPane).
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import {
   DANGER,
+  SUCCESS,
   WARNING,
   checkHalo,
   checkHaloDone,
@@ -39,6 +40,7 @@ import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
 import TodoDetail from '@/components/TodoDetail.vue'
 import DetailPane from '@/components/ui/DetailPane.vue'
+import Modal from '@/components/ui/Modal.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import TaskTransferPasteDialog from '@/components/TaskTransferPasteDialog.vue'
@@ -52,7 +54,7 @@ import {
   taskTransferFilename,
 } from '@/utils/taskTransfer'
 import TitleTagPill from '@/components/TitleTagPill.vue'
-import { buildIndex, descendantsOf, progressOf } from '@/utils/taskTree'
+import { buildIndex, childrenOf, descendantsOf, progressOf } from '@/utils/taskTree'
 import { emptyTagQueryMessage, matchesTagQuery } from '@/utils/tagFilter'
 import TagFilterInput from '@/components/TagFilterInput.vue'
 import { useAccordionState } from '@/composables/useAccordionState'
@@ -73,10 +75,12 @@ defineExpose({ focus: () => app.openCreate('todo') })
 
 const importFile = ref<HTMLInputElement | null>(null)
 const pasteDialogOpen = ref(false)
+const deleteConfirmOpen = ref(false)
+const bulkDeleting = ref(false)
 const transferMenu = computed(() => [
   { value: 'export-json', label: 'Export JSON', disabled: todos.value.length === 0 },
   { value: 'copy-url', label: 'Copy import URL', disabled: todos.value.length === 0 },
-  { value: 'paste-json', label: 'Paste JSON' },
+  { value: 'paste-json', label: 'Paste JSON/link' },
   { value: 'import-file', label: 'Import file' },
   { value: 'sample-json', label: 'Example JSON' },
 ])
@@ -210,6 +214,101 @@ const todoIndex = computed(() => buildIndex(todos.value))
 function subCount(id: number) {
   return progressOf(todoIndex.value, id, (x) => x.status === 'done')
 }
+const selectionMode = ref(false)
+const selectedMove = ref<Set<number>>(new Set())
+function treeIds(id: number): number[] {
+  return [id, ...childrenOf(todoIndex.value, id).flatMap((child) => treeIds(child.id))]
+}
+const moveSelectableIds = computed(() => {
+  const ids = [
+    ...carried.value.map((todo) => todo.id),
+    ...activeRootIds.value.flatMap(treeIds),
+    ...completedWindow.visible.value.map((todo) => todo.id),
+  ]
+  return [...new Set(ids)]
+})
+const moveSelectableSet = computed(() => new Set(moveSelectableIds.value))
+const selectedMoveIds = computed(() =>
+  [...selectedMove.value].filter((id) => moveSelectableSet.value.has(id)),
+)
+const selectedMoveCount = computed(() => selectedMoveIds.value.length)
+const selectedActionIds = computed(() => {
+  const ids = selectedMoveIds.value.flatMap(treeIds)
+  return [...new Set(ids)].filter((id) => moveSelectableSet.value.has(id))
+})
+const selectionVisible = computed(() => selectionMode.value || selectedMoveCount.value > 0)
+const allMoveSelected = computed(
+  () =>
+    moveSelectableIds.value.length > 0 &&
+    moveSelectableIds.value.every((id) => selectedMove.value.has(id)),
+)
+function isMoveSelected(id: number) {
+  return selectedMove.value.has(id)
+}
+function toggleMoveSelection(id: number) {
+  selectionMode.value = true
+  const next = new Set(selectedMove.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedMove.value = next
+}
+function clearMoveSelection() {
+  selectedMove.value = new Set()
+  selectionMode.value = false
+}
+function clearSelectedMoveSelection() {
+  selectedMove.value = new Set()
+  selectionMode.value = true
+}
+function selectAllMoveSelection() {
+  selectionMode.value = true
+  selectedMove.value = new Set(moveSelectableIds.value)
+}
+function toggleSelectionMode() {
+  selectionMode.value = !selectionMode.value
+  if (!selectionMode.value) selectedMove.value = new Set()
+}
+function moveSelectedToTasks() {
+  const created = app.convertTodosToTasks(selectedMoveIds.value)
+  clearMoveSelection()
+  selectedId.value = null
+  if (created.length) ui.setTab('tasks')
+}
+function completeSelectedTodos() {
+  const ids = selectedActionIds.value.filter((id) => {
+    const todo = todoIndex.value.byId.get(id)
+    return todo && todo.status !== 'done'
+  })
+  for (const id of ids) app.setTodoStatus(id, 'done')
+  if (ids.length) app.showToastMsg(`Completed ${ids.length} todo${ids.length === 1 ? '' : 's'}`)
+  clearMoveSelection()
+}
+function openDeleteConfirm() {
+  if (!selectedMoveCount.value || bulkDeleting.value) return
+  deleteConfirmOpen.value = true
+}
+function closeDeleteConfirm() {
+  if (!bulkDeleting.value) deleteConfirmOpen.value = false
+}
+async function confirmDeleteSelected() {
+  if (!selectedMoveCount.value || bulkDeleting.value) return
+  bulkDeleting.value = true
+  try {
+    const deleted = await app.deleteManyWithProgress('todos', selectedMoveIds.value)
+    if (deleted > 0) {
+      clearMoveSelection()
+      selectedId.value = null
+    }
+  } finally {
+    bulkDeleting.value = false
+    deleteConfirmOpen.value = false
+  }
+}
+watch(moveSelectableIds, (ids) => {
+  const allowed = new Set(ids)
+  const next = [...selectedMove.value].filter((id) => allowed.has(id))
+  if (next.length !== selectedMove.value.size) selectedMove.value = new Set(next)
+})
 const subCountStyle = computed(() =>
   pxify({
     ...typeStep('2xs'),
@@ -221,15 +320,54 @@ const subCountStyle = computed(() =>
     flexShrink: 0,
   }),
 )
-function openTodo(id: number) {
+function isTripleClick(event?: MouseEvent) {
+  return (event?.detail ?? 0) >= 3
+}
+function openTodo(id: number, event?: MouseEvent) {
+  if (isTripleClick(event)) {
+    event?.preventDefault()
+    toggleMoveSelection(id)
+    return
+  }
+  if (selectionVisible.value) {
+    toggleMoveSelection(id)
+    return
+  }
   if (isMobile.value) app.openEdit('todo', id)
   else selectedId.value = id
+}
+function shouldSelectRow(event?: MouseEvent) {
+  return selectionVisible.value || isTripleClick(event)
+}
+function onTodoRowClick(event: MouseEvent, id: number) {
+  if (!shouldSelectRow(event)) return
+  event.preventDefault()
+  event.stopPropagation()
+  toggleMoveSelection(id)
+}
+function onTodoRowPointerDown(event: PointerEvent) {
+  if (!selectionVisible.value) return
+  event.stopPropagation()
+}
+function onTodoMainClick(event: MouseEvent, id: number) {
+  if (shouldSelectRow(event)) return
+  openTodo(id, event)
 }
 function selectedRowStyle(id: number) {
   return !isMobile.value && selectedId.value === id
     ? {
         borderColor: c.value.accent,
         backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 8%, ' + c.value.card + ')',
+        boxShadow: 'inset 3px 0 0 ' + c.value.accent,
+      }
+    : {}
+}
+function moveSelectedRowStyle(id: number) {
+  return selectionVisible.value && isMoveSelected(id)
+    ? {
+        borderColor: c.value.accent,
+        backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 8%, ' + c.value.card + ')',
+        boxShadow: 'inset 3px 0 0 ' + c.value.accent,
       }
     : {}
 }
@@ -392,6 +530,58 @@ const linkExpandBtn = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
+const bulkBar = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--sp-3)',
+    flexWrap: 'wrap',
+    padding: '8px 10px',
+    borderRadius: 'var(--radius-card)',
+    border: '1px solid ' + c.value.accent,
+    background: 'color-mix(in oklch, ' + c.value.accent + ' 12%, transparent)',
+    ...typeStep('xs'),
+  }),
+)
+const bulkDeleteBtn = computed(() =>
+  pxify({
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    padding: '5px 10px',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid ' + DANGER,
+    background: 'color-mix(in oklch, ' + DANGER + ' 10%, transparent)',
+    color: DANGER,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  }),
+)
+const bulkCompleteBtn = computed(() =>
+  pxify({
+    ...typeStep('2xs'),
+    fontWeight: 'var(--weight-semibold)',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    padding: '5px 10px',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid ' + SUCCESS,
+    background: 'color-mix(in oklch, ' + SUCCESS + ' 12%, transparent)',
+    color: SUCCESS,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  }),
+)
+const disabledBtn = pxify({ opacity: 0.55, cursor: 'not-allowed' })
+const confirmCopy = computed(() =>
+  pxify({
+    ...typeStep('sm'),
+    lineHeight: 1.5,
+    color: c.value.dim,
+    margin: 0,
+  }),
+)
 const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value) : '')
 </script>
 
@@ -417,7 +607,64 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
       collection="todos"
       @close="pasteDialogOpen = false"
     />
-    <ProgressLine :done="split.stats.done" :total="split.stats.total" />
+    <Modal
+      :open="deleteConfirmOpen"
+      title="Delete selected todos"
+      size="sm"
+      @close="closeDeleteConfirm"
+    >
+      <p :style="confirmCopy">
+        Delete {{ selectedMoveCount }} selected todo{{ selectedMoveCount === 1 ? '' : 's' }}? Nested
+        subtodos under selected parents are included.
+      </p>
+      <template #footer>
+        <button
+          type="button"
+          :style="s.editBtn"
+          :disabled="bulkDeleting"
+          @click="closeDeleteConfirm"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          :style="[bulkDeleteBtn, bulkDeleting ? disabledBtn : null]"
+          :disabled="bulkDeleting"
+          @click="confirmDeleteSelected"
+        >
+          {{ bulkDeleting ? 'Deleting...' : allMoveSelected ? 'Delete all' : 'Delete selected' }}
+        </button>
+      </template>
+    </Modal>
+    <div v-if="selectionVisible" :style="bulkBar">
+      <span>
+        {{ selectedMoveCount ? selectedMoveCount + ' selected' : 'Select todos to move' }}
+      </span>
+      <button v-if="!allMoveSelected" :style="s.editBtn" @click="selectAllMoveSelection">
+        Select all
+      </button>
+      <button v-else :style="s.editBtn" @click="clearSelectedMoveSelection">Clear all</button>
+      <button v-if="selectedMoveCount" :style="bulkCompleteBtn" @click="completeSelectedTodos">
+        Completed
+      </button>
+      <button v-if="selectedMoveCount" :style="s.importBtn" @click="moveSelectedToTasks">
+        Move to Tasks
+      </button>
+      <button v-if="selectedMoveCount" :style="bulkDeleteBtn" @click="openDeleteConfirm">
+        {{ allMoveSelected ? 'Delete all' : 'Delete selected' }}
+      </button>
+      <button :style="s.editBtn" @click="toggleSelectionMode">Done</button>
+    </div>
+    <ProgressLine :done="split.stats.done" :total="split.stats.total">
+      <button
+        v-if="moveSelectableIds.length && !selectionVisible"
+        type="button"
+        :style="linkExpandBtn"
+        @click="toggleSelectionMode"
+      >
+        Select
+      </button>
+    </ProgressLine>
     <!-- data-own-keys: ↑/↓ scroll this list rather than switch tabs (globalKeys). -->
     <div :style="splitView ? splitLayout : leftColumn" data-own-keys>
       <div :style="leftColumn">
@@ -442,10 +689,18 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
           >
             <div v-for="t in carried" :key="t.id" :style="parentCardStyle">
               <div
-                :style="[rowStyle(), selectedRowStyle(t.id), nestHighlight(t.id)]"
+                :style="[
+                  rowStyle(),
+                  selectedRowStyle(t.id),
+                  moveSelectedRowStyle(t.id),
+                  nestHighlight(t.id),
+                ]"
                 v-hover-style="s.rowHover"
                 :data-nest-id="t.id"
                 data-nest-collection="todos"
+                :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
+                @pointerdown.capture="onTodoRowPointerDown"
+                @click.capture="onTodoRowClick($event, t.id)"
               >
                 <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
                 <span
@@ -454,10 +709,11 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   aria-label="Drag to nest"
                   title="Drag to nest"
                   @pointerdown="onGripDown($event, t)"
+                  @click.stop
                   ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
                 ></span>
-                <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)"></button>
-                <div :style="s.taskMain" @click="openTodo(t.id)">
+                <button :style="boxStyle(t)" @click.stop="app.toggleTodo(t.id)"></button>
+                <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
                   <span :style="textStyle(t)"
                     ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.text }}</span
                   >
@@ -476,7 +732,9 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                 </div>
                 <RemindBell collection="todos" :id="t.id" />
                 <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
-                <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
+                <button :style="s.del" @click.stop="app.deleteWithUndo('todos', 'todo', t.id)">
+                  ×
+                </button>
               </div>
               <div v-if="linksOpen(t)" :style="linkBody">
                 <LinkedAccordion
@@ -498,7 +756,10 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
             :root-ids="activeRootIds"
             :selectable="!isMobile"
             :selected-id="selectedId"
+            :selected-ids="selectedMoveIds"
+            :selection-mode="selectionVisible"
             @select="selectedId = $event"
+            @toggle-select="toggleMoveSelection"
           />
 
           <!-- 3. Completed section (collapsed) -->
@@ -512,8 +773,13 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
             @clear="app.archiveCompleted('todos')"
           >
             <template v-for="t in completedWindow.visible.value" :key="t.id">
-              <div :style="[rowStyle(true), selectedRowStyle(t.id)]">
-                <button :style="boxStyle(t)" @click="app.toggleTodo(t.id)">
+              <div
+                :style="[rowStyle(true), selectedRowStyle(t.id), moveSelectedRowStyle(t.id)]"
+                :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
+                @pointerdown.capture="onTodoRowPointerDown"
+                @click.capture="onTodoRowClick($event, t.id)"
+              >
+                <button :style="boxStyle(t)" @click.stop="app.toggleTodo(t.id)">
                   <Icon
                     v-if="t.done"
                     name="check"
@@ -521,7 +787,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                     :style="[checkIcon, { color: c.onAccent }]"
                   />
                 </button>
-                <div :style="s.taskMain" @click="openTodo(t.id)">
+                <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
                   <span :style="textStyle(t)"
                     ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.text }}</span
                   >
@@ -532,7 +798,9 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                     <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
                   </div>
                 </div>
-                <button :style="s.del" @click="app.deleteWithUndo('todos', 'todo', t.id)">×</button>
+                <button :style="s.del" @click.stop="app.deleteWithUndo('todos', 'todo', t.id)">
+                  ×
+                </button>
               </div>
               <div v-if="linksOpen(t)" :style="linkBody">
                 <LinkedAccordion

@@ -247,6 +247,7 @@ import {
   type TaskTransferItem,
 } from '@/utils/taskTransfer'
 import { buildSharedItemSnapshot, sharedTreeContains, type ShareTreeType } from '@/utils/shareTree'
+import { removeWarning, upsertWarning } from '@/services/warnings'
 
 function rel(days: number): string {
   const d = new Date()
@@ -783,7 +784,7 @@ export const useAppStore = defineStore('app', () => {
     if (cur) setTodoStatus(tid, cur.done ? 'pending' : 'done')
   }
 
-  function convertTodoToTask(todoId: number): number | null {
+  function convertTodoToTask(todoId: number, opts: { quiet?: boolean } = {}): number | null {
     const todoIndex = buildIndex(todos.value)
     const root = todoIndex.byId.get(todoId)
     if (!root) return null
@@ -889,7 +890,7 @@ export const useAppStore = defineStore('app', () => {
     for (const oldId of idMap.keys()) cleanupLinksForDelete({ id: oldId, collection: 'todos' })
     todos.value = todos.value.filter((todo) => !idMap.has(todo.id))
     reconcileNoteRefs()
-    showToastMsg(`Moved ${idMap.size} todo${idMap.size === 1 ? '' : 's'} to Tasks`)
+    if (!opts.quiet) showToastMsg(`Moved ${idMap.size} todo${idMap.size === 1 ? '' : 's'} to Tasks`)
     return idMap.get(todoId) ?? null
   }
 
@@ -1007,6 +1008,285 @@ export const useAppStore = defineStore('app', () => {
   // leaves the list without being destroyed.
   function archiveTask(tid: number) {
     patchTask(tid, { archivedAt: Date.now() })
+  }
+
+  function todoDescriptionFromTask(task: Task): string {
+    const base = task.notes.trim()
+    const details: string[] = []
+    if (task.deadline) details.push('Due: ' + task.deadline)
+    if (task.repo) details.push('Repo: ' + task.repo)
+    if (task.priority) details.push('Priority: ' + task.priority)
+    if (task.estimateMins != null) details.push('Estimate: ' + task.estimateMins + ' min')
+    if (task.github?.issueUrl) details.push('GitHub: ' + task.github.issueUrl)
+    if (!details.length) return base
+    const detailBlock = ['Task details:', ...details.map((line) => '- ' + line)].join('\n')
+    return base ? base + '\n\n' + detailBlock : detailBlock
+  }
+
+  function convertTaskToTodo(taskId: number, opts: { quiet?: boolean } = {}): number | null {
+    const taskIndex = buildIndex(tasks.value)
+    const root = taskIndex.byId.get(taskId)
+    if (!root) return null
+
+    const orderedTaskIds: number[] = []
+    const parentOf = new Map<number, number | null>()
+    const seenTasks = new Set<number>()
+    const collectTask = (id: number, parentId: number | null) => {
+      if (seenTasks.has(id)) return
+      const task = taskIndex.byId.get(id)
+      if (!task) return
+      seenTasks.add(id)
+      orderedTaskIds.push(id)
+      parentOf.set(id, parentId)
+      for (const child of taskIndex.children.get(id) ?? []) collectTask(child.id, id)
+      for (const child of task.linked) {
+        if (child.collection === 'tasks') collectTask(child.id, id)
+      }
+    }
+    collectTask(taskId, null)
+
+    const idMap = new Map<number, number>()
+    for (const oldId of orderedTaskIds) {
+      const task = taskIndex.byId.get(oldId)
+      if (!task) continue
+      const nextId = addTodo(task.title, task.tag, todoDescriptionFromTask(task), {
+        status: task.status,
+        done: task.done,
+        rolledOverAt: task.rolledOverAt,
+        rolloverCount: task.rolloverCount,
+        completedAt: task.completedAt,
+        reminderIds: [...task.reminderIds],
+        sourceRef: task.sourceRef,
+        goalIds: [...(task.goalIds ?? [])],
+        noteIds: [...(task.noteIds ?? [])],
+        graphRefs: [...(task.graphRefs ?? [])],
+        startAt: task.startAt,
+        endAt: task.endAt,
+        allDay: task.allDay,
+        durationMins: task.durationMins,
+      })
+      if (nextId != null) idMap.set(oldId, nextId)
+    }
+
+    const siblingPositions = new Map<number | null, number>()
+    for (const oldId of orderedTaskIds) {
+      const newId = idMap.get(oldId)
+      if (newId == null) continue
+      const oldParentId = parentOf.get(oldId) ?? null
+      const newParentId = oldParentId == null ? null : (idMap.get(oldParentId) ?? null)
+      if (newParentId == null) continue
+      const pos = siblingPositions.get(oldParentId) ?? 0
+      moveTodo(newId, newParentId, pos)
+      siblingPositions.set(oldParentId, pos + 1)
+    }
+
+    const movedTodoIds = new Set<number>()
+    for (const oldId of orderedTaskIds) {
+      const oldTask = taskIndex.byId.get(oldId)
+      const newTodoId = idMap.get(oldId)
+      if (!oldTask || newTodoId == null) continue
+      const newTodoRef: LinkRef = { id: newTodoId, collection: 'todos' }
+
+      for (const parent of oldTask.parents) {
+        if (parent.collection === 'tasks' && idMap.has(parent.id)) continue
+        linkItems(parent, newTodoRef)
+      }
+
+      let linkedTodoPosition = 0
+      for (const child of oldTask.linked) {
+        if (child.collection !== 'todos') continue
+        if (movedTodoIds.has(child.id)) continue
+        if (moveTodo(child.id, newTodoId, linkedTodoPosition)) {
+          movedTodoIds.add(child.id)
+          linkedTodoPosition++
+        }
+      }
+    }
+
+    reminders.value = reminders.value.map((reminder) => {
+      const source = reminder.sourceRef
+      if (source?.collection !== 'tasks') return reminder
+      const newId = idMap.get(source.id)
+      return newId == null
+        ? reminder
+        : { ...reminder, sourceRef: { collection: 'todos', id: newId } }
+    })
+    notes.value = notes.value.map((note) => ({
+      ...note,
+      attachedTo: (note.attachedTo ?? []).map((ref) => {
+        if (ref.type !== 'task') return ref
+        const newId = idMap.get(ref.id)
+        return newId == null ? ref : { type: 'todo', id: newId }
+      }),
+    }))
+    boardNodes.value = boardNodes.value.map((node) => {
+      if (node.linkedType !== 'task' || node.linkedId == null) return node
+      const newId = idMap.get(node.linkedId)
+      return newId == null ? node : { ...node, linkedType: 'todo', linkedId: newId }
+    })
+
+    for (const oldId of idMap.keys()) {
+      cleanupLinksForDelete({ id: oldId, collection: 'tasks' })
+      clearTimeout(ghPushTimers.get(oldId))
+      ghPushTimers.delete(oldId)
+    }
+    ghIssues.value = ghIssues.value.map((issue) =>
+      issue.linkedTaskId != null && idMap.has(issue.linkedTaskId)
+        ? { ...issue, linkedTaskId: null }
+        : issue,
+    )
+    tasks.value = tasks.value.filter((task) => !idMap.has(task.id))
+    reconcileNoteRefs()
+    if (!opts.quiet) showToastMsg(`Moved ${idMap.size} task${idMap.size === 1 ? '' : 's'} to Todos`)
+    return idMap.get(taskId) ?? null
+  }
+
+  function selectedTodoRoots(todoIds: number[]): number[] {
+    const index = buildIndex(todos.value)
+    const order = new Map(todos.value.map((todo, i) => [todo.id, i]))
+    const wanted = [...new Set(todoIds)].filter((id) => index.byId.has(id))
+    const contains = (rootId: number, targetId: number): boolean => {
+      const seen = new Set<number>()
+      const walk = (id: number): boolean => {
+        if (seen.has(id)) return false
+        seen.add(id)
+        if (id === targetId) return true
+        const todo = index.byId.get(id)
+        if (!todo) return false
+        return (
+          (index.children.get(id) ?? []).some((child) => walk(child.id)) ||
+          todo.linked.some((child) => child.collection === 'todos' && walk(child.id))
+        )
+      }
+      return walk(rootId)
+    }
+    return wanted
+      .filter((id) => !wanted.some((other) => other !== id && contains(other, id)))
+      .sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+  }
+
+  function selectedTaskRoots(taskIds: number[]): number[] {
+    const index = buildIndex(tasks.value)
+    const order = new Map(tasks.value.map((task, i) => [task.id, i]))
+    const wanted = [...new Set(taskIds)].filter((id) => index.byId.has(id))
+    const contains = (rootId: number, targetId: number): boolean => {
+      const seen = new Set<number>()
+      const walk = (id: number): boolean => {
+        if (seen.has(id)) return false
+        seen.add(id)
+        if (id === targetId) return true
+        const task = index.byId.get(id)
+        if (!task) return false
+        return (
+          (index.children.get(id) ?? []).some((child) => walk(child.id)) ||
+          task.linked.some((child) => child.collection === 'tasks' && walk(child.id))
+        )
+      }
+      return walk(rootId)
+    }
+    return wanted
+      .filter((id) => !wanted.some((other) => other !== id && contains(other, id)))
+      .sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+  }
+
+  function convertTodosToTasks(todoIds: number[]): number[] {
+    const roots = selectedTodoRoots(todoIds)
+    const created: number[] = []
+    for (const todoId of roots) {
+      const taskId = convertTodoToTask(todoId, { quiet: true })
+      if (taskId != null) created.push(taskId)
+    }
+    if (created.length) {
+      showToastMsg(`Moved ${roots.length} todo tree${roots.length === 1 ? '' : 's'} to Tasks`)
+    }
+    return created
+  }
+
+  function convertTasksToTodos(taskIds: number[]): number[] {
+    const roots = selectedTaskRoots(taskIds)
+    const created: number[] = []
+    for (const taskId of roots) {
+      const todoId = convertTaskToTodo(taskId, { quiet: true })
+      if (todoId != null) created.push(todoId)
+    }
+    if (created.length) {
+      showToastMsg(`Moved ${roots.length} task tree${roots.length === 1 ? '' : 's'} to Todos`)
+    }
+    return created
+  }
+
+  function deleteTreeIds(collection: LinkCollection, rootIds: number[]): number[] {
+    const collect = <T extends Todo | Task>(list: T[]): number[] => {
+      const index = buildIndex(list)
+      const seen = new Set<number>()
+      const ordered: number[] = []
+      const walk = (id: number) => {
+        if (seen.has(id)) return
+        const item = index.byId.get(id)
+        if (!item) return
+        seen.add(id)
+        ordered.push(id)
+        for (const child of index.children.get(id) ?? []) walk(child.id)
+        for (const child of item.linked) {
+          if (child.collection === collection) walk(child.id)
+        }
+      }
+      for (const id of rootIds) walk(id)
+      return ordered
+    }
+    return collection === 'todos' ? collect(todos.value) : collect(tasks.value)
+  }
+
+  function nextProgressFrame(): Promise<void> {
+    return new Promise((resolve) => {
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => resolve())
+        return
+      }
+      setTimeout(resolve, 0)
+    })
+  }
+
+  async function deleteManyWithProgress(collection: LinkCollection, itemIds: number[]) {
+    const roots = collection === 'todos' ? selectedTodoRoots(itemIds) : selectedTaskRoots(itemIds)
+    const idsToDelete = deleteTreeIds(collection, roots)
+    if (!idsToDelete.length) return 0
+
+    const type: ItemType = collection === 'todos' ? 'todo' : 'task'
+    const singular = type
+    const plural = type + 's'
+    const warningId = `bulk-delete-${collection}`
+    const dismissProgress = () => removeWarning(warningId)
+    const writeProgress = (tone: 'info' | 'success', title: string, message: string) =>
+      upsertWarning({
+        id: warningId,
+        tone,
+        title,
+        message,
+        dismissible: tone === 'success',
+        dismiss: dismissProgress,
+      })
+
+    writeProgress('info', `Deleting ${plural}`, `Deleting 0/${idsToDelete.length} ${plural}...`)
+    await nextProgressFrame()
+
+    let deleted = 0
+    for (const id of idsToDelete) {
+      if (deleteWithUndo(collection, type, id, { toast: false })) deleted++
+      if (deleted === idsToDelete.length || deleted % 5 === 0) {
+        writeProgress(
+          'info',
+          `Deleting ${plural}`,
+          `Deleting ${deleted}/${idsToDelete.length} ${plural}...`,
+        )
+        await nextProgressFrame()
+      }
+    }
+
+    const noun = deleted === 1 ? singular : plural
+    writeProgress('success', `Deleted ${deleted} ${noun}`, `Finished deleting ${deleted} ${noun}.`)
+    showToastMsg(`Deleted ${deleted} ${noun}`)
+    return deleted
   }
 
   interface TaskTransferImportResult {
@@ -3795,11 +4075,16 @@ export const useAppStore = defineStore('app', () => {
     stocks: () => ({ get: () => stocks.value, set: (v) => (stocks.value = v as Stock[]) }),
   }
 
-  function deleteWithUndo(listKey: ListKey, type: ItemType, itemId: number) {
+  function deleteWithUndo(
+    listKey: ListKey,
+    type: ItemType,
+    itemId: number,
+    opts: { toast?: boolean } = {},
+  ): boolean {
     const accessor = LIST_MAP[listKey]()
     const list = accessor.get() as { id: number; [k: string]: unknown }[]
     const idx = list.findIndex((x) => x.id === itemId)
-    if (idx < 0) return
+    if (idx < 0) return false
     const item = list[idx]
     const label =
       type === 'todo'
@@ -3865,14 +4150,17 @@ export const useAppStore = defineStore('app', () => {
     // pointing at nothing. Undo puts both back, because the restored item
     // carries its own half of the pair and the rebuild reads it (section 21a).
     if (type === 'note' || isNoteOwnerType(type)) reconcileNoteRefs()
-    // A delete undo runs through undoDelete, not a stored handler; clear any
-    // handler a prior rollover toast left set.
-    toastUndoHandler = null
-    toast.value = { message: 'Deleted "' + short + '"', undo: true, listKey, item, idx }
-    clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => {
-      if (toast.value) toast.value = null
-    }, 5000)
+    if (opts.toast !== false) {
+      // A delete undo runs through undoDelete, not a stored handler; clear any
+      // handler a prior rollover toast left set.
+      toastUndoHandler = null
+      toast.value = { message: 'Deleted "' + short + '"', undo: true, listKey, item, idx }
+      clearTimeout(toastTimer)
+      toastTimer = setTimeout(() => {
+        if (toast.value) toast.value = null
+      }, 5000)
+    }
+    return true
   }
   // The lists whose items can be either end of a note attachment.
   const NOTE_LIST_KEYS = new Set<ListKey>(['notes', 'tasks', 'todos', 'ideas', 'stocks', 'trips'])
@@ -7315,6 +7603,7 @@ export const useAppStore = defineStore('app', () => {
     setTodoStatus,
     cycleTodoStatus,
     convertTodoToTask,
+    convertTodosToTasks,
     addTask,
     toggleTask,
     setTaskStatus,
@@ -7323,6 +7612,8 @@ export const useAppStore = defineStore('app', () => {
     patchTask,
     duplicateTask,
     archiveTask,
+    convertTaskToTodo,
+    convertTasksToTodos,
     importTaskTransferJson,
     importTaskTransferUrl,
     convertTaskToGoalPoint,
@@ -7465,6 +7756,7 @@ export const useAppStore = defineStore('app', () => {
     setTxnFilters,
     clearTxnFilters,
     deleteWithUndo,
+    deleteManyWithProgress,
     undoDelete,
     showToastMsg,
     showToastWithUndo,

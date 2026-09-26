@@ -14,16 +14,27 @@ const labelStyle = computed(() =>
   pxify({
     ...typeStep('xs'),
     color: c.value.dim,
-    marginBottom: 6,
     display: 'block',
     fontWeight: 'var(--weight-semibold)',
+  }),
+)
+const headStyle = computed(() =>
+  pxify({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 'var(--sp-2)',
+    marginBottom: 6,
   }),
 )
 </script>
 
 <template>
   <div v-if="total > 0">
-    <span :style="labelStyle">{{ done }} of {{ total }} done · {{ pct }}%</span>
+    <div :style="headStyle">
+      <span :style="labelStyle">{{ done }} of {{ total }} done · {{ pct }}%</span>
+      <slot />
+    </div>
     <ProgressBar :value="done" :max="total" />
   </div>
 </template>

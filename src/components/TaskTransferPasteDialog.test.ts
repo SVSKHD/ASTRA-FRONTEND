@@ -48,6 +48,21 @@ describe('TaskTransferPasteDialog', () => {
     expect(wrapper.text()).toContain('3 tasks ready to import')
   })
 
+  it('imports a pasted task link from the same dialog', async () => {
+    const { wrapper, app } = mountDialog('tasks')
+    await wrapper
+      .find('textarea')
+      .setValue('/?tab=tasks&title=Real%20Lead%20Backend&description=Create%20lead%20API')
+
+    expect(wrapper.text()).toContain('1 task ready to import')
+    await buttonNamed(wrapper, 'Import 1 task')!.trigger('click')
+
+    expect(app.tasks[0]).toMatchObject({
+      title: 'Real Lead Backend',
+      notes: 'Create lead API',
+    })
+  })
+
   it('shows invalid JSON before import', async () => {
     const { wrapper, app } = mountDialog('tasks')
     const toast = vi.spyOn(app, 'showToastMsg')

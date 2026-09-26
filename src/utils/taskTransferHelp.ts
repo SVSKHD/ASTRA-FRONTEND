@@ -9,6 +9,12 @@ export interface TaskTransferSchemaField {
   notes: string
 }
 
+export interface TaskTransferLinkParam {
+  param: string
+  example: string
+  notes: string
+}
+
 export const TASK_TRANSFER_SCHEMA_FIELDS: TaskTransferSchemaField[] = [
   {
     field: 'collection',
@@ -116,6 +122,34 @@ export const TASK_TRANSFER_SCHEMA_FIELDS: TaskTransferSchemaField[] = [
   },
 ]
 
+export const TASK_TRANSFER_LINK_PARAMS: TaskTransferLinkParam[] = [
+  {
+    param: 'tab',
+    example: 'tasks',
+    notes: 'Use tasks/task or todos/todo to choose the target list.',
+  },
+  {
+    param: 'title',
+    example: 'Real Lead Backend',
+    notes: 'Creates one item. `text` works too.',
+  },
+  {
+    param: 'description',
+    example: 'Create the lead API routes.',
+    notes: 'Becomes task notes or todo description. `notes` works too.',
+  },
+  {
+    param: 'items',
+    example: 'One|Two|Three',
+    notes: 'Creates many items from a pipe, comma, semicolon, newline list, or JSON array.',
+  },
+  {
+    param: 'json',
+    example: '[{"title":"Parent"},{"title":"Child","parentSourceId":"Parent"}]',
+    notes: 'Accepts the same JSON item shape as the paste helper.',
+  },
+]
+
 export const SAMPLE_TASKS_JSON = `{
   "collection": "tasks",
   "project": "Aquakart Growth & Sales Conversion",
@@ -184,6 +218,22 @@ export const SAMPLE_TODOS_JSON = `{
     }
   ]
 }`
+
+export function sampleTaskTransferUrl(collection: TaskTransferCollection): string {
+  const params = new URLSearchParams()
+  params.set('tab', collection === 'todos' ? 'todo' : 'tasks')
+  params.set('title', collection === 'todos' ? 'Confirm launch owner' : 'Real Lead Backend')
+  params.set(
+    'description',
+    collection === 'todos'
+      ? 'Pick the person responsible for the release checklist.'
+      : 'Create the Lead model and API routes.',
+  )
+  params.set('tag', collection === 'todos' ? 'Setup' : 'CRM')
+  params.set('status', 'pending')
+  if (collection === 'tasks') params.set('deadline', '2026-10-02')
+  return '/?' + params.toString()
+}
 
 export function sampleTaskTransferJson(collection: TaskTransferCollection): string {
   return collection === 'todos' ? SAMPLE_TODOS_JSON : SAMPLE_TASKS_JSON

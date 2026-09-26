@@ -8,8 +8,10 @@ import Button from '@/components/ui/Button.vue'
 import { downloadText } from '@/utils/noteExport'
 import type { TaskTransferCollection } from '@/utils/taskTransfer'
 import {
+  TASK_TRANSFER_LINK_PARAMS,
   TASK_TRANSFER_SCHEMA_FIELDS,
   sampleTaskTransferJson,
+  sampleTaskTransferUrl,
   taskTransferSampleFilename,
   type TaskTransferSchemaField,
 } from '@/utils/taskTransferHelp'
@@ -27,8 +29,9 @@ const collection = computed<TaskTransferCollection>({
   set: (value) => app.setTaskTransferHelpCollection(value),
 })
 const sample = computed(() => sampleTaskTransferJson(collection.value))
+const linkSample = computed(() => sampleTaskTransferUrl(collection.value))
 const noun = computed(() => (collection.value === 'todos' ? 'todo' : 'task'))
-const copied = ref(false)
+const copied = ref<'json' | 'link' | null>(null)
 
 const scopes: { key: TaskTransferSchemaField['scope']; label: string }[] = [
   { key: 'document', label: 'The document' },
@@ -40,8 +43,22 @@ const fieldsIn = (scope: TaskTransferSchemaField['scope']) =>
 async function copySample() {
   try {
     await navigator.clipboard?.writeText(sample.value)
-    copied.value = true
-    setTimeout(() => (copied.value = false), 1500)
+    copied.value = 'json'
+    setTimeout(() => {
+      if (copied.value === 'json') copied.value = null
+    }, 1500)
+  } catch {
+    // The sample is still visible and selectable.
+  }
+}
+
+async function copyLinkSample() {
+  try {
+    await navigator.clipboard?.writeText(linkSample.value)
+    copied.value = 'link'
+    setTimeout(() => {
+      if (copied.value === 'link') copied.value = null
+    }, 1500)
   } catch {
     // The sample is still visible and selectable.
   }
@@ -79,11 +96,43 @@ function downloadSample() {
         <div class="thelper__blockhead">
           <h3 class="thelper__blocktitle">Sample JSON</h3>
           <Button variant="ghost" size="sm" @click="copySample">
-            {{ copied ? 'Copied' : 'Copy sample' }}
+            {{ copied === 'json' ? 'Copied' : 'Copy sample' }}
           </Button>
           <Button variant="primary" size="sm" @click="downloadSample">Download sample</Button>
         </div>
         <pre class="thelper__sample"><code>{{ sample }}</code></pre>
+      </section>
+
+      <section class="thelper__block">
+        <div class="thelper__blockhead">
+          <h3 class="thelper__blocktitle">Link Paste Format</h3>
+          <Button variant="ghost" size="sm" @click="copyLinkSample">
+            {{ copied === 'link' ? 'Copied' : 'Copy link sample' }}
+          </Button>
+        </div>
+        <pre class="thelper__sample"><code>{{ linkSample }}</code></pre>
+        <div class="thelper__tablewrap">
+          <table class="thelper__table">
+            <thead>
+              <tr>
+                <th scope="col">Param</th>
+                <th scope="col">Example</th>
+                <th scope="col">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="param in TASK_TRANSFER_LINK_PARAMS" :key="param.param">
+                <th scope="row">
+                  <code>{{ param.param }}</code>
+                </th>
+                <td>
+                  <code>{{ param.example }}</code>
+                </td>
+                <td>{{ param.notes }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section class="thelper__block">

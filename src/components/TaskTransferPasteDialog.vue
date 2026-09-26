@@ -4,8 +4,13 @@ import { useAppStore } from '@/stores/app'
 import Modal from '@/components/ui/Modal.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import Button from '@/components/ui/Button.vue'
-import { parseTaskTransferJson, type TaskTransferCollection } from '@/utils/taskTransfer'
-import { sampleTaskTransferJson } from '@/utils/taskTransferHelp'
+import {
+  hasTaskTransferUrlPayload,
+  parseTaskTransferJson,
+  parseTaskTransferUrl,
+  type TaskTransferCollection,
+} from '@/utils/taskTransfer'
+import { sampleTaskTransferJson, sampleTaskTransferUrl } from '@/utils/taskTransferHelp'
 
 const props = defineProps<{ open: boolean; collection: TaskTransferCollection }>()
 const emit = defineEmits<{ close: [] }>()
@@ -15,17 +20,27 @@ const raw = ref('')
 const area = ref<InstanceType<typeof TextArea> | null>(null)
 
 const targetNoun = computed(() => (props.collection === 'todos' ? 'todo' : 'task'))
-const title = computed(() => `Paste ${targetNoun.value} JSON`)
+const title = computed(() => `Paste ${targetNoun.value} JSON or link`)
 const placeholder = computed(
-  () => `Paste ${props.collection === 'todos' ? 'todo' : 'task'} JSON here, or use Load sample.`,
+  () =>
+    `Paste ${props.collection === 'todos' ? 'todo' : 'task'} JSON or an import link here, or use Load sample.`,
 )
 const hasText = computed(() => raw.value.trim().length > 0)
-const parsed = computed(() => parseTaskTransferJson(raw.value, props.collection))
+const inputKind = computed(() =>
+  hasText.value && hasTaskTransferUrlPayload(raw.value) ? 'link' : 'json',
+)
+const parsed = computed(() =>
+  inputKind.value === 'link'
+    ? parseTaskTransferUrl(raw.value)
+    : parseTaskTransferJson(raw.value, props.collection),
+)
 const parsedNoun = computed(() => (parsed.value.collection === 'todos' ? 'todo' : 'task'))
 const itemCount = computed(() => parsed.value.items.length)
 const parseError = computed(() =>
   hasText.value && parsed.value.parseError
-    ? `Could not parse JSON: ${parsed.value.parseError}`
+    ? `Could not parse ${inputKind.value === 'link' ? 'link payload' : 'JSON'}: ${
+        parsed.value.parseError
+      }`
     : '',
 )
 const canImport = computed(() => hasText.value && !parseError.value && itemCount.value > 0)
@@ -35,9 +50,9 @@ const statusClass = computed(() => {
   return ''
 })
 const statusText = computed(() => {
-  if (!hasText.value) return 'Paste a JSON document or array, then import it here.'
-  if (parseError.value) return 'Fix the JSON above before importing.'
-  if (itemCount.value === 0) return `JSON parsed, but no ${parsedNoun.value} items were found.`
+  if (!hasText.value) return 'Paste a JSON document, array, import URL, or query link.'
+  if (parseError.value) return 'Fix the pasted input before importing.'
+  if (itemCount.value === 0) return `Input parsed, but no ${parsedNoun.value} items were found.`
   return `${itemCount.value} ${parsedNoun.value}${itemCount.value === 1 ? '' : 's'} ready to import.`
 })
 const importLabel = computed(() =>
@@ -65,6 +80,11 @@ function loadSample() {
   void nextTick(() => area.value?.focus())
 }
 
+function loadLinkSample() {
+  raw.value = sampleTaskTransferUrl(props.collection)
+  void nextTick(() => area.value?.focus())
+}
+
 async function pasteClipboard() {
   try {
     const text = await navigator.clipboard?.readText()
@@ -86,9 +106,12 @@ function importNow() {
     else app.showToastMsg(`No ${parsedNoun.value} items found in that JSON`)
     return
   }
-  const result = app.importTaskTransferJson(raw.value, props.collection)
+  const result =
+    inputKind.value === 'link'
+      ? app.importTaskTransferUrl(raw.value)
+      : app.importTaskTransferJson(raw.value, props.collection)
   if (result.error) {
-    app.showToastMsg('Could not import JSON: ' + result.error)
+    app.showToastMsg('Could not import: ' + result.error)
     return
   }
   if (result.count === 0) {
@@ -109,17 +132,18 @@ function importNow() {
   <Modal :open="open" :title="title" size="lg" @close="close">
     <div class="tpaste">
       <p class="tpaste__lede">
-        Paste exported JSON, an AI-made list, or the sample shape from the helper. A plain array
-        also works.
+        Paste exported JSON, an AI-made list, an import URL, or the sample shape from the helper. A
+        plain array also works.
       </p>
       <div class="tpaste__tools">
         <Button variant="secondary" size="sm" @click="pasteClipboard">Paste from clipboard</Button>
         <Button variant="ghost" size="sm" @click="loadSample">Load sample</Button>
+        <Button variant="ghost" size="sm" @click="loadLinkSample">Load link sample</Button>
       </div>
       <TextArea
         ref="area"
         v-model="raw"
-        :label="`${targetNoun} JSON`"
+        :label="`${targetNoun} JSON or link`"
         :placeholder="placeholder"
         :error="parseError"
         :rows="12"

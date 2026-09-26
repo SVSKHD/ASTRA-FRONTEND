@@ -7,6 +7,7 @@ withDefaults(
   defineProps<{
     modelValue: boolean
     label?: string
+    ariaLabel?: string
     disabled?: boolean
     indeterminate?: boolean
   }>(),
@@ -25,6 +26,7 @@ const uid = useId()
       :checked="modelValue"
       :disabled="disabled"
       :indeterminate="indeterminate"
+      :aria-label="ariaLabel"
       @change="$emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
     />
     <span class="ui-check__box" aria-hidden="true">

@@ -69,12 +69,12 @@ function makeGoal(id: number, over: Partial<Goal> = {}): Goal {
 }
 
 // A tap: pointer down and up in the same place, a moment apart.
-async function tap(wrapper: { element: Element }) {
+async function tap(wrapper: { element: Element }, detail = 1) {
   wrapper.element.dispatchEvent(
     new MouseEvent('pointerdown', { bubbles: true, clientX: 10, clientY: 10 }),
   )
   wrapper.element.dispatchEvent(
-    new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 10 }),
+    new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 10, detail }),
   )
   await Promise.resolve()
 }
@@ -82,7 +82,10 @@ async function tap(wrapper: { element: Element }) {
 describe('a task row (acceptance 85)', () => {
   let app: ReturnType<typeof useAppStore>
 
-  function mountRow(tasks: Task[] = [makeTask(1)]) {
+  function mountRow(
+    tasks: Task[] = [makeTask(1)],
+    props: Partial<InstanceType<typeof TreeList>['$props']> = {},
+  ) {
     setActivePinia(createPinia())
     app = useAppStore()
     app.tasks = tasks
@@ -90,6 +93,7 @@ describe('a task row (acceptance 85)', () => {
       props: {
         collection: 'tasks',
         rootIds: tasks.filter((t) => t.parentId == null).map((t) => t.id),
+        ...props,
       },
       attachTo: document.body,
     })
@@ -101,6 +105,20 @@ describe('a task row (acceptance 85)', () => {
     const wrapper = mountRow()
     await tap(wrapper.find('.tree-row > div'))
     expect(app.detailFrame).toEqual({ kind: 'task', id: 1 })
+  })
+
+  it('triple-clicking the title area toggles selection instead of opening the dialog', async () => {
+    const wrapper = mountRow()
+    await tap(wrapper.find('.tree-row > div'), 3)
+    expect(wrapper.emitted('toggleSelect')).toEqual([[1]])
+    expect(app.detailOpen).toBe(false)
+  })
+
+  it('in selection mode, clicking the row toggles that row selected', async () => {
+    const wrapper = mountRow([makeTask(1)], { selectionMode: true })
+    await tap(wrapper.find('.tree-row'))
+    expect(wrapper.emitted('toggleSelect')).toEqual([[1]])
+    expect(app.detailOpen).toBe(false)
   })
 
   it('does not open when the status control is clicked — it advances the status', async () => {

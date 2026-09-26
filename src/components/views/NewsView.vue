@@ -56,6 +56,18 @@ const counts = computed<Record<string, number>>(() => {
   for (const item of news.items.value) out[item.category] = (out[item.category] ?? 0) + 1
   return out
 })
+const categoryStats = computed(() =>
+  CATEGORIES.map((category) => {
+    const active = chosen.value.includes(category.key)
+    const items = news.items.value.filter((item) => item.category === category.key)
+    return {
+      ...category,
+      active,
+      count: items.length,
+      sources: new Set(items.map((item) => item.source)).size,
+    }
+  }),
+)
 
 // A reading list: there is nothing here to create, so ⌘K and "/n" do
 // nothing rather than something surprising.
@@ -95,6 +107,34 @@ defineExpose({ focus: () => {} })
         economic calendar.
       </p>
 
+      <section class="nv__categories" aria-label="News categories">
+        <button
+          v-for="category in categoryStats"
+          :key="category.key"
+          type="button"
+          class="nv__category"
+          :class="[`is-${category.key}`, { 'is-active': category.active }]"
+          :aria-pressed="category.active"
+          @click="toggle(category.key)"
+        >
+          <span class="nv__categoryIcon" aria-hidden="true">
+            <component :is="category.icon" :size="16" />
+          </span>
+          <span class="nv__categoryCopy">
+            <strong>{{ category.label }}</strong>
+            <span>
+              {{
+                category.active
+                  ? category.count
+                    ? `${countOf(category.count, 'headline')} · ${countOf(category.sources, 'source')}`
+                    : 'No headlines in this pull'
+                  : 'Hidden'
+              }}
+            </span>
+          </span>
+        </button>
+      </section>
+
       <FeedHealthPanel v-if="showHealth" />
 
       <!-- Refreshing, not loading: the items on screen stay while the new
@@ -120,6 +160,64 @@ defineExpose({ focus: () => {} })
   line-height: var(--lh-xs);
   color: var(--text-secondary, var(--theme-dim));
 }
+.nv__categories {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+.nv__category {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--layer-raised-border);
+  border-radius: var(--radius-card);
+  background: var(--layer-raised-bg);
+  color: var(--text-primary, var(--theme-text));
+  text-align: left;
+  cursor: pointer;
+}
+.nv__category:not(.is-active) {
+  opacity: 0.58;
+}
+.nv__categoryIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--text-secondary, var(--theme-dim));
+  background: color-mix(in oklch, currentcolor 14%, transparent);
+  border: 1px solid color-mix(in oklch, currentcolor 35%, transparent);
+}
+.nv__category.is-forex .nv__categoryIcon {
+  color: var(--accent, var(--theme-accent));
+}
+.nv__category.is-ai .nv__categoryIcon {
+  color: var(--theme-info, var(--theme-accent));
+}
+.nv__category.is-code .nv__categoryIcon {
+  color: var(--text-muted, var(--theme-dim));
+}
+.nv__categoryCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.nv__categoryCopy strong {
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+}
+.nv__categoryCopy span {
+  min-width: 0;
+  color: var(--text-secondary, var(--theme-dim));
+  font-size: var(--text-2xs);
+  line-height: var(--lh-2xs);
+  overflow-wrap: anywhere;
+}
 /* The count rides inside the filter it belongs to rather than beside it: two
    numbers with a gap between them read as two controls. */
 .nv__count {
@@ -127,5 +225,10 @@ defineExpose({ focus: () => {} })
   font-variant-numeric: tabular-nums;
   font-size: var(--text-2xs);
   opacity: 0.75;
+}
+@media (max-width: 760px) {
+  .nv__categories {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

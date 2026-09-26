@@ -7,6 +7,7 @@
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, fmtDay, useDetailStyles } from '@/composables/useDetailStyles'
 import { buildIndex, childrenOf, ancestorsOf, descendantsOf } from '@/utils/taskTree'
@@ -41,6 +42,7 @@ const props = defineProps<{ taskId: number | null }>()
 const emit = defineEmits<{ select: [id: number | null] }>()
 
 const app = useAppStore()
+const ui = useUiStore()
 const { tasks } = storeToRefs(app)
 const {
   c,
@@ -151,6 +153,16 @@ function removeTask(id: number) {
   app.deleteWithUndo('tasks', 'task', id)
   if (id === props.taskId) emit('select', null)
 }
+
+function moveTaskToTodos() {
+  const current = task.value
+  if (!current) return
+  const todoId = app.convertTaskToTodo(current.id)
+  if (todoId == null) return
+  emit('select', null)
+  ui.setTab('todo')
+  app.openEdit('todo', todoId)
+}
 </script>
 
 <template>
@@ -228,6 +240,7 @@ function removeTask(id: number) {
               <PaneToolbar :style="{ marginLeft: 'auto' }">
                 <RemindBell collection="tasks" :id="task.id" />
                 <PaneButton icon="share" label="Share" @click="app.share('task', task)" />
+                <PaneButton icon="refresh-cw" label="Move to todos" @click="moveTaskToTodos" />
                 <MoveToDeadlineButton
                   type="task"
                   :item-id="task.id"
