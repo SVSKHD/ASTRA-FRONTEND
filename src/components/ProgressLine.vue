@@ -12,10 +12,11 @@ const { c } = useStyles()
 const pct = computed(() => (props.total ? Math.round((props.done / props.total) * 100) : 0))
 const labelStyle = computed(() =>
   pxify({
-    ...typeStep('xs'),
-    color: c.value.dim,
+    ...typeStep('sm'),
+    color: c.value.text,
     display: 'block',
     fontWeight: 'var(--weight-semibold)',
+    fontVariantNumeric: 'tabular-nums',
   }),
 )
 const headStyle = computed(() =>

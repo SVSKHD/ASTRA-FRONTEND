@@ -110,7 +110,9 @@ function hasKids(id: number) {
 const collapsed = computed(() => {
   const set = new Set<number>()
   for (const it of list.value)
-    if (hasKids(it.id) && (props.swipeRows || !expanded(it.id))) set.add(it.id)
+    // A todo's subtasks are read in the details pane and in Next up, never
+    // unfolded in the list (the Todo v2 row has no chevron). Tasks still fold.
+    if (hasKids(it.id) && (props.swipeRows || !isTasks.value || !expanded(it.id))) set.add(it.id)
   return set
 })
 
@@ -466,8 +468,14 @@ function nodeWrap(depth: number) {
   return pxify({ paddingLeft: depth * INDENT_PX, display: 'flex', flexDirection: 'column' })
 }
 const barWrap = pxify({ position: 'relative' })
+// A todo row takes the sheet's metrics — 12/12/12/14 padding, 12px gap,
+// 14px radius — where a task row keeps the compact list card.
 const rowStyle = computed(() =>
-  merge(rowBase(c.value), { cursor: 'pointer', position: 'relative' }),
+  merge(
+    rowBase(c.value),
+    { cursor: 'pointer', position: 'relative' },
+    isTasks.value ? {} : { padding: '12px 12px 12px 14px', gap: 12, borderRadius: 14 },
+  ),
 )
 function textStyle(id: number) {
   // Todos draw their own strike (the animated line in the stylesheet); the
@@ -699,7 +707,7 @@ const rootStripStyle = computed(() =>
           @pointerup="swUp"
           @pointercancel="swUp"
         >
-          <template v-if="swipeRows"></template>
+          <template v-if="swipeRows || !isTasks"></template>
           <button
             v-else-if="hasKids(row.id)"
             type="button"
@@ -865,7 +873,7 @@ const rootStripStyle = computed(() =>
         <button type="submit" :style="subSubmit" @mousedown.prevent>Add</button>
       </form>
 
-      <div v-if="hasKids(row.id) && expanded(row.id) && !swipeRows" :style="progressWrap">
+      <div v-if="isTasks && hasKids(row.id) && expanded(row.id)" :style="progressWrap">
         <ProgressBar :value="progress(row.id).done" :max="progress(row.id).total" size="sm" />
       </div>
 
