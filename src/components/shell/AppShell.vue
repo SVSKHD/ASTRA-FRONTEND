@@ -83,6 +83,9 @@ onBeforeUnmount(() => unregisterShell())
    OS. The document no longer scrolls, so the global scrollbar rules in
    style.css have nothing to style. */
 .app-shell__content {
+  /* Scrolling past the top or bottom stops here instead of handing the
+     gesture to the page — which on a phone is pull-to-refresh. */
+  overscroll-behavior-y: contain;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklch, var(--theme-accent) 45%, transparent) transparent;
 }

@@ -1537,9 +1537,11 @@ export function rowBase(c: Theme): Style {
   return {
     display: 'flex',
     alignItems: 'center',
-    gap: 'var(--sp-2)',
-    padding: '7px 12px',
-    borderRadius: 'var(--radius-card)',
+    // The list card every tab shares, at the Todo row's metrics: room around a
+    // title and its second line, and a soft 18px corner.
+    gap: 'var(--sp-3)',
+    padding: '14px 16px',
+    borderRadius: 18,
     background: c.card,
     border: '1px solid ' + c.border,
     // Every property that hover or selection changes is listed, on one easing,

@@ -41,6 +41,23 @@ watch(todo, (t) => {
 function close() {
   ui.setSheetTodo(null)
 }
+// THE GHOST CLICK. A row opens the sheet on pointerup, and on a touchscreen
+// the browser then synthesises a `click` at the same spot a moment later —
+// which by then lands on this scrim, and a scrim click closes. The sheet opened
+// and shut inside one tap. A mouse never saw it: its click goes to the element
+// the press started on. So the scrim ignores clicks for a beat after opening.
+let openedAt = 0
+watch(
+  sheetTodoId,
+  (id) => {
+    if (id != null) openedAt = performance.now()
+  },
+  { immediate: true },
+)
+function onScrim() {
+  if (performance.now() - openedAt < 450) return
+  close()
+}
 function focusNext() {
   const t = todo.value
   if (!t) return
@@ -74,13 +91,16 @@ function onDown(e: PointerEvent) {
   offset.value = base
   ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
 }
-function onMove(e: PointerEvent) {
+function moveTo(y: number, at: number) {
   const d = drag.value
   if (!d) return
-  d.v = velocityOf(e.clientY - d.lastY, e.timeStamp - d.lastT)
-  d.lastY = e.clientY
-  d.lastT = e.timeStamp
-  offset.value = clampOffset(d.base + e.clientY - d.y, height())
+  d.v = velocityOf(y - d.lastY, at - d.lastT)
+  d.lastY = y
+  d.lastT = at
+  offset.value = clampOffset(d.base + y - d.y, height())
+}
+function onMove(e: PointerEvent) {
+  moveTo(e.clientY, e.timeStamp)
 }
 function onUp() {
   const d = drag.value
@@ -92,6 +112,69 @@ function onUp() {
   if (to === 'dismiss') return close()
   snap.value = to
   offset.value = offsetFor(to, height())
+}
+
+// --- the whole sheet as a handle --------------------------------------------
+// A thumb does not aim for a 40px pill. Anywhere on the sheet, a vertical pull
+// moves it — with one exception, the subtask list, which scrolls first: a pull
+// down there moves the sheet only once the list is at its top, and a push up
+// only while the sheet is at half height. Touch events rather than pointer
+// events, because only a non-passive touchmove can take a gesture back from
+// the browser's own scrolling.
+const listEl = ref<HTMLElement | null>(null)
+let touch: { x: number; y: number; decided: '' | 'sheet' | 'scroll' } | null = null
+let swallowClick = false
+function onTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1 || (e.target as HTMLElement).closest('.ts-handle')) {
+    touch = null
+    return
+  }
+  const p = e.touches[0]
+  touch = { x: p.clientX, y: p.clientY, decided: '' }
+}
+function onTouchMove(e: TouchEvent) {
+  const t = touch
+  if (!t) return
+  const p = e.touches[0]
+  const dy = p.clientY - t.y
+  const dx = p.clientX - t.x
+  if (!t.decided) {
+    if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return
+    if (Math.abs(dx) > Math.abs(dy)) {
+      t.decided = 'scroll'
+      return
+    }
+    const list = listEl.value
+    const inList = !!list && list.contains(e.target as Node)
+    const listAtTop = !list || list.scrollTop <= 0
+    const listScrolls = !!list && list.scrollHeight > list.clientHeight
+    const toSheet =
+      !inList || !listScrolls || (dy > 0 && listAtTop) || (dy < 0 && snap.value !== 'full')
+    t.decided = toSheet ? 'sheet' : 'scroll'
+    if (!toSheet) return
+    const base = offsetFor(snap.value, height())
+    drag.value = { y: p.clientY, base, lastY: p.clientY, lastT: e.timeStamp, v: 0 }
+    offset.value = base
+  }
+  if (t.decided !== 'sheet') return
+  e.preventDefault()
+  moveTo(p.clientY, e.timeStamp)
+}
+function onTouchEnd() {
+  const t = touch
+  touch = null
+  if (t?.decided !== 'sheet') return
+  // The finger was moving the sheet, so the lift is not a tap on whatever row
+  // it ended over.
+  swallowClick = true
+  setTimeout(() => (swallowClick = false), 400)
+  onUp()
+}
+function onClickCapture(e: MouseEvent) {
+  if (!swallowClick) return
+  swallowClick = false
+  e.preventDefault()
+  e.stopPropagation()
 }
 
 // --- styles -----------------------------------------------------------------
@@ -133,7 +216,13 @@ const fill = computed(() =>
 const count = computed(() =>
   pxify({ ...typeStep('sm'), color: c.value.dim, fontVariantNumeric: 'tabular-nums' }),
 )
-const list = pxify({ display: 'flex', flexDirection: 'column', overflowY: 'auto', minHeight: 0 })
+const list = pxify({
+  display: 'flex',
+  flexDirection: 'column',
+  overflowY: 'auto',
+  minHeight: 0,
+  overscrollBehavior: 'contain',
+})
 function subText(done: boolean) {
   return pxify({
     ...typeStep('md'),
@@ -148,7 +237,7 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
 
 <template>
   <Transition name="ts-fade">
-    <div v-if="todo" class="ts-scrim" @click="close"></div>
+    <div v-if="todo" class="ts-scrim" @click="onScrim"></div>
   </Transition>
   <Transition name="ts-up">
     <section
@@ -160,6 +249,11 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
       aria-modal="true"
       :aria-label="todo.text || 'Todo'"
       @keydown.esc="close"
+      @touchstart="onTouchStart"
+      @touchmove="onTouchMove"
+      @touchend="onTouchEnd"
+      @touchcancel="onTouchEnd"
+      @click.capture="onClickCapture"
     >
       <button
         type="button"
@@ -189,7 +283,7 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
         <span :style="track"><span :style="fill"></span></span>
         <span :style="count">{{ subDone }} of {{ subs.length }}</span>
       </div>
-      <div :style="list">
+      <div ref="listEl" :style="list">
         <!-- The whole 48px row toggles; the box is the same control with
              its pop, and stops the tap so it does not count twice. -->
         <div v-for="s in subs" :key="s.id" class="ts-sub" @click="app.toggleTodo(s.id)">

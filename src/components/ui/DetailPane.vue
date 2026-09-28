@@ -55,14 +55,17 @@ function cycle() {
 watch(inline, (isInline) => isInline && emit('width', 0), { immediate: true })
 
 // --- styles ------------------------------------------------------------------
+// Inline, the pane is a card of its own beside the list — a soft fill and a
+// large radius — rather than a column fenced off by a divider line.
 const column = computed(() =>
   pxify({
     display: 'flex',
     flexDirection: 'column',
     gap: 'var(--sp-2)',
     minHeight: 0,
-    borderLeft: '1px solid ' + c.value.border,
-    paddingLeft: 'var(--sp-4)',
+    padding: '20px 22px 12px',
+    borderRadius: 28,
+    background: 'color-mix(in srgb, ' + c.value.text + ' 4%, transparent)',
   }),
 )
 // The column had no header before, and did not need one — until it grew a
@@ -85,28 +88,33 @@ const headTitle = computed(() =>
     minWidth: 0,
   }),
 )
+// Raised tiles in the card's corner, the close button's shape in the design.
 const modeBtn = computed(() =>
   pxify({
     display: 'grid',
     placeItems: 'center',
-    width: 27,
-    height: 27,
+    width: 36,
+    height: 36,
     flexShrink: 0,
     padding: 0,
-    borderRadius: 'var(--radius-control)',
-    border: '1px solid ' + c.value.border,
-    background: 'transparent',
+    borderRadius: 12,
+    border: '1px solid transparent',
+    background: c.value.card,
     color: c.value.dim,
     cursor: 'pointer',
   }),
 )
+// With a todo open the detail names itself in large type below, so the small
+// label would only repeat it; it stays for the idle state ("Next up").
+const headSpacer = pxify({ flex: 1 })
 const modeBtnHover = computed(() => ({ color: c.value.accent, borderColor: c.value.accent }))
 </script>
 
 <template>
-  <div v-if="inline" :style="column">
+  <div v-if="inline" :style="column" role="region" :aria-label="title">
     <div :style="head">
-      <span :style="headTitle">{{ title }}</span>
+      <span v-if="!props.open" :style="headTitle">{{ title }}</span>
+      <span v-else :style="headSpacer"></span>
       <button
         type="button"
         :style="modeBtn"

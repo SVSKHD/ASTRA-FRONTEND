@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
+import ListToolbar from '@/components/ListToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
 // The GitHub tab (13d + 13e): a cross-repo Issues view and a Repos view.
@@ -309,20 +310,24 @@ function progressInner(pct: number) {
 
 <template>
   <div :style="panelStyle">
-    <div :style="{ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center' }">
-      <Tabs
-        size="sm"
-        :model-value="pane"
-        :tabs="githubTabs"
-        aria-label="GitHub section"
-        @update:model-value="pane = $event as 'issues' | 'repos'"
-      />
-      <span style="flex: 1"></span>
-      <button v-if="pane === 'issues' && repos.length" :style="s.importBtn" @click="startCreate">
-        New issue
-      </button>
-      <button :style="s.editBtn" @click="auth.openGithubPanel()">Settings</button>
-    </div>
+    <ListToolbar
+      title="GitHub"
+      :new-label="pane === 'issues' && repos.length ? 'New issue' : undefined"
+      @new="startCreate"
+    >
+      <template #left>
+        <Tabs
+          size="sm"
+          :model-value="pane"
+          :tabs="githubTabs"
+          aria-label="GitHub section"
+          @update:model-value="pane = $event as 'issues' | 'repos'"
+        />
+      </template>
+      <template #actions>
+        <button type="button" class="panel-action" @click="auth.openGithubPanel()">Settings</button>
+      </template>
+    </ListToolbar>
 
     <div v-if="app.githubPaused" :style="bulkBar">
       Sync paused — {{ githubIntegration.pausedReason }}.

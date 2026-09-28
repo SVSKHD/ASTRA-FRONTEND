@@ -25,6 +25,21 @@ const props = withDefaults(
 const emit = defineEmits<{ toggle: [] }>()
 
 const pct = computed(() => (props.subTotal ? (props.subDone / props.subTotal) * 100 : 0))
+// Drawn in SVG, in a viewBox the same size as the box in CSS pixels, so every
+// circle shares one exact centre and its strokes are real geometry rather than
+// the soft, off-centre edges a CSS mask and a fractional border gave.
+const geo = computed(() => {
+  const [box, ringW, gap, dotW] = props.size === 'sm' ? [26, 2.5, 1.5, 1.5] : [30, 3, 2, 1.5]
+  const c = box / 2
+  return {
+    box,
+    c,
+    ringW,
+    dotW,
+    ringR: c - ringW / 2,
+    dotR: c - ringW - gap - dotW / 2,
+  }
+})
 const title = computed(() =>
   props.subTotal ? `${props.subDone} of ${props.subTotal} subtasks done` : 'No subtasks',
 )
@@ -43,15 +58,46 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 <template>
   <span
     class="ring-wrap"
-    :class="[`ring-wrap--${size}`]"
-    :style="{ '--ring-pct': pct + '%' }"
+    :class="[`ring-wrap--${size}`, { 'is-done': done, 'is-pop': popping }]"
     :title="title"
   >
-    <span class="ring" :class="{ 'ring--empty': !subTotal }" aria-hidden="true"></span>
+    <svg
+      class="ring"
+      :viewBox="`0 0 ${geo.box} ${geo.box}`"
+      :width="geo.box"
+      :height="geo.box"
+      aria-hidden="true"
+    >
+      <circle
+        class="ring__track"
+        :class="{ 'ring__track--empty': !subTotal }"
+        :cx="geo.c"
+        :cy="geo.c"
+        :r="geo.ringR"
+        :stroke-width="geo.ringW"
+      />
+      <circle
+        v-if="subTotal"
+        class="ring__arc"
+        :cx="geo.c"
+        :cy="geo.c"
+        :r="geo.ringR"
+        :stroke-width="geo.ringW"
+        pathLength="100"
+        :stroke-dasharray="`${pct} 100`"
+        :transform="`rotate(-90 ${geo.c} ${geo.c})`"
+      />
+      <circle
+        class="ring__dot"
+        :cx="geo.c"
+        :cy="geo.c"
+        :r="geo.dotR"
+        :stroke-width="geo.dotW"
+      />
+    </svg>
     <button
       type="button"
       class="ring__btn"
-      :class="{ 'is-done': done, 'is-pop': popping }"
       :aria-label="done ? 'Mark not done' : 'Mark done'"
       :aria-pressed="done"
       @pointerdown.stop
@@ -64,18 +110,15 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 
 <style scoped>
 /* Three concentric bands, outermost first, read by anyone scanning the list:
-     ring   — the progress. A conic fill on a track that is always visible, so
-              a 26% arc reads as 26% of a circle rather than as a stray curve.
-     gap    — the row's own background showing through a mask, so the ring
-              and the checkbox never touch and blend into one "target" shape.
-     button — the todo's done state, with a border quiet enough that the
-              accent arc is the loudest thing in the box.
-   The mask is sized `closest-side` so its stops are real pixels from the edge;
-   the default (farthest-corner) makes 50% mean the half-diagonal, which is
-   how an earlier version ended up with no gap at all. */
+     ring — the progress. An arc on a track that is always visible, so a 26%
+            arc reads as 26% of a circle rather than as a stray curve.
+     gap  — the row's own background, so the ring and the checkbox never
+            touch and blend into one "target" shape.
+     dot  — the todo's done state, with an outline quiet enough that the
+            accent arc is the loudest thing in the box.
+   All three are circles in one SVG with one centre; the button is a
+   transparent hit area laid over the dot, carrying only the tick. */
 .ring-wrap {
-  --ring-w: 3px;
-  --ring-gap: 2px;
   position: relative;
   flex-shrink: 0;
   display: block;
@@ -85,65 +128,66 @@ onBeforeUnmount(() => clearTimeout(popTimer))
   height: 30px;
 }
 .ring-wrap--sm {
-  --ring-w: 2.5px;
-  --ring-gap: 1.5px;
   width: 26px;
   height: 26px;
 }
 .ring {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(
-    var(--theme-accent) var(--ring-pct),
-    color-mix(in srgb, var(--theme-text) 16%, transparent) var(--ring-pct) 100%
-  );
-  -webkit-mask: radial-gradient(
-    circle closest-side,
-    transparent calc(100% - var(--ring-w) - 0.5px),
-    black calc(100% - var(--ring-w) + 0.5px)
-  );
-  mask: radial-gradient(
-    circle closest-side,
-    transparent calc(100% - var(--ring-w) - 0.5px),
-    black calc(100% - var(--ring-w) + 0.5px)
-  );
-  transition: background var(--dur-pop) ease;
+  display: block;
+  overflow: visible;
 }
-.ring--empty {
-  background: color-mix(in srgb, var(--theme-text) 10%, transparent);
+.ring circle {
+  fill: none;
 }
-/* The button is a sibling of the ring, not a child: a mask clips everything
-   inside the element it is on, so the button sits on top in the same box. */
+.ring__track {
+  stroke: color-mix(in srgb, var(--theme-text) 16%, transparent);
+}
+.ring__track--empty {
+  stroke: color-mix(in srgb, var(--theme-text) 10%, transparent);
+}
+.ring__arc {
+  stroke: var(--theme-accent);
+  transition: stroke-dasharray var(--dur-pop) ease;
+}
+.ring .ring__dot {
+  stroke: color-mix(in srgb, var(--theme-text) 38%, transparent);
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1);
+  transition:
+    transform var(--dur-pop) var(--ease-pop),
+    fill var(--dur-med) ease,
+    stroke var(--dur-med) ease;
+}
+.ring-wrap.is-done .ring__dot {
+  fill: var(--theme-accent);
+  stroke: var(--theme-accent);
+}
 .ring__btn {
   position: absolute;
-  inset: calc(var(--ring-w) + var(--ring-gap));
-  width: auto;
-  height: auto;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   padding: 0;
+  border: 0;
   border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, var(--theme-text) 38%, transparent);
   background: transparent;
   color: var(--theme-on-accent);
   cursor: pointer;
   transform: scale(1);
-  transition:
-    transform var(--dur-pop) var(--ease-pop),
-    background var(--dur-med) ease,
-    border-color var(--dur-med) ease;
+  transition: transform var(--dur-pop) var(--ease-pop);
 }
-.ring__btn.is-done {
-  background: var(--theme-accent);
-  border-color: var(--theme-accent);
-}
-.ring__btn.is-pop {
+.ring-wrap.is-pop .ring__dot,
+.ring-wrap.is-pop .ring__btn {
   transform: scale(1.22);
 }
 .ring__tick {
   opacity: 0;
   transition: opacity var(--dur-med) ease 100ms;
 }
-.ring__btn.is-done .ring__tick {
+.ring-wrap.is-done .ring__tick {
   opacity: 1;
 }
 .ring__btn:focus-visible {
@@ -151,12 +195,14 @@ onBeforeUnmount(() => clearTimeout(popTimer))
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .ring,
+  .ring__arc,
+  .ring__dot,
   .ring__btn,
   .ring__tick {
     transition: none;
   }
-  .ring__btn.is-pop {
+  .ring-wrap.is-pop .ring__dot,
+  .ring-wrap.is-pop .ring__btn {
     transform: none;
   }
 }

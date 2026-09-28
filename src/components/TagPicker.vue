@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import TextInput from '@/components/ui/TextInput.vue'
+import Icon from '@/components/ui/Icon.vue'
 // Pick a tag from the shared vocabulary, or type one and create it. A created
 // tag joins the vocabulary immediately, so it is offered everywhere afterwards.
 // One tag per item for now — the field it feeds is a single string — but the
 // vocabulary is stored separately so tags can become the axis we slice by.
-import { computed, ref } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
+import { useAccordionState } from '@/composables/useAccordionState'
+import Caret from '@/components/ui/Caret.vue'
 import { pxify, typeStep } from '@/styles'
 import { normalizeTag, hasTag, sameTag, tagColor } from '@/utils/tags'
 
@@ -19,6 +22,14 @@ const { c, dark, s } = useStyles()
 const { tags } = storeToRefs(app)
 
 const creating = ref('')
+
+// The full list folds away behind one line — the label, the tag this item has
+// and how many there are — so a long vocabulary does not push the rest of the
+// form down. Open or closed is remembered, and shared by every picker.
+const ACC_KEY = 'tagpicker'
+const accordion = useAccordionState()
+const open = computed(() => accordion.isOpen(ACC_KEY))
+const bodyId = useId()
 
 const selected = computed(() => props.modelValue)
 function isSelected(tag: string) {
@@ -71,17 +82,6 @@ function chipStyle(tag: string) {
     transition: 'color .25s ease, border-color .25s ease, background .25s ease',
   })
 }
-const dropStyle = computed(() =>
-  pxify({
-    border: 'none',
-    background: 'transparent',
-    color: 'inherit',
-    ...typeStep('xs'),
-    lineHeight: 1,
-    cursor: 'pointer',
-    opacity: 0.6,
-  }),
-)
 const labelStyle = computed(() =>
   pxify({
     ...typeStep('2xs'),
@@ -95,12 +95,32 @@ const labelStyle = computed(() =>
 
 <template>
   <div :style="s.tagPicker">
-    <span class="field-label" :style="labelStyle">{{ label ?? 'Tag' }}</span>
-    <div :style="s.tagRow">
+    <button
+      type="button"
+      class="tagpicker__head"
+      :aria-expanded="open"
+      :aria-controls="bodyId"
+      @click="accordion.toggle(ACC_KEY)"
+    >
+      <span class="field-label" :style="labelStyle">{{ label ?? 'Tag' }}</span>
+      <span v-if="selected" :style="chipStyle(selected)">{{ selected }}</span>
+      <span v-else class="tagpicker__none">None</span>
+      <span class="tagpicker__count"
+        >{{ tags.length }} {{ tags.length === 1 ? 'tag' : 'tags' }}</span
+      >
+      <Caret :open="open" />
+    </button>
+    <div v-if="open" :id="bodyId" :style="s.tagRow">
       <span v-for="t in tags" :key="t" :style="chipStyle(t)" @click="pick(t)">
         {{ t }}
-        <button :style="dropStyle" :title="'Remove ' + t + ' from your tags'" @click.stop="drop(t)">
-          ×
+        <button
+          type="button"
+          class="x-round"
+          :aria-label="'Remove ' + t + ' from your tags'"
+          :title="'Remove ' + t + ' from your tags'"
+          @click.stop="drop(t)"
+        >
+          <Icon name="x" size="xs" />
         </button>
       </span>
       <TextInput placeholder="New tag…" v-model="creating" @keydown="onKey" />
@@ -108,3 +128,33 @@ const labelStyle = computed(() =>
     </div>
   </div>
 </template>
+
+<style scoped>
+.tagpicker__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--theme-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tagpicker__none {
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+}
+.tagpicker__count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+  font-variant-numeric: tabular-nums;
+}
+.tagpicker__head:hover .tagpicker__count {
+  color: var(--theme-text);
+}
+</style>

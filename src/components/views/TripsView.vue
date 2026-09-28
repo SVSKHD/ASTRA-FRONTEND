@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
+import ListToolbar from '@/components/ListToolbar.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 // The Trips tab. Two glass sub-tabs — To Visit and Done — over the same trip
 // list, each card showing the trip name, date, tags and a small static map of
@@ -226,21 +227,7 @@ const promptRow = computed(() =>
 
 <template>
   <div :style="panelStyle">
-    <!-- Header + create -->
-    <div :style="pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })">
-      <span
-        :style="
-          pxify({
-            flex: 1,
-            ...typeStep('base'),
-            fontWeight: 'var(--weight-semibold)',
-            color: c.text,
-          })
-        "
-        >Trips</span
-      >
-      <button :style="s.newBtn" @click="app.openCreate('trip')">New trip</button>
-    </div>
+    <ListToolbar title="Trips" new-label="New trip" @new="app.openCreate('trip')" />
 
     <!-- Sub-tabs -->
     <Tabs

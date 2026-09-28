@@ -295,7 +295,7 @@ defineExpose({ focus: openForm })
 <template>
   <div :style="panelStyle" :data-ready="ready && !log.loading.value ? 'true' : 'false'">
     <ListToolbar title="Trades" new-label="Log trade" @new="openForm()">
-      <template #actions>
+      <template #left>
         <Tabs
           size="sm"
           :model-value="route.mode.value"
@@ -303,6 +303,8 @@ defineExpose({ focus: openForm })
           aria-label="What this month is shown as"
           @update:model-value="route.set({ mode: $event as TradeMode })"
         />
+      </template>
+      <template #actions>
         <Button variant="ghost" size="sm" :disabled="!visibleTrades.length" @click="exportCsv">
           <IconExport :size="14" />
           CSV

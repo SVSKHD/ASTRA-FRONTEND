@@ -270,6 +270,84 @@ function onDragEnd() {
   offset.value = offsetFor(landing, sheetHeight)
 }
 
+// The whole sheet as a handle, not only the grip. A vertical pull anywhere
+// moves it, except where something under the finger scrolls: there the scroll
+// goes first, and a pull down moves the sheet only once that area is at its
+// top (a push up, only while the sheet sits at half height). Text fields keep
+// their own touch. Touch events, because only a non-passive touchmove can take
+// a gesture back from the browser's scrolling.
+let touch: { x: number; y: number; decided: '' | 'sheet' | 'scroll' } | null = null
+let swallowClick = false
+function scrollerOf(target: EventTarget | null): HTMLElement | null {
+  let el = target as HTMLElement | null
+  while (el && el !== sheet.value) {
+    const oy = getComputedStyle(el).overflowY
+    if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return el
+    el = el.parentElement
+  }
+  return null
+}
+function onSheetTouchStart(e: TouchEvent) {
+  const target = e.target as HTMLElement
+  if (
+    !props.mobile ||
+    e.touches.length !== 1 ||
+    target.closest('.detail__grip, input, textarea, select, [contenteditable="true"]')
+  ) {
+    touch = null
+    return
+  }
+  const p = e.touches[0]
+  touch = { x: p.clientX, y: p.clientY, decided: '' }
+}
+function onSheetTouchMove(e: TouchEvent) {
+  const t = touch
+  if (!t) return
+  const p = e.touches[0]
+  const dy = p.clientY - t.y
+  const dx = p.clientX - t.x
+  if (!t.decided) {
+    if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return
+    if (Math.abs(dx) > Math.abs(dy)) {
+      t.decided = 'scroll'
+      return
+    }
+    const scroller = scrollerOf(e.target)
+    const toSheet =
+      !scroller || (dy > 0 && scroller.scrollTop <= 0) || (dy < 0 && snap.value !== 'full')
+    t.decided = toSheet ? 'sheet' : 'scroll'
+    if (!toSheet) return
+    sheetHeight = sheet.value?.offsetHeight || 0
+    dragging.value = true
+    startY = p.clientY
+    lastY = p.clientY
+    lastAt = e.timeStamp
+    velocity = 0
+    startOffset = offset.value
+  }
+  if (t.decided !== 'sheet') return
+  e.preventDefault()
+  velocity = velocityOf(p.clientY - lastY, e.timeStamp - lastAt)
+  lastY = p.clientY
+  lastAt = e.timeStamp
+  offset.value = clampOffset(startOffset + (p.clientY - startY), sheetHeight)
+}
+function onSheetTouchEnd() {
+  const t = touch
+  touch = null
+  if (t?.decided !== 'sheet') return
+  // The finger was moving the sheet; its lift is not a tap on what it ended over.
+  swallowClick = true
+  setTimeout(() => (swallowClick = false), 400)
+  onDragEnd()
+}
+function onSheetClickCapture(e: MouseEvent) {
+  if (!swallowClick) return
+  swallowClick = false
+  e.preventDefault()
+  e.stopPropagation()
+}
+
 const sheetStyle = computed(() =>
   props.mobile
     ? {
@@ -359,7 +437,15 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKey))
       tabindex="-1"
       @keydown="onKeydown"
     >
-      <div ref="sheet" class="detail__inner">
+      <div
+        ref="sheet"
+        class="detail__inner"
+        @touchstart="onSheetTouchStart"
+        @touchmove="onSheetTouchMove"
+        @touchend="onSheetTouchEnd"
+        @touchcancel="onSheetTouchEnd"
+        @click.capture="onSheetClickCapture"
+      >
         <div
           v-if="mobile"
           class="detail__grip"

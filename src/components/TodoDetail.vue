@@ -10,7 +10,6 @@ import { useUiStore } from '@/stores/ui'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, useDetailStyles } from '@/composables/useDetailStyles'
 import { buildIndex, childrenOf, ancestorsOf, descendantsOf } from '@/utils/taskTree'
-import TitleTagPill from '@/components/TitleTagPill.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
@@ -25,6 +24,7 @@ import RichDescription from '@/components/detail/RichDescription.vue'
 import Icon from '@/components/ui/Icon.vue'
 import SubCheck from '@/components/ui/SubCheck.vue'
 import { STATUS_LABEL } from '@/types'
+import { vScrollFade } from '@/directives/scrollFade'
 
 // The attached-notes count on a subtask row: icon and number on one line.
 const noteBadge = {
@@ -44,25 +44,16 @@ const { todos } = storeToRefs(app)
 const {
   s,
   pane,
-  card,
   row,
-  headerRow,
-  metaGroup,
   grow,
   crumbBtn,
   dimSmall,
-  titleStyle,
   placeholder,
-  statGrid,
-  statTile,
-  statValue,
   infoGrid,
   infoKey,
   infoVal,
   pill,
   accentPill,
-  subRow,
-  subText,
   addBtn,
   chipStyle,
 } = useDetailStyles()
@@ -142,14 +133,16 @@ function moveTodoToTasks() {
 </script>
 
 <template>
-  <div :style="pane">
+  <div v-scroll-fade :style="pane">
     <Transition name="pane-swap" mode="out-in">
       <div :key="todoId ?? 'empty'" class="pane-swap__body">
         <div v-if="!todo" :style="s.empty">Select a todo to see its details and subtasks.</div>
 
         <template v-else>
-          <!-- Header: breadcrumb, title, status & actions -->
-          <section :style="card">
+          <!-- The hero: tag and status with the actions, the title large, the
+               description as plain reading text, and how far the subtasks
+               have got. -->
+          <section class="dp-hero">
             <div v-if="ancestors.length" :style="row">
               <template v-for="a in ancestors" :key="a.id">
                 <button type="button" :style="crumbBtn" @click="emit('select', a.id)">
@@ -159,60 +152,39 @@ function moveTodoToTasks() {
               </template>
             </div>
 
-            <TextInput
-              v-if="isEditing('text')"
-              v-model="draft"
-              v-focus
-              size="lg"
-              aria-label="Todo title"
-              @keydown.enter="commit"
-              @keydown.esc="cancel"
-              @blur="commit"
-            />
-            <div
-              v-else
-              :style="titleStyle(todo.status === 'done')"
-              title="Double-click to edit"
-              @dblclick="start('text', todo.text)"
-            >
-              <TitleTagPill v-if="todo.tag" :tag="todo.tag" />{{ todo.text || '(untitled)' }}
-            </div>
-
-            <div :style="headerRow">
-              <div :style="metaGroup">
-                <StatusPill :status="todo.status" @cycle="app.cycleTodoStatus(todo.id)" />
-                <TextInput
-                  v-if="isEditing('tag')"
-                  v-model="draft"
-                  v-focus
-                  size="sm"
-                  placeholder="Tag"
-                  aria-label="Tag"
-                  :style="{ width: '160px' }"
-                  @keydown.enter="commit"
-                  @keydown.esc="cancel"
-                  @blur="commit"
-                />
-                <span
-                  v-else-if="todo.tag"
-                  :style="chipStyle(todo.tag)"
-                  title="Double-click to edit"
-                  @dblclick="start('tag', todo.tag)"
-                  >{{ todo.tag }}</span
-                >
-                <span
-                  v-else
-                  :style="pill"
-                  title="Double-click to add a tag"
-                  @dblclick="start('tag', '')"
-                  >+ tag</span
-                >
-                <span v-if="todo.isPublic" :style="pill">🌐 Public</span>
-                <span v-if="todo.rolloverCount > 0" :style="pill"
-                  >rolled over ×{{ todo.rolloverCount }}</span
-                >
-              </div>
-              <PaneToolbar :style="{ marginLeft: 'auto' }">
+            <div class="dp-top">
+              <TextInput
+                v-if="isEditing('tag')"
+                v-model="draft"
+                v-focus
+                size="sm"
+                placeholder="Tag"
+                aria-label="Tag"
+                :style="{ width: '160px' }"
+                @keydown.enter="commit"
+                @keydown.esc="cancel"
+                @blur="commit"
+              />
+              <span
+                v-else-if="todo.tag"
+                :style="chipStyle(todo.tag)"
+                title="Double-click to edit"
+                @dblclick="start('tag', todo.tag)"
+                >{{ todo.tag }}</span
+              >
+              <span
+                v-else
+                :style="pill"
+                title="Double-click to add a tag"
+                @dblclick="start('tag', '')"
+                >+ tag</span
+              >
+              <StatusPill :status="todo.status" @cycle="app.cycleTodoStatus(todo.id)" />
+              <span v-if="todo.isPublic" :style="pill">🌐 Public</span>
+              <span v-if="todo.rolloverCount > 0" :style="pill"
+                >rolled over ×{{ todo.rolloverCount }}</span
+              >
+              <PaneToolbar class="dp-actions">
                 <RemindBell collection="todos" :id="todo.id" />
                 <ShareGlobeButton entity-type="todo" :item="todo" variant="row" />
                 <PaneButton icon="refresh-cw" label="Move to tasks" @click="moveTodoToTasks" />
@@ -234,48 +206,52 @@ function moveTodoToTasks() {
                 />
               </PaneToolbar>
             </div>
-          </section>
 
-          <!-- At a glance -->
-          <div :style="statGrid">
-            <div :style="statTile">
-              <span :style="dimSmall">Subtasks</span>
-              <span :style="statValue">{{ subDone }}/{{ subtasks.length }}</span>
-            </div>
-            <div :style="statTile">
-              <span :style="dimSmall">Status</span>
-              <span :style="statValue">{{ STATUS_LABEL[todo.status] }}</span>
-            </div>
-            <div :style="statTile">
-              <span :style="dimSmall">Reminders</span>
-              <span :style="statValue">{{ todo.reminderIds.length }}</span>
-            </div>
-          </div>
+            <TextInput
+              v-if="isEditing('text')"
+              v-model="draft"
+              v-focus
+              size="lg"
+              aria-label="Todo title"
+              @keydown.enter="commit"
+              @keydown.esc="cancel"
+              @blur="commit"
+            />
+            <h2
+              v-else
+              class="dp-title"
+              :class="{ 'is-done': todo.status === 'done' }"
+              title="Double-click to edit"
+              @dblclick="start('text', todo.text)"
+            >
+              {{ todo.text || '(untitled)' }}
+            </h2>
 
-          <!-- Description -->
-          <PaneSection title="Description" storage-key="todo:description">
             <RichDescription
+              class="dp-desc"
               :model-value="todo.description"
               empty-text="No description — double-click to write one."
               @update:model-value="app.updateTodo(todo.id, { description: $event })"
             />
-          </PaneSection>
 
-          <!-- Attached notes, read and edited in place under the description -->
-          <PaneNotes type="todo" :id="todo.id" />
-
-          <!-- Subtasks -->
-          <PaneSection
-            title="Subtasks"
-            storage-key="todo:subtasks"
-            :count="subDone + '/' + subtasks.length"
-          >
+            <div v-if="subtasks.length" class="dp-progress">
+              <ProgressBar class="dp-progress__bar" :value="subDone" :max="subtasks.length" />
+              <span class="dp-progress__count">{{ subDone }} of {{ subtasks.length }}</span>
+            </div>
             <span v-if="allDescendants > subtasks.length" :style="dimSmall"
               >{{ allDescendants }} in total, nested</span
             >
-            <ProgressBar v-if="subtasks.length" :value="subDone" :max="subtasks.length" size="sm" />
+          </section>
 
-            <div v-for="st in subtasks" :key="st.id" :style="subRow">
+          <!-- Attached notes, read and edited in place: straight after the
+               todo itself, before the subtasks, so they are never a long
+               scroll down. -->
+          <PaneNotes type="todo" :id="todo.id" />
+
+          <!-- Subtasks: one card each. The check, the title, and a dot for its
+               status (click to move it on); the rest waits for the pointer. -->
+          <div class="dp-subs">
+            <div v-for="st in subtasks" :key="st.id" class="dp-sub">
               <SubCheck :done="st.status === 'done'" size="md" @toggle="app.toggleTodo(st.id)" />
               <TextInput
                 v-if="isEditing('sub:' + st.id)"
@@ -290,40 +266,51 @@ function moveTodoToTasks() {
               />
               <span
                 v-else
-                :style="subText(st.status === 'done')"
+                class="dp-sub__text"
+                :class="{ 'is-done': st.status === 'done' }"
                 title="Double-click to rename"
                 @dblclick="start('sub:' + st.id, st.text)"
-                ><TitleTagPill v-if="st.tag" :tag="st.tag" />{{ st.text || '(untitled)' }}</span
+                >{{ st.text || '(untitled)' }}</span
               >
-              <span
-                v-if="st.noteIds?.length"
-                :style="[pill, noteBadge]"
-                :title="`${st.noteIds.length} attached note${st.noteIds.length === 1 ? '' : 's'}`"
-                ><Icon name="notebook" size="xs" /> {{ st.noteIds.length }}</span
-              >
-              <span :style="pill">{{ kidCount(st.id) }} sub</span>
-              <!-- Focus mode (Todo v2, 5b) from any open subtask. -->
-              <PaneButton
-                v-if="st.status !== 'done'"
-                icon="timer"
-                label="Focus on this subtask"
-                @click="ui.startFocus(st.id)"
-              />
-              <PaneButton
-                icon="chevron-right"
-                label="Open subtask"
-                @click="emit('select', st.id)"
-              />
-              <PaneButton
-                icon="trash"
-                label="Delete subtask"
-                tone="danger"
-                @click="removeTodo(st.id)"
-              />
+              <div class="dp-sub__actions">
+                <span
+                  v-if="st.noteIds?.length"
+                  :style="[pill, noteBadge]"
+                  :title="`${st.noteIds.length} attached note${st.noteIds.length === 1 ? '' : 's'}`"
+                  ><Icon name="notebook" size="xs" /> {{ st.noteIds.length }}</span
+                >
+                <span v-if="kidCount(st.id)" :style="pill">{{ kidCount(st.id) }} sub</span>
+                <!-- Focus mode (Todo v2, 5b) from any open subtask. -->
+                <PaneButton
+                  v-if="st.status !== 'done'"
+                  icon="timer"
+                  label="Focus on this subtask"
+                  @click="ui.startFocus(st.id)"
+                />
+                <PaneButton
+                  icon="chevron-right"
+                  label="Open subtask"
+                  @click="emit('select', st.id)"
+                />
+                <PaneButton
+                  icon="trash"
+                  label="Delete subtask"
+                  tone="danger"
+                  @click="removeTodo(st.id)"
+                />
+              </div>
+              <button
+                type="button"
+                class="dp-sub__dot"
+                :class="'is-' + st.status"
+                :title="STATUS_LABEL[st.status] + ' — click to change'"
+                :aria-label="'Status: ' + STATUS_LABEL[st.status] + '. Change status'"
+                @click="app.cycleTodoStatus(st.id)"
+              ></button>
             </div>
             <div v-if="!subtasks.length" :style="placeholder">No subtasks yet.</div>
 
-            <form :style="row" @submit.prevent="addSubtask">
+            <form class="dp-add" @submit.prevent="addSubtask">
               <TextInput
                 v-model="newSub"
                 size="sm"
@@ -333,7 +320,7 @@ function moveTodoToTasks() {
               />
               <button type="submit" :style="addBtn">Add</button>
             </form>
-          </PaneSection>
+          </div>
 
           <!-- Details -->
           <PaneSection title="Details" storage-key="todo:details">

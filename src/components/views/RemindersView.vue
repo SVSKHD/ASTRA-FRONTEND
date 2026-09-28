@@ -12,7 +12,6 @@ import { relLabel } from '@/utils/upcoming'
 import ReminderTimeline from '@/components/ReminderTimeline.vue'
 import ListToolbar from '@/components/ListToolbar.vue'
 import UpNextBand from '@/components/UpNextBand.vue'
-import ProgressLine from '@/components/ProgressLine.vue'
 import CompletedSection from '@/components/CompletedSection.vue'
 import Caret from '@/components/ui/Caret.vue'
 import MoveToDeadlineButton from '@/components/MoveToDeadlineButton.vue'
@@ -193,9 +192,14 @@ const chevronBtn = pxify({
 
 <template>
   <div :style="panelStyle">
-    <ListToolbar title="Reminders" new-label="New reminder" @new="app.openCreate('reminder')" />
+    <ListToolbar
+      title="Reminders"
+      new-label="New reminder"
+      :done="split.stats.done"
+      :total="split.stats.total"
+      @new="app.openCreate('reminder')"
+    />
     <UpNextBand />
-    <ProgressLine :done="split.stats.done" :total="split.stats.total" />
     <div v-if="reminders.length === 0" :style="s.empty">No reminders set.</div>
     <div :style="s.list">
       <div v-for="it in activeView" :key="it.id" :style="rowWrapStyle">

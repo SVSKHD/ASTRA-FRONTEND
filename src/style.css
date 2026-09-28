@@ -15,6 +15,10 @@ body {
   line-height: var(--lh-base);
   font-weight: var(--weight-normal);
   -webkit-font-smoothing: antialiased;
+  /* No pull-to-refresh. A finger that pulls down on a row — to drag it, or
+     just scrolling up past the top of the list — reloaded the whole app on a
+     phone. The list scrolls inside the shell; the page itself never should. */
+  overscroll-behavior-y: none;
 }
 code,
 kbd,
@@ -286,7 +290,7 @@ textarea:focus,
   box-sizing: content-box;
   border: none;
   background: transparent;
-  opacity: 0.35;
+  opacity: 0.6;
   cursor: grab;
   touch-action: none;
   border-radius: var(--radius-control);
@@ -450,6 +454,250 @@ textarea:focus,
   left: 0;
   right: 0;
   z-index: 0;
+}
+
+/* v-scroll-fade (directives/scrollFade.ts): content fades out at a scrolled
+   edge where there is more to see, and what is behind the column shows
+   through. The two edges are set by the directive; 0px means no fade. */
+.scroll-fade {
+  --fade-top: 0px;
+  --fade-bottom: 0px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--fade-top),
+    #000 calc(100% - var(--fade-bottom)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--fade-top),
+    #000 calc(100% - var(--fade-bottom)),
+    transparent 100%
+  );
+}
+
+/* The small × on a tag chip. The same as a row's delete (IconButton's danger
+   tone), at chip size: a round target that turns into a red disc with a white
+   cross on hover. */
+.x-round {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast, 120ms) ease,
+    color var(--dur-fast, 120ms) ease,
+    opacity var(--dur-fast, 120ms) ease;
+}
+.x-round:hover,
+.x-round:focus-visible {
+  opacity: 1;
+  color: var(--theme-on-danger);
+  background: var(--theme-danger, var(--theme-text));
+}
+@media (prefers-reduced-motion: reduce) {
+  .x-round {
+    transition: none;
+  }
+}
+
+/* A todo row's quieter controls (TreeList rows, and TodoView's carried-over
+   and completed cards) — the drag grip and delete — wait for the
+   pointer, so a resting list reads as titles and progress. Always shown where
+   there is no hover to reveal them. */
+.row-reveal {
+  opacity: 0;
+  transition: opacity var(--dur-fast, 120ms) ease;
+}
+.tree-row:hover .row-reveal,
+.tree-row:focus-within .row-reveal,
+.todo-card:hover .row-reveal,
+.todo-card:focus-within .row-reveal {
+  opacity: 1;
+}
+@media (hover: none) {
+  .row-reveal {
+    opacity: 1;
+  }
+}
+/* A todo's subtask count, as a pill before its row actions. */
+.todo-count {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--theme-text) 7%, transparent);
+  color: color-mix(in srgb, var(--theme-text) 78%, transparent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+/* ---- Detail panes (TodoDetail, TaskDetail, GoalSideDetail) --------------
+   One look for every right-hand detail: a hero with the tag, status and
+   actions, the title large, the description as reading text and how far the
+   subtasks have got; then one card per subtask, whose tools wait for the
+   pointer and whose status is a dot. Global rather than scoped so the three
+   panes cannot drift apart. */
+/* The hero: everything about the item itself, before its subtasks. */
+.dp-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: 4px 2px 6px;
+}
+.dp-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.dp-actions {
+  margin-left: auto;
+}
+.dp-title {
+  margin: 0;
+  font-size: var(--text-2xl, 28px);
+  line-height: 1.2;
+  font-weight: var(--weight-bold, 700);
+  letter-spacing: -0.01em;
+  color: var(--theme-text);
+  cursor: text;
+}
+.dp-title.is-done {
+  color: var(--theme-dim);
+  text-decoration: line-through;
+}
+.dp-desc {
+  color: var(--theme-dim);
+  font-size: var(--text-base);
+  line-height: 1.55;
+}
+.dp-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-top: var(--sp-2);
+}
+.dp-progress__bar {
+  flex: 1;
+  min-width: 0;
+}
+.dp-progress__count {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text);
+}
+
+/* Subtasks as cards. */
+.dp-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dp-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 56px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: var(--theme-card);
+  border: 1px solid color-mix(in srgb, var(--theme-text) 6%, transparent);
+}
+.dp-sub__text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+  color: var(--theme-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+.dp-sub__text.is-done {
+  color: var(--theme-dim);
+  text-decoration: line-through;
+}
+/* The row's tools wait for the pointer; the check, the title and the dot are
+   what a resting list shows. */
+.dp-sub__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--dur-fast, 120ms) ease;
+}
+.dp-sub:hover .dp-sub__actions,
+.dp-sub:focus-within .dp-sub__actions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .dp-sub__actions {
+    opacity: 1;
+  }
+}
+/* Status, as a dot: open is green, in progress amber, done quiet. */
+.dp-sub__dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  background: var(--theme-success);
+  box-shadow: 0 0 0 4px transparent;
+  transition: box-shadow var(--dur-fast, 120ms) ease;
+}
+.dp-sub__dot:hover,
+.dp-sub__dot:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--theme-text) 10%, transparent);
+  outline: none;
+}
+.dp-sub__dot.is-progress {
+  background: var(--theme-warning);
+}
+.dp-sub__dot.is-done {
+  background: color-mix(in srgb, var(--theme-text) 25%, transparent);
+}
+.dp-add {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: 2px;
+}
+
+/* A ticked todo on its way to Completed (useTodoCompletion): it slides a
+   little right and fades, then leaves the list and the rows below close up.
+   The duration matches LEAVE_MS there. */
+.todo-row-shell {
+  transition:
+    opacity 240ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.todo-row-shell.is-leaving {
+  opacity: 0;
+  transform: translateX(16px);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .todo-row-shell {
+    transition: opacity 240ms ease;
+  }
+  .todo-row-shell.is-leaving {
+    transform: none;
+  }
 }
 
 /* Rich text produced by the notes editor. The same rules style the editor and

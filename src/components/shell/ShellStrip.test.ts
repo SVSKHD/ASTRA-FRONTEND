@@ -1,6 +1,6 @@
-// The top strip holds two things that are laid out against each other: the page
-// title, and whatever header actions the page teleports in. They used to be
-// unable to, and this is the test that says why they now can.
+// The top strip. It used to hold the page title beside whatever header actions
+// the page teleported in; the title now lives in each tab's own header row. The
+// history below is why the strip is still a positioning context of its own.
 //
 // The title was `position: absolute; left: 50%`. That fails twice over:
 //
@@ -25,43 +25,27 @@ function mountStrip() {
   return mount(ShellStrip, { global: { directives: { 'hover-style': {} } } })
 }
 
-describe('the page title', () => {
+describe('the page name', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('is in the row, not floating over it', () => {
+  it('is not in the strip: every tab names itself in its own header row', () => {
+    // The strip used to carry a name pill beside the brand. Each tab's header
+    // (ListToolbar / PanelHeader) now centres the name above its list, and the
+    // strip saying it too was the same word twice on one screen.
     const wrapper = mountStrip()
-    const title = wrapper.get('.shell-strip > div[title]')
-    const style = title.attributes('style') ?? ''
-    // Out of flow is the whole failure mode: an element that takes no layout
-    // space cannot be kept apart from a neighbour whose width it does not know.
-    expect(style).not.toContain('position: absolute')
-    expect(style).not.toContain('position: fixed')
-    expect(style).not.toContain('left: 50%')
+    expect(wrapper.find('.shell-strip > div[title]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Dashboard')
     wrapper.unmount()
   })
+})
 
-  it('comes before the actions, so the row orders itself', () => {
+describe('the brand', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('names the app on every tab, beside its mark', () => {
     const wrapper = mountStrip()
-    const html = wrapper.html()
-    expect(html.indexOf('title=')).toBeLessThan(html.indexOf(STRIP_ACTIONS_ID))
+    expect(wrapper.get('.shell-strip__brand').text()).toBe('Aureon')
     wrapper.unmount()
-  })
-
-  it('still truncates rather than pushing the actions off the edge', () => {
-    const wrapper = mountStrip()
-    const style = wrapper.get('.shell-strip > div[title]').attributes('style') ?? ''
-    expect(style).toContain('max-width')
-    expect(style).toContain('ellipsis')
-    // And it does not shrink to nothing when the actions are greedy: it holds
-    // its width and they take the slack.
-    expect(style).toContain('flex-shrink: 0')
-    wrapper.unmount()
-  })
-
-  it('names the tab it is on', () => {
-    // 'overview' is the default tab, and it is called the Dashboard everywhere
-    // a reader sees it.
-    expect(mountStrip().get('.shell-strip > div[title]').text()).toBe('Dashboard')
   })
 })
 

@@ -23,7 +23,7 @@ import { ymd } from '@/utils/dayGroups'
 import { todayKey, isOverdueTodo } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
-import ListToolbar from '@/components/ListToolbar.vue'
+import PanelHeader from '@/components/PanelHeader.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
 import CompletedSection from '@/components/CompletedSection.vue'
@@ -61,6 +61,8 @@ import RingCheck from '@/components/ui/RingCheck.vue'
 import NextUpPanel from '@/components/todo/NextUpPanel.vue'
 import { useWeeklyReview } from '@/composables/useWeeklyReview'
 import { focusTargetOf } from '@/utils/todoV2'
+import { useTodoCompletion } from '@/composables/useTodoCompletion'
+import { vScrollFade } from '@/directives/scrollFade'
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -178,10 +180,14 @@ const shownTopLevel = computed(() => {
 })
 
 const completedSort = ref<'recent' | 'original'>('recent')
+// A todo ticked a moment ago stays in its open list, ticked, until its save
+// lands (useTodoCompletion); only then does it count as Completed here.
+const completion = useTodoCompletion()
 const split = computed(() =>
   splitList(shownTopLevel.value, {
-    isDone: (t) => t.status === 'done',
-    isCarried: (t) => isOverdueTodo(t, todayStr.value),
+    isDone: (t) => t.status === 'done' && !completion.isHeld(t.id),
+    isCarried: (t) =>
+      isOverdueTodo(completion.isHeld(t.id) ? { ...t, status: 'pending' } : t, todayStr.value),
     completedAt: (t) => t.completedAt,
     archivedAt: (t) => t.archivedAt ?? null,
     // No day filter: Completed keeps everything finished until it is cleared
@@ -196,7 +202,15 @@ const split = computed(() =>
 const carried = computed(() =>
   [...split.value.carriedOver].sort((a, b) => dayOf(a).localeCompare(dayOf(b))),
 )
-const active = computed(() => split.value.active)
+// In each item's `order`, which is what a drag rewrites and what quick add
+// sets to put a new item first. Storage order was being shown instead, so a
+// dropped row saved its new place and then did not move.
+const active = computed(() =>
+  split.value.active
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => (a.t.order ?? 0) - (b.t.order ?? 0) || a.i - b.i)
+    .map(({ t }) => t),
+)
 const activeRootIds = computed(() => active.value.map((t) => t.id))
 const completed = computed(() => split.value.completed)
 // A completed list is unbounded — it grows for as long as the workspace is
@@ -389,12 +403,17 @@ function onTodoMainClick(event: MouseEvent, id: number) {
   if (shouldSelectRow(event)) return
   openTodo(id, event)
 }
+// Ringed all the way round, as TreeList rings a selected todo card.
 function selectedRowStyle(id: number) {
   return !isMobile.value && selectedId.value === id
     ? {
         borderColor: c.value.accent,
-        backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 8%, ' + c.value.card + ')',
-        boxShadow: 'inset 3px 0 0 ' + c.value.accent,
+        boxShadow:
+          '0 0 0 1px ' +
+          c.value.accent +
+          ', 0 8px 22px color-mix(in srgb, ' +
+          c.value.accent +
+          ' 16%, transparent)',
       }
     : {}
 }
@@ -427,7 +446,7 @@ const tagInputRow = pxify({
   padding: '4px 10px 0',
   display: 'flex',
   flexDirection: 'column',
-  gap: 'var(--sp-2)',
+  gap: 'var(--sp-3)',
 })
 const listColumn = pxify({
   display: 'flex',
@@ -489,7 +508,7 @@ const linkBody = pxify({
 function textStyle(t: Todo) {
   return pxify({
     ...typeStep('base'),
-    fontWeight: 'var(--weight-medium)',
+    fontWeight: 'var(--weight-semibold)',
     lineHeight: 1.4,
     color: c.value.text,
     cursor: 'pointer',
@@ -497,22 +516,6 @@ function textStyle(t: Todo) {
     textDecoration: t.done ? 'line-through' : 'none',
   })
 }
-const reviewBtn = computed(() =>
-  pxify({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 7,
-    padding: '6px 12px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + c.value.border,
-    background: 'transparent',
-    color: c.value.text,
-    ...typeStep('sm'),
-    fontWeight: 'var(--weight-medium)',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  }),
-)
 const reviewBadge = computed(() =>
   pxify({
     ...typeStep('xs'),
@@ -521,23 +524,6 @@ const reviewBadge = computed(() =>
     borderRadius: 'var(--radius-pill)',
     background: 'color-mix(in srgb, ' + c.value.accent + ' 18%, transparent)',
     color: c.value.accent,
-  }),
-)
-const iconToggle = computed(() =>
-  pxify({
-    width: 32,
-    height: 32,
-    padding: 0,
-    display: 'grid',
-    placeItems: 'center',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + (showTagFilter.value ? c.value.accent : c.value.border),
-    background: showTagFilter.value
-      ? 'color-mix(in srgb, ' + c.value.accent + ' 12%, transparent)'
-      : 'transparent',
-    color: showTagFilter.value ? c.value.accent : c.value.dim,
-    cursor: 'pointer',
-    flexShrink: 0,
   }),
 )
 const shortcutHint = computed(() =>
@@ -557,17 +543,27 @@ const shortcutHint = computed(() =>
 const shortcutKey = computed(() => pxify({ fontFamily: 'var(--font-mono)', color: c.value.accent }))
 const descStyle = computed(() =>
   pxify({
-    ...typeStep('xs'),
+    ...typeStep('sm'),
     color: c.value.dim,
+    minWidth: 0,
+    flex: '1 1 auto',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   }),
 )
+// The same card as a TreeList todo row: 14/16 padding, 14px gap, 18px radius.
 function rowStyle(done = false) {
-  return merge(rowBase(c.value), { opacity: done ? 0.55 : 1, position: 'relative' })
+  return merge(rowBase(c.value), {
+    opacity: done ? 0.55 : 1,
+    position: 'relative',
+    padding: '14px 16px',
+    gap: 14,
+    borderRadius: 18,
+  })
 }
+const metaLine = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
 const gripDots = [0, 1, 2, 3, 4, 5]
 const ageChipStyle = computed(() =>
   pxify({
@@ -595,21 +591,6 @@ const rolloverChipStyle = computed(() =>
 )
 const doneMetaStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const parentCardStyle = pxify({ display: 'flex', flexDirection: 'column' })
-const linkExpandBtn = computed(() =>
-  pxify({
-    ...typeStep('2xs'),
-    fontWeight: 'var(--weight-semibold)',
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    padding: '5px 10px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + c.value.border,
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  }),
-)
 const bulkBar = computed(() =>
   pxify({
     display: 'flex',
@@ -667,10 +648,11 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
 
 <template>
   <div ref="paneHost" :style="[panelStyle, paneInset]">
-    <!-- On a phone quick add is already in view, so the strip keeps only what
-         the list column does not carry. -->
-    <ListToolbar title="Todos" :new-label="isMobile ? undefined : 'New todo'" @new="focusQuickAdd">
-      <template #actions>
+    <!-- The tab's name in the middle; its actions and New in the corner. On a
+         phone quick add is already in view, so there is no New button. -->
+    <PanelHeader title="Todos" :new-label="isMobile ? undefined : 'New todo'" @new="focusQuickAdd">
+      <!-- Export on the left, level with the title; the count sits with the list. -->
+      <template #left>
         <Dropdown :items="transferMenu" label="Export" variant="toolbar" @select="onTransfer" />
         <input
           ref="importFile"
@@ -679,12 +661,15 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
           hidden
           @change="onImportFile"
         />
-        <button v-if="anyLinked" type="button" :style="linkExpandBtn" @click="toggleAll">
+      </template>
+      <template #right>
+        <button v-if="anyLinked" type="button" class="panel-action" @click="toggleAll">
           {{ allExpanded ? 'Collapse links' : 'Expand links' }}
         </button>
         <button
           type="button"
-          :style="iconToggle"
+          class="panel-action panel-action--icon"
+          :class="{ 'is-on': showTagFilter }"
           :aria-pressed="showTagFilter"
           aria-label="Filter by tag"
           title="Filter by tag"
@@ -694,9 +679,9 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
         </button>
         <button
           type="button"
-          :style="reviewBtn"
-          v-hover-style="{ background: c.card }"
+          class="panel-action"
           :aria-label="'Weekly review, ' + review.undecided.value + ' to decide'"
+          title="Weekly review"
           @click="ui.setReviewOpen(true)"
         >
           <Icon name="calendar-check" size="sm" :style="{ color: c.accent }" />
@@ -705,8 +690,16 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
             review.undecided.value
           }}</span>
         </button>
+        <button
+          v-if="moveSelectableIds.length && !selectionVisible"
+          type="button"
+          class="panel-action"
+          @click="toggleSelectionMode"
+        >
+          Select
+        </button>
       </template>
-    </ListToolbar>
+    </PanelHeader>
     <TaskTransferPasteDialog
       :open="pasteDialogOpen"
       collection="todos"
@@ -760,24 +753,17 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
       </button>
       <button :style="s.editBtn" @click="toggleSelectionMode">Done</button>
     </div>
-    <ProgressLine :done="split.stats.done" :total="split.stats.total">
-      <button
-        v-if="moveSelectableIds.length && !selectionVisible"
-        type="button"
-        :style="linkExpandBtn"
-        @click="toggleSelectionMode"
-      >
-        Select
-      </button>
-    </ProgressLine>
     <!-- data-own-keys: ↑/↓ scroll this list rather than switch tabs (globalKeys). -->
     <div :style="splitView ? splitLayout : leftColumn" data-own-keys>
       <div :style="leftColumn">
         <div :style="tagInputRow">
+          <!-- Progress at the head of the list it measures: the count, and the
+               bar running on beside it. -->
+          <ProgressLine part="inline" :done="split.stats.done" :total="split.stats.total" />
           <QuickAdd ref="quickAdd" :compact="isMobile" />
           <TagFilterInput v-if="showTagFilter || tagQuery" v-model="tagQuery" :groups="tagGroups" />
         </div>
-        <div :style="listColumn">
+        <div v-scroll-fade :style="listColumn">
           <div v-if="todos.length === 0" :style="s.empty">Nothing yet — add your first todo.</div>
           <div
             v-else-if="tagQuery.trim() && !carried.length && !active.length && !completed.length"
@@ -793,8 +779,15 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
             :count="carried.length"
             :subtitle="carriedSubtitle"
           >
-            <div v-for="t in carried" :key="t.id" :style="parentCardStyle">
+            <div
+              v-for="t in carried"
+              :key="t.id"
+              class="todo-row-shell"
+              :class="{ 'is-leaving': completion.isLeaving(t.id) }"
+              :style="parentCardStyle"
+            >
               <div
+                class="todo-card"
                 :style="[
                   rowStyle(),
                   selectedRowStyle(t.id),
@@ -822,33 +815,37 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   :done="t.done"
                   :sub-done="subCount(t.id).done"
                   :sub-total="subCount(t.id).total"
-                  @toggle="app.toggleTodo(t.id)"
+                  @toggle="completion.toggle(t.id)"
                 />
                 <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
-                  <span :style="textStyle(t)"
-                    ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.text }}</span
+                  <span :style="textStyle(t)">{{ t.text }}</span>
+                  <!-- Second line: the tag, then one line of description. -->
+                  <div
+                    v-if="t.tag || !richIsEmpty(t.description) || t.rolloverCount > 1"
+                    :style="metaLine"
                   >
-                  <span v-if="!richIsEmpty(t.description)" :style="descStyle">{{
-                    richPlain(t.description).replace(/\s+/g, ' ')
-                  }}</span>
-                  <div :style="s.chipRow">
-                    <span
-                      v-if="subCount(t.id).total"
-                      :style="subCountStyle"
-                      title="Subtasks done / total"
-                      >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                    >
+                    <TitleTagPill v-if="t.tag" :tag="t.tag" />
+                    <span v-if="!richIsEmpty(t.description)" :style="descStyle">{{
+                      richPlain(t.description).replace(/\s+/g, ' ')
+                    }}</span>
                     <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
                       >rolled over ×{{ t.rolloverCount }}</span
                     >
                   </div>
                   <OfflineChip :pending="app.isItemPending('todo', t.id)" />
                 </div>
+                <span
+                  v-if="subCount(t.id).total"
+                  class="todo-count"
+                  :title="subCount(t.id).done + ' of ' + subCount(t.id).total + ' subtasks done'"
+                  >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                >
                 <IconButton label="Focus on the next subtask" @click.stop="focusOn(t.id)">
                   <Icon name="timer" size="sm" />
                 </IconButton>
                 <RemindBell collection="todos" :id="t.id" />
                 <IconButton
+                  class="row-reveal"
                   label="Delete todo"
                   tone="danger"
                   @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
@@ -905,7 +902,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   :done="t.done"
                   :sub-done="subCount(t.id).done"
                   :sub-total="subCount(t.id).total"
-                  @toggle="app.toggleTodo(t.id)"
+                  @toggle="completion.toggle(t.id)"
                 />
                 <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
                   <span :style="textStyle(t)"

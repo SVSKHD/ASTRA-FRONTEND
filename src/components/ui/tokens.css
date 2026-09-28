@@ -7,6 +7,10 @@
    and the density/direction switches the /ui page exercises. */
 
 :root {
+  /* A glyph on a solid --theme-danger fill (the delete × on hover). The derived
+     danger red is dark enough on every theme for white to read on it. */
+  --theme-on-danger: #fff;
+
   /* Spacing — a 4px base, so every gap in the app is a multiple of one number. */
   --sp-1: 4px;
   --sp-2: 8px;

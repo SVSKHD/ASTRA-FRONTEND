@@ -49,6 +49,9 @@ const ALLOWED = new Set([
   'components/ui/Icon.vue',
   'components/ui/IconSprite.vue',
   'components/ui/ProgressRing.vue',
+  //   RingCheck           a todo's subtask progress as an arc round its
+  //                       checkbox — the same case as ProgressRing
+  'components/ui/RingCheck.vue',
   'components/views/BotsView.vue',
   'components/AuthDialog.vue',
   //   SessionMap          a dot plot of sign-in coordinates on a graticule —

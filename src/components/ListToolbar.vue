@@ -1,71 +1,41 @@
 <script setup lang="ts">
-// The header strip for the tabs that are a plain list rather than a day
-// accordion. Its only job is to open the create dialog — which is the whole
-// point: the add-form that used to sit here is now in the dialog, and the tab
-// keeps the space.
+// The header row at the top of a tab's panel — the same one Todos and Tasks
+// draw with PanelHeader, because this IS PanelHeader with the tab-shaped
+// defaults filled in:
 //
-// IT TELEPORTS INTO THE SHELL'S TOP STRIP (section 44, item 3). The reminder
-// pill was fixed to the top-right of the viewport and covered the "+ New todo"
-// button that lives in this row. Putting the pill in the strip and this row in
-// the strip beside it is what makes the two unable to overlap: they are
-// siblings in one flex row, so the browser lays them out with respect to each
-// other, which is exactly what two fixed elements can never do.
+//   [left slot]                  Tab name          [actions · + New]
+//   3 of 12 done ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-// The teleport is conditional and defaults to off. A toolbar mounted with no
-// shell around it — the screenshot stage, the share page, every unit test —
-// renders exactly where it stands, as it always did. A `<Teleport disabled>`
-// leaves the content in place rather than dropping it, which is why this is one
-// element with a flag rather than two branches of a `v-if`.
+// `done`/`total` are optional: a list with a done state (Deadlines, Reminders)
+// passes them and gets the Todo tab's progress row under the header — the
+// count with the bar running on beside it;
+// everything else leaves them out and the row is just name and actions.
+// `#left` holds a tab's filters or modes (News' categories, Trades' month
+// view), `#actions` its buttons, which sit before New in the right corner.
 //
-// THE KEY IS LOAD-BEARING, and it cost an afternoon. Vue resolves a Teleport's
-// `to` selector ONCE, when the Teleport mounts, and caches the node. This
-// toolbar mounts inside the shell's slot content, which Vue patches before the
-// shell's own `onMounted` runs — so at that instant `#shell-strip-actions` does
-// not exist yet, the cached target is `null`, and flipping `disabled` later
-// throws `Cannot read properties of null (reading 'insertBefore')` and silently
-// leaves the row where it was. Keying on the flag makes the flip a REMOUNT
-// rather than an update, and a remount re-runs the selector against a DOM that
-// now has the strip in it.
-import { computed } from 'vue'
-import { useStyles } from '@/composables/useStyles'
-import { STRIP_ACTIONS_ID, shellStripReady } from '@/components/shell/shellKeys'
+// It used to teleport into the shell's top strip. The tab's name now lives in
+// the middle of this row instead, on every tab, so the strip keeps only the
+// brand and the reminder and every tab's header reads the same way.
+import PanelHeader from '@/components/PanelHeader.vue'
+import ProgressLine from '@/components/ProgressLine.vue'
 
 // `newLabel` is optional: the News and Code tabs are read-only views of things
 // that happen elsewhere, and a create button on them would be a button with
 // nothing to create (sections 39–40).
-defineProps<{ title: string; newLabel?: string }>()
+defineProps<{ title: string; newLabel?: string; done?: number; total?: number }>()
 defineEmits<{ (e: 'new'): void }>()
-
-const { s } = useStyles()
-
-const teleportDisabled = computed(() => !shellStripReady.value)
 </script>
 
 <template>
-  <Teleport
-    :key="teleportDisabled ? 'in-place' : 'strip'"
-    :to="`#${STRIP_ACTIONS_ID}`"
-    :disabled="teleportDisabled"
-  >
-    <div :style="s.dayToolbar" class="list-toolbar">
-      <span v-if="teleportDisabled" :style="s.dayGroupLabelBase">{{ title }}</span>
-      <!-- Optional header actions (e.g. a link expand/collapse toggle) sit between
-           the title and the create button. -->
+  <PanelHeader class="list-toolbar" :title="title" :new-label="newLabel" @new="$emit('new')">
+    <template #left>
+      <slot name="left" />
+    </template>
+    <template #right>
       <slot name="actions" />
-      <button v-if="newLabel" :style="s.newBtn" v-hover-style="s.addBtnHover" @click="$emit('new')">
-        + {{ newLabel }}
-      </button>
-    </div>
-  </Teleport>
+    </template>
+    <template v-if="total != null" #below>
+      <ProgressLine part="inline" :done="done ?? 0" :total="total" />
+    </template>
+  </PanelHeader>
 </template>
-
-<style scoped>
-/* In the strip the row must shrink rather than push the reminder off the edge:
-   a toolbar with six filter buttons and a long title is wider than a 390px
-   screen, and something has to give. It wraps, and its own children ellipsis. */
-.list-toolbar {
-  min-width: 0;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-}
-</style>

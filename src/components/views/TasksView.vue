@@ -16,7 +16,7 @@ import { DANGER, SUCCESS, WARNING, doneText, merge, pxify, rowBase, typeStep } f
 import { todayKey, isOverdueTask } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
-import ListToolbar from '@/components/ListToolbar.vue'
+import PanelHeader from '@/components/PanelHeader.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
@@ -159,7 +159,15 @@ const split = computed(() =>
 const carried = computed(() =>
   [...split.value.carriedOver].sort((a, b) => dayOf(a).localeCompare(dayOf(b))),
 )
-const active = computed(() => split.value.active)
+// In each item's `order`, which is what a drag rewrites and what quick add
+// sets to put a new item first. Storage order was being shown instead, so a
+// dropped row saved its new place and then did not move.
+const active = computed(() =>
+  split.value.active
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => (a.t.order ?? 0) - (b.t.order ?? 0) || a.i - b.i)
+    .map(({ t }) => t),
+)
 const activeRootIds = computed(() => active.value.map((t) => t.id))
 const completed = computed(() => split.value.completed)
 // A completed list is unbounded — it grows for as long as the workspace is
@@ -469,21 +477,6 @@ const rolloverChipStyle = computed(() =>
 )
 const doneMetaStyle = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const parentCardStyle = pxify({ display: 'flex', flexDirection: 'column' })
-const linkExpandBtn = computed(() =>
-  pxify({
-    ...typeStep('2xs'),
-    fontWeight: 'var(--weight-semibold)',
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    padding: '5px 10px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + c.value.border,
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  }),
-)
 const bulkBar = computed(() =>
   pxify({
     display: 'flex',
@@ -552,7 +545,12 @@ const leftColumn = pxify({
   flex: 1,
   minHeight: 0,
 })
-const tagInputRow = pxify({ padding: '4px 10px 0' })
+const tagInputRow = pxify({
+  padding: '4px 10px 0',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--sp-3)',
+})
 const listColumn = pxify({
   display: 'flex',
   flexDirection: 'column',
@@ -590,8 +588,10 @@ function onRowDragOver(e: DragEvent) {
 
 <template>
   <div ref="paneHost" :style="[panelStyle, paneInset]">
-    <ListToolbar title="Tasks" new-label="New task" @new="app.openCreate('task')">
-      <template #actions>
+    <!-- The tab's name in the middle; its actions and New in the corner. -->
+    <PanelHeader title="Tasks" new-label="New task" @new="app.openCreate('task')">
+      <!-- Export on the left, level with the title; the count sits with the list. -->
+      <template #left>
         <Dropdown :items="transferMenu" label="Export" variant="toolbar" @select="onTransfer" />
         <input
           ref="importFile"
@@ -600,19 +600,29 @@ function onRowDragOver(e: DragEvent) {
           hidden
           @change="onImportFile"
         />
+      </template>
+      <template #right>
         <button
           v-if="completed.length"
           type="button"
-          :style="linkExpandBtn"
+          class="panel-action"
           @click="completedOpen = true"
         >
           Completed · {{ completed.length }}
         </button>
-        <button v-if="anyLinked" type="button" :style="linkExpandBtn" @click="toggleAll">
+        <button v-if="anyLinked" type="button" class="panel-action" @click="toggleAll">
           {{ allExpanded ? 'Collapse links' : 'Expand links' }}
         </button>
+        <button
+          v-if="moveSelectableIds.length && !selectionVisible"
+          type="button"
+          class="panel-action"
+          @click="toggleSelectionMode"
+        >
+          Select
+        </button>
       </template>
-    </ListToolbar>
+    </PanelHeader>
     <TaskTransferPasteDialog
       :open="pasteDialogOpen"
       collection="tasks"
@@ -730,20 +740,12 @@ function onRowDragOver(e: DragEvent) {
       </button>
       <button :style="s.editBtn" @click="toggleSelectionMode">Done</button>
     </div>
-    <ProgressLine :done="split.stats.done" :total="split.stats.total">
-      <button
-        v-if="moveSelectableIds.length && !selectionVisible"
-        type="button"
-        :style="linkExpandBtn"
-        @click="toggleSelectionMode"
-      >
-        Select
-      </button>
-    </ProgressLine>
     <!-- data-own-keys: ↑/↓ scroll this list rather than switch tabs (globalKeys). -->
     <div :style="splitView ? splitLayout : leftColumn" data-own-keys>
       <div :style="leftColumn">
         <div :style="tagInputRow">
+          <!-- Progress at the head of the list it measures, as on Todos. -->
+          <ProgressLine part="inline" :done="split.stats.done" :total="split.stats.total" />
           <TagFilterInput v-model="tagQuery" :groups="tagGroups" />
         </div>
         <div :style="listColumn">

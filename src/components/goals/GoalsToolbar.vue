@@ -19,6 +19,7 @@ import { computed } from 'vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import Icon from '@/components/ui/Icon.vue'
+import ListToolbar from '@/components/ListToolbar.vue'
 import TagFilter from '@/components/TagFilter.vue'
 import type { GoalStatus } from '@/types'
 
@@ -68,17 +69,17 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
 
 <template>
   <div class="gtb">
-    <div class="gtb__row">
-      <h2 class="gtb__title">Goals</h2>
-      <div class="gtb__spacer"></div>
-      <div class="gtb__actions">
+    <!-- The same header row as every tab: name in the middle, Help, Import and
+         New in the right-hand corner. -->
+    <ListToolbar title="Goals" new-label="New goal" @new="emit('new')">
+      <template #actions>
         <!-- Persistent, not tucked into the empty state: the question "how do I
              get a goal in from JSON again?" is asked most often by somebody who
              already has goals, which is exactly when an empty-state hint is
              gone (section 23). -->
         <button
           type="button"
-          class="gtb__help"
+          class="gtb__help panel-action panel-action--icon"
           aria-label="How to add a goal"
           title="How to add a goal"
           @click="emit('help')"
@@ -87,9 +88,8 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
         </button>
         <!-- The chevron is Dropdown's own now, so the label is just the word. -->
         <Dropdown label="Import" :items="IMPORT_ITEMS" @select="emit('import')" />
-        <button type="button" class="gtb__new" @click="emit('new')">+ New goal</button>
-      </div>
-    </div>
+      </template>
+    </ListToolbar>
 
     <div v-if="showFilters" class="gtb__filters">
       <TextInput
@@ -161,56 +161,6 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-}
-.gtb__row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-.gtb__title {
-  margin: 0;
-  font-size: var(--text-2xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--theme-dim);
-}
-.gtb__spacer {
-  flex: 1;
-}
-.gtb__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-shrink: 0;
-}
-.gtb__help {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  border: 1px solid var(--glass-border);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--theme-dim);
-  cursor: pointer;
-}
-.gtb__help:hover {
-  color: var(--theme-accent);
-  border-color: var(--theme-accent);
-}
-.gtb__new {
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--theme-accent);
-  background: var(--theme-accent);
-  color: var(--theme-on-accent, #fff);
-  font-size: var(--text-2xs);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-  white-space: nowrap;
 }
 /* One line, left-aligned, each control the width it needs. */
 .gtb__filters {

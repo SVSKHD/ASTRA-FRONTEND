@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
+import ListToolbar from '@/components/ListToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 // Finances — reworked around scopes (Personal / Business / All), a unified
 // income+expense transaction list, debts, and first-class tags. Sub-tabs inside
@@ -691,6 +692,7 @@ const debtCard = computed(() =>
 
 <template>
   <div :style="panelStyle">
+    <ListToolbar title="Finances" new-label="New transaction" @new="openTxnForm('expense')" />
     <div :style="header">
       <!-- TWO AXES, ONE CONTROL, AND A LINE BETWEEN THEM (section 26c).
            Scope is which money; the sub-tab is which view of it. Left adjacent

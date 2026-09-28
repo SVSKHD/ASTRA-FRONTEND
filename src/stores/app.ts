@@ -678,6 +678,15 @@ export const useAppStore = defineStore('app', () => {
     // Reuse the stored spelling so "office" does not shadow "Office".
     return tags.value.find((t) => sameTag(t, tag)) ?? tag
   }
+  // An edit only registers a tag it changes. Dialogs save the whole form, tag
+  // included, so registering on every write put a deleted tag straight back
+  // the next time an item still wearing it was edited.
+  function retag(prev: string | undefined, raw: unknown): string {
+    const value = String(raw ?? '')
+    const tag = normalizeTag(value)
+    if (prev && tag && sameTag(prev, tag)) return prev
+    return registerTag(value)
+  }
   function addTag(raw: string) {
     return registerTag(raw)
   }
@@ -759,7 +768,9 @@ export const useAppStore = defineStore('app', () => {
   }
   function updateTodo(tid: number, fields: Partial<Todo>) {
     const next =
-      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
+      'tag' in fields
+        ? { ...fields, tag: retag(todos.value.find((t) => t.id === tid)?.tag, fields.tag) }
+        : fields
     todos.value = todos.value.map((t) => (t.id === tid ? touched({ ...t, ...next }) : t))
     // Keep a public share's frozen snapshot in step with the edit just made.
     syncRelatedPublicShares('todo', tid)
@@ -960,7 +971,7 @@ export const useAppStore = defineStore('app', () => {
     if (cur) setTaskStatus(tid, cur.done ? 'pending' : 'done')
   }
   function updateTask(tid: number, field: keyof Task, value: string) {
-    const v = field === 'tag' ? registerTag(value) : value
+    const v = field === 'tag' ? retag(tasks.value.find((t) => t.id === tid)?.tag, value) : value
     tasks.value = tasks.value.map((t) => (t.id === tid ? touched({ ...t, [field]: v }) : t))
     // Record the touched field so the sync guard keeps it if a remote snapshot
     // lands mid-edit (a no-op unless this task's dialog is open).
@@ -1573,7 +1584,9 @@ export const useAppStore = defineStore('app', () => {
   }
   function updateGoal(gid: number, fields: Partial<Goal>) {
     const next =
-      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
+      'tag' in fields
+        ? { ...fields, tag: retag(goals.value.find((g) => g.id === gid)?.tag, fields.tag) }
+        : fields
     goals.value = goals.value.map((g) =>
       g.id === gid ? touched({ ...g, ...next, localRev: g.localRev + 1 }) : g,
     )
@@ -3113,7 +3126,9 @@ export const useAppStore = defineStore('app', () => {
   }
   function updateTrip(tid: number, fields: Partial<Trip>) {
     const next =
-      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
+      'tag' in fields
+        ? { ...fields, tag: retag(trips.value.find((t) => t.id === tid)?.tag, fields.tag) }
+        : fields
     trips.value = trips.value.map((t) => (t.id === tid ? touched({ ...t, ...next }) : t))
   }
   function tripById(tid: number): Trip | undefined {
@@ -3193,7 +3208,9 @@ export const useAppStore = defineStore('app', () => {
   }
   function updateIdea(iid: number, fields: Partial<Idea>) {
     const next =
-      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
+      'tag' in fields
+        ? { ...fields, tag: retag(ideas.value.find((i) => i.id === iid)?.tag, fields.tag) }
+        : fields
     ideas.value = ideas.value.map((i) => (i.id === iid ? touched({ ...i, ...next }) : i))
   }
 
@@ -3221,7 +3238,9 @@ export const useAppStore = defineStore('app', () => {
   }
   function updateStock(sid: number, fields: Partial<Stock>) {
     const next =
-      'tag' in fields ? { ...fields, tag: registerTag(String(fields.tag ?? '')) } : fields
+      'tag' in fields
+        ? { ...fields, tag: retag(stocks.value.find((s) => s.id === sid)?.tag, fields.tag) }
+        : fields
     stocks.value = stocks.value.map((st) => (st.id === sid ? touched({ ...st, ...next }) : st))
   }
 
@@ -7100,17 +7119,23 @@ export const useAppStore = defineStore('app', () => {
     // Workspaces written before tags existed have none stored. Rather than
     // leaving the pickers empty, seed them from the tags already in use and
     // fall back to the defaults for a workspace that has none of those either.
-    const stored = sanitizeTags(data.tags)
-    let vocab = stored.length ? stored : DEFAULT_TAGS.slice()
-    for (const item of [
-      ...todos.value,
-      ...tasks.value,
-      ...ideas.value,
-      ...stocks.value,
-      ...goals.value,
-    ])
-      vocab = withTag(vocab, item.tag || '')
-    tags.value = vocab
+    // A stored list — even an empty one — is the user's own and is taken as it
+    // is: re-adding every tag still on an item (or the defaults) on each load
+    // is what made a deleted tag come back.
+    if (Array.isArray(data.tags)) {
+      tags.value = sanitizeTags(data.tags)
+    } else {
+      let vocab = DEFAULT_TAGS.slice()
+      for (const item of [
+        ...todos.value,
+        ...tasks.value,
+        ...ideas.value,
+        ...stocks.value,
+        ...goals.value,
+      ])
+        vocab = withTag(vocab, item.tag || '')
+      tags.value = vocab
+    }
     security.value =
       data.security && typeof data.security === 'object'
         ? { ...emptySecurity(), ...(data.security as Partial<SecuritySettings>) }
@@ -7245,42 +7270,53 @@ export const useAppStore = defineStore('app', () => {
       hydrating = false
     }, 0)
   }
-  function saveCloud() {
-    const cloud = firestoreReady()
-    if (!cloudEnabled || !cloud || !uid || hydrating || !cloudReady.value) return
-    const ref = cloud.fs.doc(cloud.db, AUREON_COLLECTION, uid)
-    syncState.value = 'saving'
-    cloud.fs
-      .setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
-      .then(() => {
-        syncState.value = 'synced'
-      })
-      .catch((error) => {
-        syncState.value = 'error'
-        cloudError.value = 'Could not save changes to Supabase.'
-        reportError('[Aureon] Cloud save failed:', error)
-      })
+  // Local edits the server has not got yet. The Supabase adapter re-reads the
+  // whole document on every realtime event and always reports
+  // `hasPendingWrites: false`, so without this a read landing inside the save
+  // debounce (or racing a write in flight) replaced a fresh edit with the older
+  // server copy — a ticked todo springing back to not done — and the pending
+  // save then wrote that older copy back.
+  let editSeq = 0 // bumped by every local edit that schedules a save
+  let writtenSeq = 0 // editSeq as of the last write that succeeded
+  let writesInFlight = 0
+  let lastWrittenAt = 0 // the `updatedAt` of our newest successful write
+  let savePending = false
+  const saveWaiters: (() => void)[] = []
+  function hasUnsavedEdits() {
+    return savePending || writesInFlight > 0 || editSeq !== writtenSeq
   }
-  function scheduleSave() {
-    // Snapshot hydration updates every reactive list. Do not turn those remote
-    // changes into another write, otherwise the realtime listener can loop.
-    if (hydrating) return
-    clearTimeout(saveTimer)
-    saveTimer = setTimeout(saveCloud, 600)
+  function flushSaveWaiters() {
+    if (savePending || writesInFlight > 0) return
+    for (const resolve of saveWaiters.splice(0)) resolve()
   }
-  // Persist immediately and await the write. The rollover uses this to report
-  // real per-chunk progress: a chunk is "done" only once its write resolves,
-  // not on a timer. Resolves (a no-op) when there is nothing to persist to, so
-  // callers do not have to special-case an offline/unconfigured workspace.
-  function saveCloudNow(): Promise<void> {
-    const cloud = firestoreReady()
-    if (!cloudEnabled || !cloud || !uid || hydrating || !cloudReady.value) return Promise.resolve()
-    const ref = cloud.fs.doc(cloud.db, AUREON_COLLECTION, uid)
+  // Resolves once every edit made so far has been written (or the write has
+  // failed — the sync pill reports that). Callers that want the watcher's
+  // scheduleSave to have run first should await nextTick() before calling.
+  function whenSaved(): Promise<void> {
+    if (!savePending && writesInFlight === 0) return Promise.resolve()
+    return new Promise((resolve) => saveWaiters.push(resolve))
+  }
+  function writeCloud(): Promise<void> {
     clearTimeout(saveTimer)
+    const cloud = firestoreReady()
+    if (!cloudEnabled || !cloud || !uid || !cloudReady.value) {
+      // Nowhere to write to: nothing is waiting on the server either.
+      savePending = false
+      writtenSeq = editSeq
+      flushSaveWaiters()
+      return Promise.resolve()
+    }
+    savePending = false
+    const ref = cloud.fs.doc(cloud.db, AUREON_COLLECTION, uid)
+    const seq = editSeq
+    const at = Date.now()
+    writesInFlight++
     syncState.value = 'saving'
     return cloud.fs
-      .setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() }, { merge: true })
+      .setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: at }, { merge: true })
       .then(() => {
+        writtenSeq = Math.max(writtenSeq, seq)
+        lastWrittenAt = Math.max(lastWrittenAt, at)
         syncState.value = 'synced'
       })
       .catch((error) => {
@@ -7289,6 +7325,35 @@ export const useAppStore = defineStore('app', () => {
         reportError('[Aureon] Cloud save failed:', error)
         throw error
       })
+      .finally(() => {
+        writesInFlight--
+        flushSaveWaiters()
+      })
+  }
+  function saveCloud() {
+    // Hydration is momentary; try again rather than dropping the edit.
+    if (hydrating) {
+      saveTimer = setTimeout(saveCloud, 100)
+      return
+    }
+    writeCloud().catch(() => {})
+  }
+  function scheduleSave() {
+    // Snapshot hydration updates every reactive list. Do not turn those remote
+    // changes into another write, otherwise the realtime listener can loop.
+    if (hydrating) return
+    editSeq++
+    savePending = true
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(saveCloud, 600)
+  }
+  // Persist immediately and await the write. The rollover uses this to report
+  // real per-chunk progress: a chunk is "done" only once its write resolves,
+  // not on a timer. Resolves (a no-op) when there is nothing to persist to, so
+  // callers do not have to special-case an offline/unconfigured workspace.
+  function saveCloudNow(): Promise<void> {
+    if (hydrating) return Promise.resolve()
+    return writeCloud()
   }
 
   // The signed-in account, as the sign-in store reports it (Supabase Auth).
@@ -7298,6 +7363,10 @@ export const useAppStore = defineStore('app', () => {
       cloudUnsub = null
     }
     clearTimeout(saveTimer)
+    savePending = false
+    writtenSeq = editSeq
+    lastWrittenAt = 0
+    flushSaveWaiters()
     stopGithubPolling()
     cloudReady.value = false
     cloudError.value = ''
@@ -7360,7 +7429,15 @@ export const useAppStore = defineStore('app', () => {
         // baseline: apply its data and re-capture the signature so local pending
         // clears. A pending snapshot is our own optimistic echo — skip it.
         if (s.exists() && s.metadata.hasPendingWrites === false) {
-          applyData(s.data())
+          const data = s.data()
+          // Never let the server copy replace edits it has not received yet;
+          // the next write carries them, and its echo brings the list back in
+          // step. A read that started before our last write finished is older
+          // than it, and is dropped for the same reason.
+          if (hasUnsavedEdits()) return
+          const at = typeof data?.updatedAt === 'number' ? data.updatedAt : 0
+          if (at && at < lastWrittenAt) return
+          applyData(data)
           captureSyncedBaseline()
           cloudReady.value = true
           syncState.value = 'synced'
@@ -7414,6 +7491,9 @@ export const useAppStore = defineStore('app', () => {
         goals,
         goalChecklist,
         goalOccurrences,
+        // The tag vocabulary. Missing here, adding or deleting a tag was never
+        // saved on its own, and the next load put the old list back.
+        tags,
         security,
         themeSetting,
         preferredDark,
@@ -7858,6 +7938,7 @@ export const useAppStore = defineStore('app', () => {
     removeGoalWithUndo,
     bulkAddChecklist,
     saveCloudNow,
+    whenSaved,
     setTodoDragId,
     endTodoDrag,
     dropTodoOnDay,

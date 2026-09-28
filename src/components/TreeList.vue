@@ -37,6 +37,7 @@ import Caret from '@/components/ui/Caret.vue'
 import RingCheck from '@/components/ui/RingCheck.vue'
 import { useUiStore } from '@/stores/ui'
 import { focusTargetOf } from '@/utils/todoV2'
+import { useTodoCompletion } from '@/composables/useTodoCompletion'
 import type { TreeIndex } from '@/utils/taskTree'
 
 // `selectable`: a tap selects the row (emits `select`) instead of opening the
@@ -64,7 +65,7 @@ const app = useAppStore()
 const { c, s } = useStyles()
 const { todos, tasks } = storeToRefs(app)
 const accordion = useAccordionState()
-const { targetState, rootState, isSource, setAnnouncer } = useTreeDrag()
+const { targetState, rootState, isSource, setAnnouncer, startRowDrag, isDragging } = useTreeDrag()
 
 // Screen-reader announcements for drag moves (picked up / moved / dropped /
 // cancelled / can't drop), driven by the engine.
@@ -146,7 +147,8 @@ function title(id: number) {
 function desc(id: number) {
   const n = nodeOf(id)
   // Descriptions are rich text now; the row shows a one-line plain preview.
-  return !isTasks.value ? richPlain((n as Todo | undefined)?.description).replace(/\s+/g, ' ') : ''
+  const rich = isTasks.value ? (n as Task | undefined)?.notes : (n as Todo | undefined)?.description
+  return richPlain(rich).replace(/\s+/g, ' ')
 }
 function tagOf(id: number) {
   return nodeOf(id)?.tag || ''
@@ -249,9 +251,12 @@ function onMainClick(event: MouseEvent) {
   if (props.swipeRows || props.selectionMode || isTripleClick(event)) return
   tap.onClick(event)
 }
+// A ticked todo stays in place until its save lands, then leaves for
+// Completed with an Undo toast (useTodoCompletion).
+const completion = useTodoCompletion()
 function toggleDone(id: number) {
   if (isTasks.value) app.cycleTaskStatus(id)
-  else app.toggleTodo(id)
+  else completion.toggle(id)
 }
 function cycleStatus(id: number) {
   if (isTasks.value) app.cycleTaskStatus(id)
@@ -296,6 +301,11 @@ function swDown(e: PointerEvent, id: number) {
 function swMove(e: PointerEvent) {
   const g = sw
   if (!g) return
+  // A held row that has been picked up is a drag now, not a swipe.
+  if (isDragging()) {
+    if (swipeOffset(g.id) !== 0) setSwipe(g.id, 0)
+    return
+  }
   const dx = e.clientX - g.x
   const dy = e.clientY - g.y
   g.moved = Math.max(g.moved, Math.abs(dx), Math.abs(dy))
@@ -313,6 +323,8 @@ function swUp() {
   sw = null
   swiping.value = null
   if (!g) return
+  // The drop of a drag, not a tap: the engine commits it on the same release.
+  if (isDragging()) return
   const cur = swipeOffset(g.id)
   if (g.moved < 6) {
     if (cur < 0) setSwipe(g.id, 0)
@@ -320,6 +332,17 @@ function swUp() {
     return
   }
   if (g.h) setSwipe(g.id, cur < -60 ? SWIPE_OPEN : 0)
+}
+// Press anywhere on a row to pick it up (the grip still works too). Controls in
+// the row keep their own press; so do rows in selection mode and a row whose
+// subtask field is open.
+const OWN_PRESS =
+  'button, a, input, textarea, select, [contenteditable], [role="button"], .drag-handle'
+function onRowDown(e: PointerEvent, id: number) {
+  swDown(e, id)
+  if (props.selectionMode || addingUnder.value === id) return
+  if ((e.target as HTMLElement | null)?.closest(OWN_PRESS)) return
+  startRowDrag(props.collection, id, e, { title: title(id) })
 }
 function swipeStyle(id: number) {
   if (!props.swipeRows) return {}
@@ -422,12 +445,17 @@ function selectedStyle(id: number) {
   const detailSelected = props.selectable && props.selectedId === id
   const bulkSelected = props.selectionMode && selectedSet.value.has(id)
   if (!detailSelected && !bulkSelected) return {}
-  // Border + tint rather than an outline: an outline cannot transition, so it
-  // popped in; these two glide with the row's own transition.
+  // Border + ring rather than an outline: an outline cannot transition, so it
+  // popped in; these glide with the row's own transition. Ringed all the way
+  // round, over the card's own background.
   return {
     borderColor: c.value.accent,
-    backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 8%, ' + c.value.card + ')',
-    boxShadow: 'inset 3px 0 0 ' + c.value.accent,
+    boxShadow:
+      '0 0 0 1px ' +
+      c.value.accent +
+      ', 0 8px 22px color-mix(in srgb, ' +
+      c.value.accent +
+      ' 16%, transparent)',
   }
 }
 function selectedBadgeStyle(id: number) {
@@ -473,8 +501,8 @@ const barWrap = pxify({ position: 'relative' })
 const rowStyle = computed(() =>
   merge(
     rowBase(c.value),
-    { cursor: 'pointer', position: 'relative' },
-    isTasks.value ? {} : { padding: '12px 12px 12px 14px', gap: 12, borderRadius: 14 },
+    { cursor: 'pointer', position: 'relative', userSelect: 'none', WebkitUserSelect: 'none' },
+    { padding: '14px 16px', gap: 14, borderRadius: 18 },
   ),
 )
 function textStyle(id: number) {
@@ -482,7 +510,7 @@ function textStyle(id: number) {
   // text-decoration would appear at once, ahead of it.
   return pxify({
     ...typeStep('base'),
-    fontWeight: isTasks.value ? undefined : 'var(--weight-medium)',
+    fontWeight: 'var(--weight-semibold)',
     color: c.value.text,
     lineHeight: 1.3,
     ...(isTasks.value ? doneText(done(id)) : {}),
@@ -505,8 +533,10 @@ const swipeClip = pxify({ position: 'relative', overflow: 'hidden', borderRadius
 // truncated line under it (full text on hover and in the detail pane).
 const descStyle = computed(() =>
   pxify({
-    ...typeStep('xs'),
+    ...typeStep('sm'),
     color: c.value.dim,
+    minWidth: 0,
+    flex: '1 1 auto',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -534,7 +564,7 @@ const todoTitle = pxify({
   whiteSpace: 'nowrap',
 })
 // The phone row's second line: tag and count under a one-line title.
-const metaLine = pxify({ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 })
+const metaLine = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
 // Nested rows carry an accent rail on their left edge, so a subtask's level
 // reads at a glance even several levels deep.
 function depthRail(depth: number) {
@@ -556,17 +586,6 @@ const chevronBtn = pxify({
 })
 // Same width as the Caret box, so rows with and without children line up.
 const chevronSpacer = pxify({ width: 26, flexShrink: 0 })
-const countChip = computed(() =>
-  pxify({
-    ...typeStep('2xs'),
-    color: c.value.dim,
-    padding: '1px 6px',
-    borderRadius: 'var(--radius-pill)',
-    background: c.value.input,
-    border: '1px solid ' + c.value.border,
-    flexShrink: 0,
-  }),
-)
 const dueChipStyle = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim }))
 // Goal-attachment chip (task 8): a subtle accent-outlined pill on rows that
 // belong to one or more goals, so attachment is visible from the Tasks/Todos tab.
@@ -666,7 +685,14 @@ const rootStripStyle = computed(() =>
 
 <template>
   <TransitionGroup name="rowflip" tag="div" :style="wrap">
-    <div v-for="row in rows" :key="row.id" :style="nodeWrap(row.depth)">
+    <div
+      v-for="row in rows"
+      :key="row.id"
+      :class="
+        isTasks ? undefined : ['todo-row-shell', { 'is-leaving': completion.isLeaving(row.id) }]
+      "
+      :style="nodeWrap(row.depth)"
+    >
       <div :style="swipeRows ? swipeClip : barWrap">
         <!-- Behind the row on a phone: revealed by dragging the row left. -->
         <div v-if="swipeRows && swipeOffset(row.id) < 0" class="swipe-actions">
@@ -702,7 +728,7 @@ const rootStripStyle = computed(() =>
           :aria-selected="selectionMode ? selectedSet.has(row.id) : undefined"
           @pointerdown.capture="onRowCardPointerDown"
           @click.capture="onRowCardClick($event, row.id)"
-          @pointerdown="swDown($event, row.id)"
+          @pointerdown="onRowDown($event, row.id)"
           @pointermove="swMove"
           @pointerup="swUp"
           @pointercancel="swUp"
@@ -746,11 +772,10 @@ const rootStripStyle = computed(() =>
             @click="onMainClick"
           >
             <div :style="titleLine">
-              <span v-if="isTasks" :style="textStyle(row.id)"
-                ><TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" />{{ title(row.id) }}</span
-              >
+              <span v-if="isTasks" :style="[textStyle(row.id), todoTitle]" :title="title(row.id)">{{
+                title(row.id)
+              }}</span>
               <template v-else>
-                <TitleTagPill v-if="tagOf(row.id) && !swipeRows" :tag="tagOf(row.id)" />
                 <span :style="[textStyle(row.id), todoTitle]" :title="title(row.id)"
                   ><StrikeText :done="done(row.id)">{{ title(row.id) }}</StrikeText></span
                 >
@@ -770,15 +795,6 @@ const rootStripStyle = computed(() =>
                 >
                   ◎ {{ g.label }}
                 </button>
-                <span v-if="isTasks" :style="countChip" title="Subtasks done / total"
-                  >☑ {{ progress(row.id).done }}/{{ progress(row.id).total }}</span
-                >
-                <span
-                  v-else-if="progress(row.id).total && !swipeRows"
-                  :style="monoCount"
-                  title="Subtasks done / total"
-                  >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
-                >
                 <span
                   v-if="selectionMode && selectedSet.has(row.id)"
                   :style="selectedBadgeStyle(row.id)"
@@ -793,13 +809,17 @@ const rootStripStyle = computed(() =>
                 >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
               >
             </div>
-            <span
-              v-if="desc(row.id) && !swipeRows"
-              :class="{ 'todo-desc': !isTasks, 'is-done': done(row.id) }"
-              :style="descStyle"
-              :title="desc(row.id)"
-              >{{ desc(row.id) }}</span
-            >
+            <!-- The second line: the tag, then one line of description. -->
+            <div v-if="!swipeRows && (desc(row.id) || tagOf(row.id))" :style="metaLine">
+              <TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" />
+              <span
+                v-if="desc(row.id)"
+                :class="{ 'todo-desc': !isTasks, 'is-done': done(row.id) }"
+                :style="descStyle"
+                :title="desc(row.id)"
+                >{{ desc(row.id) }}</span
+              >
+            </div>
             <OfflineChip :pending="app.isItemPending(itemType(), row.id)" />
           </div>
 
@@ -815,6 +835,12 @@ const rootStripStyle = computed(() =>
           <!-- Todos (Todo v2): focus, remind, delete. Adding a subtask and the
                status cycle live in the details pane. -->
           <template v-else-if="!isTasks">
+            <span
+              v-if="progress(row.id).total"
+              class="todo-count"
+              :title="progress(row.id).done + ' of ' + progress(row.id).total + ' subtasks done'"
+              >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
+            >
             <IconButton
               label="Focus on the next subtask"
               @pointerdown.stop
@@ -824,6 +850,7 @@ const rootStripStyle = computed(() =>
             </IconButton>
             <RemindBell :collection="collection" :id="row.id" />
             <IconButton
+              class="row-reveal"
               label="Delete todo"
               tone="danger"
               @pointerdown.stop
@@ -833,6 +860,12 @@ const rootStripStyle = computed(() =>
             </IconButton>
           </template>
           <template v-else>
+            <span
+              v-if="progress(row.id).total"
+              class="todo-count"
+              :title="progress(row.id).done + ' of ' + progress(row.id).total + ' subtasks done'"
+              >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
+            >
             <button
               type="button"
               class="tree-row__quiet"
@@ -847,7 +880,15 @@ const rootStripStyle = computed(() =>
             </button>
             <RemindBell :collection="collection" :id="row.id" />
             <button :style="s.shareBtn" @click.stop="app.share('task', nodeOf(row.id)!)">↗</button>
-            <button :style="s.del" @click.stop="del(row.id)">×</button>
+            <IconButton
+              class="row-reveal"
+              label="Delete task"
+              tone="danger"
+              @pointerdown.stop
+              @click.stop="del(row.id)"
+            >
+              <Icon name="x" size="sm" />
+            </IconButton>
           </template>
         </div>
         <TreeDropLine

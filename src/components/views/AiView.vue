@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
+import ListToolbar from '@/components/ListToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
@@ -458,6 +459,7 @@ function onComposerKey(e: KeyboardEvent) {
 
 <template>
   <div :style="panelStyle">
+    <ListToolbar title="AI" new-label="New chat" @new="newChat" />
     <div :style="shell">
       <!-- conversation rail -->
       <aside :style="rail">

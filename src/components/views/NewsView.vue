@@ -77,7 +77,7 @@ defineExpose({ focus: () => {} })
 <template>
   <div :style="panelStyle" :data-ready="ready && !news.loading.value ? 'true' : 'false'">
     <ListToolbar title="News">
-      <template #actions>
+      <template #left>
         <Button
           v-for="c in CATEGORIES"
           :key="c.key"
@@ -90,6 +90,8 @@ defineExpose({ focus: () => {} })
           {{ c.label }}
           <span v-if="counts[c.key]" class="nv__count">{{ counts[c.key] }}</span>
         </Button>
+      </template>
+      <template #actions>
         <Button variant="ghost" size="sm" @click="showHealth = !showHealth">
           {{ showHealth ? 'Hide feeds' : 'Feeds' }}
         </Button>

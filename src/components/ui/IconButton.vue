@@ -96,9 +96,16 @@ withDefaults(
   color: var(--theme-accent);
   background: color-mix(in srgb, var(--theme-accent) 10%, transparent);
 }
-.ui-iconbtn--danger:hover:not(:disabled) {
-  color: var(--theme-danger, var(--theme-text));
-  background: color-mix(in srgb, var(--theme-danger, var(--theme-text)) 12%, transparent);
+/* The delete ×: round, and on hover a solid red disc with a white cross, so
+   the one destructive control on a row cannot be mistaken for its neighbours. */
+.ui-iconbtn--danger {
+  border-radius: 50%;
+}
+.ui-iconbtn--danger:hover:not(:disabled),
+.ui-iconbtn--danger:focus-visible {
+  color: var(--theme-on-danger);
+  background: var(--theme-danger, var(--theme-text));
+  border-color: var(--theme-danger, var(--theme-text));
 }
 .ui-iconbtn--default.is-active {
   color: var(--theme-text);

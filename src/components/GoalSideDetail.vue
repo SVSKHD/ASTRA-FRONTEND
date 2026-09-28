@@ -10,7 +10,7 @@ import { useAppStore } from '@/stores/app'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, fmtDay, useDetailStyles } from '@/composables/useDetailStyles'
 import { daysRemaining, formatMinutes } from '@/utils/detailFields'
-import { checkTick, pxify } from '@/styles'
+import { pxify } from '@/styles'
 import StatusPill from '@/components/StatusPill.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import PaneSection from '@/components/detail/PaneSection.vue'
@@ -18,8 +18,11 @@ import TextInput from '@/components/ui/TextInput.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import Select from '@/components/ui/Select.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
-import Icon from '@/components/ui/Icon.vue'
+import SubCheck from '@/components/ui/SubCheck.vue'
+import PaneButton from '@/components/detail/PaneButton.vue'
+import PaneToolbar from '@/components/detail/PaneToolbar.vue'
 import type { GoalStatus } from '@/types'
+import { vScrollFade } from '@/directives/scrollFade'
 
 const props = defineProps<{ goalId: number | null }>()
 const emit = defineEmits<{ select: [id: number | null] }>()
@@ -30,29 +33,16 @@ const {
   c,
   s,
   pane,
-  card,
   row,
-  headerRow,
-  metaGroup,
-  actionBar,
   grow,
   dimSmall,
-  titleStyle,
-  bodyText,
   placeholder,
-  statGrid,
-  statTile,
-  statValue,
-  statAccent,
   infoGrid,
   infoKey,
   infoVal,
   editableVal,
   pill,
   toneStyle,
-  subRow,
-  boxStyle,
-  subText,
   iconBtn,
   addBtn,
 } = useDetailStyles()
@@ -84,9 +74,6 @@ const attachedTodos = computed(() => {
 })
 const progress = computed(() =>
   goal.value ? app.goalProgress(goal.value.id) : { done: 0, total: 0, ratio: 0 },
-)
-const pct = computed(() =>
-  progress.value.total ? Math.round((progress.value.done / progress.value.total) * 100) : 0,
 )
 const target = computed(() =>
   goal.value?.targetDate ? daysRemaining(goal.value.targetDate) : null,
@@ -136,18 +123,45 @@ const swatch = computed(() =>
 </script>
 
 <template>
-  <div :style="pane">
+  <div v-scroll-fade :style="pane">
     <Transition name="pane-swap" mode="out-in">
       <div :key="goalId ?? 'empty'" class="pane-swap__body">
         <div v-if="!goal" :style="s.empty">Select a goal to see its progress and details.</div>
 
         <template v-else>
-          <!-- Header -->
-          <section :style="card">
-            <div :style="row">
+          <!-- The hero, as every detail pane has it: the goal's colour, status
+               and target with the actions, the title large, the description as
+               reading text, and how far it has got. -->
+          <section class="dp-hero">
+            <div class="dp-top">
               <span :style="swatch"></span>
               <span v-if="goal.icon" :style="dimSmall">{{ goal.icon }}</span>
-              <span :style="dimSmall">Goal</span>
+              <span v-if="isEditing('status')" :style="row">
+                <Select
+                  :model-value="goal.status"
+                  :options="STATUS_OPTIONS"
+                  size="sm"
+                  @update:model-value="pick('status', $event)"
+                />
+                <button type="button" :style="iconBtn" title="Close" @click="cancel">✕</button>
+              </span>
+              <span
+                v-else
+                :style="pill"
+                title="Double-click to change status"
+                @dblclick="start('status', goal.status)"
+                >{{ statusLabel(goal.status) }}</span
+              >
+              <span v-if="target" :style="toneStyle(target)">{{ target.text }}</span>
+              <span v-if="goal.recurrence?.enabled" :style="pill">↻ recurring</span>
+              <PaneToolbar class="dp-actions">
+                <PaneButton
+                  icon="external-link"
+                  label="Open full page"
+                  @click="app.openGoalPage(goal.id)"
+                />
+                <PaneButton icon="trash" label="Delete goal" tone="danger" @click="removeGoal" />
+              </PaneToolbar>
             </div>
 
             <TextInput
@@ -160,77 +174,16 @@ const swatch = computed(() =>
               @keydown.esc="cancel"
               @blur="commit"
             />
-            <div
+            <h2
               v-else
-              :style="titleStyle(goal.status === 'done')"
+              class="dp-title"
+              :class="{ 'is-done': goal.status === 'done' }"
               title="Double-click to edit"
               @dblclick="start('title', goal.title)"
             >
               {{ goal.title || '(untitled goal)' }}
-            </div>
+            </h2>
 
-            <div :style="headerRow">
-              <div :style="metaGroup">
-                <span v-if="isEditing('status')" :style="row">
-                  <Select
-                    :model-value="goal.status"
-                    :options="STATUS_OPTIONS"
-                    size="sm"
-                    @update:model-value="pick('status', $event)"
-                  />
-                  <button type="button" :style="iconBtn" title="Close" @click="cancel">✕</button>
-                </span>
-                <span
-                  v-else
-                  :style="pill"
-                  title="Double-click to change status"
-                  @dblclick="start('status', goal.status)"
-                  >{{ statusLabel(goal.status) }}</span
-                >
-                <span v-if="target" :style="toneStyle(target)">{{ target.text }}</span>
-                <span v-if="goal.recurrence?.enabled" :style="pill">↻ recurring</span>
-              </div>
-              <div :style="actionBar">
-                <button
-                  type="button"
-                  :style="iconBtn"
-                  title="Open full page"
-                  @click="app.openGoalPage(goal.id)"
-                >
-                  <Icon name="chevron-right" size="md" />
-                </button>
-                <button type="button" :style="s.del" title="Delete goal" @click="removeGoal">
-                  ×
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <!-- At a glance -->
-          <div :style="statGrid">
-            <div :style="statTile">
-              <span :style="dimSmall">Progress</span>
-              <span :style="statAccent">{{ pct }}%</span>
-            </div>
-            <div :style="statTile">
-              <span :style="dimSmall">Checklist</span>
-              <span :style="statValue">{{ checklistDone }}/{{ checklist.length }}</span>
-            </div>
-            <div :style="statTile">
-              <span :style="dimSmall">Tasks · Todos</span>
-              <span :style="statValue"
-                >{{ attachedTasks.length }} · {{ attachedTodos.length }}</span
-              >
-            </div>
-            <div :style="statTile">
-              <span :style="dimSmall">Time spent</span>
-              <span :style="statValue">{{ formatMinutes(spentTotal) }}</span>
-            </div>
-          </div>
-          <ProgressBar :value="progress.done" :max="progress.total || 1" size="sm" />
-
-          <!-- Description -->
-          <PaneSection title="Description" storage-key="goal:description">
             <TextArea
               v-if="isEditing('description')"
               v-model="draft"
@@ -243,7 +196,7 @@ const swatch = computed(() =>
             />
             <div
               v-else-if="goal.description"
-              :style="bodyText"
+              class="dp-desc"
               title="Double-click to edit"
               @dblclick="start('description', goal.description)"
             >
@@ -252,122 +205,124 @@ const swatch = computed(() =>
             <div v-else :style="placeholder" @dblclick="start('description', '')">
               No description — double-click to add one.
             </div>
-          </PaneSection>
 
-          <!-- Checklist -->
+            <div v-if="progress.total" class="dp-progress">
+              <ProgressBar class="dp-progress__bar" :value="progress.done" :max="progress.total" />
+              <span class="dp-progress__count">{{ progress.done }} of {{ progress.total }}</span>
+            </div>
+          </section>
+
+          <!-- Checklist: one card per point. -->
           <PaneSection
             title="Checklist"
             storage-key="goal:checklist"
             :count="checklistDone + '/' + checklist.length"
           >
-            <ProgressBar
-              v-if="checklist.length"
-              :value="checklistDone"
-              :max="checklist.length"
-              size="sm"
-            />
-
-            <div v-for="ci in checklist" :key="ci.id" :style="subRow">
-              <button
-                type="button"
-                :style="boxStyle(ci.done)"
-                aria-label="Toggle done"
-                @click="app.toggleChecklistItem(ci.id)"
-              >
-                <Icon
-                  v-if="ci.done"
-                  name="check"
-                  size="xs"
-                  :style="[checkTick, { color: c.onAccent }]"
+            <div class="dp-subs">
+              <div v-for="ci in checklist" :key="ci.id" class="dp-sub">
+                <SubCheck :done="ci.done" size="md" @toggle="app.toggleChecklistItem(ci.id)" />
+                <TextInput
+                  v-if="isEditing('ci:' + ci.id)"
+                  v-model="draft"
+                  v-focus
+                  size="sm"
+                  aria-label="Checklist point"
+                  :style="grow"
+                  @keydown.enter="commit"
+                  @keydown.esc="cancel"
+                  @blur="commit"
                 />
-              </button>
-              <TextInput
-                v-if="isEditing('ci:' + ci.id)"
-                v-model="draft"
-                v-focus
-                size="sm"
-                aria-label="Checklist point"
-                :style="grow"
-                @keydown.enter="commit"
-                @keydown.esc="cancel"
-                @blur="commit"
-              />
-              <span
-                v-else
-                :style="subText(ci.done)"
-                title="Double-click to rename"
-                @dblclick="start('ci:' + ci.id, ci.text)"
-                >{{ ci.text || '(untitled)' }}</span
-              >
-              <span v-if="ci.dueAt" :style="toneStyle(ci.done ? null : daysRemaining(ci.dueAt))">{{
-                fmtDay(ci.dueAt)
-              }}</span>
-              <span v-if="ci.estimateMins != null || ci.spentMins" :style="pill"
-                >{{ formatMinutes(ci.spentMins)
-                }}<template v-if="ci.estimateMins != null">
-                  / {{ formatMinutes(ci.estimateMins) }}</template
-                ></span
-              >
-              <button type="button" :style="s.del" @click="app.deleteChecklistItem(ci.id)">
-                ×
-              </button>
-            </div>
-            <div v-if="!checklist.length" :style="placeholder">No checklist points yet.</div>
+                <span
+                  v-else
+                  class="dp-sub__text"
+                  :class="{ 'is-done': ci.done }"
+                  title="Double-click to rename"
+                  @dblclick="start('ci:' + ci.id, ci.text)"
+                  >{{ ci.text || '(untitled)' }}</span
+                >
+                <span
+                  v-if="ci.dueAt"
+                  :style="toneStyle(ci.done ? null : daysRemaining(ci.dueAt))"
+                  >{{ fmtDay(ci.dueAt) }}</span
+                >
+                <div class="dp-sub__actions">
+                  <span v-if="ci.estimateMins != null || ci.spentMins" :style="pill"
+                    >{{ formatMinutes(ci.spentMins)
+                    }}<template v-if="ci.estimateMins != null">
+                      / {{ formatMinutes(ci.estimateMins) }}</template
+                    ></span
+                  >
+                  <PaneButton
+                    icon="trash"
+                    label="Delete checklist point"
+                    tone="danger"
+                    @click="app.deleteChecklistItem(ci.id)"
+                  />
+                </div>
+              </div>
+              <div v-if="!checklist.length" :style="placeholder">No checklist points yet.</div>
 
-            <form :style="row" @submit.prevent="addPoint">
-              <TextInput
-                v-model="newPoint"
-                size="sm"
-                placeholder="Add a checklist point…"
-                aria-label="New checklist point"
-                :style="grow"
-              />
-              <button type="submit" :style="addBtn">Add</button>
-            </form>
+              <form class="dp-add" @submit.prevent="addPoint">
+                <TextInput
+                  v-model="newPoint"
+                  size="sm"
+                  placeholder="Add a checklist point…"
+                  aria-label="New checklist point"
+                  :style="grow"
+                />
+                <button type="submit" :style="addBtn">Add</button>
+              </form>
+            </div>
           </PaneSection>
 
-          <!-- Attached tasks & todos -->
+          <!-- Attached tasks & todos, as cards too. -->
           <PaneSection
             title="Attached items"
             storage-key="goal:attached"
             :count="attachedTasks.length + attachedTodos.length"
           >
-            <div v-for="t in attachedTasks" :key="'task:' + t.id" :style="subRow">
-              <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-              <span
-                :style="[subText(t.status === 'done'), { cursor: 'pointer' }]"
-                @click="app.openTaskDialog(t.id)"
-                >{{ t.title || '(untitled)' }}</span
-              >
-              <span :style="pill">Task</span>
-              <button
-                type="button"
-                :style="s.del"
-                title="Detach from goal"
-                @click="app.detachFromGoal('tasks', t.id, goal.id)"
-              >
-                ×
-              </button>
-            </div>
-            <div v-for="t in attachedTodos" :key="'todo:' + t.id" :style="subRow">
-              <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
-              <span
-                :style="[subText(t.status === 'done'), { cursor: 'pointer' }]"
-                @click="app.openEdit('todo', t.id)"
-                >{{ t.text || '(untitled)' }}</span
-              >
-              <span :style="pill">Todo</span>
-              <button
-                type="button"
-                :style="s.del"
-                title="Detach from goal"
-                @click="app.detachFromGoal('todos', t.id, goal.id)"
-              >
-                ×
-              </button>
-            </div>
-            <div v-if="!attachedTasks.length && !attachedTodos.length" :style="placeholder">
-              No tasks or todos attached.
+            <div class="dp-subs">
+              <div v-for="t in attachedTasks" :key="'task:' + t.id" class="dp-sub">
+                <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
+                <span
+                  class="dp-sub__text"
+                  :class="{ 'is-done': t.status === 'done' }"
+                  :style="{ cursor: 'pointer' }"
+                  @click="app.openTaskDialog(t.id)"
+                  >{{ t.title || '(untitled)' }}</span
+                >
+                <span :style="pill">Task</span>
+                <div class="dp-sub__actions">
+                  <PaneButton
+                    icon="x"
+                    label="Detach from goal"
+                    tone="danger"
+                    @click="app.detachFromGoal('tasks', t.id, goal.id)"
+                  />
+                </div>
+              </div>
+              <div v-for="t in attachedTodos" :key="'todo:' + t.id" class="dp-sub">
+                <StatusPill :status="t.status" @cycle="app.cycleTodoStatus(t.id)" />
+                <span
+                  class="dp-sub__text"
+                  :class="{ 'is-done': t.status === 'done' }"
+                  :style="{ cursor: 'pointer' }"
+                  @click="app.openEdit('todo', t.id)"
+                  >{{ t.text || '(untitled)' }}</span
+                >
+                <span :style="pill">Todo</span>
+                <div class="dp-sub__actions">
+                  <PaneButton
+                    icon="x"
+                    label="Detach from goal"
+                    tone="danger"
+                    @click="app.detachFromGoal('todos', t.id, goal.id)"
+                  />
+                </div>
+              </div>
+              <div v-if="!attachedTasks.length && !attachedTodos.length" :style="placeholder">
+                No tasks or todos attached.
+              </div>
             </div>
           </PaneSection>
 
@@ -412,6 +367,9 @@ const swatch = computed(() =>
                 @dblclick="start('targetDate', goal.targetDate)"
                 >{{ goal.targetDate ? fmtDay(goal.targetDate) : '—' }}</span
               >
+
+              <span :style="infoKey">Time spent</span>
+              <span :style="infoVal">{{ formatMinutes(spentTotal) }}</span>
 
               <span :style="infoKey">Created</span>
               <span :style="infoVal">{{ fmtDate(goal.createdAt) || '—' }}</span>

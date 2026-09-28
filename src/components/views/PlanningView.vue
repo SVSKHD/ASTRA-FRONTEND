@@ -4,6 +4,7 @@
 // usePlanningBoard (kept out of Vue reactivity); this view is the surrounding
 // chrome — board switcher, toolbar and the selected-node actions.
 import { computed, onMounted, ref, watch } from 'vue'
+import ListToolbar from '@/components/ListToolbar.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -119,8 +120,9 @@ const hint = computed(() =>
 
 <template>
   <div :style="panelStyle">
-    <!-- Board switcher + create -->
-    <div :style="toolbar">
+    <ListToolbar title="Planning" new-label="New board" @new="newBoard" />
+    <!-- Board switcher -->
+    <div v-if="boards.length" :style="toolbar">
       <button
         v-for="b in boards"
         :key="b.id"
@@ -130,7 +132,6 @@ const hint = computed(() =>
       >
         {{ b.name }}
       </button>
-      <button type="button" :style="btn()" @click="newBoard">+ Board</button>
     </div>
 
     <!-- Actions -->

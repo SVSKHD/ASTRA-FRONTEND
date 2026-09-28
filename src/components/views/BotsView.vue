@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import TextInput from '@/components/ui/TextInput.vue'
+import ListToolbar from '@/components/ListToolbar.vue'
 // Bots tab: a control surface + dashboard for the trading bots. The app only
 // reads what the bot process writes and flips `enabled`; it never runs strategy
 // logic. One floating glass card per bot, a red "Stop all" kill switch, and a
@@ -68,20 +69,12 @@ function stopAll() {
 }
 
 // --- styles -----------------------------------------------------------------
-const header = pxify({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 'var(--sp-3)',
-  flexWrap: 'wrap',
-})
-const title = computed(() =>
-  pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
-)
+// The header's pill height, in red: the one destructive action on the tab.
 const killBtn = pxify({
   ...typeStep('xs'),
   fontWeight: 'var(--weight-semibold)',
-  padding: '8px 14px',
+  height: 32,
+  padding: '0 14px',
   borderRadius: 'var(--radius-pill)',
   border: '1px solid ' + RED,
   background: 'transparent',
@@ -301,10 +294,11 @@ const dialogCard = computed(() =>
 
 <template>
   <div :style="panelStyle">
-    <div :style="header">
-      <span :style="title">Bots</span>
-      <button v-if="anyEnabled" :style="killBtn" @click="stopAll">Stop all bots</button>
-    </div>
+    <ListToolbar title="Bots">
+      <template #actions>
+        <button v-if="anyEnabled" :style="killBtn" @click="stopAll">Stop all bots</button>
+      </template>
+    </ListToolbar>
 
     <div v-if="!bots.length" :style="emptyWrap">
       <span :style="emptyOrb"></span>

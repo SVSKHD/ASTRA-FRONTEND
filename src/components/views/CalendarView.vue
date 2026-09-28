@@ -7,6 +7,7 @@
 // theme tokens in the scoped block below, so the grid reads on every theme
 // rather than looking like a bolted-on widget.
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import ListToolbar from '@/components/ListToolbar.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Select from '@/components/ui/Select.vue'
 import { storeToRefs } from 'pinia'
@@ -536,6 +537,7 @@ const hintStyle = computed(() =>
 
 <template>
   <div :style="panelStyle">
+    <ListToolbar title="Calendar" />
     <div :style="headerRow">
       <button :style="s.editBtn" @click="api()?.prev()">‹</button>
       <button :style="s.editBtn" @click="api()?.today()">Today</button>

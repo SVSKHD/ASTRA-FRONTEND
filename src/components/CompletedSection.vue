@@ -34,11 +34,14 @@ function toggle() {
 // Only a real tap toggles, as in CarriedOverGroup.
 const tap = useTapOpen(toggle)
 
+// A filled card with no border: a shelf under the open list rather than one
+// more row in it.
 const cardStyle = computed(() =>
   pxify({
-    borderRadius: 'var(--radius-dialog)',
-    border: '1px solid ' + c.value.border,
-    background: dark.value ? 'rgba(30,32,58,0.28)' : 'rgba(255,255,255,0.3)',
+    borderRadius: 18,
+    border: '1px solid transparent',
+    background:
+      'color-mix(in srgb, ' + c.value.text + (dark.value ? ' 6%' : ' 4%') + ', transparent)',
     overflow: 'hidden',
   }),
 )
@@ -47,21 +50,41 @@ const headStyle = computed(() =>
     display: 'flex',
     alignItems: 'center',
     gap: 'var(--sp-3)',
-    padding: '10px 12px',
+    padding: '14px 18px',
     cursor: 'pointer',
     userSelect: 'none',
   }),
 )
 const titleStyle = computed(() =>
   pxify({
-    ...typeStep('sm'),
-    fontWeight: 'var(--weight-semibold)',
-    color: c.value.dim,
-    flex: 1,
+    ...typeStep('base'),
+    fontWeight: 'var(--weight-medium)',
+    color: c.value.text,
     letterSpacing: '0.01em',
   }),
 )
-const actionsWrap = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
+// The count as a round badge beside the word.
+const countBadge = computed(() =>
+  pxify({
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
+    fontVariantNumeric: 'tabular-nums',
+    minWidth: 26,
+    height: 26,
+    padding: '0 7px',
+    display: 'inline-grid',
+    placeItems: 'center',
+    borderRadius: 'var(--radius-pill)',
+    background: c.value.card,
+    color: c.value.text,
+  }),
+)
+const actionsWrap = pxify({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--sp-2)',
+  marginLeft: 'auto',
+})
 function ghostBtn() {
   return pxify({
     ...typeStep('2xs'),
@@ -106,8 +129,10 @@ const sortLabel = computed(() =>
       @click="tap.onClick"
     >
       <Caret :open="open" />
-      <span :style="titleStyle">Completed · {{ count }}</span>
-      <div :style="actionsWrap" @click.stop>
+      <span :style="titleStyle">Completed</span>
+      <span :style="countBadge">{{ count }}</span>
+      <!-- Sorting and clearing are about the list, so they come with it. -->
+      <div v-if="open" :style="actionsWrap" @click.stop>
         <button :style="ghostBtn()" :title="'Sort: ' + sortLabel" @click="emit('toggle-sort')">
           {{ sortLabel }}
         </button>

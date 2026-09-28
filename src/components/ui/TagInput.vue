@@ -11,6 +11,7 @@
 // people arrive already knowing from every other tag field they have used, and
 // leaving it out means every removal is a trip to a small × with the mouse.
 import { computed, ref, useId } from 'vue'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -97,11 +98,12 @@ const unused = computed(() =>
         <button
           v-if="!readonly && !disabled"
           type="button"
-          class="ui-tags__x"
+          class="ui-tags__x x-round"
           :aria-label="`Remove ${tag}`"
+          :title="`Remove ${tag}`"
           @click.stop="remove(tag)"
         >
-          ×
+          <Icon name="x" size="xs" />
         </button>
       </span>
       <input
@@ -159,17 +161,6 @@ const unused = computed(() =>
   font-size: var(--text-xs);
   line-height: var(--lh-xs);
   white-space: nowrap;
-}
-.ui-tags__x {
-  border: none;
-  background: transparent;
-  padding: 0 2px;
-  color: var(--text-muted, var(--theme-dim));
-  font: inherit;
-  cursor: pointer;
-}
-.ui-tags__x:hover {
-  color: var(--text-primary, var(--theme-text));
 }
 .ui-tags__input {
   /* Enough to type into, but happy to be the last thing on a wrapped line. */

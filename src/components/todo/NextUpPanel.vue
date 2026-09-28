@@ -15,6 +15,7 @@ import Icon from '@/components/ui/Icon.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 import SubCheck from '@/components/ui/SubCheck.vue'
 import type { Todo } from '@/types'
+import { vScrollFade } from '@/directives/scrollFade'
 
 const props = defineProps<{ roots: Todo[] }>()
 
@@ -85,7 +86,7 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
     <div :style="head">
       <span :style="sub">First open subtasks of each todo</span>
     </div>
-    <div :style="list">
+    <div v-scroll-fade :style="list">
       <div v-for="r in rows" :key="r.sub.id" :style="row">
         <SubCheck :done="r.sub.status === 'done'" @toggle="tick(r.sub.id)" />
         <span :style="text(r.sub.status === 'done')" :title="r.sub.text">{{

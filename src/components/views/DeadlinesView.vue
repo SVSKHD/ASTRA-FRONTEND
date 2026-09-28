@@ -13,7 +13,6 @@ import { urg } from '@/utils/colors'
 import { splitList } from '@/utils/listSplit'
 import ListToolbar from '@/components/ListToolbar.vue'
 import CompletedSection from '@/components/CompletedSection.vue'
-import ProgressLine from '@/components/ProgressLine.vue'
 import type { Deadline } from '@/types'
 
 const app = useAppStore()
@@ -90,8 +89,13 @@ const rowDim = computed(() => pxify({ ...rowBase(c.value), opacity: 0.55 }))
 
 <template>
   <div :style="panelStyle">
-    <ListToolbar title="Deadlines" new-label="New deadline" @new="app.openCreate('deadline')" />
-    <ProgressLine :done="split.stats.done" :total="split.stats.total" />
+    <ListToolbar
+      title="Deadlines"
+      new-label="New deadline"
+      :done="split.stats.done"
+      :total="split.stats.total"
+      @new="app.openCreate('deadline')"
+    />
     <div v-if="deadlines.length === 0" :style="s.empty">No deadlines set.</div>
     <div :style="s.list">
       <div v-for="t in upcoming" :key="t.id" :style="row" v-hover-style="s.rowHover">

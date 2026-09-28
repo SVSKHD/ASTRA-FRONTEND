@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
+import ListToolbar from '@/components/ListToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 // The Wallets tab (section 14). An address book of the user's own PUBLIC
 // receive addresses, grouped by chain: label, truncated address, copy, QR and
@@ -233,15 +234,20 @@ const defaultChip = computed(() =>
 
 <template>
   <div :style="panelStyle">
-    <div :style="row">
-      <span :style="s.finMeta">
-        Public receive addresses only. Never paste a private key or seed phrase.
-      </span>
-      <span style="flex: 1"></span>
-      <button :style="s.addBtn" v-hover-style="s.addBtnHover" @click="adding = !adding">
-        {{ adding ? 'Cancel' : 'Add wallet' }}
-      </button>
-    </div>
+    <ListToolbar
+      title="Wallets"
+      :new-label="adding ? undefined : 'Add wallet'"
+      @new="adding = true"
+    >
+      <template #actions>
+        <button v-if="adding" type="button" class="panel-action" @click="adding = false">
+          Cancel
+        </button>
+      </template>
+    </ListToolbar>
+    <span :style="s.finMeta">
+      Public receive addresses only. Never paste a private key or seed phrase.
+    </span>
 
     <!-- ---- add form ---------------------------------------------------- -->
     <div v-if="adding" :style="s.ghRepoCard">

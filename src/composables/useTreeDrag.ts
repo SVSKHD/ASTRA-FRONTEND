@@ -26,6 +26,12 @@ export type TreeCollection = 'tasks' | 'todos'
 export const INDENT_PX = 24
 const LONG_PRESS_MS = 250
 const TOUCH_MOVE_CANCEL = 8
+// Picking a row up by its body rather than its grip. A mouse or pen drag starts
+// once the pointer has travelled this far with the button down, so a click that
+// wobbles a pixel is still a click; a finger holds a little longer than on the
+// grip, because on the body a hold competes with a tap and a scroll.
+const ROW_DRAG_PX = 6
+const ROW_LONG_PRESS_MS = 350
 const DWELL_EXPAND_MS = 600
 
 export type DropMode = 'none' | 'reorder' | 'nest' | 'root'
@@ -73,6 +79,10 @@ let longPressTimer: ReturnType<typeof setTimeout> | undefined
 let dwellTimer: ReturnType<typeof setTimeout> | undefined
 let dwellId: number | null = null
 let pendingStart: { collection: TreeCollection; id: number; title: string } | null = null
+// How the pending drag was started: from the grip (a mouse drag begins at once)
+// or from the row's body (a mouse drag waits for ROW_DRAG_PX of travel).
+let pendingFromRow = false
+let pendingPointer = ''
 let announce: (msg: string) => void = () => {}
 
 function items(collection: TreeCollection): (Task | Todo)[] {
@@ -213,6 +223,15 @@ function clearDwell() {
 
 // --- pointer plumbing -------------------------------------------------------
 function onMove(e: PointerEvent) {
+  if (pendingStart && pendingFromRow && pendingPointer !== 'touch') {
+    // A mouse or pen on the row body: moving far enough IS the pick-up.
+    if (
+      Math.abs(e.clientX - state.startX) <= ROW_DRAG_PX &&
+      Math.abs(e.clientY - state.y) <= ROW_DRAG_PX
+    )
+      return
+    begin()
+  }
   if (pendingStart) {
     if (
       Math.abs(e.clientX - state.startX) > TOUCH_MOVE_CANCEL ||
@@ -256,7 +275,12 @@ function begin() {
   state.title = pendingStart.title
   clearTarget()
   pendingStart = null
+  pendingFromRow = false
   haptic()
+  // A finger that has picked a row up must not also scroll the page: the
+  // browser would take the gesture over and cancel the drag. Pointer events
+  // cannot stop that; a non-passive touchmove can.
+  window.addEventListener('touchmove', holdScroll, { passive: false })
   if (!scrollTimer) scrollTimer = setInterval(tickAutoScroll, 16)
   announce('Picked up ' + state.title)
   resolveTarget()
@@ -315,8 +339,13 @@ function onKey(e: KeyboardEvent) {
     cleanup()
   }
 }
+function holdScroll(e: TouchEvent) {
+  if (state.active) e.preventDefault()
+}
 function teardown() {
   if (typeof window === 'undefined') return
+  pendingFromRow = false
+  window.removeEventListener('touchmove', holdScroll)
   window.removeEventListener('pointermove', onMove)
   window.removeEventListener('pointerup', onUp)
   window.removeEventListener('pointercancel', onUp)
@@ -394,6 +423,30 @@ export function useTreeDrag() {
     else begin()
   }
 
+  // The row's body as a second grip. Unlike the handle it does not swallow the
+  // press — a click must still open the row, and a flick must still scroll —
+  // so nothing is prevented here: a mouse or pen picks up after ROW_DRAG_PX of
+  // travel, a finger after a ROW_LONG_PRESS_MS hold that has not moved.
+  function startRowDrag(
+    collection: TreeCollection,
+    id: number,
+    e: PointerEvent,
+    opts: { title: string },
+  ) {
+    if (typeof window === 'undefined' || e.button > 0 || state.active || pendingStart) return
+    pendingStart = { collection, id, title: opts.title }
+    pendingFromRow = true
+    pendingPointer = e.pointerType
+    state.startX = e.clientX
+    state.x = e.clientX
+    state.y = e.clientY
+    window.addEventListener('pointermove', onMove, { passive: false })
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    window.addEventListener('keydown', onKey)
+    if (e.pointerType === 'touch') longPressTimer = setTimeout(begin, ROW_LONG_PRESS_MS)
+  }
+
   // Keyboard entry + arrow handling from the focused handle.
   function onHandleKeydown(collection: TreeCollection, id: number, e: KeyboardEvent) {
     if (!state.keyboard) {
@@ -457,6 +510,7 @@ export function useTreeDrag() {
   return {
     drag: readonly(state),
     startPointerDrag,
+    startRowDrag,
     onHandleKeydown,
     targetState,
     rootState,

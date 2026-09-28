@@ -62,7 +62,7 @@ describe('the one-line layout', () => {
     const wrapper = mountToolbar({ showFilters: false })
     expect(wrapper.find('.gtb__filters').exists()).toBe(false)
     // The actions stay: an empty tab is exactly where "new" and "import" matter.
-    expect(wrapper.find('.gtb__new').exists()).toBe(true)
+    expect(wrapper.find('.panel-header__new').exists()).toBe(true)
   })
 })
 
@@ -88,7 +88,7 @@ describe('the actions', () => {
 
   it('creates a goal', async () => {
     const wrapper = mountToolbar()
-    await wrapper.find('.gtb__new').trigger('click')
+    await wrapper.find('.panel-header__new').trigger('click')
     expect(wrapper.emitted('new')).toHaveLength(1)
   })
 })
