@@ -19,93 +19,32 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
-import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
-import { occurrences } from '@/utils/reminders'
-import { urg } from '@/utils/colors'
+import { reminderDockShown, upcomingTime, useUpcoming } from '@/composables/useUpcoming'
 import { REMINDER_MAX_WIDTH, REMINDER_MAX_WIDTH_PHONE } from '@/views/appShell'
 
 const ui = useUiStore()
-const app = useAppStore()
-const { c, dark, B } = useStyles()
-const { now, isPhone } = storeToRefs(ui)
-const { deadlines, reminders, ideas } = storeToRefs(app)
+const { c, B } = useStyles()
+const { isPhone } = storeToRefs(ui)
 
-interface Next {
-  title: string
-  ms: number
-  kind: 'deadline' | 'reminder'
-  due?: string
-}
+// The soonest thing coming up, from the same list the gutter card shows.
+const { next: nextD, colorOf } = useUpcoming()
 
-// Unchanged from the ticker this replaces: the soonest of the deadlines, the
-// dated ideas and the reminders, with an overdue deadline winning outright.
-const nextD = computed<Next | null>(() => {
-  const ideaDeadlines = ideas.value
-    .filter((i) => i.deadline)
-    .map((i) => ({ title: i.title, due: i.deadline }))
-  const withMs = [
-    ...deadlines.value.map((t) => ({ title: t.title, due: t.due })),
-    ...ideaDeadlines,
-  ].map((t) => ({
-    title: t.title,
-    due: t.due,
-    ms: new Date(t.due + 'T23:59:59').getTime() - now.value,
-    kind: 'deadline' as const,
-  }))
-  const overdue = withMs.filter((t) => t.ms < 0).sort((a, b) => b.ms - a.ms)
-  const upcoming = withMs.filter((t) => t.ms >= 0).sort((a, b) => a.ms - b.ms)
-  const nextDeadline = overdue[0] || upcoming[0] || null
-
-  const remNexts = reminders.value
-    .map((r) => {
-      const occ = occurrences(r, now.value)
-      return occ.next
-        ? { title: r.title, ms: occ.next - now.value, kind: 'reminder' as const }
-        : null
-    })
-    .filter((x): x is { title: string; ms: number; kind: 'reminder' } => x !== null)
-    .sort((a, b) => a.ms - b.ms)
-  const nextReminder = remNexts[0]
-
-  let result: Next | null = nextDeadline
-  if (nextReminder && (!nextDeadline || nextDeadline.ms < 0 || nextReminder.ms < nextDeadline.ms)) {
-    result = nextReminder
-  }
-  return result
-})
-
-const has = computed(() => !!nextD.value)
+// Only while the reminder card is not on screen: where the gutter has room for
+// the card, the card says this and more, and the corner stays clear.
+const has = computed(() => !!nextD.value && !reminderDockShown.value)
 
 const title = computed(() => {
   const n = nextD.value
   if (!n) return ''
   return (n.kind === 'reminder' ? 'Reminder: ' : '') + n.title
 })
-const time = computed(() => {
-  const n = nextD.value
-  if (!n) return ''
-  const isOverdue = n.ms < 0
-  const days = Math.floor(Math.abs(n.ms) / 86400000)
-  const hours = Math.floor((Math.abs(n.ms) % 86400000) / 3600000)
-  return isOverdue ? 'overdue' : days + 'd ' + hours + 'h'
-})
+const time = computed(() => (nextD.value ? upcomingTime(nextD.value.ms) : ''))
 /** The whole thing, for the hover — a truncated title must stay readable. */
 const full = computed(() => (title.value ? `${title.value} — ${time.value}` : ''))
 
-const dotColor = computed(() => {
-  const n = nextD.value
-  if (!n) return ''
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  if (n.ms < 0) return 'var(--theme-danger)'
-  if (n.kind === 'reminder') return 'var(--theme-success)'
-  const d = n.due
-    ? Math.round((new Date(n.due + 'T00:00:00').getTime() - today.getTime()) / 86400000)
-    : 0
-  return urg(d, dark.value)
-})
+const dotColor = computed(() => (nextD.value ? colorOf(nextD.value) : ''))
 
 // --- styles -----------------------------------------------------------------
 // `marginLeft: auto` is what right-aligns it: the strip is a flex row, the
@@ -169,7 +108,6 @@ const dot = computed(() =>
     borderRadius: '50%',
     flexShrink: 0,
     background: dotColor.value,
-    boxShadow: '0 0 8px ' + dotColor.value,
   }),
 )
 

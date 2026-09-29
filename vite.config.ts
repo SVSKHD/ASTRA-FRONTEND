@@ -5,6 +5,7 @@ import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { visualizer } from 'rollup-plugin-visualizer'
 
 // The PWA/service worker is a build+serve concern only. It is skipped under
@@ -134,9 +135,21 @@ if (process.env.ANALYZE) {
   )
 }
 
+// The app's version, from package.json, shown beside the brand in the top
+// strip. Bump `version` there on each deploy and every screen says which build
+// it is running.
+const APP_VERSION = (
+  JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as {
+    version: string
+  }
+).version
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins,
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

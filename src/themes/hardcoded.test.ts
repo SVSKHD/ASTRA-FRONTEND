@@ -39,6 +39,7 @@ const SRC = resolve(__dirname, '..')
 const IDENTITY: Record<string, string> = {
   'components/Celestial.vue': 'The planets and the moon. Scene art, not chrome.',
   'components/Starfield.vue': 'The sky itself.',
+  'components/shell/GreetCard.vue': "The greeting's sky: dawn, day, dusk and night, and the sun.",
   'components/CursorTail.vue': 'The pointer trail, drawn on the sky.',
   'components/ui/ColorPicker.vue': 'The swatches are the choices.',
   'components/GoalCreateSlideOver.vue': 'The palette a goal colour is picked FROM.',

@@ -44,7 +44,14 @@ describe('the brand', () => {
 
   it('names the app on every tab, beside its mark', () => {
     const wrapper = mountStrip()
-    expect(wrapper.get('.shell-strip__brand').text()).toBe('Aureon')
+    expect(wrapper.get('.shell-strip__brand').text()).toContain('Aureon')
+    wrapper.unmount()
+  })
+
+  it("shows package.json's version beside the name", () => {
+    const wrapper = mountStrip()
+    expect(wrapper.get('.shell-strip__version').text()).toBe('v' + __APP_VERSION__)
+    expect(__APP_VERSION__).toMatch(/^\d+\.\d+\.\d+/)
     wrapper.unmount()
   })
 })

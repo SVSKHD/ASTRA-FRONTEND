@@ -566,9 +566,9 @@ textarea:focus,
 }
 .dp-title {
   margin: 0;
-  font-size: var(--text-2xl, 28px);
+  font-size: var(--text-2xl);
   line-height: 1.2;
-  font-weight: var(--weight-bold, 700);
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
   color: var(--theme-text);
   cursor: text;

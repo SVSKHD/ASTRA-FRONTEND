@@ -1,6 +1,6 @@
 {
   "name": "aureon",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Aureon — a liquid-glass, space-themed personal tracker (todos, tasks, deadlines, reminders, finances) built with Vue 3 + Firebase.",

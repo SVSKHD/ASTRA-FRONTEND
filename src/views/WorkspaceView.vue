@@ -16,6 +16,7 @@ import { anyOverlayOpen, armsNewItem, firesNewItem, handledByWidget } from '@/vi
 import { hasTaskTransferUrlPayload, tabForTaskTransferCollection } from '@/utils/taskTransfer'
 
 import AppShell from '@/components/shell/AppShell.vue'
+import ReminderDock from '@/components/shell/ReminderDock.vue'
 import DragGhost from '@/components/DragGhost.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
 import NewItemHint from '@/components/NewItemHint.vue'
@@ -171,6 +172,8 @@ const currentView = computed(() => viewMap[tab.value])
 // and Code have nothing to create and expose nothing, and reaching for a method
 // that is not there threw a TypeError rather than doing nothing.
 const activeView = ref<{ focus?: () => void } | null>(null)
+// The stage's own element, which the reminder card measures its gutter from.
+const stageEl = ref<HTMLElement | null>(null)
 
 function focusPrimaryInput() {
   activeView.value?.focus?.()
@@ -413,12 +416,15 @@ onBeforeUnmount(() => {
 
 <template>
   <!-- Four regions over the starfield: the dock in the rail, the page's header
-       actions and the reminder in the top strip, the active section in the one
+       actions (and, where the gutter is too narrow for its card, the next
+       reminder) in the top strip, the active section in the one
        scrolling content area, and the sync status and action cluster in the
        bottom bar. Nothing is `position: fixed` and nothing overlaps anything. -->
   <AppShell v-if="showWorkspace">
     <div :style="stageWrap">
-      <div :style="stageStyle">
+      <!-- What is coming up, in the gutter beside the stage where it fits. -->
+      <ReminderDock :stage="stageEl" />
+      <div ref="stageEl" :style="stageStyle">
         <div :style="stageBody" class="workspace-stage__body">
           <component :is="currentView" ref="activeView" />
           <!-- Teaches "/n", counts the times it is used, and stops after three. -->
