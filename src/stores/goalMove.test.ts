@@ -56,6 +56,20 @@ describe('moving a goal to Todos', () => {
   })
 })
 
+describe('a goal is moved once, to one place', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('reports where it went, and refuses a second move to the other list', () => {
+    const { app, gid } = seedGoal()
+    expect(app.goalMovedTo(gid)).toBeNull()
+    const todoId = app.moveGoalTo('todos', gid)
+    expect(app.goalMovedTo(gid)).toEqual({ collection: 'todos', id: todoId })
+    const tasksBefore = app.tasks.length
+    expect(app.moveGoalTo('tasks', gid)).toBe(todoId)
+    expect(app.tasks.length).toBe(tasksBefore)
+  })
+})
+
 describe('moving a goal to Tasks', () => {
   beforeEach(() => setActivePinia(createPinia()))
 

@@ -17,8 +17,11 @@ const props = withDefaults(
      * progress, and a static arc is not an indicator at all.
      */
     indeterminate?: boolean
+    /** Leave the centre empty: for a host that prints its own figure there, so
+     *  the two numbers do not land on top of each other. */
+    hideValue?: boolean
   }>(),
-  { ratio: 0, size: 44, stroke: 4, indeterminate: false },
+  { ratio: 0, size: 44, stroke: 4, indeterminate: false, hideValue: false },
 )
 const clamped = computed(() =>
   props.indeterminate ? 0.25 : Math.max(0, Math.min(1, props.ratio || 0)),
@@ -69,7 +72,7 @@ const gradientId = `ui-ring-${useId()}`
       :transform="`rotate(-90 ${size / 2} ${size / 2})`"
     />
     <text
-      v-if="size >= 36 && !indeterminate"
+      v-if="size >= 36 && !indeterminate && !hideValue"
       class="ui-ring__text"
       :x="size / 2"
       :y="size / 2"

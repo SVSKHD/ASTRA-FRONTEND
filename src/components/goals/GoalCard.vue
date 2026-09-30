@@ -70,7 +70,9 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
            zero it is a flat track: a "0" repeated down the grid said nothing. -->
       <span class="gcard__ring goalcard__ring" @click.stop>
         <template v-if="hasProgress">
-          <ProgressRing :ratio="ratio" :size="40" :color="goal.color || undefined" />
+          <!-- The card prints its own "7%" in the middle; the ring's own figure
+               would sit on top of it. -->
+          <ProgressRing :ratio="ratio" :size="40" :color="goal.color || undefined" hide-value />
           <span class="gcard__pct">{{ percent }}</span>
         </template>
         <span v-else class="gcard__track" aria-hidden="true"></span>

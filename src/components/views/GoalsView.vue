@@ -11,6 +11,7 @@ import { computed, defineAsyncComponent, ref, onMounted, onBeforeUnmount, watch 
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify } from '@/styles'
 import { debounce } from '@/utils/syncGuard'
@@ -33,6 +34,7 @@ import { usePaneInset } from '@/composables/usePaneInset'
 import type { Goal, GoalStatus } from '@/types'
 
 const app = useAppStore()
+const ui = useUiStore()
 const router = useRouter()
 const { c, s, isMobile, panelStyle } = useStyles()
 const { goals } = storeToRefs(app)
@@ -147,17 +149,38 @@ function onCardPointerDown(event: PointerEvent, goalId: number) {
 
 // The card's own actions. Everything here stops the click from reaching the
 // card, so none of it opens the dialog.
+// Per card: a goal already moved to Todos or Tasks offers the way there
+// instead of a second move.
+function cardMenu(goalId: number) {
+  const moved = app.goalMovedTo(goalId)
+  return [
+    CARD_MENU[0],
+    ...(moved
+      ? [
+          {
+            value: 'open-moved',
+            label: moved.collection === 'tasks' ? 'In Tasks · Open' : 'In Todos · Open',
+          },
+        ]
+      : [
+          { value: 'to-todos', label: 'Move to Todos' },
+          { value: 'to-tasks', label: 'Move to Tasks' },
+        ]),
+    ...CARD_MENU.slice(1),
+  ]
+}
 const CARD_MENU = [
   { value: 'open', label: 'Open full page' },
-  { value: 'to-todos', label: 'Move to Todos' },
-  { value: 'to-tasks', label: 'Move to Tasks' },
   { value: 'duplicate', label: 'Duplicate' },
   { value: 'archive', label: 'Archive' },
   { value: 'delete', label: 'Delete' },
 ]
 function onCardMenu(goalId: number, action: string) {
   if (action === 'open') router.push(`/goals/${goalId}`)
-  else if (action === 'to-todos') app.moveGoalTo('todos', goalId)
+  else if (action === 'open-moved') {
+    const m = app.goalMovedTo(goalId)
+    if (m) ui.setTab(m.collection === 'tasks' ? 'tasks' : 'todo')
+  } else if (action === 'to-todos') app.moveGoalTo('todos', goalId)
   else if (action === 'to-tasks') app.moveGoalTo('tasks', goalId)
   else if (action === 'duplicate') app.duplicateGoal(goalId)
   else if (action === 'archive') app.archiveGoal(goalId)
@@ -368,7 +391,7 @@ function cellStyle(id: number) {
                   :ratio="app.goalProgress(item.id).ratio"
                   :counts="app.goalCounts(item.id)"
                   :days-chip="daysChip(item.targetDate)"
-                  :menu="CARD_MENU"
+                  :menu="cardMenu(item.id)"
                   :draggable="sortKey === 'order'"
                   @menu="onCardMenu(item.id, $event)"
                 />

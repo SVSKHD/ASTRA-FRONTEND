@@ -64,11 +64,22 @@ const description = useInlineField({
 
 // --- header ------------------------------------------------------------------
 const STATUSES: GoalStatus[] = ['active', 'paused', 'done', 'archived']
-const menuItems = [
-  // The goal becomes a todo (or task) with its points as subtasks; ticking
-  // them there ticks them here (app.moveGoalTo).
-  { value: 'to-todos', label: 'Move to Todos' },
-  { value: 'to-tasks', label: 'Move to Tasks' },
+// The goal becomes a todo (or task) with its points as subtasks; ticking them
+// there ticks them here (app.moveGoalTo). Once moved, the two moves give way to
+// one entry saying where it went — a goal is never moved twice.
+const moved = computed(() => app.goalMovedTo(props.goalId))
+const menuItems = computed(() => [
+  ...(moved.value
+    ? [
+        {
+          value: 'open-moved',
+          label: moved.value.collection === 'tasks' ? 'In Tasks · Open' : 'In Todos · Open',
+        },
+      ]
+    : [
+        { value: 'to-todos', label: 'Move to Todos' },
+        { value: 'to-tasks', label: 'Move to Tasks' },
+      ]),
   { value: 'duplicate', label: 'Duplicate' },
   { value: 'archive', label: 'Archive' },
   { value: 'export', label: 'Export JSON' },
@@ -76,7 +87,7 @@ const menuItems = [
   // looking at a document and wondering what else they could have put in it.
   { value: 'help', label: 'Help' },
   { value: 'delete', label: 'Delete' },
-]
+])
 function onMenu(action: string) {
   // Help is about goals in general, not about this one, so it works whether or
   // not the goal behind the dialog has finished loading.
@@ -85,7 +96,11 @@ function onMenu(action: string) {
     return
   }
   if (!goal.value) return
-  if (action === 'to-todos') app.moveGoalTo('todos', props.goalId)
+  if (action === 'open-moved') {
+    const m = app.goalMovedTo(props.goalId)
+    if (m) ui.setTab(m.collection === 'tasks' ? 'tasks' : 'todo')
+    emit('close')
+  } else if (action === 'to-todos') app.moveGoalTo('todos', props.goalId)
   else if (action === 'to-tasks') app.moveGoalTo('tasks', props.goalId)
   else if (action === 'duplicate') {
     const copy = app.duplicateGoal(props.goalId)

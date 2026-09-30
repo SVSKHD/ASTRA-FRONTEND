@@ -1902,17 +1902,27 @@ export const useAppStore = defineStore('app', () => {
   // and each subtask at the checklist point it stands for. Ticking a subtask
   // ticks its point; finishing the whole item finishes the goal (see
   // syncGoalFromItem). Sending the same goal twice does not make a second copy.
+  // Where a goal was moved to, if anywhere: the one todo or task that stands
+  // for it. A goal is moved at most once, to one place — there is never a copy
+  // in both lists — so this is what the menus ask before offering the move.
+  function goalMovedTo(gid: number): { collection: 'todos' | 'tasks'; id: number } | null {
+    const isFor = (it: { sourceRef: SourceRef | null }) =>
+      it.sourceRef?.collection === 'goals' && it.sourceRef.id === gid
+    const todo = todos.value.find(isFor)
+    if (todo) return { collection: 'todos', id: todo.id }
+    const task = tasks.value.find(isFor)
+    return task ? { collection: 'tasks', id: task.id } : null
+  }
   function moveGoalTo(collection: 'todos' | 'tasks', gid: number): number | null {
     const g = goalById(gid)
     if (!g) return null
-    const listRef = collection === 'tasks' ? tasks : todos
     const noun = collection === 'tasks' ? 'Tasks' : 'Todos'
-    const existing = listRef.value.find(
-      (it) => it.sourceRef?.collection === 'goals' && it.sourceRef.id === gid,
-    )
-    if (existing) {
-      showToastMsg(`"${g.title || 'Goal'}" is already in ${noun}`)
-      return existing.id
+    const already = goalMovedTo(gid)
+    if (already) {
+      showToastMsg(
+        `"${g.title || 'Goal'}" is already in ${already.collection === 'tasks' ? 'Tasks' : 'Todos'}`,
+      )
+      return already.id
     }
     const src: SourceRef = { collection: 'goals', id: gid }
     const doneFields = (done: boolean, at: number | null) =>
@@ -8029,6 +8039,7 @@ export const useAppStore = defineStore('app', () => {
     saveCloudNow,
     whenSaved,
     moveGoalTo,
+    goalMovedTo,
     setTodoDragId,
     endTodoDrag,
     dropTodoOnDay,

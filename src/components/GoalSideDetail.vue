@@ -7,6 +7,7 @@
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, fmtDay, useDetailStyles } from '@/composables/useDetailStyles'
 import { daysRemaining, formatMinutes } from '@/utils/detailFields'
@@ -21,6 +22,7 @@ import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import SubCheck from '@/components/ui/SubCheck.vue'
 import PaneButton from '@/components/detail/PaneButton.vue'
 import PaneToolbar from '@/components/detail/PaneToolbar.vue'
+import Icon from '@/components/ui/Icon.vue'
 import type { GoalStatus } from '@/types'
 import { vScrollFade } from '@/directives/scrollFade'
 
@@ -28,6 +30,11 @@ const props = defineProps<{ goalId: number | null }>()
 const emit = defineEmits<{ select: [id: number | null] }>()
 
 const app = useAppStore()
+const ui = useUiStore()
+// Where this goal was moved to, if it has been: the menu shows that instead
+// of offering a second move.
+const moved = computed(() => (props.goalId == null ? null : app.goalMovedTo(props.goalId)))
+const movedTo = computed(() => (moved.value?.collection === 'tasks' ? 'Tasks' : 'Todos'))
 const { goals, goalChecklist, tasks, todos } = storeToRefs(app)
 const {
   c,
@@ -156,17 +163,28 @@ const swatch = computed(() =>
               <span v-if="goal.recurrence?.enabled" :style="pill">↻ recurring</span>
               <PaneToolbar class="dp-actions">
                 <!-- The goal as a todo or task, its points as subtasks; done
-                     there is done here. -->
-                <PaneButton
-                  icon="check-square"
-                  label="Move to Todos"
-                  @click="app.moveGoalTo('todos', goal.id)"
-                />
-                <PaneButton
-                  icon="list"
-                  label="Move to Tasks"
-                  @click="app.moveGoalTo('tasks', goal.id)"
-                />
+                     there is done here. Once moved, where it went instead. -->
+                <button
+                  v-if="moved"
+                  type="button"
+                  class="moved-chip"
+                  :title="'Open ' + movedTo"
+                  @click="ui.setTab(moved.collection === 'tasks' ? 'tasks' : 'todo')"
+                >
+                  <Icon name="check" size="xs" />In {{ movedTo }}
+                </button>
+                <template v-else>
+                  <PaneButton
+                    icon="check-square"
+                    label="Move to Todos"
+                    @click="app.moveGoalTo('todos', goal.id)"
+                  />
+                  <PaneButton
+                    icon="list"
+                    label="Move to Tasks"
+                    @click="app.moveGoalTo('tasks', goal.id)"
+                  />
+                </template>
                 <PaneButton
                   icon="external-link"
                   label="Open full page"
@@ -406,3 +424,25 @@ const swatch = computed(() =>
     </Transition>
   </div>
 </template>
+
+<style scoped>
+/* "In Todos": where a moved goal went, and the way there. */
+.moved-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 12%, transparent);
+  color: var(--theme-accent);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.moved-chip:hover {
+  background: color-mix(in srgb, var(--theme-accent) 20%, transparent);
+}
+</style>
