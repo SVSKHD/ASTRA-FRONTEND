@@ -445,18 +445,23 @@ function selectedStyle(id: number) {
   const detailSelected = props.selectable && props.selectedId === id
   const bulkSelected = props.selectionMode && selectedSet.value.has(id)
   if (!detailSelected && !bulkSelected) return {}
-  // Border + ring rather than an outline: an outline cannot transition, so it
-  // popped in; these glide with the row's own transition. Ringed all the way
-  // round, over the card's own background.
+  // Border + an inset ring rather than an outline: an outline cannot
+  // transition, so it popped in; these glide with the row's own transition.
+  // The ring is INSIDE the card and there is no outer shadow — a soft glow
+  // round a selected row spilled onto its neighbours and read as a smudge.
   return {
     borderColor: c.value.accent,
-    boxShadow:
-      '0 0 0 1px ' +
-      c.value.accent +
-      ', 0 8px 22px color-mix(in srgb, ' +
-      c.value.accent +
-      ' 16%, transparent)',
+    backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 7%, ' + c.value.card + ')',
+    boxShadow: 'inset 0 0 0 1px ' + c.value.accent,
   }
+}
+// A selected row keeps its ring under the pointer; the hover's drop shadow
+// would replace it.
+function isPicked(id: number) {
+  return (
+    (props.selectable && props.selectedId === id) ||
+    (!!props.selectionMode && selectedSet.value.has(id))
+  )
 }
 function selectedBadgeStyle(id: number) {
   return props.selectionMode && selectedSet.value.has(id)
@@ -720,7 +725,7 @@ const rootStripStyle = computed(() =>
             sourceStyle(row.id),
             swipeStyle(row.id),
           ]"
-          v-hover-style="swipeRows ? {} : s.rowHover"
+          v-hover-style="swipeRows || isPicked(row.id) ? {} : s.rowHover"
           :data-tree-collection="collection"
           :data-tree-id="row.id"
           :data-tree-depth="row.depth"

@@ -310,6 +310,25 @@ function completeSelectedTodos() {
   if (ids.length) app.showToastMsg(`Completed ${ids.length} todo${ids.length === 1 ? '' : 's'}`)
   clearMoveSelection()
 }
+// The selection as a JSON file: each picked todo with every subtask under it —
+// the whole tree, not only the rows on screen — in the same format as the
+// toolbar's Export, so it imports back with Paste JSON or Import file.
+function exportSelected() {
+  const ids = new Set<number>()
+  for (const id of selectedMoveIds.value) {
+    ids.add(id)
+    for (const d of descendantsOf(todoIndex.value, id)) ids.add(d.id)
+  }
+  const picked = todos.value.filter((t) => ids.has(t.id))
+  if (!picked.length) return
+  const at = new Date().toISOString()
+  downloadText(
+    exportTaskTransferJson('todos', picked, at),
+    taskTransferFilename('todos', at).replace('todos-', 'todos-selected-'),
+    'application/json;charset=utf-8',
+  )
+  app.showToastMsg(`Exported ${picked.length} todo${picked.length === 1 ? '' : 's'}`)
+}
 function openDeleteConfirm() {
   if (!selectedMoveCount.value || bulkDeleting.value) return
   deleteConfirmOpen.value = true
@@ -403,28 +422,21 @@ function onTodoMainClick(event: MouseEvent, id: number) {
   if (shouldSelectRow(event)) return
   openTodo(id, event)
 }
-// Ringed all the way round, as TreeList rings a selected todo card.
+// A selected card — for the details pane or in bulk selection — the way
+// TreeList draws one: accent border, an inset ring and a faint tint. No outer
+// shadow: a glow round the row spilled onto its neighbours.
+function pickedStyle() {
+  return {
+    borderColor: c.value.accent,
+    backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 7%, ' + c.value.card + ')',
+    boxShadow: 'inset 0 0 0 1px ' + c.value.accent,
+  }
+}
 function selectedRowStyle(id: number) {
-  return !isMobile.value && selectedId.value === id
-    ? {
-        borderColor: c.value.accent,
-        boxShadow:
-          '0 0 0 1px ' +
-          c.value.accent +
-          ', 0 8px 22px color-mix(in srgb, ' +
-          c.value.accent +
-          ' 16%, transparent)',
-      }
-    : {}
+  return !isMobile.value && selectedId.value === id ? pickedStyle() : {}
 }
 function moveSelectedRowStyle(id: number) {
-  return selectionVisible.value && isMoveSelected(id)
-    ? {
-        borderColor: c.value.accent,
-        backgroundColor: 'color-mix(in srgb, ' + c.value.accent + ' 8%, ' + c.value.card + ')',
-        boxShadow: 'inset 3px 0 0 ' + c.value.accent,
-      }
-    : {}
+  return selectionVisible.value && isMoveSelected(id) ? pickedStyle() : {}
 }
 // Two columns while the pane is inline; the list alone once it floats.
 const splitLayout = pxify({
@@ -748,6 +760,9 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
       <button v-if="selectedMoveCount" :style="s.importBtn" @click="moveSelectedToTasks">
         Move to Tasks
       </button>
+      <button v-if="selectedMoveCount" :style="s.importBtn" @click="exportSelected">
+        Export JSON
+      </button>
       <button v-if="selectedMoveCount" :style="bulkDeleteBtn" @click="openDeleteConfirm">
         {{ allMoveSelected ? 'Delete all' : 'Delete selected' }}
       </button>
@@ -794,7 +809,11 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   moveSelectedRowStyle(t.id),
                   nestHighlight(t.id),
                 ]"
-                v-hover-style="s.rowHover"
+                v-hover-style="
+                  (!isMobile && selectedId === t.id) || (selectionVisible && isMoveSelected(t.id))
+                    ? {}
+                    : s.rowHover
+                "
                 :data-nest-id="t.id"
                 data-nest-collection="todos"
                 :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"

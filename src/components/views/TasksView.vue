@@ -314,6 +314,25 @@ function completeSelectedTasks() {
   if (ids.length) app.showToastMsg(`Completed ${ids.length} task${ids.length === 1 ? '' : 's'}`)
   clearMoveSelection()
 }
+// The selection as a JSON file: each picked task with every subtask under it —
+// the whole tree, not only the rows on screen — in the same format as the
+// toolbar's Export, so it imports back with Paste JSON or Import file.
+function exportSelected() {
+  const ids = new Set<number>()
+  for (const id of selectedMoveIds.value) {
+    ids.add(id)
+    for (const d of descendantsOf(taskIndex.value, id)) ids.add(d.id)
+  }
+  const picked = tasks.value.filter((t) => ids.has(t.id))
+  if (!picked.length) return
+  const at = new Date().toISOString()
+  downloadText(
+    exportTaskTransferJson('tasks', picked, at),
+    taskTransferFilename('tasks', at).replace('tasks-', 'tasks-selected-'),
+    'application/json;charset=utf-8',
+  )
+  app.showToastMsg(`Exported ${picked.length} task${picked.length === 1 ? '' : 's'}`)
+}
 function openDeleteConfirm() {
   if (!selectedMoveCount.value || bulkDeleting.value) return
   deleteConfirmOpen.value = true
@@ -734,6 +753,9 @@ function onRowDragOver(e: DragEvent) {
       </button>
       <button v-if="selectedMoveCount" :style="s.importBtn" @click="moveSelectedToTodos">
         Move to Todos
+      </button>
+      <button v-if="selectedMoveCount" :style="s.importBtn" @click="exportSelected">
+        Export JSON
       </button>
       <button v-if="selectedMoveCount" :style="bulkDeleteBtn" @click="openDeleteConfirm">
         {{ allMoveSelected ? 'Delete all' : 'Delete selected' }}
