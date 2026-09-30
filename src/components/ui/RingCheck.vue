@@ -87,13 +87,7 @@ onBeforeUnmount(() => clearTimeout(popTimer))
         :stroke-dasharray="`${pct} 100`"
         :transform="`rotate(-90 ${geo.c} ${geo.c})`"
       />
-      <circle
-        class="ring__dot"
-        :cx="geo.c"
-        :cy="geo.c"
-        :r="geo.dotR"
-        :stroke-width="geo.dotW"
-      />
+      <circle class="ring__dot" :cx="geo.c" :cy="geo.c" :r="geo.dotR" :stroke-width="geo.dotW" />
     </svg>
     <button
       type="button"
