@@ -297,6 +297,21 @@ function statusLogOf(value: unknown): StatusChange[] {
 // Sanitise a stored cross-collection back-pointer to a well-formed SourceRef, so
 // a malformed or legacy value reads as "created directly" rather than crashing
 // the bridge logic.
+// A todo's or task's back-link, which may also point at the goal it was moved
+// from, or at the goal checklist point it stands for. Kept apart from
+// sourceRefOf, which reminders use and which stays as it was.
+function itemSourceRefOf(v: unknown): SourceRef | null {
+  const plain = sourceRefOf(v)
+  if (plain) return plain
+  if (!v || typeof v !== 'object') return null
+  const r = v as Partial<SourceRef>
+  if (typeof r.id !== 'number') return null
+  if (r.collection === 'goals' || r.collection === 'goalChecklist') {
+    return { collection: r.collection, id: r.id }
+  }
+  return null
+}
+
 function sourceRefOf(v: unknown): SourceRef | null {
   if (!v || typeof v !== 'object') return null
   const r = v as Partial<SourceRef>
@@ -783,6 +798,7 @@ export const useAppStore = defineStore('app', () => {
       fireBurst(tid)
       cancelRemindersFor('todos', tid)
     }
+    syncGoalFromItem(cur.sourceRef, next === 'done')
     // A shared todo's status is part of its public page; keep it in sync.
     syncRelatedPublicShares('todo', tid)
   }
@@ -958,6 +974,7 @@ export const useAppStore = defineStore('app', () => {
       t.id === tid ? withStatusLog(withStatus(t, next), next) : t,
     )
     if (next === 'done') cancelRemindersFor('tasks', tid)
+    syncGoalFromItem(cur.sourceRef, next === 'done')
     // A linked task that changes state closes/reopens its issue (13c).
     scheduleIssuePush(tid)
     syncRelatedPublicShares('task', tid)
@@ -1875,6 +1892,78 @@ export const useAppStore = defineStore('app', () => {
     if (tid != null) attachToGoal('todos', tid, gid)
     return tid
   }
+  // ---- a goal sent to Todos or Tasks --------------------------------------
+  // "Move to Todos / Tasks" on a goal: one todo (or task) named after the goal,
+  // carrying its tag and description, with each checklist point as a subtask.
+  // The goal itself stays where it is — it is the long view, and the new item
+  // is attached to it (goalIds), so it shows under the goal's attached items.
+  //
+  // The two stay in step through back-links: the new item points at the goal
+  // and each subtask at the checklist point it stands for. Ticking a subtask
+  // ticks its point; finishing the whole item finishes the goal (see
+  // syncGoalFromItem). Sending the same goal twice does not make a second copy.
+  function moveGoalTo(collection: 'todos' | 'tasks', gid: number): number | null {
+    const g = goalById(gid)
+    if (!g) return null
+    const listRef = collection === 'tasks' ? tasks : todos
+    const noun = collection === 'tasks' ? 'Tasks' : 'Todos'
+    const existing = listRef.value.find(
+      (it) => it.sourceRef?.collection === 'goals' && it.sourceRef.id === gid,
+    )
+    if (existing) {
+      showToastMsg(`"${g.title || 'Goal'}" is already in ${noun}`)
+      return existing.id
+    }
+    const src: SourceRef = { collection: 'goals', id: gid }
+    const doneFields = (done: boolean, at: number | null) =>
+      done ? { status: 'done' as const, done: true, completedAt: at ?? Date.now() } : {}
+    const title = g.title || 'Goal'
+    const rootId =
+      collection === 'tasks'
+        ? addTask(title, g.tag, {
+            goalIds: [gid],
+            sourceRef: src,
+            notes: g.description,
+            ...doneFields(g.status === 'done', null),
+          })
+        : addTodo(title, g.tag, g.description, {
+            goalIds: [gid],
+            sourceRef: src,
+            ...doneFields(g.status === 'done', null),
+          })
+    if (rootId == null) return null
+    checklistOf(gid).forEach((point, i) => {
+      const fields = {
+        sourceRef: { collection: 'goalChecklist' as const, id: point.id },
+        ...doneFields(point.done, point.completedAt),
+      }
+      const childId =
+        collection === 'tasks'
+          ? addTask(point.text, g.tag, fields)
+          : addTodo(point.text, g.tag, '', fields)
+      if (childId == null) return
+      if (collection === 'tasks') moveTask(childId, rootId, i)
+      else moveTodo(childId, rootId, i)
+    })
+    showToastMsg(`Moved "${title}" to ${noun}`)
+    return rootId
+  }
+  // A todo or task that stands for a goal (or one of its checklist points)
+  // carries its done state back: a ticked subtask ticks the point, a finished
+  // item finishes the goal, and reopening either reopens it.
+  function syncGoalFromItem(ref: SourceRef | null | undefined, done: boolean) {
+    if (!ref) return
+    if (ref.collection === 'goalChecklist') {
+      const point = goalChecklist.value.find((c) => c.id === ref.id)
+      if (point && point.done !== done) toggleChecklistItem(point.id)
+    } else if (ref.collection === 'goals') {
+      const g = goalById(ref.id)
+      if (!g) return
+      if (done && g.status !== 'done') updateGoal(g.id, { status: 'done' })
+      else if (!done && g.status === 'done') updateGoal(g.id, { status: 'active' })
+    }
+  }
+
   function tasksOfGoal(gid: number): Task[] {
     return tasks.value.filter((t) => t.goalIds?.includes(gid))
   }
@@ -6866,7 +6955,7 @@ export const useAppStore = defineStore('app', () => {
       reminderIds: Array.isArray(t.reminderIds)
         ? t.reminderIds.filter((n) => typeof n === 'number')
         : [],
-      sourceRef: sourceRefOf(t.sourceRef),
+      sourceRef: itemSourceRefOf(t.sourceRef),
       linked: linkList(t.linked),
       parents: linkList(t.parents),
       // Flat-hierarchy fields, backfilled for todos written before it existed:
@@ -6896,7 +6985,7 @@ export const useAppStore = defineStore('app', () => {
         reminderIds: Array.isArray(t.reminderIds)
           ? t.reminderIds.filter((n) => typeof n === 'number')
           : [],
-        sourceRef: sourceRefOf(t.sourceRef),
+        sourceRef: itemSourceRefOf(t.sourceRef),
         linked: linkList(t.linked),
         parents: linkList(t.parents),
         // Flat-hierarchy fields, backfilled for tasks written before it existed:
@@ -7939,6 +8028,7 @@ export const useAppStore = defineStore('app', () => {
     bulkAddChecklist,
     saveCloudNow,
     whenSaved,
+    moveGoalTo,
     setTodoDragId,
     endTodoDrag,
     dropTodoOnDay,

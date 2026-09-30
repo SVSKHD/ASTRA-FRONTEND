@@ -149,12 +149,16 @@ function onCardPointerDown(event: PointerEvent, goalId: number) {
 // card, so none of it opens the dialog.
 const CARD_MENU = [
   { value: 'open', label: 'Open full page' },
+  { value: 'to-todos', label: 'Move to Todos' },
+  { value: 'to-tasks', label: 'Move to Tasks' },
   { value: 'duplicate', label: 'Duplicate' },
   { value: 'archive', label: 'Archive' },
   { value: 'delete', label: 'Delete' },
 ]
 function onCardMenu(goalId: number, action: string) {
   if (action === 'open') router.push(`/goals/${goalId}`)
+  else if (action === 'to-todos') app.moveGoalTo('todos', goalId)
+  else if (action === 'to-tasks') app.moveGoalTo('tasks', goalId)
   else if (action === 'duplicate') app.duplicateGoal(goalId)
   else if (action === 'archive') app.archiveGoal(goalId)
   else if (action === 'delete') app.removeGoalWithUndo(goalId)

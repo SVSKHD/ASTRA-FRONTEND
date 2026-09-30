@@ -184,7 +184,9 @@ export interface LinkRef {
 // created from a reminder carries one into 'reminders'. Unlike LinkRef it can
 // span the reminder collection, so it is its own type rather than a widened
 // LinkRef. Null when the item was created directly.
-export type SourceCollection = 'todos' | 'tasks' | 'reminders' | 'goals'
+// 'goalChecklist' is a todo or task that stands for one checklist point of a
+// goal it was moved from (moveGoalTo), so ticking one ticks the other.
+export type SourceCollection = 'todos' | 'tasks' | 'reminders' | 'goals' | 'goalChecklist'
 export interface SourceRef {
   collection: SourceCollection
   id: number

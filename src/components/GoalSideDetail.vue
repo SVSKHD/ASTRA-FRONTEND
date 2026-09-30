@@ -155,6 +155,18 @@ const swatch = computed(() =>
               <span v-if="target" :style="toneStyle(target)">{{ target.text }}</span>
               <span v-if="goal.recurrence?.enabled" :style="pill">↻ recurring</span>
               <PaneToolbar class="dp-actions">
+                <!-- The goal as a todo or task, its points as subtasks; done
+                     there is done here. -->
+                <PaneButton
+                  icon="check-square"
+                  label="Move to Todos"
+                  @click="app.moveGoalTo('todos', goal.id)"
+                />
+                <PaneButton
+                  icon="list"
+                  label="Move to Tasks"
+                  @click="app.moveGoalTo('tasks', goal.id)"
+                />
                 <PaneButton
                   icon="external-link"
                   label="Open full page"

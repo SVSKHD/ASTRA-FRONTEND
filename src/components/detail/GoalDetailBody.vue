@@ -65,6 +65,10 @@ const description = useInlineField({
 // --- header ------------------------------------------------------------------
 const STATUSES: GoalStatus[] = ['active', 'paused', 'done', 'archived']
 const menuItems = [
+  // The goal becomes a todo (or task) with its points as subtasks; ticking
+  // them there ticks them here (app.moveGoalTo).
+  { value: 'to-todos', label: 'Move to Todos' },
+  { value: 'to-tasks', label: 'Move to Tasks' },
   { value: 'duplicate', label: 'Duplicate' },
   { value: 'archive', label: 'Archive' },
   { value: 'export', label: 'Export JSON' },
@@ -81,7 +85,9 @@ function onMenu(action: string) {
     return
   }
   if (!goal.value) return
-  if (action === 'duplicate') {
+  if (action === 'to-todos') app.moveGoalTo('todos', props.goalId)
+  else if (action === 'to-tasks') app.moveGoalTo('tasks', props.goalId)
+  else if (action === 'duplicate') {
     const copy = app.duplicateGoal(props.goalId)
     if (copy != null) emit('open', { kind: 'goal', id: copy })
   } else if (action === 'archive') {
