@@ -77,9 +77,15 @@ function onKeydown(event: KeyboardEvent) {
 
 <template>
   <Teleport to="body">
-    <template v-if="open">
-      <div class="ui-modal__scrim" @click="emit('close')"></div>
+    <!-- Two transitions, so the scrim and the panel each move their own way:
+         the room dims and softens behind, the panel springs up into focus.
+         Closing plays both backwards, quicker. -->
+    <Transition name="ui-modal-scrim" appear>
+      <div v-if="open" class="ui-modal__scrim" @click="emit('close')"></div>
+    </Transition>
+    <Transition name="ui-modal-pop" appear>
       <div
+        v-if="open"
         ref="panel"
         class="ui-modal"
         :class="`ui-modal--${size}`"
@@ -98,7 +104,7 @@ function onKeydown(event: KeyboardEvent) {
         <div class="ui-modal__body"><slot /></div>
         <footer v-if="$slots.footer" class="ui-modal__foot"><slot name="footer" /></footer>
       </div>
-    </template>
+    </Transition>
   </Teleport>
 </template>
 
@@ -108,6 +114,8 @@ function onKeydown(event: KeyboardEvent) {
   inset: 0;
   z-index: 50;
   background: color-mix(in oklch, var(--glass-solid) 60%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .ui-modal {
   position: fixed;
@@ -131,7 +139,6 @@ function onKeydown(event: KeyboardEvent) {
   /* Stated, because the panel now hangs off <body> rather than off the app
      root and inherits nothing from it. */
   font-family: var(--font-sans);
-  animation: uiModalIn var(--dur-med) var(--spring) both;
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .ui-modal {
@@ -147,10 +154,80 @@ function onKeydown(event: KeyboardEvent) {
 .ui-modal--lg {
   width: min(92vw, 760px);
 }
-@keyframes uiModalIn {
+/* ---- motion ---------------------------------------------------------------
+   In: the scrim fades and its blur deepens; the panel rises from a little
+   below and a little smaller, out of a soft blur, on a spring — then its
+   header, body and footer settle in one after another. Out: the same, faster,
+   so closing never feels like waiting. */
+.ui-modal-scrim-enter-active {
+  transition:
+    opacity 0.28s ease,
+    backdrop-filter 0.28s ease;
+}
+.ui-modal-scrim-leave-active {
+  transition:
+    opacity 0.18s ease,
+    backdrop-filter 0.18s ease;
+}
+.ui-modal-scrim-enter-from,
+.ui-modal-scrim-leave-to {
+  opacity: 0;
+  backdrop-filter: blur(0);
+  -webkit-backdrop-filter: blur(0);
+}
+.ui-modal-pop-enter-active {
+  transition:
+    opacity 0.26s ease,
+    transform 0.42s var(--ease-spring),
+    filter 0.3s ease;
+}
+.ui-modal-pop-leave-active {
+  transition:
+    opacity 0.16s ease,
+    transform 0.18s ease-in,
+    filter 0.16s ease;
+}
+.ui-modal-pop-enter-from {
+  opacity: 0;
+  transform: translate(-50%, -44%) scale(0.94);
+  filter: blur(6px);
+}
+.ui-modal-pop-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -48%) scale(0.97);
+  filter: blur(3px);
+}
+.ui-modal-pop-enter-active .ui-modal__head,
+.ui-modal-pop-enter-active .ui-modal__body,
+.ui-modal-pop-enter-active .ui-modal__foot {
+  animation: uiModalPart 0.38s var(--ease-out) both;
+}
+.ui-modal-pop-enter-active .ui-modal__body {
+  animation-delay: 0.06s;
+}
+.ui-modal-pop-enter-active .ui-modal__foot {
+  animation-delay: 0.12s;
+}
+@keyframes uiModalPart {
   from {
     opacity: 0;
-    transform: translate(-50%, -46%);
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-modal-pop-enter-active,
+  .ui-modal-pop-leave-active {
+    transition: opacity 0.15s ease;
+  }
+  .ui-modal-pop-enter-from,
+  .ui-modal-pop-leave-to {
+    transform: translate(-50%, -50%);
+    filter: none;
+  }
+  .ui-modal-pop-enter-active .ui-modal__head,
+  .ui-modal-pop-enter-active .ui-modal__body,
+  .ui-modal-pop-enter-active .ui-modal__foot {
+    animation: none;
   }
 }
 .ui-modal__head {
@@ -164,12 +241,29 @@ function onKeydown(event: KeyboardEvent) {
   font-size: var(--text-lg);
 }
 .ui-modal__x {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: none;
+  border-radius: 50%;
   background: transparent;
   color: var(--theme-dim);
   font-size: var(--text-lg);
   cursor: pointer;
   line-height: 1;
+  transition:
+    transform 0.25s var(--ease-spring),
+    background var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+/* The close × turns a quarter as it is offered. */
+.ui-modal__x:hover,
+.ui-modal__x:focus-visible {
+  transform: rotate(90deg);
+  background: color-mix(in srgb, var(--theme-text) 8%, transparent);
+  color: var(--theme-text);
 }
 .ui-modal__foot {
   display: flex;

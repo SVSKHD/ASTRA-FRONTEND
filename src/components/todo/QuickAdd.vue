@@ -92,7 +92,13 @@ const box = computed(() =>
 )
 const line = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
 const hint = computed(() =>
-  pxify({ ...typeStep('xs'), color: c.value.dim, fontFamily: 'var(--font-mono)', flexShrink: 0 }),
+  pxify({
+    ...typeStep('lg'),
+    color: c.value.dim,
+    fontFamily: 'var(--font-mono)',
+    flexShrink: 0,
+    fontWeight: 'var(--weight-medium)',
+  }),
 )
 const chips = pxify({ display: 'flex', gap: 6, flexWrap: 'wrap', paddingLeft: 26 })
 const inputStyle = pxify({ flex: 1, minWidth: 0 })

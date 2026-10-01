@@ -212,6 +212,7 @@ import type {
   NoteRef,
   Stock,
   Priority,
+  Quote,
   StatusChange,
   FinanceSettings,
   Goal,
@@ -240,7 +241,9 @@ import type { ParsedGoalItem, GoalDoc, GoalPoint } from '@/utils/goals'
 import { horizonDates, localDateInTz } from '@/utils/recurrence'
 import { captureOutcome } from '@/utils/goalMetrics'
 import { exportGoalsJson } from '@/utils/goals'
+import { parseQuotes, quoteKey } from '@/utils/quotes'
 import {
+  parseItemsForParent,
   parseTaskTransferJson,
   parseTaskTransferUrl,
   type TaskTransferCollection,
@@ -432,6 +435,9 @@ export const useAppStore = defineStore('app', () => {
   // The shared tag vocabulary behind both pickers. Seeded for a new workspace;
   // a hydrate replaces it, and any tag typed anywhere joins it.
   const tags = ref<string[]>(DEFAULT_TAGS.slice())
+  // The user's own quotes for the Daily spark card, added by pasting JSON or
+  // lines into its Quotes dialog. Shown before the card's built-in ones.
+  const quotes = ref<Quote[]>([])
   const security = ref<SecuritySettings>(emptySecurity())
   // Theme is a per-user preference, so it rides along in the workspace doc and
   // is restored on refresh once the document lands. The ui store reads it.
@@ -705,10 +711,68 @@ export const useAppStore = defineStore('app', () => {
   function addTag(raw: string) {
     return registerTag(raw)
   }
-  // Removing a tag from the vocabulary leaves items that use it alone — their
-  // tag is still their tag, it is just no longer offered in the pickers.
-  function removeTag(raw: string) {
+  // ---- Quotes -------------------------------------------------------------
+  // Add every quote in a paste (JSON or one per line, see parseQuotes), skipping
+  // any already saved. Returns how many went in and how many were repeats.
+  function addQuotes(input: string): { added: number; skipped: number } {
+    const read = parseQuotes(input).quotes
+    const seen = new Set(quotes.value.map((q) => quoteKey(q.text)))
+    const fresh: Quote[] = []
+    let skipped = 0
+    const at = Date.now()
+    for (const q of read) {
+      const key = quoteKey(q.text)
+      if (!key || seen.has(key)) {
+        skipped++
+        continue
+      }
+      seen.add(key)
+      fresh.push({ id: id(), text: q.text, by: q.by, createdAt: at })
+    }
+    if (fresh.length) quotes.value = [...quotes.value, ...fresh]
+    return { added: fresh.length, skipped }
+  }
+  function removeQuote(qid: number) {
+    quotes.value = quotes.value.filter((q) => q.id !== qid)
+  }
+
+  // How many items wear a tag, across every list that carries one.
+  function tagUsage(raw: string): number {
+    let n = 0
+    for (const list of [
+      todos.value,
+      tasks.value,
+      goals.value,
+      ideas.value,
+      stocks.value,
+      trips.value,
+    ])
+      for (const it of list as { tag?: string }[]) if (it.tag && sameTag(it.tag, raw)) n++
+    return n
+  }
+  // A tag still worn by an item cannot be deleted: taking it out of the list
+  // would leave those items with a tag no picker offers any more. The pickers
+  // say so (and why); this is the rule itself, so no path can get round it.
+  // Returns whether the tag went.
+  function removeTag(raw: string): boolean {
+    if (tagUsage(raw) > 0) return false
     tags.value = withoutTag(tags.value, raw)
+    return true
+  }
+  // Several at once (the Manage tags dialog), as one write rather than one per
+  // tag. Tags still in use are skipped, as removeTag skips them. Returns how
+  // many went.
+  function removeTags(raws: string[]): number {
+    let next = tags.value
+    let gone = 0
+    for (const raw of raws) {
+      if (tagUsage(raw) > 0) continue
+      const after = withoutTag(next, raw)
+      if (after !== next) gone++
+      next = after
+    }
+    if (next !== tags.value) tags.value = next
+    return gone
   }
 
   // ---- Status -------------------------------------------------------------
@@ -1417,6 +1481,34 @@ export const useAppStore = defineStore('app', () => {
     const doc = parseTaskTransferJson(input, hint)
     if (doc.parseError) return { collection: doc.collection, count: 0, error: doc.parseError }
     return { collection: doc.collection, count: importTaskTransferItems(doc.collection, doc.items) }
+  }
+
+  // "Add more" in a detail pane: everything pasted becomes subtasks of one
+  // item — after the subtasks it already has, with any nesting in the paste
+  // kept. The paste is read forgivingly (parseItemsForParent): tidied JSON, or
+  // one subtask per line.
+  function addItemsUnder(
+    collection: TaskTransferCollection,
+    parentId: number,
+    input: string,
+  ): { count: number; as: 'json' | 'lines'; error?: string } {
+    const read = parseItemsForParent(input, collection)
+    if (read.error) return { count: 0, as: read.as, error: read.error }
+    const listRef = collection === 'todos' ? todos : tasks
+    if (!listRef.value.some((t) => t.id === parentId)) {
+      return { count: 0, as: read.as, error: 'That item no longer exists.' }
+    }
+    const before = new Set(listRef.value.map((t) => t.id))
+    const count = importTaskTransferItems(collection, read.items)
+    const fresh = (listRef.value as (Todo | Task)[])
+      .filter((t) => !before.has(t.id) && t.parentId == null)
+      .sort((a, b) => a.order - b.order)
+    let at = buildIndex(listRef.value as (Todo | Task)[]).children.get(parentId)?.length ?? 0
+    for (const t of fresh) {
+      if (collection === 'todos') moveTodo(t.id, parentId, at++)
+      else moveTask(t.id, parentId, at++)
+    }
+    return { count, as: read.as }
   }
 
   function importTaskTransferUrl(input: string): TaskTransferImportResult {
@@ -6796,6 +6888,7 @@ export const useAppStore = defineStore('app', () => {
       lastGoalGenDay: lastGoalGenDay.value,
       goalsHelpSeen: goalsHelpSeen.value,
       tags: tags.value,
+      quotes: quotes.value,
       security: security.value,
       themeSetting: themeSetting.value,
       preferredDark: preferredDark.value,
@@ -6850,6 +6943,7 @@ export const useAppStore = defineStore('app', () => {
     goalOccurrences.value = []
     lastGoalGenDay.value = ''
     tags.value = DEFAULT_TAGS.slice()
+    quotes.value = []
     security.value = emptySecurity()
     themeSetting.value = 'auto'
     preferredDark.value = 'deepSpace'
@@ -7221,6 +7315,17 @@ export const useAppStore = defineStore('app', () => {
     // A stored list — even an empty one — is the user's own and is taken as it
     // is: re-adding every tag still on an item (or the defaults) on each load
     // is what made a deleted tag come back.
+    quotes.value = Array.isArray(data.quotes)
+      ? (data.quotes as unknown[])
+          .map((q) => q as Partial<Quote>)
+          .filter((q) => typeof q.id === 'number' && typeof q.text === 'string' && q.text.trim())
+          .map((q) => ({
+            id: q.id as number,
+            text: (q.text as string).trim(),
+            by: typeof q.by === 'string' ? q.by : '',
+            createdAt: typeof q.createdAt === 'number' ? q.createdAt : 0,
+          }))
+      : []
     if (Array.isArray(data.tags)) {
       tags.value = sanitizeTags(data.tags)
     } else {
@@ -7593,6 +7698,7 @@ export const useAppStore = defineStore('app', () => {
         // The tag vocabulary. Missing here, adding or deleting a tag was never
         // saved on its own, and the next load put the old list back.
         tags,
+        quotes,
         security,
         themeSetting,
         preferredDark,
@@ -7649,6 +7755,9 @@ export const useAppStore = defineStore('app', () => {
     ideas,
     stocks,
     tags,
+    quotes,
+    addQuotes,
+    removeQuote,
     security,
     themeSetting,
     preferredDark,
@@ -7775,6 +7884,8 @@ export const useAppStore = defineStore('app', () => {
     // actions
     addTag,
     removeTag,
+    removeTags,
+    tagUsage,
     registerTag,
     addTodo,
     updateTodo,
@@ -7795,6 +7906,7 @@ export const useAppStore = defineStore('app', () => {
     convertTasksToTodos,
     importTaskTransferJson,
     importTaskTransferUrl,
+    addItemsUnder,
     convertTaskToGoalPoint,
     addDeadline,
     updateDeadline,

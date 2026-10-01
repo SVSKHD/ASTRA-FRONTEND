@@ -27,6 +27,8 @@ import { vScrollFade } from '@/directives/scrollFade'
 import Caret from '@/components/ui/Caret.vue'
 import Icon from '@/components/ui/Icon.vue'
 import GreetCard from '@/components/shell/GreetCard.vue'
+import QuoteCard from '@/components/shell/QuoteCard.vue'
+import { lateLabel, useOverdue } from '@/composables/useOverdue'
 
 const props = defineProps<{ stage: HTMLElement | null }>()
 
@@ -36,7 +38,10 @@ const SHOWN = 8
 
 const ui = useUiStore()
 const { now } = storeToRefs(ui)
-const { list, colorOf } = useUpcoming()
+const { list: upcomingAll, colorOf } = useUpcoming()
+// Only what is still ahead: anything late is in the Overdue card below.
+const list = computed(() => upcomingAll.value.filter((u) => u.ms >= 0))
+const { list: late } = useOverdue()
 
 // The flag a row wears: a reminder's own priority, or "Deadline".
 const FLAG: Record<string, string> = { high: 'High', normal: 'Normal', low: 'Low' }
@@ -50,6 +55,10 @@ function isSoon(u: Upcoming): boolean {
 const acc = useAccordionState()
 const KEY = 'dock:reminders'
 const open = computed(() => acc.isOpen(KEY, true))
+const LATE_KEY = 'dock:overdue'
+const lateOpen = computed(() => acc.isOpen(LATE_KEY, true))
+const lateShown = computed(() => late.value.slice(0, SHOWN))
+const lateMore = computed(() => Math.max(0, late.value.length - SHOWN))
 
 // The room to the left of the stage, re-measured whenever the stage or the
 // region around it changes size.
@@ -84,7 +93,6 @@ watch(fits, (f) => (reminderDockShown.value = f), { immediate: true })
 
 const shown = computed(() => list.value.slice(0, SHOWN))
 const more = computed(() => Math.max(0, list.value.length - SHOWN))
-const overdue = computed(() => list.value.filter((u) => u.ms < 0).length)
 
 function go(u: Upcoming) {
   ui.setTab(u.kind === 'reminder' ? 'reminders' : 'deadlines')
@@ -109,9 +117,7 @@ const cardStyle = computed(() => ({
     >
       <Icon name="bell" size="sm" class="rdock__bell" />
       <span class="rdock__title">Reminders</span>
-      <span v-if="list.length" class="rdock__count" :class="{ 'is-overdue': overdue > 0 }">{{
-        list.length
-      }}</span>
+      <span v-if="list.length" class="rdock__count">{{ list.length }}</span>
       <Caret :open="open" />
     </button>
 
@@ -150,6 +156,49 @@ const cardStyle = computed(() => ({
         </div>
       </div>
     </Transition>
+
+    <!-- A line to steady the eye between what is coming and what is late. -->
+    <QuoteCard />
+
+    <!-- Overdue: late tasks, deadlines, dated ideas and carried-over todos,
+         latest first. The same bar-and-card fold as the reminders. -->
+    <button
+      type="button"
+      class="rdock__head"
+      :aria-expanded="lateOpen"
+      aria-controls="rdock-late"
+      @click="acc.toggle(LATE_KEY, true)"
+    >
+      <Icon name="alert-circle" size="sm" class="rdock__bell rdock__bell--late" />
+      <span class="rdock__title">Overdue</span>
+      <span v-if="late.length" class="rdock__count is-overdue">{{ late.length }}</span>
+      <Caret :open="lateOpen" />
+    </button>
+    <Transition name="rdock-pop">
+      <div v-if="lateOpen" class="rdock__panel">
+        <div id="rdock-late" v-scroll-fade class="rdock__body">
+          <button
+            v-for="o in lateShown"
+            :key="o.key"
+            type="button"
+            class="rdock__item"
+            :title="o.title + ' — ' + lateLabel(o.days)"
+            @click="ui.setTab(o.tab)"
+          >
+            <span class="rdock__dot" :style="{ background: 'var(--theme-danger)' }"></span>
+            <span class="rdock__main">
+              <span class="rdock__name">{{ o.title || '(untitled)' }}</span>
+              <span class="rdock__meta">
+                <span class="rdock__flag">{{ o.kind === 'Todo' ? 'Carried todo' : o.kind }}</span>
+              </span>
+            </span>
+            <span class="rdock__time is-overdue">{{ lateLabel(o.days) }}</span>
+          </button>
+          <p v-if="!late.length" class="rdock__empty">Nothing overdue. 🎉</p>
+          <span v-if="lateMore" class="rdock__empty">+ {{ lateMore }} more</span>
+        </div>
+      </div>
+    </Transition>
   </aside>
 </template>
 
@@ -165,6 +214,10 @@ const cardStyle = computed(() => ({
   flex-direction: column;
   gap: 10px;
   max-height: calc(100% - 36px);
+  /* Five cards can outgrow a short window; the column scrolls, the page does not. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
 }
 /* The shared surface: glass warmed with the theme's accent so each card reads
    as its own surface against the starfield rather than a hole in it. */
@@ -195,6 +248,9 @@ const cardStyle = computed(() => ({
 }
 .rdock__bell {
   color: var(--theme-accent);
+}
+.rdock__bell--late {
+  color: var(--theme-danger);
 }
 .rdock__title {
   flex: 1;

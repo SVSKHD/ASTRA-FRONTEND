@@ -28,6 +28,8 @@ import Modal from '@/components/ui/Modal.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import TaskTransferPasteDialog from '@/components/TaskTransferPasteDialog.vue'
+import { useTagSelection } from '@/composables/useTagSelection'
+import { vScrollFade } from '@/directives/scrollFade'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { usePaneInset } from '@/composables/usePaneInset'
 import TitleTagPill from '@/components/TitleTagPill.vue'
@@ -291,6 +293,14 @@ function clearSelectedMoveSelection() {
   selectedMove.value = new Set()
   selectionMode.value = true
 }
+// "By tag" in the selection bar: select every row wearing a tag, or unselect
+// them when they are all selected already.
+const { tagMenu, pickTag } = useTagSelection({
+  selectable: moveSelectableIds,
+  tagOf: (id) => taskIndex.value.byId.get(id)?.tag ?? '',
+  selected: selectedMove,
+  selectionMode,
+})
 function selectAllMoveSelection() {
   selectionMode.value = true
   selectedMove.value = new Set(moveSelectableIds.value)
@@ -748,6 +758,7 @@ function onRowDragOver(e: DragEvent) {
         Select all
       </button>
       <button v-else :style="s.editBtn" @click="clearSelectedMoveSelection">Clear all</button>
+      <Dropdown v-if="tagMenu.length" :items="tagMenu" label="By tag" @select="pickTag" />
       <button v-if="selectedMoveCount" :style="bulkCompleteBtn" @click="completeSelectedTasks">
         Completed
       </button>
@@ -770,7 +781,7 @@ function onRowDragOver(e: DragEvent) {
           <ProgressLine part="inline" :done="split.stats.done" :total="split.stats.total" />
           <TagFilterInput v-model="tagQuery" :groups="tagGroups" />
         </div>
-        <div :style="listColumn">
+        <div v-scroll-fade :style="listColumn">
           <div v-if="tasks.length === 0" :style="s.empty">Nothing yet — add your first task.</div>
           <div v-else-if="tagQuery.trim() && !carried.length && !active.length" :style="s.empty">
             {{ emptyTagQueryMessage(tagQuery, 'tasks') }}

@@ -466,3 +466,116 @@ export function buildTaskTransferUrl(
   url.searchParams.set('items', JSON.stringify(taskTransferItems(collection, source)))
   return url.toString()
 }
+
+// ---- pasting more subtasks under one parent ----------------------------------
+// "Add more" in a task's (or todo's) detail: whatever is pasted becomes
+// subtasks of that item. Pastes are messy, so this is forgiving where the
+// import box is strict:
+//   • code fences, smart quotes, trailing commas and stray whitespace are
+//     tidied before JSON is tried;
+//   • JSON may be an export document, a bare array, or items that carry their
+//     own `subtasks` / `children` / `items` arrays (flattened, nesting kept);
+//   • anything that is not JSON is read as one subtask per non-empty line,
+//     with bullets ("- ", "* ", "• ", "1. ") and checkboxes ("[ ]", "[x]")
+//     taken off — "[x]" marks it done.
+export interface ParentPasteResult {
+  items: TaskTransferItem[]
+  /** 'json' or 'lines': how the paste was read, for the dialog to say. */
+  as: 'json' | 'lines'
+  error?: string
+}
+
+function tidyPaste(input: string): string {
+  return input
+    .replace(/^\uFEFF/, '')
+    .replace(/^\s*```[a-zA-Z]*\s*/, '')
+    .replace(/\s*```\s*$/, '')
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/,(\s*[}\]])/g, '$1')
+    .trim()
+}
+
+const NESTED_KEYS = ['subtasks', 'children', 'items', 'todos', 'tasks'] as const
+
+// Nested items → a flat list with parent links, the shape the import expects.
+function flattenNested(list: unknown[], parentId: string | null, out: unknown[], path: string) {
+  list.forEach((raw, i) => {
+    const id = path + '.' + i
+    if (typeof raw === 'string') {
+      out.push({ title: raw, sourceId: id, parentSourceId: parentId })
+      return
+    }
+    if (!raw || typeof raw !== 'object') return
+    const rec = { ...(raw as Record<string, unknown>) }
+    const kids = NESTED_KEYS.map((k) => rec[k]).find((v) => Array.isArray(v)) as
+      unknown[] | undefined
+    for (const k of NESTED_KEYS) if (Array.isArray(rec[k])) delete rec[k]
+    // Keep a parent link the item already states; otherwise hang it off the
+    // item it was nested in.
+    const ownId = rec.sourceId ?? rec.id
+    const sourceId = ownId != null ? String(ownId) : id
+    out.push({
+      ...rec,
+      sourceId,
+      parentSourceId: rec.parentSourceId ?? rec.parentId ?? parentId,
+    })
+    if (kids?.length) flattenNested(kids, sourceId, out, id)
+  })
+}
+
+export function parseItemsForParent(
+  input: string,
+  collection: TaskTransferCollection,
+): ParentPasteResult {
+  const tidied = tidyPaste(input)
+  if (!tidied) return { items: [], as: 'lines', error: 'Nothing to add.' }
+
+  if (tidied.startsWith('[') || tidied.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(tidied) as unknown
+      const record =
+        parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>)
+          : null
+      // An export document (items already flat, with parent links) goes
+      // through the ordinary parser; anything else is flattened first.
+      const top = Array.isArray(parsed)
+        ? parsed
+        : record &&
+            NESTED_KEYS.some((k) => Array.isArray(record[k])) &&
+            !record.title &&
+            !record.text
+          ? (NESTED_KEYS.map((k) => record[k]).find((v) => Array.isArray(v)) as unknown[])
+          : [parsed]
+      const flat: unknown[] = []
+      flattenNested(top, null, flat, 'p')
+      const items = normalizeItems(flat, collection)
+      return items.length
+        ? { items, as: 'json' }
+        : { items: [], as: 'json', error: 'That JSON has no items with a title.' }
+    } catch {
+      /* not JSON after all — read it as lines */
+    }
+  }
+
+  const lines = tidied
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l, i) => {
+      let text = l.replace(/^(?:[-*•–]|\d+[.)])\s+/, '')
+      let done = false
+      const box = text.match(/^\[( |x|X)\]\s*/)
+      if (box) {
+        done = box[1].toLowerCase() === 'x'
+        text = text.slice(box[0].length)
+      }
+      return { title: text.trim(), status: done ? 'done' : 'pending', sourceId: 'l' + i }
+    })
+    .filter((l) => l.title)
+  const items = normalizeItems(lines, collection)
+  return items.length
+    ? { items, as: 'lines' }
+    : { items: [], as: 'lines', error: 'Nothing to add.' }
+}

@@ -22,6 +22,9 @@ export type WeatherStatus = 'idle' | 'loading' | 'ready' | 'denied' | 'error' | 
 
 interface Reading {
   temp: number
+  /** Today's high and low; absent on a reading saved before they were asked for. */
+  hi?: number
+  lo?: number
   code: number
   isDay: boolean
   place: string
@@ -83,7 +86,8 @@ function position(): Promise<GeolocationPosition> {
 async function fetchReading(lat: number, lon: number, knownPlace = ''): Promise<Reading> {
   const w = await fetch(
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-      '&current=temperature_2m,weather_code,is_day&timezone=auto',
+      '&current=temperature_2m,weather_code,is_day' +
+      '&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto',
   ).then((r) => {
     if (!r.ok) throw new Error('weather ' + r.status)
     return r.json()
@@ -101,6 +105,8 @@ async function fetchReading(lat: number, lon: number, knownPlace = ''): Promise<
   }
   return {
     temp: Math.round(w.current.temperature_2m),
+    hi: w.daily?.temperature_2m_max?.length ? Math.round(w.daily.temperature_2m_max[0]) : undefined,
+    lo: w.daily?.temperature_2m_min?.length ? Math.round(w.daily.temperature_2m_min[0]) : undefined,
     code: Number(w.current.weather_code),
     isDay: w.current.is_day === 1,
     place,

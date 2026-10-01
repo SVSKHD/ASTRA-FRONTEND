@@ -84,14 +84,22 @@ const isNight = computed(() => phase.value === 'night')
 
 // The sun rides 6:00 → 20:00; the moon 20:00 → 6:00. Both on the same arc,
 // low at the edges and high in the middle.
+// The arc is drawn in the card's top-right quarter — the open sky the words
+// never reach — so the sun or moon is never sitting behind the greeting.
 const orb = computed(() => {
   const h = hour.value
   const t = isNight.value ? (h >= 20 ? h - 20 : h + 4) / 10 : (h - 6) / 14
   const k = Math.min(1, Math.max(0, t))
   return {
-    left: 8 + k * 78 + '%',
-    top: 62 - Math.sin(Math.PI * k) * 48 + '%',
+    left: 60 + k * 30 + '%',
+    top: 46 - Math.sin(Math.PI * k) * 30 + '%',
   }
+})
+// The foot's right-hand end: today's high and low, or — before a reading has
+// them — how much of the day is left.
+const hiLo = computed(() => {
+  const r = weather.reading
+  return r && r.hi != null && r.lo != null ? `H ${r.hi}° · L ${r.lo}°` : ''
 })
 
 const code = computed(() => weather.reading?.code ?? 0)
@@ -209,7 +217,10 @@ const CLOUDS = [
         }}
       </button>
 
-      <p class="greet__line">{{ line }}</p>
+      <div class="greet__foot">
+        <p class="greet__line">{{ line }}</p>
+        <span class="greet__side">{{ hiLo || dayLeft + '% of today left' }}</span>
+      </div>
     </div>
 
     <!-- What is left of today, as a thin line along the foot. -->
@@ -226,8 +237,15 @@ const CLOUDS = [
   isolation: isolate;
   min-height: 196px;
   border-radius: var(--radius-dialog);
-  border: 1px solid oklch(1 0 0 / 0.14);
-  box-shadow: 0 2px 10px oklch(0 0 0 / 0.22);
+  /* Frosted glass: the starfield blurred through the card, the sky laid over
+     it as a tint, and a light catching the top edge. */
+  background: oklch(1 0 0 / 0.04);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid oklch(1 0 0 / 0.16);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.22),
+    0 2px 10px oklch(0 0 0 / 0.22);
   color: oklch(0.99 0 0);
 }
 
@@ -236,6 +254,8 @@ const CLOUDS = [
   position: absolute;
   inset: 0;
   z-index: -1;
+  /* A tint, not a painting: the glass shows through it. */
+  opacity: 0.62;
   transition: background 1.2s ease;
 }
 .is-dawn .sky {
@@ -458,9 +478,28 @@ const CLOUDS = [
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.greet__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: 8px;
+  min-width: 0;
+}
 .greet__line {
-  margin: 8px 0 0;
+  margin: 0;
+  min-width: 0;
   font-size: var(--text-xs);
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.greet__side {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
   opacity: 0.9;
 }
 .greet__note {

@@ -44,7 +44,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onPointer))
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
   box-shadow: var(--elev-1);
   color: var(--theme-text);
-  animation: uiPop var(--dur-fast) var(--ease-out) both;
+  transform-origin: top center;
+  animation: uiPop 0.24s var(--ease-spring) both;
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .ui-popover__panel {
@@ -60,7 +61,12 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onPointer))
 @keyframes uiPop {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-6px) scale(0.95);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-popover__panel {
+    animation: none;
   }
 }
 </style>

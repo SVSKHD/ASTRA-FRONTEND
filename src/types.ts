@@ -135,6 +135,16 @@ export interface Bot {
 // same way. `done` is kept alongside it — shares, the GitHub panel and the
 // public share page all still speak the boolean — and is always
 // `status === 'done'`; the store is the only place allowed to set them apart.
+// A quote of the user's own, for the Daily spark card (stored with the
+// workspace; added through its Quotes dialog).
+export interface Quote {
+  id: number
+  text: string
+  /** Who said it; '' when nobody is named. */
+  by: string
+  createdAt: number
+}
+
 export type ItemStatus = 'pending' | 'progress' | 'done'
 
 // Where a detail opens, in three steps that go one way.

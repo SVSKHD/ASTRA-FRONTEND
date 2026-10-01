@@ -22,6 +22,9 @@ import PaneToolbar from '@/components/detail/PaneToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import RichDescription from '@/components/detail/RichDescription.vue'
 import Icon from '@/components/ui/Icon.vue'
+import AddMoreDialog from '@/components/detail/AddMoreDialog.vue'
+import ExportJsonDialog from '@/components/detail/ExportJsonDialog.vue'
+import { exportTaskTransferJson } from '@/utils/taskTransfer'
 import SubCheck from '@/components/ui/SubCheck.vue'
 import { STATUS_LABEL } from '@/types'
 import { vScrollFade } from '@/directives/scrollFade'
@@ -109,6 +112,30 @@ watch(
 )
 
 const newSub = ref('')
+// The "Add more" paste dialog, for this item's subtasks.
+const addingMore = ref(false)
+// Export: this todo and every subtask under it, at every depth, as JSON in the
+// transfer format, shown in a dialog to copy or download — it pastes straight
+// back into "Add more" or the tab's Import.
+const exported = ref<{ json: string; filename: string; count: number } | null>(null)
+function exportThis() {
+  const root = todo.value
+  if (!root) return
+  const ids = new Set([root.id, ...descendantsOf(index.value, root.id).map((d) => d.id)])
+  const picked = todos.value.filter((t) => ids.has(t.id))
+  const slug =
+    (root.text || 'todo')
+      .toLowerCase()
+      .replace(/[^\w]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40) || 'todo'
+  const at = new Date().toISOString()
+  exported.value = {
+    json: exportTaskTransferJson('todos', picked, at),
+    filename: `${slug}-${at.slice(0, 10)}.json`,
+    count: picked.length,
+  }
+}
 function addSubtask() {
   const parent = todo.value
   if (!parent || !newSub.value.trim()) return
@@ -217,15 +244,48 @@ function moveTodoToTasks() {
               @keydown.esc="cancel"
               @blur="commit"
             />
-            <h2
-              v-else
-              class="dp-title"
-              :class="{ 'is-done': todo.status === 'done' }"
-              title="Double-click to edit"
-              @dblclick="start('text', todo.text)"
-            >
-              {{ todo.text || '(untitled)' }}
-            </h2>
+            <!-- The title, and beside it the way to paste in more subtasks. -->
+            <div v-else class="dp-titlerow">
+              <h2
+                class="dp-title"
+                :class="{ 'is-done': todo.status === 'done' }"
+                title="Double-click to edit"
+                @dblclick="start('text', todo.text)"
+              >
+                {{ todo.text || '(untitled)' }}
+              </h2>
+              <button
+                type="button"
+                class="dp-addmore"
+                title="Paste JSON or lines to add as subtasks"
+                @click="addingMore = true"
+              >
+                <Icon name="plus" size="xs" />Add more
+              </button>
+              <button
+                type="button"
+                class="dp-addmore"
+                title="Download this and all its subtasks as JSON"
+                @click="exportThis"
+              >
+                <Icon name="download" size="xs" />Export
+              </button>
+            </div>
+            <ExportJsonDialog
+              :open="!!exported"
+              :title="todo.text || '(untitled)'"
+              :json="exported?.json ?? ''"
+              :filename="exported?.filename ?? ''"
+              :count="exported?.count ?? 0"
+              @close="exported = null"
+            />
+            <AddMoreDialog
+              :open="addingMore"
+              collection="todos"
+              :parent-id="todo.id"
+              :parent-title="todo.text || '(untitled)'"
+              @close="addingMore = false"
+            />
 
             <RichDescription
               class="dp-desc"

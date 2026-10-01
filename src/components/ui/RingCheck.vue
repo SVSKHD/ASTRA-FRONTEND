@@ -46,13 +46,33 @@ const title = computed(() =>
 
 const popping = ref(false)
 let popTimer: ReturnType<typeof setTimeout> | undefined
+// The moment of finishing something: a ring of sparks bursts from the box and
+// a ripple runs out from it. Only on ticking an open item — never on untick —
+// and keyed, so ticking again replays it rather than continuing the last one.
+const burst = ref(0)
+const bursting = ref(false)
+let burstTimer: ReturnType<typeof setTimeout> | undefined
+const SPARKS = Array.from({ length: 10 }, (_, i) => ({
+  angle: i * 36 + (i % 2 ? 8 : -8) + 'deg',
+  reach: (i % 3 === 0 ? 22 : i % 3 === 1 ? 18 : 15) + 'px',
+  alt: i % 2 === 1,
+}))
 function onClick() {
   popping.value = true
   clearTimeout(popTimer)
   popTimer = setTimeout(() => (popping.value = false), 180)
+  if (!props.done) {
+    burst.value += 1
+    bursting.value = true
+    clearTimeout(burstTimer)
+    burstTimer = setTimeout(() => (bursting.value = false), 760)
+  }
   emit('toggle')
 }
-onBeforeUnmount(() => clearTimeout(popTimer))
+onBeforeUnmount(() => {
+  clearTimeout(popTimer)
+  clearTimeout(burstTimer)
+})
 </script>
 
 <template>
@@ -99,6 +119,16 @@ onBeforeUnmount(() => clearTimeout(popTimer))
     >
       <Icon name="check" size="xs" class="ring__tick" :style="checkTick" />
     </button>
+    <span v-if="bursting" :key="burst" class="burst" aria-hidden="true">
+      <span class="burst__wave"></span>
+      <i
+        v-for="(sp, i) in SPARKS"
+        :key="i"
+        class="burst__spark"
+        :class="{ 'is-alt': sp.alt }"
+        :style="{ '--a': sp.angle, '--r': sp.reach }"
+      ></i>
+    </span>
   </span>
 </template>
 
@@ -187,6 +217,66 @@ onBeforeUnmount(() => clearTimeout(popTimer))
 .ring__btn:focus-visible {
   outline: 2px solid var(--theme-accent);
   outline-offset: 2px;
+}
+/* ---- the finishing burst ---- */
+.burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.burst__wave {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--theme-accent);
+  animation: burst-wave 0.6s var(--ease-out) forwards;
+}
+.burst__spark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: var(--theme-accent);
+  transform: rotate(var(--a)) translateY(0) scale(1);
+  animation: burst-spark 0.7s var(--ease-out) forwards;
+}
+.burst__spark.is-alt {
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  background: var(--theme-text);
+}
+@keyframes burst-wave {
+  from {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+@keyframes burst-spark {
+  0% {
+    transform: rotate(var(--a)) translateY(-6px) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(var(--a)) translateY(calc(-1 * var(--r) - 8px)) scale(0.3);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .burst {
+    display: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .ring__arc,
