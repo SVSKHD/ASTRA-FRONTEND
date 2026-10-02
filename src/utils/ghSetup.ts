@@ -20,7 +20,7 @@
 //   and it is why the setup asks for a fine-grained token with three read
 //   permissions rather than a classic one that can push.
 
-import { loadFunctions } from '@/firebase'
+import { loadFunctions, supabaseEnabled } from '@/firebase'
 
 export interface GhRateLimit {
   limit: number
@@ -53,12 +53,42 @@ export interface GhTestResult {
   detail: string
 }
 
+/**
+ * Whether the GitHub mirror can be reached from this build.
+ *
+ * The mirror — the setup functions here, and the gh-repos / gh-pulls
+ * collections the Code tab watches — still runs on Firebase Functions. A
+ * Supabase build has no Firebase sign-in, so those functions refuse it (in
+ * production the browser blocks the call outright) and the collections cannot
+ * be read. Until the functions move to Supabase (phase 4) the Code tab says so
+ * once, instead of calling out and waiting on answers that never come.
+ */
+export const githubMirrorAvailable = !supabaseEnabled
+
+// A call that has not answered by now is not going to; the panel says so
+// rather than sitting on its loading state for good.
+const CALL_TIMEOUT_MS = 15_000
+
 async function call<Req extends object, Res>(name: string, payload: Req): Promise<Res> {
+  if (!githubMirrorAvailable) {
+    throw new Error('GitHub is not connected in this build yet — it moves to Supabase next.')
+  }
   const handle = await loadFunctions()
   if (!handle) throw new Error('Firebase is not configured in this build.')
   const fn = handle.fx.httpsCallable<Req, Res>(handle.functions, name)
-  const res = await fn(payload)
-  return res.data
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('GitHub did not answer in time. Try again in a moment.')),
+      CALL_TIMEOUT_MS,
+    )
+  })
+  try {
+    const res = await Promise.race([fn(payload), timeout])
+    return res.data
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**

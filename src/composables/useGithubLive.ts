@@ -19,6 +19,7 @@ import type { DocumentData, Unsubscribe } from 'firebase/firestore'
 import { loadFirestore } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
 import type { GhPull, GhRepo, PullState } from '@/types'
+import { githubMirrorAvailable } from '@/utils/ghSetup'
 
 const REPOS = 'gh-repos'
 const PULLS = 'gh-pulls'
@@ -90,7 +91,9 @@ export function useGithubLive() {
     const owner = uid.value
     repos.value = []
     pulls.value = []
-    if (!owner) {
+    // Nothing to listen to in a build the mirror cannot reach (see
+    // githubMirrorAvailable): no listeners started just to fail.
+    if (!owner || !githubMirrorAvailable) {
       loading.value = false
       return
     }

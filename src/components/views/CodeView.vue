@@ -28,6 +28,7 @@ import { useRowFlash } from '@/composables/useRowFlash'
 import { useSettings } from '@/composables/useSettings'
 import { countOf, dayLabel } from '@/utils/format'
 import { IST, ymdOn } from '@/utils/tradeTime'
+import { githubMirrorAvailable } from '@/utils/ghSetup'
 
 const { panelStyle } = useStyles()
 const store = useSettings()
@@ -102,15 +103,29 @@ defineExpose({ focus: () => {} })
   <div :style="panelStyle" :data-ready="ready && !live.loading.value ? 'true' : 'false'">
     <ListToolbar title="Code">
       <template #actions>
-        <Button variant="ghost" size="sm" @click="setupOpen = !setupOpen">
+        <Button
+          v-if="githubMirrorAvailable"
+          variant="ghost"
+          size="sm"
+          @click="setupOpen = !setupOpen"
+        >
           {{ setupShown ? 'Hide setup' : 'Set up GitHub' }}
         </Button>
       </template>
     </ListToolbar>
 
-    <Alert v-if="live.error.value" tone="danger">{{ live.error.value }}</Alert>
+    <!-- In a build the GitHub mirror cannot reach, one clear notice — not a
+         setup that calls out and waits, and not an empty list that looks
+         broken. -->
+    <EmptyState
+      v-if="!githubMirrorAvailable"
+      title="GitHub is moving"
+      description="The Code tab reads from GitHub functions that still run on Firebase, which this build no longer connects to. It comes back when those functions move to Supabase — your tracked repositories are kept until then."
+    />
 
-    <div class="cv__scroll">
+    <Alert v-else-if="live.error.value" tone="danger">{{ live.error.value }}</Alert>
+
+    <div v-if="githubMirrorAvailable" class="cv__scroll">
       <GithubSetup v-if="setupShown" />
 
       <section class="cv__track">
