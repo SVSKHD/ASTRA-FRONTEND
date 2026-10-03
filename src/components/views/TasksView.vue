@@ -587,6 +587,9 @@ const listColumn = pxify({
   flex: 1,
   minHeight: 0,
   overflowY: 'auto',
+  // The list's scrollbar lives inside it with its room always kept, so rows do
+  // not reflow narrower the moment the list grows long enough to scroll.
+  scrollbarGutter: 'stable',
   // A scroll container clips its overflow on every side, so the room for a
   // hovered row's shadow has to be inside it.
   padding: '4px 10px 18px',

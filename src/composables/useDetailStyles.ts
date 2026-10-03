@@ -43,6 +43,8 @@ export function useDetailStyles() {
     gap: 'var(--sp-4)',
     minHeight: 0,
     overflowY: 'auto',
+    // The pane keeps its width whether or not it scrolls.
+    scrollbarGutter: 'stable',
     padding: '2px 4px 12px 2px',
   })
   const card = computed(() =>

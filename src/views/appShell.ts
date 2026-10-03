@@ -133,6 +133,10 @@ export function contentGeometry({ isPhone }: { isPhone: boolean }) {
     minWidth: 0,
     overflowY: 'auto',
     overflowX: 'hidden',
+    // The scrollbar's room is kept whether or not it is showing, so the stage
+    // does not shift sideways when it comes and goes (and sub-pixel rounding of
+    // the stage's 100% height can make it come and go on its own).
+    scrollbarGutter: 'stable',
     // Momentum scrolling on iOS, and a scroll container that does not chain its
     // overscroll up to the document behind the starfield.
     overscrollBehaviorY: 'contain',

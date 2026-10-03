@@ -13,8 +13,9 @@
 import { nextTick, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 
-// Longer than the store's 600ms save debounce, so the save has started by the
-// time the wait for it begins.
+// Longer than the store's 600ms save debounce. A burst of ticks waits longer
+// still (the store writes once the ticking stops), and whenSaved below covers
+// that wait.
 const MIN_VISIBLE_MS = 700
 // Matches the row's exit transition in TreeList / TodoView.
 export const LEAVE_MS = 240

@@ -31,6 +31,7 @@ import SecurityPanel from '@/components/security/SecurityPanel.vue'
 import TaskTransferHelpPanel from '@/components/TaskTransferHelpPanel.vue'
 import AuthDialog from '@/components/AuthDialog.vue'
 import ToastHost from '@/components/ToastHost.vue'
+import StatusSyncMeter from '@/components/StatusSyncMeter.vue'
 import NotifBanner from '@/components/NotifBanner.vue'
 import SharedBanner from '@/components/SharedBanner.vue'
 import ShareDialog from '@/components/ShareDialog.vue'
@@ -122,6 +123,11 @@ const stageStyle = computed(() => {
     // that made this a floating card in the first place.
   })
 })
+// Tabs that fit the stage exactly and scroll inside their own columns (the
+// list, the details pane). The stage body around them is not a scroller at all
+// — `clip`, not `hidden`, so not even a scrollIntoView or a focused input can
+// shift the whole tab up and leave a second scrollbar beside the list's.
+const FIXED_TABS = new Set(['todo', 'tasks'])
 const stageBody = computed(() =>
   pxify({
     flex: '1 1 auto',
@@ -131,8 +137,15 @@ const stageBody = computed(() =>
     alignSelf: 'stretch',
     minHeight: 0,
     minWidth: 0,
-    overflowY: 'auto',
-    overflowX: 'hidden',
+    ...(FIXED_TABS.has(tab.value)
+      ? { overflow: 'clip' }
+      : {
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          // Room for the scrollbar is always kept, so a tab whose content grows
+          // past the stage does not narrow everything in it when the bar appears.
+          scrollbarGutter: 'stable',
+        }),
     overscrollBehaviorY: 'contain',
     padding: isPhone.value ? '0 2px 18px 0' : '0 4px 22px 0',
   }),
@@ -449,6 +462,7 @@ onBeforeUnmount(() => {
     <SharedBanner />
     <ShareDialog />
     <ToastHost />
+    <StatusSyncMeter />
     <DragGhost />
   </template>
   <AuthDialog />

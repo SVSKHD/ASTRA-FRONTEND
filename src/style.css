@@ -647,6 +647,24 @@ textarea:focus,
   background: var(--theme-card);
   border: 1px solid color-mix(in srgb, var(--theme-text) 6%, transparent);
 }
+/* Selecting subtasks (SubSelectBar): the row's own box, and the row lit up. */
+.dp-sub__pick {
+  flex-shrink: 0;
+}
+.dp-sub.is-picking {
+  cursor: pointer;
+}
+.dp-sub.is-picking .dp-sub__actions,
+.dp-sub.is-picking .dp-sub__dot {
+  display: none;
+}
+.dp-sub.is-picking .dp-sub__text {
+  cursor: pointer;
+}
+.dp-sub.is-picked {
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 8%, var(--theme-card));
+}
 .dp-sub__text {
   flex: 1;
   min-width: 0;

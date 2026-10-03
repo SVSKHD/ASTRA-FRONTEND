@@ -26,6 +26,8 @@ import AddMoreDialog from '@/components/detail/AddMoreDialog.vue'
 import ExportJsonDialog from '@/components/detail/ExportJsonDialog.vue'
 import { exportTaskTransferJson } from '@/utils/taskTransfer'
 import SubCheck from '@/components/ui/SubCheck.vue'
+import SubSelectBar from '@/components/detail/SubSelectBar.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 import { STATUS_LABEL } from '@/types'
 import { vScrollFade } from '@/directives/scrollFade'
 
@@ -106,9 +108,24 @@ const { draft, start, cancel, commit, isEditing, vFocus } = useInlineEdit((key, 
   else if (key === 'tag') app.updateTodo(t.id, { tag: value })
   else if (key.startsWith('sub:') && value) app.updateTodo(Number(key.slice(4)), { text: value })
 })
+// Picking subtasks for the bulk bar (SubSelectBar); a different todo starts
+// with nothing picked.
+const selecting = ref(false)
+const picked = ref<Set<number>>(new Set())
+const subIds = computed(() => subtasks.value.map((t) => t.id))
+function togglePick(id: number) {
+  const next = new Set(picked.value)
+  if (!next.delete(id)) next.add(id)
+  picked.value = next
+}
+
 watch(
   () => props.todoId,
-  () => cancel(),
+  () => {
+    cancel()
+    selecting.value = false
+    picked.value = new Set()
+  },
 )
 
 const newSub = ref('')
@@ -311,7 +328,27 @@ function moveTodoToTasks() {
           <!-- Subtasks: one card each. The check, the title, and a dot for its
                status (click to move it on); the rest waits for the pointer. -->
           <div class="dp-subs">
-            <div v-for="st in subtasks" :key="st.id" class="dp-sub">
+            <SubSelectBar
+              v-model:selecting="selecting"
+              v-model:selected="picked"
+              collection="todos"
+              :ids="subIds"
+            />
+            <div
+              v-for="st in subtasks"
+              :key="st.id"
+              class="dp-sub"
+              :class="{ 'is-picking': selecting, 'is-picked': selecting && picked.has(st.id) }"
+              @click="selecting && togglePick(st.id)"
+            >
+              <Checkbox
+                v-if="selecting"
+                class="dp-sub__pick"
+                :model-value="picked.has(st.id)"
+                :aria-label="'Select ' + (st.text || 'subtask')"
+                @click.stop
+                @update:model-value="togglePick(st.id)"
+              />
               <SubCheck :done="st.status === 'done'" size="md" @toggle="app.toggleTodo(st.id)" />
               <TextInput
                 v-if="isEditing('sub:' + st.id)"

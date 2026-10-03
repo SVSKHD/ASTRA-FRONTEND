@@ -69,6 +69,15 @@ import {
   repoPatchFromDelivery,
   type TaskEffect,
 } from '@/utils/ghSync'
+import {
+  burstCounts,
+  idleStatusSync,
+  overlayStatus,
+  statusKey,
+  type LocalStatus,
+  type StatusCollection,
+  type StatusSyncState,
+} from '@/utils/statusSync'
 import { buildShareUrl, copyToClipboard, parseSharedFromLocation } from '@/utils/share'
 import { rememberedTab, tabUrl } from '@/utils/lastTab'
 import { nextPaneMode } from '@/utils/paneMode'
@@ -858,6 +867,7 @@ export const useAppStore = defineStore('app', () => {
     const cur = todos.value.find((t) => t.id === tid)
     if (!cur || cur.status === next) return
     todos.value = todos.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
+    recordStatusEdit('todos', tid)
     if (next === 'done') {
       fireBurst(tid)
       cancelRemindersFor('todos', tid)
@@ -1037,6 +1047,7 @@ export const useAppStore = defineStore('app', () => {
     tasks.value = tasks.value.map((t) =>
       t.id === tid ? withStatusLog(withStatus(t, next), next) : t,
     )
+    recordStatusEdit('tasks', tid)
     if (next === 'done') cancelRemindersFor('tasks', tid)
     syncGoalFromItem(cur.sourceRef, next === 'done')
     // A linked task that changes state closes/reopens its issue (13c).
@@ -6868,6 +6879,56 @@ export const useAppStore = defineStore('app', () => {
   let hydrating = false
   let saveTimer: ReturnType<typeof setTimeout> | undefined
 
+  // ---- Ticking todos/tasks done in bursts ----------------------------------
+  // Ticks are remembered locally until the server confirms them (see
+  // utils/statusSync), and a burst of them is written once, after the ticking
+  // stops, rather than once per pause between clicks.
+  const STATUS_IDLE_MS = 1500
+  const STATUS_SAVED_SHOW_MS = 1800
+  const STATUS_RETRY_MS = 4000
+  const localStatus = new Map<string, LocalStatus>()
+  // Ticks not yet in a write that succeeded.
+  const unsentStatus = new Set<string>()
+  // The current burst, by where each item ended up — what the meter counts.
+  const statusBurst = new Map<string, ItemStatus>()
+  let lastStatusEditAt = 0
+  let statusClearTimer: ReturnType<typeof setTimeout> | undefined
+  const statusSync = ref<StatusSyncState>(idleStatusSync())
+
+  function refreshStatusSync(phase: StatusSyncState['phase'], syncAt = statusSync.value.syncAt) {
+    clearTimeout(statusClearTimer)
+    statusSync.value = { phase, syncAt, ...burstCounts(statusBurst, unsentStatus) }
+    if (phase === 'saved') {
+      statusClearTimer = setTimeout(() => {
+        statusBurst.clear()
+        statusSync.value = idleStatusSync()
+      }, STATUS_SAVED_SHOW_MS)
+    }
+  }
+  function recordStatusEdit(collection: StatusCollection, tid: number) {
+    const list: { id: number; status: ItemStatus; done: boolean; completedAt: number | null }[] =
+      collection === 'todos' ? todos.value : tasks.value
+    const item = list.find((t) => t.id === tid)
+    if (!item) return
+    const key = statusKey(collection, tid)
+    const at = Date.now()
+    localStatus.set(key, {
+      status: item.status,
+      done: item.done,
+      completedAt: item.completedAt,
+      at,
+    })
+    // A finished burst still on screen gives way to the new one.
+    if (statusSync.value.phase === 'saved') statusBurst.clear()
+    statusBurst.set(key, item.status)
+    unsentStatus.add(key)
+    lastStatusEditAt = at
+    refreshStatusSync('queued', at + STATUS_IDLE_MS)
+    // A tick that lands while a snapshot is hydrating is skipped by the
+    // watcher's save; schedule it once the guard is released.
+    if (hydrating) setTimeout(scheduleSave, 0)
+  }
+
   function snapshotData() {
     return {
       todos: todos.value,
@@ -7468,10 +7529,19 @@ export const useAppStore = defineStore('app', () => {
     // what is actually here is cheap and idempotent — it writes only where the
     // two directions disagree.
     reconcileNoteRefs()
+    // Ticks this client made that the snapshot does not carry yet go back on
+    // top, last, so neither an older server copy nor the issue reconcile above
+    // can undo them (utils/statusSync).
+    const restoredTodos = overlayStatus(todos.value, 'todos', localStatus)
+    const restoredTasks = overlayStatus(tasks.value, 'tasks', localStatus)
+    if (restoredTodos.restored) todos.value = restoredTodos.items
+    if (restoredTasks.restored) tasks.value = restoredTasks.items
     bumpNid()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
       hydrating = false
+      // The server copy is behind this client's ticks; write them again.
+      if (restoredTodos.restored || restoredTasks.restored) scheduleSave()
     }, 0)
   }
   // Local edits the server has not got yet. The Supabase adapter re-reads the
@@ -7507,6 +7577,9 @@ export const useAppStore = defineStore('app', () => {
       // Nowhere to write to: nothing is waiting on the server either.
       savePending = false
       writtenSeq = editSeq
+      unsentStatus.clear()
+      localStatus.clear()
+      if (statusBurst.size) refreshStatusSync('saved')
       flushSaveWaiters()
       return Promise.resolve()
     }
@@ -7514,16 +7587,22 @@ export const useAppStore = defineStore('app', () => {
     const ref = cloud.fs.doc(cloud.db, AUREON_COLLECTION, uid)
     const seq = editSeq
     const at = Date.now()
+    // The ticks this write carries.
+    const sendingStatus = [...unsentStatus]
     writesInFlight++
     syncState.value = 'saving'
+    if (sendingStatus.length) refreshStatusSync('saving')
     return cloud.fs
       .setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: at }, { merge: true })
       .then(() => {
         writtenSeq = Math.max(writtenSeq, seq)
         lastWrittenAt = Math.max(lastWrittenAt, at)
         syncState.value = 'synced'
+        for (const key of sendingStatus) unsentStatus.delete(key)
+        if (statusBurst.size) refreshStatusSync(unsentStatus.size ? statusSync.value.phase : 'saved')
       })
       .catch((error) => {
+        if (statusBurst.size) refreshStatusSync('error')
         syncState.value = 'error'
         cloudError.value = 'Could not save changes to Supabase.'
         reportError('[Aureon] Cloud save failed:', error)
@@ -7540,7 +7619,14 @@ export const useAppStore = defineStore('app', () => {
       saveTimer = setTimeout(saveCloud, 100)
       return
     }
-    writeCloud().catch(() => {})
+    writeCloud().catch(() => {
+      // Ticks that did not reach the server are still held locally; try them
+      // again rather than leaving them until the next unrelated edit.
+      if (!unsentStatus.size || savePending) return
+      savePending = true
+      clearTimeout(saveTimer)
+      saveTimer = setTimeout(saveCloud, STATUS_RETRY_MS)
+    })
   }
   function scheduleSave() {
     // Snapshot hydration updates every reactive list. Do not turn those remote
@@ -7549,7 +7635,14 @@ export const useAppStore = defineStore('app', () => {
     editSeq++
     savePending = true
     clearTimeout(saveTimer)
-    saveTimer = setTimeout(saveCloud, 600)
+    // While todos/tasks are being ticked, wait for the ticking to stop so the
+    // whole burst goes in one write.
+    const sinceTick = Date.now() - lastStatusEditAt
+    const delay = sinceTick < STATUS_IDLE_MS ? STATUS_IDLE_MS - sinceTick : 600
+    saveTimer = setTimeout(saveCloud, Math.max(delay, 600))
+    if (unsentStatus.size && statusSync.value.phase !== 'saving') {
+      refreshStatusSync('queued', Date.now() + Math.max(delay, 600))
+    }
   }
   // Persist immediately and await the write. The rollover uses this to report
   // real per-chunk progress: a chunk is "done" only once its write resolves,
@@ -7570,6 +7663,11 @@ export const useAppStore = defineStore('app', () => {
     savePending = false
     writtenSeq = editSeq
     lastWrittenAt = 0
+    localStatus.clear()
+    unsentStatus.clear()
+    statusBurst.clear()
+    clearTimeout(statusClearTimer)
+    statusSync.value = idleStatusSync()
     flushSaveWaiters()
     stopGithubPolling()
     cloudReady.value = false
@@ -7777,6 +7875,7 @@ export const useAppStore = defineStore('app', () => {
     cloudReady,
     cloudError,
     syncState,
+    statusSync,
     syncFromCache,
     syncHasPending,
     lastSyncedAt,

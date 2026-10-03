@@ -37,6 +37,17 @@ const fresh = computed(() => {
 })
 const repeats = computed(() => (read.value?.quotes.length ?? 0) - fresh.value.length)
 
+// A sample paste, so the shape is clear before writing one. `by` is optional.
+const EXAMPLE = `[
+  { "text": "Done is better than perfect.", "by": "Sheryl Sandberg" },
+  { "text": "Well begun is half done.", "by": "Aristotle" },
+  { "text": "We suffer more often in imagination than in reality.", "by": "Seneca" },
+  { "text": "Clear the next task." }
+]`
+function useExample() {
+  text.value = EXAMPLE
+}
+
 function add() {
   if (!fresh.value.length) return
   const { added } = app.addQuotes(text.value)
@@ -53,6 +64,11 @@ function add() {
         or plain text, one quote per line with <code>— Author</code> at the end. Repeats are
         skipped.
       </p>
+      <details class="qd__example">
+        <summary>See an example</summary>
+        <pre>{{ EXAMPLE }}</pre>
+        <button type="button" class="qd__btn" @click="useExample">Use this example</button>
+      </details>
       <TextArea
         v-model="text"
         :rows="6"
@@ -121,6 +137,25 @@ Well begun is half done. — Aristotle"
   border-radius: 4px;
   background: color-mix(in srgb, var(--theme-text) 8%, transparent);
   color: var(--theme-text);
+}
+.qd__example {
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+}
+.qd__example summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.qd__example pre {
+  margin: var(--sp-2) 0;
+  padding: var(--sp-2) var(--sp-3);
+  overflow-x: auto;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+  color: var(--theme-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 1.6;
 }
 .qd__read {
   margin: 0;
