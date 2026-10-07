@@ -1,10 +1,10 @@
-import type { ItemStatus, Task, Todo } from '@/types'
+import type { Idea, ItemStatus, Task, Todo } from '@/types'
 import { isStatus } from '@/types'
 
 export const TASK_TRANSFER_VERSION = 1
 export const MAX_TRANSFER_ITEMS = 500
 
-export type TaskTransferCollection = 'todos' | 'tasks'
+export type TaskTransferCollection = 'todos' | 'tasks' | 'ideas'
 
 export interface TaskTransferItem {
   sourceId: string
@@ -17,6 +17,8 @@ export interface TaskTransferItem {
   repo?: string
   priority?: 'low' | 'normal' | 'high'
   estimateMins?: number | null
+  // Ideas only: the idea's type (feature, …).
+  ideaType?: string
 }
 
 export interface TaskTransferDocument {
@@ -27,7 +29,7 @@ export interface TaskTransferDocument {
   parseError?: string
 }
 
-type TransferSource = Todo | Task
+type TransferSource = Todo | Task | Idea
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -121,11 +123,19 @@ export function taskTransferCollectionOf(value: unknown): TaskTransferCollection
   const v = str(value).trim().toLowerCase()
   if (v === 'todo' || v === 'todos') return 'todos'
   if (v === 'task' || v === 'tasks') return 'tasks'
+  if (v === 'idea' || v === 'ideas') return 'ideas'
   return null
 }
 
-export function tabForTaskTransferCollection(collection: TaskTransferCollection): 'todo' | 'tasks' {
-  return collection === 'todos' ? 'todo' : 'tasks'
+export function tabForTaskTransferCollection(
+  collection: TaskTransferCollection,
+): 'todo' | 'tasks' | 'ideas' {
+  return collection === 'todos' ? 'todo' : collection
+}
+
+// The singular noun for messages ("Imported 3 ideas").
+export function taskTransferNoun(collection: TaskTransferCollection): 'todo' | 'task' | 'idea' {
+  return collection === 'todos' ? 'todo' : collection === 'ideas' ? 'idea' : 'task'
 }
 
 export function taskTransferFilename(
@@ -160,8 +170,9 @@ function sortTree<T extends { id: number; parentId: number | null; order: number
 }
 
 function transferItem(collection: TaskTransferCollection, item: TransferSource): TaskTransferItem {
-  const title = collection === 'todos' ? (item as Todo).text : (item as Task).title
-  const description = collection === 'todos' ? (item as Todo).description : (item as Task).notes
+  const title = collection === 'todos' ? (item as Todo).text : (item as Task | Idea).title
+  const description =
+    collection === 'tasks' ? (item as Task).notes : (item as Todo | Idea).description
   const parentSourceId = item.parentId == null ? null : String(item.parentId)
   const base: TaskTransferItem = {
     sourceId: String(item.id),
@@ -180,6 +191,10 @@ function transferItem(collection: TaskTransferCollection, item: TransferSource):
       priority: task.priority,
       estimateMins: task.estimateMins ?? undefined,
     }
+  }
+  if (collection === 'ideas') {
+    const idea = item as Idea
+    return { ...base, deadline: idea.deadline || undefined, ideaType: idea.ideaType }
   }
   return base
 }
@@ -229,6 +244,10 @@ function normalizeTransferItem(
     item.priority = asPriority(raw.priority)
     item.estimateMins = asEstimate(raw.estimateMins)
   }
+  if (collection === 'ideas') {
+    item.deadline = asIsoDate(raw.deadline ?? raw.due ?? raw.dueAt)
+    item.ideaType = clean(raw.ideaType ?? raw.type) || undefined
+  }
   return item
 }
 
@@ -246,6 +265,7 @@ function rawItemsFromObject(
   if (Array.isArray(obj.items)) return obj.items
   if (collection === 'todos' && Array.isArray(obj.todos)) return obj.todos
   if (collection === 'tasks' && Array.isArray(obj.tasks)) return obj.tasks
+  if (collection === 'ideas' && Array.isArray(obj.ideas)) return obj.ideas
   if (typeof obj.title === 'string' || typeof obj.text === 'string') return [obj]
   return []
 }
@@ -260,6 +280,7 @@ function detectCollection(
     taskTransferCollectionOf(obj.scope) ??
     (Array.isArray(obj.todos) ? 'todos' : null) ??
     (Array.isArray(obj.tasks) ? 'tasks' : null) ??
+    (Array.isArray(obj.ideas) ? 'ideas' : null) ??
     hint ??
     'tasks'
   )
@@ -361,7 +382,7 @@ function legacyQueryPayload(
   input: string,
 ): { collection: TaskTransferCollection; payload: string } | null {
   const decoded = safeDecode(queryText(input).trim())
-  const match = decoded.match(/^=?(todo|todos|task|tasks)=([\s\S]+)$/i)
+  const match = decoded.match(/^=?(todo|todos|task|tasks|idea|ideas)=([\s\S]+)$/i)
   const collection = taskTransferCollectionOf(match?.[1])
   return collection && match ? { collection, payload: match[2] } : null
 }
@@ -377,9 +398,11 @@ export function collectionFromTaskTransferQuery(
   if (direct) return direct
   if (Object.hasOwn(query, 'todo') || Object.hasOwn(query, 'todos')) return 'todos'
   if (Object.hasOwn(query, 'task') || Object.hasOwn(query, 'tasks')) return 'tasks'
+  if (Object.hasOwn(query, 'idea') || Object.hasOwn(query, 'ideas')) return 'ideas'
   const empty = query['']
   const value = Array.isArray(empty) ? empty[0] : empty
-  const match = typeof value === 'string' ? value.match(/^(todo|todos|task|tasks)=/i) : null
+  const match =
+    typeof value === 'string' ? value.match(/^(todo|todos|task|tasks|idea|ideas)=/i) : null
   return taskTransferCollectionOf(match?.[1])
 }
 
@@ -387,9 +410,19 @@ export function hasTaskTransferUrlPayload(input: string): boolean {
   const legacy = legacyQueryPayload(input)
   if (legacy) return true
   const params = urlOf(input).searchParams
-  return ['items', 'json', 'list', 'title', 'text', 'todo', 'todos', 'task', 'tasks'].some((key) =>
-    params.has(key),
-  )
+  return [
+    'items',
+    'json',
+    'list',
+    'title',
+    'text',
+    'todo',
+    'todos',
+    'task',
+    'tasks',
+    'idea',
+    'ideas',
+  ].some((key) => params.has(key))
 }
 
 export function parseTaskTransferUrl(input: string): TaskTransferDocument {
@@ -419,6 +452,11 @@ export function parseTaskTransferUrl(input: string): TaskTransferDocument {
 
   const todoPayload = firstParam(params, ['todo', 'todos'])
   const taskPayload = firstParam(params, ['task', 'tasks'])
+  const ideaPayload = firstParam(params, ['idea', 'ideas'])
+  if (!rawItems.length && ideaPayload != null) {
+    collection = 'ideas'
+    rawItems = splitPayload(ideaPayload)
+  }
   if (!rawItems.length && todoPayload != null) {
     collection = 'todos'
     rawItems = splitPayload(todoPayload)

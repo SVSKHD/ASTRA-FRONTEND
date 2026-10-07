@@ -11,6 +11,9 @@
 // of the line unfolds them under the field: the same TagPicker the dialog
 // uses, and a description. "+ New todo" and /n open the field with the
 // details already unfolded; a typed #tag still wins over the picked one.
+//
+// The Ideas tab uses the same box (`collection="ideas"`): the parse, the tag
+// and the reminder all work the same; only the list it adds to differs.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -25,11 +28,18 @@ import Icon from '@/components/ui/Icon.vue'
 import Chip from '@/components/ui/Chip.vue'
 import TagPicker from '@/components/TagPicker.vue'
 
-withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
+const props = withDefaults(defineProps<{ compact?: boolean; collection?: 'todos' | 'ideas' }>(), {
+  compact: false,
+  collection: 'todos',
+})
 const emit = defineEmits<{ added: [id: number] }>()
 
 const app = useAppStore()
-const { todos } = storeToRefs(app)
+const { todos, ideas } = storeToRefs(app)
+const noun = computed(() => (props.collection === 'ideas' ? 'idea' : 'todo'))
+const example = computed(() =>
+  props.collection === 'ideas' ? 'Referral rewards #Growth' : 'Call vendor fri 5pm #CRM !high',
+)
 const { c } = useStyles()
 
 const text = ref('')
@@ -44,14 +54,18 @@ const hasDetails = computed(() => !!tag.value || !!description.value.trim())
 function submit() {
   const q = parseQuickAdd(text.value)
   if (!q.title) return
-  // New todos enter at the top of the list, where the reader is looking.
-  const rootOrders = todos.value.filter((t) => t.parentId == null).map((t) => t.order)
+  // New items enter at the top of the list, where the reader is looking.
+  const list = props.collection === 'ideas' ? ideas.value : todos.value
+  const rootOrders = list.filter((t) => t.parentId == null).map((t) => t.order)
   const order = rootOrders.length ? Math.min(...rootOrders) - 1 : 0
-  const id = app.addTodo(q.title, q.tag || tag.value, description.value.trim(), { order })
+  const id =
+    props.collection === 'ideas'
+      ? app.addIdea(q.title, q.tag || tag.value, { description: description.value.trim(), order })
+      : app.addTodo(q.title, q.tag || tag.value, description.value.trim(), { order })
   if (id == null) return
   const start = quickAddReminderStart(q)
   if (start) {
-    app.createReminderFromItem('todos', id, {
+    app.createReminderFromItem(props.collection, id, {
       start,
       repeat: q.repeat ? { type: q.repeat, n: 1 } : { type: 'none' },
       priority: q.priority ?? 'normal',
@@ -123,8 +137,8 @@ const details = computed(() =>
         class="quick-add__field"
         size="sm"
         :style="inputStyle"
-        aria-label="Add a todo"
-        :placeholder="compact ? 'Add a todo…' : 'Add a todo… try “Call vendor fri 5pm #CRM !high”'"
+        :aria-label="'Add a ' + noun"
+        :placeholder="compact ? `Add a ${noun}…` : `Add a ${noun}… try “${example}”`"
         @keydown.enter.prevent="submit"
         @keydown.esc="onEscape"
       />

@@ -13,7 +13,11 @@ import { useScrollMemory } from '@/composables/useScrollMemory'
 import { useTabRoute } from '@/composables/useTabRoute'
 import { stageGeometry, stageWrapGeometry } from '@/views/workspaceStage'
 import { anyOverlayOpen, armsNewItem, firesNewItem, handledByWidget } from '@/views/globalKeys'
-import { hasTaskTransferUrlPayload, tabForTaskTransferCollection } from '@/utils/taskTransfer'
+import {
+  hasTaskTransferUrlPayload,
+  tabForTaskTransferCollection,
+  taskTransferNoun,
+} from '@/utils/taskTransfer'
 
 import AppShell from '@/components/shell/AppShell.vue'
 import ReminderDock from '@/components/shell/ReminderDock.vue'
@@ -359,11 +363,11 @@ watch(
       return
     }
     if (result.count === 0) {
-      app.showToastMsg('No todo or task items found in that link')
+      app.showToastMsg('No todo, task or idea items found in that link')
       return
     }
     app.showToastMsg(
-      `Imported ${result.count} ${result.collection === 'todos' ? 'todo' : 'task'}${
+      `Imported ${result.count} ${taskTransferNoun(result.collection)}${
         result.count === 1 ? '' : 's'
       }`,
     )

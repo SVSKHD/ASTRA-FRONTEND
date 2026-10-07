@@ -5,9 +5,11 @@
 // exactly the coordinate space the reorder line and the horizontal-depth
 // projection work in. Collapsing a row filters its subtree out of the flat list.
 //
-// Shared by both collections; the few per-collection bits (title field, todo
-// description / globe share, task due / repo) branch on `collection`. The drag
-// engine, grip handle and drop-line indicator are collection-agnostic.
+// Shared by todos, tasks and ideas; the few per-collection bits (title field,
+// todo description / globe share, task due / repo, idea type) branch on
+// `collection`. Ideas wear the todo row (ring check, subtasks read in the
+// details pane). The drag engine, grip handle and drop-line indicator are
+// collection-agnostic.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { vFocusField as vFocus } from '@/composables/useInlineEdit'
 import TextInput from '@/components/ui/TextInput.vue'
@@ -15,7 +17,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
-import { useTreeDrag, INDENT_PX, type TreeCollection } from '@/composables/useTreeDrag'
+import { useTreeDrag, INDENT_PX, treeKey, type TreeCollection } from '@/composables/useTreeDrag'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
 import { richPlain } from '@/utils/richText'
@@ -29,7 +31,8 @@ import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import IssueChip from '@/components/IssueChip.vue'
 import RemindBell from '@/components/RemindBell.vue'
-import type { LinkRef, Task, Todo } from '@/types'
+import { IDEA_TYPE_OPTIONS } from '@/types'
+import type { Idea, LinkCollection, LinkRef, Task, Todo } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 import StrikeText from '@/components/ui/StrikeText.vue'
@@ -63,7 +66,7 @@ const ui = useUiStore()
 
 const app = useAppStore()
 const { c, s } = useStyles()
-const { todos, tasks } = storeToRefs(app)
+const { todos, tasks, ideas } = storeToRefs(app)
 const accordion = useAccordionState()
 const { targetState, rootState, isSource, setAnnouncer, startRowDrag, isDragging } = useTreeDrag()
 
@@ -82,11 +85,14 @@ const srOnly = {
 }
 
 const isTasks = computed(() => props.collection === 'tasks')
-const list = computed<(Task | Todo)[]>(() => (isTasks.value ? tasks.value : todos.value))
+const isIdeas = computed(() => props.collection === 'ideas')
+const list = computed<(Task | Todo | Idea)[]>(() =>
+  isTasks.value ? tasks.value : isIdeas.value ? ideas.value : todos.value,
+)
 const index = computed(() => buildIndex(list.value))
 const selectedSet = computed(() => new Set(props.selectedIds ?? []))
 
-const keyOf = (id: number) => (isTasks.value ? 'tasktree:' : 'todotree:') + id
+const keyOf = (id: number) => treeKey(props.collection, id)
 function expanded(id: number) {
   return accordion.isOpen(keyOf(id))
 }
@@ -142,12 +148,14 @@ function nodeOf(id: number) {
 function title(id: number) {
   const n = nodeOf(id)
   if (!n) return '(untitled)'
-  return (isTasks.value ? (n as Task).title : (n as Todo).text) || '(untitled)'
+  return ('text' in n ? n.text : n.title) || '(untitled)'
 }
 function desc(id: number) {
   const n = nodeOf(id)
   // Descriptions are rich text now; the row shows a one-line plain preview.
-  const rich = isTasks.value ? (n as Task | undefined)?.notes : (n as Todo | undefined)?.description
+  const rich = isTasks.value
+    ? (n as Task | undefined)?.notes
+    : (n as Todo | Idea | undefined)?.description
   return richPlain(rich).replace(/\s+/g, ' ')
 }
 function tagOf(id: number) {
@@ -162,7 +170,8 @@ function issueLinkOf(id: number) {
 // goals so a row shows which goal(s) it belongs to from the Tasks/Todos tab —
 // and so the chip can open that goal rather than the row it sits on (18b).
 function goalsOf(id: number): { id: number; label: string }[] {
-  const ids = nodeOf(id)?.goalIds
+  const n = nodeOf(id)
+  const ids = n && 'goalIds' in n ? n.goalIds : undefined
   if (!ids || !ids.length) return []
   return ids
     .map((gid) => app.goalById(gid))
@@ -181,16 +190,23 @@ function conflicted(id: number) {
 function progress(id: number) {
   return progressOf(index.value, id, (x) => x.status === 'done')
 }
-function itemType(): 'task' | 'todo' {
-  return isTasks.value ? 'task' : 'todo'
+function itemType(): 'task' | 'todo' | 'idea' {
+  return isTasks.value ? 'task' : isIdeas.value ? 'idea' : 'todo'
 }
 function dueLabel(id: number) {
-  const t = nodeOf(id) as Task | undefined
-  if (!isTasks.value || !t?.deadline) return ''
+  const t = nodeOf(id) as Task | Idea | undefined
+  if ((!isTasks.value && !isIdeas.value) || !t?.deadline) return ''
   return new Date(t.deadline + 'T00:00:00').toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
   })
+}
+
+// An idea's type (Feature, Business, …) as a quiet chip beside its title.
+function ideaTypeOf(id: number) {
+  if (!isIdeas.value) return ''
+  const v = (nodeOf(id) as Idea | undefined)?.ideaType ?? ''
+  return IDEA_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v
 }
 
 function isTripleClick(event?: MouseEvent) {
@@ -218,7 +234,7 @@ function openDetail(id: number, event?: MouseEvent) {
       id,
       rows.value.map((r) => r.id),
     )
-  else app.openEdit('todo', id)
+  else app.openEdit(itemType() === 'idea' ? 'idea' : 'todo', id)
 }
 // A goal chip opens its goal, not the row it is sitting on (section 18b).
 function openGoal(goalId: number) {
@@ -256,6 +272,7 @@ function onMainClick(event: MouseEvent) {
 const completion = useTodoCompletion()
 function toggleDone(id: number) {
   if (isTasks.value) app.cycleTaskStatus(id)
+  else if (isIdeas.value) app.toggleIdea(id)
   else completion.toggle(id)
 }
 function cycleStatus(id: number) {
@@ -390,9 +407,14 @@ function submitAddSub() {
   const text = subDraft.value.trim()
   if (parentId == null || !text) return
   const position = childrenOf(index.value, parentId).length
-  const newId = isTasks.value ? app.addTask(text, '') : app.addTodo(text)
+  const newId = isTasks.value
+    ? app.addTask(text, '')
+    : isIdeas.value
+      ? app.addIdea(text, '')
+      : app.addTodo(text)
   if (newId != null) {
     if (isTasks.value) app.moveTask(newId, parentId, position)
+    else if (isIdeas.value) app.moveIdea(newId, parentId, position)
     else app.moveTodo(newId, parentId, position)
     accordion.set(keyOf(parentId), true)
   }
@@ -403,21 +425,24 @@ function onSubBlur() {
 }
 
 // --- cross-collection linked items (preserved from the list rows) -----------
+// Ideas take no part in cross-collection links; only todos and tasks do.
 function linkedOf(id: number): LinkRef[] {
-  return nodeOf(id)?.linked ?? []
+  const n = nodeOf(id)
+  return n && 'linked' in n ? n.linked : []
 }
 function linksExpanded(id: number) {
   return accordion.isOpen(props.collection + ':' + id)
 }
 function breadcrumb(id: number): string {
-  return (nodeOf(id)?.parents ?? [])
+  const n = nodeOf(id)
+  return (n && 'parents' in n ? n.parents : [])
     .map((p) => app.linkableById(p))
     .filter((it): it is NonNullable<typeof it> => !!it)
     .map((it) => ('text' in it ? it.text : it.title))
     .join(', ')
 }
 function selfRef(id: number): LinkRef {
-  return { id, collection: props.collection }
+  return { id, collection: props.collection as LinkCollection }
 }
 
 // --- drop indicators --------------------------------------------------------
@@ -694,7 +719,9 @@ const rootStripStyle = computed(() =>
       v-for="row in rows"
       :key="row.id"
       :class="
-        isTasks ? undefined : ['todo-row-shell', { 'is-leaving': completion.isLeaving(row.id) }]
+        isTasks
+          ? undefined
+          : ['todo-row-shell', { 'is-leaving': !isIdeas && completion.isLeaving(row.id) }]
       "
       :style="nodeWrap(row.depth)"
     >
@@ -786,6 +813,9 @@ const rootStripStyle = computed(() =>
                 >
               </template>
               <div :style="s.chipRow">
+                <span v-if="ideaTypeOf(row.id)" :style="dueChipStyle">{{
+                  ideaTypeOf(row.id)
+                }}</span>
                 <span v-if="dueLabel(row.id)" :style="dueChipStyle"
                   >due {{ dueLabel(row.id) }}</span
                 >
@@ -847,6 +877,7 @@ const rootStripStyle = computed(() =>
               >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
             >
             <IconButton
+              v-if="!isIdeas"
               label="Focus on the next subtask"
               @pointerdown.stop
               @click.stop="focusOn(row.id)"
@@ -856,7 +887,7 @@ const rootStripStyle = computed(() =>
             <RemindBell :collection="collection" :id="row.id" />
             <IconButton
               class="row-reveal"
-              label="Delete todo"
+              :label="'Delete ' + itemType()"
               tone="danger"
               @pointerdown.stop
               @click.stop="del(row.id)"
@@ -942,7 +973,7 @@ const rootStripStyle = computed(() =>
 
   <!-- Root drop strip: only present while dragging this collection. -->
   <div v-if="root.dragging" :data-tree-root="collection" :style="rootStripStyle">
-    Drop here to make a top-level {{ isTasks ? 'task' : 'todo' }}
+    Drop here to make a top-level {{ itemType() }}
   </div>
 
   <div :style="srOnly" role="status" aria-live="assertive">{{ liveMsg }}</div>

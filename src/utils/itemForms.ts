@@ -157,7 +157,12 @@ export const ITEM_FORMS: Record<ItemType, FormDef> = {
     editTitle: 'Edit idea',
     fields: [
       { key: 'title', label: 'Idea', kind: 'text', placeholder: 'The idea in a line' },
-      { key: 'description', label: 'Description', kind: 'textarea', placeholder: 'Flesh it out' },
+      {
+        key: 'description',
+        label: 'Description',
+        kind: 'rich',
+        placeholder: 'Flesh it out — type / for headings, lists, checklists',
+      },
       { key: 'deadline', label: 'Deadline', kind: 'date' },
       { key: 'ideaType', label: 'Type', kind: 'select', options: IDEA_TYPE_OPTIONS },
       { key: 'tag', label: 'Tag', kind: 'tag' },

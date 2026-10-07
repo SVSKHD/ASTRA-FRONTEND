@@ -60,7 +60,7 @@ export function useOverdue() {
       })
     }
     for (const i of ideas.value) {
-      if (!i.deadline || i.deadline >= today) continue
+      if (!i.deadline || i.deadline >= today || i.status === 'done' || i.archivedAt) continue
       out.push({
         key: 'idea:' + i.id,
         kind: 'Idea',

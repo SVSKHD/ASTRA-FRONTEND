@@ -8,6 +8,7 @@ import {
   hasTaskTransferUrlPayload,
   parseTaskTransferJson,
   parseTaskTransferUrl,
+  taskTransferNoun,
   type TaskTransferCollection,
 } from '@/utils/taskTransfer'
 import { sampleTaskTransferJson, sampleTaskTransferUrl } from '@/utils/taskTransferHelp'
@@ -19,11 +20,10 @@ const app = useAppStore()
 const raw = ref('')
 const area = ref<InstanceType<typeof TextArea> | null>(null)
 
-const targetNoun = computed(() => (props.collection === 'todos' ? 'todo' : 'task'))
+const targetNoun = computed(() => taskTransferNoun(props.collection))
 const title = computed(() => `Paste ${targetNoun.value} JSON or link`)
 const placeholder = computed(
-  () =>
-    `Paste ${props.collection === 'todos' ? 'todo' : 'task'} JSON or an import link here, or use Load sample.`,
+  () => `Paste ${targetNoun.value} JSON or an import link here, or use Load sample.`,
 )
 const hasText = computed(() => raw.value.trim().length > 0)
 const inputKind = computed(() =>
@@ -34,7 +34,7 @@ const parsed = computed(() =>
     ? parseTaskTransferUrl(raw.value)
     : parseTaskTransferJson(raw.value, props.collection),
 )
-const parsedNoun = computed(() => (parsed.value.collection === 'todos' ? 'todo' : 'task'))
+const parsedNoun = computed(() => taskTransferNoun(parsed.value.collection))
 const itemCount = computed(() => parsed.value.items.length)
 const parseError = computed(() =>
   hasText.value && parsed.value.parseError
@@ -115,11 +115,11 @@ function importNow() {
     return
   }
   if (result.count === 0) {
-    app.showToastMsg(`No ${result.collection === 'todos' ? 'todo' : 'task'} items found`)
+    app.showToastMsg(`No ${taskTransferNoun(result.collection)} items found`)
     return
   }
   app.showToastMsg(
-    `Imported ${result.count} ${result.collection === 'todos' ? 'todo' : 'task'}${
+    `Imported ${result.count} ${taskTransferNoun(result.collection)}${
       result.count === 1 ? '' : 's'
     }`,
   )

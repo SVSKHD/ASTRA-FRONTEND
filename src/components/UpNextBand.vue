@@ -201,7 +201,14 @@ const emptyStyle = computed(() =>
 function sourceLabel(u: UpcomingReminder): string {
   const sr = u.reminder.sourceRef
   if (!sr) return ''
-  const noun = sr.collection === 'todos' ? 'Todo' : sr.collection === 'tasks' ? 'Task' : 'Reminder'
+  const noun =
+    sr.collection === 'todos'
+      ? 'Todo'
+      : sr.collection === 'tasks'
+        ? 'Task'
+        : sr.collection === 'ideas'
+          ? 'Idea'
+          : 'Reminder'
   return 'from ' + noun
 }
 function openSource(u: UpcomingReminder) {
@@ -209,6 +216,7 @@ function openSource(u: UpcomingReminder) {
   if (!sr) return
   if (sr.collection === 'todos') app.openEdit('todo', sr.id)
   else if (sr.collection === 'tasks') app.openEdit('task', sr.id)
+  else if (sr.collection === 'ideas') app.openEdit('idea', sr.id)
 }
 
 // Minutes from now until tomorrow 09:00 local, for the "tomorrow" snooze.

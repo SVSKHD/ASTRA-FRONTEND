@@ -135,7 +135,7 @@ import {
   statusFromDone,
   type PaneMode,
 } from '@/types'
-import { chunk, eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
+import { eligibleTasks, eligibleTodos, todayKey } from '@/utils/rollover'
 import { pendingKeysBetween, signatureOf, type Identified } from '@/utils/sync'
 import { deviceLabel, draftKey, sanitizeDrafts, type DraftRecord } from '@/utils/drafts'
 import { seedBots } from '@/utils/bots'
@@ -181,6 +181,7 @@ import {
 } from '@/utils/planning'
 import {
   buildIndex,
+  descendantsOf,
   inheritedTags,
   needsRenormalize,
   orderForPosition,
@@ -218,6 +219,7 @@ import type {
   ListKey,
   Note,
   NoteOwnerType,
+  RemindCollection,
   NoteRef,
   Stock,
   Priority,
@@ -328,7 +330,12 @@ function sourceRefOf(v: unknown): SourceRef | null {
   if (!v || typeof v !== 'object') return null
   const r = v as Partial<SourceRef>
   if (typeof r.id !== 'number') return null
-  if (r.collection === 'todos' || r.collection === 'tasks' || r.collection === 'reminders') {
+  if (
+    r.collection === 'todos' ||
+    r.collection === 'tasks' ||
+    r.collection === 'ideas' ||
+    r.collection === 'reminders'
+  ) {
     return { collection: r.collection, id: r.id }
   }
   return null
@@ -1318,8 +1325,8 @@ export const useAppStore = defineStore('app', () => {
     return created
   }
 
-  function deleteTreeIds(collection: LinkCollection, rootIds: number[]): number[] {
-    const collect = <T extends Todo | Task>(list: T[]): number[] => {
+  function deleteTreeIds(collection: RemindCollection, rootIds: number[]): number[] {
+    const collect = <T extends Todo | Task | Idea>(list: T[]): number[] => {
       const index = buildIndex(list)
       const seen = new Set<number>()
       const ordered: number[] = []
@@ -1330,13 +1337,15 @@ export const useAppStore = defineStore('app', () => {
         seen.add(id)
         ordered.push(id)
         for (const child of index.children.get(id) ?? []) walk(child.id)
-        for (const child of item.linked) {
+        // Ideas have no cross-item links, only the parentId tree.
+        for (const child of 'linked' in item ? item.linked : []) {
           if (child.collection === collection) walk(child.id)
         }
       }
       for (const id of rootIds) walk(id)
       return ordered
     }
+    if (collection === 'ideas') return collect(ideas.value)
     return collection === 'todos' ? collect(todos.value) : collect(tasks.value)
   }
 
@@ -1350,12 +1359,18 @@ export const useAppStore = defineStore('app', () => {
     })
   }
 
-  async function deleteManyWithProgress(collection: LinkCollection, itemIds: number[]) {
-    const roots = collection === 'todos' ? selectedTodoRoots(itemIds) : selectedTaskRoots(itemIds)
+  async function deleteManyWithProgress(collection: RemindCollection, itemIds: number[]) {
+    const roots =
+      collection === 'todos'
+        ? selectedTodoRoots(itemIds)
+        : collection === 'ideas'
+          ? selectedIdeaRoots(itemIds)
+          : selectedTaskRoots(itemIds)
     const idsToDelete = deleteTreeIds(collection, roots)
     if (!idsToDelete.length) return 0
 
-    const type: ItemType = collection === 'todos' ? 'todo' : 'task'
+    const type: ItemType =
+      collection === 'todos' ? 'todo' : collection === 'ideas' ? 'idea' : 'task'
     const singular = type
     const plural = type + 's'
     const warningId = `bulk-delete-${collection}`
@@ -1417,7 +1432,8 @@ export const useAppStore = defineStore('app', () => {
       else children.set(parentId, [row.newId])
     }
 
-    const list = collection === 'todos' ? todos.value : tasks.value
+    const list: readonly (Todo | Task | Idea)[] =
+      collection === 'todos' ? todos.value : collection === 'ideas' ? ideas.value : tasks.value
     const rootOrders = list
       .filter((item) => !importedIds.has(item.id) && item.parentId == null)
       .map((item) => item.order)
@@ -1442,7 +1458,12 @@ export const useAppStore = defineStore('app', () => {
     }
     visit(null, 0, 0)
 
-    if (collection === 'todos') {
+    if (collection === 'ideas') {
+      ideas.value = ideas.value.map((idea) => {
+        const patch = meta.get(idea.id)
+        return patch ? { ...idea, ...patch } : idea
+      })
+    } else if (collection === 'todos') {
       todos.value = todos.value.map((todo) => {
         const patch = meta.get(todo.id)
         return patch ? { ...todo, ...patch } : todo
@@ -1471,14 +1492,21 @@ export const useAppStore = defineStore('app', () => {
       const newId =
         collection === 'todos'
           ? addTodo(item.title, item.tag, item.description, state)
-          : addTask(item.title, item.tag, {
-              ...state,
-              deadline: item.deadline ?? '',
-              notes: item.description,
-              repo: item.repo ?? '',
-              ...(item.priority ? { priority: item.priority } : {}),
-              ...(item.estimateMins !== undefined ? { estimateMins: item.estimateMins } : {}),
-            })
+          : collection === 'ideas'
+            ? addIdea(item.title, item.tag, {
+                ...state,
+                description: item.description,
+                deadline: item.deadline ?? '',
+                ...(item.ideaType ? { ideaType: item.ideaType } : {}),
+              })
+            : addTask(item.title, item.tag, {
+                ...state,
+                deadline: item.deadline ?? '',
+                notes: item.description,
+                repo: item.repo ?? '',
+                ...(item.priority ? { priority: item.priority } : {}),
+                ...(item.estimateMins !== undefined ? { estimateMins: item.estimateMins } : {}),
+              })
       if (newId != null) rows.push({ newId, item, sourceKey: item.sourceId || String(index) })
     })
     applyImportedHierarchy(collection, rows)
@@ -1505,18 +1533,20 @@ export const useAppStore = defineStore('app', () => {
   ): { count: number; as: 'json' | 'lines'; error?: string } {
     const read = parseItemsForParent(input, collection)
     if (read.error) return { count: 0, as: read.as, error: read.error }
-    const listRef = collection === 'todos' ? todos : tasks
-    if (!listRef.value.some((t) => t.id === parentId)) {
+    const current = (): (Todo | Task | Idea)[] =>
+      collection === 'todos' ? todos.value : collection === 'ideas' ? ideas.value : tasks.value
+    if (!current().some((t) => t.id === parentId)) {
       return { count: 0, as: read.as, error: 'That item no longer exists.' }
     }
-    const before = new Set(listRef.value.map((t) => t.id))
+    const before = new Set(current().map((t) => t.id))
     const count = importTaskTransferItems(collection, read.items)
-    const fresh = (listRef.value as (Todo | Task)[])
+    const fresh = current()
       .filter((t) => !before.has(t.id) && t.parentId == null)
       .sort((a, b) => a.order - b.order)
-    let at = buildIndex(listRef.value as (Todo | Task)[]).children.get(parentId)?.length ?? 0
+    let at = buildIndex(current()).children.get(parentId)?.length ?? 0
     for (const t of fresh) {
       if (collection === 'todos') moveTodo(t.id, parentId, at++)
+      else if (collection === 'ideas') moveIdea(t.id, parentId, at++)
       else moveTask(t.id, parentId, at++)
     }
     return { count, as: read.as }
@@ -2932,10 +2962,8 @@ export const useAppStore = defineStore('app', () => {
   //   todos — todos have no due date; their day is `createdAt`, so re-stamp it
   //           to today keeping the time of day (same move as a drag-to-day).
   // Both bump `rolledOverAt`/`rolloverCount`. Idempotent: a second run finds an
-  // empty eligible set. Firestore's writeBatch caps at 500 ops; the whole
-  // workspace is one document here, so a "chunk" persists as one workspace
-  // write, and 400 still bounds how much a huge run touches per step.
-  const ROLLOVER_CHUNK = 400
+  // empty eligible set. The whole workspace is one document here, so the move
+  // is applied in one pass and persisted with one workspace write.
 
   type CollectionKey = 'todos' | 'tasks'
   interface MoveRestore {
@@ -3034,35 +3062,29 @@ export const useAppStore = defineStore('app', () => {
       }
     }
 
-    const maxSteps = 20
-    const chunkSize = Math.min(ROLLOVER_CHUNK, Math.max(1, Math.ceil(total / maxSteps)))
-    const groups = chunk(eligible, chunkSize)
-
-    let moved = 0
-    let failed = 0
-    for (const group of groups) {
-      const ids = new Set(group.map((i) => i.id))
-      const prior = new Map(group.map((i) => [i.id, priorOf(i)]))
-      applyChunk(ids, Date.now())
-      if (online) {
-        try {
-          await saveCloudNow()
-          for (const i of group) restore.push({ id: i.id, prev: prior.get(i.id)! })
-          moved += group.length
-        } catch {
-          revertChunk(prior)
-          failed += group.length
-        }
-      } else {
-        // Queue locally without blocking, then yield a frame so the bar moves.
-        void saveCloudNow().catch(() => {})
-        await nextFrame()
-        for (const i of group) restore.push({ id: i.id, prev: prior.get(i.id)! })
-        moved += group.length
+    // All at once: one change to the list and ONE write. The workspace is a
+    // single document, so every save sends all of it — chunking the move only
+    // multiplied the same full write by the number of chunks.
+    const ids = new Set(eligible.map((i) => i.id))
+    const prior = new Map(eligible.map((i) => [i.id, priorOf(i)]))
+    onProgress?.(0, total)
+    applyChunk(ids, Date.now())
+    if (online) {
+      try {
+        await saveCloudNow()
+      } catch {
+        revertChunk(prior)
+        onProgress?.(total, total)
+        return { moved: 0, failed: total, restore }
       }
-      onProgress?.(moved + failed, total)
+    } else {
+      // Queue locally without blocking; the offline layer replays it.
+      void saveCloudNow().catch(() => {})
+      await nextFrame()
     }
-    return { moved, failed, restore }
+    for (const i of eligible) restore.push({ id: i.id, prev: prior.get(i.id)! })
+    onProgress?.(total, total)
+    return { moved: total, failed: 0, restore }
   }
 
   // Restore each moved item to the day (and rollover bookkeeping) it had before.
@@ -3087,9 +3109,13 @@ export const useAppStore = defineStore('app', () => {
   }
   // "Clear completed": archive (not delete) every done item in a collection, so
   // it drops out of the list but still counts in Overview and Calendar.
-  function archiveCompleted(collection: LinkCollection) {
+  function archiveCompleted(collection: RemindCollection) {
     const at = Date.now()
-    if (collection === 'todos') {
+    if (collection === 'ideas') {
+      ideas.value = ideas.value.map((i) =>
+        i.status === 'done' && i.archivedAt == null ? { ...i, archivedAt: at } : i,
+      )
+    } else if (collection === 'todos') {
       todos.value = todos.value.map((t) =>
         t.status === 'done' && t.archivedAt == null ? { ...t, archivedAt: at } : t,
       )
@@ -3388,6 +3414,26 @@ export const useAppStore = defineStore('app', () => {
   // ---- Ideas --------------------------------------------------------------
   // Returns the new id so the caller can attach notes to it in the same pass
   // (section 22b) — the same contract addTask and addTodo already had.
+  // The lifecycle and hierarchy fields every idea carries (open, top-level, no
+  // reminders), shared by every place that builds one.
+  function ideaDefaults(newId: number, order: number) {
+    return {
+      done: false,
+      status: 'pending' as ItemStatus,
+      completedAt: null,
+      reminderIds: [] as number[],
+      parentId: null,
+      order,
+      depth: 0,
+      rootId: newId,
+      localRev: 0,
+      updatedBy: uid ?? '',
+    }
+  }
+  function nextIdeaRootOrder() {
+    const rootOrders = ideas.value.filter((x) => x.parentId == null).map((x) => x.order)
+    return rootOrders.length ? Math.max(...rootOrders) + 1 : 0
+  }
   function addIdea(title: string, tag: string, fields: Partial<Idea> = {}) {
     const t = title.trim()
     if (!t) return
@@ -3402,6 +3448,7 @@ export const useAppStore = defineStore('app', () => {
         ideaType: 'feature',
         tag: registerTag(tag),
         noteIds: [],
+        ...ideaDefaults(newId, nextIdeaRootOrder()),
         ...fields,
         ...stamps(),
       },
@@ -3414,6 +3461,80 @@ export const useAppStore = defineStore('app', () => {
         ? { ...fields, tag: retag(ideas.value.find((i) => i.id === iid)?.tag, fields.tag) }
         : fields
     ideas.value = ideas.value.map((i) => (i.id === iid ? touched({ ...i, ...next }) : i))
+  }
+  function setIdeaStatus(iid: number, next: ItemStatus) {
+    const cur = ideas.value.find((i) => i.id === iid)
+    if (!cur || cur.status === next) return
+    ideas.value = ideas.value.map((i) => (i.id === iid ? withStatus(i, next) : i))
+    if (next === 'done') cancelRemindersFor('ideas', iid)
+  }
+  function toggleIdea(iid: number) {
+    const cur = ideas.value.find((i) => i.id === iid)
+    if (cur) setIdeaStatus(iid, cur.done ? 'pending' : 'done')
+  }
+  function moveIdea(draggedId: number, newParentId: number | null, position: number): boolean {
+    return moveInList(ideas, draggedId, newParentId, position)
+  }
+  // The picked ideas that are not already inside another picked idea's subtree,
+  // in list order — so acting on "a parent and its child" acts on the tree once.
+  function selectedIdeaRoots(ideaIds: number[]): number[] {
+    const index = buildIndex(ideas.value)
+    const order = new Map(ideas.value.map((idea, i) => [idea.id, i]))
+    const wanted = [...new Set(ideaIds)].filter((iid) => index.byId.has(iid))
+    const inside = new Set(wanted.flatMap((iid) => descendantsOf(index, iid).map((d) => d.id)))
+    return wanted
+      .filter((iid) => !inside.has(iid))
+      .sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+  }
+  // Move whole idea trees to Tasks: each idea becomes a task (title, tag,
+  // description as notes, deadline, status, notes and reminders carried over),
+  // the nesting is kept, and the ideas are removed. Returns the new task ids.
+  function convertIdeasToTasks(ideaIds: number[]): number[] {
+    const roots = selectedIdeaRoots(ideaIds)
+    if (!roots.length) return []
+    const index = buildIndex(ideas.value)
+    const ordered: number[] = []
+    for (const r of roots) ordered.push(r, ...descendantsOf(index, r).map((d) => d.id))
+    const idMap = new Map<number, number>()
+    for (const oldId of ordered) {
+      const idea = index.byId.get(oldId)
+      if (!idea) continue
+      const nextId = addTask(idea.title, idea.tag, {
+        status: idea.status,
+        done: idea.done,
+        completedAt: idea.completedAt,
+        notes: idea.description,
+        deadline: idea.deadline,
+        reminderIds: [...idea.reminderIds],
+        noteIds: [...idea.noteIds],
+      })
+      if (nextId != null) idMap.set(oldId, nextId)
+    }
+    const position = new Map<number, number>()
+    for (const oldId of ordered) {
+      const idea = index.byId.get(oldId)
+      const newId = idMap.get(oldId)
+      if (!idea || newId == null || idea.parentId == null) continue
+      const newParent = idMap.get(idea.parentId)
+      if (newParent == null) continue
+      const at = position.get(newParent) ?? 0
+      moveTask(newId, newParent, at)
+      position.set(newParent, at + 1)
+    }
+    reminders.value = reminders.value.map((reminder) => {
+      const source = reminder.sourceRef
+      if (source?.collection !== 'ideas') return reminder
+      const newId = idMap.get(source.id)
+      return newId == null
+        ? reminder
+        : { ...reminder, sourceRef: { collection: 'tasks', id: newId } }
+    })
+    ideas.value = ideas.value.filter((idea) => !idMap.has(idea.id))
+    reconcileNoteRefs()
+    if (idMap.size) {
+      showToastMsg(`Moved ${idMap.size} idea${idMap.size === 1 ? '' : 's'} to Tasks`)
+    }
+    return roots.map((r) => idMap.get(r)).filter((n): n is number => n != null)
   }
 
   // ---- Stocks -------------------------------------------------------------
@@ -4334,13 +4455,15 @@ export const useAppStore = defineStore('app', () => {
     // Linked todos/tasks: strip this item from every counterpart's links so no
     // dangling refs remain. (Undo restores the item's own arrays but not the
     // counterpart pointers — link resolution already ignores missing refs.)
-    if (type === 'todo' || type === 'task') {
-      cleanupLinksForDelete({ id: itemId, collection: type === 'todo' ? 'todos' : 'tasks' })
+    if (type === 'todo' || type === 'task' || type === 'idea') {
+      if (type !== 'idea') {
+        cleanupLinksForDelete({ id: itemId, collection: type === 'todo' ? 'todos' : 'tasks' })
+      }
       // Linked reminders are deleted in the same batch — a reminder that points
       // at a todo makes no sense once the todo is gone. Their calendar events go
       // with them; Undo restores the item but not these (a resurrected reminder
       // would re-create fresh events), matching how link pointers aren't restored.
-      const linkedReminderIds = (item as unknown as Todo | Task).reminderIds ?? []
+      const linkedReminderIds = (item as unknown as Todo | Task | Idea).reminderIds ?? []
       if (linkedReminderIds.length) {
         const gone = new Set(linkedReminderIds)
         for (const r of reminders.value) {
@@ -4599,6 +4722,7 @@ export const useAppStore = defineStore('app', () => {
           tag: (it.tag as string) || '',
           // A shared snapshot cannot bring the owner's private notes with it.
           noteIds: [],
+          ...ideaDefaults(nidNew, nextIdeaRootOrder()),
           ...stamps(),
         },
       ]
@@ -6564,17 +6688,25 @@ export const useAppStore = defineStore('app', () => {
   // "Remind me" on a todo/task creates a reminder that points back rather than
   // duplicating the item; completing the item cancels those reminders; and the
   // reverse ("Create todo from this") sets the same back-pointer the other way.
-  function sourceItem(collection: LinkCollection, itemId: number): Todo | Task | undefined {
-    const list: readonly (Todo | Task)[] = collection === 'todos' ? todos.value : tasks.value
+  function sourceItem(
+    collection: RemindCollection,
+    itemId: number,
+  ): Todo | Task | Idea | undefined {
+    const list: readonly (Todo | Task | Idea)[] =
+      collection === 'todos' ? todos.value : collection === 'ideas' ? ideas.value : tasks.value
     return list.find((x) => x.id === itemId)
   }
-  function reminderTitleOf(item: Todo | Task): string {
+  function reminderTitleOf(item: Todo | Task | Idea): string {
     return 'text' in item ? item.text : item.title
   }
   // Add a reminder id to a source item's forward index, branching on the
   // collection so each list is written as its own concrete type.
-  function indexReminderOnItem(collection: LinkCollection, itemId: number, rid: number) {
-    if (collection === 'todos') {
+  function indexReminderOnItem(collection: RemindCollection, itemId: number, rid: number) {
+    if (collection === 'ideas') {
+      ideas.value = ideas.value.map((x) =>
+        x.id === itemId ? touched({ ...x, reminderIds: [...x.reminderIds, rid] }) : x,
+      )
+    } else if (collection === 'todos') {
       todos.value = todos.value.map((x) =>
         x.id === itemId ? touched({ ...x, reminderIds: [...x.reminderIds, rid] }) : x,
       )
@@ -6589,7 +6721,7 @@ export const useAppStore = defineStore('app', () => {
   // carries a sourceRef back to it, and its id is indexed on the item so the row
   // can show a bell chip and completion can cancel it. Returns the reminder id.
   function createReminderFromItem(
-    collection: LinkCollection,
+    collection: RemindCollection,
     itemId: number,
     payload: { start: string; repeat?: Repeat; note?: string; priority?: Priority },
   ): number | undefined {
@@ -6610,7 +6742,7 @@ export const useAppStore = defineStore('app', () => {
 
   // Apply one schedule to many items in a single pass — the bulk "Remind me".
   function createRemindersForItems(
-    collection: LinkCollection,
+    collection: RemindCollection,
     itemIds: number[],
     payload: { start: string; repeat?: Repeat; note?: string; priority?: Priority },
   ): number {
@@ -6623,7 +6755,7 @@ export const useAppStore = defineStore('app', () => {
   // Completing a todo/task auto-acknowledges its pending reminders and cancels
   // their future occurrences, so a done item stops nagging. Kept idempotent by
   // the cancelledAt guard.
-  function cancelRemindersFor(collection: LinkCollection, itemId: number) {
+  function cancelRemindersFor(collection: RemindCollection, itemId: number) {
     const src = sourceItem(collection, itemId)
     const ids = src?.reminderIds ?? []
     if (!ids.length) return
@@ -6638,7 +6770,9 @@ export const useAppStore = defineStore('app', () => {
     if (activeNotif.value && set.has(activeNotif.value.id)) activeNotif.value = null
     if (cancelled) {
       showToastMsg(
-        'Reminder cancelled — ' + (collection === 'todos' ? 'todo' : 'task') + ' completed',
+        'Reminder cancelled — ' +
+          (collection === 'todos' ? 'todo' : collection === 'ideas' ? 'idea' : 'task') +
+          ' completed',
       )
     }
   }
@@ -6678,7 +6812,11 @@ export const useAppStore = defineStore('app', () => {
       sourceRef: r.sourceRef,
     })
     const sr = r.sourceRef
-    if (newId != null && sr && (sr.collection === 'todos' || sr.collection === 'tasks')) {
+    if (
+      newId != null &&
+      sr &&
+      (sr.collection === 'todos' || sr.collection === 'tasks' || sr.collection === 'ideas')
+    ) {
       indexReminderOnItem(sr.collection, sr.id, newId)
     }
   }
@@ -6705,6 +6843,7 @@ export const useAppStore = defineStore('app', () => {
     if (!sr) return
     if (sr.collection === 'todos') setTodoStatus(sr.id, 'done')
     else if (sr.collection === 'tasks') setTaskStatus(sr.id, 'done')
+    else if (sr.collection === 'ideas') setIdeaStatus(sr.id, 'done')
   }
 
   // Reverse direction: create a todo from a reminder, setting sourceRef the other
@@ -7238,13 +7377,26 @@ export const useAppStore = defineStore('app', () => {
     })
     // Ideas/stocks are newer than the first release, so every legacy field is
     // backfilled on read — including noteIds, which older items never had.
-    ideas.value = stamped<Idea>(data.ideas).map((i) => ({
-      ...i,
+    ideas.value = stamped<Idea>(data.ideas).map((i, n) => ({
+      ...statused(i),
       description: typeof i.description === 'string' ? i.description : '',
       deadline: typeof i.deadline === 'string' ? i.deadline : '',
       ideaType: typeof i.ideaType === 'string' && i.ideaType ? i.ideaType : 'feature',
       tag: typeof i.tag === 'string' ? i.tag : '',
       noteIds: normaliseIds(i.noteIds),
+      // Lifecycle, reminders and hierarchy arrived with the todo-style Ideas
+      // tab: older ideas read as open, top-level, in their stored order.
+      completedAt: typeof i.completedAt === 'number' ? i.completedAt : null,
+      archivedAt: typeof i.archivedAt === 'number' ? i.archivedAt : null,
+      reminderIds: Array.isArray(i.reminderIds)
+        ? i.reminderIds.filter((x) => typeof x === 'number')
+        : [],
+      parentId: typeof i.parentId === 'number' ? i.parentId : null,
+      order: typeof i.order === 'number' ? i.order : n,
+      depth: typeof i.depth === 'number' ? i.depth : 0,
+      rootId: typeof i.rootId === 'number' ? i.rootId : i.id,
+      localRev: typeof i.localRev === 'number' ? i.localRev : 0,
+      updatedBy: typeof i.updatedBy === 'string' ? i.updatedBy : '',
     }))
     stocks.value = stamped<Stock>(data.stocks).map((st) => ({
       ...st,
@@ -7599,7 +7751,8 @@ export const useAppStore = defineStore('app', () => {
         lastWrittenAt = Math.max(lastWrittenAt, at)
         syncState.value = 'synced'
         for (const key of sendingStatus) unsentStatus.delete(key)
-        if (statusBurst.size) refreshStatusSync(unsentStatus.size ? statusSync.value.phase : 'saved')
+        if (statusBurst.size)
+          refreshStatusSync(unsentStatus.size ? statusSync.value.phase : 'saved')
       })
       .catch((error) => {
         if (statusBurst.size) refreshStatusSync('error')
@@ -8048,6 +8201,10 @@ export const useAppStore = defineStore('app', () => {
     moveTripToVisit,
     addIdea,
     updateIdea,
+    setIdeaStatus,
+    toggleIdea,
+    moveIdea,
+    convertIdeasToTasks,
     addStock,
     updateStock,
     attachNote,

@@ -79,7 +79,8 @@ export function useUpcoming() {
     const dated = [
       ...deadlines.value.map((t) => ({ key: 'deadline:' + t.id, title: t.title, due: t.due })),
       ...ideas.value
-        .filter((i) => i.deadline)
+        // A finished or cleared idea no longer has anything coming up.
+        .filter((i) => i.deadline && i.status !== 'done' && !i.archivedAt)
         .map((i) => ({ key: 'idea:' + i.id, title: i.title, due: i.deadline })),
     ]
     return dated.map((t) => {

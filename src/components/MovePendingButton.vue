@@ -4,9 +4,9 @@
 // into any header or empty state. Renders NOTHING when there is nothing to move
 // (no permanently-disabled ghost button).
 //
-// Idle → a labelled pill with a count badge (icon-only on mobile). Click morphs
-// it in place into a liquid/glass progress bar ("Moving 3 / 7…") whose fill
-// tracks real per-batch write completions. Success flashes then collapses back
+// Idle → a labelled pill with a count badge (icon-only on mobile). Click moves
+// every overdue item in one change and one write, morphing in place into a
+// liquid/glass progress bar ("Moving 7…") that fills when the write lands. Success flashes then collapses back
 // (~800ms) with an Undo toast (10s); a partial failure goes amber with a Retry
 // toast. Disabled for the whole run so it can't double-fire.
 import { computed, ref } from 'vue'
@@ -39,12 +39,15 @@ const visible = computed(() => count.value > 0 || phase.value !== 'idle')
 const pct = computed(() => {
   if (phase.value === 'idle') return 0
   if (phase.value === 'success') return 100
-  return progress.value.total ? Math.round((progress.value.done / progress.value.total) * 100) : 0
+  // One write moves them all, so while it is in flight the bar sits most of the
+  // way along and shimmers, then fills when the write lands.
+  if (!progress.value.total) return 0
+  return progress.value.done >= progress.value.total ? 100 : 70
 })
 
-const fullLabel = computed(() => `Move pending ${nounPlural.value} to today`)
+const fullLabel = computed(() => `Move all ${nounPlural.value} to today`)
 const label = computed(() => {
-  if (phase.value === 'running') return `Moving ${progress.value.done} / ${progress.value.total}…`
+  if (phase.value === 'running') return `Moving ${progress.value.total}…`
   if (phase.value === 'success') return 'Moved!'
   if (phase.value === 'fail') return 'Some failed'
   return fullLabel.value

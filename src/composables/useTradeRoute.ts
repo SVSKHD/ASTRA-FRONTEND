@@ -30,7 +30,7 @@ import { currentMonthKey } from '@/utils/budget'
 // It is in the list all the same, because a mode is what the URL calls the thing
 // on screen — and a tab that cannot be linked to is a tab that is lost on every
 // refresh.
-export const TRADE_MODES = ['journal', 'signals', 'combined', 'import'] as const
+export const TRADE_MODES = ['journal', 'signals', 'combined', 'import', 'calculator'] as const
 export type TradeMode = (typeof TRADE_MODES)[number]
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/

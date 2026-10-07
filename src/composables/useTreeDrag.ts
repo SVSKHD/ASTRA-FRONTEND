@@ -20,9 +20,9 @@ import { useAccordionState } from '@/composables/useAccordionState'
 import { autoScrollSpeed } from '@/utils/dragNest'
 import { buildIndex, childrenOf, wouldCreateCycle } from '@/utils/taskTree'
 import { projectReorder, type FlatRow } from '@/utils/treeProjection'
-import type { Task, Todo } from '@/types'
+import type { Idea, Task, Todo } from '@/types'
 
-export type TreeCollection = 'tasks' | 'todos'
+export type TreeCollection = 'tasks' | 'todos' | 'ideas'
 export const INDENT_PX = 24
 const LONG_PRESS_MS = 250
 const TOUCH_MOVE_CANCEL = 8
@@ -85,23 +85,27 @@ let pendingFromRow = false
 let pendingPointer = ''
 let announce: (msg: string) => void = () => {}
 
-function items(collection: TreeCollection): (Task | Todo)[] {
+function items(collection: TreeCollection): (Task | Todo | Idea)[] {
   const app = useAppStore()
-  return collection === 'tasks' ? app.tasks : app.todos
+  return collection === 'tasks' ? app.tasks : collection === 'ideas' ? app.ideas : app.todos
 }
 function move(collection: TreeCollection, id: number, parentId: number | null, position: number) {
   const app = useAppStore()
+  if (collection === 'ideas') return app.moveIdea(id, parentId, position)
   return collection === 'tasks'
     ? app.moveTask(id, parentId, position)
     : app.moveTodo(id, parentId, position)
 }
-function treeKey(collection: TreeCollection, id: number): string {
-  return (collection === 'tasks' ? 'tasktree:' : 'todotree:') + id
+// The accordion key a row's fold state is stored under, per collection.
+export function treeKey(collection: TreeCollection, id: number): string {
+  const prefix =
+    collection === 'tasks' ? 'tasktree:' : collection === 'ideas' ? 'ideatree:' : 'todotree:'
+  return prefix + id
 }
 function titleOf(collection: TreeCollection, id: number): string {
   const it = items(collection).find((x) => x.id === id)
   if (!it) return '(untitled)'
-  return (collection === 'tasks' ? (it as Task).title : (it as Todo).text) || '(untitled)'
+  return ('text' in it ? it.text : it.title) || '(untitled)'
 }
 
 // The on-screen rows for the active collection, in document (display) order, read

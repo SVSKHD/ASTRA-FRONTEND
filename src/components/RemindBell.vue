@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
-// The "Remind me" bell on every todo/task row and detail page. Clicking opens a
+// The "Remind me" bell on every todo/task/idea row and detail page. Clicking opens a
 // compact popover of quick options (Later today +3h, Tonight 8pm, Tomorrow 9am,
 // In 2 days, Next week, Custom) plus an optional Repeat row. Choosing one creates
 // a reminder that points back at this item — it does NOT duplicate it. When a
@@ -14,22 +14,27 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { bellChipLabel, soonestFireAmong } from '@/utils/upcoming'
-import type { LinkCollection, Repeat, RepeatType } from '@/types'
+import type { RemindCollection, Repeat, RepeatType } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
-  defineProps<{ collection: LinkCollection; id: number; variant?: 'row' | 'detail' }>(),
+  defineProps<{ collection: RemindCollection; id: number; variant?: 'row' | 'detail' }>(),
   { variant: 'row' },
 )
 
 const app = useAppStore()
 const ui = useUiStore()
 const { c, dark } = useStyles()
-const { reminders, todos, tasks } = storeToRefs(app)
+const { reminders, todos, tasks, ideas } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
 const item = computed(() =>
-  (props.collection === 'todos' ? todos.value : tasks.value).find((x) => x.id === props.id),
+  (props.collection === 'todos'
+    ? todos.value
+    : props.collection === 'ideas'
+      ? ideas.value
+      : tasks.value
+  ).find((x) => x.id === props.id),
 )
 const reminderIds = computed(() => item.value?.reminderIds ?? [])
 const chipLabel = computed(() => bellChipLabel(reminders.value, reminderIds.value, now.value))

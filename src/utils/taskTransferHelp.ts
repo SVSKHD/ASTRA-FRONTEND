@@ -219,26 +219,75 @@ export const SAMPLE_TODOS_JSON = `{
   ]
 }`
 
+export const SAMPLE_IDEAS_JSON = `{
+  "collection": "ideas",
+  "project": "Product ideas",
+  "items": [
+    {
+      "id": "IDEA-001",
+      "area": "Growth",
+      "title": "Referral rewards",
+      "description": "Give customers a reward for every friend who signs up.",
+      "ideaType": "feature",
+      "status": "pending"
+    },
+    {
+      "id": "IDEA-002",
+      "parentSourceId": "IDEA-001",
+      "area": "Growth",
+      "title": "Shareable invite link",
+      "description": "One link per customer, tracked to the reward.",
+      "deadline": "2026-11-01",
+      "status": "pending"
+    }
+  ]
+}`
+
+const SAMPLE_LINK: Record<
+  TaskTransferCollection,
+  { tab: string; title: string; description: string; tag: string; deadline?: string }
+> = {
+  todos: {
+    tab: 'todo',
+    title: 'Confirm launch owner',
+    description: 'Pick the person responsible for the release checklist.',
+    tag: 'Setup',
+  },
+  tasks: {
+    tab: 'tasks',
+    title: 'Real Lead Backend',
+    description: 'Create the Lead model and API routes.',
+    tag: 'CRM',
+    deadline: '2026-10-02',
+  },
+  ideas: {
+    tab: 'ideas',
+    title: 'Referral rewards',
+    description: 'Give customers a reward for every friend who signs up.',
+    tag: 'Growth',
+  },
+}
+
 export function sampleTaskTransferUrl(collection: TaskTransferCollection): string {
+  const sample = SAMPLE_LINK[collection]
   const params = new URLSearchParams()
-  params.set('tab', collection === 'todos' ? 'todo' : 'tasks')
-  params.set('title', collection === 'todos' ? 'Confirm launch owner' : 'Real Lead Backend')
-  params.set(
-    'description',
-    collection === 'todos'
-      ? 'Pick the person responsible for the release checklist.'
-      : 'Create the Lead model and API routes.',
-  )
-  params.set('tag', collection === 'todos' ? 'Setup' : 'CRM')
+  params.set('tab', sample.tab)
+  params.set('title', sample.title)
+  params.set('description', sample.description)
+  params.set('tag', sample.tag)
   params.set('status', 'pending')
-  if (collection === 'tasks') params.set('deadline', '2026-10-02')
+  if (sample.deadline) params.set('deadline', sample.deadline)
   return '/?' + params.toString()
 }
 
 export function sampleTaskTransferJson(collection: TaskTransferCollection): string {
-  return collection === 'todos' ? SAMPLE_TODOS_JSON : SAMPLE_TASKS_JSON
+  return collection === 'todos'
+    ? SAMPLE_TODOS_JSON
+    : collection === 'ideas'
+      ? SAMPLE_IDEAS_JSON
+      : SAMPLE_TASKS_JSON
 }
 
 export function taskTransferSampleFilename(collection: TaskTransferCollection): string {
-  return collection === 'todos' ? 'todos-sample.json' : 'tasks-sample.json'
+  return `${collection}-sample.json`
 }

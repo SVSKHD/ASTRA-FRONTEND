@@ -196,7 +196,10 @@ export interface LinkRef {
 // LinkRef. Null when the item was created directly.
 // 'goalChecklist' is a todo or task that stands for one checklist point of a
 // goal it was moved from (moveGoalTo), so ticking one ticks the other.
-export type SourceCollection = 'todos' | 'tasks' | 'reminders' | 'goals' | 'goalChecklist'
+export type SourceCollection = 'todos' | 'tasks' | 'ideas' | 'reminders' | 'goals' | 'goalChecklist'
+// The lists a "Remind me" bell can sit on: the reminder points back into one of
+// these through its sourceRef, and the item keeps the forward index.
+export type RemindCollection = 'todos' | 'tasks' | 'ideas'
 export interface SourceRef {
   collection: SourceCollection
   id: number
@@ -501,7 +504,11 @@ export const IDEA_TYPE_OPTIONS: { value: IdeaType; label: string }[] = [
   { value: 'experiment', label: 'Experiment' },
 ]
 
-export interface Idea extends Timestamped {
+// Ideas share the todo lifecycle (open → done → archived by "Clear completed")
+// and the flat parentId hierarchy, so an idea can hold sub-ideas and be dragged
+// like a todo. Every field past noteIds arrived after ideas did and is
+// backfilled on read (applyData): pending, top-level, no reminders.
+export interface Idea extends Timestamped, Hierarchical {
   id: number
   title: string
   description: string
@@ -510,6 +517,14 @@ export interface Idea extends Timestamped {
   tag: string
   // References into notes[] — a note is attached by id, never copied.
   noteIds: number[]
+  done: boolean
+  status: ItemStatus
+  // When the idea last entered `done`; null while open.
+  completedAt: number | null
+  // Set by "Clear completed": hidden from the list, not deleted. Absent = live.
+  archivedAt?: number | null
+  // Reminders spawned from this idea's "Remind me" bell (forward index).
+  reminderIds: number[]
 }
 
 export interface Stock extends Timestamped {

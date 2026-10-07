@@ -149,6 +149,12 @@ export const ICONS = {
   play: '<polygon points="7 4.5 19 12 7 19.5 7 4.5" />',
   pause:
     '<rect x="6" y="4.5" width="4" height="15" rx="1" /><rect x="14" y="4.5" width="4" height="15" rx="1" />',
+  // The reminder dock's own controls: a pushpin to hold it where it is, a grip
+  // to drag it by, and a counter-clockwise arrow to send it back to the gutter.
+  pin: '<line x1="12" y1="17" x2="12" y2="22" /><path d="M5 17h14v-1.8a2 2 0 0 0-1.1-1.8l-1.8-.9A2 2 0 0 1 15 10.8V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.8a2 2 0 0 1-1.1 1.7l-1.8.9A2 2 0 0 0 5 15.2z" />',
+  grip: '<circle cx="9" cy="5.5" r="1.2" /><circle cx="15" cy="5.5" r="1.2" /><circle cx="9" cy="12" r="1.2" /><circle cx="15" cy="12" r="1.2" /><circle cx="9" cy="18.5" r="1.2" /><circle cx="15" cy="18.5" r="1.2" />',
+  'rotate-ccw':
+    '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><polyline points="3 3 3 8 8 8" />',
   // The weather set, for the greeting card: one cloud outline, and what falls
   // from it or sits behind it.
   cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z" />',

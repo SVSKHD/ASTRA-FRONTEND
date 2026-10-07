@@ -47,6 +47,7 @@ import SignalTable from '@/components/trades/SignalTable.vue'
 import TradeCalendar from '@/components/trades/TradeCalendar.vue'
 import TradeForm, { type ArmRequest } from '@/components/trades/TradeForm.vue'
 import TradeImport from '@/components/trades/TradeImport.vue'
+import TradeCalculator from '@/components/trades/TradeCalculator.vue'
 import TradeSettingsPanel from '@/components/trades/TradeSettingsPanel.vue'
 import TradeSkeleton from '@/components/trades/TradeSkeleton.vue'
 import TradeTable, { type RowState } from '@/components/trades/TradeTable.vue'
@@ -103,6 +104,7 @@ const MODES = [
   { value: 'signals', label: 'Signals' },
   { value: 'combined', label: 'Combined' },
   { value: 'import', label: 'Import' },
+  { value: 'calculator', label: 'Calculator' },
 ]
 
 const visibleTrades = computed(() =>
@@ -407,6 +409,10 @@ defineExpose({ focus: openForm })
            the full width because a CSV spanning three years has nothing to say
            to a month picker. -->
       <TradeImport v-if="route.mode.value === 'import'" />
+
+      <!-- What a move is worth, from the same contract sizes the log uses. Like
+           Import it is not about the month, so it does not wait for it. -->
+      <TradeCalculator v-else-if="route.mode.value === 'calculator'" :settings="settings" />
 
       <TradeSkeleton v-else-if="log.loading.value" part="main" />
 

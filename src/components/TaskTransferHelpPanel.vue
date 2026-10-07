@@ -6,7 +6,7 @@ import SlideOver from '@/components/ui/SlideOver.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import Button from '@/components/ui/Button.vue'
 import { downloadText } from '@/utils/noteExport'
-import type { TaskTransferCollection } from '@/utils/taskTransfer'
+import { taskTransferNoun, type TaskTransferCollection } from '@/utils/taskTransfer'
 import {
   TASK_TRANSFER_LINK_PARAMS,
   TASK_TRANSFER_SCHEMA_FIELDS,
@@ -22,6 +22,7 @@ const { taskTransferHelpOpen, taskTransferHelpCollection } = storeToRefs(app)
 const tabs: { value: TaskTransferCollection; label: string }[] = [
   { value: 'tasks', label: 'Task JSON' },
   { value: 'todos', label: 'Todo JSON' },
+  { value: 'ideas', label: 'Idea JSON' },
 ]
 
 const collection = computed<TaskTransferCollection>({
@@ -30,7 +31,7 @@ const collection = computed<TaskTransferCollection>({
 })
 const sample = computed(() => sampleTaskTransferJson(collection.value))
 const linkSample = computed(() => sampleTaskTransferUrl(collection.value))
-const noun = computed(() => (collection.value === 'todos' ? 'todo' : 'task'))
+const noun = computed(() => taskTransferNoun(collection.value))
 const copied = ref<'json' | 'link' | null>(null)
 
 const scopes: { key: TaskTransferSchemaField['scope']; label: string }[] = [

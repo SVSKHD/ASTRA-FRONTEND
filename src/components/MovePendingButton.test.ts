@@ -75,7 +75,7 @@ describe('<MovePendingButton /> visibility', () => {
     app.tasks = [overdueTask(1), overdueTask(2), overdueTask(3)]
     const wrapper = mount(MovePendingButton, { props: { collection: 'tasks' } })
     expect(wrapper.find('button').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Move pending tasks to today')
+    expect(wrapper.text()).toContain('Move all tasks to today')
     expect(wrapper.text()).toContain('3')
   })
 
@@ -84,7 +84,7 @@ describe('<MovePendingButton /> visibility', () => {
     app.todos = [overdueTodo(1), overdueTodo(2)]
     const wrapper = mount(MovePendingButton, { props: { collection: 'todos' } })
     expect(wrapper.find('button').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Move pending todos to today')
+    expect(wrapper.text()).toContain('Move all todos to today')
     expect(wrapper.text()).toContain('2')
   })
 
