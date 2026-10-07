@@ -183,10 +183,9 @@ function swap() {
 }
 .calc__form {
   display: grid;
-  grid-template-columns: minmax(140px, 1.2fr) auto minmax(120px, 1fr) auto minmax(
-      120px,
-      1fr
-    ) minmax(90px, 0.7fr);
+  grid-template-columns:
+    minmax(140px, 1.2fr) auto minmax(120px, 1fr) auto minmax(120px, 1fr)
+    minmax(90px, 0.7fr);
   align-items: end;
   gap: var(--sp-3);
 }
