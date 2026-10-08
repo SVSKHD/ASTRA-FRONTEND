@@ -71,8 +71,8 @@ function tagStyle(tag: string) {
     ...tagChip(c.value, tag, dark.value),
     alignSelf: 'center',
     flexShrink: 0,
-    fontSize: '12px',
-    fontWeight: 'bold',
+    ...typeStep('xs'),
+    fontWeight: 'var(--weight-semibold)',
   })
 }
 const footer = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, opacity: 0.8 }))
@@ -88,7 +88,9 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
         <span :style="text(r.sub.status === 'done')" :title="r.sub.text">{{
           r.sub.text || '(untitled)'
         }}</span>
-        <span v-if="r.parent.tag" :style="tagStyle(r.parent.tag)">{{ r.parent.tag.toLocaleUpperCase() }}</span>
+        <span v-if="r.parent.tag" :style="tagStyle(r.parent.tag)">{{
+          r.parent.tag.toLocaleUpperCase()
+        }}</span>
         <IconButton
           label="Focus on this"
           size="sm"

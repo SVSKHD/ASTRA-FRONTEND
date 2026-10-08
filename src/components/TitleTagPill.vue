@@ -7,7 +7,7 @@
 // what was finished.
 import { computed } from 'vue'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, tagChip } from '@/styles'
+import { pxify, tagChip, typeStep } from '@/styles'
 
 const props = defineProps<{ tag: string }>()
 const { c, dark } = useStyles()
@@ -18,11 +18,11 @@ const style = computed(() =>
     display: 'inline-block',
     alignSelf: undefined,
     verticalAlign: 'middle',
-    lineHeight: 1.3,
     marginRight: 'var(--sp-2)',
     whiteSpace: 'nowrap',
-    fontSize: '12px',
-    fontWeight: 'bold',
+    ...typeStep('xs'),
+    lineHeight: 1.3,
+    fontWeight: 'var(--weight-semibold)',
   }),
 )
 </script>
