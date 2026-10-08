@@ -18,7 +18,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { DANGER, SUCCESS, WARNING, merge, pxify, rowBase, typeStep } from '@/styles'
+import { DANGER, SUCCESS, WARNING, merge, pxify, rowBase, typeStep, itemTitle } from '@/styles'
 import { ymd } from '@/utils/dayGroups'
 import { todayKey, isOverdueTodo } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
@@ -522,7 +522,7 @@ const linkBody = pxify({
 // --- styles -----------------------------------------------------------------
 function textStyle(t: Todo) {
   return pxify({
-    ...typeStep('base'),
+    ...itemTitle(),
     fontWeight: 'var(--weight-semibold)',
     lineHeight: 1.4,
     color: c.value.text,
@@ -856,24 +856,26 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   </div>
                   <OfflineChip :pending="app.isItemPending('todo', t.id)" />
                 </div>
-                <span
-                  v-if="subCount(t.id).total"
-                  class="todo-count"
-                  :title="subCount(t.id).done + ' of ' + subCount(t.id).total + ' subtasks done'"
-                  >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                >
-                <IconButton label="Focus on the next subtask" @click.stop="focusOn(t.id)">
-                  <Icon name="timer" size="sm" />
-                </IconButton>
-                <RemindBell collection="todos" :id="t.id" />
-                <IconButton
-                  class="row-reveal"
-                  label="Delete todo"
-                  tone="danger"
-                  @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
-                >
-                  <Icon name="x" size="sm" />
-                </IconButton>
+                <div class="row-actions">
+                  <span
+                    v-if="subCount(t.id).total"
+                    class="todo-count"
+                    :title="subCount(t.id).done + ' of ' + subCount(t.id).total + ' subtasks done'"
+                    >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                  >
+                  <IconButton label="Focus on the next subtask" @click.stop="focusOn(t.id)">
+                    <Icon name="timer" size="md" />
+                  </IconButton>
+                  <RemindBell collection="todos" :id="t.id" icon-size="md" />
+                  <IconButton
+                    class="row-reveal"
+                    label="Delete todo"
+                    tone="danger"
+                    @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
+                  >
+                    <Icon name="x" size="sm" />
+                  </IconButton>
+                </div>
               </div>
               <div v-if="linksOpen(t)" :style="linkBody">
                 <LinkedAccordion
@@ -983,6 +985,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
         v-if="!isMobile"
         :open="selectedExists"
         :title="selectedExists ? 'Todo details' : 'Next up'"
+        :subtitle="selectedExists ? '' : 'First open subtasks of each todo'"
         @width="paneWidth = $event"
         @close="selectedId = null"
       >

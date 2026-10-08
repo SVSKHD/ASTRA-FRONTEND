@@ -99,7 +99,7 @@ const card = computed(() =>
       c.value.bgSolid +
       ' 70%)',
     border: B.value,
-    boxShadow: '0 30px 60px -20px rgba(0,0,0,0.7)',
+    boxShadow: 'var(--layer-overlay-shadow)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',

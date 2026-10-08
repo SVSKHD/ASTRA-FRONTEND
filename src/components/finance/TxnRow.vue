@@ -153,8 +153,8 @@ function onPick(event: Event): void {
 .txr__title {
   min-width: 0;
   margin: 0;
-  font-size: var(--text-sm);
-  line-height: var(--lh-sm);
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -119,29 +119,37 @@ const sortLabel = computed(() =>
 </script>
 
 <template>
-  <div :style="cardStyle">
+  <div :style="cardStyle" class="rx-acc" :class="{ 'is-open': open }">
     <div
       :style="headStyle"
+      class="rx-head"
       role="button"
+      tabindex="0"
       :aria-expanded="open"
       @pointerdown="tap.onPointerDown"
       @pointercancel="tap.onPointerCancel"
       @click="tap.onClick"
+      @keydown.enter.self.prevent="toggle"
+      @keydown.space.self.prevent="toggle"
     >
       <Caret :open="open" />
       <span :style="titleStyle">Completed</span>
       <span :style="countBadge">{{ count }}</span>
       <!-- Sorting and clearing are about the list, so they come with it. -->
-      <div v-if="open" :style="actionsWrap" @click.stop>
-        <button :style="ghostBtn()" :title="'Sort: ' + sortLabel" @click="emit('toggle-sort')">
-          {{ sortLabel }}
-        </button>
-        <button v-if="clearable" :style="ghostBtn()" @click="emit('clear')">Clear completed</button>
-      </div>
+      <Transition name="rx-fade">
+        <div v-if="open" :style="actionsWrap" @click.stop>
+          <button :style="ghostBtn()" :title="'Sort: ' + sortLabel" @click="emit('toggle-sort')">
+            {{ sortLabel }}
+          </button>
+          <button v-if="clearable" :style="ghostBtn()" @click="emit('clear')">
+            Clear completed
+          </button>
+        </div>
+      </Transition>
     </div>
-    <div :style="bodyOuter">
+    <div :style="bodyOuter" class="rx-body" :inert="!open">
       <div :style="bodyClip">
-        <div :style="bodyInner">
+        <div :style="bodyInner" class="rx-reveal" :class="{ 'is-open': open }">
           <slot />
         </div>
       </div>

@@ -22,7 +22,7 @@ import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
 import { richPlain } from '@/utils/richText'
 import TitleTagPill from '@/components/TitleTagPill.vue'
-import { DANGER, WARNING, doneText, merge, pxify, rowBase, typeStep } from '@/styles'
+import { DANGER, WARNING, doneText, merge, pxify, rowBase, typeStep, itemTitle } from '@/styles'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
 import TreeDropLine from '@/components/TreeDropLine.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
@@ -506,7 +506,7 @@ function sourceStyle(id: number) {
   return {
     opacity: 0.6,
     transform: 'scale(1.02)',
-    boxShadow: '0 14px 30px rgba(0,0,0,0.4)',
+    boxShadow: 'var(--layer-overlay-shadow)',
     zIndex: 5,
   }
 }
@@ -539,7 +539,7 @@ function textStyle(id: number) {
   // Todos draw their own strike (the animated line in the stylesheet); the
   // text-decoration would appear at once, ahead of it.
   return pxify({
-    ...typeStep('base'),
+    ...itemTitle(),
     fontWeight: 'var(--weight-semibold)',
     color: c.value.text,
     lineHeight: 1.3,
@@ -869,7 +869,7 @@ const rootStripStyle = computed(() =>
           <Icon v-if="swipeRows" name="chevron-right" size="sm" :style="{ color: c.dim }" />
           <!-- Todos (Todo v2): focus, remind, delete. Adding a subtask and the
                status cycle live in the details pane. -->
-          <template v-else-if="!isTasks">
+          <div v-else-if="!isTasks" class="row-actions">
             <span
               v-if="progress(row.id).total"
               class="todo-count"
@@ -882,9 +882,9 @@ const rootStripStyle = computed(() =>
               @pointerdown.stop
               @click.stop="focusOn(row.id)"
             >
-              <Icon name="timer" size="sm" />
+              <Icon name="timer" size="md" />
             </IconButton>
-            <RemindBell :collection="collection" :id="row.id" />
+            <RemindBell :collection="collection" :id="row.id" size="md" icon-size="md" />
             <IconButton
               class="row-reveal"
               :label="'Delete ' + itemType()"
@@ -894,7 +894,7 @@ const rootStripStyle = computed(() =>
             >
               <Icon name="x" size="sm" />
             </IconButton>
-          </template>
+          </div>
           <template v-else>
             <span
               v-if="progress(row.id).total"

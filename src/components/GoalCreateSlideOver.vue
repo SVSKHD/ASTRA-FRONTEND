@@ -26,6 +26,7 @@ import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import SlideOver from '@/components/ui/SlideOver.vue'
 import Caret from '@/components/ui/Caret.vue'
 import { GOAL_SCHEMA_FIELDS, GOAL_SHORTHAND, SAMPLE_GOAL_JSON } from '@/utils/goalHelp'
+import Collapse from '@/components/ui/Collapse.vue'
 
 const emit = defineEmits<{ (e: 'close'): void; (e: 'created', goalId: number): void }>()
 
@@ -417,19 +418,28 @@ const cancelBtn = computed(() =>
            arrival; the disclosure folds it away once it has been read. -->
       <section :style="formatBlock">
         <div :style="formatHead">
-          <button :style="discBtn" :aria-expanded="showFormat" @click="showFormat = !showFormat">
+          <button
+            class="rx-head"
+            :style="discBtn"
+            :aria-expanded="showFormat"
+            @click="showFormat = !showFormat"
+          >
             <Caret :open="showFormat" size="xs" />
             Example JSON &amp; what a goal needs
           </button>
-          <button v-if="showFormat" :style="tinyBtn" @click="copySample">
-            {{ sampleCopied ? 'Copied ✓' : 'Copy' }}
-          </button>
-          <button v-if="showFormat" :style="tinyBtn" @click="openFullReference">
-            Full reference
-          </button>
+          <Transition name="rx-fade">
+            <button v-if="showFormat" :style="tinyBtn" @click="copySample">
+              {{ sampleCopied ? 'Copied ✓' : 'Copy' }}
+            </button>
+          </Transition>
+          <Transition name="rx-fade">
+            <button v-if="showFormat" :style="tinyBtn" @click="openFullReference">
+              Full reference
+            </button>
+          </Transition>
         </div>
 
-        <template v-if="showFormat">
+        <Collapse :open="showFormat" group>
           <pre :style="sampleBox"><code>{{ SAMPLE_GOAL_JSON }}</code></pre>
 
           <div :style="reqNote">
@@ -457,7 +467,7 @@ const cancelBtn = computed(() =>
               ><span v-if="i">, </span><code>{{ sh.token }}</code> {{ plain(sh.means) }}</template
             >.
           </div>
-        </template>
+        </Collapse>
       </section>
 
       <div :style="footer">

@@ -178,7 +178,7 @@ onBeforeUnmount(() => clearInterval(timer))
   -webkit-backdrop-filter: blur(30px) saturate(1.6);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--theme-text) 10%, transparent),
-    0 2px 10px color-mix(in oklch, black 22%, transparent);
+    var(--shadow-soft);
 }
 
 /* The emblem: the type scale's largest step, drawn up five times. */

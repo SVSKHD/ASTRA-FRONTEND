@@ -101,6 +101,10 @@ export type ThemeKey =
   | 'kungfu'
   | 'kungfuLight'
   | 'espresso'
+  | 'latte'
+  | 'macchiato'
+  | 'mocha'
+  | 'ristretto'
 
 const lightBase = {
   glass: 'rgba(255,255,255,0.55)',
@@ -112,8 +116,10 @@ const lightBase = {
   dim: 'rgba(43,44,70,0.7)',
   input: 'rgba(255,255,255,0.5)',
   onAccent: '#2b2c46',
+  // Low and tinted with the theme's own ink (tokens.css --shadow-soft): the old
+  // 60px lavender blur read as a grey smudge round every card on a warm theme.
   shadow:
-    '0 26px 60px rgba(120,120,190,0.26), 0 0 0 1px rgba(255,255,255,0.5), inset 0 1px 0 rgba(255,255,255,0.9)',
+    'var(--shadow-soft), 0 0 0 1px rgba(255,255,255,0.5), inset 0 1px 0 rgba(255,255,255,0.85)',
   group: 'light' as const,
 }
 
@@ -216,6 +222,17 @@ export const SPECIAL_THEME_KEYS: ThemeKey[] = ['contrast', 'monoDark', 'monoLigh
 // picking one reads as a choice rather than as a tweak to the current theme.
 export const STANDALONE_THEME_KEYS: ThemeKey[] = ['kungfu', 'kungfuLight']
 
+// The coffee family, lightest to darkest. Still ordinary light and dark themes
+// (they sit in LIGHT_/DARK_THEME_KEYS and Auto can pair them); the picker only
+// lists them under a heading of their own so the family reads as one.
+export const COFFEE_THEME_KEYS: ThemeKey[] = [
+  'latte',
+  'macchiato',
+  'espresso',
+  'mocha',
+  'ristretto',
+]
+
 const GROUPED_APART = [...SPECIAL_THEME_KEYS, ...STANDALONE_THEME_KEYS]
 
 export const LIGHT_THEME_KEYS: ThemeKey[] = (Object.keys(THEMES) as ThemeKey[]).filter(
@@ -232,6 +249,7 @@ export interface ThemeDescriptor {
   mode: ThemeMode
   special: boolean
   standalone: boolean
+  coffee: boolean
   // Three swatches for the picker card, straight from the tokens.
   preview: [string, string, string]
 }
@@ -244,6 +262,7 @@ export function describeTheme(id: ThemeKey): ThemeDescriptor {
     mode: t.group,
     special: SPECIAL_THEME_KEYS.includes(id),
     standalone: STANDALONE_THEME_KEYS.includes(id),
+    coffee: COFFEE_THEME_KEYS.includes(id),
     preview: [t.bgSolid, t.accent, t.card],
   }
 }

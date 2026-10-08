@@ -38,11 +38,11 @@ const tap = useTapOpen(toggle)
 </script>
 
 <template>
-  <section class="psec" :class="{ 'is-open': open }" :style="[card, { gap: 0 }]">
+  <section class="psec rx-acc" :class="{ 'is-open': open }" :style="[card, { gap: 0 }]">
     <header class="psec__head">
       <button
         type="button"
-        class="psec__toggle ui-focus-ring"
+        class="psec__toggle rx-head ui-focus-ring"
         :aria-expanded="open"
         @pointerdown="tap.onPointerDown"
         @pointercancel="tap.onPointerCancel"
@@ -54,9 +54,9 @@ const tap = useTapOpen(toggle)
       </button>
       <div v-if="$slots.actions" class="psec__actions"><slot name="actions" /></div>
     </header>
-    <div class="psec__body">
+    <div class="psec__body rx-body" :inert="!open">
       <div class="psec__clip">
-        <div class="psec__inner"><slot /></div>
+        <div class="psec__inner rx-reveal" :class="{ 'is-open': open }"><slot /></div>
       </div>
     </div>
   </section>

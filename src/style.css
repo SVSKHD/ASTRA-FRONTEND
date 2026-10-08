@@ -542,6 +542,52 @@ textarea:focus,
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
 }
+/* A todo row's trailing actions — count, timer, bell, delete — as one tight
+   cluster, so they read as a group rather than spread on the row's gap. The
+   count keeps a fixed width so "2/5" and "0/22" start on the same line, and the
+   icons after it line up from row to row. */
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.row-actions > .todo-count {
+  box-sizing: border-box;
+  min-width: 58px;
+  margin-right: 8px;
+  text-align: center;
+}
+/* The delete is folded away at rest, not just invisible: an invisible button
+   still held its slot, which read as a ragged gap at the row's right edge. It
+   unfolds on hover or focus, and is always there without hover. */
+.row-actions > .ui-iconbtn.row-reveal {
+  width: 0;
+  margin-left: -2px;
+  overflow: hidden;
+  transition:
+    opacity var(--dur-fast, 120ms) ease,
+    width var(--dur-fast, 120ms) ease,
+    margin var(--dur-fast, 120ms) ease;
+}
+.tree-row:hover .row-actions > .ui-iconbtn.row-reveal,
+.tree-row:focus-within .row-actions > .ui-iconbtn.row-reveal,
+.todo-card:hover .row-actions > .ui-iconbtn.row-reveal,
+.todo-card:focus-within .row-actions > .ui-iconbtn.row-reveal {
+  width: 32px;
+  margin-left: 0;
+}
+@media (hover: none) {
+  .row-actions > .ui-iconbtn.row-reveal {
+    width: 32px;
+    margin-left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-actions > .ui-iconbtn.row-reveal {
+    transition: none;
+  }
+}
 /* ---- Detail panes (TodoDetail, TaskDetail, GoalSideDetail) --------------
    One look for every right-hand detail: a hero with the tag, status and
    actions, the title large, the description as reading text and how far the
@@ -668,7 +714,8 @@ textarea:focus,
 .dp-sub__text {
   flex: 1;
   min-width: 0;
-  font-size: var(--text-base);
+  /* An item title, like every list row's (styles.ts itemTitle). */
+  font-size: var(--text-md);
   color: var(--theme-text);
   overflow: hidden;
   text-overflow: ellipsis;

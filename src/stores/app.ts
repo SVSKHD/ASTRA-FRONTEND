@@ -148,6 +148,7 @@ import {
   type CalendarViewKey,
 } from '@/utils/calendarEvents'
 import { reportError } from '@/utils/scrub'
+import { startProgress } from '@/services/progress'
 import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
 import type {
   Attachment,
@@ -224,6 +225,7 @@ import type {
   Stock,
   Priority,
   Quote,
+  PromptTemplate,
   StatusChange,
   FinanceSettings,
   Goal,
@@ -261,7 +263,6 @@ import {
   type TaskTransferItem,
 } from '@/utils/taskTransfer'
 import { buildSharedItemSnapshot, sharedTreeContains, type ShareTreeType } from '@/utils/shareTree'
-import { removeWarning, upsertWarning } from '@/services/warnings'
 
 function rel(days: number): string {
   const d = new Date()
@@ -454,6 +455,9 @@ export const useAppStore = defineStore('app', () => {
   // The user's own quotes for the Daily spark card, added by pasting JSON or
   // lines into its Quotes dialog. Shown before the card's built-in ones.
   const quotes = ref<Quote[]>([])
+  // The user's own prompt templates (the Prompts tab). The library's ship with
+  // the app and are not stored; these are.
+  const prompts = ref<PromptTemplate[]>([])
   const security = ref<SecuritySettings>(emptySecurity())
   // Theme is a per-user preference, so it rides along in the workspace doc and
   // is restored on refresh once the document lands. The ui store reads it.
@@ -689,6 +693,7 @@ export const useAppStore = defineStore('app', () => {
       ...goals.value.map((g) => g.id),
       ...goalChecklist.value.map((c) => c.id),
       ...goalOccurrences.value.map((o) => o.id),
+      ...prompts.value.map((p) => p.id),
     )
     if (maxId >= nid) nid = maxId + 1
   }
@@ -752,6 +757,40 @@ export const useAppStore = defineStore('app', () => {
     quotes.value = quotes.value.filter((q) => q.id !== qid)
   }
 
+  // ---- Prompt templates ---------------------------------------------------
+  // The Prompts tab's own templates. Topic and title fall back to something
+  // readable rather than being refused: a template with a body is worth
+  // keeping even if it was saved in a hurry. Returns the new id, or null when
+  // there is no body to keep.
+  function addPrompt(input: { topic: string; title: string; body: string }): number | null {
+    const body = input.body.trim()
+    if (!body) return null
+    const p: PromptTemplate = {
+      id: id(),
+      topic: input.topic.trim() || 'My prompts',
+      title: input.title.trim() || 'Untitled prompt',
+      body,
+      ...stamps(),
+    }
+    prompts.value = [p, ...prompts.value]
+    return p.id
+  }
+  function updatePrompt(pid: number, patch: { topic?: string; title?: string; body?: string }) {
+    prompts.value = prompts.value.map((p) =>
+      p.id !== pid
+        ? p
+        : touched({
+            ...p,
+            ...(patch.topic !== undefined ? { topic: patch.topic.trim() || p.topic } : {}),
+            ...(patch.title !== undefined ? { title: patch.title.trim() || p.title } : {}),
+            ...(patch.body !== undefined && patch.body.trim() ? { body: patch.body.trim() } : {}),
+          }),
+    )
+  }
+  function removePrompt(pid: number) {
+    prompts.value = prompts.value.filter((p) => p.id !== pid)
+  }
+
   // How many items wear a tag, across every list that carries one.
   function tagUsage(raw: string): number {
     let n = 0
@@ -812,6 +851,37 @@ export const useAppStore = defineStore('app', () => {
     const i = STATUS_CYCLE.indexOf(cur)
     return STATUS_CYCLE[(i + 1) % STATUS_CYCLE.length]
   }
+  // ---- Completing a parent completes its subtree -------------------------
+  // Ticking a todo, task or idea that has subtasks ticks every open one under
+  // it, at any depth — each through its own setter, so reminders are cancelled,
+  // goals and shares sync, exactly as if each had been ticked by hand. The ids
+  // it closed are remembered for the session, so taking the parent back out of
+  // done (unticking it, or the toast's Undo) reopens exactly those and leaves
+  // alone the ones that were already finished before.
+  const cascadeClosed = new Map<string, number[]>()
+  function cascadeStatus(
+    collection: RemindCollection,
+    list: readonly { id: number; parentId: number | null; order: number; status: ItemStatus }[],
+    id: number,
+    next: ItemStatus,
+    set: (childId: number, s: ItemStatus) => void,
+  ) {
+    const key = collection + ':' + id
+    if (next === 'done') {
+      const open = descendantsOf(buildIndex([...list]), id)
+        .filter((d) => d.status !== 'done')
+        .map((d) => d.id)
+      if (!open.length) return
+      cascadeClosed.set(key, open)
+      for (const childId of open) set(childId, 'done')
+      return
+    }
+    const closed = cascadeClosed.get(key)
+    if (!closed) return
+    cascadeClosed.delete(key)
+    for (const childId of closed) set(childId, 'pending')
+  }
+
   // The done-burst is a todo-only flourish; fire it whenever a todo lands on
   // done, whichever control moved it there.
   function fireBurst(tid: number) {
@@ -870,9 +940,15 @@ export const useAppStore = defineStore('app', () => {
     // Keep a public share's frozen snapshot in step with the edit just made.
     syncRelatedPublicShares('todo', tid)
   }
-  function setTodoStatus(tid: number, next: ItemStatus) {
+  function setTodoStatus(tid: number, next: ItemStatus, opts: { cascade?: boolean } = {}) {
     const cur = todos.value.find((t) => t.id === tid)
     if (!cur || cur.status === next) return
+    // Subtasks first, so the parent's own burst is the last one fired.
+    if (opts.cascade !== false && (next === 'done' || cur.status === 'done')) {
+      cascadeStatus('todos', todos.value, tid, next, (id, s) =>
+        setTodoStatus(id, s, { cascade: false }),
+      )
+    }
     todos.value = todos.value.map((t) => (t.id === tid ? withStatus(t, next) : t))
     recordStatusEdit('todos', tid)
     if (next === 'done') {
@@ -1048,9 +1124,14 @@ export const useAppStore = defineStore('app', () => {
     const log = [...(task.statusLog ?? []), { at: Date.now(), status: next }]
     return { ...task, statusLog: log.slice(-STATUS_LOG_LIMIT) }
   }
-  function setTaskStatus(tid: number, next: ItemStatus) {
+  function setTaskStatus(tid: number, next: ItemStatus, opts: { cascade?: boolean } = {}) {
     const cur = tasks.value.find((t) => t.id === tid)
     if (!cur || cur.status === next) return
+    if (opts.cascade !== false && (next === 'done' || cur.status === 'done')) {
+      cascadeStatus('tasks', tasks.value, tid, next, (id, s) =>
+        setTaskStatus(id, s, { cascade: false }),
+      )
+    }
     tasks.value = tasks.value.map((t) =>
       t.id === tid ? withStatusLog(withStatus(t, next), next) : t,
     )
@@ -1373,36 +1454,29 @@ export const useAppStore = defineStore('app', () => {
       collection === 'todos' ? 'todo' : collection === 'ideas' ? 'idea' : 'task'
     const singular = type
     const plural = type + 's'
-    const warningId = `bulk-delete-${collection}`
-    const dismissProgress = () => removeWarning(warningId)
-    const writeProgress = (tone: 'info' | 'success', title: string, message: string) =>
-      upsertWarning({
-        id: warningId,
-        tone,
-        title,
-        message,
-        dismissible: tone === 'success',
-        dismiss: dismissProgress,
-      })
-
-    writeProgress('info', `Deleting ${plural}`, `Deleting 0/${idsToDelete.length} ${plural}...`)
+    // Reported as a progress card (services/progress): it fills as the rows go,
+    // ticks when the last one has, and then leaves on its own.
+    const total = idsToDelete.length
+    const job = startProgress({
+      id: `bulk-delete-${collection}`,
+      title: `Deleting ${plural}`,
+      detail: `0 of ${total}`,
+      total,
+    })
     await nextProgressFrame()
 
     let deleted = 0
     for (const id of idsToDelete) {
       if (deleteWithUndo(collection, type, id, { toast: false })) deleted++
-      if (deleted === idsToDelete.length || deleted % 5 === 0) {
-        writeProgress(
-          'info',
-          `Deleting ${plural}`,
-          `Deleting ${deleted}/${idsToDelete.length} ${plural}...`,
-        )
+      if (deleted === total || deleted % 5 === 0) {
+        job.update({ done: deleted, detail: `${deleted} of ${total}` })
         await nextProgressFrame()
       }
     }
 
     const noun = deleted === 1 ? singular : plural
-    writeProgress('success', `Deleted ${deleted} ${noun}`, `Finished deleting ${deleted} ${noun}.`)
+    job.update({ title: `Deleted ${deleted} ${noun}` })
+    job.finish(`All ${deleted} ${noun} removed`)
     showToastMsg(`Deleted ${deleted} ${noun}`)
     return deleted
   }
@@ -3462,9 +3536,14 @@ export const useAppStore = defineStore('app', () => {
         : fields
     ideas.value = ideas.value.map((i) => (i.id === iid ? touched({ ...i, ...next }) : i))
   }
-  function setIdeaStatus(iid: number, next: ItemStatus) {
+  function setIdeaStatus(iid: number, next: ItemStatus, opts: { cascade?: boolean } = {}) {
     const cur = ideas.value.find((i) => i.id === iid)
     if (!cur || cur.status === next) return
+    if (opts.cascade !== false && (next === 'done' || cur.status === 'done')) {
+      cascadeStatus('ideas', ideas.value, iid, next, (id, s) =>
+        setIdeaStatus(id, s, { cascade: false }),
+      )
+    }
     ideas.value = ideas.value.map((i) => (i.id === iid ? withStatus(i, next) : i))
     if (next === 'done') cancelRemindersFor('ideas', iid)
   }
@@ -7089,6 +7168,7 @@ export const useAppStore = defineStore('app', () => {
       goalsHelpSeen: goalsHelpSeen.value,
       tags: tags.value,
       quotes: quotes.value,
+      prompts: prompts.value,
       security: security.value,
       themeSetting: themeSetting.value,
       preferredDark: preferredDark.value,
@@ -7144,6 +7224,7 @@ export const useAppStore = defineStore('app', () => {
     lastGoalGenDay.value = ''
     tags.value = DEFAULT_TAGS.slice()
     quotes.value = []
+    prompts.value = []
     security.value = emptySecurity()
     themeSetting.value = 'auto'
     preferredDark.value = 'deepSpace'
@@ -7537,6 +7618,19 @@ export const useAppStore = defineStore('app', () => {
             text: (q.text as string).trim(),
             by: typeof q.by === 'string' ? q.by : '',
             createdAt: typeof q.createdAt === 'number' ? q.createdAt : 0,
+          }))
+      : []
+    prompts.value = Array.isArray(data.prompts)
+      ? (data.prompts as unknown[])
+          .map((p) => p as Partial<PromptTemplate>)
+          .filter((p) => typeof p.id === 'number' && typeof p.body === 'string' && p.body.trim())
+          .map((p) => ({
+            id: p.id as number,
+            topic: typeof p.topic === 'string' && p.topic.trim() ? p.topic : 'My prompts',
+            title: typeof p.title === 'string' && p.title.trim() ? p.title : 'Untitled prompt',
+            body: p.body as string,
+            createdAt: typeof p.createdAt === 'number' ? p.createdAt : 0,
+            updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : 0,
           }))
       : []
     if (Array.isArray(data.tags)) {
@@ -7950,6 +8044,7 @@ export const useAppStore = defineStore('app', () => {
         // saved on its own, and the next load put the old list back.
         tags,
         quotes,
+        prompts,
         security,
         themeSetting,
         preferredDark,
@@ -8009,6 +8104,10 @@ export const useAppStore = defineStore('app', () => {
     quotes,
     addQuotes,
     removeQuote,
+    prompts,
+    addPrompt,
+    updatePrompt,
+    removePrompt,
     security,
     themeSetting,
     preferredDark,

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
-import { warningEntries } from '@/services/warnings'
+import { progressJobs, resetProgress } from '@/services/progress'
 import { SAMPLE_TASKS_JSON } from '@/utils/taskTransferHelp'
 import type { Task, Todo } from '@/types'
 
@@ -285,7 +285,7 @@ describe('convertTaskToTodo', () => {
 describe('deleteManyWithProgress', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    warningEntries.splice(0)
+    resetProgress()
   })
 
   it('deletes a selected todo tree once when a child is also selected', async () => {
@@ -300,10 +300,10 @@ describe('deleteManyWithProgress', () => {
 
     expect(deleted).toBe(2)
     expect(app.todos.map((todo) => todo.id)).toEqual([3])
-    expect(warningEntries.at(-1)).toMatchObject({
-      tone: 'success',
-      title: 'Deleted 2 todos',
-    })
+    // Over before the progress card's show delay: no card is left behind, and
+    // the toast is what says it happened.
+    expect(progressJobs).toHaveLength(0)
+    expect(app.toast?.message).toBe('Deleted 2 todos')
   })
 
   it('includes same-collection linked task children under a selected task', async () => {
@@ -318,10 +318,10 @@ describe('deleteManyWithProgress', () => {
 
     expect(deleted).toBe(2)
     expect(app.tasks.map((task) => task.id)).toEqual([3])
-    expect(warningEntries.at(-1)).toMatchObject({
-      tone: 'success',
-      title: 'Deleted 2 tasks',
-    })
+    // Over before the progress card's show delay: no card is left behind, and
+    // the toast is what says it happened.
+    expect(progressJobs).toHaveLength(0)
+    expect(app.toast?.message).toBe('Deleted 2 tasks')
   })
 })
 

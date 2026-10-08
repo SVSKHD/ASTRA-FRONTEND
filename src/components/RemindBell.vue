@@ -6,6 +6,10 @@ import Select from '@/components/ui/Select.vue'
 // a reminder that points back at this item — it does NOT duplicate it. When a
 // reminder is already attached the button shows a small chip with the next fire
 // time ("in 3h"); tapping the chip opens that reminder.
+//
+// `size` scales the bell's hit box, its glyph and the chip together: `md` (the
+// default, 32px) for list rows, `sm` (26px) for dense rows and sub-lists, `lg`
+// (40px) for a detail page's toolbar or a touch-first surface.
 import { computed, ref } from 'vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import { storeToRefs } from 'pinia'
@@ -17,14 +21,32 @@ import { bellChipLabel, soonestFireAmong } from '@/utils/upcoming'
 import type { RemindCollection, Repeat, RepeatType } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 
+type BellSize = 'sm' | 'md' | 'lg'
+
 const props = withDefaults(
-  defineProps<{ collection: RemindCollection; id: number; variant?: 'row' | 'detail' }>(),
-  { variant: 'row' },
+  defineProps<{
+    collection: RemindCollection
+    id: number
+    variant?: 'row' | 'detail'
+    size?: BellSize
+    /** The glyph's own size step, when it should differ from what `size`
+     *  implies — e.g. to match a neighbouring `md` icon in the same box. */
+    iconSize?: 'xs' | 'sm' | 'md'
+  }>(),
+  { variant: 'row', size: 'md', iconSize: undefined },
 )
+
+// Box in px, the icon's size step, and the chip's type step, per size.
+const SIZES: Record<BellSize, { box: number; icon: 'xs' | 'sm' | 'md'; chip: '2xs' | 'xs' }> = {
+  sm: { box: 26, icon: 'xs', chip: '2xs' },
+  md: { box: 32, icon: 'sm', chip: '2xs' },
+  lg: { box: 40, icon: 'md', chip: 'xs' },
+}
+const dims = computed(() => SIZES[props.size])
 
 const app = useAppStore()
 const ui = useUiStore()
-const { c, dark } = useStyles()
+const { c } = useStyles()
 const { reminders, todos, tasks, ideas } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
@@ -121,8 +143,8 @@ const wrap = pxify({
 })
 const bellBtn = computed(() =>
   pxify({
-    width: 26,
-    height: 26,
+    width: dims.value.box,
+    height: dims.value.box,
     flexShrink: 0,
     borderRadius: 'var(--radius-control)',
     border: 'none',
@@ -135,8 +157,8 @@ const bellBtn = computed(() =>
 )
 const chipStyle = computed(() =>
   pxify({
-    ...typeStep('2xs'),
-    padding: '2px 7px',
+    ...typeStep(dims.value.chip),
+    padding: props.size === 'lg' ? '3px 9px' : '2px 7px',
     borderRadius: 'var(--radius-pill)',
     background: c.value.input,
     border: '1px solid ' + c.value.border,
@@ -156,7 +178,7 @@ const popStyle = computed(() =>
     borderRadius: 'var(--radius-dialog)',
     background: c.value.card,
     border: '1px solid ' + c.value.border,
-    boxShadow: dark.value ? '0 16px 40px rgba(0,0,0,0.5)' : '0 16px 40px rgba(80,90,160,0.2)',
+    boxShadow: 'var(--layer-overlay-shadow)',
     backdropFilter: 'blur(16px)',
     display: 'flex',
     flexDirection: 'column',
@@ -218,7 +240,11 @@ const backdrop = pxify({ position: 'fixed', inset: 0, zIndex: 20 })
       title="Remind me"
       @click.stop="open = !open"
     >
-      <Icon name="bell" size="sm" :style="{ color: chipLabel ? c.accent : c.dim }" />
+      <Icon
+        name="bell"
+        :size="iconSize ?? dims.icon"
+        :style="{ color: chipLabel ? c.accent : c.dim }"
+      />
     </button>
 
     <template v-if="open">

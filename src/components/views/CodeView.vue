@@ -29,6 +29,7 @@ import { useSettings } from '@/composables/useSettings'
 import { countOf, dayLabel } from '@/utils/format'
 import { IST, ymdOn } from '@/utils/tradeTime'
 import { githubMirrorAvailable } from '@/utils/ghSetup'
+import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 const { panelStyle } = useStyles()
 const store = useSettings()
@@ -156,7 +157,7 @@ defineExpose({ focus: () => {} })
         <li v-for="repo in live.repos.value" :key="repo.id" class="cv__repo">
           <button
             type="button"
-            class="cv__repoHead"
+            class="cv__repoHead rx-head"
             :aria-expanded="openRepo === repo.repoId"
             @click="toggleRepo(repo.repoId)"
           >
@@ -168,27 +169,32 @@ defineExpose({ focus: () => {} })
             </span>
           </button>
 
-          <div v-if="openRepo === repo.repoId" class="cv__pulls">
-            <!-- The thread belongs to ITS pull request, inside the loop. Below
+          <CollapseTransition>
+            <div v-if="openRepo === repo.repoId" class="cv__pulls">
+              <!-- The thread belongs to ITS pull request, inside the loop. Below
                  the list it would sit under whichever row happened to be last,
                  which reads as a conversation on the wrong pull request. -->
-            <template v-for="pull in live.pullsByRepo.value[repo.repoId] ?? []" :key="pull.id">
-              <PullRow
-                :pull="pull"
-                :expanded="isOpen(pull)"
-                :flashing="flashing.has(pull.id)"
-                @toggle="togglePull(pull.repoId, pull.number)"
-              />
-              <CommentThread
-                v-if="isOpen(pull)"
-                :comments="thread.comments.value"
-                :loading="thread.loading.value"
-              />
-            </template>
-            <p v-if="!(live.pullsByRepo.value[repo.repoId] ?? []).length" class="cv__note">
-              Nothing mirrored for this repository yet.
-            </p>
-          </div>
+              <template v-for="pull in live.pullsByRepo.value[repo.repoId] ?? []" :key="pull.id">
+                <PullRow
+                  :pull="pull"
+                  :expanded="isOpen(pull)"
+                  :flashing="flashing.has(pull.id)"
+                  @toggle="togglePull(pull.repoId, pull.number)"
+                />
+                <CollapseTransition>
+                  <div v-if="isOpen(pull)">
+                    <CommentThread
+                      :comments="thread.comments.value"
+                      :loading="thread.loading.value"
+                    />
+                  </div>
+                </CollapseTransition>
+              </template>
+              <p v-if="!(live.pullsByRepo.value[repo.repoId] ?? []).length" class="cv__note">
+                Nothing mirrored for this repository yet.
+              </p>
+            </div>
+          </CollapseTransition>
         </li>
 
         <li v-for="name in silent" :key="name" class="cv__repo cv__repo--silent">

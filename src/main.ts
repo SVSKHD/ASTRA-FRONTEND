@@ -7,6 +7,7 @@ import './style.css'
 // The design system's token layer: spacing, radii, type, motion and the
 // density/direction switches every ui/ component styles itself from.
 import './components/ui/tokens.css'
+import './components/ui/disclosure.css'
 
 import { reportError, scrubValue } from './utils/scrub'
 import { installGlassTooltips } from './utils/glassTooltip'

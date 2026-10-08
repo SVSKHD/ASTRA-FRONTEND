@@ -619,9 +619,19 @@ export const UI_COMPONENTS: ComponentDoc[] = [
         note: 'Whether a row is selected. The inline column shows either way.',
       },
       { name: 'title', type: 'string' },
+      {
+        name: 'subtitle',
+        type: 'string',
+        default: "''",
+        note: 'A lighter line beside the title, on its baseline.',
+      },
+      { name: 'titleSize', type: "'2xs' … '2xl'", default: "'xl'" },
+      { name: 'titleWeight', type: "'normal' | 'medium' | 'semibold'", default: "'semibold'" },
+      { name: 'subtitleSize', type: "'2xs' … '2xl'", default: "'base'" },
+      { name: 'subtitleWeight', type: "'normal' | 'medium' | 'semibold'", default: "'normal'" },
     ],
     snippet:
-      '<DetailPane :open="selected" title="Task details" @close="selected = null">…</DetailPane>',
+      '<DetailPane :open="selected" title="Next up" subtitle="First open subtasks of each todo" @close="selected = null">…</DetailPane>',
   },
   {
     name: 'Popover',
@@ -686,6 +696,31 @@ export const UI_COMPONENTS: ComponentDoc[] = [
       { name: 'size', type: "'xs' | 'sm'", default: 'sm' },
     ],
     snippet: '<Caret :open="open" />',
+  },
+  {
+    name: 'Collapse',
+    group: 'Navigation',
+    summary:
+      'A disclosure body that mounts while open and grows to its real height, its children cascading in.',
+    props: [
+      { name: 'open', type: 'boolean', note: 'Mounted only while true; folds up before unmount.' },
+      { name: 'tag', type: 'string', default: "'div'" },
+      {
+        name: 'group',
+        type: 'boolean',
+        default: 'false',
+        note: "Lays several siblings out as a column with the parent's gap.",
+      },
+    ],
+    snippet: '<Collapse :open="open">…</Collapse>',
+  },
+  {
+    name: 'CollapseTransition',
+    group: 'Navigation',
+    summary:
+      'The height animation for an existing v-if or v-show body: wrap the element and it grows open and folds shut.',
+    props: [],
+    snippet: '<CollapseTransition><div v-if="open">…</div></CollapseTransition>',
   },
   {
     name: 'Table',

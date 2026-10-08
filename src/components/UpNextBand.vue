@@ -76,7 +76,7 @@ const bandStyle = computed(() =>
     borderRadius: 'var(--radius-dialog)',
     background: dark.value ? 'rgba(30,34,64,0.4)' : 'rgba(255,255,255,0.4)',
     border: '1px solid ' + c.value.border,
-    boxShadow: dark.value ? '0 10px 30px rgba(0,0,0,0.35)' : '0 10px 30px rgba(80,90,160,0.12)',
+    boxShadow: 'var(--shadow-soft)',
     backdropFilter: 'blur(14px)',
   }),
 )

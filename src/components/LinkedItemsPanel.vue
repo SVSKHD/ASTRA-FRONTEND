@@ -9,7 +9,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useLinkedItems, type LinkedRow } from '@/composables/useLinkedItems'
-import { SUCCESS, checkHalo, checkHaloDone, checkRing, pxify, typeStep } from '@/styles'
+import { SUCCESS, checkHalo, checkHaloDone, checkRing, pxify, typeStep, itemTitle } from '@/styles'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import type { LinkCollection } from '@/types'
@@ -118,7 +118,7 @@ const titleStyle = computed(() =>
   pxify({
     flex: 1,
     minWidth: 0,
-    ...typeStep('sm'),
+    ...itemTitle(),
     color: c.value.text,
     overflow: 'hidden',
     textOverflow: 'ellipsis',

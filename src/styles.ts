@@ -64,7 +64,19 @@ export function merge(...styles: (Style | undefined)[]): CSSProperties {
 // size is how "13px text" came to mean two different things in two components.
 export function typeStep(step: TypeStep['token'] | ShortStep): Style {
   const name = step.startsWith('text-') ? step.slice(5) : step
-  return { fontSize: `var(--text-${name})`, lineHeight: `var(--lh-${name})` }
+  return {
+    fontSize: `var(--text-${name})`,
+    lineHeight: `var(--lh-${name})`,
+    fontWeight: `var(--weight-${name})`,
+  }
+}
+
+// The title of an item in a list — a todo, a task, an idea, a deadline, a
+// reminder, a goal, a transaction, a subtask in a detail pane. One step for
+// all of them (text-md, 16px), named here so every list reads at the same
+// size and a change to it is one line.
+export function itemTitle(): Style {
+  return { ...typeStep('md') }
 }
 
 // Data, not prose (section 24a / acceptance 125). Dates, amounts, counts and
@@ -717,7 +729,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       cursor: 'pointer',
       fontWeight: 'var(--weight-semibold)',
     },
-    addBtnHover: { transform: 'translateY(-2px)', boxShadow: '0 8px 18px rgba(0,0,0,0.25)' },
+    addBtnHover: { transform: 'translateY(-2px)', boxShadow: 'var(--shadow-float)' },
     empty: { textAlign: 'center', color: c.dim, ...typeStep('sm'), padding: '18px 0' },
     list: {
       display: 'flex',
@@ -736,7 +748,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     // No lift, so a hovered row stays aligned with the nested rows around it.
     rowHover: {
       borderColor: 'color-mix(in srgb, ' + c.accent + ' 30%, ' + c.border + ')',
-      boxShadow: '0 10px 18px -10px rgba(0,0,0,0.30), 0 3px 6px -4px rgba(0,0,0,0.12)',
+      boxShadow: 'var(--shadow-soft)',
     },
     del: {
       flexShrink: 0,
@@ -853,7 +865,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       color: c.dim,
       letterSpacing: '0.03em',
     },
-    dlTitle: { ...typeStep('base'), color: c.text, lineHeight: 1.3, cursor: 'pointer' },
+    dlTitle: { ...itemTitle(), color: c.text, lineHeight: 1.3, cursor: 'pointer' },
     dlDate: { ...dataText, ...typeStep('2xs'), color: c.dim, letterSpacing: '0.03em' },
     totalsRow: { display: 'flex', gap: 'var(--sp-3)' },
     totalCard: {
@@ -878,7 +890,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
       fontWeight: 'var(--weight-semibold)',
       color: c.text,
     },
-    finNote: { ...typeStep('base'), color: c.text, lineHeight: 1.3, cursor: 'pointer' },
+    finNote: { ...itemTitle(), color: c.text, lineHeight: 1.3, cursor: 'pointer' },
     finMeta: { ...dataText, ...typeStep('2xs'), color: c.dim, letterSpacing: '0.03em' },
     amount: {
       ...dataText,
@@ -1000,7 +1012,7 @@ export function buildStyles(c: Theme, dark: boolean, isMobile: boolean) {
     noteCardHover: {
       transform: 'translateY(-2px)',
       borderColor: c.accent,
-      boxShadow: '0 12px 22px rgba(0,0,0,0.22)',
+      boxShadow: 'var(--shadow-float)',
     },
     noteCardTitle: {
       ...typeStep('sm'),

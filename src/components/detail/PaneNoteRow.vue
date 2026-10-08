@@ -22,6 +22,7 @@ import Icon from '@/components/ui/Icon.vue'
 import Caret from '@/components/ui/Caret.vue'
 import PaneButton from '@/components/detail/PaneButton.vue'
 import PaneToolbar from '@/components/detail/PaneToolbar.vue'
+import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 // Both load only once a note is actually opened: they pull in the markdown
 // pipeline and its highlighter.
@@ -90,7 +91,12 @@ function remove() {
 <template>
   <div v-if="note && row" class="pnr" :class="{ 'is-open': open, 'is-editing': editing }">
     <div class="pnr__head">
-      <button type="button" class="pnr__toggle" :aria-expanded="open" @click="emit('toggle')">
+      <button
+        type="button"
+        class="pnr__toggle rx-head"
+        :aria-expanded="open"
+        @click="emit('toggle')"
+      >
         <Caret :open="open" size="sm" />
         <span class="pnr__icon"><Icon :name="row.pinned ? 'star' : 'notebook'" size="sm" /></span>
         <span class="pnr__text">
@@ -118,35 +124,43 @@ function remove() {
       </PaneToolbar>
     </div>
 
-    <div v-if="open" class="pnr__body">
-      <template v-if="editing">
-        <AutoTextarea
-          ref="titleField"
-          variant="title"
-          label="Note title"
-          placeholder="Untitled note"
-          :model-value="title.draft.value"
-          @update:model-value="title.set"
-          @focus="title.onFocus"
-          @blur="title.onBlur"
-        />
-        <NoteEditor
-          narrow
-          compact
-          :model-value="body.draft.value"
-          placeholder="Write in markdown"
-          @update:model-value="body.set"
-          @save="body.flush()"
-        />
-      </template>
-      <template v-else>
-        <MarkdownView v-if="note.text.trim()" :source="note.text" />
-        <div v-else class="pnr__empty">
-          <span>This note is empty.</span>
-          <PaneButton icon="pencil" label="Write it" show-label tone="accent" @click="toggleEdit" />
-        </div>
-      </template>
-    </div>
+    <CollapseTransition>
+      <div v-if="open" class="pnr__body">
+        <template v-if="editing">
+          <AutoTextarea
+            ref="titleField"
+            variant="title"
+            label="Note title"
+            placeholder="Untitled note"
+            :model-value="title.draft.value"
+            @update:model-value="title.set"
+            @focus="title.onFocus"
+            @blur="title.onBlur"
+          />
+          <NoteEditor
+            narrow
+            compact
+            :model-value="body.draft.value"
+            placeholder="Write in markdown"
+            @update:model-value="body.set"
+            @save="body.flush()"
+          />
+        </template>
+        <template v-else>
+          <MarkdownView v-if="note.text.trim()" :source="note.text" />
+          <div v-else class="pnr__empty">
+            <span>This note is empty.</span>
+            <PaneButton
+              icon="pencil"
+              label="Write it"
+              show-label
+              tone="accent"
+              @click="toggleEdit"
+            />
+          </div>
+        </template>
+      </div>
+    </CollapseTransition>
   </div>
 </template>
 

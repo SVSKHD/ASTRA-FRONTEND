@@ -198,6 +198,22 @@ function glyph(name: TabKey, filled: boolean, col: string, ko?: string, size = 2
           P('M3.4 11 H20.6', stroke(col, 1.8)),
           CI(16.4, 14.6, 1.4, stroke(col, 1.6)),
         ]
+  } else if (name === 'prompts') {
+    // A speech bubble holding a blank to fill: the two short lines of a
+    // prompt, the second one dashed where the fill-in goes.
+    const bubble =
+      'M5.5 4h13A2.5 2.5 0 0 1 21 6.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 3.6V17A2.5 2.5 0 0 1 3 14.5v-8A2.5 2.5 0 0 1 5.5 4Z'
+    ch = filled
+      ? [
+          P(bubble, { fill: col, stroke: col, 'stroke-width': 1, 'stroke-linejoin': 'round' }),
+          P('M7.5 8.6 H16.5', stroke(ko || col, 1.8)),
+          P('M7.5 12.4 H9.5 M12 12.4 H14', stroke(ko || col, 1.8)),
+        ]
+      : [
+          P(bubble, stroke(col)),
+          P('M7.5 8.6 H16.5', stroke(col, 1.8)),
+          P('M7.5 12.4 H9.5 M12 12.4 H14', stroke(col, 1.8)),
+        ]
   } else if (name === 'calendar') {
     // A month grid with its two hanging rings.
     ch = filled

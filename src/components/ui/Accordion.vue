@@ -12,9 +12,9 @@ const emit = defineEmits<{ toggle: [boolean] }>()
 </script>
 
 <template>
-  <div class="ui-accordion" :class="{ 'is-open': props.open }">
+  <div class="ui-accordion rx-acc" :class="{ 'is-open': props.open }">
     <button
-      class="ui-accordion__head ui-focus-ring"
+      class="ui-accordion__head rx-head ui-focus-ring"
       type="button"
       :aria-expanded="props.open"
       @click="emit('toggle', !props.open)"
@@ -22,8 +22,10 @@ const emit = defineEmits<{ toggle: [boolean] }>()
       <Caret :open="props.open" />
       {{ props.title }}
     </button>
-    <div class="ui-accordion__body">
-      <div class="ui-accordion__bodyInner"><slot /></div>
+    <div class="ui-accordion__body rx-body" :inert="!props.open">
+      <div class="ui-accordion__bodyInner">
+        <div class="rx-reveal" :class="{ 'is-open': props.open }"><slot /></div>
+      </div>
     </div>
   </div>
 </template>

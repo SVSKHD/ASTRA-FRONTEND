@@ -8,7 +8,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep, tagChip } from '@/styles'
+import { pxify, typeStep, tagChip, itemTitle } from '@/styles'
 import { buildIndex } from '@/utils/taskTree'
 import { nextUpOf } from '@/utils/todoV2'
 import Icon from '@/components/ui/Icon.vue'
@@ -37,13 +37,6 @@ function tick(id: number) {
 
 // --- styles -----------------------------------------------------------------
 const wrap = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', minHeight: 0 })
-const head = pxify({
-  display: 'flex',
-  alignItems: 'baseline',
-  gap: 'var(--sp-2)',
-  flexWrap: 'wrap',
-})
-const sub = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, opacity: 0.8 }))
 const list = pxify({
   display: 'flex',
   flexDirection: 'column',
@@ -63,7 +56,7 @@ const row = computed(() =>
 )
 function text(done: boolean) {
   return pxify({
-    ...typeStep('base'),
+    ...itemTitle(),
     flex: 1,
     minWidth: 0,
     color: done ? c.value.dim : c.value.text,
@@ -74,7 +67,13 @@ function text(done: boolean) {
   })
 }
 function tagStyle(tag: string) {
-  return pxify({ ...tagChip(c.value, tag, dark.value), alignSelf: 'center', flexShrink: 0 })
+  return pxify({
+    ...tagChip(c.value, tag, dark.value),
+    alignSelf: 'center',
+    flexShrink: 0,
+    fontSize: '12px',
+    fontWeight: 'bold',
+  })
 }
 const footer = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, opacity: 0.8 }))
 const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padding: '12px 0' }))
@@ -82,24 +81,21 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
 
 <template>
   <div :style="wrap">
-    <!-- The pane's own header says "Next up"; this says what that means. -->
-    <div :style="head">
-      <span :style="sub">First open subtasks of each todo</span>
-    </div>
+    <!-- The pane's own header says "Next up" and what that means. -->
     <div v-scroll-fade :style="list">
       <div v-for="r in rows" :key="r.sub.id" :style="row">
         <SubCheck :done="r.sub.status === 'done'" @toggle="tick(r.sub.id)" />
         <span :style="text(r.sub.status === 'done')" :title="r.sub.text">{{
           r.sub.text || '(untitled)'
         }}</span>
-        <span v-if="r.parent.tag" :style="tagStyle(r.parent.tag)">{{ r.parent.tag }}</span>
+        <span v-if="r.parent.tag" :style="tagStyle(r.parent.tag)">{{ r.parent.tag.toLocaleUpperCase() }}</span>
         <IconButton
           label="Focus on this"
           size="sm"
           :disabled="r.sub.status === 'done'"
           @click="ui.startFocus(r.sub.id)"
         >
-          <Icon name="timer" size="sm" />
+          <Icon name="timer" size="md" />
         </IconButton>
       </div>
       <div v-if="!rows.length" :style="empty">

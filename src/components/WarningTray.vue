@@ -118,11 +118,9 @@ function dismissAll(): void {
 </template>
 
 <style scoped>
+/* Placed by the bottom-right column in App.vue, under the progress cards. */
 .warning-tray {
-  position: fixed;
-  right: var(--sp-4);
-  bottom: var(--sp-4);
-  z-index: 70;
+  position: relative;
   width: min(380px, calc(100vw - 32px));
   color: var(--theme-text);
   border: 1px solid var(--glass-border);

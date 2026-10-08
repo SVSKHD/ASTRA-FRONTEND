@@ -26,6 +26,7 @@ import GoalsView from '@/components/views/GoalsView.vue'
 import IdeasView from '@/components/views/IdeasView.vue'
 import BotsView from '@/components/views/BotsView.vue'
 import WalletsView from '@/components/views/WalletsView.vue'
+import PromptsView from '@/components/views/PromptsView.vue'
 import OverviewView from '@/components/views/OverviewView.vue'
 import AppShell from '@/components/shell/AppShell.vue'
 import LoadingStates from '@/dev/LoadingStates.vue'
@@ -100,6 +101,7 @@ const VIEWS = {
   ideas: IdeasView,
   bots: BotsView,
   wallets: WalletsView,
+  prompts: PromptsView,
   // The five loading and glass states on one page (section 43, item 10).
   states: LoadingStates,
   trades: TradesView,

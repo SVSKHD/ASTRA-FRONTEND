@@ -9,7 +9,12 @@
 // numbers. The button inside is the todo's own done state, and its pop on click
 // is the first beat of the completion sequence (4a) — the strike and the
 // progress bar follow on their own delays.
-import { computed, onBeforeUnmount, ref } from 'vue'
+//
+// Ticking a parent ticks its open subtasks too (the store cascades it). Then
+// the order is the point: the ring runs round to full first — the subtasks
+// closing — and only then does the parent's own tick land, with its burst.
+// That is `is-cascading`: the dot, the tick and the burst wait out the ring.
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
 import { checkTick } from '@/styles'
 
@@ -46,6 +51,30 @@ const title = computed(() =>
 
 const popping = ref(false)
 let popTimer: ReturnType<typeof setTimeout> | undefined
+
+// Done arriving while the ring was short of full: its subtasks are being
+// closed with it, so the tick waits for the ring.
+const cascading = ref(false)
+let cascadeTimer: ReturnType<typeof setTimeout> | undefined
+const CASCADE_MS = 900
+function startCascade() {
+  cascading.value = true
+  clearTimeout(cascadeTimer)
+  cascadeTimer = setTimeout(() => (cascading.value = false), CASCADE_MS)
+}
+watch(
+  () => [props.done, props.subDone] as const,
+  ([done, subDone], [wasDone, wasSubDone]) => {
+    if (
+      done &&
+      !wasDone &&
+      props.subTotal > 0 &&
+      wasSubDone < props.subTotal &&
+      subDone > wasSubDone
+    )
+      startCascade()
+  },
+)
 // The moment of finishing something: a ring of sparks bursts from the box and
 // a ripple runs out from it. Only on ticking an open item — never on untick —
 // and keyed, so ticking again replays it rather than continuing the last one.
@@ -62,23 +91,30 @@ function onClick() {
   clearTimeout(popTimer)
   popTimer = setTimeout(() => (popping.value = false), 180)
   if (!props.done) {
+    // Ticking with subtasks still open: the burst waits for the ring too.
+    const willCascade = props.subTotal > 0 && props.subDone < props.subTotal
+    if (willCascade) startCascade()
     burst.value += 1
     bursting.value = true
     clearTimeout(burstTimer)
-    burstTimer = setTimeout(() => (bursting.value = false), 760)
+    burstTimer = setTimeout(() => (bursting.value = false), 760 + (willCascade ? 420 : 0))
   }
   emit('toggle')
 }
 onBeforeUnmount(() => {
   clearTimeout(popTimer)
   clearTimeout(burstTimer)
+  clearTimeout(cascadeTimer)
 })
 </script>
 
 <template>
   <span
     class="ring-wrap"
-    :class="[`ring-wrap--${size}`, { 'is-done': done, 'is-pop': popping }]"
+    :class="[
+      `ring-wrap--${size}`,
+      { 'is-done': done, 'is-pop': popping, 'is-cascading': cascading },
+    ]"
     :title="title"
   >
     <svg
@@ -218,6 +254,25 @@ onBeforeUnmount(() => {
   outline: 2px solid var(--theme-accent);
   outline-offset: 2px;
 }
+/* ---- a parent closing its subtasks ----
+   The arc runs to full on its own --dur-pop, then the dot fills, the tick
+   fades in and the burst goes off — in that order, not all at once. The arc
+   is eased out a touch slower here so the subtasks visibly "go" first. */
+.ring-wrap.is-cascading .ring__arc {
+  transition: stroke-dasharray 420ms var(--ease-out);
+}
+.ring-wrap.is-cascading .ring__dot {
+  transition-delay: 0s, 420ms, 420ms;
+}
+.ring-wrap.is-cascading .ring__tick {
+  transition-delay: 520ms;
+}
+.ring-wrap.is-cascading .burst__wave,
+.ring-wrap.is-cascading .burst__spark {
+  animation-delay: 420ms;
+  animation-fill-mode: both;
+}
+
 /* ---- the finishing burst ---- */
 .burst {
   position: absolute;
@@ -282,7 +337,10 @@ onBeforeUnmount(() => {
   .ring__arc,
   .ring__dot,
   .ring__btn,
-  .ring__tick {
+  .ring__tick,
+  .ring-wrap.is-cascading .ring__arc,
+  .ring-wrap.is-cascading .ring__dot,
+  .ring-wrap.is-cascading .ring__tick {
     transition: none;
   }
   .ring-wrap.is-pop .ring__dot,

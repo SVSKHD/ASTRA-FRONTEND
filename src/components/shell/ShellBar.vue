@@ -123,7 +123,8 @@ function popover(width: number) {
   })
 }
 const accountPopover = computed(() => ({ ...popover(240), padding: '10px' }))
-const appearancePopover = computed(() => popover(300))
+// Wide enough for two miniatures a row, each big enough to read as a scene.
+const appearancePopover = computed(() => ({ ...popover(340), padding: '14px' }))
 const groupLabel = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim }))
 </script>
 

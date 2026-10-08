@@ -158,7 +158,7 @@ function toggleKnob(on: boolean) {
     borderRadius: '50%',
     background: '#fff',
     transition: 'left .2s cubic-bezier(.4,1.3,.4,1)',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+    boxShadow: 'var(--shadow-soft)',
   })
 }
 const metaRow = computed(() =>

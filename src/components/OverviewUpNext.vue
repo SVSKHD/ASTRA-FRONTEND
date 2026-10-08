@@ -14,7 +14,7 @@ import { upcomingReminders, countdownClock, relLabel, SOON_MS } from '@/utils/up
 
 const app = useAppStore()
 const ui = useUiStore()
-const { c, dark } = useStyles()
+const { c } = useStyles()
 const { reminders } = storeToRefs(app)
 const { nowMs } = useReminderClock()
 
@@ -42,7 +42,7 @@ const tileStyle = computed(() =>
     background: c.value.card,
     border:
       '1px solid ' + (overdue.value ? danger.value : soon.value ? accent.value : c.value.border),
-    boxShadow: dark.value ? '0 8px 24px rgba(0,0,0,0.25)' : '0 8px 24px rgba(80,90,160,0.1)',
+    boxShadow: 'var(--shadow-soft)',
   }),
 )
 const label = computed(() =>

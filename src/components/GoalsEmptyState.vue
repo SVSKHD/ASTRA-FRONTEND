@@ -8,6 +8,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 import Caret from '@/components/ui/Caret.vue'
+import Collapse from '@/components/ui/Collapse.vue'
 
 const emit = defineEmits<{
   (e: 'new'): void
@@ -196,11 +197,16 @@ const legend = () => pxify({ ...typeStep('xs'), color: c.value.dim, marginTop: 6
       </div>
     </div>
 
-    <button :style="discBtn()" :aria-expanded="showFormat" @click="showFormat = !showFormat">
+    <button
+      class="rx-head"
+      :style="discBtn()"
+      :aria-expanded="showFormat"
+      @click="showFormat = !showFormat"
+    >
       <Caret :open="showFormat" size="xs" />
       See the format
     </button>
-    <template v-if="showFormat">
+    <Collapse :open="showFormat" group>
       <div :style="codeWrap()">
         <button :style="copyBtn()" @click="copySample">{{ copied ? 'Copied ✓' : 'Copy' }}</button>
         <pre :style="codeStyle()">{{ SAMPLE }}</pre>
@@ -208,6 +214,6 @@ const legend = () => pxify({ ...typeStep('xs'), color: c.value.dim, marginTop: 6
       <div :style="legend()">
         Inline shorthand — <code>~2h</code> estimate, <code>@date</code> due, <code>#tag</code>.
       </div>
-    </template>
+    </Collapse>
   </div>
 </template>

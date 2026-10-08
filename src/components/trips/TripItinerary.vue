@@ -17,6 +17,7 @@ import { dayColor, type DayGroup } from '@/utils/tripDays'
 import SmartImage from '@/components/trips/SmartImage.vue'
 import Caret from '@/components/ui/Caret.vue'
 import type { TripPlace } from '@/types'
+import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 defineProps<{ days: DayGroup[]; active?: number | null }>()
 const emit = defineEmits<{
@@ -207,7 +208,7 @@ function safe(html: unknown): string {
     </div>
 
     <section v-for="day in days" :key="day.key" :style="dayCard(day)">
-      <button :style="dayHeader()" @click="toggle(day.key)">
+      <button class="rx-head" :style="dayHeader()" @click="toggle(day.key)">
         <span :style="dayBadge(day)">{{ day.unscheduled ? '—' : 'D' + day.dayNumber }}</span>
         <span :style="dayTitleWrap">
           <span :style="dayTitle()">
@@ -224,45 +225,47 @@ function safe(html: unknown): string {
         <Caret :open="isOpen(day.key)" />
       </button>
 
-      <div v-show="isOpen(day.key)" :style="bodyPad">
-        <div v-for="(p, i) in day.places" :key="p.id" :style="node(i, day.places.length)">
-          <div :style="rail">
-            <button
-              :style="dot(day, p.id === active)"
-              title="Show on map"
-              @click="emit('select', p.id)"
-            >
-              {{ i + 1 }}
-            </button>
-            <span :style="line(i === day.places.length - 1)"></span>
-          </div>
-          <div :style="placeBody">
-            <span :style="placeName()" @click="emit('select', p.id)">
-              {{ p.name || 'Untitled place' }}
-            </span>
-            <div :style="metaRow">
-              <span v-if="placeTime(p)" :style="timePill()">{{ placeTime(p) }}</span>
-              <span v-else :style="timePill()">No time set</span>
-              <span v-if="gap(day, i)" :style="gapChip()">{{ gap(day, i) }}</span>
-            </div>
-            <div v-if="p.address" :style="addr()">📍 {{ p.address }}</div>
-            <div v-if="p.notes" class="rich" :style="notes()" v-html="safe(p.notes)"></div>
-            <div :style="photoGrid">
+      <CollapseTransition>
+        <div v-show="isOpen(day.key)" :style="bodyPad">
+          <div v-for="(p, i) in day.places" :key="p.id" :style="node(i, day.places.length)">
+            <div :style="rail">
               <button
-                v-for="(url, pi) in p.photos"
-                :key="pi"
-                :style="photoBtn"
-                :aria-label="'Open photo ' + (pi + 1)"
-                @click="emit('photo', p.id, pi)"
+                :style="dot(day, p.id === active)"
+                title="Show on map"
+                @click="emit('select', p.id)"
               >
-                <SmartImage :src="url" alt="Trip photo" :radius="10" />
+                {{ i + 1 }}
               </button>
-              <!-- No photos: keep the slot at the same size with a placeholder. -->
-              <SmartImage v-if="!p.photos.length" :radius="10" />
+              <span :style="line(i === day.places.length - 1)"></span>
+            </div>
+            <div :style="placeBody">
+              <span :style="placeName()" @click="emit('select', p.id)">
+                {{ p.name || 'Untitled place' }}
+              </span>
+              <div :style="metaRow">
+                <span v-if="placeTime(p)" :style="timePill()">{{ placeTime(p) }}</span>
+                <span v-else :style="timePill()">No time set</span>
+                <span v-if="gap(day, i)" :style="gapChip()">{{ gap(day, i) }}</span>
+              </div>
+              <div v-if="p.address" :style="addr()">📍 {{ p.address }}</div>
+              <div v-if="p.notes" class="rich" :style="notes()" v-html="safe(p.notes)"></div>
+              <div :style="photoGrid">
+                <button
+                  v-for="(url, pi) in p.photos"
+                  :key="pi"
+                  :style="photoBtn"
+                  :aria-label="'Open photo ' + (pi + 1)"
+                  @click="emit('photo', p.id, pi)"
+                >
+                  <SmartImage :src="url" alt="Trip photo" :radius="10" />
+                </button>
+                <!-- No photos: keep the slot at the same size with a placeholder. -->
+                <SmartImage v-if="!p.photos.length" :radius="10" />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </CollapseTransition>
     </section>
   </div>
 </template>

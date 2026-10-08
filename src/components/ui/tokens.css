@@ -157,6 +157,19 @@
      it is the only chroma on the screen. */
   --shadow-ink: color-mix(in oklch, var(--bg-base, #000) 45%, #000);
 
+  /* Two everyday elevations in that ink, for components that are not one of the
+     three layers: SOFT for a card resting on the page (a hairline of contact
+     and a short, faint fall), FLOAT for something lifted over it — a dock, a
+     floating card, a menu (a tighter contact and a longer, still faint fall).
+     Both are kept low and tinted on purpose: on a pale theme a big grey blur
+     reads as a smudge round the card rather than as height. */
+  --shadow-soft:
+    0 1px 2px color-mix(in srgb, var(--shadow-ink) 7%, transparent),
+    0 6px 16px -10px color-mix(in srgb, var(--shadow-ink) 24%, transparent);
+  --shadow-float:
+    0 2px 6px -2px color-mix(in srgb, var(--shadow-ink) 12%, transparent),
+    0 18px 34px -20px color-mix(in srgb, var(--shadow-ink) 34%, transparent);
+
   /* ---- the named surfaces (section 29) ------------------------------------
      The layer system above is re-keyed onto six names — page, three surfaces
      and two borders — so a theme can restate the whole ladder by overriding

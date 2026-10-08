@@ -44,8 +44,9 @@ withDefaults(defineProps<{ open?: boolean; size?: 'xs' | 'sm' | 'md' }>(), {
   height: 26px;
   border-radius: var(--radius-control);
   color: var(--theme-dim);
+  /* A spring on the turn, so opening reads as a flick rather than a slide. */
   transition:
-    transform var(--dur-fast) var(--ease-out),
+    transform 360ms var(--spring),
     color var(--dur-fast) ease,
     background var(--dur-fast) ease;
 }
@@ -54,16 +55,27 @@ withDefaults(defineProps<{ open?: boolean; size?: 'xs' | 'sm' | 'md' }>(), {
   width: 22px;
   height: 22px;
 }
+/* Open, the arrow takes the accent and a faint accent disc: the open section
+   is findable in a column of closed ones at a glance. */
 .ui-caret.is-open {
   transform: rotate(90deg);
-  color: var(--theme-text);
+  color: var(--theme-accent);
+  background: color-mix(in oklch, var(--theme-accent) 12%, transparent);
 }
 /* The header is the hit target, so the hover cue is inherited from it rather
-   than owned here — the arrow lights up with the row it belongs to. */
+   than owned here — the arrow lights up with the row it belongs to, and a
+   closed arrow leans a few degrees toward opening, hinting what a click does. */
 :where(button, [role='button']):hover > .ui-caret,
 :where(button, [role='button']):focus-visible > .ui-caret {
   color: var(--theme-text);
   background: var(--theme-card);
+}
+:where(button, [role='button']):hover > .ui-caret:not(.is-open) {
+  transform: rotate(18deg);
+}
+:where(button, [role='button']):hover > .ui-caret.is-open {
+  color: var(--theme-accent);
+  background: color-mix(in oklch, var(--theme-accent) 18%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
   .ui-caret {

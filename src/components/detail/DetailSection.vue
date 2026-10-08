@@ -6,6 +6,7 @@
 // A section can be collapsible; the activity block uses that to start closed.
 import { ref, useId } from 'vue'
 import Caret from '@/components/ui/Caret.vue'
+import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -30,7 +31,7 @@ const bodyId = `detail-section-${useId()}`
         :is="collapsible ? 'button' : 'div'"
         :type="collapsible ? 'button' : undefined"
         class="dsec__label"
-        :class="collapsible && 'dsec__label--btn'"
+        :class="collapsible && 'dsec__label--btn rx-head'"
         :aria-expanded="collapsible ? open : undefined"
         :aria-controls="collapsible ? bodyId : undefined"
         @click="collapsible && (open = !open)"
@@ -41,7 +42,9 @@ const bodyId = `detail-section-${useId()}`
       </component>
       <div class="dsec__actions"><slot name="actions" /></div>
     </header>
-    <div v-show="open" :id="bodyId" class="dsec__body"><slot /></div>
+    <CollapseTransition>
+      <div v-show="open" :id="bodyId" class="dsec__body"><slot /></div>
+    </CollapseTransition>
   </section>
 </template>
 

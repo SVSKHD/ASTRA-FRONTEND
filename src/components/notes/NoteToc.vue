@@ -10,6 +10,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { headingsOf } from '@/utils/mdRender'
 import Caret from '@/components/ui/Caret.vue'
+import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 const props = withDefaults(defineProps<{ source: string; minHeadings?: number }>(), {
   // Two headings is a document with sections; one is a title.
@@ -69,22 +70,24 @@ const entryHover = computed(() => ({ background: c.value.card, color: c.value.ac
 
 <template>
   <nav v-if="show" :style="wrap" aria-label="Note contents">
-    <button type="button" :style="head" :aria-expanded="open" @click="open = !open">
+    <button type="button" class="rx-head" :style="head" :aria-expanded="open" @click="open = !open">
       <Caret :open="open" size="xs" />
       Contents
       <span>· {{ headings.length }}</span>
     </button>
-    <div v-if="open" :style="list">
-      <button
-        v-for="h in headings"
-        :key="h.id"
-        type="button"
-        :style="entry(h.level)"
-        v-hover-style="entryHover"
-        @click="emit('jump', h.id)"
-      >
-        {{ h.text }}
-      </button>
-    </div>
+    <CollapseTransition>
+      <div v-if="open" :style="list">
+        <button
+          v-for="h in headings"
+          :key="h.id"
+          type="button"
+          :style="entry(h.level)"
+          v-hover-style="entryHover"
+          @click="emit('jump', h.id)"
+        >
+          {{ h.text }}
+        </button>
+      </div>
+    </CollapseTransition>
   </nav>
 </template>

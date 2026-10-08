@@ -20,14 +20,36 @@ import { pxify, typeStep } from '@/styles'
 import SlideOver, { type SlideOverSize } from '@/components/ui/SlideOver.vue'
 import Icon from '@/components/ui/Icon.vue'
 import { nextPaneMode, paneModeAction, paneModeIcon } from '@/utils/paneMode'
+import type { ShortStep } from '@/components/ui/type'
 
-const props = defineProps<{
-  /** Whether a row is selected. The column shows regardless — it carries its
-   *  own "pick one" state — but a drawer with nothing in it is just a panel
-   *  over the list. */
-  open: boolean
-  title: string
-}>()
+/** The three weights the type system allows (ui/type WEIGHTS). */
+type Weight = 'normal' | 'medium' | 'semibold'
+
+const props = withDefaults(
+  defineProps<{
+    /** Whether a row is selected. The column shows regardless — it carries its
+     *  own "pick one" state — but a drawer with nothing in it is just a panel
+     *  over the list. */
+    open: boolean
+    title: string
+    /** A line beside the title, on its baseline, saying what the pane shows
+     *  ("First open subtasks of each todo"). */
+    subtitle?: string
+    /** The title's step on the type scale and its weight. */
+    titleSize?: ShortStep
+    titleWeight?: Weight
+    /** The subtitle's step and weight: smaller and lighter than the title. */
+    subtitleSize?: ShortStep
+    subtitleWeight?: Weight
+  }>(),
+  {
+    subtitle: '',
+    titleSize: 'xl',
+    titleWeight: 'semibold',
+    subtitleSize: 'base',
+    subtitleWeight: 'normal',
+  },
+)
 const emit = defineEmits<{
   close: []
   /** The pane's width in px, so the view can make room for a drawer. Zero
@@ -77,14 +99,32 @@ const head = pxify({
   gap: 'var(--sp-2)',
   flexShrink: 0,
 })
+// The heading: a large, heavy title with a lighter line beside it on the same
+// baseline — the title says where you are, the subtitle what it means.
+const headText = pxify({
+  display: 'flex',
+  alignItems: 'baseline',
+  flexWrap: 'wrap',
+  columnGap: 10,
+  rowGap: 2,
+  flex: 1,
+  minWidth: 0,
+})
 const headTitle = computed(() =>
   pxify({
-    ...typeStep('2xs'),
-    fontWeight: 'var(--weight-semibold)',
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
+    ...typeStep(props.titleSize),
+    fontWeight: `var(--weight-${props.titleWeight})`,
+    letterSpacing: '-0.01em',
+    lineHeight: 1.15,
+    color: c.value.text,
+    margin: 0,
+  }),
+)
+const headSubtitle = computed(() =>
+  pxify({
+    ...typeStep(props.subtitleSize),
+    fontWeight: `var(--weight-${props.subtitleWeight})`,
     color: c.value.dim,
-    flex: 1,
     minWidth: 0,
   }),
 )
@@ -113,7 +153,10 @@ const modeBtnHover = computed(() => ({ color: c.value.accent, borderColor: c.val
 <template>
   <div v-if="inline" :style="column" role="region" :aria-label="title">
     <div :style="head">
-      <span v-if="!props.open" :style="headTitle">{{ title }}</span>
+      <div v-if="!props.open" :style="headText">
+        <h2 :style="headTitle">{{ title }}</h2>
+        <span v-if="subtitle" :style="headSubtitle">{{ subtitle }}</span>
+      </div>
       <span v-else :style="headSpacer"></span>
       <button
         type="button"

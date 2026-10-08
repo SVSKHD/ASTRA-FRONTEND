@@ -20,8 +20,19 @@ import { useRouter } from 'vue-router'
 import { useConnectivity } from '@/composables/useConnectivity'
 
 export function useBackgroundWork() {
+  const { navigating, isSyncing } = useBackgroundWorkKinds()
+  // The bar's own 200ms delay means a route served from cache — which is most
+  // of them — never shows anything at all. That is the delay doing its job, not
+  // the flag failing to be set.
+  return computed(() => navigating.value || isSyncing.value)
+}
+
+// The same two members, kept apart, for the progress cards — which can say
+// which one is happening ("Opening page", "Syncing 3 changes") where the bar
+// could only say that one of them was.
+export function useBackgroundWorkKinds() {
   const router = useRouter()
-  const { isSyncing } = useConnectivity()
+  const { isSyncing, pendingCount } = useConnectivity()
   const navigating = ref(false)
 
   const stopBefore = router.beforeEach((_to, _from, next) => {
@@ -41,8 +52,5 @@ export function useBackgroundWork() {
     stopError()
   })
 
-  // The bar's own 200ms delay means a route served from cache — which is most
-  // of them — never shows anything at all. That is the delay doing its job, not
-  // the flag failing to be set.
-  return computed(() => navigating.value || isSyncing.value)
+  return { navigating, isSyncing, pendingCount }
 }

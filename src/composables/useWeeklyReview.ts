@@ -50,5 +50,28 @@ export function useWeeklyReview() {
     ui.setReviewDecision(t.id, { kind, prior })
   }
 
-  return { items, undecided, stats, weekLabel, decide, decisions: reviewDecisions }
+  // The bulk bar's choice for many todos at once. Unlike `decide` it never
+  // toggles: a todo already decided that way is left alone, so applying "Drop"
+  // to a mixed selection drops every one rather than undoing some.
+  function decideMany(ts: Todo[], kind: 'keep' | 'drop') {
+    for (const t of ts) if (reviewDecisions.value[t.id]?.kind !== kind) decide(t, kind)
+  }
+  // Take back whatever was decided on each, leaving undecided ones as they are.
+  function undoMany(ts: Todo[]) {
+    for (const t of ts) {
+      const cur = reviewDecisions.value[t.id]
+      if (cur) decide(t, cur.kind)
+    }
+  }
+
+  return {
+    items,
+    undecided,
+    stats,
+    weekLabel,
+    decide,
+    decideMany,
+    undoMany,
+    decisions: reviewDecisions,
+  }
 }

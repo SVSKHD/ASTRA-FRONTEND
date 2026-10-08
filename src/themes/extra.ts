@@ -20,7 +20,7 @@ const lightGlass = {
   glass: 'rgba(255,255,255,0.6)',
   input: 'rgba(255,255,255,0.5)',
   shadow:
-    '0 26px 60px rgba(120,120,190,0.22), 0 0 0 1px rgba(255,255,255,0.5), inset 0 1px 0 rgba(255,255,255,0.9)',
+    'var(--shadow-soft), 0 0 0 1px rgba(255,255,255,0.5), inset 0 1px 0 rgba(255,255,255,0.85)',
   group: 'light' as const,
 }
 
@@ -300,6 +300,85 @@ export const EXTRA_THEMES: Record<string, Theme> = {
     washAlpha: { from: 0.34, to: 0.85 },
     celestial: 'none',
     focusRing: '0 0 0 2px #C8873F',
+  },
+  // ---- the rest of the coffee family ----------------------------------------
+  // Espresso's siblings, lightest to darkest: Latte, Macchiato, (Espresso),
+  // Mocha, Ristretto. Unlike espresso these are plain registry themes — the
+  // derived token layer does everything they need — so each is one entry here.
+  // They share a language rather than a palette: milk and crema for the light
+  // pair, roast browns for the dark pair, and one caramel-to-copper accent
+  // that darkens as the ground lightens so it holds its contrast on both.
+  latte: {
+    ...lightGlass,
+    label: 'Latte',
+    // The lightest of the family: steamed milk, barely warm.
+    card: 'rgba(255,253,249,0.74)',
+    glass: 'rgba(255,255,255,0.68)',
+    border: 'rgba(140,105,70,0.16)',
+    text: '#3b2a1e',
+    dim: 'rgba(59,42,30,0.72)',
+    onAccent: '#fffaf3',
+    pageBg: 'radial-gradient(140% 120% at 30% 6%, #fffaf3 0%, #fbf1e4 45%, #fffdf8 100%)',
+    bgSolid: '#fbf3e8',
+    accent: 'oklch(0.58 0.11 55)',
+    celestial: 'sun',
+    sunColor: 'oklch(0.82 0.1 70)',
+    corner: 'tr',
+  },
+  macchiato: {
+    ...lightGlass,
+    label: 'Macchiato',
+    // Milk "stained" with a shot: a warmer, deeper cream than latte, and a
+    // caramel accent with more body.
+    card: 'rgba(255,248,238,0.66)',
+    border: 'rgba(120,80,45,0.2)',
+    text: '#33231a',
+    dim: 'rgba(51,35,26,0.74)',
+    onAccent: '#fff8ef',
+    pageBg: 'radial-gradient(140% 120% at 30% 6%, #f6e8d6 0%, #efdcc3 45%, #f9eee0 100%)',
+    bgSolid: '#f2e3cf',
+    accent: 'oklch(0.55 0.12 50)',
+    celestial: 'sun',
+    sunColor: 'oklch(0.74 0.12 60)',
+    corner: 'tr',
+  },
+  mocha: {
+    ...darkGlass,
+    label: 'Mocha',
+    // Chocolate rather than roast: a redder, softer brown than espresso, with
+    // a dusty-rose cocoa accent instead of gold.
+    glass: 'rgba(40,26,19,0.62)',
+    card: 'rgba(62,40,30,0.52)',
+    input: 'rgba(255,240,225,0.06)',
+    border: 'rgba(230,190,160,0.16)',
+    text: '#f6ebe1',
+    dim: 'rgba(246,235,225,0.62)',
+    onAccent: '#1e120c',
+    shadow:
+      '0 26px 70px rgba(10,4,2,0.6), 0 0 0 1px rgba(230,190,160,0.08), inset 0 1px 0 rgba(255,240,225,0.1)',
+    pageBg: 'radial-gradient(130% 130% at 24% 8%, #3a2620 0%, #24160f 45%, #140b07 100%)',
+    bgSolid: '#22150f',
+    accent: 'oklch(0.76 0.09 40)',
+    celestial: 'none',
+  },
+  ristretto: {
+    ...darkGlass,
+    label: 'Ristretto',
+    // The darkest pull: almost black, with a copper crema accent that is the
+    // only warm light in the room.
+    glass: 'rgba(14,9,6,0.72)',
+    card: 'rgba(28,18,12,0.6)',
+    input: 'rgba(255,230,200,0.05)',
+    border: 'rgba(255,220,180,0.1)',
+    text: '#fbf3ea',
+    dim: 'rgba(251,243,234,0.58)',
+    onAccent: '#120a05',
+    shadow:
+      '0 26px 70px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,220,180,0.06), inset 0 1px 0 rgba(255,235,210,0.08)',
+    pageBg: 'radial-gradient(130% 130% at 24% 8%, #1a100b 0%, #0d0806 50%, #050302 100%)',
+    bgSolid: '#0b0705',
+    accent: 'oklch(0.74 0.13 60)',
+    celestial: 'none',
   },
   // ---- special ------------------------------------------------------------
   // AMOLED black / pure white, thicker borders, no glass blur.

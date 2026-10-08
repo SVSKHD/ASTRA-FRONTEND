@@ -217,7 +217,7 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
 .gcard__title {
   min-width: 0;
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: var(--weight-semibold);
   line-height: 1.3;
   /* Two lines, then an ellipsis. A title used to run to four lines and drag

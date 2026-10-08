@@ -3,26 +3,65 @@
 // decision on each todo that has rolled over more than twice — bring it into
 // today, or drop it. Both choices apply at once and a second click takes them
 // back, so there is no Save and nothing to lose by closing.
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+//
+// Select mode decides many at once: tick rows (or Select all), then Move to
+// today, Drop, or Undo for the lot. Each still applies at once and each stays
+// undoable row by row afterwards.
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useWeeklyReview } from '@/composables/useWeeklyReview'
-import { pxify, typeStep, WARNING } from '@/styles'
+import { pxify, typeStep, WARNING, itemTitle } from '@/styles'
 import Icon from '@/components/ui/Icon.vue'
 import Button from '@/components/ui/Button.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
 
 const ui = useUiStore()
 const { reviewOpen, isPhone } = storeToRefs(ui)
 const { c, B } = useStyles()
-const { items, undecided, stats, weekLabel, decide, decisions } = useWeeklyReview()
+const { items, undecided, stats, weekLabel, decide, decideMany, undoMany, decisions } =
+  useWeeklyReview()
 
 function close() {
   ui.setReviewOpen(false)
 }
+
+// --- multi-select -------------------------------------------------------------
+const selecting = ref(false)
+const picked = ref<Set<number>>(new Set())
+const pickedItems = computed(() => items.value.filter((t) => picked.value.has(t.id)))
+const allPicked = computed(
+  () => items.value.length > 0 && items.value.every((t) => picked.value.has(t.id)),
+)
+const anyPickedDecided = computed(() => pickedItems.value.some((t) => !!decisions.value[t.id]))
+function togglePick(id: number) {
+  const next = new Set(picked.value)
+  if (!next.delete(id)) next.add(id)
+  picked.value = next
+}
+function toggleAll() {
+  picked.value = allPicked.value ? new Set() : new Set(items.value.map((t) => t.id))
+}
+function stopSelecting() {
+  selecting.value = false
+  picked.value = new Set()
+}
+function bulk(kind: 'keep' | 'drop' | 'undo') {
+  if (kind === 'undo') undoMany(pickedItems.value)
+  else decideMany(pickedItems.value, kind)
+  picked.value = new Set()
+}
+// Closing the drawer leaves select mode, so it opens fresh next time.
+watch(reviewOpen, (open) => {
+  if (!open) stopSelecting()
+})
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape' && reviewOpen.value) close()
+  if (e.key !== 'Escape' || !reviewOpen.value) return
+  // The first Escape leaves select mode; the next closes the drawer.
+  if (selecting.value) stopSelecting()
+  else close()
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
@@ -49,7 +88,7 @@ const drawer = computed(() =>
     borderRadius: isPhone.value ? '28px 28px 0 0' : 24,
     background: c.value.bgSolid,
     border: B.value,
-    boxShadow: '-20px 0 50px -20px rgba(0,0,0,0.7)',
+    boxShadow: '-18px 0 40px -22px color-mix(in srgb, var(--shadow-ink) 45%, transparent)',
     color: c.value.text,
     display: 'flex',
     flexDirection: 'column',
@@ -77,7 +116,7 @@ const tileL = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
 const section = computed(() =>
   pxify({ ...typeStep('sm'), color: c.value.dim, fontWeight: 'var(--weight-medium)' }),
 )
-function row(dropped: boolean) {
+function row(dropped: boolean, isPicked = false) {
   return pxify({
     display: 'flex',
     alignItems: 'center',
@@ -85,14 +124,34 @@ function row(dropped: boolean) {
     padding: '10px 12px',
     borderRadius: 'var(--radius-card)',
     background: c.value.card,
-    border: '1px solid ' + c.value.border,
+    border: '1px solid ' + (isPicked ? c.value.accent : c.value.border),
+    boxShadow: isPicked ? 'inset 0 0 0 1px ' + c.value.accent : 'none',
     opacity: dropped ? 0.35 : 1,
-    transition: 'opacity .3s ease',
+    cursor: selecting.value ? 'pointer' : 'default',
+    transition: 'opacity .3s ease, border-color .2s ease, box-shadow .2s ease',
   })
 }
+const sectionRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' })
+const bulkBar = computed(() =>
+  pxify({
+    position: 'sticky',
+    top: -24,
+    zIndex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--sp-2)',
+    flexWrap: 'wrap',
+    padding: '8px 10px',
+    borderRadius: 'var(--radius-card)',
+    border: '1px solid ' + c.value.accent,
+    background: 'color-mix(in oklch, ' + c.value.accent + ' 12%, ' + c.value.bgSolid + ')',
+    ...typeStep('xs'),
+  }),
+)
+const bulkCount = pxify({ flex: 1, minWidth: 0 })
 const rowMain = pxify({ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 })
 const rowText = pxify({
-  ...typeStep('base'),
+  ...itemTitle(),
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -122,8 +181,48 @@ const foot = computed(() =>
           <span :style="tileL">{{ t.l }}</span>
         </div>
       </div>
-      <span :style="section">Rolled over more than twice</span>
-      <div v-for="t in items" :key="t.id" :style="row(decisions[t.id]?.kind === 'drop')">
+      <div :style="sectionRow">
+        <span :style="[section, { flex: 1 }]">Rolled over more than twice</span>
+        <Button
+          v-if="items.length > 1"
+          size="sm"
+          variant="ghost"
+          :aria-pressed="selecting"
+          @click="selecting ? stopSelecting() : (selecting = true)"
+        >
+          {{ selecting ? 'Done' : 'Select' }}
+        </Button>
+      </div>
+      <!-- Select mode: the count, Select all, and the three bulk choices. -->
+      <div v-if="selecting" :style="bulkBar" role="toolbar" aria-label="Selected todos">
+        <span :style="bulkCount">{{
+          picked.size ? picked.size + ' selected' : 'Tick todos to decide together'
+        }}</span>
+        <Button size="sm" variant="ghost" @click="toggleAll">
+          {{ allPicked ? 'Clear all' : 'Select all' }}
+        </Button>
+        <template v-if="picked.size">
+          <Button size="sm" variant="tinted" @click="bulk('keep')">Move to today</Button>
+          <Button size="sm" variant="secondary" @click="bulk('drop')">Drop</Button>
+          <Button v-if="anyPickedDecided" size="sm" variant="ghost" @click="bulk('undo')">
+            Undo
+          </Button>
+        </template>
+      </div>
+      <div
+        v-for="t in items"
+        :key="t.id"
+        :style="row(decisions[t.id]?.kind === 'drop', selecting && picked.has(t.id))"
+        :aria-selected="selecting ? picked.has(t.id) : undefined"
+        @click="selecting && togglePick(t.id)"
+      >
+        <Checkbox
+          v-if="selecting"
+          :model-value="picked.has(t.id)"
+          :aria-label="'Select ' + (t.text || 'todo')"
+          @click.stop
+          @update:model-value="togglePick(t.id)"
+        />
         <div :style="rowMain">
           <span :style="rowText" :title="t.text">{{ t.text || '(untitled)' }}</span>
           <span :style="rolled">rolled over ×{{ t.rolloverCount }}</span>
@@ -132,7 +231,7 @@ const foot = computed(() =>
           size="sm"
           :variant="decisions[t.id]?.kind === 'keep' ? 'tinted' : 'secondary'"
           :aria-pressed="decisions[t.id]?.kind === 'keep'"
-          @click="decide(t, 'keep')"
+          @click.stop="decide(t, 'keep')"
         >
           {{ decisions[t.id]?.kind === 'keep' ? 'Moved ✓' : 'Move to today' }}
         </Button>
@@ -140,7 +239,7 @@ const foot = computed(() =>
           size="sm"
           variant="ghost"
           :aria-pressed="decisions[t.id]?.kind === 'drop'"
-          @click="decide(t, 'drop')"
+          @click.stop="decide(t, 'drop')"
         >
           {{ decisions[t.id]?.kind === 'drop' ? 'Dropped' : 'Drop' }}
         </Button>

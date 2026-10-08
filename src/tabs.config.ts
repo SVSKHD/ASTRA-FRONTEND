@@ -34,6 +34,9 @@ export const TABS: readonly TabDef[] = [
   // grammar (section 35).
   { key: 'expenses', label: 'Expenses' },
   { key: 'ai', label: 'AI' },
+  // Beside AI: short fill-in-the-blank prompt templates, copied out to any
+  // assistant — so the prompt that goes out is the short one every time.
+  { key: 'prompts', label: 'Prompts' },
   { key: 'bots', label: 'Bots' },
   { key: 'github', label: 'GitHub' },
   // Beside GitHub rather than replacing it: the older tab is the issue mirror
@@ -80,6 +83,7 @@ export const TAB_NEW_ITEM: Partial<Record<TabKey, string>> = {
   wallets: 'wallet',
   github: 'issue',
   planning: 'node',
+  prompts: 'prompt',
 }
 
 export function tabNewItem(key: TabKey): string | null {

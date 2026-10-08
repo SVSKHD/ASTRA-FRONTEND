@@ -57,7 +57,12 @@ const review = computed(() => {
     class="prow"
     :class="[`is-${pull.state}`, { 'is-flashing': flashing, 'is-expanded': expanded }]"
   >
-    <button type="button" class="prow__main" :aria-expanded="expanded" @click="$emit('toggle')">
+    <button
+      type="button"
+      class="prow__main rx-head"
+      :aria-expanded="expanded"
+      @click="$emit('toggle')"
+    >
       <Caret :open="expanded" size="sm" />
       <span class="prow__state">
         <component :is="STATE_ICON[pull.state]" :size="16" />

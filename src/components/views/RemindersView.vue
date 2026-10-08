@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -230,7 +231,11 @@ const chevronBtn = pxify({
             ×
           </button>
         </div>
-        <ReminderTimeline v-if="expandedId === it.id" :reminder="findReminder(it.id)!" :now="now" />
+        <CollapseTransition>
+          <div v-if="expandedId === it.id">
+            <ReminderTimeline :reminder="findReminder(it.id)!" :now="now" />
+          </div>
+        </CollapseTransition>
       </div>
     </div>
 

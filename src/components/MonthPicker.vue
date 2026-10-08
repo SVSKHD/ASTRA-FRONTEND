@@ -111,7 +111,7 @@ const panel = computed(() =>
     background: c.value.glass,
     backdropFilter: 'blur(28px) saturate(1.6)',
     border: '1px solid ' + c.value.border,
-    boxShadow: '0 14px 34px rgba(0,0,0,0.34)',
+    boxShadow: 'var(--layer-overlay-shadow)',
     animation: 'sheetUp .2s ease',
   }),
 )

@@ -421,7 +421,12 @@ async function setMini(v: boolean) {
       <div class="rdock__fold" :class="{ 'is-open': open }" :inert="!open">
         <div class="rdock__fold-inner">
           <div class="rdock__panel">
-            <div id="rdock-body" v-scroll-fade class="rdock__body">
+            <div
+              id="rdock-body"
+              v-scroll-fade
+              class="rdock__body rx-reveal"
+              :class="{ 'is-open': open }"
+            >
               <button
                 v-for="u in shown"
                 :key="u.key"
@@ -476,7 +481,12 @@ async function setMini(v: boolean) {
       <div class="rdock__fold" :class="{ 'is-open': lateOpen }" :inert="!lateOpen">
         <div class="rdock__fold-inner">
           <div class="rdock__panel">
-            <div id="rdock-late" v-scroll-fade class="rdock__body">
+            <div
+              id="rdock-late"
+              v-scroll-fade
+              class="rdock__body rx-reveal"
+              :class="{ 'is-open': lateOpen }"
+            >
               <button
                 v-for="o in lateShown"
                 :key="o.key"
@@ -533,7 +543,7 @@ async function setMini(v: boolean) {
 .rdock.is-dragging {
   transition: none;
   user-select: none;
-  filter: drop-shadow(0 18px 36px color-mix(in oklch, black 38%, transparent));
+  filter: drop-shadow(0 16px 26px color-mix(in srgb, var(--shadow-ink) 30%, transparent));
 }
 /* Five cards can outgrow a short window; the column scrolls, the page does not. */
 .rdock__scroll {
@@ -544,6 +554,11 @@ async function setMini(v: boolean) {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
+  /* A scroller clips on every side, so the cards' shadows need room inside it
+     or they are cut off in hard vertical strips at its edges. The padding is
+     that room; the matching negative margin keeps the cards where they were. */
+  padding: 2px 12px 18px;
+  margin: -2px -12px -18px;
 }
 
 /* The grip bar: a slim glass strip, quiet until the dock is hovered. */
@@ -599,7 +614,7 @@ async function setMini(v: boolean) {
   padding: 0 6px 0 4px;
   background: color-mix(in oklch, var(--theme-accent) 12%, var(--glass-card, var(--theme-card)));
   border-color: color-mix(in oklch, var(--theme-accent) 28%, transparent);
-  box-shadow: 0 10px 28px color-mix(in oklch, black 32%, transparent);
+  box-shadow: var(--shadow-float);
   color: var(--theme-text);
 }
 .rdock__open {
@@ -715,8 +730,8 @@ async function setMini(v: boolean) {
   gap: var(--sp-2);
   width: 100%;
   padding: 14px 16px;
-  /* A hairline lift: the bar sits close to the starfield. */
-  box-shadow: 0 2px 10px color-mix(in oklch, black 22%, transparent);
+  /* A hairline lift: the bar sits close to the page. */
+  box-shadow: var(--shadow-soft);
   transition: background var(--dur-fast, 120ms) ease;
   color: var(--theme-text);
   font: inherit;
@@ -785,7 +800,7 @@ async function setMini(v: boolean) {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  box-shadow: 0 12px 28px color-mix(in oklch, black 30%, transparent);
+  box-shadow: var(--shadow-soft);
   transform-origin: top center;
   opacity: 0;
   transform: translateY(-10px) scale(0.98);

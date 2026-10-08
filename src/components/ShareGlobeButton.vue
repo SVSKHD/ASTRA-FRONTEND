@@ -204,7 +204,7 @@ const menuStyle = computed(() => {
       borderRadius: '20px 20px 0 0',
       padding: '10px 10px calc(10px + env(safe-area-inset-bottom, 0px))',
       gap: 'var(--sp-1)',
-      boxShadow: '0 -12px 40px rgba(0,0,0,0.4)',
+      boxShadow: '0 -12px 32px -12px color-mix(in srgb, var(--shadow-ink) 40%, transparent)',
       animation: 'sheetUp .28s cubic-bezier(.34,1.56,.64,1)',
     })
   }
@@ -216,7 +216,7 @@ const menuStyle = computed(() => {
     borderRadius: 'var(--radius-dialog)',
     padding: 6,
     gap: 2,
-    boxShadow: '0 14px 34px rgba(0,0,0,0.34)',
+    boxShadow: 'var(--layer-overlay-shadow)',
     animation: 'sheetUp .2s ease',
   })
 })

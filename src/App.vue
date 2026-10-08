@@ -12,14 +12,13 @@ import { useRoute } from 'vue-router'
 import Starfield from '@/components/Starfield.vue'
 import CursorTail from '@/components/CursorTail.vue'
 import IconSprite from '@/components/ui/IconSprite.vue'
-import TopProgressBar from '@/components/ui/TopProgressBar.vue'
+import ProgressStack from '@/components/ProgressStack.vue'
 import WarningTray from '@/components/WarningTray.vue'
 // "How to add a goal" (section 23). Mounted once, here, because it is opened
 // from the goals toolbar, from the goal dialog and from /ui — three surfaces on
 // two routes, and a panel mounted in each would be three of them. Loaded on
 // demand: most sessions never ask for it.
 const GoalHelpPanel = defineAsyncComponent(() => import('@/components/goals/GoalHelpPanel.vue'))
-import { useBackgroundWork } from '@/composables/useBackgroundWork'
 import { useStyles } from '@/composables/useStyles'
 import { useAppStore } from '@/stores/app'
 import { firebaseEnabled, onPersistenceResolved, supabaseEnabled } from '@/firebase'
@@ -27,10 +26,6 @@ import { firebaseEnabled, onPersistenceResolved, supabaseEnabled } from '@/fireb
 const { s } = useStyles()
 const app = useAppStore()
 const route = useRoute()
-
-// The top bar's one subject: route changes and background syncs (section 43,
-// item 5). Nothing that has an element of its own to report on goes here.
-const backgroundWork = useBackgroundWork()
 
 // The workspace renders its own brand orb in the shell's top strip, so the
 // corner mark would be a duplicate there. Keep it on the other routes (the share
@@ -59,11 +54,37 @@ onMounted(() => {
   <!-- The icon set, once (section 21e). Every <Icon> in the app is a <use>
        pointing into this. -->
   <IconSprite />
-  <TopProgressBar :active="backgroundWork" />
   <Starfield />
   <CursorTail />
   <RouterView />
   <GoalHelpPanel v-if="app.goalHelpOpen" />
-  <WarningTray />
+  <!-- The bottom-right corner, as one column so its two tenants never land on
+       each other: work in flight as progress cards (route changes, the sync,
+       long jobs such as a bulk delete — replacing the two-pixel bar that used
+       to run across the top), and under them the alert tray. -->
+  <div class="corner-br">
+    <ProgressStack />
+    <WarningTray />
+  </div>
   <div v-if="showBrand" :style="s.brandWrap"><span :style="s.brand">AUREON</span></div>
 </template>
+
+<style scoped>
+/* Bottom-right, stacked upward from the corner: the tray at the bottom, the
+   progress cards above it. Only the cards and the tray take the pointer; the
+   column itself lets clicks through to the page behind it. */
+.corner-br {
+  position: fixed;
+  right: var(--sp-4);
+  bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+.corner-br > :deep(*) {
+  pointer-events: auto;
+}
+</style>

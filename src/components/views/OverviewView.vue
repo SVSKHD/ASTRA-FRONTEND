@@ -294,7 +294,7 @@ function cardStyleFor(i: number) {
 const cardHover = computed(() =>
   pxify({
     transform: 'translateY(-4px)',
-    boxShadow: '0 18px 40px rgba(0,0,0,0.30)',
+    boxShadow: 'var(--layer-overlay-shadow)',
     borderColor: c.value.accent,
   }),
 )

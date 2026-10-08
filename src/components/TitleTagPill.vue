@@ -21,10 +21,12 @@ const style = computed(() =>
     lineHeight: 1.3,
     marginRight: 'var(--sp-2)',
     whiteSpace: 'nowrap',
+    fontSize: '12px',
+    fontWeight: 'bold',
   }),
 )
 </script>
 
 <template>
-  <span :style="style">{{ tag.trim() }}</span>
+  <span :style="style">{{ tag.trim().toLocaleUpperCase() }}</span>
 </template>

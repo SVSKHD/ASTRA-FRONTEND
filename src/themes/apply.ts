@@ -41,6 +41,10 @@ export function applyThemeToDom(key: ThemeKey, setting: ThemeSetting): void {
   root.style.setProperty('--theme-dim', t.dim)
   root.style.setProperty('--theme-border', t.border)
   root.style.setProperty('--theme-on-accent', t.onAccent)
+  // The card surface, by the name the stylesheets reach for. Components and
+  // style.css have long written `var(--theme-card)`, but only `--glass-card` /
+  // `--bg-elevated` were ever set, so every one of them painted nothing.
+  root.style.setProperty('--theme-card', t.card)
   // The semantic names section 24b works in. Aliases rather than a second set
   // of values: --theme-* was named after where the colour came from, and these
   // are named after what the colour is for, which is what a component needs to

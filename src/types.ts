@@ -26,6 +26,7 @@ export type TabKey =
   | 'ideas'
   | 'stocks'
   | 'ai'
+  | 'prompts'
   | 'bots'
   | 'goals'
   | 'github'
@@ -143,6 +144,18 @@ export interface Quote {
   /** Who said it; '' when nobody is named. */
   by: string
   createdAt: number
+}
+
+// One of the user's own prompt templates (the Prompts tab). The body carries its
+// blanks as `{{name}}`; see utils/prompts.ts. The library's templates are not
+// stored — they ship with the app — so only these are.
+export interface PromptTemplate {
+  id: number
+  topic: string
+  title: string
+  body: string
+  createdAt: number
+  updatedAt: number
 }
 
 export type ItemStatus = 'pending' | 'progress' | 'done'

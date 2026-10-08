@@ -15,6 +15,7 @@ import type { GeoResult } from '@/utils/geo'
 import type { TripPlace } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Caret from '@/components/ui/Caret.vue'
+import Collapse from '@/components/ui/Collapse.vue'
 
 const props = defineProps<{ tripId: number; places: TripPlace[]; active: number | null }>()
 const emit = defineEmits<{ (e: 'select', placeId: number): void }>()
@@ -246,7 +247,7 @@ const addBtn = () =>
         <button :style="iconBtn()" title="Remove place" @click="remove(place)">×</button>
       </div>
 
-      <template v-if="isOpen(place.id)">
+      <Collapse :open="isOpen(place.id)" group>
         <div :style="field">
           <span :style="labelStyle()">Location</span>
           <LocationSearch
@@ -326,7 +327,7 @@ const addBtn = () =>
             <button :style="iconBtn()" title="Add photo" @click="addPhoto(place)">+</button>
           </div>
         </div>
-      </template>
+      </Collapse>
     </div>
 
     <button :style="addBtn()" @click="add">+ Add place</button>

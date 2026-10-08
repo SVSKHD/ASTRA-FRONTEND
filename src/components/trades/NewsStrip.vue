@@ -19,6 +19,7 @@ import { countOf } from '@/utils/format'
 import { forexFor } from '@/composables/useNews'
 import { IST, hhmmOn } from '@/utils/tradeTime'
 import type { NewsItem } from '@/types'
+import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -37,7 +38,7 @@ const matching = computed(() => forexFor(props.items, props.day, props.tags))
 
 <template>
   <section v-if="day" class="nstrip">
-    <button type="button" class="nstrip__head" :aria-expanded="open" @click="open = !open">
+    <button type="button" class="nstrip__head rx-head" :aria-expanded="open" @click="open = !open">
       <IconForex :size="14" />
       <span class="nstrip__label">
         {{ countOf(matching.length, 'forex headline') }} on {{ day }}
@@ -45,22 +46,24 @@ const matching = computed(() => forexFor(props.items, props.day, props.tags))
       <Caret :open="open" size="sm" />
     </button>
 
-    <div v-if="open" class="nstrip__body">
-      <p v-if="!matching.length" class="nstrip__note">Nothing in the feeds for that day.</p>
-      <ul v-else class="nstrip__list">
-        <li v-for="item in matching" :key="item.id" class="nstrip__row">
-          <span class="nstrip__time ui-mono">{{ hhmmOn(IST, item.publishedAt) }}</span>
-          <span class="nstrip__source">{{ item.source }}</span>
-          <a class="nstrip__title" :href="item.link" target="_blank" rel="noopener noreferrer">{{
-            item.title
-          }}</a>
-        </li>
-      </ul>
-      <p class="nstrip__note">
-        Times are when the piece was published, not when anything was scheduled — this is a reading
-        list, not an economic calendar.
-      </p>
-    </div>
+    <CollapseTransition>
+      <div v-if="open" class="nstrip__body">
+        <p v-if="!matching.length" class="nstrip__note">Nothing in the feeds for that day.</p>
+        <ul v-else class="nstrip__list">
+          <li v-for="item in matching" :key="item.id" class="nstrip__row">
+            <span class="nstrip__time ui-mono">{{ hhmmOn(IST, item.publishedAt) }}</span>
+            <span class="nstrip__source">{{ item.source }}</span>
+            <a class="nstrip__title" :href="item.link" target="_blank" rel="noopener noreferrer">{{
+              item.title
+            }}</a>
+          </li>
+        </ul>
+        <p class="nstrip__note">
+          Times are when the piece was published, not when anything was scheduled — this is a
+          reading list, not an economic calendar.
+        </p>
+      </div>
+    </CollapseTransition>
   </section>
 </template>
 

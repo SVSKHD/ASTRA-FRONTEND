@@ -12,11 +12,22 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { DANGER, SUCCESS, WARNING, doneText, merge, pxify, rowBase, typeStep } from '@/styles'
+import {
+  DANGER,
+  SUCCESS,
+  WARNING,
+  doneText,
+  merge,
+  pxify,
+  rowBase,
+  typeStep,
+  itemTitle,
+} from '@/styles'
 import { todayKey, isOverdueTask } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
 import PanelHeader from '@/components/PanelHeader.vue'
+import QuickAdd from '@/components/todo/QuickAdd.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
@@ -56,7 +67,14 @@ const { startDrag, targetState } = useDragNest()
 const { tasks, draggingId } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
-defineExpose({ focus: () => app.openCreate('task') })
+// "/n" and "+ New task" land in quick add with its details open, as on Todos;
+// the full dialog is still a click away in the details pane's editor.
+const quickAdd = ref<InstanceType<typeof QuickAdd> | null>(null)
+function focusQuickAdd() {
+  if (quickAdd.value) quickAdd.value.focus(true)
+  else app.openCreate('task')
+}
+defineExpose({ focus: focusQuickAdd })
 
 const importFile = ref<HTMLInputElement | null>(null)
 const pasteDialogOpen = ref(false)
@@ -456,13 +474,13 @@ function rowStyle(t: Task, done = false) {
     cursor: 'pointer',
     position: 'relative',
     transform: isDrag ? 'scale(1.03)' : undefined,
-    boxShadow: isDrag ? '0 18px 40px rgba(0,0,0,0.45)' : undefined,
+    boxShadow: isDrag ? 'var(--layer-overlay-shadow)' : undefined,
     zIndex: isDrag ? 5 : 'auto',
   })
 }
 function textStyle(t: Task) {
   return pxify({
-    ...typeStep('base'),
+    ...itemTitle(),
     color: c.value.text,
     lineHeight: 1.3,
     ...doneText(t.done),
@@ -621,7 +639,7 @@ function onRowDragOver(e: DragEvent) {
 <template>
   <div ref="paneHost" :style="[panelStyle, paneInset]">
     <!-- The tab's name in the middle; its actions and New in the corner. -->
-    <PanelHeader title="Tasks" new-label="New task" @new="app.openCreate('task')">
+    <PanelHeader title="Tasks" new-label="New task" @new="focusQuickAdd">
       <!-- Export on the left, level with the title; the count sits with the list. -->
       <template #left>
         <Dropdown :items="transferMenu" label="Export" variant="toolbar" @select="onTransfer" />
@@ -782,6 +800,7 @@ function onRowDragOver(e: DragEvent) {
         <div :style="tagInputRow">
           <!-- Progress at the head of the list it measures, as on Todos. -->
           <ProgressLine part="inline" :done="split.stats.done" :total="split.stats.total" />
+          <QuickAdd ref="quickAdd" collection="tasks" :compact="isMobile" />
           <TagFilterInput v-model="tagQuery" :groups="tagGroups" />
         </div>
         <div v-scroll-fade :style="listColumn">

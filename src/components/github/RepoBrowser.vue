@@ -29,6 +29,7 @@ import { filterRepoRows, isTracked, parseRepoRows, withTracked } from '@/utils/g
 import { techBadge, topTech, type TechBadge } from '@/utils/techBadge'
 import { formatRelative } from '@/utils/timestamps'
 import type { GhRepoRow } from '@/utils/ghRepoList'
+import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 // The count goes up to the Code tab, which hides the four-step setup panel once
 // there is a list: somebody looking at their repositories has plainly connected.
@@ -138,50 +139,52 @@ onMounted(() => {
 
 <template>
   <section v-if="configured" class="rb">
-    <button type="button" class="rb__head" :aria-expanded="open" @click="toggle">
+    <button type="button" class="rb__head rx-head" :aria-expanded="open" @click="toggle">
       <Caret :open="open" size="sm" />
       <span class="rb__title">All repositories</span>
       <span v-if="loaded" class="rb__count ui-mono">{{ rows.length }}</span>
       <span class="rb__note">everything this token can see</span>
     </button>
 
-    <div v-if="open" class="rb__body">
-      <div class="rb__row">
-        <TextInput v-model="filter" placeholder="Filter" aria-label="Filter repositories" />
-        <Button size="sm" variant="ghost" :loading="loading" @click="load">Refresh</Button>
+    <CollapseTransition>
+      <div v-if="open" class="rb__body">
+        <div class="rb__row">
+          <TextInput v-model="filter" placeholder="Filter" aria-label="Filter repositories" />
+          <Button size="sm" variant="ghost" :loading="loading" @click="load">Refresh</Button>
+        </div>
+
+        <Alert v-if="error" tone="danger">{{ error }}</Alert>
+        <p v-else-if="loading && !rows.length" class="rb__note">Asking GitHub…</p>
+        <p v-else-if="loaded && !rows.length" class="rb__note">
+          The token can see no repositories. Check which ones it was granted when it was created.
+        </p>
+        <p v-else-if="loaded && !shown.length" class="rb__note">
+          Nothing matches “{{ filter.trim() }}”.
+        </p>
+
+        <ul v-if="shown.length" class="rb__list">
+          <li v-for="repo in shown" :key="repo.id || repo.fullName" class="rb__item">
+            <Checkbox
+              :model-value="trackedNow(repo.fullName)"
+              :aria-label="`Track ${repo.fullName}`"
+              @update:model-value="setTracked(repo.fullName, $event)"
+            />
+            <a class="rb__name" :href="repo.url" target="_blank" rel="noopener noreferrer">
+              {{ repo.fullName }}<Icon name="external-link" size="xs" />
+            </a>
+            <span v-if="repo.private" class="rb__badge">private</span>
+            <!-- What it is built with, biggest language first. -->
+            <TechChips :items="techOf(repo)" />
+            <span class="rb__meta">{{ pushedLabel(repo) }}</span>
+          </li>
+        </ul>
+
+        <p v-if="shown.length" class="rb__note">
+          Ticking one tracks it for the Code tab. Its pull requests appear there once a webhook
+          delivery or the fifteen-minute sweep arrives — tracking alone does not backfill.
+        </p>
       </div>
-
-      <Alert v-if="error" tone="danger">{{ error }}</Alert>
-      <p v-else-if="loading && !rows.length" class="rb__note">Asking GitHub…</p>
-      <p v-else-if="loaded && !rows.length" class="rb__note">
-        The token can see no repositories. Check which ones it was granted when it was created.
-      </p>
-      <p v-else-if="loaded && !shown.length" class="rb__note">
-        Nothing matches “{{ filter.trim() }}”.
-      </p>
-
-      <ul v-if="shown.length" class="rb__list">
-        <li v-for="repo in shown" :key="repo.id || repo.fullName" class="rb__item">
-          <Checkbox
-            :model-value="trackedNow(repo.fullName)"
-            :aria-label="`Track ${repo.fullName}`"
-            @update:model-value="setTracked(repo.fullName, $event)"
-          />
-          <a class="rb__name" :href="repo.url" target="_blank" rel="noopener noreferrer">
-            {{ repo.fullName }}<Icon name="external-link" size="xs" />
-          </a>
-          <span v-if="repo.private" class="rb__badge">private</span>
-          <!-- What it is built with, biggest language first. -->
-          <TechChips :items="techOf(repo)" />
-          <span class="rb__meta">{{ pushedLabel(repo) }}</span>
-        </li>
-      </ul>
-
-      <p v-if="shown.length" class="rb__note">
-        Ticking one tracks it for the Code tab. Its pull requests appear there once a webhook
-        delivery or the fifteen-minute sweep arrives — tracking alone does not backfill.
-      </p>
-    </div>
+    </CollapseTransition>
   </section>
 </template>
 

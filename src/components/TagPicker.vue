@@ -13,8 +13,9 @@ import { useAccordionState } from '@/composables/useAccordionState'
 import Caret from '@/components/ui/Caret.vue'
 import TagManagerDialog from '@/components/TagManagerDialog.vue'
 import { vScrollFade } from '@/directives/scrollFade'
-import { pxify, typeStep } from '@/styles'
+import { pxify, tagChip, typeStep } from '@/styles'
 import { normalizeTag, hasTag, sameTag, tagColor } from '@/utils/tags'
+import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 const props = defineProps<{ modelValue: string; label?: string }>()
 const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>()
@@ -84,33 +85,29 @@ const isNew = computed(() => {
   return !!tag && !hasTag(tags.value, tag)
 })
 
+// The same chip a tag wears on a row (TitleTagPill): its own colour, filled,
+// uppercase and bold — so a tag looks like itself here too. The one picked
+// gets a ring of its colour; the rest sit back a little until hovered.
 function chipStyle(tag: string) {
   const col = tagColor(tag, dark.value, c.value.mono)
-  const on = isSelected(tag)
   return pxify({
+    ...tagChip(c.value, tag, dark.value),
+    alignSelf: undefined,
     display: 'inline-flex',
     alignItems: 'center',
     gap: 'var(--sp-1)',
+    padding: '3px 10px',
+    lineHeight: 1.3,
+    whiteSpace: 'nowrap',
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
-    padding: '5px 10px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + (on ? col : c.value.border),
-    background: on ? c.value.input : 'transparent',
-    color: on ? col : c.value.dim,
     cursor: 'pointer',
-    transition: 'color .25s ease, border-color .25s ease, background .25s ease',
+    boxShadow: isSelected(tag) ? '0 0 0 1.5px ' + col : 'none',
   })
 }
-const labelStyle = computed(() =>
-  pxify({
-    ...typeStep('2xs'),
-    fontWeight: 'var(--weight-semibold)',
-    letterSpacing: '0.14em',
-    textTransform: 'uppercase',
-    color: c.value.dim,
-  }),
-)
+function tagText(tag: string) {
+  return tag.trim().toLocaleUpperCase()
+}
 </script>
 
 <template>
@@ -120,13 +117,13 @@ const labelStyle = computed(() =>
     <div class="tagpicker__head">
       <button
         type="button"
-        class="tagpicker__toggle"
+        class="tagpicker__toggle rx-head"
         :aria-expanded="open"
         :aria-controls="bodyId"
         @click="accordion.toggle(ACC_KEY)"
       >
-        <span class="field-label" :style="labelStyle">{{ label ?? 'Tag' }}</span>
-        <span v-if="selected" :style="chipStyle(selected)">{{ selected }}</span>
+        <span class="field-label tagpicker__label">{{ label ?? 'Tag' }}</span>
+        <span v-if="selected" :style="chipStyle(selected)">{{ tagText(selected) }}</span>
         <span v-else class="tagpicker__none">None</span>
         <span class="tagpicker__count"
           >{{ tags.length }} {{ tags.length === 1 ? 'tag' : 'tags' }}</span
@@ -139,37 +136,46 @@ const labelStyle = computed(() =>
       </button>
     </div>
 
-    <div v-if="open" :id="bodyId" class="tagpicker__body">
-      <!-- First, not last: with a long list the box is where the eye lands. -->
-      <div class="tagpicker__find">
-        <TextInput
-          v-model="creating"
-          placeholder="Find or create a tag…"
-          aria-label="Find or create a tag"
-          @keydown="onKey"
-        />
-        <button v-if="isNew" :style="s.addBtn2" @click="create">
-          Create “{{ creating.trim() }}”
-        </button>
-      </div>
-      <div v-scroll-fade class="tagpicker__chips" :style="s.tagRow">
-        <span v-for="t in shown" :key="t" :style="chipStyle(t)" @click="pick(t)">
-          {{ t }}
-          <button
-            type="button"
-            class="x-round"
-            :aria-label="'Remove ' + t + ' from your tags'"
-            :title="'Remove ' + t + ' from your tags'"
-            @click.stop="drop(t)"
-          >
-            <Icon name="x" size="xs" />
+    <CollapseTransition>
+      <div v-if="open" :id="bodyId" class="tagpicker__body">
+        <!-- First, not last: with a long list the box is where the eye lands. -->
+        <div class="tagpicker__find">
+          <TextInput
+            v-model="creating"
+            placeholder="Find or create a tag…"
+            aria-label="Find or create a tag"
+            @keydown="onKey"
+          />
+          <button v-if="isNew" :style="s.addBtn2" @click="create">
+            Create “{{ creating.trim() }}”
           </button>
-        </span>
-        <span v-if="!shown.length" class="tagpicker__none">
-          No tag matches — press Enter to create it.
-        </span>
+        </div>
+        <div v-scroll-fade class="tagpicker__chips" :style="s.tagRow">
+          <span
+            v-for="t in shown"
+            :key="t"
+            class="tagpicker__chip"
+            :class="{ 'is-off': !isSelected(t) }"
+            :style="chipStyle(t)"
+            @click="pick(t)"
+          >
+            {{ tagText(t) }}
+            <button
+              type="button"
+              class="x-round"
+              :aria-label="'Remove ' + t + ' from your tags'"
+              :title="'Remove ' + t + ' from your tags'"
+              @click.stop="drop(t)"
+            >
+              <Icon name="x" size="xs" />
+            </button>
+          </span>
+          <span v-if="!shown.length" class="tagpicker__none">
+            No tag matches — press Enter to create it.
+          </span>
+        </div>
       </div>
-    </div>
+    </CollapseTransition>
     <TagManagerDialog :open="managing" @close="managing = false" />
   </div>
 </template>
@@ -194,6 +200,24 @@ const labelStyle = computed(() =>
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+.tagpicker__label {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--theme-dim);
+}
+.tagpicker__chip {
+  transition:
+    opacity var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+.tagpicker__chip.is-off {
+  opacity: 0.62;
+}
+.tagpicker__chip.is-off:hover {
+  opacity: 1;
 }
 .tagpicker__none {
   font-size: var(--text-xs);

@@ -105,14 +105,18 @@ const bodyInner = pxify({
 </script>
 
 <template>
-  <div :style="cardStyle">
+  <div :style="cardStyle" class="rx-acc" :class="{ 'is-open': open }">
     <div
       :style="headStyle"
+      class="rx-head"
       role="button"
+      tabindex="0"
       :aria-expanded="open"
       @pointerdown="tap.onPointerDown"
       @pointercancel="tap.onPointerCancel"
       @click="tap.onClick"
+      @keydown.enter.self.prevent="toggle"
+      @keydown.space.self.prevent="toggle"
     >
       <Caret :open="open" />
       <div :style="titleWrap">
@@ -125,9 +129,9 @@ const bodyInner = pxify({
         <slot name="actions" />
       </div>
     </div>
-    <div :style="bodyOuter">
+    <div :style="bodyOuter" class="rx-body" :inert="!open">
       <div :style="bodyClip">
-        <div :style="bodyInner">
+        <div :style="bodyInner" class="rx-reveal" :class="{ 'is-open': open }">
           <slot />
         </div>
       </div>

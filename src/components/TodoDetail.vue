@@ -201,7 +201,7 @@ function moveTodoToTasks() {
                 v-if="isEditing('tag')"
                 v-model="draft"
                 v-focus
-                size="sm"
+                size="md"
                 placeholder="Tag"
                 aria-label="Tag"
                 :style="{ width: '160px' }"
@@ -221,6 +221,7 @@ function moveTodoToTasks() {
                 :style="pill"
                 title="Double-click to add a tag"
                 @dblclick="start('tag', '')"
+                class="dp-tag-placeholder"
                 >+ tag</span
               >
               <StatusPill :status="todo.status" @cycle="app.cycleTodoStatus(todo.id)" />

@@ -318,7 +318,7 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
   border-radius: 30px 30px 0 0;
   background: var(--glass-solid, var(--theme-card));
   border-top: 1px solid var(--theme-border);
-  box-shadow: 0 -20px 40px -10px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 -16px 36px -16px color-mix(in srgb, var(--shadow-ink) 45%, transparent);
   color: var(--theme-text);
   transition: transform var(--dur-slide) var(--ease-sheet);
 }

@@ -1,0 +1,166 @@
+/*
+ * DISCLOSURES — the one feel every accordion in the app shares.
+ *
+ * Each accordion keeps its own markup and its own look; these classes add the
+ * motion and feedback on top, so a list group, a detail-pane section and a
+ * linked-item fold all open the same way:
+ *
+ *   .rx-acc        the accordion's card. Open, it lifts a little (a soft shadow
+ *                  and an accent-tinted edge) so the open one is findable.
+ *   .rx-head       its header. Hover tints it, a press dips it, the caret in it
+ *                  answers too (see Caret.vue).
+ *   .rx-body       a 0fr → 1fr grid-row body (the height animation most
+ *                  accordions already used), retimed onto one spring.
+ *   .rx-reveal     the body's content wrapper, for accordions that stay mounted
+ *                  and toggle `.is-open`: the children fade and drop into place
+ *                  one after another, and leave together, at once.
+ *   .rx-stagger    the same cascade for content that MOUNTS on open (a v-if
+ *                  body, or ui/Collapse), as an entrance animation.
+ *
+ * The cascade selectors sit inside :where(), so they weigh nothing: a row's
+ * own opacity, transform or transition (a done row's dimming, a leaving row's
+ * slide) always wins over the cascade.
+ *
+ * Opening content ends at `transform: none`, never a resting translate: a
+ * transformed ancestor would become the containing block of every popover with
+ * `position: fixed` inside it, and pin them to the accordion.
+ */
+
+.rx-acc {
+  transition:
+    box-shadow var(--dur-slide) var(--ease-soft),
+    border-color var(--dur-med) ease,
+    background-color var(--dur-med) ease;
+}
+.rx-acc.is-open {
+  box-shadow: var(--shadow-soft);
+  border-color: color-mix(in oklch, var(--theme-accent) 22%, transparent) !important;
+}
+
+.rx-head {
+  border-radius: inherit;
+  transition:
+    background-color var(--dur-fast) ease,
+    transform var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.rx-head:hover {
+  background-color: color-mix(in oklch, var(--theme-text) 4%, transparent);
+}
+.rx-head:active {
+  transform: scale(0.992);
+}
+.rx-head:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: -2px;
+}
+
+.rx-body {
+  transition:
+    grid-template-rows var(--dur-slide) var(--ease-soft),
+    opacity var(--dur-med) ease !important;
+}
+
+/* The cascade for content that stays mounted. Closed (or closing), every child
+   goes at once; opening, each follows the one before by --stagger. */
+:where(.rx-reveal) > * {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
+}
+:where(.rx-reveal.is-open) > * {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 280ms ease,
+    transform 380ms var(--spring);
+}
+:where(.rx-reveal.is-open) > :nth-child(2) {
+  transition-delay: calc(var(--stagger) * 1);
+}
+:where(.rx-reveal.is-open) > :nth-child(3) {
+  transition-delay: calc(var(--stagger) * 2);
+}
+:where(.rx-reveal.is-open) > :nth-child(4) {
+  transition-delay: calc(var(--stagger) * 3);
+}
+:where(.rx-reveal.is-open) > :nth-child(5) {
+  transition-delay: calc(var(--stagger) * 4);
+}
+:where(.rx-reveal.is-open) > :nth-child(6) {
+  transition-delay: calc(var(--stagger) * 5);
+}
+:where(.rx-reveal.is-open) > :nth-child(7) {
+  transition-delay: calc(var(--stagger) * 6);
+}
+:where(.rx-reveal.is-open) > :nth-child(n + 8) {
+  transition-delay: calc(var(--stagger) * 7);
+}
+
+/* The cascade for content that mounts as it opens. `backwards` fill, so once
+   the entrance has played the children carry no transform at all. */
+:where(.rx-stagger) > * {
+  animation: rx-rise 380ms var(--spring) backwards;
+}
+:where(.rx-stagger) > :nth-child(2) {
+  animation-delay: calc(var(--stagger) * 1);
+}
+:where(.rx-stagger) > :nth-child(3) {
+  animation-delay: calc(var(--stagger) * 2);
+}
+:where(.rx-stagger) > :nth-child(4) {
+  animation-delay: calc(var(--stagger) * 3);
+}
+:where(.rx-stagger) > :nth-child(5) {
+  animation-delay: calc(var(--stagger) * 4);
+}
+:where(.rx-stagger) > :nth-child(6) {
+  animation-delay: calc(var(--stagger) * 5);
+}
+:where(.rx-stagger) > :nth-child(7) {
+  animation-delay: calc(var(--stagger) * 6);
+}
+:where(.rx-stagger) > :nth-child(n + 8) {
+  animation-delay: calc(var(--stagger) * 7);
+}
+@keyframes rx-rise {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rx-acc,
+  .rx-head,
+  .rx-body,
+  :where(.rx-reveal) > *,
+  :where(.rx-reveal.is-open) > * {
+    transition: none !important;
+  }
+  :where(.rx-reveal) > * {
+    transform: none;
+  }
+  :where(.rx-stagger) > * {
+    animation: none;
+  }
+  .rx-head:active {
+    transform: none;
+  }
+}
+
+/* Small controls that appear in a header only while it is open (a sort toggle,
+   "Clear completed") fade and slide in rather than blinking. */
+.rx-fade-enter-active,
+.rx-fade-leave-active {
+  transition:
+    opacity var(--dur-med) ease,
+    transform var(--dur-med) var(--ease-out);
+}
+.rx-fade-enter-from,
+.rx-fade-leave-to {
+  opacity: 0;
+  transform: translateX(6px);
+}

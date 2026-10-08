@@ -9,7 +9,16 @@ import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
-import { checkHalo, checkHaloDone, checkRing, checkTick, doneText, pxify, typeStep } from '@/styles'
+import {
+  checkHalo,
+  checkHaloDone,
+  checkRing,
+  checkTick,
+  doneText,
+  pxify,
+  typeStep,
+  itemTitle,
+} from '@/styles'
 import { MAX_LINK_DEPTH } from '@/utils/links'
 import { useTapOpen } from '@/composables/useTapOpen'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
@@ -152,7 +161,7 @@ const titleStyle = computed(() =>
   pxify({
     flex: 1,
     minWidth: 0,
-    ...typeStep('sm'),
+    ...itemTitle(),
     color: c.value.text,
     ...doneText(done.value),
     overflow: 'hidden',
@@ -267,9 +276,9 @@ const nodeWrap = pxify({ display: 'flex', flexDirection: 'column' })
       <ProgressBar :value="progress.done" :max="progress.total" size="sm" />
     </div>
 
-    <div v-if="hasChildren" :style="bodyOuter">
+    <div v-if="hasChildren" :style="bodyOuter" class="rx-body" :inert="!expanded">
       <div :style="bodyClip">
-        <div :style="bodyInner">
+        <div :style="bodyInner" class="rx-reveal" :class="{ 'is-open': expanded }">
           <LinkedAccordion
             v-for="child in children"
             :key="child.collection + ':' + child.id"

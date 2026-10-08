@@ -63,6 +63,7 @@ const ExpensesView = defineAsyncComponent(() => import('@/components/views/Expen
 const NewsView = defineAsyncComponent(() => import('@/components/views/NewsView.vue'))
 const CodeView = defineAsyncComponent(() => import('@/components/views/CodeView.vue'))
 const AiView = defineAsyncComponent(() => import('@/components/views/AiView.vue'))
+const PromptsView = defineAsyncComponent(() => import('@/components/views/PromptsView.vue'))
 const BotsView = defineAsyncComponent(() => import('@/components/views/BotsView.vue'))
 const GithubView = defineAsyncComponent(() => import('@/components/views/GithubView.vue'))
 const WalletsView = defineAsyncComponent(() => import('@/components/views/WalletsView.vue'))
@@ -178,6 +179,7 @@ const viewMap = {
   news: NewsView,
   code: CodeView,
   ai: AiView,
+  prompts: PromptsView,
   bots: BotsView,
   github: GithubView,
   wallets: WalletsView,
