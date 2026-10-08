@@ -260,7 +260,7 @@ export function useDetailStyles() {
   function chipStyle(tag: string) {
     // Padding matched to the status pill (5px/10px + border) so the two chips
     // that sit side by side in the header are the same height.
-    return pxify({ ...tagChip(c.value, tag, dark.value), alignSelf: 'center', padding: '4px 10px' })
+    return pxify({ ...tagChip(c.value, tag, dark.value), alignSelf: 'center', padding: '4px 10px', fontSize: 'var(--text-xs)', lineHeight: 1.3, fontWeight: 'bold' })
   }
 
   return {

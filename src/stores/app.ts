@@ -4912,8 +4912,34 @@ export const useAppStore = defineStore('app', () => {
         repositories?: Record<string, unknown>[]
       }>('installations')
       noteRateLimit(res.rateLimit)
-      const payload = res.data || {}
       const now = Date.now()
+      // Two shapes. The GitHub App proxy answered `{ installationId,
+      // repositories }`; the token proxy (netlify/functions/github.ts) answers
+      // with GitHub's own `/user/repos` — a bare array. The bare array used to
+      // fall through here with no installationId, so the integration never
+      // counted as connected and every sync, issue write and PR read was
+      // silently refused by `canCallGithub`.
+      if (Array.isArray(res.data)) {
+        const bare = res.data as Record<string, unknown>[]
+        ghInstalled.value = bare
+          .map((r) => repoFromApi(r, now))
+          .filter((r): r is LinkedRepo => r !== null)
+        const owner = bare[0]?.owner as { login?: unknown; avatar_url?: unknown } | undefined
+        patchIntegration({
+          // 0, not null: "connected through the server's token", which has no
+          // installation of its own to name.
+          installationId: githubIntegration.value.installationId ?? 0,
+          login:
+            githubIntegration.value.login || (typeof owner?.login === 'string' ? owner.login : ''),
+          avatarUrl:
+            githubIntegration.value.avatarUrl ||
+            (typeof owner?.avatar_url === 'string' ? owner.avatar_url : ''),
+          connectedAt: githubIntegration.value.connectedAt ?? now,
+        })
+        resumeGithubSync()
+        return
+      }
+      const payload = res.data || {}
       const list = Array.isArray(payload.repositories) ? payload.repositories : []
       ghInstalled.value = list
         .map((r) => repoFromApi(r, now))

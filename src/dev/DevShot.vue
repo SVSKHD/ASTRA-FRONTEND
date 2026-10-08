@@ -27,10 +27,13 @@ import IdeasView from '@/components/views/IdeasView.vue'
 import BotsView from '@/components/views/BotsView.vue'
 import WalletsView from '@/components/views/WalletsView.vue'
 import PromptsView from '@/components/views/PromptsView.vue'
+import GithubView from '@/components/views/GithubView.vue'
+import CalendarView from '@/components/views/CalendarView.vue'
 import OverviewView from '@/components/views/OverviewView.vue'
 import AppShell from '@/components/shell/AppShell.vue'
 import LoadingStates from '@/dev/LoadingStates.vue'
 import { useAppStore } from '@/stores/app'
+import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { seedDeadlines, seedIdeas, seedReminders, seedTasks, seedTodos } from '@/dev/seedWorkspace'
@@ -102,6 +105,8 @@ const VIEWS = {
   bots: BotsView,
   wallets: WalletsView,
   prompts: PromptsView,
+  github: GithubView,
+  calendar: CalendarView,
   // The five loading and glass states on one page (section 43, item 10).
   states: LoadingStates,
   trades: TradesView,
@@ -124,15 +129,63 @@ const VIEWS = {
  */
 const withShell = new URLSearchParams(globalThis.location?.search ?? '').get('shell') === '1'
 
+/**
+ * `?ghmock=1` hands the GitHub proxy client a stand-in session, so a harness
+ * that answers `/api/github` itself can photograph the GitHub tab populated.
+ * The stage signs in no one, and `ghCall` refuses to send without a session.
+ */
+if (new URLSearchParams(globalThis.location?.search ?? '').get('ghmock') === '1' && supabase) {
+  const fake = { data: { session: { access_token: 'dev-shot' } }, error: null }
+  supabase.auth.getSession = (async () => fake) as unknown as typeof supabase.auth.getSession
+}
+
 // The workspace document, which the Firestore fixture does not cover because it
 // is not a collection. Assigned straight onto the store — see `seedWorkspace`.
 const app = useAppStore()
-app.todos = seedTodos()
-app.tasks = seedTasks()
-app.deadlines = seedDeadlines()
-app.reminders = seedReminders()
-app.ideas = seedIdeas()
+function seedStage() {
+  app.todos = seedTodos()
+  app.tasks = seedTasks()
+  app.deadlines = seedDeadlines()
+  app.reminders = seedReminders()
+  app.ideas = seedIdeas()
+  // The calendar needs scheduled items to have anything to draw: tasks and
+  // todos placed around today — timed, all-day, and one already done.
+  if (String(route.params.view) !== 'calendar') return
+  const day = (offset: number, hour: number, min = 0) => {
+    const d = new Date()
+    d.setDate(d.getDate() + offset)
+    d.setHours(hour, min, 0, 0)
+    return d.getTime()
+  }
+  // [day offset, hour, minute, minutes long, all day]
+  const plan: [number, number, number, number, boolean][] = [
+    [0, 10, 0, 60, false],
+    [1, 14, 30, 90, false],
+    [2, 0, 0, 0, true],
+    [-2, 11, 0, 60, false],
+  ]
+  app.tasks = app.tasks.map((t, i) => {
+    const p = plan[i]
+    if (!p) return t
+    const [off, hour, min, mins, allDay] = p
+    const start = day(off, hour, min)
+    return {
+      ...t,
+      startAt: start,
+      endAt: allDay ? null : start + mins * 60_000,
+      allDay,
+      ...(off < 0 ? { status: 'done' as const, done: true } : {}),
+    }
+  })
+  app.todos = app.todos.map((t, i) =>
+    i < 3 ? { ...t, startAt: day(i * 2, 9 + i * 3), endAt: day(i * 2, 10 + i * 3) } : t,
+  )
+}
+seedStage()
 app.cloudReady = true
+// The stage's sync settles a moment after mount and can land over the seed
+// with an empty workspace; seed once more after it has.
+onMounted(() => setTimeout(seedStage, 1200))
 
 const which = computed(() => String(route.params.view) as keyof typeof VIEWS)
 const view = computed(() => VIEWS[which.value] ?? TradesView)

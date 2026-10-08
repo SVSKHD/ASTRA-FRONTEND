@@ -17,6 +17,7 @@
 import { ymd } from '@/utils/dayGroups'
 import { richPlain } from '@/utils/richText'
 import type { Goal, GoalOccurrence, Reminder, Task, Todo } from '@/types'
+import type { IconName } from '@/components/ui/icons'
 
 export type EventSource = 'task' | 'todo' | 'goal' | 'reminder' | 'milestone'
 
@@ -75,6 +76,23 @@ export const SOURCE_COLOR: Record<EventSource, string> = {
   goal: 'oklch(0.72 0.15 150)',
   reminder: 'oklch(0.75 0.16 60)',
   milestone: 'oklch(0.68 0.19 320)',
+}
+
+// Each source's glyph and name, shared by the event chip, the hover card and
+// the unscheduled panel so the three never disagree about what a thing is.
+export const SOURCE_ICON: Record<EventSource, IconName> = {
+  task: 'list',
+  todo: 'check-square',
+  goal: 'flag',
+  reminder: 'bell',
+  milestone: 'star',
+}
+export const SOURCE_LABEL: Record<EventSource, string> = {
+  task: 'Task',
+  todo: 'Todo',
+  goal: 'Goal',
+  reminder: 'Reminder',
+  milestone: 'Milestone',
 }
 
 export const DEFAULT_BLOCK_MINS = 30

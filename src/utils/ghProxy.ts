@@ -26,9 +26,15 @@ export type GhOp =
   | 'patchIssue'
   | 'comment'
   | 'commits' // recent commits on the default branch
-  | 'pulls' // open PRs with CI status
+  | 'pulls' // PRs (open by default, or closed/all) with CI status on open ones
   | 'branches'
   | 'rateLimit'
+  | 'viewer' // the account the server token belongs to
+  | 'pull' // one PR in full
+  | 'pullFiles' // the files a PR changes, with patches
+  | 'tree' // every path in the repo at a ref
+  | 'file' // one file's contents (base64) and blob sha
+  | 'putFile' // commit one file (needs Contents: write)
 
 export interface GhParams {
   owner?: string
@@ -36,11 +42,17 @@ export interface GhParams {
   number?: number
   title?: string
   body?: string
-  state?: 'open' | 'closed'
+  state?: 'open' | 'closed' | 'all'
   labels?: string[]
   assignees?: string[]
   perPage?: number
   since?: string
+  ref?: string
+  path?: string
+  content?: string
+  sha?: string
+  message?: string
+  branch?: string
 }
 
 // What the function reports back about the shared rate limit, so Settings can

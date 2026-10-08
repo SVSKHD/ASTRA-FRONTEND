@@ -166,7 +166,7 @@ const modeBtnHover = computed(() => ({ color: c.value.accent, borderColor: c.val
         :aria-label="modeLabel"
         @click="cycle"
       >
-        <Icon :name="modeIcon" size="xs" />
+        <Icon :name="modeIcon" size="md" />
       </button>
       <!-- Escape does the same; the button is for the pointer. With nothing
            selected the column shows its own idle state and there is nothing
@@ -180,7 +180,7 @@ const modeBtnHover = computed(() => ({ color: c.value.accent, borderColor: c.val
         aria-label="Close details"
         @click="emit('close')"
       >
-        <Icon name="x" size="xs" />
+        <Icon name="x" size="md" />
       </button>
     </div>
     <slot />

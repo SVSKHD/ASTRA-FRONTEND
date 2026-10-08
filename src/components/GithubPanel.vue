@@ -167,7 +167,12 @@ const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShri
           <div :style="s.taskMain">
             <span :style="s.dlTitle">{{ githubIntegration.login || 'Installed' }}</span>
             <span :style="s.finMeta">
-              installation {{ githubIntegration.installationId }} · connected
+              {{
+                githubIntegration.installationId
+                  ? 'installation ' + githubIntegration.installationId
+                  : 'server token'
+              }}
+              · connected
               {{ formatRelative(githubIntegration.connectedAt ?? 0, now) }}
               <template v-if="lastSync"> · synced {{ formatRelative(lastSync, now) }}</template>
             </span>

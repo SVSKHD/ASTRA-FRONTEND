@@ -1167,46 +1167,46 @@ textarea:focus,
    fence follows the theme — including the mono themes, where the distinctions
    fall back to weight and opacity because there is no hue to spend.
    --------------------------------------------------------------------------- */
-.md .hljs {
+:is(.md, .gh-code) .hljs {
   color: var(--theme-text);
 }
-.md .hljs-comment,
-.md .hljs-quote {
+:is(.md, .gh-code) .hljs-comment,
+:is(.md, .gh-code) .hljs-quote {
   color: var(--theme-dim);
   font-style: italic;
 }
-.md .hljs-keyword,
-.md .hljs-selector-tag,
-.md .hljs-literal,
-.md .hljs-section,
-.md .hljs-doctag,
-.md .hljs-type,
-.md .hljs-name,
-.md .hljs-strong {
+:is(.md, .gh-code) .hljs-keyword,
+:is(.md, .gh-code) .hljs-selector-tag,
+:is(.md, .gh-code) .hljs-literal,
+:is(.md, .gh-code) .hljs-section,
+:is(.md, .gh-code) .hljs-doctag,
+:is(.md, .gh-code) .hljs-type,
+:is(.md, .gh-code) .hljs-name,
+:is(.md, .gh-code) .hljs-strong {
   color: var(--theme-accent);
   font-weight: var(--weight-semibold);
 }
-.md .hljs-string,
-.md .hljs-title,
-.md .hljs-attr,
-.md .hljs-attribute,
-.md .hljs-symbol,
-.md .hljs-bullet,
-.md .hljs-addition {
+:is(.md, .gh-code) .hljs-string,
+:is(.md, .gh-code) .hljs-title,
+:is(.md, .gh-code) .hljs-attr,
+:is(.md, .gh-code) .hljs-attribute,
+:is(.md, .gh-code) .hljs-symbol,
+:is(.md, .gh-code) .hljs-bullet,
+:is(.md, .gh-code) .hljs-addition {
   color: color-mix(in oklch, var(--theme-accent) 70%, var(--theme-text));
 }
-.md .hljs-number,
-.md .hljs-variable,
-.md .hljs-template-variable,
-.md .hljs-regexp,
-.md .hljs-link,
-.md .hljs-built_in,
-.md .hljs-deletion {
+:is(.md, .gh-code) .hljs-number,
+:is(.md, .gh-code) .hljs-variable,
+:is(.md, .gh-code) .hljs-template-variable,
+:is(.md, .gh-code) .hljs-regexp,
+:is(.md, .gh-code) .hljs-link,
+:is(.md, .gh-code) .hljs-built_in,
+:is(.md, .gh-code) .hljs-deletion {
   color: color-mix(in oklch, var(--theme-text) 78%, var(--theme-dim));
 }
-.md .hljs-meta {
+:is(.md, .gh-code) .hljs-meta {
   color: var(--theme-dim);
 }
-.md .hljs-emphasis {
+:is(.md, .gh-code) .hljs-emphasis {
   font-style: italic;
 }

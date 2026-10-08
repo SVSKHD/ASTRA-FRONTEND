@@ -26,8 +26,10 @@ const props = withDefaults(
     itemId: number
     /** A YYYY-MM-DD (or a datetime starting with one) to pre-fill. */
     defaultDue?: string
+    /** The calendar glyph's size step; `sm` unless the row around it is larger. */
+    iconSize?: 'xs' | 'sm' | 'md'
   }>(),
-  { defaultDue: '' },
+  { defaultDue: '', iconSize: 'sm' },
 )
 const emit = defineEmits<{ moved: [deadlineId: number] }>()
 
@@ -73,7 +75,7 @@ function move() {
         @pointerdown.stop
         @click.stop="toggle"
       >
-        <Icon name="calendar" size="sm" />
+        <Icon name="calendar" :size="iconSize" />
       </button>
     </template>
 

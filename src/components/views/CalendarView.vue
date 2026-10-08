@@ -7,7 +7,7 @@
 // theme tokens in the scoped block below, so the grid reads on every theme
 // rather than looking like a bolted-on widget.
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
-import ListToolbar from '@/components/ListToolbar.vue'
+import Icon from '@/components/ui/Icon.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Select from '@/components/ui/Select.vue'
 import { storeToRefs } from 'pinia'
@@ -28,9 +28,11 @@ import { surfacePair } from '@/themes/surfacePair'
 import CalEventCard from '@/components/CalEventCard.vue'
 import CalQuickCreate from '@/components/CalQuickCreate.vue'
 import UnscheduledPanel from '@/components/UnscheduledPanel.vue'
-import Tabs from '@/components/ui/Tabs.vue'
 import {
   CALENDAR_VIEWS,
+  SOURCE_COLOR,
+  SOURCE_ICON,
+  SOURCE_LABEL,
   durationLabel,
   type CalEvent,
   type CalendarViewKey,
@@ -46,7 +48,7 @@ import {
 
 const app = useAppStore()
 const ui = useUiStore()
-const { c, s, dark, isMobile, panelStyle } = useStyles()
+const { c, dark, isMobile, panelStyle } = useStyles()
 const { calendarView, tags, tasks, todos } = storeToRefs(app)
 const calendarTabs = computed(() =>
   CALENDAR_VIEWS.map((view) => ({
@@ -54,6 +56,12 @@ const calendarTabs = computed(() =>
     label: isMobile.value ? view.short : view.label,
   })),
 )
+const VIEW_ICON: Record<CalendarViewKey, 'calendar' | 'columns' | 'clock' | 'list'> = {
+  dayGridMonth: 'calendar',
+  timeGridWeek: 'columns',
+  timeGridDay: 'clock',
+  listMonth: 'list',
+}
 
 const calendar = useCalendar(
   () => dark.value,
@@ -307,13 +315,35 @@ function showCard(id: string, x: number, y: number, sheet: boolean) {
   const event = eventById(id)
   if (event) hovered.value = { event, x, y, sheet }
 }
-function onEventMouseEnter(arg: { event: { id: string }; jsEvent: MouseEvent }) {
-  if (isMobile.value) return
-  showCard(arg.event.id, arg.jsEvent.clientX, arg.jsEvent.clientY, false)
+// The hover card is anchored to the EVENT, not to the pointer: beside the chip
+// it describes, on whichever side has room. It used to sit at the pointer's
+// position — inside a panel whose slide-in transform made `position: fixed`
+// relative to the panel, not the window — so it landed a long way from the
+// thing it was about. And it closed the instant the pointer left the chip, so
+// its Open and Complete buttons could not be reached; a short grace period now
+// lets the pointer travel onto the card, and the card holds itself open.
+const CARD_W = 300
+let leaveTimer: ReturnType<typeof setTimeout> | undefined
+function onEventMouseEnter(arg: { event: { id: string }; el: HTMLElement }) {
+  if (isMobile.value || dragging.value) return
+  clearTimeout(leaveTimer)
+  const r = arg.el.getBoundingClientRect()
+  const roomRight = window.innerWidth - r.right
+  const x = roomRight > CARD_W + 16 ? r.right + 8 : Math.max(8, r.left - CARD_W - 8)
+  showCard(arg.event.id, x, r.top, false)
 }
 function onEventMouseLeave() {
-  if (!isMobile.value) hovered.value = null
+  if (isMobile.value) return
+  clearTimeout(leaveTimer)
+  leaveTimer = setTimeout(() => (hovered.value = null), 180)
 }
+function holdCard() {
+  clearTimeout(leaveTimer)
+}
+function releaseCard() {
+  onEventMouseLeave()
+}
+onBeforeUnmount(() => clearTimeout(leaveTimer))
 // Touch: a long press opens the sheet; a short tap opens the item, and a scroll
 // cancels the press so the sheet never fights the gesture.
 function onEventTouchStart(id: string) {
@@ -383,7 +413,13 @@ const options = computed<CalendarOptions>(() => ({
   initialView: initialView.value,
   // Our own header sits above; FullCalendar's toolbar would duplicate it.
   headerToolbar: false as const,
-  height: '100%',
+  // Month and Agenda are as tall as their content, so the page scrolls and the
+  // grid never grows a scrollbar of its own inside it. Week and Day keep a
+  // fixed height: twenty-four hours of slots are meant to scroll.
+  height:
+    calendarView.value === 'dayGridMonth' || calendarView.value === 'listMonth'
+      ? ('auto' as const)
+      : '100%',
   expandRows: true,
   nowIndicator: true,
   firstDay: 1,
@@ -395,7 +431,9 @@ const options = computed<CalendarOptions>(() => ({
   // A day cell renders a handful and then "+N more" rather than growing without
   // bound: a day with forty items stays a normal-sized cell, and the rest are
   // one click away in a popover (acceptance 72).
-  dayMaxEvents: isMobile.value ? 2 : 3,
+  // Two full cards a day, then "+N more": a card big enough to read beats a
+  // third one cut to a sliver.
+  dayMaxEvents: 2,
   moreLinkClick: 'popover' as const,
   moreLinkContent: (arg: { num: number }) => `+${arg.num} more`,
   // Only what the popover actually opens gets rendered, so the cap is a real
@@ -455,35 +493,28 @@ const options = computed<CalendarOptions>(() => ({
   eventMouseLeave: onEventMouseLeave,
 }))
 
+// ---- the head --------------------------------------------------------------
+// "October 2026" as a big month and a quieter year; a week or day range that
+// does not end in a year is shown whole.
+const periodParts = computed(() => {
+  const m = /^(.*?)\s+(\d{4})$/.exec(periodTitle.value.trim())
+  return m ? { main: m[1], year: m[2] } : { main: periodTitle.value, year: '' }
+})
+// Section 24d, one accent per surface: the filters stay neutral and the hue is
+// kept for the events — an icon says which source a chip is, not a colour.
+const sourceFilters: {
+  key: 'tasks' | 'todos' | 'goals' | 'reminders'
+  source: 'task' | 'todo' | 'goal' | 'reminder'
+  label: string
+  icon: 'list' | 'check-square' | 'flag' | 'bell'
+}[] = [
+  { key: 'tasks', source: 'task', label: 'Tasks', icon: 'list' },
+  { key: 'todos', source: 'todo', label: 'Todos', icon: 'check-square' },
+  { key: 'goals', source: 'goal', label: 'Goals', icon: 'flag' },
+  { key: 'reminders', source: 'reminder', label: 'Reminders', icon: 'bell' },
+]
+
 // ---- styles ----------------------------------------------------------------
-const headerRow = computed(() =>
-  pxify({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--sp-2)',
-    flexWrap: isMobile.value ? 'wrap' : 'nowrap',
-  }),
-)
-function segBtn(active: boolean) {
-  return pxify({
-    ...typeStep('sm'),
-    fontWeight: 'var(--weight-semibold)',
-    height: 32,
-    padding: '0 12px',
-    borderRadius: 'var(--radius-control)',
-    cursor: 'pointer',
-    // Section 24d, one accent per surface: inactive is neutral. Four filter
-    // chips in four hues plus a purple active state plus coloured events left
-    // the eye with nothing to land on, so the hue withdraws to the events —
-    // the only place it carries information the label does not already give.
-    border: '1px solid ' + (active ? c.value.accent : c.value.border),
-    background: active
-      ? 'color-mix(in oklch, ' + c.value.accent + ' 18%, transparent)'
-      : 'transparent',
-    color: active ? c.value.text : c.value.dim,
-  })
-}
-const chipBtn = segBtn
 const projectOptions = computed(() => [
   { value: '', label: 'All projects' },
   ...tags.value.map((t) => ({ value: t, label: t })),
@@ -493,15 +524,10 @@ const projectSelectStyle = computed(() =>
   // and it dwarfed everything beside it.
   pxify({ maxWidth: 240, minWidth: 0, flex: '1 1 140px' }),
 )
-const titleStyle = computed(() =>
-  pxify({
-    ...typeStep('base'),
-    fontWeight: 'var(--weight-semibold)',
-    color: c.value.text,
-    whiteSpace: 'nowrap',
-  }),
-)
-const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
+// A floor under the grid. It sizes itself to 100% of what it is given, and a
+// parent that gives it no height of its own (a short phone, a host that is
+// not a fixed-height stage) collapsed it to a sliver of the week header.
+const gridWrap = pxify({ flex: 1, minHeight: 520, overflow: 'hidden' })
 // Section 24c, acceptance 124. A two-column grid with min-width: 0 on both
 // tracks. It was a flex row whose panel had a fixed width and no min-width, so
 // the grid — which can always shrink — pushed it past the left edge instead of
@@ -510,10 +536,12 @@ const gridWrap = pxify({ flex: 1, minHeight: 0, overflow: 'hidden' })
 function bodyGrid(withPanel: boolean) {
   return pxify({
     display: 'grid',
-    gridTemplateColumns: withPanel ? '260px minmax(0, 1fr)' : 'auto minmax(0, 1fr)',
+    gridTemplateColumns: withPanel ? '260px minmax(0, 1fr)' : 'minmax(0, 1fr)',
     gap: 'var(--sp-3)',
     flex: 1,
-    minHeight: 0,
+    // Never shorter than what it holds: a month sized to its weeks must not be
+    // squeezed by the column and clipped at the bottom.
+    minHeight: 'min-content',
     minWidth: 0,
   })
 }
@@ -537,61 +565,96 @@ const hintStyle = computed(() =>
 
 <template>
   <div :style="panelStyle">
-    <ListToolbar title="Calendar" />
-    <div :style="headerRow">
-      <button :style="s.editBtn" @click="api()?.prev()">‹</button>
-      <button :style="s.editBtn" @click="api()?.today()">Today</button>
-      <button :style="s.editBtn" @click="api()?.next()">›</button>
-      <span :style="titleStyle">{{ periodTitle }}</span>
-      <span style="flex: 1"></span>
-      <GlassDatePicker
-        v-model="jumpDate"
-        size="sm"
-        placeholder="Jump to…"
-        @update:model-value="onJump"
-      />
-      <Tabs
-        size="sm"
-        :model-value="calendarView"
-        :tabs="calendarTabs"
-        aria-label="Calendar range"
-        @update:model-value="switchView($event as CalendarViewKey)"
-      />
-    </div>
+    <!-- The head: what period this is, big, and the ways to move through it. -->
+    <header class="calv__head">
+      <span class="calv__mark" aria-hidden="true"><Icon name="calendar" size="md" /></span>
+      <div class="calv__title">
+        <span class="calv__eyebrow">Calendar</span>
+        <h2 class="calv__period">
+          {{ periodParts.main
+          }}<span v-if="periodParts.year" class="calv__year"> {{ periodParts.year }}</span>
+        </h2>
+      </div>
+      <div class="calv__nav" role="group" aria-label="Move through the calendar">
+        <button type="button" class="calv__nav-btn" aria-label="Previous" @click="api()?.prev()">
+          <Icon name="chevron-left" size="sm" />
+        </button>
+        <button type="button" class="calv__nav-btn calv__nav-today" @click="api()?.today()">
+          Today
+        </button>
+        <button type="button" class="calv__nav-btn" aria-label="Next" @click="api()?.next()">
+          <Icon name="chevron-right" size="sm" />
+        </button>
+      </div>
+      <span class="calv__spacer" />
+      <div class="calv__jump">
+        <Icon name="calendar-check" size="sm" class="calv__jump-icon" />
+        <GlassDatePicker
+          v-model="jumpDate"
+          size="md"
+          placeholder="Jump to date"
+          @update:model-value="onJump"
+        />
+      </div>
+      <!-- The range switch: four real targets, not a strip of small words. -->
+      <div class="calv__views" role="tablist" aria-label="Calendar range">
+        <button
+          v-for="t in calendarTabs"
+          :key="t.value"
+          type="button"
+          role="tab"
+          class="calv__view"
+          :class="{ 'is-on': calendarView === t.value }"
+          :aria-selected="calendarView === t.value"
+          @click="switchView(t.value)"
+        >
+          <Icon :name="VIEW_ICON[t.value]" size="xs" />
+          <span>{{ t.label }}</span>
+        </button>
+      </div>
+    </header>
 
-    <div :style="headerRow">
-      <button
-        :style="chipBtn(filters.tasks)"
-        @click="calendar.setFilters({ tasks: !filters.tasks })"
-      >
-        Tasks
-      </button>
-      <button
-        :style="chipBtn(filters.todos)"
-        @click="calendar.setFilters({ todos: !filters.todos })"
-      >
-        Todos
-      </button>
-      <button
-        :style="chipBtn(filters.goals)"
-        @click="calendar.setFilters({ goals: !filters.goals })"
-      >
-        Goals
-      </button>
-      <button
-        :style="chipBtn(filters.reminders)"
-        @click="calendar.setFilters({ reminders: !filters.reminders })"
-      >
-        Reminders
-      </button>
+    <!-- What is on the grid: one chip per source, then a project. -->
+    <!-- The filters double as the legend: each wears the same tile, in the
+         same colour, as its events on the grid. Off greys the tile out. -->
+    <div class="calv__filters">
+      <div class="calv__legend" role="group" aria-label="Show on the calendar">
+        <button
+          v-for="f in sourceFilters"
+          :key="f.key"
+          type="button"
+          class="calv__chip"
+          :class="{ 'is-on': filters[f.key] }"
+          :aria-pressed="filters[f.key]"
+          :style="{ '--src': SOURCE_COLOR[f.source] }"
+          :title="(filters[f.key] ? 'Hide ' : 'Show ') + f.label.toLowerCase()"
+          @click="calendar.setFilters({ [f.key]: !filters[f.key] })"
+        >
+          <span class="calv__chip-tile"><Icon :name="f.icon" size="xs" /></span>
+          {{ f.label }}
+        </button>
+      </div>
       <div :style="projectSelectStyle">
         <Select
           :model-value="filters.project"
           :options="projectOptions"
-          size="sm"
+          size="md"
+          aria-label="Project"
           @update:model-value="calendar.setFilters({ project: $event })"
         />
       </div>
+      <span class="calv__spacer" />
+      <button
+        v-if="!panelOpen"
+        type="button"
+        class="calv__chip calv__chip--panel"
+        @click="panelOpen = true"
+      >
+        <Icon name="list" size="xs" /> Unscheduled
+        <span class="calv__chip-n">{{
+          calendar.unscheduled.value.tasks.length + calendar.unscheduled.value.todos.length
+        }}</span>
+      </button>
     </div>
 
     <div :style="bodyGrid(panelOpen)">
@@ -603,14 +666,18 @@ const hintStyle = computed(() =>
         :todos="calendar.unscheduled.value.todos"
         @close="panelOpen = false"
       />
-      <button v-else :style="s.editBtn" @click="panelOpen = true">Unscheduled</button>
-
       <div :style="gridWrap" class="cal-host">
         <FullCalendar ref="calendarRef" :options="options">
           <template #eventContent="arg">
+            <!-- The chip: whose it is (icon in its colour), when, and what —
+                 and on a tall enough block, the first line of its notes. -->
             <div
               class="cal-event"
-              :class="{ 'cal-done': arg.event.extendedProps.completed }"
+              :class="{
+                'cal-done': arg.event.extendedProps.completed,
+                'cal-event--block': arg.view.type.startsWith('timeGrid') && !arg.event.allDay,
+              }"
+              :data-source="arg.event.extendedProps.source"
               :style="{
                 '--bar': arg.event.extendedProps.barColor,
                 '--chip-bg': arg.event.extendedProps.chipBg,
@@ -619,17 +686,35 @@ const hintStyle = computed(() =>
               @touchend="cancelPress"
               @touchmove="cancelPress"
             >
-              <span class="cal-title">{{ arg.event.title }}</span>
-              <span
-                v-if="
-                  arg.event.extendedProps.subtitle &&
-                  !arg.event.allDay &&
-                  arg.event.extendedProps.durationMins >= 45 &&
-                  arg.view.type !== 'dayGridMonth'
-                "
-                class="cal-sub"
-                >{{ arg.event.extendedProps.subtitle }}</span
-              >
+              <span class="cal-ev-icon" aria-hidden="true">
+                <Icon
+                  :name="
+                    arg.event.extendedProps.completed
+                      ? 'check'
+                      : SOURCE_ICON[arg.event.extendedProps.source as CalEvent['source']]
+                  "
+                  size="xs"
+                />
+              </span>
+              <span class="cal-ev-body">
+                <span class="cal-title">{{ arg.event.title }}</span>
+                <span class="cal-ev-meta">
+                  <span class="cal-time">{{ arg.event.allDay ? 'All day' : arg.timeText }}</span>
+                  <span class="cal-kind">{{
+                    SOURCE_LABEL[arg.event.extendedProps.source as CalEvent['source']]
+                  }}</span>
+                </span>
+                <span
+                  v-if="
+                    arg.event.extendedProps.subtitle &&
+                    !arg.event.allDay &&
+                    arg.event.extendedProps.durationMins >= 45 &&
+                    arg.view.type !== 'dayGridMonth'
+                  "
+                  class="cal-sub"
+                  >{{ arg.event.extendedProps.subtitle }}</span
+                >
+              </span>
             </div>
           </template>
         </FullCalendar>
@@ -648,25 +733,293 @@ const hintStyle = computed(() =>
       @create="onQuickCreate"
     />
 
-    <CalEventCard
-      v-if="hovered"
-      :event="hovered.event"
-      :x="hovered.x"
-      :y="hovered.y"
-      :sheet="hovered.sheet"
-      @close="hovered = null"
-      @open="openEvent"
-      @complete="completeEvent"
-    />
+    <!-- Teleported: the panel's slide-in transform would otherwise make the
+         card's fixed position relative to the panel instead of the window. -->
+    <Teleport to="body">
+      <CalEventCard
+        v-if="hovered"
+        :event="hovered.event"
+        :x="hovered.x"
+        :y="hovered.y"
+        :sheet="hovered.sheet"
+        @hold="holdCard"
+        @release="releaseCard"
+        @close="hovered = null"
+        @open="openEvent"
+        @complete="completeEvent"
+      />
+    </Teleport>
   </div>
 </template>
 
 <style>
+/* ---- the head and the filters ----------------------------------------------- */
+.calv__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.calv__mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(
+    145deg,
+    var(--theme-accent),
+    color-mix(in oklch, var(--theme-accent) 65%, var(--theme-text))
+  );
+  color: var(--theme-on-accent);
+  box-shadow: 0 10px 22px -12px var(--theme-accent);
+}
+.calv__title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.calv__eyebrow {
+  color: var(--theme-dim);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.calv__period {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.calv__year {
+  margin-left: 0.3em;
+  color: var(--theme-dim);
+  font-weight: var(--weight-medium);
+}
+/* Previous, Today, Next as one joined control rather than three loose buttons. */
+.calv__nav {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--theme-text) 6%, transparent);
+}
+.calv__nav-btn {
+  display: grid;
+  place-items: center;
+  height: 30px;
+  min-width: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--theme-text);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: background var(--dur-fast) ease;
+}
+.calv__nav-btn:hover {
+  background: color-mix(in oklch, var(--theme-text) 8%, transparent);
+}
+.calv__nav-today {
+  padding: 0 12px;
+  background: var(--glass-solid, var(--theme-card));
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--shadow-ink, #000) 18%, transparent);
+}
+.calv__nav-btn:focus-visible,
+.calv__chip:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+.calv__spacer {
+  flex: 1;
+}
+/* Jump to: the date picker's trigger restated as the same soft 44px control as
+   the range switch beside it, with a calendar glyph, instead of an outlined
+   box in a different height and weight. */
+.calv__jump {
+  position: relative;
+  min-width: 170px;
+}
+.calv__jump-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  z-index: 1;
+  transform: translateY(-50%);
+  color: var(--theme-accent);
+  pointer-events: none;
+}
+.calv__head .calv__jump .gdp__trigger {
+  height: 44px;
+  padding-left: 40px;
+  border: 0;
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--theme-text) 6%, transparent);
+  color: var(--theme-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.calv__head .calv__jump .gdp__trigger:hover {
+  background: color-mix(in oklch, var(--theme-text) 9%, transparent);
+}
+/* The range switch: a 44px track with 36px targets and a raised thumb. */
+.calv__views {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--theme-text) 6%, transparent);
+}
+.calv__view {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--theme-dim);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+.calv__view:hover:not(.is-on) {
+  color: var(--theme-text);
+  background: color-mix(in oklch, var(--theme-text) 5%, transparent);
+}
+.calv__view.is-on {
+  background: var(--glass-solid, var(--theme-card));
+  color: var(--theme-text);
+  font-weight: var(--weight-semibold);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--shadow-ink, #000) 12%, transparent),
+    0 4px 12px -6px color-mix(in srgb, var(--shadow-ink, #000) 35%, transparent);
+}
+.calv__view.is-on svg {
+  color: var(--theme-accent);
+}
+.calv__view:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 1px;
+}
+/* Week and day still scroll their hours; the bar does it quietly. */
+.cal-host .fc .fc-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--theme-text) 18%, transparent) transparent;
+}
+.calv__filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* The legend: one soft track, like the range switch, holding four toggles. */
+.calv__legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--theme-text) 5%, transparent);
+}
+.calv__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px 0 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--theme-dim);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) ease,
+    color var(--dur-fast) ease,
+    opacity var(--dur-fast) ease;
+}
+.calv__chip:hover {
+  color: var(--theme-text);
+  background: color-mix(in oklch, var(--theme-text) 5%, transparent);
+}
+/* On is shown by the source's own tile lighting up and the label going to
+   full strength — no accent ring of its own, so the one accent on the page
+   stays where it means something (today, the selected range). */
+.calv__chip.is-on {
+  color: var(--theme-text);
+}
+.calv__chip:not(.is-on) {
+  opacity: 0.6;
+}
+.calv__chip-tile {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: color-mix(in oklch, var(--theme-text) 8%, transparent);
+  color: var(--theme-dim);
+  transition:
+    background var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+.calv__chip.is-on .calv__chip-tile {
+  background: color-mix(in oklch, var(--src) 24%, transparent);
+  color: var(--src);
+}
+/* The Unscheduled toggle sits outside the legend as a soft button of its own. */
+.calv__chip--panel {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--theme-text) 6%, transparent);
+  color: var(--theme-text);
+  opacity: 1;
+}
+.calv__chip--panel:not(.is-on) {
+  opacity: 1;
+}
+.calv__chip--panel svg {
+  color: var(--theme-accent);
+}
+.calv__chip-n {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--theme-accent) 18%, transparent);
+  color: var(--theme-text);
+  font-size: var(--text-2xs);
+  line-height: 1.6;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 /* FullCalendar's own variables, remapped onto the app's theme tokens so the grid
    belongs to the theme rather than sitting on top of it. Global (not scoped)
-   because FullCalendar renders outside this component's scope attribute. */
+   because FullCalendar renders outside this component's scope attribute.
+
+   The grid is one rounded card. Its inner lines are a faint wash of the text
+   colour rather than the theme border, which on the dark themes was a bright
+   blue-grey drawn round every one of forty-two cells. */
 .cal-host {
-  --fc-border-color: var(--border-subtle, var(--theme-border, rgba(255, 255, 255, 0.14)));
+  --cal-line: color-mix(in oklch, var(--theme-text) 8%, transparent);
+  --fc-border-color: var(--cal-line);
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: transparent;
   --fc-list-event-hover-bg-color: transparent;
@@ -680,9 +1033,49 @@ const hintStyle = computed(() =>
   --fc-highlight-color: color-mix(in oklch, var(--theme-accent) 6%, transparent);
   height: 100%;
   min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--cal-line);
+  border-radius: 20px;
+  background: color-mix(in oklch, var(--theme-card) 70%, transparent);
   font-size: var(--text-xs);
   line-height: var(--lh-xs);
   color: var(--text-primary, var(--theme-text));
+}
+/* The card draws the outer edge; the table's own would double it. */
+.cal-host .fc .fc-scrollgrid {
+  border: 0;
+}
+.cal-host .fc .fc-scrollgrid-section > td,
+.cal-host .fc .fc-scrollgrid-section > th {
+  border: 0;
+}
+/* The weekday row: a quiet band, small caps. */
+.cal-host .fc .fc-col-header-cell {
+  background: color-mix(in oklch, var(--theme-text) 4%, transparent);
+  border-left-color: transparent;
+  border-right-color: transparent;
+}
+.cal-host .fc .fc-col-header-cell-cushion {
+  padding: 10px 4px;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+/* Weekends recessed a touch, so the working week reads as the block it is. */
+.cal-host .fc .fc-daygrid-day:is(.fc-day-sat, .fc-day-sun),
+.cal-host .fc .fc-timegrid-col:is(.fc-day-sat, .fc-day-sun) {
+  background: color-mix(in oklch, var(--theme-text) 2.5%, transparent);
+}
+.cal-host .fc .fc-daygrid-day {
+  transition: background var(--dur-fast) ease;
+}
+.cal-host .fc .fc-daygrid-day:hover {
+  background: color-mix(in oklch, var(--theme-accent) 5%, transparent);
+}
+/* The day number sits top-left, in a circle that today fills. */
+.cal-host .fc .fc-daygrid-day-top {
+  flex-direction: row;
+  padding: 6px 6px 0;
 }
 .cal-host .fc {
   height: 100%;
@@ -710,7 +1103,12 @@ const hintStyle = computed(() =>
   line-height: var(--lh-xs);
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
-  padding: 4px 6px;
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
 }
 /* Out-of-month days (section 24b). The number keeps the muted colour, which now
    clears 4.5:1; what marks the day as out of scope is the cell being recessed.
@@ -718,16 +1116,23 @@ const hintStyle = computed(() =>
    effectively invisible — the distinction was being carried by the one property
    that also has to stay readable. */
 .cal-host .fc .fc-day-other {
-  background: color-mix(in oklch, var(--text-primary, currentColor) 5%, transparent);
+  background: color-mix(in oklch, var(--text-primary, currentColor) 3%, transparent);
 }
 .cal-host .fc .fc-day-other .fc-daygrid-day-number {
   opacity: 0.75;
 }
-/* Today: a 1px accent ring drawn inside the cell. */
+/* Today: the number in a filled accent circle, and the faintest tint on the
+   cell. It was a 1px ring round the cell, which on the dark themes looked like
+   a selection box someone had left behind. */
 .cal-host .fc .fc-day-today {
-  box-shadow: inset 0 0 0 1px var(--theme-accent);
+  background: color-mix(in oklch, var(--theme-accent) 6%, transparent);
 }
-.cal-host .fc .fc-day-today .fc-daygrid-day-number {
+.cal-host .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
+  box-shadow: 0 4px 10px -4px var(--theme-accent);
+}
+.cal-host .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
   color: var(--theme-accent);
 }
 .cal-host .fc-event {
@@ -741,12 +1146,18 @@ const hintStyle = computed(() =>
   margin: 0;
 }
 .cal-host .fc .fc-daygrid-event-harness {
-  margin-top: 2px;
+  margin-top: 4px;
   min-width: 0;
 }
+.cal-host .fc .fc-daygrid-day-events {
+  padding: 0 4px 4px;
+}
 .cal-host .fc .fc-daygrid-more-link {
-  display: block;
-  padding: 0 4px;
+  display: inline-block;
+  margin: 2px 0 0;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--theme-text) 7%, transparent);
   font-size: var(--text-xs);
   line-height: 20px;
   color: var(--text-muted, var(--theme-dim));
@@ -765,32 +1176,96 @@ const hintStyle = computed(() =>
 
    The hue is never the text. Coloured text on a coloured fill of the same hue
    is two values a few steps apart on one axis, and no ratio rescues it. */
+/* The chip is two columns: a small tile with the source's glyph in the
+   source's colour, then the time and the title. The bar on the left edge
+   stays — it is the project's colour, and the tile is the source's. */
 .cal-event {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  width: 100%;
   min-width: 0;
-  padding: 2px 6px;
+  padding: 6px 8px 6px 6px;
   border-left: 3px solid var(--bar);
-  border-radius: var(--radius-control);
+  border-radius: 10px;
   background: var(--chip-bg, color-mix(in oklch, var(--bar) 12%, transparent));
   color: var(--text-primary, var(--theme-text));
   overflow: hidden;
   cursor: grab;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-ink, #000) 10%, transparent);
+  transition:
+    transform 0.15s var(--ease-out, ease),
+    box-shadow 0.15s var(--ease-out, ease);
 }
+.cal-event:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--bar) 55%, transparent),
+    0 6px 14px -8px color-mix(in srgb, var(--shadow-ink, #000) 50%, transparent);
+}
+/* Two lines a card: the title, and under it when and what. 44px is the
+   smallest that holds both at a size you can read across a room. */
 .cal-host .fc-daygrid-event .cal-event {
-  min-height: 20px;
-  justify-content: center;
+  min-height: 44px;
 }
 .cal-event:active {
   cursor: grabbing;
 }
+.cal-ev-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--bar) 24%, transparent);
+  color: var(--bar);
+}
+.cal-ev-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* Two lines before the ellipsis. One line cut every real title — "Pay Credit
+   car…" — to a word and a half; two lines say what the thing is. */
 .cal-title {
   min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.3;
   font-weight: var(--weight-semibold);
+  white-space: normal;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.cal-ev-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted, var(--theme-dim));
+  font-size: var(--text-2xs);
   white-space: nowrap;
+}
+.cal-time {
+  flex-shrink: 0;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.cal-kind {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.cal-kind::before {
+  content: '·';
+  margin-right: 6px;
 }
 .cal-sub {
   min-width: 0;
@@ -798,6 +1273,25 @@ const hintStyle = computed(() =>
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* A timed block in week/day view: the title may wrap to two lines. */
+.cal-event--block {
+  height: 100%;
+}
+.cal-event--block .cal-title {
+  min-width: 0;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-event,
+  .cal-event:hover {
+    transition: none;
+    transform: none;
+  }
 }
 /* Month view: one line per item — dot, time, title. */
 .cal-row {
@@ -824,11 +1318,23 @@ const hintStyle = computed(() =>
 /* Completed items (section 24b): full colour, struck through, at 55% — one
    signal carried by two properties that agree, rather than a strike stacked on
    a faded colour, which is two signals and no legibility. */
+/* Done, but still readable: a little dimmer, a soft strike, and the tile turns
+   into a green tick. At 55% opacity with a full-strength strike the title was
+   gone — and "what did I already do this week" is a question worth reading. */
 .cal-done {
-  opacity: 0.55;
+  opacity: 0.72;
 }
 .cal-done .cal-title {
   text-decoration: line-through;
+  text-decoration-color: color-mix(in oklch, var(--theme-text) 45%, transparent);
+}
+.cal-done .cal-ev-icon {
+  background: color-mix(in oklch, var(--theme-success) 20%, transparent);
+  color: var(--theme-success);
+}
+/* Room for two cards and a "+N more" without the month feeling cramped. */
+.cal-host .fc .fc-dayGridMonth-view .fc-daygrid-day-frame {
+  min-height: 148px;
 }
 /* Week view stays scrollable on a phone rather than squashing seven columns. */
 @media (max-width: 640px) {

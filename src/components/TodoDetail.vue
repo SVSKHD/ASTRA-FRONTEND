@@ -23,6 +23,7 @@ import TextInput from '@/components/ui/TextInput.vue'
 import RichDescription from '@/components/detail/RichDescription.vue'
 import Icon from '@/components/ui/Icon.vue'
 import AddMoreDialog from '@/components/detail/AddMoreDialog.vue'
+import QuickAdd from '@/components/todo/QuickAdd.vue'
 import ExportJsonDialog from '@/components/detail/ExportJsonDialog.vue'
 import { exportTaskTransferJson } from '@/utils/taskTransfer'
 import SubCheck from '@/components/ui/SubCheck.vue'
@@ -59,7 +60,6 @@ const {
   infoVal,
   pill,
   accentPill,
-  addBtn,
   chipStyle,
 } = useDetailStyles()
 
@@ -128,7 +128,6 @@ watch(
   },
 )
 
-const newSub = ref('')
 // The "Add more" paste dialog, for this item's subtasks.
 const addingMore = ref(false)
 // Export: this todo and every subtask under it, at every depth, as JSON in the
@@ -152,13 +151,6 @@ function exportThis() {
     filename: `${slug}-${at.slice(0, 10)}.json`,
     count: picked.length,
   }
-}
-function addSubtask() {
-  const parent = todo.value
-  if (!parent || !newSub.value.trim()) return
-  const newId = app.addTodo(newSub.value)
-  if (newId != null) app.moveTodo(newId, parent.id, subtasks.value.length)
-  newSub.value = ''
 }
 function removeTodo(id: number) {
   app.deleteWithUndo('todos', 'todo', id)
@@ -214,7 +206,7 @@ function moveTodoToTasks() {
                 :style="chipStyle(todo.tag)"
                 title="Double-click to edit"
                 @dblclick="start('tag', todo.tag)"
-                >{{ todo.tag }}</span
+                >{{ todo.tag.toLocaleUpperCase() }}</span
               >
               <span
                 v-else
@@ -230,12 +222,13 @@ function moveTodoToTasks() {
                 >rolled over ×{{ todo.rolloverCount }}</span
               >
               <PaneToolbar class="dp-actions">
-                <RemindBell collection="todos" :id="todo.id" />
-                <ShareGlobeButton entity-type="todo" :item="todo" variant="row" />
+                <RemindBell collection="todos" size="md" icon-size="md" :id="todo.id" />
+                <ShareGlobeButton entity-type="todo" :item="todo" variant="row" icon-size="md" />
                 <PaneButton icon="refresh-cw" label="Move to tasks" @click="moveTodoToTasks" />
                 <MoveToDeadlineButton
                   type="todo"
                   :item-id="todo.id"
+                  icon-size="md"
                   @moved="emit('select', null)"
                 />
                 <PaneButton
@@ -278,7 +271,7 @@ function moveTodoToTasks() {
                 title="Paste JSON or lines to add as subtasks"
                 @click="addingMore = true"
               >
-                <Icon name="plus" size="xs" />Add more
+                <Icon name="plus" size="md" />Add more
               </button>
               <button
                 type="button"
@@ -286,7 +279,7 @@ function moveTodoToTasks() {
                 title="Download this and all its subtasks as JSON"
                 @click="exportThis"
               >
-                <Icon name="download" size="xs" />Export
+                <Icon name="download" size="md" />Export
               </button>
             </div>
             <ExportJsonDialog
@@ -325,6 +318,10 @@ function moveTodoToTasks() {
                todo itself, before the subtasks, so they are never a long
                scroll down. -->
           <PaneNotes type="todo" :id="todo.id" />
+
+          <!-- The same quick add as the list's, filing under this todo: the
+               natural-language parse, the reminder, the description and tag. -->
+          <QuickAdd :parent-id="todo.id" class="dp-quickadd" />
 
           <!-- Subtasks: one card each. The check, the title, and a dot for its
                status (click to move it on); the rest waits for the pointer. -->
@@ -375,7 +372,7 @@ function moveTodoToTasks() {
                   v-if="st.noteIds?.length"
                   :style="[pill, noteBadge]"
                   :title="`${st.noteIds.length} attached note${st.noteIds.length === 1 ? '' : 's'}`"
-                  ><Icon name="notebook" size="xs" /> {{ st.noteIds.length }}</span
+                  ><Icon name="notebook" size="md" /> {{ st.noteIds.length }}</span
                 >
                 <span v-if="kidCount(st.id)" :style="pill">{{ kidCount(st.id) }} sub</span>
                 <!-- Focus mode (Todo v2, 5b) from any open subtask. -->
@@ -407,17 +404,6 @@ function moveTodoToTasks() {
               ></button>
             </div>
             <div v-if="!subtasks.length" :style="placeholder">No subtasks yet.</div>
-
-            <form class="dp-add" @submit.prevent="addSubtask">
-              <TextInput
-                v-model="newSub"
-                size="sm"
-                placeholder="Add a subtask…"
-                aria-label="New subtask"
-                :style="grow"
-              />
-              <button type="submit" :style="addBtn">Add</button>
-            </form>
           </div>
 
           <!-- Details -->

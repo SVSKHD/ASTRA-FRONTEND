@@ -892,7 +892,7 @@ const rootStripStyle = computed(() =>
               @pointerdown.stop
               @click.stop="del(row.id)"
             >
-              <Icon name="x" size="sm" />
+              <Icon name="x" size="md" />
             </IconButton>
           </div>
           <template v-else>

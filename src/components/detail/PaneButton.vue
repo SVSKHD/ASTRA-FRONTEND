@@ -36,7 +36,7 @@ defineEmits<{ click: [MouseEvent] }>()
     :disabled="disabled"
     @click.stop="$emit('click', $event)"
   >
-    <Icon :name="icon" size="sm" />
+    <Icon :name="icon" size="md" />
     <span v-if="showLabel" class="pbtn__text">{{ label }}</span>
   </button>
 </template>

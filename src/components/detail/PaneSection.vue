@@ -89,7 +89,7 @@ const tap = useTapOpen(toggle)
   border-radius: var(--radius-control);
 }
 .psec__title {
-  font-size: var(--text-2xs);
+  font-size: var(--text-sm);
   line-height: var(--lh-2xs);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.08em;

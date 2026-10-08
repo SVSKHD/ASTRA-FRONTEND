@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
-import ListToolbar from '@/components/ListToolbar.vue'
+import Icon from '@/components/ui/Icon.vue'
+import PullsPane from '@/components/github/PullsPane.vue'
+import CodePane from '@/components/github/CodePane.vue'
+import { isGhConfigured } from '@/utils/ghProxy'
 import TextInput from '@/components/ui/TextInput.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
 // The GitHub tab (13d + 13e): a cross-repo Issues view and a Repos view.
@@ -14,10 +17,16 @@ import Checkbox from '@/components/ui/Checkbox.vue'
 // answer one has failed at the thing it is for. There is no delete: GitHub has
 // none either, an issue is closed, and closing is reversible from the same row.
 //
+// Pull requests: one repo's PRs in any state, each opening to its description
+// and a numbered diff of every file it changes (PullsPane). Read-only.
+//
+// Code: the repo's file tree at any branch, a highlighted viewer, and an editor
+// that commits one file at a time back to that branch (CodePane). The only
+// write here besides issues, and it is guarded by the blob sha.
+//
 // Repos: every linked repo with its metadata and sync toggle, expanding to
 // recent commits on the default branch, open PRs with CI status, and branches.
-// Nothing here pushes, merges or deletes: v1 is read-only apart from issues.
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
@@ -37,7 +46,6 @@ import {
   sortIssues,
 } from '@/utils/issueFilters'
 import type { GithubIssue } from '@/types'
-import Tabs from '@/components/ui/Tabs.vue'
 import RepoBrowser from '@/components/github/RepoBrowser.vue'
 import IssueForm from '@/components/github/IssueForm.vue'
 import TextArea from '@/components/ui/TextArea.vue'
@@ -49,7 +57,15 @@ const auth = useAuthStore()
 const { c, s, panelStyle, isMobile } = useStyles()
 const { repos, ghIssues, tasks, githubIntegration } = storeToRefs(app)
 
-const pane = ref<'issues' | 'repos'>('issues')
+type Pane = 'issues' | 'pulls' | 'code' | 'repos'
+const pane = ref<Pane>('issues')
+
+// The token proxy answers with a plain repo list, and reading it is what marks
+// the integration connected — so do that once on arrival rather than waiting
+// for Settings to be opened.
+onMounted(() => {
+  if (!app.githubConnected && isGhConfigured()) void app.loadInstalledRepos()
+})
 const filter = ref(defaultIssueFilter())
 const selected = ref<Set<string>>(new Set())
 const expandedIssue = ref<string | null>(null)
@@ -69,9 +85,18 @@ const visibleIssues = computed(() =>
   sortIssues(filterIssues(ghIssues.value, filter.value, tasks.value)),
 )
 const counts = computed(() => countIssues(ghIssues.value, tasks.value))
-const githubTabs = computed(() => [
-  { value: 'issues', label: `Issues · ${counts.value.open} open` },
-  { value: 'repos', label: `Repos · ${repos.value.length}` },
+const sections = computed<
+  {
+    value: Pane
+    label: string
+    icon: 'alert-circle' | 'share' | 'notebook' | 'github'
+    count: number | null
+  }[]
+>(() => [
+  { value: 'issues', label: 'Issues', icon: 'alert-circle', count: counts.value.open },
+  { value: 'pulls', label: 'Pull requests', icon: 'share', count: null },
+  { value: 'code', label: 'Code', icon: 'notebook', count: null },
+  { value: 'repos', label: 'Repos', icon: 'github', count: repos.value.length },
 ])
 const labels = computed(() => labelOptions(ghIssues.value))
 const assignees = computed(() => assigneeOptions(ghIssues.value))
@@ -309,25 +334,58 @@ function progressInner(pct: number) {
 </script>
 
 <template>
-  <div :style="panelStyle">
-    <ListToolbar
-      title="GitHub"
-      :new-label="pane === 'issues' && repos.length ? 'New issue' : undefined"
-      @new="startCreate"
-    >
-      <template #left>
-        <Tabs
-          size="sm"
-          :model-value="pane"
-          :tabs="githubTabs"
-          aria-label="GitHub section"
-          @update:model-value="pane = $event as 'issues' | 'repos'"
-        />
-      </template>
-      <template #actions>
-        <button type="button" class="panel-action" @click="auth.openGithubPanel()">Settings</button>
-      </template>
-    </ListToolbar>
+  <div :style="panelStyle" class="ghv">
+    <!-- The hero: who GitHub knows this as, whether it is live, and the way to
+         Settings. Then the four sections as one strip. -->
+    <header class="ghv__hero">
+      <span class="ghv__mark" aria-hidden="true"><Icon name="github" size="lg" /></span>
+      <div class="ghv__hero-text">
+        <h2 class="ghv__title">GitHub</h2>
+        <span class="ghv__who">
+          <img
+            v-if="githubIntegration.avatarUrl"
+            :src="githubIntegration.avatarUrl"
+            alt=""
+            class="ghv__avatar"
+          />
+          <span class="ghv__dot" :class="{ 'is-on': app.githubConnected }" />
+          <template v-if="app.githubConnected">
+            {{ githubIntegration.login || 'Connected' }} · {{ repos.length }} linked
+          </template>
+          <template v-else>Not connected</template>
+        </span>
+      </div>
+      <div class="ghv__hero-actions">
+        <button
+          v-if="pane === 'issues' && repos.length"
+          type="button"
+          class="gh-soft gh-soft--accent"
+          @click="startCreate"
+        >
+          <Icon name="plus" size="xs" /> New issue
+        </button>
+        <button type="button" class="gh-soft" @click="auth.openGithubPanel()">
+          <Icon name="shield" size="xs" /> Settings
+        </button>
+      </div>
+    </header>
+
+    <nav class="ghv__tabs" role="tablist" aria-label="GitHub section">
+      <button
+        v-for="t in sections"
+        :key="t.value"
+        type="button"
+        role="tab"
+        class="ghv__tab"
+        :class="{ 'is-on': pane === t.value }"
+        :aria-selected="pane === t.value"
+        @click="pane = t.value"
+      >
+        <Icon :name="t.icon" size="sm" />
+        <span>{{ t.label }}</span>
+        <span v-if="t.count != null" class="ghv__tab-n">{{ t.count }}</span>
+      </button>
+    </nav>
 
     <div v-if="app.githubPaused" :style="bulkBar">
       Sync paused — {{ githubIntegration.pausedReason }}.
@@ -485,6 +543,10 @@ function progressInner(pct: number) {
       </div>
     </template>
 
+    <!-- ---- Pull requests and Code ----------------------------------------- -->
+    <PullsPane v-else-if="pane === 'pulls'" />
+    <CodePane v-else-if="pane === 'code'" />
+
     <!-- ---- Repos --------------------------------------------------------- -->
     <template v-else>
       <!-- Every repository the token can see, with what it is built with. The
@@ -574,3 +636,365 @@ function progressInner(pct: number) {
     </template>
   </div>
 </template>
+
+<style>
+/* The GitHub tab's shared language, unscoped but under .ghv so the panes
+   (PullsPane, CodePane) speak it without each restating it. */
+.ghv {
+  --gh-wash: color-mix(in oklch, var(--theme-accent) 8%, transparent);
+  --gh-wash-strong: color-mix(in oklch, var(--theme-accent) 16%, transparent);
+  --gh-line: color-mix(in oklch, var(--theme-text) 9%, transparent);
+}
+
+/* ---- hero and sections ------------------------------------------------------ */
+.ghv__hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.ghv__mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(
+    145deg,
+    var(--theme-accent),
+    color-mix(in oklch, var(--theme-accent) 65%, var(--theme-text))
+  );
+  color: var(--theme-on-accent);
+  box-shadow: 0 10px 22px -12px var(--theme-accent);
+}
+.ghv__hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.ghv__title {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+.ghv__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--theme-dim);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ghv__avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+.ghv__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--theme-text) 25%, transparent);
+}
+.ghv__dot.is-on {
+  background: var(--theme-success);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--theme-success) 22%, transparent);
+}
+.ghv__hero-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ghv__tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  overflow-x: auto;
+  border-radius: 16px;
+  background: color-mix(in oklch, var(--theme-text) 5%, transparent);
+  scrollbar-width: none;
+}
+.ghv__tabs::-webkit-scrollbar {
+  display: none;
+}
+.ghv__tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 0 auto;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--theme-dim);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+.ghv__tab:hover:not(.is-on) {
+  color: var(--theme-text);
+  background: color-mix(in oklch, var(--theme-text) 5%, transparent);
+}
+.ghv__tab.is-on {
+  background: var(--glass-solid, var(--theme-card));
+  color: var(--theme-text);
+  font-weight: var(--weight-semibold);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--shadow-ink, #000) 10%, transparent),
+    0 4px 12px -6px color-mix(in srgb, var(--shadow-ink, #000) 30%, transparent);
+}
+.ghv__tab.is-on svg {
+  color: var(--theme-accent);
+}
+.ghv__tab:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 1px;
+}
+.ghv__tab-n {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--theme-text) 8%, transparent);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+}
+.ghv__tab.is-on .ghv__tab-n {
+  background: var(--gh-wash-strong);
+}
+
+/* ---- shared pieces ----------------------------------------------------------- */
+.ghv .gh-soft {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--gh-wash);
+  color: var(--theme-text);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease;
+}
+.ghv .gh-soft:hover:not(:disabled) {
+  background: var(--gh-wash-strong);
+}
+.ghv .gh-soft:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ghv .gh-soft--accent {
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
+}
+.ghv .gh-soft--accent:hover:not(:disabled) {
+  background: var(--theme-accent);
+  filter: brightness(1.06);
+}
+.ghv .gh-soft:focus-visible,
+.ghv .gh-icon-btn:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+.ghv .gh-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--gh-wash);
+  color: var(--theme-text);
+  cursor: pointer;
+}
+.ghv .gh-icon-btn:hover {
+  background: var(--gh-wash-strong);
+}
+.ghv .is-spinning {
+  animation: gh-spin 0.9s linear infinite;
+}
+@keyframes gh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ghv .gh-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--theme-text) 7%, transparent);
+  color: var(--theme-dim);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.ghv .gh-chip--accent {
+  background: var(--gh-wash-strong);
+  color: var(--theme-text);
+}
+.ghv .gh-pill {
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--gh-wash-strong);
+  color: var(--theme-text);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.ghv .gh-pill--sm {
+  padding: 0 7px;
+}
+.ghv .gh-pill:is([data-status='merged'], [data-file='added']) {
+  background: color-mix(in oklch, var(--theme-success) 16%, transparent);
+  color: var(--theme-success);
+}
+.ghv .gh-pill:is([data-status='closed'], [data-file='removed']) {
+  background: color-mix(in oklch, var(--theme-danger) 14%, transparent);
+  color: var(--theme-danger);
+}
+.ghv .gh-pill[data-status='draft'] {
+  background: color-mix(in oklch, var(--theme-text) 7%, transparent);
+  color: var(--theme-dim);
+}
+.ghv .gh-ci {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--theme-dim);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.ghv .gh-ci__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--theme-warning);
+}
+.ghv .gh-ci[data-ci='passing'] .gh-ci__dot {
+  background: var(--theme-success);
+}
+.ghv .gh-ci[data-ci='failing'] .gh-ci__dot {
+  background: var(--theme-danger);
+}
+.ghv .gh-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--theme-accent);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+.ghv .gh-link:hover {
+  text-decoration: underline;
+}
+.ghv .gh-muted {
+  color: var(--theme-dim);
+  font-size: var(--text-xs);
+}
+.ghv .gh-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--gh-wash);
+  color: var(--theme-text);
+  font-size: var(--text-sm);
+}
+.ghv .gh-note--error {
+  background: color-mix(in oklch, var(--theme-danger) 12%, transparent);
+}
+.ghv .gh-note--error svg {
+  color: var(--theme-danger);
+}
+.ghv .gh-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 40px 16px;
+  text-align: center;
+}
+.ghv .gh-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 4px;
+  border-radius: 18px;
+  background: var(--gh-wash-strong);
+  color: var(--theme-accent);
+}
+.ghv .gh-empty__title {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+.ghv .gh-empty__text {
+  margin: 0;
+  color: var(--theme-dim);
+  font-size: var(--text-sm);
+}
+.ghv .gh-skel {
+  height: 62px;
+  border-radius: 16px;
+  background: linear-gradient(
+    90deg,
+    var(--gh-wash) 0%,
+    var(--gh-wash-strong) 50%,
+    var(--gh-wash) 100%
+  );
+  background-size: 200% 100%;
+  animation: gh-shimmer 1.4s ease-in-out infinite;
+}
+.ghv .gh-skel--tall {
+  height: 160px;
+}
+.ghv .gh-skel--line {
+  height: 18px;
+  border-radius: 6px;
+}
+@keyframes gh-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ghv .gh-skel,
+  .ghv .is-spinning {
+    animation: none;
+  }
+}
+</style>

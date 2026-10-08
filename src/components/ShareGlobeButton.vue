@@ -23,6 +23,8 @@ const props = defineProps<{
   item: ({ id: number } & Partial<Shareable>) | null | undefined
   // Row globes are compact; the dialog gives it a touch more room.
   variant?: 'row' | 'dialog'
+  /** The globe's size step, when the variant's default does not match its row. */
+  iconSize?: IconSize
 }>()
 
 const { c, isMobile } = useStyles()
@@ -66,7 +68,9 @@ const ariaLabel = computed(() =>
 const hit = computed(() => (isMobile.value ? 40 : props.variant === 'dialog' ? 34 : 30))
 // A step, not a pixel count (section 21e): the dialog's globe is one size up
 // from the row's, and 19-versus-17 was never a distinction anybody could see.
-const iconStep = computed<IconSize>(() => (props.variant === 'dialog' ? 'md' : 'sm'))
+const iconStep = computed<IconSize>(
+  () => props.iconSize ?? (props.variant === 'dialog' ? 'md' : 'sm'),
+)
 
 // --- menu (popover on desktop, bottom sheet on mobile) ----------------------
 function openMenu() {

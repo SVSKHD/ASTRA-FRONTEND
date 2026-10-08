@@ -29,10 +29,21 @@ import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 type QuickCollection = 'todos' | 'tasks' | 'ideas'
 
-const props = withDefaults(defineProps<{ compact?: boolean; collection?: QuickCollection }>(), {
-  compact: false,
-  collection: 'todos',
-})
+const props = withDefaults(
+  defineProps<{
+    compact?: boolean
+    collection?: QuickCollection
+    /**
+     * Add SUBTASKS of this todo rather than top-level todos (the details
+     * pane). The new one goes to the end of the parent's subtasks — the order
+     * they were thought of — and the card drops the list's scrollbar gutter,
+     * which only exists to line it up with the list.
+     */
+    parentId?: number | null
+  }>(),
+  { compact: false, collection: 'todos', parentId: null },
+)
+const isSub = computed(() => props.parentId != null && props.collection === 'todos')
 const emit = defineEmits<{ added: [id: number] }>()
 
 const app = useAppStore()
@@ -43,10 +54,12 @@ const EXAMPLE: Record<QuickCollection, string> = {
   tasks: 'Ship invoice export fri #Billing',
   ideas: 'Referral rewards #Growth',
 }
-const noun = computed(() => NOUN[props.collection])
+const noun = computed(() => (isSub.value ? 'subtask' : NOUN[props.collection]))
 // "an idea", "a todo", "a task".
 const aNoun = computed(() => (/^[aeiou]/.test(noun.value) ? 'an ' : 'a ') + noun.value)
-const example = computed(() => EXAMPLE[props.collection])
+const example = computed(() =>
+  isSub.value ? 'Book the venue fri 5pm !high' : EXAMPLE[props.collection],
+)
 
 const text = ref('')
 const parsed = computed(() => parseQuickAdd(text.value))
@@ -72,6 +85,16 @@ function submit() {
   const order = rootOrders.length ? Math.min(...rootOrders) - 1 : 0
   const pickedTag = q.tag || tag.value
   const desc = description.value.trim()
+  // A subtask: made, then moved under its parent at the end of its subtasks.
+  if (isSub.value && props.parentId != null) {
+    const parentId = props.parentId
+    const at = todos.value.filter((t) => t.parentId === parentId).length
+    const subId = app.addTodo(q.title, pickedTag, desc)
+    if (subId == null) return
+    app.moveTodo(subId, parentId, at)
+    finish(q, subId)
+    return
+  }
   const id =
     props.collection === 'ideas'
       ? app.addIdea(q.title, pickedTag, { description: desc, order })
@@ -83,6 +106,11 @@ function submit() {
           })
         : app.addTodo(q.title, pickedTag, desc, { order })
   if (id == null) return
+  finish(q, id)
+}
+// What every add ends with: the reminder the text asked for, a cleared field
+// ready for the next one, and the id to whoever is listening.
+function finish(q: ReturnType<typeof parseQuickAdd>, id: number) {
   const start = quickAddReminderStart(q)
   if (start) {
     app.createReminderFromItem(props.collection, id, {
@@ -114,7 +142,7 @@ defineExpose({
 <template>
   <!-- The frame keeps the same scrollbar gutter as the list below it, so the
        card ends exactly where the rows end. -->
-  <div class="qa-frame">
+  <div class="qa-frame" :class="{ 'is-plain': isSub }">
     <div class="qa" :class="{ 'is-typing': !!text, 'is-open': detailsOpen }">
       <div class="qa__line">
         <!-- The "+" tile: the add mark, and the way to the description and tag. -->
@@ -188,6 +216,13 @@ defineExpose({
   scrollbar-gutter: stable;
   padding: 6px 6px 10px;
   margin: -6px -6px -10px;
+}
+/* In a details pane there is no list beside it to line up with. */
+.qa-frame.is-plain {
+  overflow: visible;
+  scrollbar-gutter: auto;
+  padding: 0;
+  margin: 0;
 }
 /* The card: a near-white surface with a hairline edge and a soft shadow,
    generous padding and a large radius, so it reads as one calm control. */

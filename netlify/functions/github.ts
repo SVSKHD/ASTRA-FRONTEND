@@ -13,6 +13,12 @@ type GithubOp =
   | 'pulls'
   | 'branches'
   | 'rateLimit'
+  | 'viewer'
+  | 'pull'
+  | 'pullFiles'
+  | 'tree'
+  | 'file'
+  | 'putFile'
 
 interface GithubParams {
   owner?: string
@@ -20,11 +26,32 @@ interface GithubParams {
   number?: number
   title?: string
   body?: string
-  state?: 'open' | 'closed'
+  state?: 'open' | 'closed' | 'all'
   labels?: string[]
   assignees?: string[]
   perPage?: number
   since?: string
+  /** A branch, tag or commit sha — for `tree` and `file`. */
+  ref?: string
+  /** A path inside the repository — for `file` and `putFile`. */
+  path?: string
+  /** `putFile`: the new contents, base64-encoded by the client. */
+  content?: string
+  /** `putFile`: the blob sha being replaced; omitted to create a file. */
+  sha?: string
+  /** `putFile`: the commit message. */
+  message?: string
+  /** `putFile`: the branch to commit to. */
+  branch?: string
+}
+
+/** A repository path, each segment encoded but the slashes kept. */
+function encodePath(path: string): string {
+  return path
+    .split('/')
+    .filter(Boolean)
+    .map((part) => encodeURIComponent(part))
+    .join('/')
 }
 
 interface RequestBody {
@@ -322,18 +349,120 @@ async function executeGithubOperation(op: GithubOp, params: GithubParams, etag?:
     case 'commits':
       return githubRequest(`${repoPath(params)}/commits?per_page=${perPage}`, {}, etag)
 
+    /**
+     * Pull requests, open by default. `state: 'closed' | 'all'` lists merged and
+     * closed ones too. CI status is looked up only for open PRs — it costs one
+     * request each, and a closed PR's checks are history.
+     */
     case 'pulls': {
+      const state = params.state === 'closed' || params.state === 'all' ? params.state : 'open'
       const result = await githubRequest(
-        `${repoPath(params)}/pulls?state=open&per_page=${perPage}&sort=updated&direction=desc`,
+        `${repoPath(params)}/pulls?state=${state}&per_page=${perPage}&sort=updated&direction=desc`,
         {},
         etag,
       )
 
       if (result.status === 200 && Array.isArray(result.data)) {
-        result.data = await withCi(params, result.data)
+        const open = result.data.filter(
+          (p) => p && typeof p === 'object' && (p as Record<string, unknown>).state === 'open',
+        )
+        const withStatus = await withCi(params, open)
+        const byNumber = new Map(
+          withStatus.map((p) => [(p as Record<string, unknown>).number, p] as const),
+        )
+        result.data = result.data.map((p) =>
+          p && typeof p === 'object'
+            ? (byNumber.get((p as Record<string, unknown>).number) ?? { ...p, ci: 'none' })
+            : p,
+        )
       }
 
       return result
+    }
+
+    /** The account the server token belongs to: login and avatar. */
+    case 'viewer':
+      return githubRequest('/user', {}, etag)
+
+    /** One pull request in full: body, additions, deletions, mergeable state. */
+    case 'pull': {
+      if (!params.number) {
+        throw new Error('pull request number is required')
+      }
+
+      return githubRequest(`${repoPath(params)}/pulls/${params.number}`, {}, etag)
+    }
+
+    /** The files a pull request changes, each with its unified-diff patch. */
+    case 'pullFiles': {
+      if (!params.number) {
+        throw new Error('pull request number is required')
+      }
+
+      return githubRequest(
+        `${repoPath(params)}/pulls/${params.number}/files?per_page=${perPage}`,
+        {},
+        etag,
+      )
+    }
+
+    /**
+     * Every path in the repository at a ref, in one request. GitHub caps this
+     * at 100,000 entries / 7 MB and says so with `truncated: true`.
+     */
+    case 'tree': {
+      const ref = String(params.ref || 'HEAD').trim()
+
+      return githubRequest(
+        `${repoPath(params)}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
+        {},
+        etag,
+      )
+    }
+
+    /** One file's contents (base64) and blob sha, at a ref. */
+    case 'file': {
+      const path = encodePath(String(params.path || ''))
+
+      if (!path) {
+        throw new Error('file path is required')
+      }
+
+      const query = params.ref ? `?ref=${encodeURIComponent(params.ref)}` : ''
+
+      return githubRequest(`${repoPath(params)}/contents/${path}${query}`, {}, etag)
+    }
+
+    /**
+     * Create or update one file as a commit. Needs the token to have
+     * Contents: write on the repository. `sha` is the blob being replaced —
+     * GitHub refuses (409) when it no longer matches, which is what stops an
+     * edit made on an old copy from silently overwriting a newer one.
+     */
+    case 'putFile': {
+      const path = encodePath(String(params.path || ''))
+
+      if (!path) {
+        throw new Error('file path is required')
+      }
+
+      if (!params.message?.trim()) {
+        throw new Error('commit message is required')
+      }
+
+      if (typeof params.content !== 'string') {
+        throw new Error('file content is required')
+      }
+
+      return githubRequest(`${repoPath(params)}/contents/${path}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          message: params.message,
+          content: params.content,
+          ...(params.sha ? { sha: params.sha } : {}),
+          ...(params.branch ? { branch: params.branch } : {}),
+        }),
+      })
     }
 
     case 'issues': {
