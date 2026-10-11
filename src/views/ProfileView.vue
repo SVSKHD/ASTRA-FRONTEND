@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { defaultProfile, fetchProfile, saveProfile } from '@/utils/profile'
 import ProfileEditor from '@/components/profile/ProfileEditor.vue'
+import Icon from '@/components/ui/Icon.vue'
 import AuthDialog from '@/components/AuthDialog.vue'
 const resume = ref(defaultProfile())
 const auth = useAuthStore()
@@ -167,18 +168,7 @@ onBeforeUnmount(() => {
       to="/?tab=overview"
       aria-label="Home ? open Spasta app"
       title="Open Spasta app"
-      ><svg
-        aria-hidden="true"
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-      >
-        <path d="m3 10 9-7 9 7v10H3Z" />
-        <path d="M9 20v-7h6v7" /></svg
-      ><span>Home</span></RouterLink
+      ><Icon name="house" size="md" /><span>Home</span></RouterLink
     >
     <div class="pf-owner-controls">
       <button v-if="auth.isSignedIn" @click="editing = true">Edit profile</button

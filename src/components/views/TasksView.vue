@@ -903,6 +903,7 @@ function onRowDragOver(e: DragEvent) {
         v-if="!isMobile"
         :open="selectedExists"
         title="Task details"
+        :task-id="selectedExists ? selectedId : null"
         @width="paneWidth = $event"
         @close="selectedId = null"
       >

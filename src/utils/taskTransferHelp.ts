@@ -54,7 +54,8 @@ export const TASK_TRANSFER_SCHEMA_FIELDS: TaskTransferSchemaField[] = [
     type: 'string | number | null',
     required: false,
     example: '"AK-GROW-001"',
-    notes: 'Points this item under another imported item. `parentId` is accepted too.',
+    notes:
+      'Points this item under another imported item. `parentId` is accepted too; a numeric ID copied from a task detail pane attaches the item to that existing task.',
   },
   {
     field: 'title',

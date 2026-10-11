@@ -19,6 +19,18 @@ const emit = defineEmits<{ close: [] }>()
 
 const app = useAppStore()
 const text = ref('')
+const example = computed(() =>
+  JSON.stringify(
+    {
+      collection: props.collection,
+      parentId: props.parentId,
+      parentTitle: props.parentTitle,
+      items: [{ title: 'New subtask title', description: 'Describe what needs to be done' }],
+    },
+    null,
+    2,
+  ),
+)
 watch(
   () => props.open,
   (open) => {
@@ -29,7 +41,32 @@ watch(
 const read = computed(() =>
   text.value.trim() ? parseItemsForParent(text.value, props.collection) : null,
 )
-const noun = computed(() => (props.collection === 'tasks' ? 'task' : 'todo'))
+const noun = computed(() =>
+  props.collection === 'tasks' ? 'task' : props.collection === 'ideas' ? 'idea' : 'todo',
+)
+const reference = computed(() =>
+  JSON.stringify(
+    {
+      type: noun.value,
+      collection: props.collection,
+      id: props.parentId,
+      title: props.parentTitle,
+    },
+    null,
+    2,
+  ),
+)
+async function copyReference() {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
+    await navigator.clipboard.writeText(reference.value)
+    app.showToastMsg(
+      `${noun.value === 'todo' ? 'Todo' : noun.value === 'idea' ? 'Idea' : 'Task'} reference copied`,
+    )
+  } catch {
+    app.showToastMsg('Could not copy reference')
+  }
+}
 const count = computed(() => read.value?.items.length ?? 0)
 
 // The first rows of what will be added, indented by how deep they sit.
@@ -37,7 +74,8 @@ const preview = computed(() => {
   const items = read.value?.items ?? []
   const depthOf = new Map<string, number>()
   return items.slice(0, 8).map((it) => {
-    const d = it.parentSourceId != null ? (depthOf.get(it.parentSourceId) ?? 0) + 1 : 0
+    const parentDepth = it.parentSourceId != null ? depthOf.get(it.parentSourceId) : undefined
+    const d = parentDepth === undefined ? 0 : parentDepth + 1
     depthOf.set(it.sourceId, d)
     return { title: it.title, depth: d, done: it.status === 'done' }
   })
@@ -64,12 +102,24 @@ function add() {
         Paste JSON — an export, a list, or items with their own subtasks — or plain text, one sub{{
           noun
         }}
-        per line. Extra spaces, bullets and code fences are fine.
+        per line. Extra spaces, bullets and code fences are fine. Parent: {{ parentTitle }} (ID
+        {{ parentId }}). Edit only each item's title and description; this dialog attaches them to
+        this parent automatically.
       </p>
+      <div class="am__reference">
+        <span class="am__reference-label">Parent {{ noun }} ? #{{ parentId }}</span>
+        <strong>{{ parentTitle }}</strong>
+        <button type="button" class="am__btn" @click="copyReference">
+          Copy {{ noun }} reference
+        </button>
+      </div>
+      <button type="button" class="am__btn am__template" @click="text = example">
+        Use JSON template
+      </button>
       <TextArea
         v-model="text"
         :rows="9"
-        placeholder='[{ "title": "Guest checkout" }, { "title": "Quick COD checkout" }]'
+        :placeholder="example"
         aria-label="Sub-items to add"
         class="am__box"
       />
@@ -112,6 +162,31 @@ function add() {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
+}
+.am__reference {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 12px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-control);
+}
+.am__reference-label {
+  color: var(--theme-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.am__reference strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--theme-text);
+}
+.am__template {
+  align-self: flex-start;
 }
 .am__hint {
   margin: 0;

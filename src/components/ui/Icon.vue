@@ -9,8 +9,14 @@
 // Colour comes from `currentColor`, so an icon is coloured by the text around
 // it — there is no colour prop, because "the icon is a different colour from
 // its label" is a decision nobody should be making per call site.
-import { computed } from 'vue'
-import { ICON_SIZES, ICON_VIEWBOX, type IconName, type IconSize } from '@/components/ui/icons'
+import { computed, watch } from 'vue'
+import {
+  ICON_SIZES,
+  ICON_VIEWBOX,
+  registerIcon,
+  type IconName,
+  type IconSize,
+} from '@/components/ui/icons'
 
 const props = withDefaults(
   defineProps<{
@@ -22,6 +28,14 @@ const props = withDefaults(
     label?: string
   }>(),
   { size: 'sm', label: '' },
+)
+
+watch(
+  () => props.name,
+  (name) => {
+    void registerIcon(name).catch((error) => console.error('Could not load icon', name, error))
+  },
+  { immediate: true },
 )
 
 const px = computed(() => ICON_SIZES[props.size])

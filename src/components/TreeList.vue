@@ -22,13 +22,12 @@ import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
 import { richPlain } from '@/utils/richText'
 import TitleTagPill from '@/components/TitleTagPill.vue'
-import { DANGER, WARNING, doneText, merge, pxify, rowBase, typeStep, itemTitle } from '@/styles'
+import { DANGER, WARNING, merge, pxify, rowBase, typeStep, itemTitle } from '@/styles'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
 import TreeDropLine from '@/components/TreeDropLine.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
-import StatusPill from '@/components/StatusPill.vue'
 import IssueChip from '@/components/IssueChip.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import { IDEA_TYPE_OPTIONS } from '@/types'
@@ -181,9 +180,6 @@ function goalsOf(id: number): { id: number; label: string }[] {
 function done(id: number) {
   return nodeOf(id)?.status === 'done'
 }
-function statusOf(id: number) {
-  return nodeOf(id)?.status ?? 'pending'
-}
 function conflicted(id: number) {
   return nodeOf(id)?.hasConflict === true
 }
@@ -271,13 +267,9 @@ function onMainClick(event: MouseEvent) {
 // Completed with an Undo toast (useTodoCompletion).
 const completion = useTodoCompletion()
 function toggleDone(id: number) {
-  if (isTasks.value) app.cycleTaskStatus(id)
+  if (isTasks.value) app.toggleTask(id)
   else if (isIdeas.value) app.toggleIdea(id)
   else completion.toggle(id)
-}
-function cycleStatus(id: number) {
-  if (isTasks.value) app.cycleTaskStatus(id)
-  else app.cycleTodoStatus(id)
 }
 function del(id: number) {
   app.deleteWithUndo(props.collection, itemType(), id)
@@ -535,7 +527,7 @@ const rowStyle = computed(() =>
     { padding: '14px 16px', gap: 14, borderRadius: 18 },
   ),
 )
-function textStyle(id: number) {
+function textStyle() {
   // Todos draw their own strike (the animated line in the stylesheet); the
   // text-decoration would appear at once, ahead of it.
   return pxify({
@@ -543,7 +535,6 @@ function textStyle(id: number) {
     fontWeight: 'var(--weight-semibold)',
     color: c.value.text,
     lineHeight: 1.3,
-    ...(isTasks.value ? doneText(done(id)) : {}),
   })
 }
 const monoCount = computed(() =>
@@ -574,13 +565,12 @@ const descStyle = computed(() =>
   }),
 )
 const mainTight = pxify({ gap: 2 })
-// Tasks wrap their chips under a long title; a todo's title is one line with
-// an ellipsis (the Todo v2 row) and its chips stay beside it.
+// Titles truncate on one line, with metadata chips beside them.
 const titleLine = computed(() =>
   pxify({
     display: 'flex',
     alignItems: 'center',
-    flexWrap: isTasks.value ? 'wrap' : 'nowrap',
+    flexWrap: 'nowrap',
     columnGap: 'var(--sp-2)',
     rowGap: 2,
     minWidth: 0,
@@ -615,7 +605,6 @@ const chevronBtn = pxify({
   cursor: 'pointer',
 })
 // Same width as the Caret box, so rows with and without children line up.
-const chevronSpacer = pxify({ width: 26, flexShrink: 0 })
 const dueChipStyle = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim }))
 // Goal-attachment chip (task 8): a subtle accent-outlined pill on rows that
 // belong to one or more goals, so attachment is visible from the Tasks/Todos tab.
@@ -718,11 +707,10 @@ const rootStripStyle = computed(() =>
     <div
       v-for="row in rows"
       :key="row.id"
-      :class="
-        isTasks
-          ? undefined
-          : ['todo-row-shell', { 'is-leaving': !isIdeas && completion.isLeaving(row.id) }]
-      "
+      :class="[
+        'todo-row-shell',
+        { 'is-leaving': !isTasks && !isIdeas && completion.isLeaving(row.id) },
+      ]"
       :style="nodeWrap(row.depth)"
     >
       <div :style="swipeRows ? swipeClip : barWrap">
@@ -765,21 +753,6 @@ const rootStripStyle = computed(() =>
           @pointerup="swUp"
           @pointercancel="swUp"
         >
-          <template v-if="swipeRows || !isTasks"></template>
-          <button
-            v-else-if="hasKids(row.id)"
-            type="button"
-            :style="chevronBtn"
-            :aria-label="expanded(row.id) ? 'Collapse' : 'Expand'"
-            :aria-expanded="expanded(row.id)"
-            @pointerdown="expandTap.onPointerDown"
-            @pointercancel="expandTap.onPointerCancel"
-            @click.stop="(e: MouseEvent) => onExpandClick(e, row.id)"
-          >
-            <Caret :open="expanded(row.id)" />
-          </button>
-          <span v-else :style="chevronSpacer"></span>
-
           <TreeDragHandle
             v-if="!swipeRows"
             :collection="collection"
@@ -787,10 +760,8 @@ const rootStripStyle = computed(() =>
             :title="title(row.id)"
           />
 
-          <StatusPill v-if="isTasks" :status="statusOf(row.id)" @cycle="cycleStatus(row.id)" />
           <!-- Todos (Todo v2, 4b): the checkbox wears its subtask progress. -->
           <RingCheck
-            v-else
             :done="done(row.id)"
             :sub-done="progress(row.id).done"
             :sub-total="progress(row.id).total"
@@ -804,14 +775,9 @@ const rootStripStyle = computed(() =>
             @click="onMainClick"
           >
             <div :style="titleLine">
-              <span v-if="isTasks" :style="[textStyle(row.id), todoTitle]" :title="title(row.id)">{{
-                title(row.id)
-              }}</span>
-              <template v-else>
-                <span :style="[textStyle(row.id), todoTitle]" :title="title(row.id)"
-                  ><StrikeText :done="done(row.id)">{{ title(row.id) }}</StrikeText></span
-                >
-              </template>
+              <span :style="[textStyle(), todoTitle]" :title="title(row.id)"
+                ><StrikeText :done="done(row.id)">{{ title(row.id) }}</StrikeText></span
+              >
               <div :style="s.chipRow">
                 <span v-if="ideaTypeOf(row.id)" :style="dueChipStyle">{{
                   ideaTypeOf(row.id)
@@ -849,7 +815,7 @@ const rootStripStyle = computed(() =>
               <TitleTagPill v-if="tagOf(row.id)" :tag="tagOf(row.id)" />
               <span
                 v-if="desc(row.id)"
-                :class="{ 'todo-desc': !isTasks, 'is-done': done(row.id) }"
+                :class="{ 'todo-desc': true, 'is-done': done(row.id) }"
                 :style="descStyle"
                 :title="desc(row.id)"
                 >{{ desc(row.id) }}</span
@@ -895,13 +861,26 @@ const rootStripStyle = computed(() =>
               <Icon name="x" size="md" />
             </IconButton>
           </div>
-          <template v-else>
+          <div v-else class="row-actions">
             <span
               v-if="progress(row.id).total"
               class="todo-count"
               :title="progress(row.id).done + ' of ' + progress(row.id).total + ' subtasks done'"
               >{{ progress(row.id).done }}/{{ progress(row.id).total }}</span
             >
+            <button
+              v-if="isTasks && hasKids(row.id)"
+              type="button"
+              :style="chevronBtn"
+              :aria-label="expanded(row.id) ? 'Collapse' : 'Expand'"
+              :aria-expanded="expanded(row.id)"
+              @pointerdown="expandTap.onPointerDown"
+              @pointercancel="expandTap.onPointerCancel"
+              @click.stop="(e: MouseEvent) => onExpandClick(e, row.id)"
+            >
+              <Caret :open="expanded(row.id)" />
+            </button>
+
             <button
               type="button"
               class="tree-row__quiet"
@@ -912,10 +891,12 @@ const rootStripStyle = computed(() =>
               @pointerdown.stop
               @click.stop="startAddSub(row.id)"
             >
-              <Icon name="plus" size="xs" />
+              <Icon name="plus" size="md" />
             </button>
-            <RemindBell :collection="collection" :id="row.id" />
-            <button :style="s.shareBtn" @click.stop="app.share('task', nodeOf(row.id)!)">↗</button>
+            <RemindBell :collection="collection" :id="row.id" size="md" icon-size="md" />
+            <button :style="s.shareBtn" @click.stop="app.share('task', nodeOf(row.id)!)">
+<Icon name="share" size="md"/>
+            </button>
             <IconButton
               class="row-reveal"
               label="Delete task"
@@ -923,9 +904,9 @@ const rootStripStyle = computed(() =>
               @pointerdown.stop
               @click.stop="del(row.id)"
             >
-              <Icon name="x" size="sm" />
+              <Icon name="x" size="md" />
             </IconButton>
-          </template>
+          </div>
         </div>
         <TreeDropLine
           v-if="showLine(row.id, 'below')"

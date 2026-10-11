@@ -54,7 +54,11 @@ function add() {
   }
   emit('update:modelValue', [
     ...items,
-    items.length ? blank(items[0]) : (templates[props.label] ?? ''),
+    items.length
+      ? blank(items[0])
+      : initialItem !== undefined
+        ? blank(initialItem)
+        : (templates[props.label] ?? ''),
   ])
 }
 </script>

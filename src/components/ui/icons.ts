@@ -1,3 +1,6 @@
+import { shallowReactive } from 'vue'
+import { LUCIDE_NAMES, type LucideIconName } from './lucideNames.generated'
+
 // The icon set (section 21e). One set, one weight, one size scale.
 //
 // Before this the app drew thirty-four inline `<svg>` elements across nineteen
@@ -43,8 +46,8 @@ export const ICONS = {
     '<rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" /><path d="M10 12h4" />',
   // The Enter key, for a submit that Enter also does (the quick add's "Add ↵").
   'corner-down-left': '<polyline points="9 10 4 15 9 20" /><path d="M20 4v7a4 4 0 0 1-4 4H4" />',
-  'arrow-up': '<line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />',
-  'arrow-down': '<line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" />',
+  'arrow-up': '<path d="m5 12 7-7 7 7" /><path d="M12 19V5" />',
+  'arrow-down': '<path d="M12 5v14" /><path d="m19 12-7 7-7-7" />',
   bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />',
   bot: '<rect x="4.5" y="6.5" width="15" height="12.5" rx="4" /><path d="M12 3v3.5" /><circle cx="9" cy="12.6" r="1.3" /><circle cx="15" cy="12.6" r="1.3" />',
   calendar:
@@ -175,10 +178,27 @@ export const ICONS = {
     '<path d="M4 14.9A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.24" /><path d="M16 17H7M17 21H9" />',
 } as const
 
-export type IconName = keyof typeof ICONS
+export type IconName = keyof typeof ICONS | LucideIconName
 
-export const ICON_NAMES = Object.keys(ICONS) as IconName[]
+export const ICON_NAMES = [
+  ...new Set<IconName>([...(Object.keys(ICONS) as IconName[]), ...LUCIDE_NAMES]),
+]
+const knownNames = new Set<string>(ICON_NAMES)
+export const ICON_SYMBOLS = shallowReactive<Record<string, string>>({ ...ICONS })
+let library: Promise<typeof import('./lucide.generated')> | undefined
+
+export async function registerIcon(name: IconName): Promise<void> {
+  if (Object.hasOwn(ICON_SYMBOLS, name)) return
+  library ??= import('./lucide.generated').catch((error) => {
+    library = undefined
+    throw error
+  })
+  const { LUCIDE_ICONS } = await library
+  if (Object.hasOwn(LUCIDE_ICONS, name)) {
+    ICON_SYMBOLS[name] = LUCIDE_ICONS[name as LucideIconName]
+  }
+}
 
 export function isIconName(value: unknown): value is IconName {
-  return typeof value === 'string' && Object.hasOwn(ICONS, value)
+  return typeof value === 'string' && knownNames.has(value)
 }

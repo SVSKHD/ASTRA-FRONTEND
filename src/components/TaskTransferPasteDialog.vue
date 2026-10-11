@@ -133,7 +133,8 @@ function importNow() {
     <div class="tpaste">
       <p class="tpaste__lede">
         Paste exported JSON, an AI-made list, an import URL, or the sample shape from the helper. A
-        plain array also works.
+        plain array also works. To add children to an existing task, copy its Parent ID from the
+        detail pane and set each new item?s parentId to that ID.
       </p>
       <div class="tpaste__tools">
         <Button variant="secondary" size="sm" @click="pasteClipboard">Paste from clipboard</Button>

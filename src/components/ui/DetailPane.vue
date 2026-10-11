@@ -19,6 +19,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import SlideOver, { type SlideOverSize } from '@/components/ui/SlideOver.vue'
 import Icon from '@/components/ui/Icon.vue'
+import { copyToClipboard } from '@/utils/share'
 import { nextPaneMode, paneModeAction, paneModeIcon } from '@/utils/paneMode'
 import type { ShortStep } from '@/components/ui/type'
 
@@ -32,6 +33,8 @@ const props = withDefaults(
      *  over the list. */
     open: boolean
     title: string
+    /** ID of the selected task, usable as parentId in JSON imports. */
+    taskId?: number | null
     /** A line beside the title, on its baseline, saying what the pane shows
      *  ("First open subtasks of each todo"). */
     subtitle?: string
@@ -68,6 +71,15 @@ const drawerSize = computed<SlideOverSize>(() => (mode.value === 'compact' ? 'co
 const next = computed(() => nextPaneMode(mode.value))
 const modeIcon = computed(() => paneModeIcon(next.value))
 const modeLabel = computed(() => paneModeAction(next.value))
+async function copyParentId() {
+  if (props.taskId == null) return
+  try {
+    await copyToClipboard(String(props.taskId))
+    app.showToastMsg('Parent task ID copied')
+  } catch {
+    app.showToastMsg('Could not copy parent task ID')
+  }
+}
 function cycle() {
   app.setPaneMode(next.value)
 }
@@ -159,6 +171,16 @@ const modeBtnHover = computed(() => ({ color: c.value.accent, borderColor: c.val
       </div>
       <span v-else :style="headSpacer"></span>
       <button
+        v-if="props.open && taskId != null"
+        class="detail-parent-id"
+        type="button"
+        title="Copy this task ID to use as parentId in JSON"
+        :aria-label="'Copy parent task ID ' + taskId"
+        @click="copyParentId"
+      >
+        <Icon name="copy" size="xs" />Parent ID: {{ taskId }}
+      </button>
+      <button
         type="button"
         :style="modeBtn"
         v-hover-style="modeBtnHover"
@@ -198,6 +220,40 @@ const modeBtnHover = computed(() => ({ color: c.value.accent, borderColor: c.val
     @width="emit('width', $event)"
     @close="emit('close')"
   >
+    <button
+      v-if="taskId != null"
+      class="detail-parent-id"
+      type="button"
+      title="Copy this task ID to use as parentId in JSON"
+      :aria-label="'Copy parent task ID ' + taskId"
+      @click="copyParentId"
+    >
+      <Icon name="copy" size="xs" />Parent ID: {{ taskId }}
+    </button>
     <slot />
   </SlideOver>
 </template>
+
+<style scoped>
+.detail-parent-id {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  align-self: flex-start;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-control);
+  background: var(--theme-input);
+  color: var(--theme-dim);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.detail-parent-id:hover {
+  color: var(--theme-accent);
+  border-color: var(--theme-accent);
+}
+</style>

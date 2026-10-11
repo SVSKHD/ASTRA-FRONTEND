@@ -1647,24 +1647,33 @@ export const useAppStore = defineStore('app', () => {
   function applyImportedHierarchy(
     collection: TaskTransferCollection,
     rows: { newId: number; item: TaskTransferItem; sourceKey: string }[],
+    resolveExistingParents = true,
   ) {
     if (rows.length === 0) return
     const importedIds = new Set(rows.map((row) => row.newId))
     const bySource = new Map<string, number>()
     for (const row of rows) if (!bySource.has(row.sourceKey)) bySource.set(row.sourceKey, row.newId)
 
+    const list: readonly (Todo | Task | Idea)[] =
+      collection === 'todos' ? todos.value : collection === 'ideas' ? ideas.value : tasks.value
+    const existing = new Map(
+      list.filter((item) => !importedIds.has(item.id)).map((item) => [item.id, item]),
+    )
     const children = new Map<number | null, number[]>()
     for (const row of rows) {
       const parent =
-        row.item.parentSourceId != null ? (bySource.get(row.item.parentSourceId) ?? null) : null
+        row.item.parentSourceId != null
+          ? (bySource.get(row.item.parentSourceId) ??
+            (resolveExistingParents && existing.has(Number(row.item.parentSourceId))
+              ? Number(row.item.parentSourceId)
+              : null))
+          : null
       const parentId = parent === row.newId ? null : parent
       const group = children.get(parentId)
       if (group) group.push(row.newId)
       else children.set(parentId, [row.newId])
     }
 
-    const list: readonly (Todo | Task | Idea)[] =
-      collection === 'todos' ? todos.value : collection === 'ideas' ? ideas.value : tasks.value
     const rootOrders = list
       .filter((item) => !importedIds.has(item.id) && item.parentId == null)
       .map((item) => item.order)
@@ -1676,11 +1685,16 @@ export const useAppStore = defineStore('app', () => {
 
     const visit = (parentId: number | null, depth: number, rootId: number) => {
       const group = children.get(parentId) ?? []
+      const siblings = list.filter(
+        (item) => !importedIds.has(item.id) && item.parentId === parentId,
+      )
+      const siblingBase = siblings.length ? Math.max(...siblings.map((item) => item.order)) + 1 : 0
       group.forEach((id, index) => {
+        if (meta.has(id)) return
         const nodeRoot = parentId == null ? id : rootId
         meta.set(id, {
           parentId,
-          order: parentId == null ? rootBase + index : index,
+          order: parentId == null ? rootBase + index : siblingBase + index,
           depth,
           rootId: nodeRoot,
         })
@@ -1688,6 +1702,21 @@ export const useAppStore = defineStore('app', () => {
       })
     }
     visit(null, 0, 0)
+    for (const parentId of children.keys()) {
+      const parent = parentId == null ? undefined : existing.get(parentId)
+      if (parent) visit(parent.id, parent.depth + 1, parent.rootId)
+    }
+    // Cyclic imported references become roots instead of leaving unreachable items.
+    for (const row of rows)
+      if (!meta.has(row.newId)) {
+        meta.set(row.newId, {
+          parentId: null,
+          order: rootBase + meta.size,
+          depth: 0,
+          rootId: row.newId,
+        })
+        visit(row.newId, 1, row.newId)
+      }
 
     if (collection === 'ideas') {
       ideas.value = ideas.value.map((idea) => {
@@ -1710,6 +1739,7 @@ export const useAppStore = defineStore('app', () => {
   function importTaskTransferItems(
     collection: TaskTransferCollection,
     items: TaskTransferItem[],
+    resolveExistingParents = true,
   ): number {
     const rows: { newId: number; item: TaskTransferItem; sourceKey: string }[] = []
     const completedAt = Date.now()
@@ -1740,7 +1770,7 @@ export const useAppStore = defineStore('app', () => {
               })
       if (newId != null) rows.push({ newId, item, sourceKey: item.sourceId || String(index) })
     })
-    applyImportedHierarchy(collection, rows)
+    applyImportedHierarchy(collection, rows, resolveExistingParents)
     return rows.length
   }
 
@@ -1770,7 +1800,7 @@ export const useAppStore = defineStore('app', () => {
       return { count: 0, as: read.as, error: 'That item no longer exists.' }
     }
     const before = new Set(current().map((t) => t.id))
-    const count = importTaskTransferItems(collection, read.items)
+    const count = importTaskTransferItems(collection, read.items, false)
     const fresh = current()
       .filter((t) => !before.has(t.id) && t.parentId == null)
       .sort((a, b) => a.order - b.order)

@@ -99,7 +99,7 @@ export function useDetailStyles() {
       ...typeStep('2xs'),
     }),
   )
-  const dimSmall = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim }))
+  const dimSmall = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim }))
   function titleStyle(done: boolean) {
     return pxify({
       ...typeStep('xl'),
