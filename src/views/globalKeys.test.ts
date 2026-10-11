@@ -129,6 +129,8 @@ describe('"/" then "n" — a new one of whatever the tab makes', () => {
     taskView: false,
     share: false,
     notesDrawer: false,
+    timelineDrawer: false,
+    timelineEditor: false,
     themePanel: false,
     securityPanel: false,
     githubPanel: false,

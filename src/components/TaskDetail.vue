@@ -10,7 +10,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, fmtDay, useDetailStyles } from '@/composables/useDetailStyles'
-import { buildIndex, childrenOf, ancestorsOf, descendantsOf } from '@/utils/taskTree'
+import { buildIndex, childrenOf, ancestorsOf, descendantsOf, doneFirst } from '@/utils/taskTree'
 import { daysRemaining, formatMinutes, parseMinutes, statusWord } from '@/utils/detailFields'
 import StatusPill from '@/components/StatusPill.vue'
 import RemindBell from '@/components/RemindBell.vue'
@@ -19,6 +19,7 @@ import MoveToDeadlineButton from '@/components/MoveToDeadlineButton.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import PaneSection from '@/components/detail/PaneSection.vue'
 import PaneNotes from '@/components/detail/PaneNotes.vue'
+import TaskTimeline from '@/components/detail/TaskTimeline.vue'
 import PaneButton from '@/components/detail/PaneButton.vue'
 import PaneToolbar from '@/components/detail/PaneToolbar.vue'
 import TextInput from '@/components/ui/TextInput.vue'
@@ -72,7 +73,10 @@ const {
 
 const index = computed(() => buildIndex(tasks.value))
 const task = computed(() => (props.taskId == null ? undefined : index.value.byId.get(props.taskId)))
-const subtasks = computed(() => (task.value ? childrenOf(index.value, task.value.id) : []))
+// Just-finished subtasks first (most recent at the top), then the open ones.
+const subtasks = computed(() =>
+  task.value ? doneFirst(childrenOf(index.value, task.value.id)) : [],
+)
 const subDone = computed(() => subtasks.value.filter((t) => t.status === 'done').length)
 const allDescendants = computed(() =>
   task.value ? descendantsOf(index.value, task.value.id).length : 0,
@@ -347,6 +351,9 @@ function moveTaskToTodos() {
 
           <!-- Attached notes, read and edited in place, before the subtasks. -->
           <PaneNotes type="task" :id="task.id" />
+
+          <!-- The timeline entries this task builds, beside its notes. -->
+          <TaskTimeline :task-id="task.id" />
 
           <!-- Subtasks: one card each — the check, the title, a status dot. -->
           <div class="dp-subs">

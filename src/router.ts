@@ -26,6 +26,7 @@ export const TAB_ROUTES: Record<string, TabKey> = {
 }
 
 const routes: RouteRecordRaw[] = [
+  { path: '/profile', name: 'profile', component: () => import('@/views/ProfileView.vue') },
   {
     path: '/astra',
     name: 'astra',

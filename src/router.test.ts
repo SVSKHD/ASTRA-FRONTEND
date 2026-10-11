@@ -42,6 +42,11 @@ describe('routes', () => {
     await import('@/router')
   }, 30_000)
 
+  it('resolves the public profile page', async () => {
+    const r = await makeRouter()
+    expect(r.resolve('/profile').name).toBe('profile')
+  })
+
   it('resolves the public Astra page', async () => {
     const r = await makeRouter()
     expect(r.resolve('/astra').name).toBe('astra')

@@ -1,0 +1,279 @@
+{
+  "hero": {
+    "name": "Hithesh SVSK",
+    "title": "Full-Stack Developer | Trading Systems & Web Apps",
+    "roles": ["trading systems", "web apps", "React & Vue UIs", "Python backends"],
+    "summary": "Builds real-time trading observation systems, business web apps and multilingual Vue apps, from Python backends to polished Vue frontends.",
+    "links": []
+  },
+  "glance": [
+    {
+      "k": "role",
+      "v": "Full-stack developer"
+    },
+    {
+      "k": "building",
+      "v": "Aureon Beast · Aureon MCX"
+    },
+    {
+      "k": "markets",
+      "v": "XAUUSD · XAGUSD · MCX"
+    },
+    {
+      "k": "products",
+      "v": "PawSattva · AquaKart"
+    },
+    {
+      "k": "stack",
+      "v": "Python · Node.js · React · Vue · TS"
+    }
+  ],
+  "ticker": ["XAUUSD · M5", "XAGUSD · M5", "MCX GOLD · H1", "MCX SILVER · M15"],
+  "about": {
+    "intro": "I build full-stack software end to end: Python services that watch markets in real time, and React and Vue frontends for businesses and everyday users. My trading tools are observation-first, so every signal is reviewed by a person before any trade is placed. Alongside them I co-founded PawSattva and built AquaKart, two production web apps serving real customers.",
+    "focus": [
+      {
+        "tag": "python · mt5 · dhanhq",
+        "title": "Trading systems",
+        "body": "Signal engines for gold and silver on MT5 and MCX, with Discord interfaces and outcome tracking."
+      },
+      {
+        "tag": "react · vue · web",
+        "title": "Business web apps",
+        "body": "Customer-facing platforms like PawSattva’s feed planner and the AquaKart catalogue."
+      },
+      {
+        "tag": "vue 3 · ts · i18n",
+        "title": "Multilingual apps",
+        "body": "Hindi, English and Telugu content with text-to-speech in Mantra Darshan."
+      }
+    ]
+  },
+  "stack": [
+    {
+      "group": "Frontend",
+      "icon": "FE",
+      "items": ["React", "Vue 3", "TypeScript", "JavaScript", "Vite", "HTML5", "CSS3"]
+    },
+    {
+      "group": "Backend",
+      "icon": "BE",
+      "items": [
+        "Python",
+        "Node.js",
+        "Express",
+        "Socket.IO (real-time chat)",
+        "REST APIs",
+        "Micro-frontend architecture"
+      ]
+    },
+    {
+      "group": "Databases",
+      "icon": "DB",
+      "items": ["PostgreSQL", "SQLite (WAL)", "Firebase Firestore", "Supabase", "Parquet archives"]
+    },
+    {
+      "group": "Trading & APIs",
+      "icon": "TR",
+      "items": ["MetaTrader 5 Python API", "DhanHQ API v2 (MCX)", "Discord bots / slash commands"]
+    },
+    {
+      "group": "Tools",
+      "icon": "TL",
+      "items": ["Git", "GitHub", "Windows server setup"]
+    },
+    {
+      "group": "AI-Assisted Dev",
+      "icon": "AI",
+      "items": ["GitHub Copilot", "Cursor", "Claude", "ChatGPT"]
+    }
+  ],
+  "featured": {
+    "title": "Aureon Beast: Gold & Silver Trading Observation System",
+    "kind": "Trading system",
+    "role": "Solo build",
+    "pitch": "Watches gold and silver in real time, posts signals to Discord, and waits for a human to confirm before any trade is placed.",
+    "stack": [
+      "Python",
+      "MT5",
+      "Firestore → PostgreSQL",
+      "SQLite outbox",
+      "Parquet",
+      "Discord",
+      "Vue"
+    ],
+    "facts": [
+      {
+        "v": "2",
+        "k": "metals · XAU / XAG"
+      },
+      {
+        "v": "M5",
+        "k": "signal timeframe"
+      },
+      {
+        "v": "4",
+        "k": "slash commands"
+      },
+      {
+        "v": "0",
+        "k": "auto-trades"
+      }
+    ],
+    "bullets": [
+      "Real-time signal engine for XAUUSD and XAGUSD on M5 with EMA cross, wick and volume-profile analysis",
+      "Discord command interface (/execute-trade, /status, /monitor, /remind price) with human-confirmed trade execution; detections never auto-trade",
+      "Trade lifecycle tracking and automated weekend performance reviews",
+      "Migrated state from Firestore to local PostgreSQL with Parquet candle archive and optional Supabase mirror"
+    ],
+    "flow": [
+      {
+        "label": "Market feed",
+        "tech": "MT5 Python API"
+      },
+      {
+        "label": "Signal engine",
+        "tech": "EMA · wick · VP"
+      },
+      {
+        "label": "Outbox queue",
+        "tech": "SQLite"
+      },
+      {
+        "label": "Signal card",
+        "tech": "Discord"
+      },
+      {
+        "label": "Human confirm → order",
+        "tech": "/execute-trade"
+      }
+    ],
+    "storage": "PostgreSQL · Parquet candles · Supabase mirror",
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/SVSKHD/Aureon_Beast"
+      }
+    ]
+  },
+  "projects": [
+    {
+      "title": "Aureon MCX: Commodity Futures Signal Bot",
+      "kind": "Trading system",
+      "role": "Solo build",
+      "stack": ["Python", "DhanHQ API v2", "SQLite (WAL)", "Discord"],
+      "facts": [
+        {
+          "v": "4",
+          "k": "timeframes"
+        },
+        {
+          "v": "2",
+          "k": "MCX contracts"
+        }
+      ],
+      "bullets": [
+        "MCX GOLD and SILVER futures observation with multi-timeframe context (M5, M15, H1, H4)",
+        "Dynamic SymbolResolver instead of hard-coded contract IDs",
+        "Read-only Discord signal cards with final-check step; MFE/MAE outcome learning"
+      ],
+      "flowLabel": "Pipeline",
+      "flow": [
+        "DhanHQ v2",
+        "SymbolResolver",
+        "MTF context",
+        "Final check",
+        "Discord card",
+        "MFE/MAE"
+      ],
+      "links": []
+    },
+    {
+      "title": "PawSattva: Pet Nutrition Web App",
+      "kind": "Web app",
+      "role": "Co-founder & Developer",
+      "shot": "Pet Feed Planner screenshot",
+      "stack": [],
+      "facts": [
+        {
+          "v": "4",
+          "k": "step consultation"
+        },
+        {
+          "v": "3",
+          "k": "diet goals"
+        }
+      ],
+      "bullets": [
+        "Co-founder and developer of a pet nutrition platform",
+        "Built the Pet Feed Planner: multi-step consultation form (Pet Parent → Pet Profile → Body Condition → Feeding Details)",
+        "Supports personalised diet plans for maintenance, weight loss and weight gain"
+      ],
+      "flowLabel": "Feed Planner flow",
+      "flow": ["Pet Parent", "Pet Profile", "Body Condition", "Feeding Details", "Diet plan"],
+      "links": [
+        {
+          "label": "pawsattva.com",
+          "href": "https://pawsattva.com"
+        }
+      ]
+    },
+    {
+      "title": "AquaKart",
+      "kind": "E-commerce",
+      "role": "Developer",
+      "shot": "AquaKart storefront screenshot",
+      "stack": [],
+      "facts": [],
+      "bullets": ["E-commerce site for water softeners, purifiers and filtration products"],
+      "flow": [],
+      "links": [
+        {
+          "label": "aquakart.co.in",
+          "href": "https://aquakart.co.in"
+        }
+      ]
+    },
+    {
+      "title": "Mantra Darshan: Multilingual Deity Mantra App",
+      "kind": "Vue app",
+      "role": "Solo build",
+      "shot": "Deity view screenshot",
+      "stack": ["Vue 3", "TypeScript", "Vite"],
+      "facts": [
+        {
+          "v": "3",
+          "k": "languages · HI / EN / TE"
+        }
+      ],
+      "bullets": [
+        "Select a deity to view its mantra in Hindi, English and Telugu",
+        "Text-to-speech playback and animated 3D deity visuals"
+      ],
+      "flowLabel": "User flow",
+      "flow": ["Pick deity", "Choose language", "Read mantra", "Play TTS"],
+      "links": []
+    }
+  ],
+  "experience": [
+    {
+      "role": "[Role]",
+      "org": "[Company / Freelance]",
+      "dates": "[Start ? End]",
+      "bullets": ["[Achievement or responsibility]", "[Achievement or responsibility]"]
+    },
+    {
+      "role": "[Role]",
+      "org": "[Company / Freelance]",
+      "dates": "[Start ? End]",
+      "bullets": ["[Achievement or responsibility]", "[Achievement or responsibility]"]
+    }
+  ],
+  "education": [
+    {
+      "degree": "[Degree]",
+      "school": "[College]",
+      "year": "[Year]"
+    }
+  ]
+}

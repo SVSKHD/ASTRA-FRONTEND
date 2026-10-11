@@ -129,6 +129,36 @@ describe('code fences (acceptance 83)', () => {
     expect(writeText).toHaveBeenCalledWith('const x = 1\n')
   })
 
+  it('wraps long lines without changing the code or copy contents', async () => {
+    const wrapper = mountView('```ts\nconst x = 1\nconst y = 2\n```')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(wrapper.find('.md-fence-meta').text()).toBe('2 lines')
+    const wrap = wrapper.find('.md-fence-wrap')
+    await wrap.trigger('click')
+    expect(wrap.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.find('.md-code-card').classes()).toContain('is-wrapped')
+    expect(wrapper.find('code').text()).toContain('const y = 2')
+    await wrap.trigger('click')
+    expect(wrap.attributes('aria-pressed')).toBe('false')
+    wrapper.unmount()
+  })
+
+  it('reports clipboard failure and allows a retry', async () => {
+    const writeText = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Denied'))
+      .mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const wrapper = mountView('```js\nconst x = 1\n```')
+    await new Promise((r) => setTimeout(r, 0))
+    const copy = wrapper.find('.md-fence-copy')
+    await copy.trigger('click')
+    expect(copy.text()).toBe('Try again')
+    await copy.trigger('click')
+    expect(copy.text()).toBe('Copied')
+    wrapper.unmount()
+  })
+
   it('adds no fence chrome to a note without code', async () => {
     const wrapper = mountView('# Title\n\njust prose')
     await new Promise((r) => setTimeout(r, 0))

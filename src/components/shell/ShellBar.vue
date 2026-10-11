@@ -4,10 +4,10 @@
 // ONE CENTRED, LABELLED PILL. The bar used to be eight icon buttons in two
 // groups, and two of them were suns that did different things — the left one
 // opened the account menu, which the avatar also opened — while three separate
-// buttons changed the theme and GitHub wore a share icon. It is now four
+// buttons changed the theme and GitHub wore a share icon. It is now five
 // labelled controls and the sync status:
 //
-//   Notes · Appearance · Account · GitHub  |  ● Synced
+//   Notes · Timeline · Appearance · Account · GitHub  |  ● Synced
 //
 // Mode (dark / light / auto), the espresso roast and the theme grid all live in
 // the Appearance popover, and only one panel is open at a time. Under 900px the
@@ -39,14 +39,14 @@ import AccountMenu from '@/components/shell/AccountMenu.vue'
 const ui = useUiStore()
 const auth = useAuthStore()
 const { c, B } = useStyles()
-const { themePanelOpen, isPhone, drawerOpen } = storeToRefs(ui)
+const { themePanelOpen, isPhone, drawerOpen, timelineOpen } = storeToRefs(ui)
 const { avatarMenuOpen, avatarInitial, avatarColor } = storeToRefs(auth)
 
 const bar = computed(() =>
   pxify({ ...barGeometry({ isPhone: isPhone.value }), justifyContent: 'center' }),
 )
 
-function open(name: 'notes' | 'appearance' | 'account') {
+function open(name: 'notes' | 'timeline' | 'appearance' | 'account') {
   ui.openShellPanel(name, avatarMenuOpen)
 }
 function openGithub() {
@@ -141,6 +141,18 @@ const groupLabel = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim
       >
         <Icon name="notebook" size="sm" class="pill-icon" />
         <span class="pill-label">Notes</span>
+      </button>
+
+      <button
+        type="button"
+        class="pill-btn"
+        :class="{ 'is-on': timelineOpen }"
+        aria-label="Timeline"
+        :aria-expanded="timelineOpen"
+        @click="open('timeline')"
+      >
+        <Icon name="clock" size="sm" class="pill-icon" />
+        <span class="pill-label">Timeline</span>
       </button>
 
       <div :style="wrapRel">

@@ -52,6 +52,8 @@ export const useUiStore = defineStore('ui', () => {
   const now = ref<number>(Date.now())
   const themePanelOpen = ref(false)
   const drawerOpen = ref(false)
+  // The Timeline sidebar, the notes drawer's sibling (TimelineDrawer.vue).
+  const timelineOpen = ref(false)
 
   // --- day accordion + status filter, shared by the todo and task tabs ------
   // Only days the user has actually toggled are stored; everything else falls
@@ -134,6 +136,11 @@ export const useUiStore = defineStore('ui', () => {
   }
   function toggleDrawer() {
     drawerOpen.value = !drawerOpen.value
+    if (drawerOpen.value) timelineOpen.value = false
+  }
+  function toggleTimeline() {
+    timelineOpen.value = !timelineOpen.value
+    if (timelineOpen.value) drawerOpen.value = false
   }
 
   // --- Todo v2 ----------------------------------------------------------------
@@ -142,15 +149,17 @@ export const useUiStore = defineStore('ui', () => {
   // auth store and is handed in, which keeps this store free of a dependency on
   // that one.
   function openShellPanel(
-    name: 'notes' | 'appearance' | 'account' | null,
+    name: 'notes' | 'timeline' | 'appearance' | 'account' | null,
     account: { value: boolean },
   ) {
     const was = {
       notes: drawerOpen.value,
+      timeline: timelineOpen.value,
       appearance: themePanelOpen.value,
       account: account.value,
     }
     drawerOpen.value = name === 'notes' && !was.notes
+    timelineOpen.value = name === 'timeline' && !was.timeline
     themePanelOpen.value = name === 'appearance' && !was.appearance
     account.value = name === 'account' && !was.account
   }
@@ -247,6 +256,7 @@ export const useUiStore = defineStore('ui', () => {
     now,
     themePanelOpen,
     drawerOpen,
+    timelineOpen,
     openDays,
     dayFilter,
     effectiveThemeKey,
@@ -264,6 +274,7 @@ export const useUiStore = defineStore('ui', () => {
     toggleThemeMode,
     toggleThemePanel,
     toggleDrawer,
+    toggleTimeline,
     openShellPanel,
     focus,
     focusRemaining,

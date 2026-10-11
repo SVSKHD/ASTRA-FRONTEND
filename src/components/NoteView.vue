@@ -23,6 +23,7 @@ import { toMarkdown } from '@/utils/noteMigrate'
 import { toggleTaskAt } from '@/utils/mdTyping'
 import { copyAsMarkdown, copyAsRichText, downloadMarkdown } from '@/utils/noteExport'
 import { checklistItems } from '@/utils/mdTyping'
+import { timelineDayLabel, timelineForNote, timelineLabel } from '@/utils/timeline'
 import TextInput from '@/components/ui/TextInput.vue'
 import NoteEditor from '@/components/notes/NoteEditor.vue'
 import MarkdownView from '@/components/notes/MarkdownView.vue'
@@ -32,7 +33,25 @@ import ChecklistToTasks from '@/components/notes/ChecklistToTasks.vue'
 const app = useAppStore()
 const ui = useUiStore()
 const { c, s, isMobile } = useStyles()
-const { noteView, noteViewClosing, openNote, draft, noteSearch } = storeToRefs(app)
+const { noteView, noteViewClosing, openNote, draft, noteSearch, timeline } = storeToRefs(app)
+
+// The Timeline entries this note is linked from, shown under the reading view;
+// and "Add to timeline" in the menu, which starts one already linked to it. The
+// note view steps aside for the editor rather than stacking two dialogs.
+const onTimeline = computed(() =>
+  openNote.value ? timelineForNote(timeline.value, openNote.value.id) : [],
+)
+function showEntry(entryId: number) {
+  app.closeNoteView()
+  app.openTimelineEntry(entryId)
+}
+function addToTimeline() {
+  const n = openNote.value
+  menuOpen.value = false
+  if (!n) return
+  app.closeNoteView()
+  app.newTimelineEntry({ noteIds: [n.id] })
+}
 const { now } = storeToRefs(ui)
 
 const isEdit = computed(() => noteView.value?.mode === 'edit')
@@ -336,6 +355,19 @@ const spacer = pxify({ flex: 1 })
             />
           </div>
         </template>
+        <div v-if="onTimeline.length" class="nv-timeline" aria-label="On the timeline">
+          <span class="nv-timeline__label">On the timeline</span>
+          <button
+            v-for="e in onTimeline"
+            :key="e.id"
+            type="button"
+            class="nv-timeline__chip"
+            @click="showEntry(e.id)"
+          >
+            <span class="nv-timeline__date">{{ timelineDayLabel(e.date) }}</span>
+            {{ timelineLabel(e, 40) }}
+          </button>
+        </div>
         <div :style="s.noteViewFoot">
           <span :style="metaStyle">{{ savedLabel }}</span>
           <span :style="spacer"></span>
@@ -365,6 +397,9 @@ const spacer = pxify({ flex: 1 })
               <button :style="menuItem" v-hover-style="menuItemHover" @click="doExport">
                 Export as .md
               </button>
+              <button :style="menuItem" v-hover-style="menuItemHover" @click="addToTimeline">
+                Add to timeline
+              </button>
               <button
                 v-if="hasChecklist"
                 :style="menuItem"
@@ -383,3 +418,46 @@ const spacer = pxify({ flex: 1 })
     <ChecklistToTasks :source="source" :open="convertOpen" @close="convertOpen = false" />
   </template>
 </template>
+
+<style scoped>
+/* The timeline entries that link this note: a quiet row of chips above the
+   foot, each opening its entry. */
+.nv-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.nv-timeline__label {
+  color: var(--theme-dim);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.nv-timeline__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--theme-accent) 14%, transparent);
+  color: var(--theme-text);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.nv-timeline__chip:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+.nv-timeline__date {
+  color: var(--theme-dim);
+  font-variant-numeric: tabular-nums;
+}
+</style>

@@ -33,7 +33,11 @@ const route = useRoute()
 // The screenshot stage draws a tab on its own and would otherwise get the
 // corner mark stamped over the toolbar's title.
 const showBrand = computed(
-  () => route.name !== 'workspace' && route.name !== 'dev-shot' && route.name !== 'ui-showcase',
+  () =>
+    route.name !== 'profile' &&
+    route.name !== 'workspace' &&
+    route.name !== 'dev-shot' &&
+    route.name !== 'ui-showcase',
 )
 
 // One-time notice when offline persistence could not be enabled (private mode /
@@ -54,8 +58,8 @@ onMounted(() => {
   <!-- The icon set, once (section 21e). Every <Icon> in the app is a <use>
        pointing into this. -->
   <IconSprite />
-  <Starfield />
-  <CursorTail />
+  <Starfield v-if="route.name !== 'profile'" />
+  <CursorTail v-if="route.name !== 'profile'" />
   <RouterView />
   <GoalHelpPanel v-if="app.goalHelpOpen" />
   <!-- The bottom-right corner, as one column so its two tenants never land on

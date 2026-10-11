@@ -31,12 +31,21 @@ import GithubView from '@/components/views/GithubView.vue'
 import CalendarView from '@/components/views/CalendarView.vue'
 import OverviewView from '@/components/views/OverviewView.vue'
 import AppShell from '@/components/shell/AppShell.vue'
+import TimelineDrawer from '@/components/TimelineDrawer.vue'
+import TimelineEditor from '@/components/TimelineEditor.vue'
 import LoadingStates from '@/dev/LoadingStates.vue'
 import { useAppStore } from '@/stores/app'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
-import { seedDeadlines, seedIdeas, seedReminders, seedTasks, seedTodos } from '@/dev/seedWorkspace'
+import {
+  seedDeadlines,
+  seedIdeas,
+  seedReminders,
+  seedTasks,
+  seedTimeline,
+  seedTodos,
+} from '@/dev/seedWorkspace'
 import { useSettings } from '@/composables/useSettings'
 import { useSignals } from '@/composables/useSignals'
 import { useTrades } from '@/composables/useTrades'
@@ -148,6 +157,8 @@ function seedStage() {
   app.deadlines = seedDeadlines()
   app.reminders = seedReminders()
   app.ideas = seedIdeas()
+  app.timeline = seedTimeline(app.tasks.map((t) => t.id))
+  if (String(route.params.view) === 'goals') seedGoals()
   // The calendar needs scheduled items to have anything to draw: tasks and
   // todos placed around today — timed, all-day, and one already done.
   if (String(route.params.view) !== 'calendar') return
@@ -180,6 +191,119 @@ function seedStage() {
   app.todos = app.todos.map((t, i) =>
     i < 3 ? { ...t, startAt: day(i * 2, 9 + i * 3), endAt: day(i * 2, 10 + i * 3) } : t,
   )
+}
+// The goals grid needs goals at every stage: one just started, one well along,
+// one finished, one paused, one with nothing in it yet — with checklists so
+// the rings have something to report.
+function seedGoals() {
+  const iso = (offset: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() + offset)
+    return d.toISOString().slice(0, 10)
+  }
+  const base = {
+    source: 'manual',
+    sourceUrl: '',
+    parentId: null,
+    depth: 0,
+    localRev: 0,
+    updatedBy: '',
+    icon: '',
+    startDate: '',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+  const g = (
+    id: number,
+    title: string,
+    description: string,
+    tag: string,
+    color: string,
+    target: string,
+    status: 'active' | 'paused' | 'done' = 'active',
+  ) => ({
+    ...base,
+    id,
+    rootId: id,
+    order: id,
+    title,
+    description,
+    tag,
+    color,
+    targetDate: target,
+    status,
+  })
+  app.goals = [
+    g(
+      1,
+      'Launch the softener funnel',
+      'Manual and automatic softener sales funnels live, with tracking.',
+      'Frontend',
+      'oklch(0.7 0.15 250)',
+      iso(12),
+    ),
+    g(
+      2,
+      'Learn Vue 3 — junior to advanced',
+      'Composition API, state management, performance and Nuxt.',
+      'Learning',
+      'oklch(0.72 0.13 180)',
+      iso(40),
+    ),
+    g(
+      3,
+      'Pay off the credit cards',
+      'Clear both cards and keep them clean every month.',
+      'Finance',
+      'oklch(0.7 0.15 340)',
+      iso(-3),
+    ),
+    g(
+      4,
+      'Run a half marathon',
+      'Build up to 21 km by spring.',
+      'Health',
+      'oklch(0.68 0.15 275)',
+      iso(90),
+      'paused',
+    ),
+    g(
+      5,
+      'Ship the GitHub workspace',
+      'Issues, pull requests and code, all inside Astra.',
+      'Astra',
+      'oklch(0.7 0.16 300)',
+      iso(5),
+      'done',
+    ),
+    g(6, 'Read twelve books this year', '', 'Personal', 'oklch(0.72 0.12 200)', ''),
+  ] as unknown as typeof app.goals
+  const plan: [number, number, number][] = [
+    // [goal, points, done]
+    [1, 6, 2],
+    [2, 10, 7],
+    [3, 4, 1],
+    [4, 5, 2],
+    [5, 4, 4],
+  ]
+  let id = 1000
+  app.goalChecklist = plan.flatMap(([goalId, n, done]) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: id++,
+      goalId,
+      text: `Step ${i + 1}`,
+      done: i < done,
+      order: i,
+      estimateMins: null,
+      spentMins: 0,
+      dueAt: '',
+      startAt: '',
+      tags: [],
+      startedAt: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    })),
+  ) as unknown as typeof app.goalChecklist
 }
 seedStage()
 app.cloudReady = true
@@ -234,6 +358,12 @@ const stage = ref<HTMLElement | null>(null)
       <component :is="view" :show="which === 'states' ? show : undefined" />
     </div>
   </AppShell>
+  <!-- The shell's bar opens the Timeline; the workspace mounts it, so the
+       stage has to as well for a shot of it to show anything. -->
+  <template v-if="withShell">
+    <TimelineDrawer />
+    <TimelineEditor />
+  </template>
   <div
     v-else
     ref="stage"

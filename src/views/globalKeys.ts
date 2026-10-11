@@ -114,6 +114,8 @@ export interface ShellOverlays {
   taskView: boolean
   share: boolean
   notesDrawer: boolean
+  timelineDrawer: boolean
+  timelineEditor: boolean
   themePanel: boolean
   securityPanel: boolean
   githubPanel: boolean

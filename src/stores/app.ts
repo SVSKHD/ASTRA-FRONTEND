@@ -93,6 +93,14 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { occurrences } from '@/utils/reminders'
 import { stampOnDay, ymd } from '@/utils/dayGroups'
+import {
+  sanitizeTimeline,
+  timelineForTask,
+  timelineForTodo,
+  linkedRows,
+  formatTimelineBody,
+  todayYmd,
+} from '@/utils/timeline'
 import { isBlankNote, isNoteEditorMode, type NoteEditorMode } from '@/utils/notes'
 import { SPLIT_DEFAULT, clampSplit } from '@/utils/noteColumn'
 import { shouldAutoOpenGoalHelp, type GoalHelpTab } from '@/utils/goalHelp'
@@ -226,6 +234,8 @@ import type {
   Priority,
   Quote,
   PromptTemplate,
+  TimelineEntry,
+  TimelineStatus,
   StatusChange,
   FinanceSettings,
   Goal,
@@ -458,6 +468,17 @@ export const useAppStore = defineStore('app', () => {
   // The user's own prompt templates (the Prompts tab). The library's ship with
   // the app and are not stored; these are.
   const prompts = ref<PromptTemplate[]>([])
+  // The Timeline: features written up in markdown and linked to tasks and
+  // notes (utils/timeline.ts). Its sidebar's open flag lives on the ui store.
+  const timeline = ref<TimelineEntry[]>([])
+  // The entry being written in the editor dialog: an id when editing, null for
+  // a new one, with what a new one starts out linked to.
+  const timelineEditor = ref<{
+    id: number | null
+    taskIds: number[]
+    todoIds: number[]
+    noteIds: number[]
+  } | null>(null)
   const security = ref<SecuritySettings>(emptySecurity())
   // Theme is a per-user preference, so it rides along in the workspace doc and
   // is restored on refresh once the document lands. The ui store reads it.
@@ -694,6 +715,7 @@ export const useAppStore = defineStore('app', () => {
       ...goalChecklist.value.map((c) => c.id),
       ...goalOccurrences.value.map((o) => o.id),
       ...prompts.value.map((p) => p.id),
+      ...timeline.value.map((e) => e.id),
     )
     if (maxId >= nid) nid = maxId + 1
   }
@@ -789,6 +811,141 @@ export const useAppStore = defineStore('app', () => {
   }
   function removePrompt(pid: number) {
     prompts.value = prompts.value.filter((p) => p.id !== pid)
+  }
+
+  // ---- Timeline -------------------------------------------------------------
+  // An entry needs a title or a body; the date defaults to today and the status
+  // to Planned. Links are filtered to tasks and notes that exist, so a stale id
+  // never gets written. Returns the new id, or null when there was nothing to
+  // keep.
+  interface TimelineInput {
+    title?: string
+    body?: string
+    date?: string
+    status?: TimelineStatus
+    taskIds?: readonly number[]
+    todoIds?: readonly number[]
+    noteIds?: readonly number[]
+  }
+  function liveTaskIds(list: readonly number[]): number[] {
+    const have = new Set(tasks.value.map((t) => t.id))
+    return [...new Set(list)].filter((id) => have.has(id))
+  }
+  function liveTodoIds(list: readonly number[]): number[] {
+    const have = new Set(todos.value.map((t) => t.id))
+    return [...new Set(list)].filter((id) => have.has(id))
+  }
+  function timelineWork(taskIds: readonly number[], todoIds: readonly number[]) {
+    return {
+      tasks: linkedRows(
+        taskIds,
+        tasks.value.map((t) => ({ ...t, done: t.status === 'done' })),
+      ),
+      todos: linkedRows(
+        todoIds,
+        todos.value.map((t) => ({ ...t, title: t.text, done: t.status === 'done' })),
+      ),
+    }
+  }
+  function liveNoteIds(list: readonly number[]): number[] {
+    const have = new Set(notes.value.map((n) => n.id))
+    return [...new Set(list)].filter((id) => have.has(id))
+  }
+  function addTimelineEntry(input: TimelineInput): number | null {
+    const title = (input.title ?? '').trim()
+    const body = (input.body ?? '').trim()
+    if (!title && !body) return null
+    const entry: TimelineEntry = {
+      id: id(),
+      title,
+      body,
+      date: input.date || todayYmd(),
+      status: input.status ?? 'planned',
+      taskIds: liveTaskIds(input.taskIds ?? []),
+      todoIds: liveTodoIds(input.todoIds ?? []),
+      noteIds: liveNoteIds(input.noteIds ?? []),
+      ...stamps(),
+    }
+    entry.body = formatTimelineBody(entry.body, timelineWork(entry.taskIds, entry.todoIds))
+    timeline.value = [entry, ...timeline.value]
+    return entry.id
+  }
+  function updateTimelineEntry(eid: number, patch: TimelineInput) {
+    timeline.value = timeline.value.map((e) =>
+      e.id !== eid
+        ? e
+        : touched({
+            ...e,
+            ...(patch.title !== undefined ? { title: patch.title.trim() } : {}),
+            body: formatTimelineBody(
+              patch.body ?? e.body,
+              timelineWork(
+                liveTaskIds(patch.taskIds ?? e.taskIds),
+                liveTodoIds(patch.todoIds ?? e.todoIds),
+              ),
+            ),
+            ...(patch.date ? { date: patch.date } : {}),
+            ...(patch.status ? { status: patch.status } : {}),
+            ...(patch.taskIds ? { taskIds: liveTaskIds(patch.taskIds) } : {}),
+            ...(patch.todoIds ? { todoIds: liveTodoIds(patch.todoIds) } : {}),
+            ...(patch.noteIds ? { noteIds: liveNoteIds(patch.noteIds) } : {}),
+          }),
+    )
+  }
+  // Deleted with an Undo that puts it back where it was.
+  function removeTimelineEntry(eid: number) {
+    const idx = timeline.value.findIndex((e) => e.id === eid)
+    if (idx < 0) return
+    const entry = timeline.value[idx]
+    timeline.value = timeline.value.filter((e) => e.id !== eid)
+    if (timelineEditor.value?.id === eid) timelineEditor.value = null
+    const name = entry.title || 'entry'
+    showToastWithUndo(
+      'Deleted "' + (name.length > 28 ? name.slice(0, 28) + '…' : name) + '"',
+      () => {
+        const list = [...timeline.value]
+        list.splice(Math.min(idx, list.length), 0, entry)
+        timeline.value = list
+      },
+      5000,
+    )
+  }
+  function linkTimelineTask(eid: number, taskId: number, on: boolean) {
+    const e = timeline.value.find((x) => x.id === eid)
+    if (!e) return
+    const next = on ? [...e.taskIds, taskId] : e.taskIds.filter((t) => t !== taskId)
+    updateTimelineEntry(eid, { taskIds: next })
+  }
+  function linkTimelineTodo(eid: number, todoId: number, on: boolean) {
+    const e = timeline.value.find((x) => x.id === eid)
+    if (!e) return
+    updateTimelineEntry(eid, {
+      todoIds: on ? [...e.todoIds, todoId] : e.todoIds.filter((id) => id !== todoId),
+    })
+  }
+  function timelineForTodoId(todoId: number): TimelineEntry[] {
+    return timelineForTodo(timeline.value, todoId)
+  }
+  function timelineFor(taskId: number): TimelineEntry[] {
+    return timelineForTask(timeline.value, taskId)
+  }
+  function newTimelineEntry(
+    prefill: { taskIds?: number[]; todoIds?: number[]; noteIds?: number[] } = {},
+  ) {
+    timelineEditor.value = {
+      id: null,
+      taskIds: prefill.taskIds ?? [],
+      todoIds: prefill.todoIds ?? [],
+      noteIds: prefill.noteIds ?? [],
+    }
+  }
+  function openTimelineEntry(eid: number) {
+    const e = timeline.value.find((x) => x.id === eid)
+    if (!e) return
+    timelineEditor.value = { id: eid, taskIds: e.taskIds, todoIds: e.todoIds, noteIds: e.noteIds }
+  }
+  function closeTimelineEditor() {
+    timelineEditor.value = null
   }
 
   // How many items wear a tag, across every list that carries one.
@@ -7195,6 +7352,7 @@ export const useAppStore = defineStore('app', () => {
       tags: tags.value,
       quotes: quotes.value,
       prompts: prompts.value,
+      timeline: timeline.value,
       security: security.value,
       themeSetting: themeSetting.value,
       preferredDark: preferredDark.value,
@@ -7251,6 +7409,8 @@ export const useAppStore = defineStore('app', () => {
     tags.value = DEFAULT_TAGS.slice()
     quotes.value = []
     prompts.value = []
+    timeline.value = []
+    timelineEditor.value = null
     security.value = emptySecurity()
     themeSetting.value = 'auto'
     preferredDark.value = 'deepSpace'
@@ -7659,6 +7819,7 @@ export const useAppStore = defineStore('app', () => {
             updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : 0,
           }))
       : []
+    timeline.value = sanitizeTimeline(data.timeline)
     if (Array.isArray(data.tags)) {
       tags.value = sanitizeTags(data.tags)
     } else {
@@ -8071,6 +8232,7 @@ export const useAppStore = defineStore('app', () => {
         tags,
         quotes,
         prompts,
+        timeline,
         security,
         themeSetting,
         preferredDark,
@@ -8134,6 +8296,18 @@ export const useAppStore = defineStore('app', () => {
     addPrompt,
     updatePrompt,
     removePrompt,
+    timeline,
+    timelineEditor,
+    addTimelineEntry,
+    updateTimelineEntry,
+    removeTimelineEntry,
+    linkTimelineTask,
+    linkTimelineTodo,
+    timelineForTodoId,
+    timelineFor,
+    newTimelineEntry,
+    openTimelineEntry,
+    closeTimelineEditor,
     security,
     themeSetting,
     preferredDark,

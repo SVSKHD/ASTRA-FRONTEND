@@ -322,10 +322,11 @@ const previewStyle = computed(() =>
         v-if="showSource"
         ref="field"
         class="ned__area"
+        :class="{ 'is-split': mode === 'split' }"
         :model-value="modelValue"
         :placeholder="placeholder"
-        :auto-grow="compact"
-        :minHeight="props.compact ? COMPACT_MIN_HEIGHT : isMobile.value ? 220 : 300"
+        :auto-grow="compact && mode !== 'split'"
+        :minHeight="props.compact ? COMPACT_MIN_HEIGHT : isMobile ? 220 : 300"
         :maxHeight="props.compact ? COMPACT_MAX_HEIGHT : '60vh'"
         :spellcheck="true"
         aria-label="Note source"
@@ -337,3 +338,24 @@ const previewStyle = computed(() =>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Split: the source fills its half, top to bottom, the same height as the
+   preview beside it. It used to auto-grow from a few rows, so an empty note
+   was a short box next to a tall preview. Here it does not grow — the grid
+   row sets the height and a long note scrolls inside, as the preview does. */
+.ned__area.is-split {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.ned__area.is-split :deep(.ui-ta__box) {
+  flex: 1;
+  min-height: 0;
+}
+.ned__area.is-split :deep(textarea) {
+  height: 100%;
+  resize: none;
+}
+</style>

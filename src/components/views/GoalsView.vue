@@ -27,16 +27,18 @@ import DetailPane from '@/components/ui/DetailPane.vue'
 import GoalsEmptyState from '@/components/GoalsEmptyState.vue'
 import GoalCreateSlideOver from '@/components/GoalCreateSlideOver.vue'
 import GoalCard from '@/components/goals/GoalCard.vue'
+import GoalsSummary from '@/components/goals/GoalsSummary.vue'
 import GoalCardSkeleton from '@/components/goals/GoalCardSkeleton.vue'
 import GoalGrid from '@/components/goals/GoalGrid.vue'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { usePaneInset } from '@/composables/usePaneInset'
 import type { Goal, GoalStatus } from '@/types'
+import type { MenuItem } from '@/components/ui/Dropdown.vue'
 
 const app = useAppStore()
 const ui = useUiStore()
 const router = useRouter()
-const { c, s, isMobile, panelStyle } = useStyles()
+const { s, isMobile, panelStyle } = useStyles()
 const { goals } = storeToRefs(app)
 
 // The selected goal lives in the store, so /goals/:goalId can open it on a cold
@@ -151,7 +153,8 @@ function onCardPointerDown(event: PointerEvent, goalId: number) {
 // card, so none of it opens the dialog.
 // Per card: a goal already moved to Todos or Tasks offers the way there
 // instead of a second move.
-function cardMenu(goalId: number) {
+// Each with a glyph, so the menu scans by shape; Delete in the danger colour.
+function cardMenu(goalId: number): MenuItem[] {
   const moved = app.goalMovedTo(goalId)
   return [
     CARD_MENU[0],
@@ -160,20 +163,21 @@ function cardMenu(goalId: number) {
           {
             value: 'open-moved',
             label: moved.collection === 'tasks' ? 'In Tasks · Open' : 'In Todos · Open',
+            icon: moved.collection === 'tasks' ? ('list' as const) : ('check-square' as const),
           },
         ]
       : [
-          { value: 'to-todos', label: 'Move to Todos' },
-          { value: 'to-tasks', label: 'Move to Tasks' },
+          { value: 'to-todos', label: 'Move to Todos', icon: 'check-square' as const },
+          { value: 'to-tasks', label: 'Move to Tasks', icon: 'list' as const },
         ]),
     ...CARD_MENU.slice(1),
   ]
 }
-const CARD_MENU = [
-  { value: 'open', label: 'Open full page' },
-  { value: 'duplicate', label: 'Duplicate' },
-  { value: 'archive', label: 'Archive' },
-  { value: 'delete', label: 'Delete' },
+const CARD_MENU: MenuItem[] = [
+  { value: 'open', label: 'Open full page', icon: 'external-link' },
+  { value: 'duplicate', label: 'Duplicate', icon: 'copy' },
+  { value: 'archive', label: 'Archive', icon: 'archive' },
+  { value: 'delete', label: 'Delete', icon: 'trash', danger: true },
 ]
 function onCardMenu(goalId: number, action: string) {
   if (action === 'open') router.push(`/goals/${goalId}`)
@@ -312,14 +316,13 @@ const visibleGoals = computed(() => rows.value.map((r) => r.goal))
 function indexOf(goalId: number): number {
   return rows.value.findIndex((r) => r.goal.id === goalId)
 }
+// The selected goal is drawn by the card itself, the way a selected todo or
+// task row is; the cell only dims the one being dragged.
 function cellStyle(id: number) {
-  const selected = !isMobile.value && panelGoalId.value === id
   return pxify({
     minWidth: 0,
     opacity: dragId.value === id ? 0.5 : 1,
-    borderRadius: 'var(--radius-card)',
-    outline: selected ? '2px solid ' + c.value.accent : 'none',
-    outlineOffset: '1px',
+    borderRadius: 18,
   })
 }
 </script>
@@ -345,6 +348,13 @@ function cellStyle(id: number) {
         @import="goImport"
         @new="onNew"
         @help="app.openGoalHelp()"
+      />
+
+      <!-- The whole set at a glance, before any one card is read. -->
+      <GoalsSummary
+        v-if="!loading && goals.length"
+        :status="statusFilter"
+        @filter="statusFilter = $event"
       />
 
       <div :style="splitView ? splitLayout : listColumn">
@@ -389,6 +399,7 @@ function cellStyle(id: number) {
                 <GoalCard
                   :goal="item"
                   :ratio="app.goalProgress(item.id).ratio"
+                  :selected="!isMobile && panelGoalId === item.id"
                   :counts="app.goalCounts(item.id)"
                   :days-chip="daysChip(item.targetDate)"
                   :menu="cardMenu(item.id)"

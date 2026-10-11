@@ -134,7 +134,9 @@ defineExpose({ columns, virtualised })
 }
 .ggrid__plain {
   display: grid;
-  grid-auto-rows: minmax(180px, 1fr);
+  /* As tall as the card needs, not a fixed block with a gap in the middle.
+     Cards in one row still match: grid items stretch to their row's height. */
+  grid-auto-rows: minmax(120px, auto);
   gap: var(--sp-4);
   align-content: start;
 }

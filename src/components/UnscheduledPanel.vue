@@ -7,9 +7,9 @@
 // The text was dark blue-grey on dark navy. The rows took their colour from the
 // item's *type* — the same value the event chips use for their tint — so the
 // row was drawing a hue meant for a 12% fill as full-strength text on a dark
-// panel. A panel row is not a chip: it is neutral, and the type colour goes on
-// a 3px bar down its left edge where it is a signal rather than something that
-// has to be read — and on the small tile that says which kind of thing it is.
+// panel. A panel row is not a chip: it is a neutral card, and the type colour
+// goes only on the small tile that says which kind of thing it is, where it is
+// a signal rather than something that has to be read.
 //
 // The rows were cut off mid-word. A row is a fixed-width cell holding
 // arbitrary text, so it needs min-width: 0 (or the grid track sizes to the
@@ -19,21 +19,22 @@
 //
 // And the panel itself was clipped, because it lived in a flex row with a fixed
 // width and no min-width: the grid beside it can always shrink, so the browser
-// shrank the panel instead. It is a named grid track now, and scrolls
+// shrank the panel instead. It sits in a named grid track now, and scrolls
 // internally with a sticky header so the heading survives the scroll.
 //
 // With fifty-odd items it also needs finding things in: a search, and a
-// Tasks / Todos switch, both above the list and inside the sticky header.
+// Tasks / Todos switch, both inside the sticky header once the list is long.
 import { computed, ref } from 'vue'
 import DragHandle from '@/components/ui/DragHandle.vue'
-import IconButton from '@/components/ui/IconButton.vue'
 import Icon from '@/components/ui/Icon.vue'
 import SearchField from '@/components/ui/SearchField.vue'
+import { useStyles } from '@/composables/useStyles'
+import { pxify, tagChip } from '@/styles'
 import { SOURCE_COLOR, SOURCE_ICON } from '@/utils/calendarEvents'
 import type { Task, Todo } from '@/types'
 
 const props = defineProps<{ tasks: Task[]; todos: Todo[] }>()
-defineEmits<{ close: [] }>()
+const { c, dark } = useStyles()
 
 interface Row {
   key: string
@@ -75,8 +76,14 @@ const kinds = computed(() => [
   { value: 'task' as const, label: 'Tasks', n: props.tasks.length },
   { value: 'todo' as const, label: 'Todos', n: props.todos.length },
 ])
+// A handful of rows is scanned, not searched: the finding tools only appear
+// once the list is long enough to need them.
+const FIND_FROM = 7
+const findable = computed(() => rows.value.length >= FIND_FROM)
 
 const barColor = (type: 'task' | 'todo') => SOURCE_COLOR[type]
+// The project as the same coloured pill it is everywhere else.
+const tagStyle = (tag: string) => pxify({ ...tagChip(c.value, tag, dark.value), border: 0 })
 
 const root = ref<HTMLElement | null>(null)
 // The calendar needs the element, not the component: FullCalendar's Draggable
@@ -90,18 +97,14 @@ defineExpose({ el: root })
   <aside ref="root" class="unsched" aria-label="Unscheduled">
     <header class="unsched__head">
       <div class="unsched__top">
-        <span class="unsched__mark" aria-hidden="true"
-          ><Icon name="calendar-down" size="sm"
-        /></span>
-        <h2 class="unsched__title" title="Drag a row onto the calendar to schedule it">
-          Unscheduled
-        </h2>
+        <Icon name="calendar-down" size="sm" class="unsched__mark" />
+        <h2 class="unsched__title">Unscheduled</h2>
         <span class="unsched__count ui-tabular">{{ rows.length }}</span>
-        <IconButton label="Hide unscheduled" size="sm" @click="$emit('close')">
-          <Icon name="x" size="xs" />
-        </IconButton>
       </div>
-      <template v-if="rows.length">
+      <p v-if="rows.length" class="unsched__hint">
+        Drag a row onto the calendar to give it a time.
+      </p>
+      <template v-if="findable">
         <SearchField v-model="query" size="sm" placeholder="Find…" label="Find unscheduled" />
         <div class="unsched__kinds" role="tablist" aria-label="Kind">
           <button
@@ -130,20 +133,15 @@ defineExpose({ el: root })
         :data-id="row.id"
         :data-title="row.title"
       >
+        <DragHandle class="unsched__grip" label="Drag to schedule" />
         <span class="unsched__tile" aria-hidden="true">
           <Icon :name="SOURCE_ICON[row.type]" size="xs" />
         </span>
         <span class="unsched__body">
           <span class="unsched__text">{{ row.title }}</span>
-          <span class="unsched__meta">
-            {{ row.type === 'task' ? 'Task' : 'Todo' }}
-            <template v-if="row.tag"> · {{ row.tag }}</template>
-          </span>
+          <span v-if="row.tag" class="unsched__tag" :style="tagStyle(row.tag)">{{ row.tag }}</span>
+          <span v-else class="unsched__meta">{{ row.type === 'task' ? 'Task' : 'Todo' }}</span>
         </span>
-        <!-- On hover, not always: a grip on every row at rest is eight more
-             things to look at in a panel whose job is to be scanned. It keeps
-             its keyboard affordance, so it is opacity rather than v-if. -->
-        <DragHandle class="unsched__grip" label="Drag to schedule" />
       </div>
     </div>
 
@@ -156,21 +154,19 @@ defineExpose({ el: root })
 .unsched {
   display: flex;
   flex-direction: column;
-  /* The track is 260px; this stops the content from arguing with it. */
+  /* The track is narrow; this stops the content from arguing with it. */
   min-width: 0;
-  /* As tall as the calendar beside it and no taller: height 0 means sixty
-     rows add nothing to the row's height, and min-height 100% then fills the
-     height the calendar gave it. The list scrolls inside that. */
-  height: 0;
-  min-height: 100%;
+  /* Takes whatever the side column has left under the selection card, and
+     scrolls inside it: sixty rows never make the column taller. */
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   /* It scrolls without drawing a bar: a second scrollbar beside the page's is
-     the clutter this panel was being called out for. */
+     clutter. */
   scrollbar-width: none;
-  border: 1px solid color-mix(in oklch, var(--theme-text) 8%, transparent);
-  border-radius: 20px;
-  background: color-mix(in oklch, var(--theme-card) 70%, transparent);
+  border-radius: 24px;
+  background: color-mix(in oklch, var(--theme-text) 5%, transparent);
 }
 .unsched::-webkit-scrollbar {
   display: none;
@@ -183,30 +179,23 @@ defineExpose({ el: root })
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid color-mix(in oklch, var(--theme-text) 7%, transparent);
-  background: var(--glass-solid, var(--theme-surface));
+  padding: 16px 16px 6px;
+  background: inherit;
+  backdrop-filter: blur(12px);
 }
 .unsched__top {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 .unsched__mark {
-  display: grid;
-  place-items: center;
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
-  color: var(--theme-accent);
+  color: var(--theme-text);
 }
 .unsched__title {
-  flex: 1;
   min-width: 0;
   margin: 0;
   color: var(--text-primary, var(--theme-text));
@@ -216,14 +205,20 @@ defineExpose({ el: root })
 }
 .unsched__count {
   flex-shrink: 0;
-  min-width: 24px;
+  min-width: 22px;
   padding: 1px 7px;
   border-radius: var(--radius-pill);
-  background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
+  background: var(--theme-card);
   color: var(--text-primary, var(--theme-text));
   font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
   text-align: center;
+}
+.unsched__hint {
+  margin: 0;
+  color: var(--text-muted, var(--theme-dim));
+  font-size: var(--text-2xs);
+  line-height: 1.4;
 }
 .unsched__kinds {
   display: flex;
@@ -262,27 +257,27 @@ defineExpose({ el: root })
   flex-direction: column;
   gap: var(--sp-2);
   min-width: 0;
-  padding: 10px 10px 12px;
+  padding: 8px 12px 14px;
 }
-/* Neutral fill, primary text, and the type colour confined to the bar. */
+/* A white card, primary text, and the type colour confined to the tile. */
 .unsched__row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  padding: 9px 8px 9px 9px;
-  border-radius: 12px;
-  border-left: 3px solid var(--row-bar);
-  background: var(--bg-elevated, var(--glass-card));
+  padding: 10px 12px 10px 4px;
+  border-radius: 14px;
+  background: var(--theme-card);
   color: var(--text-primary, var(--theme-text));
   cursor: grab;
+  box-shadow: 0 6px 16px -14px color-mix(in srgb, var(--shadow-ink, #000) 50%, transparent);
   transition:
     transform 0.15s var(--ease-out, ease),
     box-shadow 0.15s var(--ease-out, ease);
 }
 .unsched__row:hover {
-  transform: translateX(2px);
+  transform: translateY(-1px);
   box-shadow:
     0 0 0 1px color-mix(in oklch, var(--row-bar) 45%, transparent),
     0 8px 16px -10px color-mix(in srgb, var(--shadow-ink, #000) 45%, transparent);
@@ -293,21 +288,24 @@ defineExpose({ el: root })
 .unsched__tile {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
   background: color-mix(in oklch, var(--row-bar) 20%, transparent);
-  color: var(--row-bar);
+  color: color-mix(in oklch, var(--row-bar) 70%, var(--theme-text));
 }
 .unsched__body {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 4px;
   min-width: 0;
 }
+/* Always there, but quiet: it says "this moves" without being a ninth thing
+   to read in every row. */
 .unsched__grip {
   color: var(--text-muted, var(--theme-dim));
-  opacity: 0;
+  opacity: 0.55;
   transition: opacity var(--dur-fast) var(--ease-out);
 }
 .unsched__row:hover .unsched__grip,
@@ -316,18 +314,26 @@ defineExpose({ el: root })
 }
 .unsched__text {
   min-width: 0;
+  max-width: 100%;
   font-size: var(--text-sm);
   line-height: var(--lh-sm);
-  font-weight: var(--weight-medium);
-  /* Two lines, then an ellipsis — so every row is the same height and a long
-     title neither widens the panel nor swallows it. `anywhere` is what handles
-     a pasted URL with no break opportunity in it. */
+  font-weight: var(--weight-semibold);
+  /* Two lines, then an ellipsis — so a long title neither widens the panel
+     nor swallows it. `anywhere` handles a pasted URL with no break in it. */
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
   overflow-wrap: anywhere;
+}
+.unsched__tag {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: var(--weight-semibold);
 }
 .unsched__meta {
   min-width: 0;
@@ -339,7 +345,7 @@ defineExpose({ el: root })
 }
 .unsched__empty {
   margin: 0;
-  padding: 16px 14px;
+  padding: 4px 16px 16px;
   font-size: var(--text-sm);
   line-height: var(--lh-sm);
   color: var(--text-muted, var(--theme-dim));

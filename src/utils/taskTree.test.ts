@@ -5,6 +5,7 @@ import {
   childrenOf,
   depthOf,
   descendantsOf,
+  doneFirst,
   isValidDrop,
   needsRenormalize,
   orderBetween,
@@ -51,6 +52,35 @@ describe('buildIndex / roots / children', () => {
   it('treats a dangling parentId as a root', () => {
     const idx = buildIndex([n(9, 999, 0)])
     expect(rootsOf(idx).map((x) => x.id)).toEqual([9])
+  })
+})
+
+describe('doneFirst (the details panes’ subtask order)', () => {
+  const sub = (id: number, status: string, completedAt: number | null = null) => ({
+    id,
+    status,
+    completedAt,
+  })
+
+  it('puts done subtasks first, the most recently completed at the top', () => {
+    const list = [
+      sub(1, 'pending'),
+      sub(2, 'done', 100),
+      sub(3, 'progress'),
+      sub(4, 'done', 300),
+      sub(5, 'done', 200),
+    ]
+    expect(doneFirst(list).map((t) => t.id)).toEqual([4, 5, 2, 1, 3])
+  })
+
+  it('keeps the open ones in their own order and does not touch the input', () => {
+    const list = [sub(3, 'pending'), sub(1, 'progress'), sub(2, 'pending')]
+    expect(doneFirst(list).map((t) => t.id)).toEqual([3, 1, 2])
+    expect(list.map((t) => t.id)).toEqual([3, 1, 2])
+  })
+
+  it('places a done subtask with no completion time after the timed ones', () => {
+    expect(doneFirst([sub(1, 'done'), sub(2, 'done', 50)]).map((t) => t.id)).toEqual([2, 1])
   })
 })
 

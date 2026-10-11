@@ -17,7 +17,7 @@
 // edge of the strip.
 
 import { SEED_TODAY } from '@/dev/seed'
-import type { Deadline, Idea, Reminder, Task, Todo } from '@/types'
+import type { Deadline, Idea, Reminder, Task, TimelineEntry, Todo } from '@/types'
 
 const DAY = 86_400_000
 const noon = (ymd: string) => Date.parse(`${ymd}T12:00:00+05:30`)
@@ -164,4 +164,74 @@ export function seedIdeas(): Idea[] {
   return [
     { id: 401, title: 'Session heat map', deadline: '', notes: '', tag: '' },
   ] as unknown as Idea[]
+}
+
+// The Timeline: one entry per status across two months, linked to the first
+// seeded tasks so the cards and a task's Timeline section have links to draw.
+export function seedTimeline(taskIds: number[]): TimelineEntry[] {
+  const day = (offset: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() + offset)
+    return d.toISOString().slice(0, 10)
+  }
+  const at = Date.now()
+  const entry = (
+    id: number,
+    title: string,
+    body: string,
+    date: string,
+    status: TimelineEntry['status'],
+    tasks: number[],
+  ): TimelineEntry => ({
+    id,
+    title,
+    body,
+    date,
+    status,
+    taskIds: tasks,
+    todoIds: [],
+    noteIds: [],
+    createdAt: at,
+    updatedAt: at,
+  })
+  return [
+    entry(
+      901,
+      'Installation scheduling board',
+      [
+        '## What',
+        'A board of every install booked this week, by technician.',
+        '',
+        '- [x] Drag to reassign',
+        '- [ ] Clash warnings',
+      ].join('\n'),
+      day(2),
+      'progress',
+      taskIds.slice(0, 2),
+    ),
+    entry(
+      902,
+      'Calendar redesign',
+      'Week grid, a side card for the selected event, and a day list on the phone.',
+      day(-1),
+      'shipped',
+      taskIds.slice(2, 3),
+    ),
+    entry(
+      903,
+      'AMC renewal reminders',
+      'Remind customers 30 days before their maintenance contract lapses.',
+      day(18),
+      'planned',
+      [],
+    ),
+    entry(
+      904,
+      'Prompt templates',
+      'Fill-in-the-blank prompts with a token meter.',
+      day(-34),
+      'shipped',
+      [],
+    ),
+  ]
 }

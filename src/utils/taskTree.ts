@@ -59,6 +59,22 @@ export function childrenOf<T extends TreeNode>(index: TreeIndex<T>, id: number):
   return index.children.get(id) ?? []
 }
 
+/**
+ * A subtask list for the details panes: the ones just finished first, the most
+ * recently completed at the very top, then the open ones in their own order.
+ * What was just ticked stays in view instead of disappearing down the list.
+ * A display order only — nothing is written back, so the stored order of the
+ * open subtasks is untouched.
+ */
+export function doneFirst<T extends { status: string; completedAt?: number | null }>(
+  list: readonly T[],
+): T[] {
+  const done = list
+    .filter((t) => t.status === 'done')
+    .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))
+  return [...done, ...list.filter((t) => t.status !== 'done')]
+}
+
 // Immediate parent first, up to the root. Cycle-safe: a corrupt parent loop
 // stops at the first repeat rather than spinning.
 export function ancestorsOf<T extends TreeNode>(index: TreeIndex<T>, id: number): T[] {

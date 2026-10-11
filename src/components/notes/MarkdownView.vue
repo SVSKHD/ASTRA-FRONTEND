@@ -55,8 +55,10 @@ const html = computed(() => rendered.value.html)
 const body = ref<HTMLElement | null>(null)
 
 // --- fences: language label, copy button, lazy highlighting -----------------
-let copiedTimer: ReturnType<typeof setTimeout> | undefined
-onBeforeUnmount(() => clearTimeout(copiedTimer))
+const copiedTimers = new Set<ReturnType<typeof setTimeout>>()
+onBeforeUnmount(() => {
+  for (const timer of copiedTimers) clearTimeout(timer)
+})
 
 async function decorate() {
   await nextTick()
@@ -66,25 +68,57 @@ async function decorate() {
   for (const pre of Array.from(root.querySelectorAll('pre.md-fence'))) {
     if ((pre as HTMLElement).dataset.decorated) continue
     ;(pre as HTMLElement).dataset.decorated = 'true'
+    const card = document.createElement('div')
+    card.className = 'md-code-card'
+    pre.parentNode?.insertBefore(card, pre)
     const head = document.createElement('div')
     head.className = 'md-fence-head'
     const label = document.createElement('span')
+    label.className = 'md-fence-language'
     label.textContent = fenceLabel((pre as HTMLElement).dataset.lang || '')
+    const text = pre.querySelector('code')?.textContent ?? ''
+    const count = text.replace(/\n$/, '').split('\n').length
+    const meta = document.createElement('span')
+    meta.className = 'md-fence-meta'
+    meta.textContent = `${count} line${count === 1 ? '' : 's'}`
+    const wrap = document.createElement('button')
+    wrap.type = 'button'
+    wrap.className = 'md-fence-wrap'
+    wrap.textContent = 'Wrap'
+    wrap.setAttribute('aria-label', 'Wrap code lines')
+    wrap.setAttribute('aria-pressed', 'false')
+    wrap.addEventListener('click', () => {
+      const active = card.classList.toggle('is-wrapped')
+      wrap.setAttribute('aria-pressed', String(active))
+    })
     const copy = document.createElement('button')
     copy.type = 'button'
     copy.className = 'md-fence-copy'
     copy.textContent = 'Copy'
-    copy.addEventListener('click', () => {
-      const text = pre.querySelector('code')?.textContent ?? ''
-      void navigator.clipboard?.writeText(text)
-      copy.textContent = 'Copied'
-      clearTimeout(copiedTimer)
-      copiedTimer = setTimeout(() => {
+    copy.setAttribute('aria-label', 'Copy code')
+    copy.setAttribute('aria-live', 'polite')
+    copy.addEventListener('click', async () => {
+      copy.disabled = true
+      try {
+        if (!navigator.clipboard) throw new Error('Clipboard unavailable')
+        await navigator.clipboard.writeText(text)
+        copy.textContent = 'Copied'
+        copy.dataset.state = 'success'
+      } catch {
+        copy.textContent = 'Try again'
+        copy.dataset.state = 'error'
+      } finally {
+        copy.disabled = false
+      }
+      const timer = setTimeout(() => {
         copy.textContent = 'Copy'
-      }, 1500)
+        delete copy.dataset.state
+        copiedTimers.delete(timer)
+      }, 2000)
+      copiedTimers.add(timer)
     })
-    head.append(label, copy)
-    pre.parentNode?.insertBefore(head, pre)
+    head.append(label, meta, wrap, copy)
+    card.append(head, pre)
   }
 
   // A broken image shows its alt text rather than the browser's broken glyph.
@@ -174,7 +208,7 @@ function markMatches() {
   const hits: Text[] = []
   while (walker.nextNode()) {
     const node = walker.currentNode as Text
-    if (node.parentElement?.closest('pre')) continue
+    if (node.parentElement?.closest('pre, .md-fence-head')) continue
     if ((node.textContent || '').toLowerCase().includes(term.toLowerCase())) hits.push(node)
   }
   for (const node of hits) {

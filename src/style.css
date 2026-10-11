@@ -1032,33 +1032,103 @@ textarea:focus,
   font-size: var(--prose-small);
   line-height: 1.5;
 }
-/* The language label and copy button the view mounts onto a fence. */
+/* Fenced code reads as one inset card, with controls outside its scroll area. */
+.md .md-code-card {
+  min-width: 0;
+  margin: 1.2em 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 18%, var(--theme-border));
+  border-radius: var(--radius-card);
+  background: var(--theme-input);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 8%);
+}
 .md .md-fence-head {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  justify-content: flex-end;
-  margin-bottom: 0.35em;
+  min-height: 46px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--theme-border);
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--theme-accent) 8%, var(--theme-card)),
+    var(--theme-card)
+  );
   font-size: var(--prose-tiny);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--theme-dim);
 }
-.md .md-fence-copy {
-  padding: 2px 8px;
+.md .md-fence-language {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--theme-accent);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+}
+.md .md-fence-language::before {
+  content: '</>';
+  margin-right: 8px;
+  opacity: 0.65;
+}
+.md .md-fence-meta {
+  flex: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.md :is(.md-fence-copy, .md-fence-wrap) {
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 4px 10px;
   border-radius: var(--radius-control);
   border: 1px solid var(--theme-border);
-  background: transparent;
+  background: var(--theme-input);
   color: var(--theme-dim);
   font: inherit;
-  font-size: var(--prose-h4);
-  letter-spacing: inherit;
-  text-transform: inherit;
   cursor: pointer;
+  transition:
+    background 150ms,
+    border-color 150ms,
+    color 150ms;
 }
-.md .md-fence-copy:hover {
-  color: var(--theme-text);
-  border-color: var(--theme-accent);
+.md :is(.md-fence-copy, .md-fence-wrap):hover,
+.md .md-fence-wrap[aria-pressed='true'],
+.md .md-fence-copy[data-state='success'] {
+  color: var(--theme-accent);
+  border-color: color-mix(in srgb, var(--theme-accent) 45%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-accent) 10%, var(--theme-input));
+}
+.md :is(.md-fence-copy, .md-fence-wrap):focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+.md .md-code-card pre {
+  margin: 0;
+  padding: 18px 20px;
+  max-height: 480px;
+  overflow: auto;
+  border: none;
+  border-radius: 0;
+  tab-size: 2;
+}
+.md .md-code-card pre code {
+  display: block;
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  line-height: 1.75;
+}
+.md .md-code-card.is-wrapped pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (width <= 480px) {
+  .md .md-fence-meta {
+    display: none;
+  }
+  .md .md-fence-language {
+    flex: 1;
+  }
+  .md .md-code-card pre {
+    padding: 14px;
+  }
 }
 /* Tables scroll inside their own box rather than widening the note. */
 .md .md-table-wrap {

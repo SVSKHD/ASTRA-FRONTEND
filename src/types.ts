@@ -158,6 +158,27 @@ export interface PromptTemplate {
   updatedAt: number
 }
 
+// One entry on the Timeline: a feature written up in markdown, on the day it
+// belongs to, linked to the tasks that build it and the notes behind it. The
+// links live on the entry only — a task finds its entries by asking — so there
+// is one end to keep right, not two. See utils/timeline.ts.
+export type TimelineStatus = 'planned' | 'progress' | 'shipped'
+export interface TimelineEntry {
+  id: number
+  title: string
+  /** Markdown. */
+  body: string
+  /** YYYY-MM-DD: where the entry sits on the line. */
+  date: string
+  status: TimelineStatus
+  taskIds: number[]
+  /** Read back as [] for entries written before todos could be linked. */
+  todoIds: number[]
+  noteIds: number[]
+  createdAt: number
+  updatedAt: number
+}
+
 export type ItemStatus = 'pending' | 'progress' | 'done'
 
 // Where a detail opens, in three steps that go one way.

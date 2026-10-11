@@ -15,10 +15,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
-import PanelHeader from '@/components/PanelHeader.vue'
 import Icon from '@/components/ui/Icon.vue'
 import Button from '@/components/ui/Button.vue'
-import BottomSheet from '@/components/ui/BottomSheet.vue'
 import Modal from '@/components/ui/Modal.vue'
 import SearchField from '@/components/ui/SearchField.vue'
 import Switch from '@/components/ui/Switch.vue'
@@ -254,18 +252,26 @@ defineExpose({ focus: openNew })
 
 <template>
   <div :style="panelStyle" class="pv">
-    <PanelHeader title="Prompts" new-label="New template" @new="openNew">
-      <template #left>
-        <span v-if="!isMobile" class="pv__sub">
-          <Icon name="star" size="xs" />
-          {{ entries.length }} templates · {{ ownEntries.length }} yours
-        </span>
-      </template>
-    </PanelHeader>
-
     <div class="pv__cols" :class="{ 'is-stacked': isMobile }">
       <!-- ---- the library ---- -->
       <aside class="pv__lib" aria-label="Prompt templates">
+        <!-- The tab's name heads the library; on a phone the count rides
+             above it and New is the round button in the corner. -->
+        <header class="pv__head">
+          <h2 class="pv__h">Prompts</h2>
+          <span class="pv__sub"
+            >{{ entries.length }} templates · {{ ownEntries.length }} yours</span
+          >
+          <button
+            type="button"
+            class="pv__new"
+            aria-label="New template"
+            title="New template"
+            @click="openNew"
+          >
+            <Icon name="plus" :size="isMobile ? 'md' : 'sm'" />
+          </button>
+        </header>
         <SearchField v-model="query" size="md" placeholder="Search templates…" label="Search" />
 
         <div class="pv__topics" role="tablist" aria-label="Topics">
@@ -331,13 +337,16 @@ defineExpose({ focus: openNew })
            slides in with a transform, and a fixed sheet inside a transformed
            box is positioned against that box, off the bottom of the screen. -->
       <Teleport v-if="selected" to="body" :disabled="!isMobile">
-        <component
-          :is="isMobile ? BottomSheet : 'div'"
-          v-bind="
-            isMobile ? { open: sheetOpen, title: selected.title } : { class: 'pv__compose-slot' }
-          "
-          @close="sheetOpen = false"
+        <div v-if="isMobile && sheetOpen" class="pv-scrim" @click="sheetOpen = false" />
+        <div
+          v-if="!isMobile || sheetOpen"
+          :class="isMobile ? 'pv-sheet' : 'pv__compose-slot'"
+          :role="isMobile ? 'dialog' : undefined"
+          :aria-modal="isMobile ? 'true' : undefined"
+          :aria-label="isMobile ? selected.title : undefined"
+          @keydown.esc="sheetOpen = false"
         >
+          <span v-if="isMobile" class="pv-sheet__grip" aria-hidden="true" />
           <section
             class="pv__compose"
             :class="{ 'is-sheet': isMobile }"
@@ -354,12 +363,15 @@ defineExpose({ focus: openNew })
               <div class="pv__hero-text">
                 <span class="pv__eyebrow">
                   {{ selected.topic }}
-                  <span class="pv__badge" :class="{ 'pv__badge--mine': !selected.builtIn }">
+                  <template v-if="isMobile">
+                    · {{ selected.builtIn ? 'Built-in' : 'Yours' }}</template
+                  >
+                  <span v-else class="pv__badge" :class="{ 'pv__badge--mine': !selected.builtIn }">
                     {{ selected.builtIn ? 'Built-in' : 'Yours' }}
                   </span>
                 </span>
                 <h3 class="pv__title">{{ selected.title }}</h3>
-                <span class="pv__stats">
+                <span v-if="!isMobile" class="pv__stats">
                   <span class="pv__stat"
                     ><Icon name="list" size="xs" />{{ plural(blanks.length, 'blank') }}</span
                   >
@@ -368,7 +380,16 @@ defineExpose({ focus: openNew })
                   >
                 </span>
               </div>
-              <button type="button" class="pv__soft" @click="openEdit(selected)">
+              <button
+                v-if="isMobile"
+                type="button"
+                class="pv__close"
+                aria-label="Close"
+                @click="sheetOpen = false"
+              >
+                <Icon name="x" size="sm" />
+              </button>
+              <button v-else type="button" class="pv__soft" @click="openEdit(selected)">
                 <Icon :name="selected.builtIn ? 'copy' : 'pencil'" size="xs" />
                 {{ selected.builtIn ? 'Customise' : 'Edit' }}
               </button>
@@ -384,19 +405,25 @@ defineExpose({ focus: openNew })
               <div class="pv__fill-head">
                 <span class="pv__fill-title">Fill in the blanks</span>
                 <span class="pv__fill-count">{{ filledCount }} of {{ blanks.length }}</span>
-                <button v-if="filledCount" type="button" class="pv__link" @click="clearFills">
+                <!-- On a phone the bar sits on this line, beside the count. -->
+                <div
+                  class="pv__track"
+                  role="progressbar"
+                  :aria-valuenow="fillPct"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-label="Blanks filled"
+                >
+                  <span class="pv__track-fill" :style="{ width: fillPct + '%' }" />
+                </div>
+                <button
+                  v-if="filledCount && !isMobile"
+                  type="button"
+                  class="pv__link"
+                  @click="clearFills"
+                >
                   <Icon name="rotate-ccw" size="xs" /> Clear
                 </button>
-              </div>
-              <div
-                class="pv__track"
-                role="progressbar"
-                :aria-valuenow="fillPct"
-                aria-valuemin="0"
-                aria-valuemax="100"
-                aria-label="Blanks filled"
-              >
-                <span class="pv__track-fill" :style="{ width: fillPct + '%' }" />
               </div>
               <div class="pv__fields">
                 <div
@@ -442,20 +469,44 @@ defineExpose({ focus: openNew })
               </p>
             </div>
 
-            <!-- The bar: what it costs, how to make it cost less, and Copy. -->
+            <!-- A phone's sheet has no room for Customise in its head. -->
+            <button
+              v-if="isMobile"
+              type="button"
+              class="pv__link pv__customise"
+              @click="openEdit(selected)"
+            >
+              <Icon :name="selected.builtIn ? 'copy' : 'pencil'" size="xs" />
+              {{ selected.builtIn ? 'Customise this template' : 'Edit this template' }}
+            </button>
+
+            <!-- The bar: what it costs, how to make it cost less, and Copy.
+                 Pinned to the bottom, so Copy is always in reach. -->
             <footer class="pv__bar">
               <div class="pv__meter">
                 <div class="pv__meter-top">
                   <span class="pv__tokens">≈{{ tokens }}</span>
                   <span class="pv__tokens-unit">tokens</span>
-                  <span class="pv__weight">{{ weight }}</span>
-                  <span v-if="compact && saved" class="pv__saved">−{{ saved }} saved</span>
+                  <span v-if="isMobile" class="pv__tokens-unit">· {{ weight }}</span>
+                  <span v-else class="pv__weight">{{ weight }}</span>
+                  <span v-if="compact && saved && !isMobile" class="pv__saved"
+                    >−{{ saved }} saved</span
+                  >
                 </div>
-                <div class="pv__meter-track" aria-hidden="true">
+                <div v-if="!isMobile" class="pv__meter-track" aria-hidden="true">
                   <span class="pv__meter-fill" :style="{ width: meterPct + '%' }" />
                 </div>
+                <Switch
+                  v-if="isMobile"
+                  v-model="compact"
+                  size="sm"
+                  label="Compact"
+                  class="pv__compact"
+                  title="Squeeze out extra spaces and blank lines"
+                />
               </div>
               <Switch
+                v-if="!isMobile"
                 v-model="compact"
                 size="sm"
                 label="Compact"
@@ -477,7 +528,7 @@ defineExpose({ focus: openNew })
               </Button>
             </footer>
           </section>
-        </component>
+        </div>
       </Teleport>
       <section v-else-if="!isMobile" class="pv__compose pv__compose--empty">
         <p class="pv__noblank">Pick a template on the left to start.</p>
@@ -550,18 +601,9 @@ defineExpose({ focus: openNew })
   gap: var(--sp-4);
   min-width: 0;
 }
-.pv__sub {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--theme-dim);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  white-space: nowrap;
-}
 .pv__cols {
   display: grid;
-  grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
@@ -569,12 +611,94 @@ defineExpose({ focus: openNew })
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* ---- head ------------------------------------------------------------------- */
+/* "Prompts  20 templates · 1 yours" on one line, New at the end of it. */
+.pv__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding: 2px 2px 4px;
+}
+.pv__h {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: var(--text-xl, 22px);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.pv__sub {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--theme-dim);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pv__new {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
+  box-shadow: 0 8px 18px -10px var(--theme-accent);
+  cursor: pointer;
+  transition: filter var(--dur-fast) ease;
+}
+.pv__new:hover {
+  filter: brightness(1.06);
+}
+.pv__new:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+/* A phone: the count rides above a big title, New is a round button in the
+   corner spanning both lines. */
+.pv__cols.is-stacked .pv__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'sub new'
+    'h new';
+  align-items: center;
+  row-gap: 2px;
+}
+.pv__cols.is-stacked .pv__sub {
+  grid-area: sub;
+}
+.pv__cols.is-stacked .pv__h {
+  grid-area: h;
+  font-size: var(--text-2xl, 28px);
+}
+.pv__cols.is-stacked .pv__new {
+  grid-area: new;
+  width: 48px;
+  height: 48px;
+}
+
 /* ---- library ---------------------------------------------------------------- */
+/* Held to the window on a wide screen, so the list scrolls inside it and the
+   head and topics stay put. */
 .pv__lib {
+  position: sticky;
+  top: 8px;
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
   min-width: 0;
+  max-height: max(420px, calc(100dvh - 200px));
+}
+.pv__cols.is-stacked .pv__lib {
+  position: static;
+  max-height: none;
 }
 .pv__topics,
 .pv__suggest {
@@ -628,7 +752,8 @@ defineExpose({ focus: openNew })
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  max-height: min(64vh, 680px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 2px 6px 6px 2px;
   scrollbar-gutter: stable;
@@ -686,16 +811,6 @@ defineExpose({ focus: openNew })
 }
 .pv__row.is-on {
   background: var(--pv-wash-strong);
-}
-.pv__row.is-on::before {
-  content: '';
-  position: absolute;
-  left: -2px;
-  top: 12px;
-  bottom: 12px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--theme-accent);
 }
 .pv__row:focus-visible {
   outline: 2px solid var(--theme-accent);
@@ -781,7 +896,8 @@ defineExpose({ focus: openNew })
 }
 
 /* ---- composer --------------------------------------------------------------- */
-/* Held in view while the library scrolls past it. */
+/* Held in view while the library scrolls past it, and as tall as the window
+   allows: a long template scrolls inside the card, with the bar pinned. */
 .pv__compose {
   position: sticky;
   top: 8px;
@@ -789,13 +905,16 @@ defineExpose({ focus: openNew })
   flex-direction: column;
   gap: 18px;
   min-width: 0;
-  padding: 22px;
-  border: 1px solid var(--pv-line);
-  border-radius: 24px;
+  max-height: max(420px, calc(100dvh - 200px));
+  overflow-y: auto;
+  padding: 26px 26px 0;
+  border-radius: 28px;
   background: var(--theme-card);
   box-shadow:
     0 1px 2px color-mix(in srgb, var(--shadow-ink, #000) 5%, transparent),
     0 16px 36px -22px color-mix(in srgb, var(--shadow-ink, #000) 30%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--theme-text) 22%, transparent) transparent;
 }
 .pv__compose-slot {
   position: sticky;
@@ -805,26 +924,112 @@ defineExpose({ focus: openNew })
 .pv__compose-slot > .pv__compose {
   position: static;
 }
-/* In the phone's sheet the sheet is the card, so the composer drops its own.
-   A class rather than a descendant rule: teleported, it has no .pv__cols
-   above it. Its own tokens come with it for the same reason. */
+
+/* ---- the phone's sheet ---- */
+.pv-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: color-mix(in oklch, var(--glass-solid) 45%, transparent);
+  backdrop-filter: blur(3px);
+  animation: pvFade var(--dur-med) ease both;
+}
+.pv-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 51;
+  display: flex;
+  flex-direction: column;
+  max-height: 88dvh;
+  border-radius: 28px 28px 0 0;
+  background: var(--glass-solid);
+  color: var(--theme-text);
+  box-shadow: 0 -18px 48px -24px color-mix(in srgb, var(--shadow-ink, #000) 50%, transparent);
+  animation: pvSheetIn var(--dur-med) var(--ease-out) both;
+}
+.pv-sheet__grip {
+  flex-shrink: 0;
+  width: 40px;
+  height: 5px;
+  margin: 10px auto 2px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--theme-text) 18%, transparent);
+}
+@keyframes pvSheetIn {
+  from {
+    transform: translateY(16%);
+    opacity: 0;
+  }
+}
+@keyframes pvFade {
+  from {
+    opacity: 0;
+  }
+}
+/* In the sheet the sheet is the card, so the composer drops its own and
+   scrolls between a pinned head and a pinned bar. A class rather than a
+   descendant rule: teleported, it has no .pv__cols above it. Its own tokens
+   come with it for the same reason. */
 .pv__compose.is-sheet {
   --pv-wash: color-mix(in oklch, var(--theme-accent) 9%, transparent);
   --pv-wash-strong: color-mix(in oklch, var(--theme-accent) 16%, transparent);
   --pv-line: color-mix(in oklch, var(--theme-text) 8%, transparent);
   position: static;
-  padding: 4px 2px 12px;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  gap: 16px;
+  padding: 0 18px;
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
-/* The sheet's own header already names the template. */
-.pv__compose.is-sheet .pv__title {
-  display: none;
+.pv__compose.is-sheet .pv__hero {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  align-items: center;
+  padding: 10px 0 8px;
+  background: var(--glass-solid);
+}
+.pv__compose.is-sheet .pv__hero-tile {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
 }
 .pv__compose.is-sheet .pv__fields {
   grid-template-columns: minmax(0, 1fr);
+}
+/* White wells on the cream sheet, the other way round from the desktop card. */
+.pv__compose.is-sheet .pv__fields :deep(.ui-control),
+.pv__compose.is-sheet .pv__fields :deep(.ui-control:hover) {
+  background: var(--theme-card);
+}
+.pv__compose.is-sheet .pv__preview {
+  background: var(--theme-card);
+  border-style: solid;
+  border-color: var(--pv-line);
+}
+.pv__close {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--pv-wash-strong);
+  color: var(--theme-text);
+  cursor: pointer;
+}
+.pv__close:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+.pv__customise {
+  align-self: flex-start;
+  margin: -6px 0 0;
 }
 .pv__compose--empty {
   align-items: center;
@@ -933,10 +1138,23 @@ defineExpose({ focus: openNew })
   flex-direction: column;
   gap: 12px;
 }
+/* Title, count and Clear on one line; the bar under them, full width. On a
+   phone the bar moves up onto the line, beside the count. */
 .pv__fill-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+.pv__fill-head .pv__track {
+  order: 1;
+  flex: 1 0 100%;
+  margin-top: 4px;
+}
+.pv__compose.is-sheet .pv__fill-head .pv__track {
+  order: 0;
+  flex: 1 1 auto;
+  margin: 0 0 0 4px;
 }
 .pv__fill-title {
   color: var(--theme-text);
@@ -1112,14 +1330,41 @@ defineExpose({ focus: openNew })
   vertical-align: baseline;
 }
 
+/* Pinned to the bottom of the scrolling card, so Copy never scrolls away. It
+   is opaque for the same reason: text scrolls under it. */
 .pv__bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+  margin: 0 -10px;
   padding: 14px 16px;
-  border-radius: 18px;
-  background: var(--pv-wash);
+  border-radius: 20px;
+  background: color-mix(in oklch, var(--theme-accent) 9%, var(--glass-solid, var(--theme-card)));
+  box-shadow: 0 -10px 18px -14px color-mix(in srgb, var(--shadow-ink, #000) 30%, transparent);
+}
+.pv__compose:not(.is-sheet) .pv__bar {
+  margin-bottom: 20px;
+}
+/* The phone's bar runs the sheet's full width, over the safe area. */
+.pv__compose.is-sheet .pv__bar {
+  flex-wrap: nowrap;
+  margin: 0 -18px;
+  padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+  border-radius: 0;
+  background: var(--glass-solid);
+  border-top: 1px solid var(--pv-line);
+}
+.pv__compose.is-sheet .pv__meter {
+  min-width: 0;
+  gap: 8px;
+}
+.pv__compose.is-sheet .pv__copy {
+  min-width: 0;
+  flex-shrink: 0;
 }
 .pv__meter {
   display: flex;
@@ -1212,6 +1457,10 @@ defineExpose({ focus: openNew })
   .pv__meter-fill,
   .pv__soft {
     transition: none;
+  }
+  .pv-sheet,
+  .pv-scrim {
+    animation: none;
   }
 }
 </style>

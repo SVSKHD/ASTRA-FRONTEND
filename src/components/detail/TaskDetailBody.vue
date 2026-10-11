@@ -14,7 +14,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useInlineField } from '@/composables/useInlineField'
-import { buildIndex, ancestorsOf, childrenOf } from '@/utils/taskTree'
+import { buildIndex, ancestorsOf, childrenOf, doneFirst } from '@/utils/taskTree'
 import {
   daysRemaining,
   formatMinutes,
@@ -26,6 +26,7 @@ import {
 } from '@/utils/detailFields'
 import DetailSection from '@/components/detail/DetailSection.vue'
 import NotesSection from '@/components/detail/NotesSection.vue'
+import TaskTimeline from '@/components/detail/TaskTimeline.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import IssueChip from '@/components/IssueChip.vue'
 import TagPicker from '@/components/TagPicker.vue'
@@ -172,7 +173,8 @@ function removeFromCalendar() {
 const ancestors = computed(() => ancestorsOf(index.value, props.taskId).slice().reverse())
 
 // --- subtasks ----------------------------------------------------------------
-const subtasks = computed(() => childrenOf(index.value, props.taskId) as Task[])
+// Just-finished subtasks first (most recent at the top), then the open ones.
+const subtasks = computed(() => doneFirst(childrenOf(index.value, props.taskId) as Task[]))
 const subtaskDraft = ref('')
 function addSubtask() {
   const text = subtaskDraft.value.trim()
@@ -529,6 +531,8 @@ defineExpose({
       </DetailSection>
 
       <NotesSection type="task" :id="taskId" />
+
+      <TaskTimeline :task-id="taskId" as="dialog" />
 
       <DetailSection label="Activity" collapsible :start-open="false">
         <div class="tdb__muted">Created {{ relativeStamp(task.createdAt) }}</div>

@@ -38,6 +38,9 @@ export const ICONS = {
   'chevron-left': '<polyline points="15 6 9 12 15 18" />',
   x: '<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />',
   plus: '<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />',
+  // A box with its lid: archiving, which hides a thing without deleting it.
+  archive:
+    '<rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" /><path d="M10 12h4" />',
   // The Enter key, for a submit that Enter also does (the quick add's "Add ↵").
   'corner-down-left': '<polyline points="9 10 4 15 9 20" /><path d="M20 4v7a4 4 0 0 1-4 4H4" />',
   'arrow-up': '<line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />',

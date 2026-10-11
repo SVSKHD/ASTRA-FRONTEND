@@ -53,6 +53,10 @@ function openNotes() {
   ui.setMoreSheet(false)
   ui.openShellPanel('notes', avatarMenuOpen)
 }
+function openTimeline() {
+  ui.setMoreSheet(false)
+  ui.openShellPanel('timeline', avatarMenuOpen)
+}
 function openPanel(name: 'appearance' | 'account') {
   ui.setMoreSheet(false)
   panel.value = name
@@ -110,12 +114,16 @@ const avatarDisc = computed(() => ({
   </nav>
 
   <BottomSheet :open="moreSheetOpen" title="More" @close="ui.setMoreSheet(false)">
-    <!-- What the desktop's bottom pill holds, first: four controls and the
+    <!-- What the desktop's bottom pill holds, first: five controls and the
          sync status, above the fold of a 360px sheet. -->
     <div class="mtb-more mtb-more--utils" role="group" aria-label="Workspace">
       <button type="button" class="mtb-more__item" @click="openNotes">
         <Icon name="notebook" size="md" class="mtb-more__icon" />
         <span>Notes</span>
+      </button>
+      <button type="button" class="mtb-more__item" @click="openTimeline">
+        <Icon name="clock" size="md" class="mtb-more__icon" />
+        <span>Timeline</span>
       </button>
       <button type="button" class="mtb-more__item" @click="openPanel('appearance')">
         <Icon name="palette" size="md" class="mtb-more__icon" />
@@ -226,10 +234,18 @@ const avatarDisc = computed(() => ({
   gap: var(--sp-2);
 }
 .mtb-more--utils {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .mtb-more--utils .mtb-more__item {
-  padding: 8px 4px;
+  min-width: 0;
+  padding: 8px 2px;
+}
+.mtb-more--utils .mtb-more__item > span:last-child {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .mtb-more--sections {
   margin-top: var(--sp-2);

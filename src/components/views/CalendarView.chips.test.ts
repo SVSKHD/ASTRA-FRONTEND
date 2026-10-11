@@ -35,17 +35,24 @@ describe('every event chip, on every theme', () => {
   it('paints the chip from that measurement, not from a raw color-mix', () => {
     // The fallback in the stylesheet exists only for the first frame; the value
     // that actually lands is --chip-bg, computed per event.
-    expect(view).toContain('chipBg: surfacePair(')
+    expect(view).toContain('chipBg: surfacePair(SOURCE_COLOR[event.source]')
     expect(view).toContain("'--chip-bg': arg.event.extendedProps.chipBg")
   })
 
-  it('puts the hue on the bar and the text on --text-primary', () => {
+  it('tints the chip by its source and keeps the text on --text-primary', () => {
+    // The fill is the source's hue — the same as its dot in the legend — so the
+    // grid reads the way the legend says it will.
     const chip = view.slice(view.indexOf('.cal-event {'), view.indexOf('.cal-event:active'))
-    expect(chip).toContain('border-left: 3px solid var(--bar)')
+    expect(chip).toContain('background: var(--chip-bg')
     expect(chip).toContain('color: var(--text-primary')
     // Never the source colour as the text — that is the failure the whole
     // section is about.
-    expect(chip).not.toMatch(/color:\s*var\(--bar\)/)
+    expect(chip).not.toMatch(/(^|[^-])color:\s*var\(--src\)/)
+  })
+
+  it('rings the selected chip, the one the side card describes', () => {
+    expect(view).toContain("'is-selected': arg.event.id === selectedId")
+    expect(view).toMatch(/\.cal-event\.is-selected \{\s*border-color: var\(--theme-text\)/)
   })
 })
 
@@ -84,23 +91,23 @@ describe('the month cell (section 24c)', () => {
     expect(view).toMatch(/\.fc-day-other \{\s*background:/)
   })
 
-  it('holds two-line event cards with a gap between them, then a more-link', () => {
+  it('holds event cards with a gap between them, then a more-link', () => {
     expect(view).toContain('dayMaxEvents')
     expect(view).toMatch(/\.fc-daygrid-event-harness \{\s*margin-top: \d+px/)
-    expect(view).toMatch(/\.fc-daygrid-event \.cal-event \{\s*min-height: 44px/)
+    expect(view).toMatch(/\.fc-daygrid-event \.cal-event \{\s*min-height: \d+px/)
   })
 })
 
 describe('the shell (acceptance 124)', () => {
-  it('is a grid with a named panel track, not a flex row', () => {
+  it('is a grid with a fixed side track, not a flex row', () => {
     // A flex row with a fixed-width panel and no min-width lets the grid — which
-    // can always shrink — push the panel off the left edge instead of taking
-    // the squeeze itself. Widened to 260px by section 26b.
-    expect(view).toContain("gridTemplateColumns: withPanel ? '260px minmax(0, 1fr)'")
+    // can always shrink — push the panel off the edge instead of taking the
+    // squeeze itself. The side column holds the selection and Unscheduled.
+    expect(view).toContain("gridTemplateColumns: 'minmax(0, 1fr) 248px'")
   })
 
   it('sets min-width: 0 on both tracks', () => {
-    const grid = view.slice(view.indexOf('function bodyGrid'), view.indexOf('const panelStyleBox'))
+    const grid = view.slice(view.indexOf('const bodyGrid'), view.indexOf('const hintStyle'))
     expect(grid).toContain('minWidth: 0')
     expect(grid).toContain('minmax(0, 1fr)')
   })
@@ -115,20 +122,20 @@ describe('the shell (acceptance 124)', () => {
 })
 
 describe('the toolbar (section 24d)', () => {
-  it('makes the filters the legend, with the hue on the tile and nowhere else', () => {
+  it('makes the filters the legend, with the hue on the dot and nowhere else', () => {
     // Four differently-coloured chips plus a purple active state plus coloured
     // events left the eye with nothing to land on. The filters are now the
-    // legend: each wears the same small tile as its events on the grid, the
-    // source's colour lives on that tile only, and the chip itself takes no
-    // accent fill or ring — on is the tile lighting up.
-    expect(view).toMatch(/\.calv__chip\.is-on \.calv__chip-tile \{[^}]*var\(--src\)/)
+    // legend: each wears a dot in the hue its events are tinted with, the
+    // source's colour lives on that dot only, and the chip itself takes no
+    // accent fill or ring — on is the dot filling in.
+    expect(view).toMatch(/\.calv__chip\.is-on \.calv__chip-dot \{[^}]*var\(--src\)/)
     expect(view).not.toMatch(/\.calv__chip\.is-on \{[^}]*var\(--theme-accent\)/)
     expect(view).toContain("'--src': SOURCE_COLOR[f.source]")
     expect(view).not.toMatch(/\.calv__chip\[data-/)
   })
 
   it('caps the project select instead of letting it fill the row', () => {
-    expect(view).toMatch(/maxWidth: 240/)
+    expect(view).toMatch(/maxWidth: 180/)
   })
 
   it('has no native select left in it', () => {
@@ -136,11 +143,14 @@ describe('the toolbar (section 24d)', () => {
   })
 
   it('sizes the filters and the view switcher alike', () => {
-    // 36px targets in a 44px track, the same as the range switch beside them.
-    const chip = view.slice(view.indexOf('.calv__chip {'), view.indexOf('.calv__chip:hover'))
+    // 36px pills beside a 36px track: 28px targets with 4px of padding.
+    const chip = view.slice(view.indexOf('.calv__chip {'), view.indexOf('.calv__chip.is-on'))
+    const track = view.slice(view.indexOf('.calv__views {'), view.indexOf('.calv__view {'))
     const viewBtn = view.slice(view.indexOf('.calv__view {'), view.indexOf('.calv__view:hover'))
     expect(chip).toContain('height: 36px')
-    expect(viewBtn).toContain('height: 36px')
+    expect(viewBtn).toContain('height: 28px')
+    expect(track).toContain('padding: 4px')
     expect(chip).toContain('font-size: var(--text-xs)')
+    expect(viewBtn).toContain('font-size: var(--text-xs)')
   })
 })

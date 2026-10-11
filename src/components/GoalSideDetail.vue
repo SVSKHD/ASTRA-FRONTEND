@@ -38,7 +38,6 @@ const movedTo = computed(() => (moved.value?.collection === 'tasks' ? 'Tasks' : 
 const { goals, goalChecklist, tasks, todos } = storeToRefs(app)
 const {
   c,
-  s,
   pane,
   row,
   grow,
@@ -133,7 +132,13 @@ const swatch = computed(() =>
   <div v-scroll-fade :style="pane">
     <Transition name="pane-swap" mode="out-in">
       <div :key="goalId ?? 'empty'" class="pane-swap__body">
-        <div v-if="!goal" :style="s.empty">Select a goal to see its progress and details.</div>
+        <div v-if="!goal" class="gsd-empty">
+          <span class="gsd-empty__icon" aria-hidden="true"><Icon name="flag" size="lg" /></span>
+          <p class="gsd-empty__title">Pick a goal</p>
+          <p class="gsd-empty__text">
+            Select a goal to see its progress, points and everything attached to it.
+          </p>
+        </div>
 
         <template v-else>
           <!-- The hero, as every detail pane has it: the goal's colour, status
@@ -426,6 +431,38 @@ const swatch = computed(() =>
 </template>
 
 <style scoped>
+/* Nothing selected: what the pane is for, and how to fill it. */
+.gsd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 48px auto 0;
+  max-width: 280px;
+  text-align: center;
+}
+.gsd-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 6px;
+  border-radius: 18px;
+  background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
+  color: var(--theme-accent);
+}
+.gsd-empty__title {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+.gsd-empty__text {
+  margin: 0;
+  color: var(--theme-dim);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+}
 /* "In Todos": where a moved goal went, and the way there. */
 .moved-chip {
   display: inline-flex;

@@ -94,6 +94,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
     <div v-if="showFilters" class="gtb__filters">
       <TextInput
         type="search"
+        icon="search"
         placeholder="Search goals…"
         :model-value="search"
         @update:model-value="emit('update:search', $event)"

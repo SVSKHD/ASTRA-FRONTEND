@@ -9,13 +9,14 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, useDetailStyles } from '@/composables/useDetailStyles'
-import { buildIndex, childrenOf, ancestorsOf, descendantsOf } from '@/utils/taskTree'
+import { buildIndex, childrenOf, ancestorsOf, descendantsOf, doneFirst } from '@/utils/taskTree'
 import StatusPill from '@/components/StatusPill.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import ShareGlobeButton from '@/components/ShareGlobeButton.vue'
 import MoveToDeadlineButton from '@/components/MoveToDeadlineButton.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
 import PaneSection from '@/components/detail/PaneSection.vue'
+import TaskTimeline from '@/components/detail/TaskTimeline.vue'
 import PaneNotes from '@/components/detail/PaneNotes.vue'
 import PaneButton from '@/components/detail/PaneButton.vue'
 import PaneToolbar from '@/components/detail/PaneToolbar.vue'
@@ -65,7 +66,10 @@ const {
 
 const index = computed(() => buildIndex(todos.value))
 const todo = computed(() => (props.todoId == null ? undefined : index.value.byId.get(props.todoId)))
-const subtasks = computed(() => (todo.value ? childrenOf(index.value, todo.value.id) : []))
+// Just-finished subtasks first (most recent at the top), then the open ones.
+const subtasks = computed(() =>
+  todo.value ? doneFirst(childrenOf(index.value, todo.value.id)) : [],
+)
 const subDone = computed(() => subtasks.value.filter((t) => t.status === 'done').length)
 const allDescendants = computed(() =>
   todo.value ? descendantsOf(index.value, todo.value.id).length : 0,
@@ -318,6 +322,7 @@ function moveTodoToTasks() {
                todo itself, before the subtasks, so they are never a long
                scroll down. -->
           <PaneNotes type="todo" :id="todo.id" />
+          <TaskTimeline :task-id="todo.id" kind="todo" />
 
           <!-- The same quick add as the list's, filing under this todo: the
                natural-language parse, the reminder, the description and tag. -->

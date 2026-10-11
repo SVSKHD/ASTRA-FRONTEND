@@ -23,6 +23,8 @@ import AppShell from '@/components/shell/AppShell.vue'
 import ReminderDock from '@/components/shell/ReminderDock.vue'
 import DragGhost from '@/components/DragGhost.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
+import TimelineDrawer from '@/components/TimelineDrawer.vue'
+import TimelineEditor from '@/components/TimelineEditor.vue'
 import NewItemHint from '@/components/NewItemHint.vue'
 import NoteView from '@/components/NoteView.vue'
 import DetailHost from '@/components/detail/DetailHost.vue'
@@ -210,6 +212,8 @@ function overlaysOpen(): boolean {
     taskView: app.taskViewId != null,
     share: app.pendingShare != null,
     notesDrawer: ui.drawerOpen,
+    timelineDrawer: ui.timelineOpen,
+    timelineEditor: app.timelineEditor != null,
     themePanel: ui.themePanelOpen,
     securityPanel: auth.securityPanelOpen,
     githubPanel: auth.githubPanelOpen,
@@ -238,6 +242,9 @@ function onKey(e: KeyboardEvent) {
       return
     }
     if (app.taskViewId != null) return app.closeTaskView()
+    // The timeline editor is a Modal and closes itself on Escape (asking first
+    // when there are changes), so it only has to stop the drawer closing too.
+    if (app.timelineEditor) return
     // The detail dialog handles its own Escape (it has a dirty guard to run
     // first), so it is deliberately not closed from here.
     if (app.detailOpen) return
@@ -257,6 +264,10 @@ function onKey(e: KeyboardEvent) {
     }
     if (ui.drawerOpen) {
       ui.toggleDrawer()
+      return
+    }
+    if (ui.timelineOpen) {
+      ui.toggleTimeline()
       return
     }
     if (ui.themePanelOpen) {
@@ -455,6 +466,8 @@ onBeforeUnmount(() => {
 
   <template v-if="showWorkspace">
     <NotesDrawer />
+    <TimelineDrawer />
+    <TimelineEditor />
     <NoteView />
     <ItemDialog />
     <TripDialog />
