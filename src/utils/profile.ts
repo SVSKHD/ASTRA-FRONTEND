@@ -77,12 +77,10 @@ export async function saveProfile(content: Profile): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) throw new Error('Sign in before saving your profile.')
-  const { error } = await supabase
-    .from('portfolio_profiles')
-    .upsert({
-      id: 'hithesh',
-      content: profileSchema.parse(content),
-      updated_at: new Date().toISOString(),
-    })
+  const { error } = await supabase.from('portfolio_profiles').upsert({
+    id: 'hithesh',
+    content: profileSchema.parse(content),
+    updated_at: new Date().toISOString(),
+  })
   if (error) throw error
 }

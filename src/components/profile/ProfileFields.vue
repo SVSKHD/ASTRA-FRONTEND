@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import Textarea from '@/components/ui/TextArea.vue'
 const props = defineProps<{ modelValue: unknown; label: string }>()
 const emit = defineEmits<{ 'update:modelValue': [unknown] }>()
 const text = computed(() => typeof props.modelValue === 'string')
@@ -63,14 +64,14 @@ function add() {
 }
 </script>
 <template>
-  <label v-if="text" class="pf-edit-field"
-    ><span>{{ title }}</span
-    ><textarea
-      :value="modelValue as string"
-      rows="2"
-      @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
+  <div v-if="text" class="pf-edit-field">
+    <Textarea
+      :label="title"
+      :model-value="modelValue as string"
+      :rows="2"
+      @update:model-value="emit('update:modelValue', $event)"
     />
-  </label>
+  </div>
   <fieldset v-else class="pf-edit-group">
     <legend>{{ title }}</legend>
     <div v-for="[key, value] in entries" :key="key" class="pf-edit-row">

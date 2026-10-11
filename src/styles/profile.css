@@ -111,7 +111,7 @@
 .pf-tags,
 .pf-card-number,
 .pf-stack-icon {
-  font-family: 'Cascadia Code', Consolas, monospace;
+  font-family: var(--font-mono);
 }
 .pf-muted {
   color: var(--pf-muted);
@@ -1140,7 +1140,7 @@
   align-items: center;
   gap: 36px;
   color: var(--pf-muted);
-  font-family: Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: var(--pf-type-4);
   white-space: nowrap;
 }

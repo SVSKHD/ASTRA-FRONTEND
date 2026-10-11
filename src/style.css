@@ -1058,6 +1058,7 @@ textarea:focus,
   color: var(--theme-dim);
 }
 .md .md-fence-language {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1112,10 +1113,11 @@ textarea:focus,
 }
 .md .md-code-card pre code {
   display: block;
-  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-family: var(--font-mono);
   line-height: 1.75;
 }
 .md .md-code-card.is-wrapped pre code {
+  min-width: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

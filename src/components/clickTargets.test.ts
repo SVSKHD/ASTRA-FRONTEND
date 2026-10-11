@@ -121,11 +121,11 @@ describe('a task row (acceptance 85)', () => {
     expect(app.detailOpen).toBe(false)
   })
 
-  it('does not open when the status control is clicked — it advances the status', async () => {
+  it('does not open when the completion ring is clicked and completes the task', async () => {
     const wrapper = mountRow()
-    await wrapper.find('.tree-row button[title^="Status"]').trigger('click')
+    await wrapper.find('.tree-row button[aria-label="Mark done"]').trigger('click')
     expect(app.detailOpen).toBe(false)
-    expect(app.tasks[0].status).not.toBe('pending')
+    expect(app.tasks[0].status).toBe('done')
   })
 
   it('does not open when the drag handle is grabbed', async () => {

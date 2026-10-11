@@ -895,7 +895,7 @@ const rootStripStyle = computed(() =>
             </button>
             <RemindBell :collection="collection" :id="row.id" size="md" icon-size="md" />
             <button :style="s.shareBtn" @click.stop="app.share('task', nodeOf(row.id)!)">
-<Icon name="share" size="md"/>
+              <Icon name="share" size="md" />
             </button>
             <IconButton
               class="row-reveal"
