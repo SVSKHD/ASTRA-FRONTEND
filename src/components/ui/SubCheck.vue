@@ -4,7 +4,7 @@
 // is ticked — the details pane, the phone sheet and Next up — so the pop, the
 // sizes and the focus ring are decided once. `sm` is the 18px desktop box,
 // `md` the 20px one a thumb needs.
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
 import { checkTick } from '@/styles'
 
@@ -13,22 +13,27 @@ const props = withDefaults(defineProps<{ done: boolean; size?: 'sm' | 'md' }>(),
 })
 const emit = defineEmits<{ toggle: [] }>()
 
-const popping = ref(false)
-let popTimer: ReturnType<typeof setTimeout> | undefined
+const ticking = ref(false)
+let tickTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => props.done,
+  (done, wasDone) => {
+    clearTimeout(tickTimer)
+    ticking.value = done && !wasDone
+    if (ticking.value) tickTimer = setTimeout(() => (ticking.value = false), 480)
+  },
+)
 function onClick() {
-  popping.value = true
-  clearTimeout(popTimer)
-  popTimer = setTimeout(() => (popping.value = false), 180)
   emit('toggle')
 }
-onBeforeUnmount(() => clearTimeout(popTimer))
+onBeforeUnmount(() => clearTimeout(tickTimer))
 </script>
 
 <template>
   <button
     type="button"
     class="subcheck"
-    :class="[`subcheck--${props.size}`, { 'is-done': done, 'is-pop': popping }]"
+    :class="[`subcheck--${props.size}`, { 'is-done': done, 'is-ticking': ticking }]"
     :aria-label="done ? 'Mark not done' : 'Mark done'"
     :aria-pressed="done"
     @click.stop="onClick"
@@ -67,8 +72,58 @@ onBeforeUnmount(() => clearTimeout(popTimer))
   background: var(--theme-accent);
   border-color: var(--theme-accent);
 }
-.subcheck.is-pop {
-  transform: scale(1.25);
+.subcheck.is-ticking {
+  animation: subcheck-pop 400ms var(--ease-pop);
+}
+.subcheck.is-ticking::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border: 2px solid var(--theme-accent);
+  border-radius: 10px;
+  pointer-events: none;
+  animation: subcheck-ripple 480ms ease-out forwards;
+}
+.subcheck.is-ticking .subcheck__tick {
+  animation: subcheck-tick 360ms ease-out both;
+}
+@keyframes subcheck-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.3);
+  }
+  75% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes subcheck-ripple {
+  from {
+    opacity: 0.7;
+    transform: scale(0.75);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+@keyframes subcheck-tick {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(-18deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.15) rotate(4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(0);
+  }
 }
 .subcheck__tick {
   opacity: 0;
@@ -86,8 +141,13 @@ onBeforeUnmount(() => clearTimeout(popTimer))
   .subcheck__tick {
     transition: none;
   }
-  .subcheck.is-pop {
-    transform: none;
+  .subcheck.is-ticking,
+  .subcheck.is-ticking .subcheck__tick,
+  .subcheck.is-ticking::after {
+    animation: none;
+  }
+  .subcheck.is-ticking::after {
+    display: none;
   }
 }
 </style>

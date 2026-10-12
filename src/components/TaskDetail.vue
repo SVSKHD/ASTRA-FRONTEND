@@ -10,7 +10,7 @@ import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useInlineEdit } from '@/composables/useInlineEdit'
 import { fmtDate, fmtDay, useDetailStyles } from '@/composables/useDetailStyles'
-import { buildIndex, childrenOf, ancestorsOf, descendantsOf, doneFirst } from '@/utils/taskTree'
+import { buildIndex, childrenOf, ancestorsOf, descendantsOf } from '@/utils/taskTree'
 import { daysRemaining, formatMinutes, parseMinutes, statusWord } from '@/utils/detailFields'
 import StatusPill from '@/components/StatusPill.vue'
 import RemindBell from '@/components/RemindBell.vue'
@@ -31,6 +31,8 @@ import QuickAdd from '@/components/todo/QuickAdd.vue'
 import AddMoreDialog from '@/components/detail/AddMoreDialog.vue'
 import ExportJsonDialog from '@/components/detail/ExportJsonDialog.vue'
 import { exportTaskTransferJson } from '@/utils/taskTransfer'
+import StrikeText from '@/components/ui/StrikeText.vue'
+import { useSubtaskGroups } from '@/composables/useSubtaskGroups'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
 import { useTreeDrag } from '@/composables/useTreeDrag'
 import SubCheck from '@/components/ui/SubCheck.vue'
@@ -75,10 +77,8 @@ const {
 
 const index = computed(() => buildIndex(tasks.value))
 const task = computed(() => (props.taskId == null ? undefined : index.value.byId.get(props.taskId)))
-// Just-finished subtasks first (most recent at the top), then the open ones.
-const subtasks = computed(() =>
-  task.value ? doneFirst(childrenOf(index.value, task.value.id)) : [],
-)
+const subtasks = computed(() => (task.value ? childrenOf(index.value, task.value.id) : []))
+const { groups: subtaskGroups } = useSubtaskGroups(() => subtasks.value)
 const subDone = computed(() => subtasks.value.filter((t) => t.status === 'done').length)
 const allDescendants = computed(() =>
   task.value ? descendantsOf(index.value, task.value.id).length : 0,
@@ -359,86 +359,106 @@ function moveTaskToTodos() {
               collection="tasks"
               :ids="subIds"
             />
-            <div
-              v-for="st in subtasks"
-              :key="st.id"
-              class="dp-sub"
-              :data-subtask-id="st.id"
-              :class="{
-                'is-picking': selecting,
-                'is-picked': selecting && picked.has(st.id),
-                'dp-sub--dragging': isDragSource('tasks', st.id),
-              }"
-              @click="!suppressDragClick() && selecting && togglePick(st.id)"
+            <section
+              v-for="group in subtaskGroups"
+              :key="group.key"
+              class="dp-subgroup"
+              :aria-label="group.label"
             >
-              <TreeDragHandle
-                collection="tasks"
-                :id="st.id"
-                :title="st.title"
-                :selected-ids="[...picked]"
-                :hint="st.id === subtasks[0]?.id"
-                nest-only
-              />
-              <Checkbox
-                v-if="selecting"
-                class="dp-sub__pick"
-                :model-value="picked.has(st.id)"
-                :aria-label="'Select ' + (st.title || 'subtask')"
-                @click.stop
-                @update:model-value="togglePick(st.id)"
-              />
-              <SubCheck :done="st.status === 'done'" size="md" @toggle="app.toggleTask(st.id)" />
-              <TextInput
-                v-if="isEditing('sub:' + st.id)"
-                v-model="draft"
-                v-focus
-                size="sm"
-                aria-label="Subtask title"
-                :style="grow"
-                @keydown.enter="commit"
-                @keydown.esc="cancel"
-                @blur="commit"
-              />
-              <span
-                v-else
-                class="dp-sub__text"
-                :class="{ 'is-done': st.status === 'done' }"
-                title="Double-click to rename"
-                @dblclick="start('sub:' + st.id, st.title)"
-                >{{ st.title || '(untitled)' }}</span
-              >
-              <span v-if="st.deadline" :style="toneStyle(daysRemaining(st.deadline))">{{
-                fmtDay(st.deadline)
-              }}</span>
-              <div class="dp-sub__actions">
-                <span
-                  v-if="st.noteIds?.length"
-                  :style="[pill, noteBadge]"
-                  :title="`${st.noteIds.length} attached note${st.noteIds.length === 1 ? '' : 's'}`"
-                  ><Icon name="notebook" size="xs" /> {{ st.noteIds.length }}</span
+              <h3 class="dp-subgroup__title">
+                {{ group.label }} <span>{{ group.items.length }}</span>
+              </h3>
+              <TransitionGroup name="subtask-row" tag="div" class="dp-subgroup__list">
+                <div
+                  v-for="st in group.items"
+                  :key="st.id"
+                  class="dp-sub"
+                  :data-subtask-id="st.id"
+                  :class="{
+                    'is-picking': selecting,
+                    'is-picked': selecting && picked.has(st.id),
+                    'dp-sub--dragging': isDragSource('tasks', st.id),
+                  }"
+                  @click="!suppressDragClick() && selecting && togglePick(st.id)"
                 >
-                <span v-if="kidCount(st.id)" :style="pill">{{ kidCount(st.id) }} sub</span>
-                <PaneButton
-                  icon="chevron-right"
-                  label="Open subtask"
-                  @click="emit('select', st.id)"
-                />
-                <PaneButton
-                  icon="trash"
-                  label="Delete subtask"
-                  tone="danger"
-                  @click="removeTask(st.id)"
-                />
-              </div>
-              <button
-                type="button"
-                class="dp-sub__dot"
-                :class="'is-' + st.status"
-                :title="STATUS_LABEL[st.status] + ' — click to change'"
-                :aria-label="'Status: ' + STATUS_LABEL[st.status] + '. Change status'"
-                @click="app.cycleTaskStatus(st.id)"
-              ></button>
-            </div>
+                  <TreeDragHandle
+                    collection="tasks"
+                    :id="st.id"
+                    :title="st.title"
+                    :selected-ids="[...picked]"
+                    :hint="st.id === subtasks[0]?.id"
+                    nest-only
+                  />
+                  <Checkbox
+                    v-if="selecting"
+                    class="dp-sub__pick"
+                    :model-value="picked.has(st.id)"
+                    :aria-label="'Select ' + (st.title || 'subtask')"
+                    @click.stop
+                    @update:model-value="togglePick(st.id)"
+                  />
+                  <SubCheck
+                    :done="st.status === 'done'"
+                    size="md"
+                    @toggle="app.toggleTask(st.id)"
+                  />
+                  <TextInput
+                    v-if="isEditing('sub:' + st.id)"
+                    v-model="draft"
+                    v-focus
+                    size="sm"
+                    aria-label="Subtask title"
+                    :style="grow"
+                    @keydown.enter="commit"
+                    @keydown.esc="cancel"
+                    @blur="commit"
+                  />
+                  <span
+                    v-else
+                    class="dp-sub__text"
+                    title="Double-click to rename"
+                    @dblclick="start('sub:' + st.id, st.title)"
+                    ><StrikeText :done="st.status === 'done'">{{
+                      st.title || '(untitled)'
+                    }}</StrikeText></span
+                  >
+                  <span v-if="st.deadline" :style="toneStyle(daysRemaining(st.deadline))">{{
+                    fmtDay(st.deadline)
+                  }}</span>
+                  <div class="dp-sub__actions">
+                    <span
+                      v-if="st.noteIds?.length"
+                      :style="[pill, noteBadge]"
+                      :title="`${st.noteIds.length} attached note${st.noteIds.length === 1 ? '' : 's'}`"
+                      ><Icon name="notebook" size="xs" /> {{ st.noteIds.length }}</span
+                    >
+                    <span v-if="kidCount(st.id)" :style="pill">{{ kidCount(st.id) }} sub</span>
+                    <PaneButton
+                      icon="chevron-right"
+                      label="Open subtask"
+                      @click="emit('select', st.id)"
+                    />
+                    <PaneButton
+                      icon="trash"
+                      label="Delete subtask"
+                      tone="danger"
+                      @click="removeTask(st.id)"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    class="dp-sub__dot"
+                    :class="'is-' + st.status"
+                    :title="STATUS_LABEL[st.status] + ' — click to change'"
+                    :aria-label="'Status: ' + STATUS_LABEL[st.status] + '. Change status'"
+                    @click="app.cycleTaskStatus(st.id)"
+                  ></button>
+                </div>
+              </TransitionGroup>
+              <p v-if="group.key === 'open' && !group.items.length" class="dp-subgroup__empty">
+                No open subtasks.
+              </p>
+            </section>
             <div v-if="!subtasks.length" :style="placeholder">No subtasks yet.</div>
           </div>
 
