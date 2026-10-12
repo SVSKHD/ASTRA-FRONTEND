@@ -21,16 +21,20 @@ const MIN_VISIBLE_MS = 700
 export const LEAVE_MS = 240
 const TOAST_MS = 8000
 
-// Ticked and still shown in its open list.
-const held = ref<Set<number>>(new Set())
-// Playing the exit, on the way to Completed.
-const leaving = ref<Set<number>>(new Set())
-let settleTimer: ReturnType<typeof setTimeout> | undefined
-let waitToken = 0
-// The ids the visible "Completed …" toast covers, so a second burst while it
-// is still up adds to it instead of taking Undo away from the first.
-let batch: number[] = []
-let batchToast: unknown = null
+function createState() {
+  return {
+    held: ref<Set<number>>(new Set()),
+    leaving: ref<Set<number>>(new Set()),
+    settleTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+    waitToken: 0,
+    batch: [] as number[],
+    batchToast: null as unknown,
+  }
+}
+const states = new WeakMap<
+  ReturnType<typeof useAppStore>,
+  { todos: ReturnType<typeof createState>; tasks: ReturnType<typeof createState> }
+>()
 
 function without(set: Set<number>, ids: number[]): Set<number> {
   const next = new Set(set)
@@ -38,16 +42,24 @@ function without(set: Set<number>, ids: number[]): Set<number> {
   return next
 }
 
-export function useTodoCompletion() {
+export function useTodoCompletion(collection: 'todos' | 'tasks' = 'todos') {
   const app = useAppStore()
+  let storeState = states.get(app)
+  if (!storeState) {
+    storeState = { todos: createState(), tasks: createState() }
+    states.set(app, storeState)
+  }
+  const state = storeState[collection]
+  const setStatus = (id: number, status: 'pending' | 'done') =>
+    collection === 'tasks' ? app.setTaskStatus(id, status) : app.setTodoStatus(id, status)
 
-  const find = (id: number) => app.todos.find((t) => t.id === id)
+  const find = (id: number) => app[collection].find((t) => t.id === id)
 
   function isHeld(id: number) {
-    return held.value.has(id) || leaving.value.has(id)
+    return state.held.value.has(id) || state.leaving.value.has(id)
   }
   function isLeaving(id: number) {
-    return leaving.value.has(id)
+    return state.leaving.value.has(id)
   }
 
   // The checkbox. Ticking queues the todo; unticking (a held row, or one in
@@ -56,58 +68,60 @@ export function useTodoCompletion() {
     const todo = find(id)
     if (!todo) return
     if (todo.status === 'done') {
-      held.value = without(held.value, [id])
-      leaving.value = without(leaving.value, [id])
-      app.setTodoStatus(id, 'pending')
+      state.held.value = without(state.held.value, [id])
+      state.leaving.value = without(state.leaving.value, [id])
+      setStatus(id, 'pending')
       return
     }
-    held.value = new Set(held.value).add(id)
-    app.setTodoStatus(id, 'done')
+    state.held.value = new Set(state.held.value).add(id)
+    setStatus(id, 'done')
     scheduleSettle()
   }
 
   function scheduleSettle() {
-    const token = ++waitToken
-    clearTimeout(settleTimer)
-    settleTimer = setTimeout(async () => {
+    const token = ++state.waitToken
+    clearTimeout(state.settleTimer)
+    state.settleTimer = setTimeout(async () => {
       // Let the store's watcher schedule the save before asking after it.
       await nextTick()
       await app.whenSaved()
       // A later tick restarted the wait; its own settle takes these along.
-      if (token === waitToken) settle()
+      if (token === state.waitToken) settle()
     }, MIN_VISIBLE_MS)
   }
 
   function settle() {
-    const ids = [...held.value].filter((id) => find(id)?.status === 'done')
-    held.value = new Set()
+    const ids = [...state.held.value].filter((id) => find(id)?.status === 'done')
+    state.held.value = new Set()
     if (!ids.length) return
-    leaving.value = new Set([...leaving.value, ...ids])
+    state.leaving.value = new Set([...state.leaving.value, ...ids])
     setTimeout(() => {
-      leaving.value = without(leaving.value, ids)
+      state.leaving.value = without(state.leaving.value, ids)
       announce(ids.filter((id) => find(id)?.status === 'done'))
     }, LEAVE_MS)
   }
 
   function announce(ids: number[]) {
     if (!ids.length) return
-    if (app.toast == null || app.toast !== batchToast) batch = []
-    batch = [...batch.filter((id) => find(id)?.status === 'done'), ...ids]
-    const undoIds = batch.slice()
+    if (app.toast == null || app.toast !== state.batchToast) state.batch = []
+    state.batch = [...state.batch.filter((id) => find(id)?.status === 'done'), ...ids]
+    const undoIds = state.batch.slice()
     const first = find(undoIds[0])
-    const text = first?.text ?? ''
+    const text = first ? ('text' in first ? first.text : first.title) : ''
     const short = text.length > 40 ? text.slice(0, 40) + '…' : text
     const message =
-      undoIds.length === 1 ? 'Completed "' + short + '"' : 'Completed ' + undoIds.length + ' todos'
+      undoIds.length === 1
+        ? 'Completed "' + short + '"'
+        : 'Completed ' + undoIds.length + ' ' + collection
     app.showToastWithUndo(
       message,
       () => {
-        batch = []
-        for (const id of undoIds) if (find(id)) app.setTodoStatus(id, 'pending')
+        state.batch = []
+        for (const id of undoIds) if (find(id)) setStatus(id, 'pending')
       },
       TOAST_MS,
     )
-    batchToast = app.toast
+    state.batchToast = app.toast
   }
 
   return { toggle, isHeld, isLeaving }

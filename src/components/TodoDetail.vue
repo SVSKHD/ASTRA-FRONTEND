@@ -27,6 +27,8 @@ import AddMoreDialog from '@/components/detail/AddMoreDialog.vue'
 import QuickAdd from '@/components/todo/QuickAdd.vue'
 import ExportJsonDialog from '@/components/detail/ExportJsonDialog.vue'
 import { exportTaskTransferJson } from '@/utils/taskTransfer'
+import TreeDragHandle from '@/components/TreeDragHandle.vue'
+import { useTreeDrag } from '@/composables/useTreeDrag'
 import SubCheck from '@/components/ui/SubCheck.vue'
 import SubSelectBar from '@/components/detail/SubSelectBar.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
@@ -114,6 +116,7 @@ const { draft, start, cancel, commit, isEditing, vFocus } = useInlineEdit((key, 
 })
 // Picking subtasks for the bulk bar (SubSelectBar); a different todo starts
 // with nothing picked.
+const { isSource: isDragSource, suppressClick: suppressDragClick } = useTreeDrag()
 const selecting = ref(false)
 const picked = ref<Set<number>>(new Set())
 const subIds = computed(() => subtasks.value.map((t) => t.id))
@@ -341,9 +344,22 @@ function moveTodoToTasks() {
               v-for="st in subtasks"
               :key="st.id"
               class="dp-sub"
-              :class="{ 'is-picking': selecting, 'is-picked': selecting && picked.has(st.id) }"
-              @click="selecting && togglePick(st.id)"
+              :data-subtask-id="st.id"
+              :class="{
+                'is-picking': selecting,
+                'is-picked': selecting && picked.has(st.id),
+                'dp-sub--dragging': isDragSource('todos', st.id),
+              }"
+              @click="!suppressDragClick() && selecting && togglePick(st.id)"
             >
+              <TreeDragHandle
+                collection="todos"
+                :id="st.id"
+                :title="st.text"
+                :selected-ids="[...picked]"
+                :hint="st.id === subtasks[0]?.id"
+                nest-only
+              />
               <Checkbox
                 v-if="selecting"
                 class="dp-sub__pick"
@@ -465,3 +481,11 @@ function moveTodoToTasks() {
     </Transition>
   </div>
 </template>
+
+<style scoped>
+.dp-sub--dragging {
+  opacity: 0.55;
+  transform: scale(1.02);
+  box-shadow: var(--layer-overlay-shadow);
+}
+</style>

@@ -84,7 +84,7 @@ describe('the library is complete', () => {
   // length check, so the exception is a decision somebody made on purpose.
   // CollapseTransition only wraps the element it animates; the element carries
   // the condition, so the wrapper has nothing to be told.
-  const PROPLESS = ['IconSprite', 'CollapseTransition']
+  const PROPLESS = ['IconSprite', 'CollapseTransition', 'SearchTransition']
 
   it('every registry entry has a summary, props and a copyable snippet', () => {
     for (const doc of UI_COMPONENTS) {

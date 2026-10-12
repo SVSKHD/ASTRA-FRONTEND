@@ -2,9 +2,9 @@
 // mode works on next, what "Next up" lists, and what the weekly review asks
 // about. Kept out of the components so each rule is stated — and tested — once.
 import { childrenOf, type TreeIndex } from '@/utils/taskTree'
-import type { Todo } from '@/types'
+import type { Todo, Task } from '@/types'
 
-const open = (t: Todo) => t.status !== 'done'
+const open = (t: Todo | Task) => t.status !== 'done'
 
 /**
  * What a todo's timer button focuses on: its first open subtask, in list order,
@@ -34,13 +34,13 @@ export function nextFocusAfter(index: TreeIndex<Todo>, todoId: number): number |
  * reader just ticked stays put, struck through, instead of vanishing under the
  * pointer and pulling the next row into its place.
  */
-export function nextUpOf(
-  index: TreeIndex<Todo>,
-  roots: Todo[],
+export function nextUpOf<T extends Todo | Task>(
+  index: TreeIndex<T>,
+  roots: T[],
   keep: ReadonlySet<number>,
   perTodo = 2,
-): { parent: Todo; sub: Todo }[] {
-  const out: { parent: Todo; sub: Todo }[] = []
+): { parent: T; sub: T }[] {
+  const out: { parent: T; sub: T }[] = []
   for (const parent of roots) {
     if (!open(parent)) continue
     let openTaken = 0

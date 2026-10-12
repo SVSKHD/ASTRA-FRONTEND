@@ -18,6 +18,7 @@ import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useTreeDrag, INDENT_PX, treeKey, type TreeCollection } from '@/composables/useTreeDrag'
+import { useDragNest } from '@/composables/useDragNest'
 import { useTapOpen } from '@/composables/useTapOpen'
 import { buildIndex, childrenOf, progressOf } from '@/utils/taskTree'
 import { richPlain } from '@/utils/richText'
@@ -67,13 +68,23 @@ const app = useAppStore()
 const { c, s } = useStyles()
 const { todos, tasks, ideas } = storeToRefs(app)
 const accordion = useAccordionState()
-const { targetState, rootState, isSource, setAnnouncer, startRowDrag, isDragging } = useTreeDrag()
+const {
+  drag,
+  targetState,
+  rootState,
+  isSource,
+  setAnnouncer,
+  startRowDrag,
+  isDragging,
+  suppressClick,
+} = useTreeDrag()
 
 // Screen-reader announcements for drag moves (picked up / moved / dropped /
 // cancelled / can't drop), driven by the engine.
 const liveMsg = ref('')
 onMounted(() => setAnnouncer((m) => (liveMsg.value = m)))
 onBeforeUnmount(() => setAnnouncer(() => {}))
+const { targetState: linkTargetState } = useDragNest()
 const srOnly = {
   position: 'absolute' as const,
   width: '1px',
@@ -140,6 +151,16 @@ const rows = computed<Row[]>(() => {
   }
   return out
 })
+
+const hintId = computed(
+  () => rows.value.find((row) => selectedSet.value.has(row.id))?.id ?? rows.value[0]?.id,
+)
+function landed(id: number) {
+  return (
+    drag.collection === props.collection &&
+    (drag.landedIds.includes(id) || drag.landedTargetId === id)
+  )
+}
 
 function nodeOf(id: number) {
   return index.value.byId.get(id)
@@ -250,6 +271,12 @@ function onRowPointerDown(event: PointerEvent, id: number) {
   tap.onPointerDown(event)
 }
 function onRowCardClick(event: MouseEvent, id: number) {
+  if (suppressClick()) {
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+  if ((event.target as HTMLElement | null)?.closest('.drag-handle')) return
   if (!props.selectionMode && !isTripleClick(event)) return
   event.preventDefault()
   event.stopPropagation()
@@ -257,7 +284,8 @@ function onRowCardClick(event: MouseEvent, id: number) {
 }
 function onRowCardPointerDown(event: PointerEvent) {
   if (!props.selectionMode) return
-  event.stopPropagation()
+  // Keep the selected row and its grip draggable; clicks are handled separately.
+  void event
 }
 function onMainClick(event: MouseEvent) {
   if (props.swipeRows || props.selectionMode || isTripleClick(event)) return
@@ -265,10 +293,9 @@ function onMainClick(event: MouseEvent) {
 }
 // A ticked todo stays in place until its save lands, then leaves for
 // Completed with an Undo toast (useTodoCompletion).
-const completion = useTodoCompletion()
+const completion = useTodoCompletion(props.collection === 'tasks' ? 'tasks' : 'todos')
 function toggleDone(id: number) {
-  if (isTasks.value) app.toggleTask(id)
-  else if (isIdeas.value) app.toggleIdea(id)
+  if (isIdeas.value) app.toggleIdea(id)
   else completion.toggle(id)
 }
 function del(id: number) {
@@ -349,9 +376,12 @@ const OWN_PRESS =
   'button, a, input, textarea, select, [contenteditable], [role="button"], .drag-handle'
 function onRowDown(e: PointerEvent, id: number) {
   swDown(e, id)
-  if (props.selectionMode || addingUnder.value === id) return
+  if (addingUnder.value === id) return
   if ((e.target as HTMLElement | null)?.closest(OWN_PRESS)) return
-  startRowDrag(props.collection, id, e, { title: title(id) })
+  startRowDrag(props.collection, id, e, {
+    title: title(id),
+    ids: selectedSet.value.has(id) ? props.selectedIds : [id],
+  })
 }
 function swipeStyle(id: number) {
   if (!props.swipeRows) return {}
@@ -447,15 +477,20 @@ function showLine(id: number, side: 'above' | 'below') {
 }
 function nestStyle(id: number) {
   const t = ts(id)
-  if (!t.active || t.mode !== 'nest') return {}
-  const col = t.valid ? c.value.accent : DANGER
+  const linked =
+    props.collection === 'ideas'
+      ? { active: false, zone: 'nest', valid: false }
+      : linkTargetState({ collection: props.collection, id })
+  if ((!t.active || t.mode !== 'nest') && (!linked.active || linked.zone !== 'nest')) return {}
+  const valid = linked.active ? linked.valid : t.valid
+  const col = valid ? c.value.accent : DANGER
   return {
     outline: '2px solid ' + col,
     outlineOffset: '1px',
-    background: t.valid
+    background: valid
       ? 'color-mix(in srgb, ' + c.value.accent + ' 14%, transparent)'
       : 'transparent',
-    animation: t.valid ? 'none' : 'shake .4s',
+    animation: valid ? 'none' : 'shake .4s',
   }
 }
 function selectedStyle(id: number) {
@@ -703,14 +738,15 @@ const rootStripStyle = computed(() =>
 </script>
 
 <template>
+  <p v-if="selectionMode && selectedIds?.length" class="tree-drag-hint">
+    <Icon name="grip" size="sm" /> Drag the highlighted grip to move
+    {{ selectedIds.length > 1 ? 'selected items together' : 'this item' }} under a parent.
+  </p>
   <TransitionGroup name="rowflip" tag="div" :style="wrap">
     <div
       v-for="row in rows"
       :key="row.id"
-      :class="[
-        'todo-row-shell',
-        { 'is-leaving': !isTasks && !isIdeas && completion.isLeaving(row.id) },
-      ]"
+      :class="['todo-row-shell', { 'is-leaving': !isIdeas && completion.isLeaving(row.id) }]"
       :style="nodeWrap(row.depth)"
     >
       <div :style="swipeRows ? swipeClip : barWrap">
@@ -732,6 +768,7 @@ const rootStripStyle = computed(() =>
         />
         <div
           class="tree-row"
+          :class="{ 'tree-row--landed': landed(row.id) }"
           :style="[
             rowStyle,
             depthRail(row.depth),
@@ -741,6 +778,8 @@ const rootStripStyle = computed(() =>
             swipeStyle(row.id),
           ]"
           v-hover-style="swipeRows || isPicked(row.id) ? {} : s.rowHover"
+          :data-nest-collection="collection"
+          :data-nest-id="row.id"
           :data-tree-collection="collection"
           :data-tree-id="row.id"
           :data-tree-depth="row.depth"
@@ -754,10 +793,12 @@ const rootStripStyle = computed(() =>
           @pointercancel="swUp"
         >
           <TreeDragHandle
-            v-if="!swipeRows"
+            v-if="!swipeRows || selectionMode"
             :collection="collection"
             :id="row.id"
             :title="title(row.id)"
+            :selected-ids="selectedIds"
+            :hint="row.id === hintId"
           />
 
           <!-- Todos (Todo v2, 4b): the checkbox wears its subtask progress. -->
@@ -961,6 +1002,38 @@ const rootStripStyle = computed(() =>
 </template>
 
 <style scoped>
+.tree-drag-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--theme-accent);
+  font-size: var(--text-xs);
+  margin: var(--sp-2) 0;
+}
+.tree-row--landed {
+  animation: tree-land 700ms ease-out;
+}
+@keyframes tree-land {
+  0% {
+    outline: 2px solid var(--theme-accent);
+    outline-offset: 2px;
+  }
+  35% {
+    outline: 2px solid var(--theme-accent);
+    outline-offset: 0;
+  }
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-row--landed {
+    animation: none;
+    outline: 2px solid var(--theme-accent);
+  }
+}
+
 .tree-row__quiet {
   opacity: 0.58;
 }

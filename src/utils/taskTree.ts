@@ -313,3 +313,22 @@ export function inheritedTags<T extends TreeNode & { tag: string }>(
   }
   return out
 }
+
+// A selected parent carries its descendants once, in stable tree order.
+export function selectedTreeRoots<T extends TreeNode>(
+  index: TreeIndex<T>,
+  ids: readonly number[],
+): number[] {
+  const wanted = new Set(ids.filter((id) => index.byId.has(id)))
+  const ordered: number[] = []
+  const seen = new Set<number>()
+  function walk(id: number, selectedAncestor: boolean) {
+    if (seen.has(id)) return
+    seen.add(id)
+    const selected = wanted.has(id)
+    if (selected && !selectedAncestor) ordered.push(id)
+    for (const child of index.children.get(id) ?? []) walk(child.id, selectedAncestor || selected)
+  }
+  for (const root of index.children.get(null) ?? []) walk(root.id, false)
+  return ordered
+}

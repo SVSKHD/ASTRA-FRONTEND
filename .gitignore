@@ -44,3 +44,7 @@ logs
 # vercel / netlify
 .vercel
 .netlify
+
+# temporary task artifacts and retired Next build output
+/tmp/
+/.next/

@@ -18,7 +18,7 @@ import { reactive, readonly } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { autoScrollSpeed } from '@/utils/dragNest'
-import { buildIndex, childrenOf, wouldCreateCycle } from '@/utils/taskTree'
+import { buildIndex, childrenOf, wouldCreateCycle, selectedTreeRoots } from '@/utils/taskTree'
 import { projectReorder, type FlatRow } from '@/utils/treeProjection'
 import type { Idea, Task, Todo } from '@/types'
 
@@ -39,8 +39,12 @@ export type DropMode = 'none' | 'reorder' | 'nest' | 'root'
 interface DragState {
   active: boolean
   keyboard: boolean
+  nestOnly: boolean
   collection: TreeCollection
   id: number | null
+  ids: number[]
+  landedIds: number[]
+  landedTargetId: number | null
   title: string
   x: number
   y: number
@@ -58,8 +62,12 @@ interface DragState {
 const state = reactive<DragState>({
   active: false,
   keyboard: false,
+  nestOnly: false,
   collection: 'tasks',
   id: null,
+  ids: [],
+  landedIds: [],
+  landedTargetId: null,
   title: '',
   x: 0,
   y: 0,
@@ -73,12 +81,20 @@ const state = reactive<DragState>({
 })
 
 // The committed drop plan resolved on the last move; consumed on release.
+let landingTimer: ReturnType<typeof setTimeout> | undefined
+let suppressClickUntil = 0
 let plan: { parentId: number | null; position: number } | null = null
 let scrollTimer: ReturnType<typeof setInterval> | undefined
 let longPressTimer: ReturnType<typeof setTimeout> | undefined
 let dwellTimer: ReturnType<typeof setTimeout> | undefined
 let dwellId: number | null = null
-let pendingStart: { collection: TreeCollection; id: number; title: string } | null = null
+let pendingStart: {
+  collection: TreeCollection
+  id: number
+  title: string
+  ids?: number[]
+  nestOnly?: boolean
+} | null = null
 // How the pending drag was started: from the grip (a mouse drag begins at once)
 // or from the row's body (a mouse drag waits for ROW_DRAG_PX of travel).
 let pendingFromRow = false
@@ -143,9 +159,8 @@ function resolveTarget() {
   if (typeof document === 'undefined' || state.id == null) return
   const el = document.elementFromPoint(state.x, state.y) as HTMLElement | null
   const strip = el?.closest(`[data-tree-root="${state.collection}"]`) as HTMLElement | null
-  const rowEl = el?.closest(
-    `[data-tree-collection="${state.collection}"][data-tree-id]`,
-  ) as HTMLElement | null
+  const rowEl = (el?.closest(`[data-tree-collection="${state.collection}"][data-tree-id]`) ??
+    el?.closest(`[data-nest-collection="${state.collection}"][data-nest-id]`)) as HTMLElement | null
 
   if (strip && !rowEl) {
     state.mode = 'root'
@@ -157,25 +172,25 @@ function resolveTarget() {
   }
   if (!rowEl) return clearTarget()
 
-  const overId = Number(rowEl.dataset.treeId)
+  const overId = Number(rowEl.dataset.treeId ?? rowEl.dataset.nestId)
   const rect = rowEl.getBoundingClientRect()
   const rel = rect.height > 0 ? (state.y - rect.top) / rect.height : 0.5
   const index = buildIndex(items(state.collection))
 
-  if (rel >= 0.25 && rel <= 0.75) {
+  if (state.nestOnly || !rowEl.dataset.treeId || (rel >= 0.25 && rel <= 0.75)) {
     // NEST — become a child of this row.
     maybeDwell(overId, index)
     state.mode = 'nest'
     state.targetId = overId
     state.side = 'below'
     state.indentDepth = (rowEl.dataset.treeDepth ? Number(rowEl.dataset.treeDepth) : 0) + 1
-    const cyclic = wouldCreateCycle(index, state.id, overId)
+    const cyclic = state.ids.some((id) => wouldCreateCycle(index, id, overId))
     state.valid = !cyclic
     plan = cyclic
       ? null
       : {
           parentId: overId,
-          position: childrenOf(index, overId).filter((c) => c.id !== state.id).length,
+          position: childrenOf(index, overId).filter((c) => !state.ids.includes(c.id)).length,
         }
     return
   }
@@ -184,7 +199,15 @@ function resolveTarget() {
   clearDwell()
   const side: 'above' | 'below' = rel < 0.25 ? 'above' : 'below'
   const dragDepthDelta = Math.round((state.x - state.startX) / INDENT_PX)
-  const projected = projectReorder(visibleRows(), state.id, overId, side, dragDepthDelta)
+  const projected = projectReorder(
+    visibleRows().filter(
+      (row) => row.id === state.id || !state.ids.some((id) => wouldCreateCycle(index, id, row.id)),
+    ),
+    state.id,
+    overId,
+    side,
+    dragDepthDelta,
+  )
   state.mode = 'reorder'
   state.targetId = overId
   state.side = side
@@ -194,14 +217,14 @@ function resolveTarget() {
     return
   }
   state.indentDepth = projected.depth
-  const cyclic = wouldCreateCycle(index, state.id, projected.parentId)
+  const cyclic = state.ids.some((id) => wouldCreateCycle(index, id, projected.parentId))
   state.valid = !cyclic
   plan = cyclic ? null : { parentId: projected.parentId, position: projected.position }
 }
 
 function rootCount(): number {
   const index = buildIndex(items(state.collection))
-  return (index.children.get(null) ?? []).filter((n) => n.id !== state.id).length
+  return (index.children.get(null) ?? []).filter((n) => !state.ids.includes(n.id)).length
 }
 
 // --- dwell-to-expand a collapsed parent -------------------------------------
@@ -274,9 +297,15 @@ function findScrollable(): HTMLElement | null {
 function begin() {
   if (!pendingStart) return
   state.active = true
+  state.nestOnly = pendingStart.nestOnly ?? false
   state.collection = pendingStart.collection
   state.id = pendingStart.id
-  state.title = pendingStart.title
+  state.ids = selectedTreeRoots(
+    buildIndex(items(state.collection)),
+    pendingStart.ids ?? [pendingStart.id],
+  )
+  state.id = state.ids[0] ?? pendingStart.id
+  state.title = state.ids.length > 1 ? `${state.ids.length} items` : pendingStart.title
   clearTarget()
   pendingStart = null
   pendingFromRow = false
@@ -292,9 +321,24 @@ function begin() {
 
 function commit() {
   if (state.id != null && state.mode !== 'none' && state.valid && plan) {
-    const ok = move(state.collection, state.id, plan.parentId, plan.position)
-    if (ok) announce('Moved ' + state.title)
-    else flashReject()
+    const ok = useAppStore().moveTreeSelection(
+      state.collection,
+      state.ids,
+      plan.parentId,
+      plan.position,
+    )
+    if (ok) {
+      announce('Moved ' + state.title)
+      state.landedIds = [...state.ids]
+      state.landedTargetId = plan.parentId
+      if (plan.parentId != null)
+        useAccordionState().set(treeKey(state.collection, plan.parentId), true)
+      clearTimeout(landingTimer)
+      landingTimer = setTimeout(() => {
+        state.landedIds = []
+        state.landedTargetId = null
+      }, 700)
+    } else flashReject()
   } else if (state.mode !== 'none' && !state.valid) {
     flashReject()
   }
@@ -317,9 +361,11 @@ function cancelPending() {
 }
 
 function cleanup() {
+  if (state.active) suppressClickUntil = Date.now() + 250
   state.active = false
   state.keyboard = false
   state.id = null
+  state.ids = []
   clearTarget()
   clearDwell()
   pendingStart = null
@@ -364,8 +410,10 @@ function keyboardStart(collection: TreeCollection, id: number) {
   cleanup()
   state.active = true
   state.keyboard = true
+  state.nestOnly = false
   state.collection = collection
   state.id = id
+  state.ids = [id]
   state.title = titleOf(collection, id)
   announce('Grabbed ' + state.title + '. Use arrow keys to move, Enter to drop, Escape to cancel.')
 }
@@ -410,12 +458,12 @@ export function useTreeDrag() {
     collection: TreeCollection,
     id: number,
     e: PointerEvent,
-    opts: { title: string },
+    opts: { title: string; ids?: number[]; nestOnly?: boolean },
   ) {
     if (typeof window === 'undefined') return
     e.preventDefault()
     e.stopPropagation()
-    pendingStart = { collection, id, title: opts.title }
+    pendingStart = { collection, id, title: opts.title, ids: opts.ids, nestOnly: opts.nestOnly }
     state.startX = e.clientX
     state.x = e.clientX
     state.y = e.clientY
@@ -435,10 +483,10 @@ export function useTreeDrag() {
     collection: TreeCollection,
     id: number,
     e: PointerEvent,
-    opts: { title: string },
+    opts: { title: string; ids?: number[]; nestOnly?: boolean },
   ) {
     if (typeof window === 'undefined' || e.button > 0 || state.active || pendingStart) return
-    pendingStart = { collection, id, title: opts.title }
+    pendingStart = { collection, id, title: opts.title, ids: opts.ids, nestOnly: opts.nestOnly }
     pendingFromRow = true
     pendingPointer = e.pointerType
     state.startX = e.clientX
@@ -504,7 +552,7 @@ export function useTreeDrag() {
   }
   // Whether a given row is the source being dragged (for the lift/ghost styling).
   function isSource(collection: TreeCollection, id: number) {
-    return state.active && state.collection === collection && state.id === id
+    return state.active && state.collection === collection && state.ids.includes(id)
   }
 
   function setAnnouncer(fn: (msg: string) => void) {
@@ -513,6 +561,7 @@ export function useTreeDrag() {
 
   return {
     drag: readonly(state),
+    suppressClick: () => Date.now() < suppressClickUntil,
     startPointerDrag,
     startRowDrag,
     onHandleKeydown,

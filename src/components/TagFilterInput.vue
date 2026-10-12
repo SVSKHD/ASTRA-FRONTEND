@@ -9,6 +9,7 @@
 // stays while a query is active so the way back out never vanishes.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import SearchTransition from '@/components/ui/SearchTransition.vue'
 import SearchField from '@/components/ui/SearchField.vue'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -17,6 +18,7 @@ import { tagQuerySuggestions } from '@/utils/tagFilter'
 
 const props = defineProps<{
   modelValue: string
+  visible?: boolean
   /** Every row's tags: its own and each subtask's below it. */
   groups: readonly (readonly string[])[]
 }>()
@@ -30,7 +32,8 @@ const suggestions = computed(() =>
   tagQuerySuggestions(tags.value, props.groups, props.modelValue).slice(0, 12),
 )
 const offered = computed(
-  () => !!props.modelValue || props.groups.some((g) => g.some((t) => !!t?.trim())),
+  () =>
+    props.visible ?? (!!props.modelValue || props.groups.some((g) => g.some((t) => !!t?.trim()))),
 )
 
 function pick(tag: string) {
@@ -45,27 +48,46 @@ function chipStyle(tag: string) {
 </script>
 
 <template>
-  <div v-if="offered" :style="wrapStyle" @focusin="focused = true" @focusout="focused = false">
-    <SearchField
-      size="sm"
-      label="Filter by tag"
-      placeholder="Filter by tag…"
-      :model-value="modelValue"
-      @update:model-value="emit('update:modelValue', $event)"
-    />
-    <div v-if="focused && suggestions.length" :style="chipRowStyle">
-      <!-- mousedown.prevent keeps focus in the field, so the chips don't vanish
+  <SearchTransition>
+    <div
+      v-if="offered"
+      class="tag-search-frame"
+      :style="wrapStyle"
+      @focusin="focused = true"
+      @focusout="focused = false"
+    >
+      <SearchField
+        size="lg"
+        label="Filter by tag"
+        placeholder="Filter by tag…"
+        :model-value="modelValue"
+        @update:model-value="emit('update:modelValue', $event)"
+      />
+      <div v-if="focused && suggestions.length" :style="chipRowStyle">
+        <!-- mousedown.prevent keeps focus in the field, so the chips don't vanish
            on blur before the click lands. -->
-      <button
-        v-for="o in suggestions"
-        :key="o.value"
-        type="button"
-        :style="chipStyle(o.value)"
-        @mousedown.prevent
-        @click="pick(o.value)"
-      >
-        {{ o.label }}
-      </button>
+        <button
+          v-for="o in suggestions"
+          :key="o.value"
+          type="button"
+          :style="chipStyle(o.value)"
+          @mousedown.prevent
+          @click="pick(o.value)"
+        >
+          {{ o.label }}
+        </button>
+      </div>
     </div>
-  </div>
+  </SearchTransition>
 </template>
+
+<style scoped>
+/* Use Quick Add's list gutter so both cards end at the same right edge. */
+.tag-search-frame {
+  min-width: 0;
+  overflow: hidden;
+  scrollbar-gutter: stable;
+  padding: 6px 6px 10px;
+  margin: -6px -6px -10px;
+}
+</style>

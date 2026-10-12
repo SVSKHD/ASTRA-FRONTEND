@@ -483,3 +483,48 @@ describe('edit-safe flush — dialog close bumps localRev', () => {
     expect(byId(app, 5).localRev).toBe(3)
   })
 })
+
+describe('moveTreeSelection', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+  it('moves selected roots once and keeps descendants and order', () => {
+    const app = useAppStore()
+    app.tasks = [
+      makeTask(1),
+      makeTask(2, { order: 1 }),
+      makeTask(3, { parentId: 1, depth: 1, rootId: 1 }),
+      makeTask(4, { order: 2, tag: 'work' }),
+    ]
+    expect(app.moveTreeSelection('tasks', [2, 3, 1, 2], 4)).toBe(true)
+    expect(byId(app, 1)).toMatchObject({
+      parentId: 4,
+      depth: 1,
+      rootId: 4,
+      tag: 'work',
+      localRev: 1,
+    })
+    expect(byId(app, 3)).toMatchObject({ parentId: 1, depth: 2, rootId: 4, tag: 'work' })
+    expect(byId(app, 2).parentId).toBe(4)
+    expect(byId(app, 1).order).toBeLessThan(byId(app, 2).order)
+  })
+  it('rejects the entire batch if a target is inside any selected subtree', () => {
+    const app = useAppStore()
+    app.tasks = [makeTask(1), makeTask(2), makeTask(3, { parentId: 2, depth: 1, rootId: 2 })]
+    const before = app.tasks.map((item) => ({ ...item }))
+    expect(app.moveTreeSelection('tasks', [1, 2], 3)).toBe(false)
+    expect(app.tasks).toEqual(before)
+    expect(app.moveTreeSelection('tasks', [1, 2], 99)).toBe(false)
+  })
+  it('reorders adjacent selected siblings as a contiguous group', () => {
+    const app = useAppStore()
+    app.tasks = [
+      makeTask(1, { order: 0 }),
+      makeTask(2, { order: 1 }),
+      makeTask(3, { order: 2 }),
+      makeTask(4, { order: 3 }),
+    ]
+    expect(app.moveTreeSelection('tasks', [1, 2], null, 2)).toBe(true)
+    expect([...app.tasks].sort((a, b) => a.order - b.order).map((item) => item.id)).toEqual([
+      3, 4, 1, 2,
+    ])
+  })
+})

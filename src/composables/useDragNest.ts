@@ -45,6 +45,7 @@ const state = reactive<DragState>({
   sourceParents: {},
 })
 
+let suppressClickUntil = 0
 let scrollTimer: ReturnType<typeof setInterval> | undefined
 let announce: (msg: string) => void = () => {}
 
@@ -150,6 +151,7 @@ function end(commit: boolean) {
 }
 
 function cleanup() {
+  if (state.active) suppressClickUntil = Date.now() + 250
   state.active = false
   state.refs = []
   state.targetKey = null
@@ -198,6 +200,15 @@ export function useDragNest() {
     state.valid = false
     state.reason = ''
     state.sourceParents = {}
+    const app = useAppStore()
+    for (const ref of refs) {
+      const item = app.linkableById(ref)
+      const flatParent =
+        item && 'parentId' in item && item.parentId != null
+          ? { collection: ref.collection, id: item.parentId }
+          : null
+      state.sourceParents[linkKey(ref)] = flatParent ?? item?.parents[0] ?? null
+    }
     if (opts.sourceParent) {
       for (const r of refs) state.sourceParents[linkKey(r)] = opts.sourceParent
     }
@@ -220,6 +231,7 @@ export function useDragNest() {
 
   return {
     drag: readonly(state),
+    suppressClick: () => Date.now() < suppressClickUntil,
     startDrag,
     targetState,
     cancel: () => end(false),

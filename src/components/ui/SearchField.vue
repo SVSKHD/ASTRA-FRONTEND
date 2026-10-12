@@ -19,9 +19,11 @@ const uid = useId()
 </script>
 
 <template>
-  <div class="ui-control ui-search" :class="[`ui-control--${size}`, { 'is-disabled': disabled }]">
+  <div class="ui-search" :class="[`ui-control--${size}`, { 'is-disabled': disabled }]">
     <label v-if="label" class="ui-sr-only" :for="uid">{{ label }}</label>
-    <span class="ui-search__glyph" aria-hidden="true"><Icon name="search" size="sm" /></span>
+    <span class="ui-search__glyph" aria-hidden="true"
+      ><Icon name="search" :size="size === 'lg' ? 'md' : 'sm'"
+    /></span>
     <input
       :id="uid"
       class="ui-control__input ui-search__input"
@@ -36,6 +38,7 @@ const uid = useId()
       class="ui-search__clear"
       type="button"
       aria-label="Clear search"
+      :disabled="disabled"
       @click="emit('update:modelValue', '')"
     >
       <Icon name="x" size="sm" />
@@ -44,29 +47,82 @@ const uid = useId()
 </template>
 
 <style scoped>
-/* Everything about the box — border, fill, height, hover, focus ring — comes
-   from .ui-control. What is left here is the one thing that is search's own:
-   the pill radius, which says "filter" rather than "field". */
+/* Match Quick Add's card, icon tile, spacing and focus treatment. */
 .ui-search {
-  border-radius: var(--radius-pill);
+  --search-surface: var(--theme-card);
+  --search-line: 42px;
+  --search-tile: 38px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px 9px 18px;
+  border-radius: 22px;
+  border: 1.5px solid color-mix(in oklch, var(--theme-text) 6%, transparent);
+  background: var(--search-surface);
+  color: var(--text-primary, var(--theme-text));
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--shadow-ink) 4%, transparent),
+    0 8px 24px -14px color-mix(in srgb, var(--shadow-ink) 16%, transparent);
+  transition:
+    border-color var(--dur-med) ease,
+    box-shadow var(--dur-med) ease;
 }
-/* Both of these are real icons now, at the set's `sm` step — the size every
-   other icon in the app is drawn at — rather than characters taking whatever
-   the surrounding font happens to be. */
+.ui-search.ui-control--sm {
+  --search-line: 28px;
+  --search-tile: 28px;
+}
+.ui-search.ui-control--md {
+  --search-line: 34px;
+  --search-tile: 32px;
+}
+@supports (color: color(from red srgb r g b / 1)) {
+  .ui-search {
+    --search-surface: color(from var(--theme-card) srgb r g b / 1);
+  }
+}
+.ui-search:focus-within {
+  border-color: color-mix(in oklch, var(--theme-accent) 40%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--shadow-ink) 4%, transparent),
+    0 8px 24px -14px color-mix(in srgb, var(--shadow-ink) 16%, transparent),
+    0 0 0 4px color-mix(in oklch, var(--theme-accent) 12%, transparent);
+}
+.ui-search.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
 .ui-search__glyph {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  color: var(--text-muted, var(--theme-dim));
+  width: var(--search-tile);
+  height: var(--search-tile);
+  border-radius: 11px;
+  background: color-mix(in oklch, var(--theme-accent) 30%, var(--search-surface));
+  color: color-mix(in oklch, var(--theme-accent) 88%, var(--theme-text));
+}
+.ui-search__input {
+  height: var(--search-line);
+  padding: 0;
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
+}
+.ui-search__input::placeholder {
+  color: color-mix(in oklch, var(--theme-dim) 85%, var(--theme-accent));
 }
 .ui-search__input::-webkit-search-cancel-button {
   display: none;
 }
 .ui-search__clear {
   flex-shrink: 0;
+  height: var(--search-line);
+  width: var(--search-line);
   border: none;
-  background: transparent;
-  color: var(--text-muted, var(--theme-dim));
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--theme-accent) 14%, var(--search-surface));
+  color: var(--theme-text);
   display: grid;
   place-items: center;
   padding: 0;
@@ -74,6 +130,15 @@ const uid = useId()
   line-height: 1;
 }
 .ui-search__clear:hover {
-  color: var(--text-primary, var(--theme-text));
+  background: color-mix(in oklch, var(--theme-accent) 24%, var(--search-surface));
+}
+.ui-search__clear:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-search {
+    transition: none;
+  }
 }
 </style>

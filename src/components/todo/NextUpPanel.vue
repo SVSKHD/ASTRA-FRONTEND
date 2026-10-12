@@ -14,17 +14,25 @@ import { nextUpOf } from '@/utils/todoV2'
 import Icon from '@/components/ui/Icon.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 import SubCheck from '@/components/ui/SubCheck.vue'
-import type { Todo } from '@/types'
+import type { Todo, Task } from '@/types'
 import { vScrollFade } from '@/directives/scrollFade'
 
-const props = defineProps<{ roots: Todo[] }>()
+const props = withDefaults(
+  defineProps<{ roots: (Todo | Task)[]; collection?: 'todos' | 'tasks' }>(),
+  { collection: 'todos' },
+)
+const emit = defineEmits<{ select: [id: number] }>()
+const noun = computed(() => (props.collection === 'tasks' ? 'task' : 'todo'))
+const title = (item: Todo | Task) => ('text' in item ? item.text : item.title)
 
 const app = useAppStore()
 const ui = useUiStore()
-const { todos } = storeToRefs(app)
+const { todos, tasks } = storeToRefs(app)
 const { c, dark } = useStyles()
 
-const index = computed(() => buildIndex(todos.value))
+const index = computed(() =>
+  buildIndex<Todo | Task>(props.collection === 'tasks' ? tasks.value : todos.value),
+)
 // Ticked from here this session: stays listed, struck through, rather than
 // vanishing under the pointer.
 const kept = ref(new Set<number>())
@@ -32,7 +40,8 @@ const rows = computed(() => nextUpOf(index.value, props.roots, kept.value))
 
 function tick(id: number) {
   kept.value = new Set(kept.value).add(id)
-  app.toggleTodo(id)
+  if (props.collection === 'tasks') app.toggleTask(id)
+  else app.toggleTodo(id)
 }
 
 // --- styles -----------------------------------------------------------------
@@ -85,13 +94,14 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
     <div v-scroll-fade :style="list">
       <div v-for="r in rows" :key="r.sub.id" :style="row">
         <SubCheck :done="r.sub.status === 'done'" @toggle="tick(r.sub.id)" />
-        <span :style="text(r.sub.status === 'done')" :title="r.sub.text">{{
-          r.sub.text || '(untitled)'
+        <span :style="text(r.sub.status === 'done')" :title="title(r.sub)">{{
+          title(r.sub) || '(untitled)'
         }}</span>
         <span v-if="r.parent.tag" :style="tagStyle(r.parent.tag)">{{
           r.parent.tag.toLocaleUpperCase()
         }}</span>
         <IconButton
+          v-if="collection === 'todos'"
           label="Focus on this"
           size="sm"
           :disabled="r.sub.status === 'done'"
@@ -99,11 +109,14 @@ const empty = computed(() => pxify({ ...typeStep('sm'), color: c.value.dim, padd
         >
           <Icon name="timer" size="md" />
         </IconButton>
+        <IconButton v-else label="Open task details" size="sm" @click="emit('select', r.sub.id)"
+          ><Icon name="arrow-right" size="md"
+        /></IconButton>
       </div>
       <div v-if="!rows.length" :style="empty">
-        No open subtasks. Add subtasks to a todo and the next ones show up here.
+        No open subtasks. Add subtasks to a {{ noun }} and the next ones show up here.
       </div>
     </div>
-    <span :style="footer">Select a todo for its full details</span>
+    <span :style="footer">Select a {{ noun }} for its full details</span>
   </div>
 </template>

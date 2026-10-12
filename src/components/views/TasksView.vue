@@ -1,47 +1,44 @@
 <script setup lang="ts">
+import { useTreeDrag } from '@/composables/useTreeDrag'
 // The tasks list, restructured like the todo list: a single "Carried over · N"
 // accordion for overdue tasks, today's active items flat (no per-deadline
-// grouping), and completed work in its own window. Drag-to-nest, linked
+// grouping), and completed work in the same collapsible shelf as Todos. Drag-to-nest, linked
 // accordions, the repo/CI chip and the "Remind me" bell all keep working.
 // On desktop the selected task's details and subtasks show in the right-hand
 // pane, which is a column of this tab by default and a floating drawer over it
 // on request — one setting, three steps, cycled from the pane's own header
 // (DetailPane).
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import {
-  DANGER,
-  SUCCESS,
-  WARNING,
-  doneText,
-  merge,
-  pxify,
-  rowBase,
-  typeStep,
-  itemTitle,
-} from '@/styles'
+import { DANGER, SUCCESS, WARNING, merge, pxify, rowBase, typeStep, itemTitle } from '@/styles'
 import { todayKey, isOverdueTask } from '@/utils/rollover'
 import { splitList, ageChip, oldestFromLabel } from '@/utils/listSplit'
 import { relLabel } from '@/utils/upcoming'
 import PanelHeader from '@/components/PanelHeader.vue'
 import QuickAdd from '@/components/todo/QuickAdd.vue'
-import StatusPill from '@/components/StatusPill.vue'
+import RingCheck from '@/components/ui/RingCheck.vue'
+import IconButton from '@/components/ui/IconButton.vue'
+import OfflineChip from '@/components/OfflineChip.vue'
+import CompletedSection from '@/components/CompletedSection.vue'
+import NextUpPanel from '@/components/todo/NextUpPanel.vue'
+import { richIsEmpty, richPlain } from '@/utils/richText'
+import { useTodoCompletion } from '@/composables/useTodoCompletion'
 import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
 import TaskDetail from '@/components/TaskDetail.vue'
 import DetailPane from '@/components/ui/DetailPane.vue'
+import MoveSelectionDialog from '@/components/MoveSelectionDialog.vue'
 import Modal from '@/components/ui/Modal.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
 import TaskTransferPasteDialog from '@/components/TaskTransferPasteDialog.vue'
 import { useTagSelection } from '@/composables/useTagSelection'
 import { vScrollFade } from '@/directives/scrollFade'
-import { useTapOpen } from '@/composables/useTapOpen'
 import { usePaneInset } from '@/composables/usePaneInset'
 import TitleTagPill from '@/components/TitleTagPill.vue'
 import { nestedChildIds } from '@/utils/links'
@@ -52,8 +49,15 @@ import {
   exportTaskTransferJson,
   taskTransferFilename,
 } from '@/utils/taskTransfer'
-import { buildIndex, childrenOf, descendantsOf, progressOf } from '@/utils/taskTree'
+import {
+  buildIndex,
+  selectedTreeRoots,
+  childrenOf,
+  descendantsOf,
+  progressOf,
+} from '@/utils/taskTree'
 import { emptyTagQueryMessage, matchesTagQuery } from '@/utils/tagFilter'
+import Icon from '@/components/ui/Icon.vue'
 import TagFilterInput from '@/components/TagFilterInput.vue'
 import { useAccordionState } from '@/composables/useAccordionState'
 import { useLongList } from '@/composables/useLongList'
@@ -63,8 +67,9 @@ import type { LinkRef, Task } from '@/types'
 const app = useAppStore()
 const ui = useUiStore()
 const { c, s, panelStyle, isMobile } = useStyles()
-const { startDrag, targetState } = useDragNest()
-const { tasks, draggingId } = storeToRefs(app)
+const { targetState: treeTargetState } = useTreeDrag()
+const { startDrag, targetState, suppressClick: suppressNestClick } = useDragNest()
+const { tasks, draggingId, hideCompleted } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
 // "/n" and "+ New task" land in quick add with its details open, as on Todos;
@@ -75,10 +80,14 @@ function focusQuickAdd() {
   else app.openCreate('task')
 }
 defineExpose({ focus: focusQuickAdd })
+const showTagFilter = ref(false)
+function toggleTagFilter() {
+  showTagFilter.value = !showTagFilter.value
+  if (!showTagFilter.value) tagQuery.value = ''
+}
 
 const importFile = ref<HTMLInputElement | null>(null)
 const pasteDialogOpen = ref(false)
-const completedOpen = ref(false)
 const deleteConfirmOpen = ref(false)
 const bulkDeleting = ref(false)
 const transferMenu = computed(() => [
@@ -165,10 +174,12 @@ const shownTopLevel = computed(() => {
 })
 
 const completedSort = ref<'recent' | 'original'>('recent')
+const completion = useTodoCompletion('tasks')
 const split = computed(() =>
   splitList(shownTopLevel.value, {
-    isDone: (t) => t.status === 'done',
-    isCarried: (t) => isOverdueTask(t, todayStr.value),
+    isDone: (t) => t.status === 'done' && !completion.isHeld(t.id),
+    isCarried: (t) =>
+      isOverdueTask(completion.isHeld(t.id) ? { ...t, status: 'pending' } : t, todayStr.value),
     completedAt: (t) => t.completedAt,
     archivedAt: (t) => t.archivedAt ?? null,
     // No day filter: Completed keeps everything finished until it is cleared
@@ -190,6 +201,7 @@ const active = computed(() =>
 )
 const activeRootIds = computed(() => active.value.map((t) => t.id))
 const completed = computed(() => split.value.completed)
+const nextUpRoots = computed(() => [...carried.value, ...active.value])
 // A completed list is unbounded — it grows for as long as the workspace is
 // used. Past 100 rows it renders in windows so opening the section stays
 // instant however many years are behind it.
@@ -222,7 +234,6 @@ function isTripleClick(event?: MouseEvent) {
 function openTask(id: number, event?: MouseEvent, siblings: number[] = activeRootIds.value) {
   if (isTripleClick(event)) {
     event?.preventDefault()
-    cancelTaskViewOpen()
     toggleMoveSelection(id)
     return
   }
@@ -236,14 +247,20 @@ function shouldSelectRow(event?: MouseEvent) {
   return selectionVisible.value || isTripleClick(event)
 }
 function onTaskRowClick(event: MouseEvent, id: number) {
+  if (suppressNestClick()) {
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+  if ((event.target as HTMLElement | null)?.closest('[aria-label="Drag to nest"]')) return
   if (!shouldSelectRow(event)) return
   event.preventDefault()
   event.stopPropagation()
-  if (isTripleClick(event)) cancelTaskViewOpen()
   toggleMoveSelection(id)
 }
 function onTaskRowPointerDown(event: PointerEvent) {
   if (!selectionVisible.value) return
+  if ((event.target as HTMLElement | null)?.closest('[aria-label="Drag to nest"]')) return
   event.stopPropagation()
 }
 function selectedRowStyle(id: number) {
@@ -269,6 +286,7 @@ const taskIndex = computed(() => buildIndex(tasks.value))
 function subCount(id: number) {
   return progressOf(taskIndex.value, id, (x) => x.status === 'done')
 }
+const moveParentOpen = ref(false)
 const selectionMode = ref(false)
 const selectedMove = ref<Set<number>>(new Set())
 function treeIds(id: number): number[] {
@@ -392,15 +410,26 @@ watch(moveSelectableIds, (ids) => {
 function onGripDown(e: PointerEvent, t: Task) {
   e.preventDefault()
   e.stopPropagation()
-  startDrag([{ id: t.id, collection: 'tasks' }], e, {
-    title: t.title || '(untitled)',
-    badge: 'Task',
-  })
+  startDrag(
+    (selectedMoveIds.value.includes(t.id)
+      ? selectedTreeRoots(buildIndex(app.tasks), selectedMoveIds.value)
+      : [t.id]
+    ).map((id) => ({
+      id,
+      collection: 'tasks',
+    })),
+    e,
+    {
+      title: t.title || '(untitled)',
+      badge: 'Task',
+    },
+  )
 }
 function nestHighlight(id: number) {
+  const tree = treeTargetState('tasks', id)
   const ts = targetState({ id, collection: 'tasks' } as LinkRef)
-  if (!ts.active || ts.zone !== 'nest') return {}
-  return ts.valid
+  if ((!tree.active || tree.mode !== 'nest') && (!ts.active || ts.zone !== 'nest')) return {}
+  return (tree.active ? tree.valid : ts.valid)
     ? { outline: '2px solid ' + c.value.accent, outlineOffset: '1px', background: c.value.card }
     : { outline: '2px solid ' + DANGER, outlineOffset: '1px' }
 }
@@ -432,45 +461,24 @@ const linkBody = pxify({
   padding: '6px 4px 2px 26px',
 })
 
-// --- opening a row ----------------------------------------------------------
-// A single click selects the task (desktop) or opens the detail dialog
-// (mobile), immediately (section 18b). The double click still opens the
-// full-page task view.
-const pressedRow = ref<number | null>(null)
-const tap = useTapOpen((event) => {
-  const id = pressedRow.value
-  pressedRow.value = null
-  if (id != null) openTask(id, event)
-})
-function onTaskMainClick(event: MouseEvent) {
-  if (shouldSelectRow(event)) return
-  tap.onClick(event)
+function onKey(event: KeyboardEvent) {
+  if (
+    event.key === 'Escape' &&
+    !(event.target as HTMLElement | null)?.closest('input, textarea, [contenteditable]')
+  )
+    selectedId.value = null
 }
-function onRowPointerDown(event: PointerEvent, t: Task) {
-  pressedRow.value = t.id
-  tap.onPointerDown(event)
-}
-let taskViewOpenTimer: number | null = null
-function cancelTaskViewOpen() {
-  if (taskViewOpenTimer == null) return
-  window.clearTimeout(taskViewOpenTimer)
-  taskViewOpenTimer = null
-}
-function onRowDblClick(event: MouseEvent, t: Task) {
-  event.preventDefault()
-  cancelTaskViewOpen()
-  taskViewOpenTimer = window.setTimeout(() => {
-    taskViewOpenTimer = null
-    if (!selectionVisible.value) app.openTaskView(t.id)
-  }, 240)
-}
-onBeforeUnmount(cancelTaskViewOpen)
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 // --- styles -----------------------------------------------------------------
 function rowStyle(t: Task, done = false) {
   const isDrag = draggingId.value === t.id
   return merge(rowBase(c.value), {
     opacity: done ? 0.55 : 1,
+    padding: '14px 16px',
+    gap: 14,
+    borderRadius: 18,
     cursor: 'pointer',
     position: 'relative',
     transform: isDrag ? 'scale(1.03)' : undefined,
@@ -483,9 +491,39 @@ function textStyle(t: Task) {
     ...itemTitle(),
     color: c.value.text,
     lineHeight: 1.3,
-    ...doneText(t.done),
+    fontWeight: 'var(--weight-semibold)',
+    opacity: t.done ? 0.55 : 1,
+    textDecoration: t.done ? 'line-through' : 'none',
   })
 }
+const shortcutHint = computed(() =>
+  pxify({
+    alignSelf: 'center',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '5px 12px',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid ' + c.value.border,
+    ...typeStep('xs'),
+    color: c.value.dim,
+    flexShrink: 0,
+  }),
+)
+const shortcutKey = computed(() => pxify({ fontFamily: 'var(--font-mono)', color: c.value.accent }))
+const descStyle = computed(() =>
+  pxify({
+    ...typeStep('sm'),
+    color: c.value.dim,
+    minWidth: 0,
+    flex: '1 1 auto',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }),
+)
+const metaLine = pxify({ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 })
 const gripDots = [0, 1, 2, 3, 4, 5]
 const ageChipStyle = computed(() =>
   pxify({
@@ -612,34 +650,13 @@ const listColumn = pxify({
   // hovered row's shadow has to be inside it.
   padding: '4px 10px 18px',
 })
-const completedModalList = pxify({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 'var(--sp-2)',
-  minWidth: 0,
-})
 const doneAgo = (t: Task) => (t.completedAt ? relLabel(t.completedAt - now.value) : '')
-
-function onGripDrop(e: DragEvent, t: Task) {
-  e.preventDefault()
-  e.stopPropagation()
-  app.dropOnTask(t.id)
-}
-function onRowDragOver(e: DragEvent) {
-  e.preventDefault()
-  e.stopPropagation()
-  try {
-    e.dataTransfer!.dropEffect = 'move'
-  } catch {
-    /* ignore */
-  }
-}
 </script>
 
 <template>
   <div ref="paneHost" :style="[panelStyle, paneInset]">
     <!-- The tab's name in the middle; its actions and New in the corner. -->
-    <PanelHeader title="Tasks" new-label="New task" @new="focusQuickAdd">
+    <PanelHeader title="Tasks" :new-label="isMobile ? undefined : 'New task'" @new="focusQuickAdd">
       <!-- Export on the left, level with the title; the count sits with the list. -->
       <template #left>
         <Dropdown :items="transferMenu" label="Export" variant="toolbar" @select="onTransfer" />
@@ -653,13 +670,17 @@ function onRowDragOver(e: DragEvent) {
       </template>
       <template #right>
         <button
-          v-if="completed.length"
           type="button"
-          class="panel-action"
-          @click="completedOpen = true"
+          class="panel-action panel-action--icon"
+          :class="{ 'is-on': showTagFilter }"
+          :aria-pressed="showTagFilter"
+          aria-label="Filter by tag"
+          title="Filter by tag"
+          @click="toggleTagFilter"
         >
-          Completed · {{ completed.length }}
+          <Icon name="search" size="sm" />
         </button>
+
         <button v-if="anyLinked" type="button" class="panel-action" @click="toggleAll">
           {{ allExpanded ? 'Collapse links' : 'Expand links' }}
         </button>
@@ -678,70 +699,7 @@ function onRowDragOver(e: DragEvent) {
       collection="tasks"
       @close="pasteDialogOpen = false"
     />
-    <Modal :open="completedOpen" title="Completed tasks" size="lg" @close="completedOpen = false">
-      <div :style="completedModalList">
-        <div v-if="completed.length === 0" :style="s.empty">No completed tasks yet.</div>
-        <template v-for="t in completedWindow.visible.value" :key="t.id">
-          <div :style="[rowStyle(t, true), selectedRowStyle(t.id)]">
-            <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-            <div
-              :style="s.taskMain"
-              @click="
-                openTaskDetail(
-                  t.id,
-                  completedWindow.visible.value.map((x) => x.id),
-                )
-              "
-            >
-              <span :style="textStyle(t)"
-                ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.title }}</span
-              >
-              <div :style="s.chipRow">
-                <span :style="subCountStyle" title="Subtasks done / total"
-                  >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                >
-                <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
-              </div>
-            </div>
-            <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
-              ×
-            </button>
-          </div>
-          <div v-if="linksOpen(t)" :style="linkBody">
-            <LinkedAccordion
-              v-for="ch in t.linked"
-              :key="ch.collection + ':' + ch.id"
-              :item-ref="ch"
-              :parent-ref="{ id: t.id, collection: 'tasks' }"
-              :depth="0"
-              :is-root="false"
-            />
-          </div>
-        </template>
-        <button
-          v-if="completedWindow.remaining.value > 0"
-          :style="s.showMoreRow"
-          @click="completedWindow.more()"
-        >
-          Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
-            completedWindow.remaining.value
-          }}
-          hidden)
-        </button>
-      </div>
-      <template #footer>
-        <button
-          type="button"
-          :style="s.editBtn"
-          @click="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
-        >
-          Sort: {{ completedSort === 'recent' ? 'Recent' : 'Original' }}
-        </button>
-        <button type="button" :style="s.importBtn" @click="app.archiveCompleted('tasks')">
-          Clear completed
-        </button>
-      </template>
-    </Modal>
+
     <Modal
       :open="deleteConfirmOpen"
       title="Delete selected tasks"
@@ -771,6 +729,13 @@ function onRowDragOver(e: DragEvent) {
         </button>
       </template>
     </Modal>
+    <MoveSelectionDialog
+      :open="moveParentOpen"
+      collection="tasks"
+      :ids="selectedMoveIds"
+      @close="moveParentOpen = false"
+      @moved="clearMoveSelection"
+    />
     <div v-if="selectionVisible" :style="bulkBar">
       <span>
         {{ selectedMoveCount ? selectedMoveCount + ' selected' : 'Select tasks to move' }}
@@ -782,6 +747,9 @@ function onRowDragOver(e: DragEvent) {
       <Dropdown v-if="tagMenu.length" :items="tagMenu" label="By tag" @select="pickTag" />
       <button v-if="selectedMoveCount" :style="bulkCompleteBtn" @click="completeSelectedTasks">
         Completed
+      </button>
+      <button v-if="selectedMoveCount" :style="s.importBtn" @click="moveParentOpen = true">
+        Move under...
       </button>
       <button v-if="selectedMoveCount" :style="s.importBtn" @click="moveSelectedToTodos">
         Move to Todos
@@ -801,11 +769,18 @@ function onRowDragOver(e: DragEvent) {
           <!-- Progress at the head of the list it measures, as on Todos. -->
           <ProgressLine part="inline" :done="split.stats.done" :total="split.stats.total" />
           <QuickAdd ref="quickAdd" collection="tasks" :compact="isMobile" />
-          <TagFilterInput v-model="tagQuery" :groups="tagGroups" />
+          <TagFilterInput
+            :visible="showTagFilter || !!tagQuery"
+            v-model="tagQuery"
+            :groups="tagGroups"
+          />
         </div>
         <div v-scroll-fade :style="listColumn">
           <div v-if="tasks.length === 0" :style="s.empty">Nothing yet — add your first task.</div>
-          <div v-else-if="tagQuery.trim() && !carried.length && !active.length" :style="s.empty">
+          <div
+            v-else-if="tagQuery.trim() && !carried.length && !active.length && !completed.length"
+            :style="s.empty"
+          >
             {{ emptyTagQueryMessage(tagQuery, 'tasks') }}
           </div>
 
@@ -816,20 +791,29 @@ function onRowDragOver(e: DragEvent) {
             :count="carried.length"
             :subtitle="carriedSubtitle"
           >
-            <div v-for="t in carried" :key="t.id" :style="parentCardStyle">
+            <div
+              v-for="t in carried"
+              :key="t.id"
+              class="todo-row-shell"
+              :class="{ 'is-leaving': completion.isLeaving(t.id) }"
+              :style="parentCardStyle"
+            >
               <div
+                class="todo-card"
                 :style="[
                   rowStyle(t),
                   selectedRowStyle(t.id),
                   moveSelectedRowStyle(t.id),
                   nestHighlight(t.id),
                 ]"
-                v-hover-style="s.rowHover"
+                v-hover-style="
+                  (!isMobile && selectedId === t.id) || (selectionVisible && isMoveSelected(t.id))
+                    ? {}
+                    : s.rowHover
+                "
                 :data-nest-id="t.id"
                 data-nest-collection="tasks"
                 :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
-                @dragover="onRowDragOver"
-                @drop="onGripDrop($event, t)"
                 @pointerdown.capture="onTaskRowPointerDown"
                 @click.capture="onTaskRowClick($event, t.id)"
               >
@@ -843,30 +827,46 @@ function onRowDragOver(e: DragEvent) {
                   @click.stop
                   ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
                 ></span>
-                <div
-                  :style="s.taskMain"
-                  @pointerdown="onRowPointerDown($event, t)"
-                  @pointercancel="tap.onPointerCancel"
-                  @click="onTaskMainClick"
-                  @dblclick="onRowDblClick($event, t)"
-                >
-                  <span :style="textStyle(t)"
-                    ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.title }}</span
+                <RingCheck
+                  :done="t.done"
+                  :sub-done="subCount(t.id).done"
+                  :sub-total="subCount(t.id).total"
+                  @toggle="completion.toggle(t.id)"
+                />
+                <div :style="s.taskMain" @click="openTask(t.id, $event)">
+                  <span :style="textStyle(t)">{{ t.title }}</span>
+                  <!-- Second line: the tag, then one line of description. -->
+                  <div
+                    v-if="t.tag || !richIsEmpty(t.notes) || t.rolloverCount > 1"
+                    :style="metaLine"
                   >
-                  <div :style="s.chipRow">
-                    <span :style="subCountStyle" title="Subtasks done / total"
-                      >☑ {{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                    >
+                    <TitleTagPill v-if="t.tag" :tag="t.tag" />
+                    <span v-if="!richIsEmpty(t.notes)" :style="descStyle">{{
+                      richPlain(t.notes).replace(/\s+/g, ' ')
+                    }}</span>
                     <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
                       >rolled over ×{{ t.rolloverCount }}</span
                     >
                   </div>
+                  <OfflineChip :pending="app.isItemPending('task', t.id)" />
                 </div>
-                <RemindBell collection="tasks" :id="t.id" />
-                <StatusPill :status="t.status" @cycle="app.cycleTaskStatus(t.id)" />
-                <button :style="s.del" @click.stop="app.deleteWithUndo('tasks', 'task', t.id)">
-                  ×
-                </button>
+                <div class="row-actions">
+                  <span
+                    v-if="subCount(t.id).total"
+                    class="todo-count"
+                    :title="subCount(t.id).done + ' of ' + subCount(t.id).total + ' subtasks done'"
+                    >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                  >
+                  <RemindBell collection="tasks" :id="t.id" icon-size="md" />
+                  <IconButton
+                    class="row-reveal"
+                    label="Delete task"
+                    tone="danger"
+                    @click.stop="app.deleteWithUndo('tasks', 'task', t.id)"
+                  >
+                    <Icon name="x" size="sm" />
+                  </IconButton>
+                </div>
               </div>
               <div v-if="linksOpen(t)" :style="linkBody">
                 <LinkedAccordion
@@ -888,12 +888,82 @@ function onRowDragOver(e: DragEvent) {
             :root-ids="activeRootIds"
             :selectable="!isMobile"
             :selected-id="selectedId"
+            :swipe-rows="isMobile"
             :selected-ids="selectedMoveIds"
             :selection-mode="selectionVisible"
             @select="selectedId = $event"
             @toggle-select="toggleMoveSelection"
           />
+          <CompletedSection
+            v-if="!hideCompleted && completed.length > 0"
+            collection="tasks"
+            :count="completed.length"
+            :sort="completedSort"
+            clearable
+            @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
+            @clear="app.archiveCompleted('tasks')"
+          >
+            <template v-for="t in completedWindow.visible.value" :key="t.id">
+              <div
+                :style="[rowStyle(t, true), selectedRowStyle(t.id), moveSelectedRowStyle(t.id)]"
+                :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
+                @pointerdown.capture="onTaskRowPointerDown"
+                @click.capture="onTaskRowClick($event, t.id)"
+              >
+                <RingCheck
+                  :done="t.done"
+                  :sub-done="subCount(t.id).done"
+                  :sub-total="subCount(t.id).total"
+                  @toggle="completion.toggle(t.id)"
+                />
+                <div :style="s.taskMain" @click="openTask(t.id, $event)">
+                  <span :style="textStyle(t)"
+                    ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.title }}</span
+                  >
+                  <div :style="s.chipRow">
+                    <span
+                      v-if="subCount(t.id).total"
+                      :style="subCountStyle"
+                      title="Subtasks done / total"
+                      >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                    >
+                    <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
+                  </div>
+                </div>
+                <IconButton
+                  label="Delete task"
+                  tone="danger"
+                  @click.stop="app.deleteWithUndo('tasks', 'task', t.id)"
+                >
+                  <Icon name="x" size="sm" />
+                </IconButton>
+              </div>
+              <div v-if="linksOpen(t)" :style="linkBody">
+                <LinkedAccordion
+                  v-for="ch in t.linked"
+                  :key="ch.collection + ':' + ch.id"
+                  :item-ref="ch"
+                  :parent-ref="{ id: t.id, collection: 'tasks' }"
+                  :depth="0"
+                  :is-root="false"
+                />
+              </div>
+            </template>
+            <button
+              v-if="completedWindow.remaining.value > 0"
+              :style="s.showMoreRow"
+              @click="completedWindow.more()"
+            >
+              Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
+                completedWindow.remaining.value
+              }}
+              hidden)
+            </button>
+          </CompletedSection>
         </div>
+        <span v-if="!isMobile" :style="shortcutHint"
+          ><span :style="shortcutKey">/n</span>focus quick add</span
+        >
       </div>
 
       <!-- The selected task's details and subtasks (desktop). Inline it is the
@@ -902,12 +972,14 @@ function onRowDragOver(e: DragEvent) {
       <DetailPane
         v-if="!isMobile"
         :open="selectedExists"
-        title="Task details"
+        :title="selectedExists ? 'Task details' : 'Next up'"
+        :subtitle="selectedExists ? '' : 'First open subtasks of each task'"
         :task-id="selectedExists ? selectedId : null"
         @width="paneWidth = $event"
         @close="selectedId = null"
       >
-        <TaskDetail :task-id="selectedExists ? selectedId : null" @select="selectedId = $event" />
+        <TaskDetail v-if="selectedExists" :task-id="selectedId" @select="selectedId = $event" />
+        <NextUpPanel v-else collection="tasks" :roots="nextUpRoots" @select="selectedId = $event" />
       </DetailPane>
     </div>
   </div>

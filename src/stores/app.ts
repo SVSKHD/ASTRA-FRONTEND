@@ -1,3 +1,4 @@
+import { selectedTreeRoots } from '@/utils/taskTree'
 import { defineStore } from 'pinia'
 import { computed, ref, watch, type Ref } from 'vue'
 // Type-only: the Firestore SDK itself is loaded on demand (see @/firebase), so
@@ -1862,12 +1863,16 @@ export const useAppStore = defineStore('app', () => {
     draggedId: number,
     newParentId: number | null,
     position: number,
+    persist = true,
+    excludedIds: number[] = [],
   ): boolean {
     const index = buildIndex(listRef.value)
     if (wouldCreateCycle(index, draggedId, newParentId)) return false
     const dragged = index.byId.get(draggedId)
     if (!dragged) return false
-    const siblings = (index.children.get(newParentId) ?? []).filter((t) => t.id !== draggedId)
+    const siblings = (index.children.get(newParentId) ?? []).filter(
+      (t) => t.id !== draggedId && !excludedIds.includes(t.id),
+    )
     const order = orderForPosition(siblings, position)
     const drUpdates = recomputeSubtree(index, draggedId, newParentId)
     // Landing under a different, tagged parent hands that tag down to the moved
@@ -1899,7 +1904,7 @@ export const useAppStore = defineStore('app', () => {
       return dr ? { ...t, ...inherit, depth: dr.depth, rootId: dr.rootId } : t
     })
     renormalizeInList(listRef, newParentId)
-    void persistMove(listRef, snapshot)
+    if (persist) void persistMove(listRef, snapshot)
     return true
   }
   function moveTask(draggedId: number, newParentId: number | null, position: number): boolean {
@@ -1920,6 +1925,46 @@ export const useAppStore = defineStore('app', () => {
     }
     return ok
   }
+  function moveTreeSelection(
+    collection: 'tasks' | 'todos' | 'ideas',
+    ids: number[],
+    parentId: number | null,
+    position?: number,
+  ): boolean {
+    function apply<T extends Movable>(listRef: Ref<T[]>): boolean {
+      const index = buildIndex(listRef.value)
+      const roots = selectedTreeRoots(index, ids)
+      if (
+        !roots.length ||
+        (parentId != null && !index.byId.has(parentId)) ||
+        roots.some((id) => wouldCreateCycle(index, id, parentId))
+      )
+        return false
+      const snapshot = listRef.value
+      let at =
+        position ??
+        (index.children.get(parentId) ?? []).filter((item) => !roots.includes(item.id)).length
+      for (const [i, id] of roots.entries())
+        moveInList(listRef, id, parentId, at++, false, roots.slice(i + 1))
+      void persistMove(listRef, snapshot)
+      if (collection !== 'ideas') {
+        const kind = collection === 'tasks' ? 'task' : 'todo'
+        for (const id of roots) {
+          syncRelatedPublicShares(kind, id)
+          const oldParent = index.byId.get(id)?.parentId
+          if (oldParent != null) syncRelatedPublicShares(kind, oldParent)
+        }
+        if (parentId != null) syncRelatedPublicShares(kind, parentId)
+      }
+      return true
+    }
+    return collection === 'tasks'
+      ? apply(tasks)
+      : collection === 'todos'
+        ? apply(todos)
+        : apply(ideas)
+  }
+
   // Backfill for subtasks nested before tag inheritance existed: any untagged
   // task/todo under a tagged parent takes the nearest tagged ancestor's tag.
   // Already-tagged items are never touched, and a list with nothing to fill is
@@ -8649,6 +8694,7 @@ export const useAppStore = defineStore('app', () => {
     dropOnTask,
     dropOnGroup,
     moveTask,
+    moveTreeSelection,
     moveTodo,
     backfillSubtaskTags,
     remoteTaskVersion,

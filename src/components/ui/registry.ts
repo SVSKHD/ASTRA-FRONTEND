@@ -715,6 +715,14 @@ export const UI_COMPONENTS: ComponentDoc[] = [
     snippet: '<Collapse :open="open">…</Collapse>',
   },
   {
+    name: 'SearchTransition',
+    group: 'Navigation',
+    summary:
+      'Reveals a search card smoothly and dissolves it into dust on close, with cancellation and reduced-motion support.',
+    props: [],
+    snippet: '<SearchTransition><div v-if="open">Search field</div></SearchTransition>',
+  },
+  {
     name: 'CollapseTransition',
     group: 'Navigation',
     summary:

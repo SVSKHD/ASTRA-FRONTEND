@@ -43,7 +43,7 @@ const props = withDefaults(
   }>(),
   { compact: false, collection: 'todos', parentId: null },
 )
-const isSub = computed(() => props.parentId != null && props.collection === 'todos')
+const isSub = computed(() => props.parentId != null && props.collection !== 'ideas')
 const emit = defineEmits<{ added: [id: number] }>()
 
 const app = useAppStore()
@@ -88,10 +88,17 @@ function submit() {
   // A subtask: made, then moved under its parent at the end of its subtasks.
   if (isSub.value && props.parentId != null) {
     const parentId = props.parentId
-    const at = todos.value.filter((t) => t.parentId === parentId).length
-    const subId = app.addTodo(q.title, pickedTag, desc)
+    const at = list.filter((item) => item.parentId === parentId).length
+    const subId =
+      props.collection === 'tasks'
+        ? app.addTask(q.title, pickedTag, {
+            notes: desc,
+            ...(q.priority ? { priority: q.priority } : {}),
+          })
+        : app.addTodo(q.title, pickedTag, desc)
     if (subId == null) return
-    app.moveTodo(subId, parentId, at)
+    if (props.collection === 'tasks') app.moveTask(subId, parentId, at)
+    else app.moveTodo(subId, parentId, at)
     finish(q, subId)
     return
   }

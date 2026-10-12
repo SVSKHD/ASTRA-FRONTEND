@@ -27,9 +27,12 @@ import RichDescription from '@/components/detail/RichDescription.vue'
 import Select from '@/components/ui/Select.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Icon from '@/components/ui/Icon.vue'
+import QuickAdd from '@/components/todo/QuickAdd.vue'
 import AddMoreDialog from '@/components/detail/AddMoreDialog.vue'
 import ExportJsonDialog from '@/components/detail/ExportJsonDialog.vue'
 import { exportTaskTransferJson } from '@/utils/taskTransfer'
+import TreeDragHandle from '@/components/TreeDragHandle.vue'
+import { useTreeDrag } from '@/composables/useTreeDrag'
 import SubCheck from '@/components/ui/SubCheck.vue'
 import SubSelectBar from '@/components/detail/SubSelectBar.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
@@ -67,7 +70,6 @@ const {
   accentPill,
   toneStyle,
   iconBtn,
-  addBtn,
   chipStyle,
 } = useDetailStyles()
 
@@ -137,6 +139,7 @@ const { draft, start, cancel, commit, isEditing, pick, vFocus } = useInlineEdit(
 })
 // Picking subtasks for the bulk bar (SubSelectBar); a different task starts
 // with nothing picked.
+const { isSource: isDragSource, suppressClick: suppressDragClick } = useTreeDrag()
 const selecting = ref(false)
 const picked = ref<Set<number>>(new Set())
 const subIds = computed(() => subtasks.value.map((t) => t.id))
@@ -155,7 +158,6 @@ watch(
   },
 )
 
-const newSub = ref('')
 // The "Add more" paste dialog, for this item's subtasks.
 const addingMore = ref(false)
 // Export: this task and every subtask under it, at every depth, as JSON in the
@@ -179,13 +181,6 @@ function exportThis() {
     filename: `${slug}-${at.slice(0, 10)}.json`,
     count: picked.length,
   }
-}
-function addSubtask() {
-  const parent = task.value
-  if (!parent || !newSub.value.trim()) return
-  const newId = app.addTask(newSub.value, '')
-  if (newId != null) app.moveTask(newId, parent.id, subtasks.value.length)
-  newSub.value = ''
 }
 function removeTask(id: number) {
   app.deleteWithUndo('tasks', 'task', id)
@@ -356,6 +351,7 @@ function moveTaskToTodos() {
           <TaskTimeline :task-id="task.id" />
 
           <!-- Subtasks: one card each — the check, the title, a status dot. -->
+          <QuickAdd collection="tasks" :parent-id="task.id" class="dp-quickadd" />
           <div class="dp-subs">
             <SubSelectBar
               v-model:selecting="selecting"
@@ -367,9 +363,22 @@ function moveTaskToTodos() {
               v-for="st in subtasks"
               :key="st.id"
               class="dp-sub"
-              :class="{ 'is-picking': selecting, 'is-picked': selecting && picked.has(st.id) }"
-              @click="selecting && togglePick(st.id)"
+              :data-subtask-id="st.id"
+              :class="{
+                'is-picking': selecting,
+                'is-picked': selecting && picked.has(st.id),
+                'dp-sub--dragging': isDragSource('tasks', st.id),
+              }"
+              @click="!suppressDragClick() && selecting && togglePick(st.id)"
             >
+              <TreeDragHandle
+                collection="tasks"
+                :id="st.id"
+                :title="st.title"
+                :selected-ids="[...picked]"
+                :hint="st.id === subtasks[0]?.id"
+                nest-only
+              />
               <Checkbox
                 v-if="selecting"
                 class="dp-sub__pick"
@@ -431,17 +440,6 @@ function moveTaskToTodos() {
               ></button>
             </div>
             <div v-if="!subtasks.length" :style="placeholder">No subtasks yet.</div>
-
-            <form class="dp-add" @submit.prevent="addSubtask">
-              <TextInput
-                v-model="newSub"
-                size="sm"
-                placeholder="Add a subtask…"
-                aria-label="New subtask"
-                :style="grow"
-              />
-              <button type="submit" :style="addBtn">Add</button>
-            </form>
           </div>
 
           <!-- Details -->
@@ -631,3 +629,11 @@ function moveTaskToTodos() {
     </Transition>
   </div>
 </template>
+
+<style scoped>
+.dp-sub--dragging {
+  opacity: 0.55;
+  transform: scale(1.02);
+  box-shadow: var(--layer-overlay-shadow);
+}
+</style>

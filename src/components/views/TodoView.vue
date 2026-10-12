@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useTreeDrag } from '@/composables/useTreeDrag'
 // The todo list, restructured around the Done/Not-done split and the single
 // carried-over accordion (no per-day date groups): a "Carried over · N"
 // accordion when anything is pending from before today, then today's active
@@ -32,6 +33,7 @@ import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
 import TodoDetail from '@/components/TodoDetail.vue'
 import DetailPane from '@/components/ui/DetailPane.vue'
+import MoveSelectionDialog from '@/components/MoveSelectionDialog.vue'
 import Modal from '@/components/ui/Modal.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import LinkedAccordion from '@/components/LinkedAccordion.vue'
@@ -46,7 +48,13 @@ import {
   taskTransferFilename,
 } from '@/utils/taskTransfer'
 import TitleTagPill from '@/components/TitleTagPill.vue'
-import { buildIndex, childrenOf, descendantsOf, progressOf } from '@/utils/taskTree'
+import {
+  buildIndex,
+  selectedTreeRoots,
+  childrenOf,
+  descendantsOf,
+  progressOf,
+} from '@/utils/taskTree'
 import { emptyTagQueryMessage, matchesTagQuery } from '@/utils/tagFilter'
 import TagFilterInput from '@/components/TagFilterInput.vue'
 import { useAccordionState } from '@/composables/useAccordionState'
@@ -67,7 +75,8 @@ import { vScrollFade } from '@/directives/scrollFade'
 const app = useAppStore()
 const ui = useUiStore()
 const { c, s, panelStyle, isMobile } = useStyles()
-const { startDrag, targetState } = useDragNest()
+const { targetState: treeTargetState } = useTreeDrag()
+const { startDrag, targetState, suppressClick: suppressNestClick } = useDragNest()
 const { todos, hideCompleted } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
@@ -241,6 +250,7 @@ const todoIndex = computed(() => buildIndex(todos.value))
 function subCount(id: number) {
   return progressOf(todoIndex.value, id, (x) => x.status === 'done')
 }
+const moveParentOpen = ref(false)
 const selectionMode = ref(false)
 const selectedMove = ref<Set<number>>(new Set())
 function treeIds(id: number): number[] {
@@ -409,6 +419,12 @@ function shouldSelectRow(event?: MouseEvent) {
   return selectionVisible.value || isTripleClick(event)
 }
 function onTodoRowClick(event: MouseEvent, id: number) {
+  if (suppressNestClick()) {
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+  if ((event.target as HTMLElement | null)?.closest('[aria-label="Drag to nest"]')) return
   if (!shouldSelectRow(event)) return
   event.preventDefault()
   event.stopPropagation()
@@ -416,6 +432,7 @@ function onTodoRowClick(event: MouseEvent, id: number) {
 }
 function onTodoRowPointerDown(event: PointerEvent) {
   if (!selectionVisible.value) return
+  if ((event.target as HTMLElement | null)?.closest('[aria-label="Drag to nest"]')) return
   event.stopPropagation()
 }
 function onTodoMainClick(event: MouseEvent, id: number) {
@@ -479,15 +496,26 @@ const listColumn = pxify({
 function onGripDown(e: PointerEvent, t: Todo) {
   e.preventDefault()
   e.stopPropagation()
-  startDrag([{ id: t.id, collection: 'todos' }], e, {
-    title: t.text || '(untitled)',
-    badge: 'Todo',
-  })
+  startDrag(
+    (selectedMoveIds.value.includes(t.id)
+      ? selectedTreeRoots(buildIndex(app.todos), selectedMoveIds.value)
+      : [t.id]
+    ).map((id) => ({
+      id,
+      collection: 'todos',
+    })),
+    e,
+    {
+      title: t.text || '(untitled)',
+      badge: 'Todo',
+    },
+  )
 }
 function nestHighlight(id: number) {
+  const tree = treeTargetState('todos', id)
   const ts = targetState({ id, collection: 'todos' } as LinkRef)
-  if (!ts.active || ts.zone !== 'nest') return {}
-  return ts.valid
+  if ((!tree.active || tree.mode !== 'nest') && (!ts.active || ts.zone !== 'nest')) return {}
+  return (tree.active ? tree.valid : ts.valid)
     ? { outline: '2px solid ' + c.value.accent, outlineOffset: '1px', background: c.value.card }
     : { outline: '2px solid ' + DANGER, outlineOffset: '1px' }
 }
@@ -749,6 +777,13 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
         </button>
       </template>
     </Modal>
+    <MoveSelectionDialog
+      :open="moveParentOpen"
+      collection="todos"
+      :ids="selectedMoveIds"
+      @close="moveParentOpen = false"
+      @moved="clearMoveSelection"
+    />
     <div v-if="selectionVisible" :style="bulkBar">
       <span>
         {{ selectedMoveCount ? selectedMoveCount + ' selected' : 'Select todos to move' }}
@@ -759,6 +794,9 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
       <button v-else :style="s.editBtn" @click="clearSelectedMoveSelection">Clear all</button>
       <button v-if="selectedMoveCount" :style="bulkCompleteBtn" @click="completeSelectedTodos">
         Completed
+      </button>
+      <button v-if="selectedMoveCount" :style="s.importBtn" @click="moveParentOpen = true">
+        Move under...
       </button>
       <button v-if="selectedMoveCount" :style="s.importBtn" @click="moveSelectedToTasks">
         Move to Tasks
@@ -779,7 +817,11 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                bar running on beside it. -->
           <ProgressLine part="inline" :done="split.stats.done" :total="split.stats.total" />
           <QuickAdd ref="quickAdd" :compact="isMobile" />
-          <TagFilterInput v-if="showTagFilter || tagQuery" v-model="tagQuery" :groups="tagGroups" />
+          <TagFilterInput
+            :visible="showTagFilter || !!tagQuery"
+            v-model="tagQuery"
+            :groups="tagGroups"
+          />
         </div>
         <div v-scroll-fade :style="listColumn">
           <div v-if="todos.length === 0" :style="s.empty">Nothing yet — add your first todo.</div>
