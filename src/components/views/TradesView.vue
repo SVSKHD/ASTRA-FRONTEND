@@ -58,6 +58,7 @@ import NewsStrip from '@/components/trades/NewsStrip.vue'
 import OutboxPanel from '@/components/trades/OutboxPanel.vue'
 import { useSaveState } from '@/composables/useSaveState'
 import { useStyles } from '@/composables/useStyles'
+import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useSettings } from '@/composables/useSettings'
 import { useSignals } from '@/composables/useSignals'
@@ -77,6 +78,7 @@ import type { TradeDraft } from '@/services/tradeDoc'
 import type { DacoitSignal } from '@/types'
 
 const app = useAppStore()
+const ui = useUiStore()
 const { panelStyle } = useStyles()
 const route = useTradeRoute()
 const store = useSettings()
@@ -307,6 +309,9 @@ defineExpose({ focus: openForm })
         />
       </template>
       <template #actions>
+        <Button variant="ghost" size="sm" @click="ui.tradeRulesOpen = true"
+          >Trade book rules</Button
+        >
         <Button variant="ghost" size="sm" :disabled="!visibleTrades.length" @click="exportCsv">
           <IconExport :size="14" />
           CSV

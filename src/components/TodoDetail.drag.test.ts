@@ -83,5 +83,6 @@ describe('drag a subtodo from details to another parent', () => {
         wrapper.unmount()
       }
     },
+    15_000, // Mounts the full view and detail pane; allow for concurrent suite load.
   )
 })

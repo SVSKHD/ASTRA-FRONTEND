@@ -131,4 +131,23 @@ describe('the settings singleton', () => {
     expect(store.settings.value.tradesCollection).toBe('astra-trades')
     expect(open()).toHaveLength(0)
   })
+  it('loads, saves, and clears account-owned trade book rules', async () => {
+    user.value = { uid: 'rules-owner' }
+    const store = useSettings()
+    await settle()
+    open()[0].next({ exists: () => true, data: () => ({ tradeBookRules: '# My rules' }) })
+    expect(store.settings.value.tradeBookRules).toBe('# My rules')
+    const write = vi.spyOn(fs, 'setDoc')
+    expect(await store.save({ tradeBookRules: 'Updated rules' })).toBe(true)
+    expect(write).toHaveBeenCalledWith(
+      { uid: 'rules-owner' },
+      { tradeBookRules: 'Updated rules' },
+      { merge: true },
+    )
+    user.value = null
+    await nextTick()
+    await settle()
+    expect(store.settings.value.tradeBookRules).toBe('')
+    write.mockRestore()
+  })
 })

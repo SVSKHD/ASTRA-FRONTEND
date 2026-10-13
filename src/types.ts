@@ -299,6 +299,7 @@ export interface Shareable {
 }
 
 export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical, Schedulable {
+  pinned?: boolean
   id: number
   text: string
   done: boolean
@@ -339,6 +340,7 @@ export interface Todo extends Timestamped, Shareable, Linkable, Hierarchical, Sc
 }
 
 export interface Task extends Timestamped, Linkable, Hierarchical, Schedulable {
+  pinned?: boolean
   id: number
   title: string
   tag: string
@@ -1220,6 +1222,8 @@ export interface SessionBounds {
  * name of every collection the app queries (section 32).
  */
 export interface AstraSettings extends LoggerSettings {
+  /** Personal markdown rules to review before trading. */
+  tradeBookRules?: string
   tradesCollection: string
   dacoitCollection: string
   expensesCollection: string

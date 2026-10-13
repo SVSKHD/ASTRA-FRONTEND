@@ -19,10 +19,20 @@ export const TASK_TRANSFER_SCHEMA_FIELDS: TaskTransferSchemaField[] = [
   {
     field: 'collection',
     scope: 'document',
-    type: '"tasks" | "todos"',
+    type: '"tasks" | "todos" | "ideas"',
     required: false,
     example: '"tasks"',
-    notes: 'Chooses which list to create. If it is missing, pasted JSON imports as tasks.',
+    notes:
+      'Chooses the destination list. If missing, the opened Tasks, Todo or Ideas dialog supplies the destination.',
+  },
+  {
+    field: 'title',
+    scope: 'document',
+    type: 'string',
+    required: false,
+    example: '"My parent"',
+    notes:
+      'Creates one new parent when paired with subtasks. Add description for the overall work. For an existing parent, omit title and use parentId with items.',
   },
   {
     field: 'project',
@@ -33,12 +43,31 @@ export const TASK_TRANSFER_SCHEMA_FIELDS: TaskTransferSchemaField[] = [
     notes: 'A readable name for the file. It is kept for humans and does not become a task.',
   },
   {
+    field: 'parentId',
+    scope: 'document',
+    type: 'number',
+    required: false,
+    example: '123',
+    notes:
+      'One copied app parent ID attaches every imported root under that existing task or todo. Missing parents are rejected before anything is added.',
+  },
+  {
+    field: 'subtasks',
+    scope: 'item',
+    type: 'array',
+    required: false,
+    example: '[{ "title": "First subtask" }]',
+    notes:
+      'Nested children stay under their containing item. Put another subtasks array inside a subtask to create deeper levels. children and items are accepted too. A document with a title and subtasks creates one parent with its children.',
+  },
+  {
     field: 'items',
     scope: 'document',
     type: 'array',
-    required: true,
+    required: false,
     example: '[{ "title": "Real Lead Backend" }]',
-    notes: 'Each item becomes one task or todo. Blank titles are skipped.',
+    notes:
+      'Use items for a list or an existing-parent import. For one new parent, use document title and subtasks instead. Blank titles are skipped.',
   },
   {
     field: 'id',
@@ -291,4 +320,31 @@ export function sampleTaskTransferJson(collection: TaskTransferCollection): stri
 
 export function taskTransferSampleFilename(collection: TaskTransferCollection): string {
   return `${collection}-sample.json`
+}
+
+export function sampleGroupedTaskTransferJson(collection: TaskTransferCollection): string {
+  return JSON.stringify(
+    {
+      collection,
+      title: 'My parent',
+      description: 'Describe the overall work',
+      subtasks: [
+        {
+          title: 'First subtask',
+          description: 'What needs to be done',
+          subtasks: [
+            { title: 'Nested subtask', description: 'A smaller step under the first subtask' },
+          ],
+        },
+        { title: 'Second subtask', description: 'What needs to be done' },
+      ],
+    },
+    null,
+    2,
+  )
+}
+
+export function sampleExistingParentTransferJson(collection: TaskTransferCollection): string {
+  const grouped = JSON.parse(sampleGroupedTaskTransferJson(collection))
+  return JSON.stringify({ collection, parentId: 123, items: grouped.subtasks }, null, 2)
 }

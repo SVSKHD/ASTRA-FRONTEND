@@ -8,6 +8,7 @@ import { useAppStore } from '@/stores/app'
 import { parseItemsForParent, type TaskTransferCollection } from '@/utils/taskTransfer'
 import Modal from '@/components/ui/Modal.vue'
 import TextArea from '@/components/ui/TextArea.vue'
+import ImportHierarchySummary from '@/components/ImportHierarchySummary.vue'
 
 const props = defineProps<{
   open: boolean
@@ -25,7 +26,15 @@ const example = computed(() =>
       collection: props.collection,
       parentId: props.parentId,
       parentTitle: props.parentTitle,
-      items: [{ title: 'New subtask title', description: 'Describe what needs to be done' }],
+      items: [
+        {
+          title: 'New subtask title',
+          description: 'Describe what needs to be done',
+          subtasks: [
+            { title: 'Nested subtask title', description: 'A smaller step under this subtask' },
+          ],
+        },
+      ],
     },
     null,
     2,
@@ -103,11 +112,11 @@ function add() {
           noun
         }}
         per line. Extra spaces, bullets and code fences are fine. Parent: {{ parentTitle }} (ID
-        {{ parentId }}). Edit only each item's title and description; this dialog attaches them to
-        this parent automatically.
+        {{ parentId }}). Edit titles and descriptions, and nest another subtasks array for smaller
+        steps; this dialog attaches them to this parent automatically.
       </p>
       <div class="am__reference">
-        <span class="am__reference-label">Parent {{ noun }} ? #{{ parentId }}</span>
+        <span class="am__reference-label">Parent {{ noun }} · #{{ parentId }}</span>
         <strong>{{ parentTitle }}</strong>
         <button type="button" class="am__btn" @click="copyReference">
           Copy {{ noun }} reference
@@ -127,6 +136,7 @@ function add() {
       <div v-if="read" class="am__preview" aria-live="polite">
         <p v-if="read.error" class="am__error">{{ read.error }}</p>
         <template v-else>
+          <ImportHierarchySummary :items="read.items" under-parent :noun="noun" />
           <p class="am__summary">
             Will add <strong>{{ count }}</strong> sub{{ noun }}{{ count === 1 ? '' : 's' }}
             <span class="am__as">· read as {{ read.as === 'json' ? 'JSON' : 'lines' }}</span>

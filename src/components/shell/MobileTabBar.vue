@@ -53,6 +53,10 @@ function openNotes() {
   ui.setMoreSheet(false)
   ui.openShellPanel('notes', avatarMenuOpen)
 }
+function openTradeRules() {
+  ui.setMoreSheet(false)
+  ui.openShellPanel('trade-rules', avatarMenuOpen)
+}
 function openTimeline() {
   ui.setMoreSheet(false)
   ui.openShellPanel('timeline', avatarMenuOpen)
@@ -121,6 +125,10 @@ const avatarDisc = computed(() => ({
         <Icon name="notebook" size="md" class="mtb-more__icon" />
         <span>Notes</span>
       </button>
+      <button type="button" class="mtb-more__item" @click="openTradeRules">
+        <Icon name="book-open" size="md" class="mtb-more__icon" /><span>Trade book rules</span>
+      </button>
+
       <button type="button" class="mtb-more__item" @click="openTimeline">
         <Icon name="clock" size="md" class="mtb-more__icon" />
         <span>Timeline</span>

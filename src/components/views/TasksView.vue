@@ -30,6 +30,10 @@ import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
+import ItemPinButton from '@/components/ItemPinButton.vue'
+import DeleteUnpinned from '@/components/DeleteUnpinned.vue'
+import Accordion from '@/components/ui/Accordion.vue'
+import { pinnedTreeIds } from '@/utils/pinnedItems'
 import TaskDetail from '@/components/TaskDetail.vue'
 import DetailPane from '@/components/ui/DetailPane.vue'
 import MoveSelectionDialog from '@/components/MoveSelectionDialog.vue'
@@ -162,46 +166,91 @@ const topLevel = computed(() =>
 // --- tag filter --------------------------------------------------------------
 // Same rule as the todo list: a top-level task matches on its own tag or any
 // subtask's, and the filter applies before the split so every section narrows.
+const taskIndex = computed(() => buildIndex(tasks.value))
+const addedMode = ref('default')
+const addedOptions = [
+  { value: 'default', label: 'Default order' },
+  { value: 'recent', label: 'Recently added ? 7 days' },
+  { value: 'latest', label: 'Latest added first' },
+]
+const addedLabel = computed(() =>
+  addedMode.value === 'default'
+    ? 'Added'
+    : addedOptions.find((o) => o.value === addedMode.value)!.label,
+)
+function addedAt(item: Task): number {
+  return Math.max(
+    item.createdAt || 0,
+    ...descendantsOf(taskIndex.value, item.id)
+      .filter((child) => child.archivedAt == null)
+      .map((child) => child.createdAt || 0),
+  )
+}
+function addedOrder(items: Task[]): Task[] {
+  return addedMode.value === 'default' ? items : [...items].sort((a, b) => addedAt(b) - addedAt(a))
+}
 const tagQuery = ref('')
 function treeTags(t: Task): string[] {
   return [t.tag, ...descendantsOf(taskIndex.value, t.id).map((d) => d.tag)]
 }
 const tagGroups = computed(() => topLevel.value.map(treeTags))
 const shownTopLevel = computed(() => {
-  if (!tagQuery.value.trim()) return topLevel.value
   const inUse = tagGroups.value.flat()
-  return topLevel.value.filter((t) => matchesTagQuery(treeTags(t), tagQuery.value, inUse))
+  return topLevel.value.filter(
+    (t) =>
+      (!tagQuery.value.trim() || matchesTagQuery(treeTags(t), tagQuery.value, inUse)) &&
+      (addedMode.value !== 'recent' ||
+        (addedAt(t) > 0 && addedAt(t) >= now.value - 7 * 24 * 60 * 60 * 1000)),
+  )
 })
+
+const protectedIds = computed(() => pinnedTreeIds(tasks.value, 'tasks'))
+const pinnedRoots = computed(() =>
+  addedOrder(
+    shownTopLevel.value.filter(
+      (item) => item.archivedAt == null && protectedIds.value.has(item.id),
+    ),
+  ),
+)
 
 const completedSort = ref<'recent' | 'original'>('recent')
 const completion = useTodoCompletion('tasks')
 const split = computed(() =>
-  splitList(shownTopLevel.value, {
-    isDone: (t) => t.status === 'done' && !completion.isHeld(t.id),
-    isCarried: (t) =>
-      isOverdueTask(completion.isHeld(t.id) ? { ...t, status: 'pending' } : t, todayStr.value),
-    completedAt: (t) => t.completedAt,
-    archivedAt: (t) => t.archivedAt ?? null,
-    // No day filter: Completed keeps everything finished until it is cleared
-    // or deleted (see the same note in TodoView).
-    completedSort: completedSort.value,
-  }),
+  splitList(
+    shownTopLevel.value.filter((item) => !protectedIds.value.has(item.id)),
+    {
+      isDone: (t) => t.status === 'done' && !completion.isHeld(t.id),
+      isCarried: (t) =>
+        isOverdueTask(completion.isHeld(t.id) ? { ...t, status: 'pending' } : t, todayStr.value),
+      completedAt: (t) => t.completedAt,
+      archivedAt: (t) => t.archivedAt ?? null,
+      // No day filter: Completed keeps everything finished until it is cleared
+      // or deleted (see the same note in TodoView).
+      completedSort: completedSort.value,
+    },
+  ),
 )
 const carried = computed(() =>
-  [...split.value.carriedOver].sort((a, b) => dayOf(a).localeCompare(dayOf(b))),
+  addedOrder([...split.value.carriedOver].sort((a, b) => dayOf(a).localeCompare(dayOf(b)))),
 )
 // In each item's `order`, which is what a drag rewrites and what quick add
 // sets to put a new item first. Storage order was being shown instead, so a
 // dropped row saved its new place and then did not move.
 const active = computed(() =>
-  split.value.active
-    .map((t, i) => ({ t, i }))
-    .sort((a, b) => (a.t.order ?? 0) - (b.t.order ?? 0) || a.i - b.i)
-    .map(({ t }) => t),
+  addedOrder(
+    split.value.active
+      .map((t, i) => ({ t, i }))
+      .sort((a, b) => (a.t.order ?? 0) - (b.t.order ?? 0) || a.i - b.i)
+      .map(({ t }) => t),
+  ),
 )
 const activeRootIds = computed(() => active.value.map((t) => t.id))
-const completed = computed(() => split.value.completed)
-const nextUpRoots = computed(() => [...carried.value, ...active.value])
+const completed = computed(() => addedOrder(split.value.completed))
+const nextUpRoots = computed(() => [
+  ...pinnedRoots.value.filter((item) => item.status !== 'done'),
+  ...carried.value,
+  ...active.value,
+])
 // A completed list is unbounded — it grows for as long as the workspace is
 // used. Past 100 rows it renders in windows so opening the section stays
 // instant however many years are behind it.
@@ -282,7 +331,6 @@ function moveSelectedRowStyle(id: number) {
     : {}
 }
 // Subtask counter shown on every row, 0/0 when a task has none.
-const taskIndex = computed(() => buildIndex(tasks.value))
 function subCount(id: number) {
   return progressOf(taskIndex.value, id, (x) => x.status === 'done')
 }
@@ -293,7 +341,11 @@ function treeIds(id: number): number[] {
   return [id, ...childrenOf(taskIndex.value, id).flatMap((child) => treeIds(child.id))]
 }
 const moveSelectableIds = computed(() => {
-  const ids = [...carried.value.map((task) => task.id), ...activeRootIds.value.flatMap(treeIds)]
+  const ids = [
+    ...pinnedRoots.value.map((item) => item.id).flatMap(treeIds),
+    ...carried.value.map((task) => task.id),
+    ...activeRootIds.value.flatMap(treeIds),
+  ]
   return [...new Set(ids)]
 })
 const moveSelectableSet = computed(() => new Set(moveSelectableIds.value))
@@ -669,6 +721,7 @@ const doneAgo = (t: Task) => (t.completedAt ? relLabel(t.completedAt - now.value
         />
       </template>
       <template #right>
+        <DeleteUnpinned collection="tasks" />
         <button
           type="button"
           class="panel-action panel-action--icon"
@@ -680,6 +733,12 @@ const doneAgo = (t: Task) => (t.completedAt ? relLabel(t.completedAt - now.value
         >
           <Icon name="search" size="sm" />
         </button>
+        <Dropdown
+          :items="addedOptions"
+          :label="addedLabel"
+          variant="toolbar"
+          @select="addedMode = $event"
+        />
 
         <button v-if="anyLinked" type="button" class="panel-action" @click="toggleAll">
           {{ allExpanded ? 'Collapse links' : 'Expand links' }}
@@ -767,7 +826,11 @@ const doneAgo = (t: Task) => (t.completedAt ? relLabel(t.completedAt - now.value
       <div :style="leftColumn">
         <div :style="tagInputRow">
           <!-- Progress at the head of the list it measures, as on Todos. -->
-          <ProgressLine part="inline" :done="split.stats.done" :total="split.stats.total" />
+          <ProgressLine
+            part="inline"
+            :done="split.stats.done + pinnedRoots.filter((item) => item.status === 'done').length"
+            :total="split.stats.total + pinnedRoots.length"
+          />
           <QuickAdd ref="quickAdd" collection="tasks" :compact="isMobile" />
           <TagFilterInput
             :visible="showTagFilter || !!tagQuery"
@@ -778,188 +841,236 @@ const doneAgo = (t: Task) => (t.completedAt ? relLabel(t.completedAt - now.value
         <div v-scroll-fade :style="listColumn">
           <div v-if="tasks.length === 0" :style="s.empty">Nothing yet — add your first task.</div>
           <div
-            v-else-if="tagQuery.trim() && !carried.length && !active.length && !completed.length"
+            v-else-if="
+              tagQuery.trim() &&
+              !pinnedRoots.length &&
+              !carried.length &&
+              !active.length &&
+              !completed.length
+            "
             :style="s.empty"
           >
             {{ emptyTagQueryMessage(tagQuery, 'tasks') }}
           </div>
 
-          <!-- 1. Carried over accordion -->
-          <CarriedOverGroup
-            v-if="carried.length > 0"
-            collection="tasks"
-            :count="carried.length"
-            :subtitle="carriedSubtitle"
+          <Accordion
+            v-if="pinnedRoots.length"
+            aria-label="Pinned items"
+            :title="'Pinned · ' + pinnedRoots.length"
+            :open="acc.isOpen('pinned:tasks', true)"
+            @toggle="acc.set('pinned:tasks', $event)"
           >
             <div
-              v-for="t in carried"
-              :key="t.id"
-              class="todo-row-shell"
-              :class="{ 'is-leaving': completion.isLeaving(t.id) }"
-              :style="parentCardStyle"
+              class="pinned-scroll"
+              role="region"
+              aria-label="Pinned tasks list"
+              tabindex="0"
+              data-own-keys
             >
-              <div
-                class="todo-card"
-                :style="[
-                  rowStyle(t),
-                  selectedRowStyle(t.id),
-                  moveSelectedRowStyle(t.id),
-                  nestHighlight(t.id),
-                ]"
-                v-hover-style="
-                  (!isMobile && selectedId === t.id) || (selectionVisible && isMoveSelected(t.id))
-                    ? {}
-                    : s.rowHover
-                "
-                :data-nest-id="t.id"
-                data-nest-collection="tasks"
-                :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
-                @pointerdown.capture="onTaskRowPointerDown"
-                @click.capture="onTaskRowClick($event, t.id)"
-              >
-                <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
-                <span
-                  :style="s.grip"
-                  role="button"
-                  aria-label="Drag to nest"
-                  title="Drag to nest"
-                  @pointerdown="onGripDown($event, t)"
-                  @click.stop
-                  ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-                ></span>
-                <RingCheck
-                  :done="t.done"
-                  :sub-done="subCount(t.id).done"
-                  :sub-total="subCount(t.id).total"
-                  @toggle="completion.toggle(t.id)"
-                />
-                <div :style="s.taskMain" @click="openTask(t.id, $event)">
-                  <span :style="textStyle(t)">{{ t.title }}</span>
-                  <!-- Second line: the tag, then one line of description. -->
-                  <div
-                    v-if="t.tag || !richIsEmpty(t.notes) || t.rolloverCount > 1"
-                    :style="metaLine"
-                  >
-                    <TitleTagPill v-if="t.tag" :tag="t.tag" />
-                    <span v-if="!richIsEmpty(t.notes)" :style="descStyle">{{
-                      richPlain(t.notes).replace(/\s+/g, ' ')
-                    }}</span>
-                    <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
-                      >rolled over ×{{ t.rolloverCount }}</span
-                    >
-                  </div>
-                  <OfflineChip :pending="app.isItemPending('task', t.id)" />
-                </div>
-                <div class="row-actions">
-                  <span
-                    v-if="subCount(t.id).total"
-                    class="todo-count"
-                    :title="subCount(t.id).done + ' of ' + subCount(t.id).total + ' subtasks done'"
-                    >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                  >
-                  <RemindBell collection="tasks" :id="t.id" icon-size="md" />
-                  <IconButton
-                    class="row-reveal"
-                    label="Delete task"
-                    tone="danger"
-                    @click.stop="app.deleteWithUndo('tasks', 'task', t.id)"
-                  >
-                    <Icon name="x" size="sm" />
-                  </IconButton>
-                </div>
-              </div>
-              <div v-if="linksOpen(t)" :style="linkBody">
-                <LinkedAccordion
-                  v-for="ch in t.linked"
-                  :key="ch.collection + ':' + ch.id"
-                  :item-ref="ch"
-                  :parent-ref="{ id: t.id, collection: 'tasks' }"
-                  :depth="0"
-                  :is-root="false"
-                />
-              </div>
+              <TreeList
+                collection="tasks"
+                :root-ids="pinnedRoots.map((item) => item.id)"
+                :selected-ids="selectedMoveIds"
+                :selection-mode="selectionVisible"
+                @toggle-select="toggleMoveSelection"
+                :selectable="!isMobile"
+                :selected-id="selectedId"
+                :swipe-rows="isMobile"
+                @select="selectedId = $event"
+              />
             </div>
-          </CarriedOverGroup>
-
-          <!-- 2. Active items as a flat, drag-reorderable tree (grip handle, reorder /
-             nest / promote indicators, root strip). -->
-          <TreeList
-            collection="tasks"
-            :root-ids="activeRootIds"
-            :selectable="!isMobile"
-            :selected-id="selectedId"
-            :swipe-rows="isMobile"
-            :selected-ids="selectedMoveIds"
-            :selection-mode="selectionVisible"
-            @select="selectedId = $event"
-            @toggle-select="toggleMoveSelection"
-          />
-          <CompletedSection
-            v-if="!hideCompleted && completed.length > 0"
-            collection="tasks"
-            :count="completed.length"
-            :sort="completedSort"
-            clearable
-            @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
-            @clear="app.archiveCompleted('tasks')"
+          </Accordion>
+          <Accordion
+            v-if="carried.length || active.length || completed.length"
+            aria-label="Unpinned items"
+            :title="'Unpinned · ' + (carried.length + active.length + completed.length)"
+            :open="acc.isOpen('unpinned:tasks', true)"
+            @toggle="acc.set('unpinned:tasks', $event)"
           >
-            <template v-for="t in completedWindow.visible.value" :key="t.id">
-              <div
-                :style="[rowStyle(t, true), selectedRowStyle(t.id), moveSelectedRowStyle(t.id)]"
-                :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
-                @pointerdown.capture="onTaskRowPointerDown"
-                @click.capture="onTaskRowClick($event, t.id)"
+            <div :style="{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }">
+              <!-- 1. Carried over accordion -->
+              <CarriedOverGroup
+                v-if="carried.length > 0"
+                collection="tasks"
+                :count="carried.length"
+                :subtitle="carriedSubtitle"
               >
-                <RingCheck
-                  :done="t.done"
-                  :sub-done="subCount(t.id).done"
-                  :sub-total="subCount(t.id).total"
-                  @toggle="completion.toggle(t.id)"
-                />
-                <div :style="s.taskMain" @click="openTask(t.id, $event)">
-                  <span :style="textStyle(t)"
-                    ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.title }}</span
+                <div
+                  v-for="t in carried"
+                  :key="t.id"
+                  class="todo-row-shell"
+                  :class="{ 'is-leaving': completion.isLeaving(t.id) }"
+                  :style="parentCardStyle"
+                >
+                  <div
+                    class="todo-card"
+                    :style="[
+                      rowStyle(t),
+                      selectedRowStyle(t.id),
+                      moveSelectedRowStyle(t.id),
+                      nestHighlight(t.id),
+                    ]"
+                    v-hover-style="
+                      (!isMobile && selectedId === t.id) ||
+                      (selectionVisible && isMoveSelected(t.id))
+                        ? {}
+                        : s.rowHover
+                    "
+                    :data-nest-id="t.id"
+                    data-nest-collection="tasks"
+                    :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
+                    @pointerdown.capture="onTaskRowPointerDown"
+                    @click.capture="onTaskRowClick($event, t.id)"
                   >
-                  <div :style="s.chipRow">
+                    <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
                     <span
-                      v-if="subCount(t.id).total"
-                      :style="subCountStyle"
-                      title="Subtasks done / total"
-                      >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                    >
-                    <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
+                      :style="s.grip"
+                      role="button"
+                      aria-label="Drag to nest"
+                      title="Drag to nest"
+                      @pointerdown="onGripDown($event, t)"
+                      @click.stop
+                      ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+                    ></span>
+                    <RingCheck
+                      :done="t.done"
+                      :sub-done="subCount(t.id).done"
+                      :sub-total="subCount(t.id).total"
+                      @toggle="completion.toggle(t.id)"
+                    />
+                    <div :style="s.taskMain" @click="openTask(t.id, $event)">
+                      <span :style="textStyle(t)">{{ t.title }}</span>
+                      <!-- Second line: the tag, then one line of description. -->
+                      <div
+                        v-if="t.tag || !richIsEmpty(t.notes) || t.rolloverCount > 1"
+                        :style="metaLine"
+                      >
+                        <TitleTagPill v-if="t.tag" :tag="t.tag" />
+                        <span v-if="!richIsEmpty(t.notes)" :style="descStyle">{{
+                          richPlain(t.notes).replace(/\s+/g, ' ')
+                        }}</span>
+                        <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
+                          >rolled over ×{{ t.rolloverCount }}</span
+                        >
+                      </div>
+                      <OfflineChip :pending="app.isItemPending('task', t.id)" />
+                    </div>
+                    <div class="row-actions">
+                      <span
+                        v-if="subCount(t.id).total"
+                        class="todo-count"
+                        :title="
+                          subCount(t.id).done + ' of ' + subCount(t.id).total + ' subtasks done'
+                        "
+                        >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                      >
+                      <ItemPinButton collection="tasks" :id="t.id" />
+                      <RemindBell collection="tasks" :id="t.id" icon-size="md" />
+                      <IconButton
+                        class="row-reveal"
+                        label="Delete task"
+                        tone="danger"
+                        @click.stop="app.deleteWithUndo('tasks', 'task', t.id)"
+                      >
+                        <Icon name="x" size="sm" />
+                      </IconButton>
+                    </div>
+                  </div>
+                  <div v-if="linksOpen(t)" :style="linkBody">
+                    <LinkedAccordion
+                      v-for="ch in t.linked"
+                      :key="ch.collection + ':' + ch.id"
+                      :item-ref="ch"
+                      :parent-ref="{ id: t.id, collection: 'tasks' }"
+                      :depth="0"
+                      :is-root="false"
+                    />
                   </div>
                 </div>
-                <IconButton
-                  label="Delete task"
-                  tone="danger"
-                  @click.stop="app.deleteWithUndo('tasks', 'task', t.id)"
+              </CarriedOverGroup>
+
+              <!-- 2. Active items as a flat, drag-reorderable tree (grip handle, reorder /
+             nest / promote indicators, root strip). -->
+              <TreeList
+                collection="tasks"
+                :root-ids="activeRootIds"
+                :selectable="!isMobile"
+                :selected-id="selectedId"
+                :swipe-rows="isMobile"
+                :selected-ids="selectedMoveIds"
+                :selection-mode="selectionVisible"
+                @select="selectedId = $event"
+                @toggle-select="toggleMoveSelection"
+              />
+              <CompletedSection
+                v-if="!hideCompleted && completed.length > 0"
+                collection="tasks"
+                :count="completed.length"
+                :sort="completedSort"
+                clearable
+                @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
+                @clear="app.archiveCompleted('tasks')"
+              >
+                <template v-for="t in completedWindow.visible.value" :key="t.id">
+                  <div
+                    :style="[rowStyle(t, true), selectedRowStyle(t.id), moveSelectedRowStyle(t.id)]"
+                    :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
+                    @pointerdown.capture="onTaskRowPointerDown"
+                    @click.capture="onTaskRowClick($event, t.id)"
+                  >
+                    <RingCheck
+                      :done="t.done"
+                      :sub-done="subCount(t.id).done"
+                      :sub-total="subCount(t.id).total"
+                      @toggle="completion.toggle(t.id)"
+                    />
+                    <div :style="s.taskMain" @click="openTask(t.id, $event)">
+                      <span :style="textStyle(t)"
+                        ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.title }}</span
+                      >
+                      <div :style="s.chipRow">
+                        <span
+                          v-if="subCount(t.id).total"
+                          :style="subCountStyle"
+                          title="Subtasks done / total"
+                          >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                        >
+                        <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
+                      </div>
+                    </div>
+                    <ItemPinButton collection="tasks" :id="t.id" />
+                    <IconButton
+                      label="Delete task"
+                      tone="danger"
+                      @click.stop="app.deleteWithUndo('tasks', 'task', t.id)"
+                    >
+                      <Icon name="x" size="sm" />
+                    </IconButton>
+                  </div>
+                  <div v-if="linksOpen(t)" :style="linkBody">
+                    <LinkedAccordion
+                      v-for="ch in t.linked"
+                      :key="ch.collection + ':' + ch.id"
+                      :item-ref="ch"
+                      :parent-ref="{ id: t.id, collection: 'tasks' }"
+                      :depth="0"
+                      :is-root="false"
+                    />
+                  </div>
+                </template>
+                <button
+                  v-if="completedWindow.remaining.value > 0"
+                  :style="s.showMoreRow"
+                  @click="completedWindow.more()"
                 >
-                  <Icon name="x" size="sm" />
-                </IconButton>
-              </div>
-              <div v-if="linksOpen(t)" :style="linkBody">
-                <LinkedAccordion
-                  v-for="ch in t.linked"
-                  :key="ch.collection + ':' + ch.id"
-                  :item-ref="ch"
-                  :parent-ref="{ id: t.id, collection: 'tasks' }"
-                  :depth="0"
-                  :is-root="false"
-                />
-              </div>
-            </template>
-            <button
-              v-if="completedWindow.remaining.value > 0"
-              :style="s.showMoreRow"
-              @click="completedWindow.more()"
-            >
-              Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
-                completedWindow.remaining.value
-              }}
-              hidden)
-            </button>
-          </CompletedSection>
+                  Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
+                    completedWindow.remaining.value
+                  }}
+                  hidden)
+                </button>
+              </CompletedSection>
+            </div>
+          </Accordion>
         </div>
         <span v-if="!isMobile" :style="shortcutHint"
           ><span :style="shortcutKey">/n</span>focus quick add</span
@@ -984,3 +1095,13 @@ const doneAgo = (t: Task) => (t.completedAt ? relLabel(t.completedAt - now.value
     </div>
   </div>
 </template>
+
+<style scoped>
+.pinned-scroll {
+  max-height: min(45dvh, 420px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  padding-right: var(--sp-1);
+}
+</style>

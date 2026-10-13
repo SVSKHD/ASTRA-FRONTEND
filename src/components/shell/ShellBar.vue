@@ -39,14 +39,14 @@ import AccountMenu from '@/components/shell/AccountMenu.vue'
 const ui = useUiStore()
 const auth = useAuthStore()
 const { c, B } = useStyles()
-const { themePanelOpen, isPhone, drawerOpen, timelineOpen } = storeToRefs(ui)
+const { themePanelOpen, isPhone, drawerOpen, timelineOpen, tradeRulesOpen } = storeToRefs(ui)
 const { avatarMenuOpen, avatarInitial, avatarColor } = storeToRefs(auth)
 
 const bar = computed(() =>
   pxify({ ...barGeometry({ isPhone: isPhone.value }), justifyContent: 'center' }),
 )
 
-function open(name: 'notes' | 'timeline' | 'appearance' | 'account') {
+function open(name: 'notes' | 'trade-rules' | 'timeline' | 'appearance' | 'account') {
   ui.openShellPanel(name, avatarMenuOpen)
 }
 function openGithub() {
@@ -141,6 +141,18 @@ const groupLabel = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim
       >
         <Icon name="notebook" size="sm" class="pill-icon" />
         <span class="pill-label">Notes</span>
+      </button>
+      <button
+        type="button"
+        class="pill-btn"
+        :class="{ 'is-on': tradeRulesOpen }"
+        aria-label="Trade book rules"
+        :aria-expanded="tradeRulesOpen"
+        @click="open('trade-rules')"
+      >
+        <Icon name="book-open" size="sm" class="pill-icon" /><span class="pill-label"
+          >Trade rules</span
+        >
       </button>
 
       <button

@@ -35,6 +35,7 @@ import { IDEA_TYPE_OPTIONS } from '@/types'
 import type { Idea, LinkCollection, LinkRef, Task, Todo } from '@/types'
 import Icon from '@/components/ui/Icon.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import ItemPinButton from '@/components/ItemPinButton.vue'
 import StrikeText from '@/components/ui/StrikeText.vue'
 import Caret from '@/components/ui/Caret.vue'
 import RingCheck from '@/components/ui/RingCheck.vue'
@@ -872,6 +873,11 @@ const rootStripStyle = computed(() =>
             @click.stop="dismissConflict(row.id)"
             >remote ✕</span
           >
+          <ItemPinButton
+            v-if="collection === 'tasks' || collection === 'todos'"
+            :collection="collection"
+            :id="row.id"
+          />
           <!-- Todos on a phone: no inline actions, they are behind the row. -->
           <Icon v-if="swipeRows" name="chevron-right" size="sm" :style="{ color: c.dim }" />
           <!-- Todos (Todo v2): focus, remind, delete. Adding a subtask and the

@@ -69,6 +69,7 @@ function readSettings(data: DocumentData | undefined): AstraSettings {
   return {
     ...logger,
     ...names,
+    tradeBookRules: typeof d.tradeBookRules === 'string' ? d.tradeBookRules : '',
     // Lower-cased on read as well as on write: the webhook matches on the
     // lower-case name, and a repo typed with capitals would silently never
     // resolve to this uid (section 40).

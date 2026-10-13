@@ -23,6 +23,7 @@ import AppShell from '@/components/shell/AppShell.vue'
 import ReminderDock from '@/components/shell/ReminderDock.vue'
 import TreeDragFeedback from '@/components/TreeDragFeedback.vue'
 import DragGhost from '@/components/DragGhost.vue'
+import TradeRulesDialog from '@/components/trades/TradeRulesDialog.vue'
 import NotesDrawer from '@/components/NotesDrawer.vue'
 import TimelineDrawer from '@/components/TimelineDrawer.vue'
 import TimelineEditor from '@/components/TimelineEditor.vue'
@@ -467,6 +468,7 @@ onBeforeUnmount(() => {
 
   <template v-if="showWorkspace">
     <NotesDrawer />
+    <TradeRulesDialog />
     <TimelineDrawer />
     <TimelineEditor />
     <NoteView />

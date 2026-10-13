@@ -36,6 +36,7 @@ import { useSubtaskGroups } from '@/composables/useSubtaskGroups'
 import TreeDragHandle from '@/components/TreeDragHandle.vue'
 import { useTreeDrag } from '@/composables/useTreeDrag'
 import SubCheck from '@/components/ui/SubCheck.vue'
+import ItemPinButton from '@/components/ItemPinButton.vue'
 import SubSelectBar from '@/components/detail/SubSelectBar.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
 import { STATUS_LABEL, type Priority } from '@/types'
@@ -426,6 +427,7 @@ function moveTaskToTodos() {
                     fmtDay(st.deadline)
                   }}</span>
                   <div class="dp-sub__actions">
+                    <ItemPinButton collection="tasks" :id="st.id" />
                     <span
                       v-if="st.noteIds?.length"
                       :style="[pill, noteBadge]"

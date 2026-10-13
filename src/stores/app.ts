@@ -1781,6 +1781,18 @@ export const useAppStore = defineStore('app', () => {
   ): TaskTransferImportResult {
     const doc = parseTaskTransferJson(input, hint)
     if (doc.parseError) return { collection: doc.collection, count: 0, error: doc.parseError }
+    if (doc.parentId !== undefined) {
+      const result = addItemsUnder(
+        doc.collection,
+        doc.parentId,
+        JSON.stringify({ items: doc.items }),
+      )
+      return {
+        collection: doc.collection,
+        count: result.count,
+        ...(result.error ? { error: result.error } : {}),
+      }
+    }
     return { collection: doc.collection, count: importTaskTransferItems(doc.collection, doc.items) }
   }
 
@@ -1817,6 +1829,18 @@ export const useAppStore = defineStore('app', () => {
   function importTaskTransferUrl(input: string): TaskTransferImportResult {
     const doc = parseTaskTransferUrl(input)
     if (doc.parseError) return { collection: doc.collection, count: 0, error: doc.parseError }
+    if (doc.parentId !== undefined) {
+      const result = addItemsUnder(
+        doc.collection,
+        doc.parentId,
+        JSON.stringify({ items: doc.items }),
+      )
+      return {
+        collection: doc.collection,
+        count: result.count,
+        ...(result.error ? { error: result.error } : {}),
+      }
+    }
     return { collection: doc.collection, count: importTaskTransferItems(doc.collection, doc.items) }
   }
 

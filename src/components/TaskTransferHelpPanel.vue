@@ -5,12 +5,19 @@ import { useAppStore } from '@/stores/app'
 import SlideOver from '@/components/ui/SlideOver.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import Button from '@/components/ui/Button.vue'
+import ImportHierarchySummary from '@/components/ImportHierarchySummary.vue'
 import { downloadText } from '@/utils/noteExport'
-import { taskTransferNoun, type TaskTransferCollection } from '@/utils/taskTransfer'
+import {
+  parseTaskTransferJson,
+  taskTransferNoun,
+  type TaskTransferCollection,
+} from '@/utils/taskTransfer'
 import {
   TASK_TRANSFER_LINK_PARAMS,
   TASK_TRANSFER_SCHEMA_FIELDS,
   sampleTaskTransferJson,
+  sampleGroupedTaskTransferJson,
+  sampleExistingParentTransferJson,
   sampleTaskTransferUrl,
   taskTransferSampleFilename,
   type TaskTransferSchemaField,
@@ -29,7 +36,20 @@ const collection = computed<TaskTransferCollection>({
   get: () => taskTransferHelpCollection.value,
   set: (value) => app.setTaskTransferHelpCollection(value),
 })
-const sample = computed(() => sampleTaskTransferJson(collection.value))
+const format = ref('new-parent')
+const formatTabs = [
+  { value: 'new-parent', label: 'New parent' },
+  { value: 'existing-parent', label: 'Existing parent' },
+  { value: 'flat', label: 'Flat list' },
+]
+const sample = computed(() =>
+  format.value === 'new-parent'
+    ? sampleGroupedTaskTransferJson(collection.value)
+    : format.value === 'existing-parent'
+      ? sampleExistingParentTransferJson(collection.value)
+      : sampleTaskTransferJson(collection.value),
+)
+const parsedSample = computed(() => parseTaskTransferJson(sample.value, collection.value))
 const linkSample = computed(() => sampleTaskTransferUrl(collection.value))
 const noun = computed(() => taskTransferNoun(collection.value))
 const copied = ref<'json' | 'link' | null>(null)
@@ -80,19 +100,35 @@ function downloadSample() {
     :size="app.drawerWide ? 'lg' : 'compact'"
     :mode-icon="app.drawerWide ? 'minimize' : 'maximize'"
     :mode-label="app.drawerWide ? 'Compact drawer' : 'Wider drawer'"
-    title="Task list JSON"
+    title="Example JSON"
     @mode="app.toggleDrawerWide()"
     @close="app.closeTaskTransferHelp()"
   >
     <div class="thelper">
       <p class="thelper__lede">
-        Use this shape when you want AI or another app to create a {{ noun }} list for import. The
-        Aquakart-style fields — <code>area</code>, <code>priority</code>, <code>progress</code> and
-        <code>testCriteria</code> — are accepted directly.
+        Choose a new parent with nested subtasks, or paste children under one existing parent. Every
+        subtasks array can contain more subtasks. The Aquakart-style fields — <code>area</code>,
+        <code>priority</code>, <code>progress</code> and <code>testCriteria</code> — are accepted
+        directly.
       </p>
 
       <Tabs v-model="collection" :tabs="tabs" aria-label="JSON sample type" />
 
+      <Tabs v-model="format" :tabs="formatTabs" aria-label="JSON parent format" />
+      <p class="thelper__lede" v-if="format === 'existing-parent'">
+        Replace parentId 123 with the Parent ID copied from your {{ noun }} details. The parent
+        already exists; only its children are created. In Add more, the opened parent is used
+        automatically.
+      </p>
+      <p class="thelper__lede" v-else-if="format === 'new-parent'">
+        This creates one parent, two direct subtasks and one nested subtask. The counts below show
+        what will be created. Nested subtasks includes every level below direct subtasks.
+      </p>
+      <ImportHierarchySummary
+        :items="parsedSample.items"
+        :under-parent="parsedSample.parentId !== undefined"
+        :noun="noun"
+      />
       <section class="thelper__block">
         <div class="thelper__blockhead">
           <h3 class="thelper__blocktitle">Sample JSON</h3>

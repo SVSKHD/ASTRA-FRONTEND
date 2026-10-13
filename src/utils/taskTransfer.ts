@@ -27,6 +27,8 @@ export interface TaskTransferDocument {
   exportedAt: string
   items: TaskTransferItem[]
   parseError?: string
+  /** Attach all imported roots to this existing app parent. */
+  parentId?: number
 }
 
 type TransferSource = Todo | Task | Idea
@@ -262,6 +264,8 @@ function rawItemsFromObject(
   obj: Record<string, unknown>,
   collection: TaskTransferCollection,
 ): unknown[] {
+  if (typeof obj.title === 'string' || typeof obj.text === 'string' || typeof obj.name === 'string')
+    return [obj]
   if (Array.isArray(obj.items)) return obj.items
   if (collection === 'todos' && Array.isArray(obj.todos)) return obj.todos
   if (collection === 'tasks' && Array.isArray(obj.tasks)) return obj.tasks
@@ -302,7 +306,7 @@ export function parseTaskTransferJson(
       }
     }
     try {
-      obj = JSON.parse(trimmed)
+      obj = JSON.parse(tidyPaste(trimmed))
     } catch (error) {
       return {
         version: TASK_TRANSFER_VERSION,
@@ -319,11 +323,23 @@ export function parseTaskTransferJson(
       version: TASK_TRANSFER_VERSION,
       exportedAt: '',
       collection,
-      items: normalizeItems(obj, collection),
+      items: normalizeHierarchy(obj, collection),
     }
   }
   const record = (obj && typeof obj === 'object' ? obj : {}) as Record<string, unknown>
   const collection = detectCollection(record, hint)
+  const parentProvided = record.parentId != null && !record.title && !record.text && !record.name
+  const parentId = parentProvided ? Number(record.parentId) : undefined
+  if (parentProvided && (!Number.isSafeInteger(parentId) || (parentId ?? 0) <= 0)) {
+    return {
+      version: TASK_TRANSFER_VERSION,
+      exportedAt: '',
+      collection,
+      items: [],
+      parseError: 'parentId must be a valid app parent ID.',
+    }
+  }
+
   return {
     version:
       typeof record.version === 'number' && Number.isFinite(record.version)
@@ -331,7 +347,8 @@ export function parseTaskTransferJson(
         : TASK_TRANSFER_VERSION,
     exportedAt: str(record.exportedAt),
     collection,
-    items: normalizeItems(rawItemsFromObject(record, collection), collection),
+    items: normalizeHierarchy(rawItemsFromObject(record, collection), collection),
+    ...(parentId !== undefined ? { parentId } : {}),
   }
 }
 
@@ -539,7 +556,8 @@ const NESTED_KEYS = ['subtasks', 'children', 'items', 'todos', 'tasks'] as const
 // Nested items → a flat list with parent links, the shape the import expects.
 function flattenNested(list: unknown[], parentId: string | null, out: unknown[], path: string) {
   list.forEach((raw, i) => {
-    const id = path + '.' + i
+    if (out.length >= MAX_TRANSFER_ITEMS) return
+    const id = path ? path + '.' + i : String(i)
     if (typeof raw === 'string') {
       out.push({ title: raw, sourceId: id, parentSourceId: parentId })
       return
@@ -560,6 +578,15 @@ function flattenNested(list: unknown[], parentId: string | null, out: unknown[],
     })
     if (kids?.length) flattenNested(kids, sourceId, out, id)
   })
+}
+
+function normalizeHierarchy(
+  items: unknown[],
+  collection: TaskTransferCollection,
+): TaskTransferItem[] {
+  const flat: unknown[] = []
+  flattenNested(items, null, flat, '')
+  return normalizeItems(flat, collection)
 }
 
 export function parseItemsForParent(

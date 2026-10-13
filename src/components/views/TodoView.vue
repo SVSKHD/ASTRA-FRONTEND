@@ -31,6 +31,10 @@ import CompletedSection from '@/components/CompletedSection.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
+import ItemPinButton from '@/components/ItemPinButton.vue'
+import DeleteUnpinned from '@/components/DeleteUnpinned.vue'
+import Accordion from '@/components/ui/Accordion.vue'
+import { pinnedTreeIds } from '@/utils/pinnedItems'
 import TodoDetail from '@/components/TodoDetail.vue'
 import DetailPane from '@/components/ui/DetailPane.vue'
 import MoveSelectionDialog from '@/components/MoveSelectionDialog.vue'
@@ -177,51 +181,92 @@ const topLevel = computed(() =>
 // hiding it with the parent. Applied before the split, so carried-over, today and
 // completed all narrow together and the progress line counts what is shown.
 // The query is typed into the input at the top of the list column.
+const todoIndex = computed(() => buildIndex(todos.value))
+const addedMode = ref('default')
+const addedOptions = [
+  { value: 'default', label: 'Default order' },
+  { value: 'recent', label: 'Recently added ? 7 days' },
+  { value: 'latest', label: 'Latest added first' },
+]
+const addedLabel = computed(() =>
+  addedMode.value === 'default'
+    ? 'Added'
+    : addedOptions.find((o) => o.value === addedMode.value)!.label,
+)
+function addedAt(item: Todo): number {
+  return Math.max(
+    item.createdAt || 0,
+    ...descendantsOf(todoIndex.value, item.id)
+      .filter((child) => child.archivedAt == null)
+      .map((child) => child.createdAt || 0),
+  )
+}
+function addedOrder(items: Todo[]): Todo[] {
+  return addedMode.value === 'default' ? items : [...items].sort((a, b) => addedAt(b) - addedAt(a))
+}
 const tagQuery = ref('')
 function treeTags(t: Todo): string[] {
   return [t.tag, ...descendantsOf(todoIndex.value, t.id).map((d) => d.tag)]
 }
 const tagGroups = computed(() => topLevel.value.map(treeTags))
 const shownTopLevel = computed(() => {
-  if (!tagQuery.value.trim()) return topLevel.value
   const inUse = tagGroups.value.flat()
-  return topLevel.value.filter((t) => matchesTagQuery(treeTags(t), tagQuery.value, inUse))
+  return topLevel.value.filter(
+    (t) =>
+      (!tagQuery.value.trim() || matchesTagQuery(treeTags(t), tagQuery.value, inUse)) &&
+      (addedMode.value !== 'recent' ||
+        (addedAt(t) > 0 && addedAt(t) >= now.value - 7 * 24 * 60 * 60 * 1000)),
+  )
 })
+
+const protectedIds = computed(() => pinnedTreeIds(todos.value, 'todos'))
+const pinnedRoots = computed(() =>
+  addedOrder(
+    shownTopLevel.value.filter(
+      (item) => item.archivedAt == null && protectedIds.value.has(item.id),
+    ),
+  ),
+)
 
 const completedSort = ref<'recent' | 'original'>('recent')
 // A todo ticked a moment ago stays in its open list, ticked, until its save
 // lands (useTodoCompletion); only then does it count as Completed here.
 const completion = useTodoCompletion()
 const split = computed(() =>
-  splitList(shownTopLevel.value, {
-    isDone: (t) => t.status === 'done' && !completion.isHeld(t.id),
-    isCarried: (t) =>
-      isOverdueTodo(completion.isHeld(t.id) ? { ...t, status: 'pending' } : t, todayStr.value),
-    completedAt: (t) => t.completedAt,
-    archivedAt: (t) => t.archivedAt ?? null,
-    // No day filter: Completed keeps everything finished until it is cleared
-    // or deleted. It used to show only what was ticked TODAY, so yesterday's
-    // work vanished at midnight — into no list, with no way to reach it and no
-    // sign it had ever existed. `useLongList` below is what makes an unbounded
-    // section affordable; a day filter is not the right way to bound it.
-    completedSort: completedSort.value,
-  }),
+  splitList(
+    shownTopLevel.value.filter((item) => !protectedIds.value.has(item.id)),
+    {
+      isDone: (t) => t.status === 'done' && !completion.isHeld(t.id),
+      isCarried: (t) =>
+        isOverdueTodo(completion.isHeld(t.id) ? { ...t, status: 'pending' } : t, todayStr.value),
+      completedAt: (t) => t.completedAt,
+      archivedAt: (t) => t.archivedAt ?? null,
+      // No day filter: Completed keeps everything finished until it is cleared
+      // or deleted. It used to show only what was ticked TODAY, so yesterday's
+      // work vanished at midnight — into no list, with no way to reach it and no
+      // sign it had ever existed. `useLongList` below is what makes an unbounded
+      // section affordable; a day filter is not the right way to bound it.
+      completedSort: completedSort.value,
+    },
+  ),
 )
 // Carried oldest-first by original day; today's active in list order.
 const carried = computed(() =>
-  [...split.value.carriedOver].sort((a, b) => dayOf(a).localeCompare(dayOf(b))),
+  addedOrder([...split.value.carriedOver].sort((a, b) => dayOf(a).localeCompare(dayOf(b)))),
 )
 // In each item's `order`, which is what a drag rewrites and what quick add
 // sets to put a new item first. Storage order was being shown instead, so a
 // dropped row saved its new place and then did not move.
 const active = computed(() =>
-  split.value.active
-    .map((t, i) => ({ t, i }))
-    .sort((a, b) => (a.t.order ?? 0) - (b.t.order ?? 0) || a.i - b.i)
-    .map(({ t }) => t),
+  addedOrder(
+    split.value.active
+      .map((t, i) => ({ t, i }))
+      .sort((a, b) => (a.t.order ?? 0) - (b.t.order ?? 0) || a.i - b.i)
+      .map(({ t }) => t),
+  ),
 )
 const activeRootIds = computed(() => active.value.map((t) => t.id))
-const completed = computed(() => split.value.completed)
+const completed = computed(() => addedOrder(split.value.completed))
 // A completed list is unbounded — it grows for as long as the workspace is
 // used. Past 100 rows it renders in windows so opening the section stays
 // instant however many years are behind it.
@@ -246,7 +291,6 @@ const paneOpen = computed(() => !isMobile.value && !splitView.value && selectedE
 const paneWidth = ref(0)
 const { host: paneHost, style: paneInset } = usePaneInset(paneOpen, paneWidth)
 // Subtask counter shown on every row, 0/0 when a todo has none.
-const todoIndex = computed(() => buildIndex(todos.value))
 function subCount(id: number) {
   return progressOf(todoIndex.value, id, (x) => x.status === 'done')
 }
@@ -258,6 +302,7 @@ function treeIds(id: number): number[] {
 }
 const moveSelectableIds = computed(() => {
   const ids = [
+    ...pinnedRoots.value.map((item) => item.id).flatMap(treeIds),
     ...carried.value.map((todo) => todo.id),
     ...activeRootIds.value.flatMap(treeIds),
     ...completedWindow.visible.value.map((todo) => todo.id),
@@ -414,7 +459,11 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 // Open top-level todos in list order, for Next up.
-const nextUpRoots = computed(() => [...carried.value, ...active.value])
+const nextUpRoots = computed(() => [
+  ...pinnedRoots.value.filter((item) => item.status !== 'done'),
+  ...carried.value,
+  ...active.value,
+])
 function shouldSelectRow(event?: MouseEvent) {
   return selectionVisible.value || isTripleClick(event)
 }
@@ -706,6 +755,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
         />
       </template>
       <template #right>
+        <DeleteUnpinned collection="todos" />
         <button v-if="anyLinked" type="button" class="panel-action" @click="toggleAll">
           {{ allExpanded ? 'Collapse links' : 'Expand links' }}
         </button>
@@ -720,6 +770,12 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
         >
           <Icon name="search" size="sm" />
         </button>
+        <Dropdown
+          :items="addedOptions"
+          :label="addedLabel"
+          variant="toolbar"
+          @select="addedMode = $event"
+        />
         <button
           type="button"
           class="panel-action"
@@ -815,7 +871,11 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
         <div :style="tagInputRow">
           <!-- Progress at the head of the list it measures: the count, and the
                bar running on beside it. -->
-          <ProgressLine part="inline" :done="split.stats.done" :total="split.stats.total" />
+          <ProgressLine
+            part="inline"
+            :done="split.stats.done + pinnedRoots.filter((item) => item.status === 'done').length"
+            :total="split.stats.total + pinnedRoots.length"
+          />
           <QuickAdd ref="quickAdd" :compact="isMobile" />
           <TagFilterInput
             :visible="showTagFilter || !!tagQuery"
@@ -826,194 +886,242 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
         <div v-scroll-fade :style="listColumn">
           <div v-if="todos.length === 0" :style="s.empty">Nothing yet — add your first todo.</div>
           <div
-            v-else-if="tagQuery.trim() && !carried.length && !active.length && !completed.length"
+            v-else-if="
+              tagQuery.trim() &&
+              !pinnedRoots.length &&
+              !carried.length &&
+              !active.length &&
+              !completed.length
+            "
             :style="s.empty"
           >
             {{ emptyTagQueryMessage(tagQuery, 'todos') }}
           </div>
 
           <!-- 1. Carried over accordion (only when non-empty) -->
-          <CarriedOverGroup
-            v-if="carried.length > 0"
-            collection="todos"
-            :count="carried.length"
-            :subtitle="carriedSubtitle"
+          <Accordion
+            v-if="pinnedRoots.length"
+            aria-label="Pinned items"
+            :title="'Pinned · ' + pinnedRoots.length"
+            :open="acc.isOpen('pinned:todos', true)"
+            @toggle="acc.set('pinned:todos', $event)"
           >
             <div
-              v-for="t in carried"
-              :key="t.id"
-              class="todo-row-shell"
-              :class="{ 'is-leaving': completion.isLeaving(t.id) }"
-              :style="parentCardStyle"
+              class="pinned-scroll"
+              role="region"
+              aria-label="Pinned todos list"
+              tabindex="0"
+              data-own-keys
             >
-              <div
-                class="todo-card"
-                :style="[
-                  rowStyle(),
-                  selectedRowStyle(t.id),
-                  moveSelectedRowStyle(t.id),
-                  nestHighlight(t.id),
-                ]"
-                v-hover-style="
-                  (!isMobile && selectedId === t.id) || (selectionVisible && isMoveSelected(t.id))
-                    ? {}
-                    : s.rowHover
-                "
-                :data-nest-id="t.id"
-                data-nest-collection="todos"
-                :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
-                @pointerdown.capture="onTodoRowPointerDown"
-                @click.capture="onTodoRowClick($event, t.id)"
-              >
-                <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
-                <span
-                  :style="s.grip"
-                  role="button"
-                  aria-label="Drag to nest"
-                  title="Drag to nest"
-                  @pointerdown="onGripDown($event, t)"
-                  @click.stop
-                  ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
-                ></span>
-                <RingCheck
-                  :done="t.done"
-                  :sub-done="subCount(t.id).done"
-                  :sub-total="subCount(t.id).total"
-                  @toggle="completion.toggle(t.id)"
-                />
-                <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
-                  <span :style="textStyle(t)">{{ t.text }}</span>
-                  <!-- Second line: the tag, then one line of description. -->
-                  <div
-                    v-if="t.tag || !richIsEmpty(t.description) || t.rolloverCount > 1"
-                    :style="metaLine"
-                  >
-                    <TitleTagPill v-if="t.tag" :tag="t.tag" />
-                    <span v-if="!richIsEmpty(t.description)" :style="descStyle">{{
-                      richPlain(t.description).replace(/\s+/g, ' ')
-                    }}</span>
-                    <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
-                      >rolled over ×{{ t.rolloverCount }}</span
-                    >
-                  </div>
-                  <OfflineChip :pending="app.isItemPending('todo', t.id)" />
-                </div>
-                <div class="row-actions">
-                  <span
-                    v-if="subCount(t.id).total"
-                    class="todo-count"
-                    :title="subCount(t.id).done + ' of ' + subCount(t.id).total + ' subtasks done'"
-                    >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                  >
-                  <IconButton label="Focus on the next subtask" @click.stop="focusOn(t.id)">
-                    <Icon name="timer" size="md" />
-                  </IconButton>
-                  <RemindBell collection="todos" :id="t.id" icon-size="md" />
-                  <IconButton
-                    class="row-reveal"
-                    label="Delete todo"
-                    tone="danger"
-                    @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
-                  >
-                    <Icon name="x" size="sm" />
-                  </IconButton>
-                </div>
-              </div>
-              <div v-if="linksOpen(t)" :style="linkBody">
-                <LinkedAccordion
-                  v-for="ch in t.linked"
-                  :key="ch.collection + ':' + ch.id"
-                  :item-ref="ch"
-                  :parent-ref="{ id: t.id, collection: 'todos' }"
-                  :depth="0"
-                  :is-root="false"
-                />
-              </div>
+              <TreeList
+                collection="todos"
+                :root-ids="pinnedRoots.map((item) => item.id)"
+                :selected-ids="selectedMoveIds"
+                :selection-mode="selectionVisible"
+                @toggle-select="toggleMoveSelection"
+                selectable
+                :selected-id="selectedId"
+                :swipe-rows="isMobile"
+                @select="onTreeSelect"
+              />
             </div>
-          </CarriedOverGroup>
-
-          <!-- 2. Today's active items as a flat, drag-reorderable tree (grip handle,
-         reorder / nest / promote indicators, root strip). -->
-          <TreeList
-            collection="todos"
-            :root-ids="activeRootIds"
-            selectable
-            :swipe-rows="isMobile"
-            :selected-id="selectedId"
-            :selected-ids="selectedMoveIds"
-            :selection-mode="selectionVisible"
-            @select="onTreeSelect"
-            @remind="ui.setSheetTodo($event)"
-            @toggle-select="toggleMoveSelection"
-          />
-
-          <!-- 3. Completed section (collapsed) -->
-          <CompletedSection
-            v-if="!hideCompleted && completed.length > 0"
-            collection="todos"
-            :count="completed.length"
-            :sort="completedSort"
-            clearable
-            @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
-            @clear="app.archiveCompleted('todos')"
+          </Accordion>
+          <Accordion
+            v-if="carried.length || active.length || completed.length"
+            aria-label="Unpinned items"
+            :title="'Unpinned · ' + (carried.length + active.length + completed.length)"
+            :open="acc.isOpen('unpinned:todos', true)"
+            @toggle="acc.set('unpinned:todos', $event)"
           >
-            <template v-for="t in completedWindow.visible.value" :key="t.id">
-              <div
-                :style="[rowStyle(true), selectedRowStyle(t.id), moveSelectedRowStyle(t.id)]"
-                :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
-                @pointerdown.capture="onTodoRowPointerDown"
-                @click.capture="onTodoRowClick($event, t.id)"
+            <div :style="{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }">
+              <CarriedOverGroup
+                v-if="carried.length > 0"
+                collection="todos"
+                :count="carried.length"
+                :subtitle="carriedSubtitle"
               >
-                <RingCheck
-                  :done="t.done"
-                  :sub-done="subCount(t.id).done"
-                  :sub-total="subCount(t.id).total"
-                  @toggle="completion.toggle(t.id)"
-                />
-                <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
-                  <span :style="textStyle(t)"
-                    ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.text }}</span
+                <div
+                  v-for="t in carried"
+                  :key="t.id"
+                  class="todo-row-shell"
+                  :class="{ 'is-leaving': completion.isLeaving(t.id) }"
+                  :style="parentCardStyle"
+                >
+                  <div
+                    class="todo-card"
+                    :style="[
+                      rowStyle(),
+                      selectedRowStyle(t.id),
+                      moveSelectedRowStyle(t.id),
+                      nestHighlight(t.id),
+                    ]"
+                    v-hover-style="
+                      (!isMobile && selectedId === t.id) ||
+                      (selectionVisible && isMoveSelected(t.id))
+                        ? {}
+                        : s.rowHover
+                    "
+                    :data-nest-id="t.id"
+                    data-nest-collection="todos"
+                    :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
+                    @pointerdown.capture="onTodoRowPointerDown"
+                    @click.capture="onTodoRowClick($event, t.id)"
                   >
-                  <div :style="s.chipRow">
+                    <span :style="ageChipStyle">{{ ageChip(dayOf(t), todayStr) }}</span>
                     <span
-                      v-if="subCount(t.id).total"
-                      :style="subCountStyle"
-                      title="Subtasks done / total"
-                      >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
-                    >
-                    <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
+                      :style="s.grip"
+                      role="button"
+                      aria-label="Drag to nest"
+                      title="Drag to nest"
+                      @pointerdown="onGripDown($event, t)"
+                      @click.stop
+                      ><span v-for="d in gripDots" :key="d" :style="s.gripDot"></span
+                    ></span>
+                    <RingCheck
+                      :done="t.done"
+                      :sub-done="subCount(t.id).done"
+                      :sub-total="subCount(t.id).total"
+                      @toggle="completion.toggle(t.id)"
+                    />
+                    <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
+                      <span :style="textStyle(t)">{{ t.text }}</span>
+                      <!-- Second line: the tag, then one line of description. -->
+                      <div
+                        v-if="t.tag || !richIsEmpty(t.description) || t.rolloverCount > 1"
+                        :style="metaLine"
+                      >
+                        <TitleTagPill v-if="t.tag" :tag="t.tag" />
+                        <span v-if="!richIsEmpty(t.description)" :style="descStyle">{{
+                          richPlain(t.description).replace(/\s+/g, ' ')
+                        }}</span>
+                        <span v-if="t.rolloverCount > 1" :style="rolloverChipStyle"
+                          >rolled over ×{{ t.rolloverCount }}</span
+                        >
+                      </div>
+                      <OfflineChip :pending="app.isItemPending('todo', t.id)" />
+                    </div>
+                    <div class="row-actions">
+                      <span
+                        v-if="subCount(t.id).total"
+                        class="todo-count"
+                        :title="
+                          subCount(t.id).done + ' of ' + subCount(t.id).total + ' subtasks done'
+                        "
+                        >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                      >
+                      <IconButton label="Focus on the next subtask" @click.stop="focusOn(t.id)">
+                        <Icon name="timer" size="md" />
+                      </IconButton>
+                      <ItemPinButton collection="todos" :id="t.id" />
+                      <RemindBell collection="todos" :id="t.id" icon-size="md" />
+                      <IconButton
+                        class="row-reveal"
+                        label="Delete todo"
+                        tone="danger"
+                        @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
+                      >
+                        <Icon name="x" size="sm" />
+                      </IconButton>
+                    </div>
+                  </div>
+                  <div v-if="linksOpen(t)" :style="linkBody">
+                    <LinkedAccordion
+                      v-for="ch in t.linked"
+                      :key="ch.collection + ':' + ch.id"
+                      :item-ref="ch"
+                      :parent-ref="{ id: t.id, collection: 'todos' }"
+                      :depth="0"
+                      :is-root="false"
+                    />
                   </div>
                 </div>
-                <IconButton
-                  label="Delete todo"
-                  tone="danger"
-                  @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
+              </CarriedOverGroup>
+
+              <!-- 2. Today's active items as a flat, drag-reorderable tree (grip handle,
+         reorder / nest / promote indicators, root strip). -->
+              <TreeList
+                collection="todos"
+                :root-ids="activeRootIds"
+                selectable
+                :swipe-rows="isMobile"
+                :selected-id="selectedId"
+                :selected-ids="selectedMoveIds"
+                :selection-mode="selectionVisible"
+                @select="onTreeSelect"
+                @remind="ui.setSheetTodo($event)"
+                @toggle-select="toggleMoveSelection"
+              />
+
+              <!-- 3. Completed section (collapsed) -->
+              <CompletedSection
+                v-if="!hideCompleted && completed.length > 0"
+                collection="todos"
+                :count="completed.length"
+                :sort="completedSort"
+                clearable
+                @toggle-sort="completedSort = completedSort === 'recent' ? 'original' : 'recent'"
+                @clear="app.archiveCompleted('todos')"
+              >
+                <template v-for="t in completedWindow.visible.value" :key="t.id">
+                  <div
+                    :style="[rowStyle(true), selectedRowStyle(t.id), moveSelectedRowStyle(t.id)]"
+                    :aria-selected="selectionVisible ? isMoveSelected(t.id) : undefined"
+                    @pointerdown.capture="onTodoRowPointerDown"
+                    @click.capture="onTodoRowClick($event, t.id)"
+                  >
+                    <RingCheck
+                      :done="t.done"
+                      :sub-done="subCount(t.id).done"
+                      :sub-total="subCount(t.id).total"
+                      @toggle="completion.toggle(t.id)"
+                    />
+                    <div :style="s.taskMain" @click="onTodoMainClick($event, t.id)">
+                      <span :style="textStyle(t)"
+                        ><TitleTagPill v-if="t.tag" :tag="t.tag" />{{ t.text }}</span
+                      >
+                      <div :style="s.chipRow">
+                        <span
+                          v-if="subCount(t.id).total"
+                          :style="subCountStyle"
+                          title="Subtasks done / total"
+                          >{{ subCount(t.id).done }}/{{ subCount(t.id).total }}</span
+                        >
+                        <span :style="doneMetaStyle">done {{ doneAgo(t) }}</span>
+                      </div>
+                    </div>
+                    <ItemPinButton collection="todos" :id="t.id" />
+                    <IconButton
+                      label="Delete todo"
+                      tone="danger"
+                      @click.stop="app.deleteWithUndo('todos', 'todo', t.id)"
+                    >
+                      <Icon name="x" size="sm" />
+                    </IconButton>
+                  </div>
+                  <div v-if="linksOpen(t)" :style="linkBody">
+                    <LinkedAccordion
+                      v-for="ch in t.linked"
+                      :key="ch.collection + ':' + ch.id"
+                      :item-ref="ch"
+                      :parent-ref="{ id: t.id, collection: 'todos' }"
+                      :depth="0"
+                      :is-root="false"
+                    />
+                  </div>
+                </template>
+                <button
+                  v-if="completedWindow.remaining.value > 0"
+                  :style="s.showMoreRow"
+                  @click="completedWindow.more()"
                 >
-                  <Icon name="x" size="sm" />
-                </IconButton>
-              </div>
-              <div v-if="linksOpen(t)" :style="linkBody">
-                <LinkedAccordion
-                  v-for="ch in t.linked"
-                  :key="ch.collection + ':' + ch.id"
-                  :item-ref="ch"
-                  :parent-ref="{ id: t.id, collection: 'todos' }"
-                  :depth="0"
-                  :is-root="false"
-                />
-              </div>
-            </template>
-            <button
-              v-if="completedWindow.remaining.value > 0"
-              :style="s.showMoreRow"
-              @click="completedWindow.more()"
-            >
-              Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
-                completedWindow.remaining.value
-              }}
-              hidden)
-            </button>
-          </CompletedSection>
+                  Show {{ Math.min(100, completedWindow.remaining.value) }} more ({{
+                    completedWindow.remaining.value
+                  }}
+                  hidden)
+                </button>
+              </CompletedSection>
+            </div>
+          </Accordion>
         </div>
         <span v-if="!isMobile" :style="shortcutHint"
           ><span :style="shortcutKey">/n</span>focus quick add</span
@@ -1038,3 +1146,13 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
     </div>
   </div>
 </template>
+
+<style scoped>
+.pinned-scroll {
+  max-height: min(45dvh, 420px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  padding-right: var(--sp-1);
+}
+</style>

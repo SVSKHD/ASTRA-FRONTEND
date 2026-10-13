@@ -4,6 +4,7 @@ import { useAppStore } from '@/stores/app'
 import Modal from '@/components/ui/Modal.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import Button from '@/components/ui/Button.vue'
+import ImportHierarchySummary from '@/components/ImportHierarchySummary.vue'
 import {
   hasTaskTransferUrlPayload,
   parseTaskTransferJson,
@@ -11,7 +12,11 @@ import {
   taskTransferNoun,
   type TaskTransferCollection,
 } from '@/utils/taskTransfer'
-import { sampleTaskTransferJson, sampleTaskTransferUrl } from '@/utils/taskTransferHelp'
+import {
+  sampleGroupedTaskTransferJson,
+  sampleTaskTransferJson,
+  sampleTaskTransferUrl,
+} from '@/utils/taskTransferHelp'
 
 const props = defineProps<{ open: boolean; collection: TaskTransferCollection }>()
 const emit = defineEmits<{ close: [] }>()
@@ -35,6 +40,14 @@ const parsed = computed(() =>
     : parseTaskTransferJson(raw.value, props.collection),
 )
 const parsedNoun = computed(() => taskTransferNoun(parsed.value.collection))
+const existingParentIds = computed(() =>
+  (parsed.value.collection === 'tasks'
+    ? app.tasks
+    : parsed.value.collection === 'todos'
+      ? app.todos
+      : app.ideas
+  ).map((item) => item.id),
+)
 const itemCount = computed(() => parsed.value.items.length)
 const parseError = computed(() =>
   hasText.value && parsed.value.parseError
@@ -53,7 +66,7 @@ const statusText = computed(() => {
   if (!hasText.value) return 'Paste a JSON document, array, import URL, or query link.'
   if (parseError.value) return 'Fix the pasted input before importing.'
   if (itemCount.value === 0) return `Input parsed, but no ${parsedNoun.value} items were found.`
-  return `${itemCount.value} ${parsedNoun.value}${itemCount.value === 1 ? '' : 's'} ready to import.`
+  return `${itemCount.value} ${parsedNoun.value}${itemCount.value === 1 ? '' : 's'} ready to import${parsed.value.parentId !== undefined ? ' under parent #' + parsed.value.parentId : ''}.`
 })
 const importLabel = computed(() =>
   itemCount.value > 0
@@ -133,11 +146,15 @@ function importNow() {
     <div class="tpaste">
       <p class="tpaste__lede">
         Paste exported JSON, an AI-made list, an import URL, or the sample shape from the helper. A
-        plain array also works. To add children to an existing task, copy its Parent ID from the
-        detail pane and set each new item?s parentId to that ID.
+        plain array also works. Use a title and subtasks to create one new parent, or set parentId
+        once beside items to add everything under an existing parent. Add more in a detail pane
+        always uses that opened parent.
       </p>
       <div class="tpaste__tools">
         <Button variant="secondary" size="sm" @click="pasteClipboard">Paste from clipboard</Button>
+        <Button variant="ghost" size="sm" @click="raw = sampleGroupedTaskTransferJson(collection)"
+          >Load parent template</Button
+        >
         <Button variant="ghost" size="sm" @click="loadSample">Load sample</Button>
         <Button variant="ghost" size="sm" @click="loadLinkSample">Load link sample</Button>
       </div>
@@ -149,6 +166,13 @@ function importNow() {
         :error="parseError"
         :rows="12"
         :auto-grow="false"
+      />
+      <ImportHierarchySummary
+        v-if="canImport"
+        :items="parsed.items"
+        :under-parent="parsed.parentId !== undefined"
+        :noun="parsedNoun"
+        :existing-parent-ids="existingParentIds"
       />
       <p class="tpaste__status" :class="statusClass">{{ statusText }}</p>
     </div>

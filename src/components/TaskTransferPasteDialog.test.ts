@@ -63,6 +63,22 @@ describe('TaskTransferPasteDialog', () => {
     })
   })
 
+  it('shows separate parent, subtask and nested subtask counts before importing', async () => {
+    const { wrapper } = mountDialog('tasks')
+    await buttonNamed(wrapper, 'Load parent template')!.trigger('click')
+    const counts = wrapper.find('[aria-label="Import hierarchy counts"]')
+    expect(counts.findAll('dd').map((count) => count.text())).toEqual(['1', '2', '1'])
+    expect(counts.text()).toContain('Nested subtasks')
+    await wrapper
+      .find('textarea')
+      .setValue(
+        JSON.stringify({ parentId: 123, items: [{ title: 'Child', subtasks: ['Grandchild'] }] }),
+      )
+    expect(counts.findAll('dd').map((count) => count.text())).toEqual(['0', '1', '1'])
+    await wrapper.find('textarea').setValue('{')
+    expect(wrapper.find('[aria-label="Import hierarchy counts"]').exists()).toBe(false)
+  })
+
   it('shows invalid JSON before import', async () => {
     const { wrapper, app } = mountDialog('tasks')
     const toast = vi.spyOn(app, 'showToastMsg')

@@ -52,6 +52,7 @@ export const useUiStore = defineStore('ui', () => {
   const now = ref<number>(Date.now())
   const themePanelOpen = ref(false)
   const drawerOpen = ref(false)
+  const tradeRulesOpen = ref(false)
   // The Timeline sidebar, the notes drawer's sibling (TimelineDrawer.vue).
   const timelineOpen = ref(false)
 
@@ -149,15 +150,17 @@ export const useUiStore = defineStore('ui', () => {
   // auth store and is handed in, which keeps this store free of a dependency on
   // that one.
   function openShellPanel(
-    name: 'notes' | 'timeline' | 'appearance' | 'account' | null,
+    name: 'notes' | 'trade-rules' | 'timeline' | 'appearance' | 'account' | null,
     account: { value: boolean },
   ) {
     const was = {
       notes: drawerOpen.value,
+      rules: tradeRulesOpen.value,
       timeline: timelineOpen.value,
       appearance: themePanelOpen.value,
       account: account.value,
     }
+    tradeRulesOpen.value = name === 'trade-rules' && !was.rules
     drawerOpen.value = name === 'notes' && !was.notes
     timelineOpen.value = name === 'timeline' && !was.timeline
     themePanelOpen.value = name === 'appearance' && !was.appearance
@@ -256,6 +259,7 @@ export const useUiStore = defineStore('ui', () => {
     now,
     themePanelOpen,
     drawerOpen,
+    tradeRulesOpen,
     timelineOpen,
     openDays,
     dayFilter,
