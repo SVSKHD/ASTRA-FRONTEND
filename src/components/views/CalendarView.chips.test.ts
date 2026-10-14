@@ -103,7 +103,7 @@ describe('the shell (acceptance 124)', () => {
     // A flex row with a fixed-width panel and no min-width lets the grid — which
     // can always shrink — push the panel off the edge instead of taking the
     // squeeze itself. The side column holds the selection and Unscheduled.
-    expect(view).toContain("gridTemplateColumns: 'minmax(0, 1fr) 248px'")
+    expect(view).toContain("gridTemplateColumns: 'minmax(0, 1fr) 288px'")
   })
 
   it('sets min-width: 0 on both tracks', () => {

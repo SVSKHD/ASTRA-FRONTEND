@@ -123,11 +123,12 @@ const showDuration = computed(() => !props.event.allDay && props.event.source !=
   color: var(--theme-text);
 }
 .ces__title {
-  margin: 4px 0 2px;
+  margin: 6px 0 4px;
   min-width: 0;
-  font-size: var(--text-base);
+  font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
-  line-height: 1.3;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
 .ces.is-done .ces__title {
@@ -150,10 +151,11 @@ const showDuration = computed(() => !props.event.allDay && props.event.source !=
 }
 .ces__btn {
   flex: 1;
-  height: 38px;
+  height: 42px;
   border: 0;
-  border-radius: 12px;
-  background: color-mix(in oklch, var(--theme-accent) 12%, transparent);
+  border-radius: 14px;
+  /* The secondary action is neutral, so the accent stays on Mark done. */
+  background: color-mix(in oklch, var(--theme-text) 6%, transparent);
   color: var(--theme-text);
   font: inherit;
   font-size: var(--text-sm);

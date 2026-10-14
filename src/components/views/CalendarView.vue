@@ -27,6 +27,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { useCalendar } from '@/composables/useCalendar'
 import { surfacePair } from '@/themes/surfacePair'
+import { hasCalendarToken } from '@/utils/gcal'
 import CalEventCard from '@/components/CalEventCard.vue'
 import CalEventSummary from '@/components/CalEventSummary.vue'
 import CalPhoneDay from '@/components/CalPhoneDay.vue'
@@ -264,6 +265,19 @@ function onSelect(arg: DateSelectArg) {
     anchor: anchorFor(arg.jsEvent as MouseEvent | null),
   }
 }
+// The head's "New event": the next whole hour today, an hour long, anchored to
+// the button so the popover opens beside it rather than over the grid.
+function onNewEvent(ev: MouseEvent) {
+  const start = new Date()
+  start.setHours(start.getHours() + 1, 0, 0, 0)
+  const { top, left, width, height } = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+  quick.value = {
+    start: start.getTime(),
+    end: start.getTime() + 60 * 60_000,
+    allDay: false,
+    anchor: { top, left, width, height },
+  }
+}
 // The phone's + button: the day on screen, anchored to the button.
 function onPhoneCreate(arg: { start: number; end: number; anchor: DOMRect }) {
   const { top, left, width, height } = arg.anchor
@@ -465,6 +479,25 @@ const options = computed<CalendarOptions>(() => ({
   eventClick: onEventClick,
 }))
 
+// ---- Google Calendar --------------------------------------------------------
+// The token lives outside the store and is not reactive, so it is re-read after
+// a reconnect. Expired access is the store's flag; it wins over a stale token.
+const { calendarNeedsAuth } = storeToRefs(app)
+const tokenTick = ref(0)
+const gcalState = computed<'synced' | 'expired' | 'off'>(() => {
+  void tokenTick.value
+  if (calendarNeedsAuth.value) return 'expired'
+  return hasCalendarToken() ? 'synced' : 'off'
+})
+const gcalLabel = computed(
+  () => ({ synced: 'Synced', expired: 'Reconnect', off: 'Connect' })[gcalState.value],
+)
+async function onGcal() {
+  if (gcalState.value === 'synced') return
+  await app.reconnectCalendar()
+  tokenTick.value++
+}
+
 // ---- the head --------------------------------------------------------------
 // "5 – 11 Oct 2026" for a week, "October 2026" for a month, the date for a day.
 const periodTitle = computed(() => {
@@ -519,7 +552,7 @@ const gridWrap = pxify({ flex: 1, minHeight: 520, overflow: 'hidden' })
 // narrow as its column says, rather than as wide as its content.
 const bodyGrid = pxify({
   display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) 248px',
+  gridTemplateColumns: 'minmax(0, 1fr) 288px',
   gap: 'var(--sp-4)',
   flex: 1,
   // Never shorter than what it holds: a month sized to its weeks must not be
@@ -559,6 +592,27 @@ const hintStyle = computed(() =>
     />
 
     <template v-else>
+      <!-- The top line: where the calendar syncs to, and the one primary action. -->
+      <div class="calv__top">
+        <button
+          type="button"
+          class="calv__gcal"
+          :class="'is-' + gcalState"
+          :title="
+            gcalState === 'synced' ? 'Reminders sync to Google Calendar' : 'Connect Google Calendar'
+          "
+          @click="onGcal"
+        >
+          <span class="calv__gcal-g" aria-hidden="true">G</span>
+          <span class="calv__gcal-name">Google Calendar</span>
+          <span class="calv__gcal-state">{{ gcalLabel }}</span>
+        </button>
+        <button type="button" class="calv__new" @click="onNewEvent">
+          <Icon name="plus" size="sm" />
+          New event
+        </button>
+      </div>
+
       <!-- The head: what period this is, big, and the ways to move through it. -->
       <header class="calv__head">
         <h2 class="calv__period">{{ periodTitle }}</h2>
@@ -737,6 +791,70 @@ const hintStyle = computed(() =>
 </template>
 
 <style>
+/* ---- the top line ------------------------------------------------------------ */
+.calv__top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+/* Where it syncs to: a quiet white pill, the state in full-strength text. */
+.calv__gcal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--theme-card);
+  color: var(--theme-dim);
+  font: inherit;
+  font-size: var(--text-xs);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--shadow-ink, #000) 8%, transparent);
+  cursor: pointer;
+}
+.calv__gcal.is-synced {
+  cursor: default;
+}
+.calv__gcal-g {
+  font-weight: var(--weight-semibold);
+}
+.calv__gcal-state {
+  color: var(--theme-text);
+  font-weight: var(--weight-semibold);
+}
+.calv__gcal.is-expired .calv__gcal-state {
+  color: var(--theme-danger, var(--theme-accent));
+}
+/* The one primary action on the page: the accent, filled. */
+.calv__new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 18px 0 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  box-shadow: 0 8px 18px -10px var(--theme-accent);
+  cursor: pointer;
+  transition: filter var(--dur-fast) ease;
+}
+.calv__new:hover {
+  filter: brightness(1.06);
+}
+.calv__gcal:focus-visible,
+.calv__new:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+
 /* ---- the head ---------------------------------------------------------------- */
 .calv__head {
   display: flex;
@@ -745,11 +863,11 @@ const hintStyle = computed(() =>
   flex-wrap: wrap;
 }
 .calv__period {
-  margin: 0 8px 0 0;
+  margin: 0 12px 0 0;
   color: var(--theme-text);
-  font-size: var(--text-xl, 22px);
+  font-size: var(--text-2xl, 26px);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -1017,6 +1135,21 @@ const hintStyle = computed(() =>
 }
 .cal-host .fc .fc-timegrid-now-indicator-line {
   border-width: 2px 0 0;
+}
+/* A dot where the line starts, so "now" reads as a point on the day. */
+.cal-host .fc .fc-timegrid-now-indicator-line::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fc-now-indicator-color);
+}
+/* The dot replaces the arrow in the hour gutter. */
+.cal-host .fc .fc-timegrid-now-indicator-arrow {
+  display: none;
 }
 /* The day number: small, muted, tabular, top-right. Tabular because a column of
    proportional figures shifts left and right as the month goes from 9 to 10. */

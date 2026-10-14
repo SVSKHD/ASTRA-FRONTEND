@@ -20,8 +20,8 @@ interface ImportMetaEnv {
   readonly VITE_ALLOWED_UIDS: string
   readonly VITE_ALLOWED_EMAILS: string
   readonly VITE_AUTO_LOCK_MINUTES: string
-  // URL of the deployed aiProxy Cloud Function (injects the Anthropic key and
-  // streams replies). Empty/unset disables sending in the AI tab.
+  // URL of the `/api/ai` Netlify function (injects the Gemini key and streams
+  // replies). Empty/unset disables sending in the AI tab.
   readonly VITE_AI_PROXY_URL: string
   // URL of the deployed ghProxy Cloud Function. It holds the GitHub App
   // installation token (Secret Manager) and is the only thing that talks to

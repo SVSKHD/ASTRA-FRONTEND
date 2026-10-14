@@ -11,8 +11,26 @@
 // split is data rather than a second toolbar, because a forked toolbar is how
 // the two drift apart.
 
+import type { IconName } from '@/components/ui/icons'
 import type { EditorAction } from '@/composables/useMarkdownEditor'
 import { NOTE_EDITOR_MODES, type NoteEditorMode } from '@/utils/notes'
+
+export const NOTE_TOOL_ICONS: Record<EditorAction, IconName> = {
+  bold: 'bold',
+  italic: 'italic',
+  strike: 'strikethrough',
+  code: 'code',
+  link: 'link',
+  h1: 'heading-1',
+  h2: 'heading-2',
+  h3: 'heading-3',
+  bullet: 'list',
+  checklist: 'list-todo',
+  ordered: 'list-ordered',
+  quote: 'quote',
+  fence: 'code-xml',
+  table: 'table',
+}
 
 export interface EditorTool {
   action: EditorAction

@@ -23,6 +23,7 @@ import { pxify, typeStep } from '@/styles'
 import { useMarkdownEditor, type EditorAction } from '@/composables/useMarkdownEditor'
 import { useMarkdownPaste } from '@/composables/useMarkdownPaste'
 import {
+  NOTE_TOOL_ICONS as toolIcons,
   COMPACT_MAX_HEIGHT,
   COMPACT_MIN_HEIGHT,
   editorModes,
@@ -33,6 +34,8 @@ import type { NoteEditorMode } from '@/utils/notes'
 import MarkdownView from '@/components/notes/MarkdownView.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import Tabs from '@/components/ui/Tabs.vue'
+import NoteCommands from '@/components/notes/NoteCommands.vue'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -95,7 +98,11 @@ const showPreview = computed(() => mode.value !== 'edit')
 const modes = computed(() => editorModes(props.compact))
 const tools = computed(() => splitTools(props.compact))
 const overflowItems = computed(() =>
-  tools.value.overflow.map((tool) => ({ value: tool.action, label: tool.title })),
+  tools.value.overflow.map((tool) => ({
+    value: tool.action,
+    label: tool.title,
+    icon: toolIcons[tool.action],
+  })),
 )
 
 function onOverflow(action: string) {
@@ -219,14 +226,18 @@ const bar = computed(() =>
 )
 const toolBtn = computed(() =>
   pxify({
-    minWidth: 30,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    width: 28,
     height: 28,
-    padding: '0 7px',
+    padding: 0,
     borderRadius: 'var(--radius-control)',
     border: '1px solid transparent',
     background: 'transparent',
     color: c.value.text,
-    ...typeStep('xs'),
+    ...typeStep('md'),
     fontWeight: 'var(--weight-semibold)',
     cursor: 'pointer',
   }),
@@ -237,7 +248,12 @@ const toolHover = computed(() => ({ background: c.value.card, borderColor: c.val
 // beside it uses, rather than from its own idea of an active colour.
 const previewBtn = (active: boolean) =>
   pxify({
-    padding: '4px 10px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 28,
+    height: 28,
+    padding: isMobile.value ? 4 : '4px 10px',
     borderRadius: 'var(--radius-pill)',
     border: '1px solid ' + (active ? c.value.border : 'transparent'),
     background: active ? c.value.card : 'transparent',
@@ -285,7 +301,7 @@ const previewStyle = computed(() =>
         @mousedown.prevent
         @click="editor.apply(tool.action)"
       >
-        {{ tool.label }}
+        <Icon :name="toolIcons[tool.action]" size="sm" />
       </button>
 
       <!-- Everything the compact bar could not fit, still reachable. -->
@@ -303,9 +319,12 @@ const previewStyle = computed(() =>
         type="button"
         :style="previewBtn(mode === 'preview')"
         :aria-pressed="mode === 'preview'"
+        :aria-label="mode === 'preview' ? 'Back to editing' : 'Preview'"
+        :title="mode === 'preview' ? 'Back to editing' : 'Preview'"
         @click="togglePreview"
       >
-        Preview
+        <Icon v-if="isMobile" :name="mode === 'preview' ? 'pencil' : 'eye'" size="sm" />
+        <span v-else>Preview</span>
       </button>
       <Tabs
         v-else
@@ -317,6 +336,7 @@ const previewStyle = computed(() =>
       />
     </div>
 
+    <NoteCommands v-if="compact" />
     <div :style="panes">
       <TextArea
         v-if="showSource"

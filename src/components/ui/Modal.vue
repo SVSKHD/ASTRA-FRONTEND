@@ -14,10 +14,11 @@
 //
 // Teleporting puts both elements outside every one of those ancestors, which is
 // the only way `fixed` means what it says.
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
-  defineProps<{ open: boolean; title: string; size?: 'sm' | 'md' | 'lg' }>(),
+  defineProps<{ open: boolean; title: string; size?: 'sm' | 'md' | 'lg'; resizable?: boolean }>(),
   {
     size: 'md',
   },
@@ -25,6 +26,59 @@ const props = withDefaults(
 const emit = defineEmits<{ close: [] }>()
 
 const panel = ref<HTMLElement | null>(null)
+const dimensions = ref<{ width: number; height: number } | null>(null)
+const panelDimensions = computed(() =>
+  props.resizable && dimensions.value
+    ? {
+        width: dimensions.value.width + 'px',
+        height: dimensions.value.height + 'px',
+      }
+    : undefined,
+)
+let resizeOrigin: { x: number; y: number; width: number; height: number } | null = null
+function setDimensions(width: number, height: number) {
+  const maxWidth = Math.max(1, window.innerWidth - 32)
+  const maxHeight = Math.max(1, window.innerHeight - 32)
+  dimensions.value = {
+    width: Math.min(maxWidth, Math.max(Math.min(320, maxWidth), width)),
+    height: Math.min(maxHeight, Math.max(Math.min(260, maxHeight), height)),
+  }
+}
+function startResize(event: PointerEvent) {
+  if (event.button !== 0 || !panel.value) return
+  event.preventDefault()
+  const rect = panel.value.getBoundingClientRect()
+  resizeOrigin = { x: event.clientX, y: event.clientY, width: rect.width, height: rect.height }
+  ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+}
+function resizePanel(event: PointerEvent) {
+  if (!resizeOrigin) return
+  setDimensions(
+    resizeOrigin.width + (event.clientX - resizeOrigin.x) * 2,
+    resizeOrigin.height + (event.clientY - resizeOrigin.y) * 2,
+  )
+}
+function resizeWithKeyboard(event: KeyboardEvent) {
+  const directions: Record<string, [number, number]> = {
+    ArrowRight: [1, 0],
+    ArrowLeft: [-1, 0],
+    ArrowDown: [0, 1],
+    ArrowUp: [0, -1],
+  }
+  const direction = directions[event.key]
+  if (!direction || !panel.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  const rect = panel.value.getBoundingClientRect()
+  const step = event.shiftKey ? 80 : 20
+  setDimensions(rect.width + direction[0] * step, rect.height + direction[1] * step)
+}
+function constrainSize() {
+  if (dimensions.value) setDimensions(dimensions.value.width, dimensions.value.height)
+}
+onMounted(() => window.addEventListener('resize', constrainSize))
+onBeforeUnmount(() => window.removeEventListener('resize', constrainSize))
+
 let restoreTo: HTMLElement | null = null
 
 watch(
@@ -88,7 +142,8 @@ function onKeydown(event: KeyboardEvent) {
         v-if="open"
         ref="panel"
         class="ui-modal"
-        :class="`ui-modal--${size}`"
+        :class="[`ui-modal--${size}`, { 'ui-modal--resizable': resizable }]"
+        :style="panelDimensions"
         role="dialog"
         aria-modal="true"
         :aria-label="title"
@@ -103,6 +158,21 @@ function onKeydown(event: KeyboardEvent) {
         </header>
         <div class="ui-modal__body"><slot /></div>
         <footer v-if="$slots.footer" class="ui-modal__foot"><slot name="footer" /></footer>
+        <button
+          v-if="resizable"
+          class="ui-modal__resize ui-focus-ring"
+          type="button"
+          aria-label="Resize dialog"
+          title="Drag to resize, or use arrow keys when focused"
+          @pointerdown="startResize"
+          @pointermove="resizePanel"
+          @pointerup="resizeOrigin = null"
+          @pointercancel="resizeOrigin = null"
+          @lostpointercapture="resizeOrigin = null"
+          @keydown="resizeWithKeyboard"
+        >
+          <Icon name="move-diagonal-2" size="sm" />
+        </button>
       </div>
     </Transition>
   </Teleport>
@@ -153,6 +223,44 @@ function onKeydown(event: KeyboardEvent) {
 }
 .ui-modal--lg {
   width: min(92vw, 760px);
+}
+.ui-modal--resizable {
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+.ui-modal--resizable .ui-modal__head,
+.ui-modal--resizable .ui-modal__foot {
+  flex-shrink: 0;
+}
+.ui-modal--resizable .ui-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ui-modal--resizable .ui-modal__foot {
+  padding-right: var(--sp-3);
+}
+.ui-modal__resize {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--theme-dim);
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.ui-modal__resize:hover,
+.ui-modal__resize:focus-visible {
+  color: var(--theme-accent);
+  background: var(--glass-card);
 }
 /* ---- motion ---------------------------------------------------------------
    In: the scrim fades and its blur deepens; the panel rises from a little

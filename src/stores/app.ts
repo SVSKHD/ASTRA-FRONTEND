@@ -717,8 +717,44 @@ export const useAppStore = defineStore('app', () => {
       ...goalOccurrences.value.map((o) => o.id),
       ...prompts.value.map((p) => p.id),
       ...timeline.value.map((e) => e.id),
+      // AI chats and their messages draw from this same counter. Leaving them
+      // out let a reload restart it below them, so "New chat" reused an old
+      // chat's id — and aiChatById, finding the old one first, showed its
+      // history in the new chat.
+      ...aiChats.value.map((ch) => ch.id),
+      ...aiChats.value.flatMap((ch) => ch.messages.map((m) => m.id)),
+      ...bots.value.map((b) => b.id),
     )
     if (maxId >= nid) nid = maxId + 1
+  }
+
+  // Repair for workspaces saved while the bug above was live: a chat that
+  // shares an id with an earlier one, or a message that shares one within its
+  // chat, gets a fresh id. Run after bumpNid so the fresh ids are above all.
+  function dedupeAiIds() {
+    const seenChats = new Set<number>()
+    let changed = false
+    const next = aiChats.value.map((ch) => {
+      let chat = ch
+      if (seenChats.has(chat.id)) {
+        chat = { ...chat, id: id() }
+        changed = true
+      }
+      seenChats.add(chat.id)
+      const seenMsgs = new Set<number>()
+      const messages = chat.messages.map((m) => {
+        if (!seenMsgs.has(m.id)) {
+          seenMsgs.add(m.id)
+          return m
+        }
+        changed = true
+        const fresh = { ...m, id: id() }
+        seenMsgs.add(fresh.id)
+        return fresh
+      })
+      return messages === chat.messages ? chat : { ...chat, messages }
+    })
+    if (changed) aiChats.value = next
   }
 
   // ---- Timestamps ---------------------------------------------------------
@@ -3966,6 +4002,26 @@ export const useAppStore = defineStore('app', () => {
   // "+ New note" on an item: an empty note, already attached, ready to be typed
   // into. It is created blank on purpose — the reader is about to write it, and
   // a placeholder body would have to be deleted first.
+  // A filed-nowhere note with its body already written — what the AI tab's
+  // "Save to notes" makes. The editor's own create path is saveNoteView.
+  function addNote(title: string, text: string): number | null {
+    if (!title.trim() && !text.trim()) return null
+    const newId = id()
+    notes.value = [
+      ...notes.value,
+      {
+        id: newId,
+        text,
+        title: title.trim(),
+        format: 'md' as const,
+        ts: Date.now(),
+        tags: [],
+        pinned: false,
+        ...stamps(),
+      },
+    ]
+    return newId
+  }
   function createNoteFor(type: NoteOwnerType, itemId: number, title = ''): number | null {
     if (!NOTE_OWNER_LISTS[type].value.some((i) => i.id === itemId)) return null
     const newId = id()
@@ -4306,6 +4362,31 @@ export const useAppStore = defineStore('app', () => {
             ...ch,
             messages: ch.messages.map((m) =>
               m.id === msgId ? { ...m, content: m.content + delta } : m,
+            ),
+          }
+        : ch,
+    )
+  }
+  // The token counts the proxy reports once a reply finishes.
+  function setAiMessageUsage(chatId: number, msgId: number, tokensIn: number, tokensOut: number) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? {
+            ...ch,
+            messages: ch.messages.map((m) => (m.id === msgId ? { ...m, tokensIn, tokensOut } : m)),
+          }
+        : ch,
+    )
+  }
+  function markAiPlanApplied(chatId: number, msgId: number, planIndex: number) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? {
+            ...ch,
+            messages: ch.messages.map((m) =>
+              m.id === msgId
+                ? { ...m, appliedPlans: [...new Set([...(m.appliedPlans ?? []), planIndex])] }
+                : m,
             ),
           }
         : ch,
@@ -8069,6 +8150,7 @@ export const useAppStore = defineStore('app', () => {
     if (restoredTodos.restored) todos.value = restoredTodos.items
     if (restoredTasks.restored) tasks.value = restoredTasks.items
     bumpNid()
+    dedupeAiIds()
     // Release the hydration guard after the reactive writes settle.
     setTimeout(() => {
       hydrating = false
@@ -8618,6 +8700,7 @@ export const useAppStore = defineStore('app', () => {
     setDetailSplit,
     notesFor,
     noteOwners,
+    addNote,
     createNoteFor,
     convertLegacyNotes,
     setNoteTitle,
@@ -8664,6 +8747,8 @@ export const useAppStore = defineStore('app', () => {
     deleteAiChat,
     addAiMessage,
     appendAiMessageContent,
+    setAiMessageUsage,
+    markAiPlanApplied,
     setAiUseData,
     botById,
     patchBot,

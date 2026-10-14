@@ -43,17 +43,18 @@ export interface Timestamped {
 }
 
 // ---- AI chat (Part A) -----------------------------------------------------
-// The available models. `id` is what the aiProxy Cloud Function forwards to the
-// Anthropic API; the label is what the header dropdown and the per-message badge
-// show. Kept as data so adding a model later is one line.
+// The available models. `id` is what the `/api/ai` Netlify function forwards to
+// the Gemini API (it keeps the same list server-side); the label is what the
+// header dropdown and the per-message badge show. Kept as data so adding a model
+// later is one line here and one in netlify/functions/ai.ts.
 export interface AiModel {
   id: string
   label: string
 }
 export const AI_MODELS: AiModel[] = [
-  { id: 'claude-opus-4-6', label: 'Opus' },
-  { id: 'claude-sonnet-4-6', label: 'Sonnet' },
-  { id: 'claude-haiku-4-5-20251001', label: 'Haiku' },
+  { id: 'gemini-2.5-flash', label: 'Gemini Flash' },
+  { id: 'gemini-2.5-pro', label: 'Gemini Pro' },
+  { id: 'gemini-2.5-flash-lite', label: 'Gemini Flash Lite' },
 ]
 export type AiRole = 'user' | 'assistant'
 export interface AiMessage {
@@ -64,6 +65,11 @@ export interface AiMessage {
   model?: string
   tokensIn?: number
   tokensOut?: number
+  // An assistant turn sent with the "Use my data" context block attached.
+  usedData?: boolean
+  // Plan cards in this reply whose steps were already added, by their index
+  // among the reply's plans — so the button reads "Added" after a reload.
+  appliedPlans?: number[]
   createdAt: number
 }
 export interface AiChat {

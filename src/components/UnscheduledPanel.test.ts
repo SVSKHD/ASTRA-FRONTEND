@@ -138,7 +138,7 @@ describe('the container it sits in', () => {
   const view = readFileSync(resolve(__dirname, 'views/CalendarView.vue'), 'utf8')
 
   it('is a fixed side track with min-width: 0 on both columns', () => {
-    expect(view).toContain("gridTemplateColumns: 'minmax(0, 1fr) 248px'")
+    expect(view).toContain("gridTemplateColumns: 'minmax(0, 1fr) 288px'")
   })
 
   it('exposes its element, because Draggable binds to a node not a component', () => {

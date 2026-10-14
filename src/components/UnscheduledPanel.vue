@@ -101,9 +101,7 @@ defineExpose({ el: root })
         <h2 class="unsched__title">Unscheduled</h2>
         <span class="unsched__count ui-tabular">{{ rows.length }}</span>
       </div>
-      <p v-if="rows.length" class="unsched__hint">
-        Drag a row onto the calendar to give it a time.
-      </p>
+      <p v-if="rows.length" class="unsched__hint">Drag a row onto the week to give it a time.</p>
       <template v-if="findable">
         <SearchField v-model="query" size="sm" placeholder="Find…" label="Find unscheduled" />
         <div class="unsched__kinds" role="tablist" aria-label="Kind">

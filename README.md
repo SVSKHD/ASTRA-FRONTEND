@@ -128,26 +128,29 @@ The webhook secret itself is still set once with
 `firebase functions:secrets:set GITHUB_WEBHOOK_SECRET` — the app cannot read it,
 which is the point of it being a secret.
 
-## AI tab — aiProxy Cloud Function contract
+## AI tab — `/api/ai` (Gemini)
 
-The AI tab never holds the Anthropic API key. The Vue app POSTs to a Cloud
-Function whose URL is `VITE_AI_PROXY_URL`; the function injects the key,
-enforces per-user rate limits, and streams the response back (SSE, `data:`
-lines). Request body sent by the app:
+The AI tab never holds the Gemini API key. The Vue app POSTs to
+`VITE_AI_PROXY_URL` (`/api/ai`, `netlify/functions/ai.ts`) with the Supabase
+session as a bearer token; the function checks it against the same allow-list
+as `/api/github`, injects `GEMINI_API_KEY` (server-only — set it in `.env` /
+`.env.local` locally and in Netlify's environment for deploys), and streams the
+reply back. Request body:
 
 ```jsonc
 {
-  "model": "claude-opus-4-6", // the chat's selected model id
+  "model": "gemini-2.5-flash", // the chat's selected model id
   "messages": [{ "role": "user", "content": "…" }], // full history (stateless)
   "system": "[AUREON CONTEXT …]", // compact live-data block, omitted when "Use my data" is off
-  "stream": true,
 }
 ```
 
-The app reads `data:` lines and appends `delta.text` (or a top-level `text`)
-to the streaming bubble. Anything else (keep-alives, `[DONE]`) is ignored.
-With no `VITE_AI_PROXY_URL` set, the composer still records the turn locally
-and shows a note that the proxy is unconfigured.
+The function answers with `data:` lines: `{"text": "…"}` per chunk, one
+`{"usage": {"in", "out"}}` at the end, `{"error": "…"}` if Gemini fails
+mid-stream. The send loop lives in `useAiChat` (module scope), so a reply keeps
+streaming after the AI tab is left; `AiChatDock` follows it from any other tab
+and pops when it lands. With no `VITE_AI_PROXY_URL` set, the composer still
+records the turn locally and shows a note that the proxy is unconfigured.
 
 ## Bots tab — Firestore write contract (for the Python bot)
 

@@ -30,8 +30,9 @@ const ToolbarButton = ({
   children: React.ReactNode;
 }) => (
   <button
+    type="button"
     onClick={onClick}
-    className={`p-1.5 rounded-lg transition-colors ${
+    className={`inline-flex h-8 w-8 shrink-0 items-center justify-center p-0 rounded-lg transition-colors [&>svg]:block [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0 [&>svg]:stroke-2 ${
       active
         ? "bg-white/20 text-white"
         : "text-white/50 hover:text-white hover:bg-white/10"

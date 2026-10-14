@@ -39,6 +39,7 @@ import SecurityPanel from '@/components/security/SecurityPanel.vue'
 import TaskTransferHelpPanel from '@/components/TaskTransferHelpPanel.vue'
 import AuthDialog from '@/components/AuthDialog.vue'
 import ToastHost from '@/components/ToastHost.vue'
+import AiChatDock from '@/components/AiChatDock.vue'
 import StatusSyncMeter from '@/components/StatusSyncMeter.vue'
 import NotifBanner from '@/components/NotifBanner.vue'
 import SharedBanner from '@/components/SharedBanner.vue'
@@ -484,6 +485,7 @@ onBeforeUnmount(() => {
     <SharedBanner />
     <ShareDialog />
     <ToastHost />
+    <AiChatDock />
     <StatusSyncMeter />
     <DragGhost />
     <TreeDragFeedback />
