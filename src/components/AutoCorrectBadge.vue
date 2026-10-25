@@ -41,7 +41,11 @@ const visible = computed(() => state.phase !== 'idle' && !!state.el)
     data-autocorrect="off"
     role="status"
     aria-live="polite"
-    :style="{ top: `${pos.top}px`, left: `${pos.left}px`, maxWidth: `${Math.max(pos.width, 220)}px` }"
+    :style="{
+      top: `${pos.top}px`,
+      left: `${pos.left}px`,
+      maxWidth: `${Math.max(pos.width, 220)}px`,
+    }"
     @mousedown.prevent
   >
     <template v-if="state.phase === 'checking'">
@@ -53,7 +57,8 @@ const visible = computed(() => state.phase !== 'idle' && !!state.el)
       <span class="acb__list">
         <template v-if="shown.length">
           <span v-for="(c, i) in shown" :key="i" class="acb__change">
-            <s v-if="c.from">{{ c.from }}</s><span v-if="c.from && c.to"> → </span><b v-if="c.to">{{ c.to }}</b>
+            <s v-if="c.from">{{ c.from }}</s
+            ><span v-if="c.from && c.to"> → </span><b v-if="c.to">{{ c.to }}</b>
           </span>
           <span v-if="more">+{{ more }} more</span>
         </template>

@@ -374,9 +374,7 @@ function subLine(it: AiNewItem): string {
   return parts.join(' · ')
 }
 
-const created = ref<{ chatId: number; msgId: number; idx: number; items: AiCreated[] } | null>(
-  null,
-)
+const created = ref<{ chatId: number; msgId: number; idx: number; items: AiCreated[] } | null>(null)
 const createdOpen = ref(false)
 function runCreate(m: AiMessage, idx: number, items: AiNewItem[]) {
   const chat = activeAiChat.value
@@ -738,7 +736,9 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                               NEW_KIND_LABEL[it.kind]
                             }}</span>
                             {{ it.title }}
-                            <span v-if="subLine(it)" class="ai-create__meta">{{ subLine(it) }}</span>
+                            <span v-if="subLine(it)" class="ai-create__meta">{{
+                              subLine(it)
+                            }}</span>
                             <span v-if="it.notes" class="ai-plan__notes">{{ it.notes }}</span>
                             <ul v-if="it.items?.length" class="ai-create__subs">
                               <li v-for="(s, si) in it.items" :key="si">{{ s }}</li>
@@ -823,7 +823,11 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                     <ProgressRing indeterminate hide-value :size="18" :stroke="2.5" />
                     Thinking…
                   </div>
-                  <span v-else-if="isStreamingMsg(m.id)" class="ai-cursor" aria-hidden="true"></span>
+                  <span
+                    v-else-if="isStreamingMsg(m.id)"
+                    class="ai-cursor"
+                    aria-hidden="true"
+                  ></span>
 
                   <div v-if="!isStreamingMsg(m.id)" class="ai-meta">
                     <span class="ai-meta__model" :title="m.model || activeAiChat.model">{{

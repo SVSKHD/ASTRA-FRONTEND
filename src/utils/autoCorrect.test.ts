@@ -21,7 +21,9 @@ describe('plausibleCorrection', () => {
     expect(plausibleCorrection('call teh bank tomorow', 'call the bank tomorrow')).toBe(true)
   })
   it('rejects a rewrite, an empty answer or changed line breaks', () => {
-    expect(plausibleCorrection('fix bug', 'Here is the corrected text: fix the bug now')).toBe(false)
+    expect(plausibleCorrection('fix bug', 'Here is the corrected text: fix the bug now')).toBe(
+      false,
+    )
     expect(plausibleCorrection('fix bug', '')).toBe(false)
     expect(plausibleCorrection('line one\nline two', 'line one line two')).toBe(false)
   })

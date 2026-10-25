@@ -4446,7 +4446,12 @@ export const useAppStore = defineStore('app', () => {
     )
   }
   // `applied: false` re-arms the card — Undo in the "Created" pop-up.
-  function markAiCreatesApplied(chatId: number, msgId: number, createIndex: number, applied = true) {
+  function markAiCreatesApplied(
+    chatId: number,
+    msgId: number,
+    createIndex: number,
+    applied = true,
+  ) {
     aiChats.value = aiChats.value.map((ch) =>
       ch.id === chatId
         ? {
@@ -8542,7 +8547,9 @@ export const useAppStore = defineStore('app', () => {
       if (uid !== me || !offline.value) return
       const pending = hasUnsavedEdits()
       if (snap.exists()) {
-        applyData(pending ? mergeWorkspace(snapshotData(), snap.data(), localSyncedAt) : snap.data())
+        applyData(
+          pending ? mergeWorkspace(snapshotData(), snap.data(), localSyncedAt) : snap.data(),
+        )
       }
       captureSyncedBaseline()
       offline.value = false

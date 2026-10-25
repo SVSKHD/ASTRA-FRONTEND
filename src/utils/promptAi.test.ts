@@ -7,7 +7,12 @@ describe('parseGenerated', () => {
       '```json\n' +
       JSON.stringify({
         templates: [
-          { title: 'Weekly update', topic: 'Writing', useCase: 'Friday status note.', body: 'Write a weekly update for {{team}}.' },
+          {
+            title: 'Weekly update',
+            topic: 'Writing',
+            useCase: 'Friday status note.',
+            body: 'Write a weekly update for {{team}}.',
+          },
           { title: 'No body' },
           { title: 'Follow-up', body: 'Draft a follow-up email to {{person}} about {{topic}}.' },
         ],
@@ -19,7 +24,9 @@ describe('parseGenerated', () => {
   })
 
   it('keeps no more than asked for, and returns nothing for prose', () => {
-    const many = JSON.stringify({ templates: Array.from({ length: 6 }, (_, i) => ({ body: `B${i}` })) })
+    const many = JSON.stringify({
+      templates: Array.from({ length: 6 }, (_, i) => ({ body: `B${i}` })),
+    })
     expect(parseGenerated(many, 3)).toHaveLength(3)
     expect(parseGenerated('Sorry, I cannot help with that.')).toEqual([])
   })
@@ -31,7 +38,10 @@ describe('parseImproved', () => {
       '{"body":"Summarise {{text}} for {{Audience}} in 3 bullets.","useCase":"Skim long docs."}',
       'please summarise {{text}} for {{audience}}',
     )
-    expect(out).toEqual({ body: 'Summarise {{text}} for {{Audience}} in 3 bullets.', useCase: 'Skim long docs.' })
+    expect(out).toEqual({
+      body: 'Summarise {{text}} for {{Audience}} in 3 bullets.',
+      useCase: 'Skim long docs.',
+    })
   })
   it('refuses a rewrite that lost a blank', () => {
     expect(parseImproved('{"body":"Summarise the text."}', 'Summarise {{text}}')).toBeNull()
@@ -49,7 +59,9 @@ describe('parseFill', () => {
 describe('withReplyStyle', () => {
   it('appends the style line, or leaves the prompt alone', () => {
     expect(withReplyStyle('Explain DNS.', 'any')).toBe('Explain DNS.')
-    expect(withReplyStyle('Explain DNS.\n', 'steps')).toMatch(/^Explain DNS\.\n\nReply as numbered steps/)
+    expect(withReplyStyle('Explain DNS.\n', 'steps')).toMatch(
+      /^Explain DNS\.\n\nReply as numbered steps/,
+    )
     expect(withReplyStyle('   ', 'concise')).toBe('   ')
   })
 })

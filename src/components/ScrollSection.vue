@@ -137,7 +137,9 @@ onBeforeUnmount(() => {
   box-shadow: var(--layer-raised-shadow, none);
   cursor: pointer;
   opacity: 0.92;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 .scroll-section__arrow:hover {
   opacity: 1;

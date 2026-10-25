@@ -120,6 +120,7 @@ const syntax: Record<EditorAction, string> = {
 }
 .note-commands code {
   display: block;
+  min-width: 0;
   margin-top: var(--sp-2);
   color: var(--theme-dim);
   font-size: var(--text-xs);

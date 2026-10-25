@@ -533,6 +533,7 @@ async function bulkDelete() {
 }
 .hist__title {
   display: block;
+  min-width: 0;
   max-width: 100%;
   padding: 0;
   border: none;

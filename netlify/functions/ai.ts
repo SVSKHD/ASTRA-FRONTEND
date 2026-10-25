@@ -276,7 +276,11 @@ export function thinkFilter() {
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405)
 
-  if (!process.env.BYTEZ_API_KEY && !process.env.OPEN_ROUTER_API_KEY && !process.env.OPENROUTER_API_KEY)
+  if (
+    !process.env.BYTEZ_API_KEY &&
+    !process.env.OPEN_ROUTER_API_KEY &&
+    !process.env.OPENROUTER_API_KEY
+  )
     return json({ error: 'No AI key configured: set BYTEZ_API_KEY (or OPEN_ROUTER_API_KEY).' }, 500)
 
   const accessToken = bearerToken(req)
@@ -329,7 +333,10 @@ export default async function handler(req: Request): Promise<Response> {
       break
     }
     const text = await res.text().catch(() => '')
-    failure = { message: upstreamError(attempt.provider, text, res.status), status: res.status || 502 }
+    failure = {
+      message: upstreamError(attempt.provider, text, res.status),
+      status: res.status || 502,
+    }
     fallbackReason ||= failure.message
     console.warn(`[ai] ${attempt.provider} ${attempt.model} refused: ${failure.message}`)
   }

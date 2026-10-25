@@ -68,8 +68,7 @@ const summary = computed(() => {
   const info = aiModelInfo(current.value)
   const parts = [info?.vision ? 'Text + image in → text out' : 'Text in → text out']
   if (aiSettings.provider === 'bytez') parts.push('Bytez bills per second of compute')
-  else if (info?.price)
-    parts.push(`$${info.price.in} in / $${info.price.out} out per 1M tokens`)
+  else if (info?.price) parts.push(`$${info.price.in} in / $${info.price.out} out per 1M tokens`)
   else parts.push('price: see openrouter.ai/models')
   return parts.join(' · ')
 })
@@ -134,7 +133,11 @@ const standInTitle = computed(() => answerer.value?.fallback ?? '')
           size="sm"
           :autocorrect="false"
           :invalid="!!draft && !draftValid"
-          :placeholder="aiSettings.provider === 'bytez' ? 'owner/model, e.g. Qwen/Qwen3-8B' : 'vendor/model, e.g. openai/gpt-5.5'"
+          :placeholder="
+            aiSettings.provider === 'bytez'
+              ? 'owner/model, e.g. Qwen/Qwen3-8B'
+              : 'vendor/model, e.g. openai/gpt-5.5'
+          "
           aria-label="Custom model id"
           @keydown.escape="editing = false"
         />

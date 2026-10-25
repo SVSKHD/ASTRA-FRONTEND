@@ -50,7 +50,10 @@ function open(): Promise<IDBDatabase | null> {
   return opening
 }
 
-function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T | null> {
+function run<T>(
+  mode: IDBTransactionMode,
+  fn: (s: IDBObjectStore) => IDBRequest<T>,
+): Promise<T | null> {
   return open().then(
     (db) =>
       new Promise<T | null>((resolve) => {

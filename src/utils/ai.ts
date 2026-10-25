@@ -56,8 +56,16 @@ export interface AiContextSection {
 // panel shows exactly what goes over the wire rather than a description of it.
 export function aiContextSections(input: AiContextInput): AiContextSection[] {
   const all: AiContextSection[] = [
-    { key: 'todos', title: 'TODOS — open, sub-todos indented under their parent', lines: input.todos },
-    { key: 'tasks', title: 'TASKS — open, subtasks indented under their parent', lines: input.tasks },
+    {
+      key: 'todos',
+      title: 'TODOS — open, sub-todos indented under their parent',
+      lines: input.todos,
+    },
+    {
+      key: 'tasks',
+      title: 'TASKS — open, subtasks indented under their parent',
+      lines: input.tasks,
+    },
     { key: 'calendar', title: 'CALENDAR — scheduled blocks, next 7 days', lines: input.calendar },
     { key: 'reminders', title: 'REMINDERS — upcoming', lines: input.upcomingReminders },
     {
@@ -277,7 +285,10 @@ function readCreate(raw: unknown): AiNewItem[] {
     const rawItems = Array.isArray(c.items) ? c.items : Array.isArray(c.steps) ? c.steps : []
     const items = (rawItems as unknown[])
       .map((i) =>
-        typeof i === 'string' ? i.trim() : str((i as Record<string, unknown>)?.title ?? (i as Record<string, unknown>)?.text) ?? '',
+        typeof i === 'string'
+          ? i.trim()
+          : (str((i as Record<string, unknown>)?.title ?? (i as Record<string, unknown>)?.text) ??
+            ''),
       )
       .filter(Boolean)
       .slice(0, 30)
@@ -569,9 +580,7 @@ export function aiActionDraft(
   // item with an empty description loses whatever the chat worked out.
   const detail = [any?.notes, steps].filter((p): p is string => !!p?.trim()).join('\n\n')
   const notes =
-    kind === 'note'
-      ? (own?.notes ?? plainAiReply(src.reply))
-      : detail || plainAiReply(src.reply)
+    kind === 'note' ? (own?.notes ?? plainAiReply(src.reply)) : detail || plainAiReply(src.reply)
   let when = ''
   if (kind === 'event' || kind === 'reminder') {
     when = own?.when && own.when.includes('T') ? own.when : nextSlot(src.now)

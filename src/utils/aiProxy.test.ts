@@ -4,7 +4,9 @@ import { answerPlan, thinkFilter } from '../../netlify/functions/ai'
 describe('answerPlan', () => {
   const both = () => true
   it('asks the picked provider and model first, then its default, then the other provider', () => {
-    expect(answerPlan({ provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' }, both)).toEqual([
+    expect(
+      answerPlan({ provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' }, both),
+    ).toEqual([
       { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' },
       { provider: 'openrouter', model: 'google/gemini-2.5-flash' },
       { provider: 'bytez', model: 'Qwen/Qwen3-4B' },
@@ -17,9 +19,9 @@ describe('answerPlan', () => {
     ])
   })
   it('skips a provider with no key', () => {
-    expect(answerPlan({ provider: 'bytez', model: 'Qwen/Qwen3-8B' }, (p) => p === 'openrouter')).toEqual([
-      { provider: 'openrouter', model: 'google/gemini-2.5-flash' },
-    ])
+    expect(
+      answerPlan({ provider: 'bytez', model: 'Qwen/Qwen3-8B' }, (p) => p === 'openrouter'),
+    ).toEqual([{ provider: 'openrouter', model: 'google/gemini-2.5-flash' }])
   })
   it('replaces a malformed model id with the default', () => {
     expect(answerPlan({ provider: 'openrouter', model: 'rm -rf /' }, both)[0]).toEqual({

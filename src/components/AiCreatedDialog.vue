@@ -44,7 +44,9 @@ function openItem(c: AiCreated) {
   <Modal :open="open" :title="title" size="sm" @close="emit('close')">
     <ul class="acd">
       <li v-for="c in created" :key="`${c.kind}:${c.id}`" class="acd__row">
-        <span class="acd__icon" aria-hidden="true"><Icon :name="KIND[c.kind].icon" size="sm" /></span>
+        <span class="acd__icon" aria-hidden="true"
+          ><Icon :name="KIND[c.kind].icon" size="sm"
+        /></span>
         <span class="acd__body">
           <span class="acd__kind">{{ KIND[c.kind].label }}</span>
           <span class="acd__title">{{ c.title }}</span>

@@ -73,7 +73,10 @@ Reply with ONLY JSON: {"templates":[{"title":"…","topic":"…","useCase":"…"
 }
 
 /** The improved body, only if it still has every blank the original had. */
-export function parseImproved(answer: string, original: string): { body: string; useCase: string } | null {
+export function parseImproved(
+  answer: string,
+  original: string,
+): { body: string; useCase: string } | null {
   const t = readTemplate(readJsonObject(answer))
   if (!t) return null
   const had = blanksOf(original).map((b) => b.toLowerCase())

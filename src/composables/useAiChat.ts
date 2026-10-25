@@ -197,7 +197,13 @@ function whenLabel(ms: number): string {
 
 function blockLabel(b: { start: number; end: number; allDay: boolean }): string {
   if (b.allDay) {
-    return new Date(b.start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ', all day'
+    return (
+      new Date(b.start).toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      }) + ', all day'
+    )
   }
   const end = new Date(b.end)
   const p = (n: number) => String(n).padStart(2, '0')

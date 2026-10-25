@@ -26,7 +26,10 @@ describe('aiSettings', () => {
 
     vi.resetModules()
     const again = await load()
-    expect(again.chatTarget()).toEqual({ provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' })
+    expect(again.chatTarget()).toEqual({
+      provider: 'openrouter',
+      model: 'anthropic/claude-haiku-5.5',
+    })
   })
 
   it('refuses an image model for the chat', async () => {

@@ -27,7 +27,12 @@ const app = useAppStore()
 const KINDS: SweepKind[] = ['todo', 'task', 'goal', 'reminder']
 
 const step = ref<'pick' | 'scan' | 'review'>('pick')
-const picked = ref<Record<SweepKind, boolean>>({ todo: true, task: true, goal: true, reminder: true })
+const picked = ref<Record<SweepKind, boolean>>({
+  todo: true,
+  task: true,
+  goal: true,
+  reminder: true,
+})
 const includeDone = ref(false)
 const counts = computed(() => sweepCounts(app, includeDone.value))
 const total = computed(() => KINDS.reduce((n, k) => n + (picked.value[k] ? counts.value[k] : 0), 0))
@@ -145,8 +150,8 @@ const pct = computed(() =>
     <!-- 1. what to check -->
     <div v-if="step === 'pick'" class="atf">
       <p class="atf__lead">
-        AI reads the titles and descriptions of your items and suggests spelling and grammar
-        fixes. You review every change before it is saved.
+        AI reads the titles and descriptions of your items and suggests spelling and grammar fixes.
+        You review every change before it is saved.
       </p>
       <div class="atf__kinds">
         <Checkbox
@@ -159,8 +164,8 @@ const pct = computed(() =>
       </div>
       <Checkbox v-model="includeDone" label="Include finished and archived items" />
       <p class="atf__note">
-        Calendar events are your scheduled todos, tasks, goals and reminders, so fixing those
-        fixes the calendar too. Reminders already on Google Calendar are updated there as well.
+        Calendar events are your scheduled todos, tasks, goals and reminders, so fixing those fixes
+        the calendar too. Reminders already on Google Calendar are updated there as well.
       </p>
       <p v-if="error" class="atf__error" role="alert">{{ error }}</p>
     </div>

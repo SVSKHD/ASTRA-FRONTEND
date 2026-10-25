@@ -359,7 +359,8 @@ export function applyTypoFixes(app: App, fixes: TypoFix[]): number {
   if (applied.length) {
     app.showToastWithUndo(`Fixed typos in ${items} item${items === 1 ? '' : 's'}`, () => {
       for (const f of applied)
-        if (read(app, f.kind, f.id, f.field) === f.after) write(app, f.kind, f.id, f.field, f.before)
+        if (read(app, f.kind, f.id, f.field) === f.after)
+          write(app, f.kind, f.id, f.field, f.before)
       pushToCalendar(app, reminders)
     })
   }

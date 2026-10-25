@@ -51,7 +51,12 @@ async function generate() {
   error.value = ''
   abort = new AbortController()
   try {
-    const out = await generateTemplates(useCase.value, Number(count.value), props.topics, abort.signal)
+    const out = await generateTemplates(
+      useCase.value,
+      Number(count.value),
+      props.topics,
+      abort.signal,
+    )
     drafts.value = out
     kept.value = new Set(out.map((_, i) => i))
     if (!out.length) error.value = 'The AI answered, but not with a usable template. Try rewording.'
@@ -106,7 +111,12 @@ function save() {
         </div>
         <div class="pgd__row">
           <span class="pgd__label">How many</span>
-          <SegmentedControl v-model="count" :options="counts" size="sm" aria-label="How many templates" />
+          <SegmentedControl
+            v-model="count"
+            :options="counts"
+            size="sm"
+            aria-label="How many templates"
+          />
           <span class="pgd__spacer" />
           <Button
             type="submit"
@@ -129,12 +139,7 @@ function save() {
       </div>
 
       <ul v-else-if="drafts.length" class="pgd__list">
-        <li
-          v-for="(d, i) in drafts"
-          :key="i"
-          class="pgd__card"
-          :class="{ 'is-off': !kept.has(i) }"
-        >
+        <li v-for="(d, i) in drafts" :key="i" class="pgd__card" :class="{ 'is-off': !kept.has(i) }">
           <Checkbox
             :model-value="kept.has(i)"
             :aria-label="`Keep ${d.title}`"

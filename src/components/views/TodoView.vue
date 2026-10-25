@@ -593,9 +593,7 @@ function toggleAll() {
 const hasUnpinned = computed(
   () => carried.value.length + active.value.length + completed.value.length > 0,
 )
-const pinnedOpen = computed(
-  () => !hasUnpinned.value || acc.isOpen('pinned:todos', true),
-)
+const pinnedOpen = computed(() => !hasUnpinned.value || acc.isOpen('pinned:todos', true))
 const unpinnedOpen = computed(
   () => !pinnedRoots.value.length || acc.isOpen('unpinned:todos', !pinnedOpen.value),
 )

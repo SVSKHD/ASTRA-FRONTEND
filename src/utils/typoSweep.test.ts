@@ -34,7 +34,10 @@ function fakeApp() {
     reminders: [{ id: 5, title: 'Pay teh rent', note: '', calEventId: 'ev1', cancelledAt: null }],
     updateTodo: vi.fn((_id: number, f: Record<string, string>) => Object.assign(app.todos[0], f)),
     patchTask: vi.fn((id: number, f: Record<string, string>) =>
-      Object.assign(app.tasks.find((t) => t.id === id)!, f),
+      Object.assign(
+        app.tasks.find((t) => t.id === id)!,
+        f,
+      ),
     ),
     updateGoal: vi.fn((_id: number, f: Record<string, string>) => Object.assign(app.goals[0], f)),
     updateReminder: vi.fn((_id: number, k: string, v: string) =>

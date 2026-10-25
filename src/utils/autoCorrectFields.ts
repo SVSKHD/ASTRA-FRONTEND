@@ -135,7 +135,8 @@ function write(el: Field, next: string) {
       // execCommand keeps the edit on the undo stack and fires `input`. Fall
       // back to a plain assignment where it is gone.
       const ok =
-        typeof document.execCommand === 'function' && document.execCommand('insertText', false, next)
+        typeof document.execCommand === 'function' &&
+        document.execCommand('insertText', false, next)
       if (!ok || el.value !== next) {
         el.value = next
         el.dispatchEvent(new Event('input', { bubbles: true }))
@@ -348,7 +349,9 @@ function onClick(event: MouseEvent) {
   const field = lastField
   if (!field || !field.isConnected || !isAutoCorrectField(field) || !shouldHold(field)) return
   const target = event.target as Element | null
-  const button = target?.closest?.('button, [role="button"], input[type="submit"]') as HTMLElement | null
+  const button = target?.closest?.(
+    'button, [role="button"], input[type="submit"]',
+  ) as HTMLElement | null
   if (!button || button.contains(field) || button.closest('[data-autocorrect="off"]')) return
   if ((button as HTMLButtonElement).disabled) return
   const name = `${button.getAttribute('aria-label') ?? ''} ${button.textContent ?? ''}`

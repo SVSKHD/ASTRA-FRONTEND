@@ -72,7 +72,9 @@ describe('buildAiContext', () => {
     const ctx = buildAiContext(
       input({ todos: ['[todo:1] Launch site', '  [todo:2] Write copy', '    [todo:3] Hero line'] }),
     )
-    expect(ctx).toContain('- [todo:1] Launch site\n  - [todo:2] Write copy\n    - [todo:3] Hero line')
+    expect(ctx).toContain(
+      '- [todo:1] Launch site\n  - [todo:2] Write copy\n    - [todo:3] Hero line',
+    )
   })
 
   it('caps the block length', () => {
@@ -89,7 +91,13 @@ describe('parseAiReply — new items', () => {
       'Here is a start:\n```aureon\n' +
       JSON.stringify({
         create: [
-          { type: 'goal', title: 'Run a half marathon', due: '2027-03-01', notes: 'Under 2h15.', items: ['Buy shoes', 'Run 5 km'] },
+          {
+            type: 'goal',
+            title: 'Run a half marathon',
+            due: '2027-03-01',
+            notes: 'Under 2h15.',
+            items: ['Buy shoes', 'Run 5 km'],
+          },
           { type: 'task', title: 'Book physio', due: '2026-11-05T10:00', tag: '#health' },
           { type: 'todo', title: 'Stretch daily', due: '2026-11-01' },
           { type: 'idea', title: 'Not a creatable kind' },
@@ -253,7 +261,7 @@ describe('aiActionDraft', () => {
 describe('AI item details', () => {
   const fence = (o: unknown) => '```aureon\n' + JSON.stringify(o) + '\n```'
 
-  it('keeps each plan step\'s notes, from notes, description or details', () => {
+  it("keeps each plan step's notes, from notes, description or details", () => {
     const reply = fence({
       steps: [
         { text: 'A', mins: 20, notes: 'why A' },
@@ -272,7 +280,9 @@ describe('AI item details', () => {
   })
 
   it('stepDescription carries the notes and the estimate', () => {
-    expect(stepDescription({ text: 'A', mins: 20, notes: 'why A' })).toBe('why A\n\nEstimate: 20 min')
+    expect(stepDescription({ text: 'A', mins: 20, notes: 'why A' })).toBe(
+      'why A\n\nEstimate: 20 min',
+    )
     expect(stepDescription({ text: 'A' })).toBe('')
   })
 
