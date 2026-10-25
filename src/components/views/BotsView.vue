@@ -459,7 +459,7 @@ const dialogCard = computed(() =>
           This is a <strong :style="{ color: RED }">live</strong> bot. Type its name
           <strong>{{ confirmBot.name }}</strong> to {{ confirmBot.enabled ? 'stop' : 'start' }} it.
         </div>
-        <TextInput v-model="confirmText" :placeholder="confirmBot.name" />
+        <TextInput v-model="confirmText" :placeholder="confirmBot.name" :autocorrect="false" />
         <div :style="{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }">
           <button :style="s.cancelBtn" @click="confirmBot = null">Cancel</button>
           <button

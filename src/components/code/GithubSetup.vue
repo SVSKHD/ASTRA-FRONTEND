@@ -270,7 +270,12 @@ const rateText = computed(() =>
         </template>
         <template v-else>
           <div class="ghs__row">
-            <TextInput v-model="filter" placeholder="Filter" aria-label="Filter repositories" />
+            <TextInput
+              v-model="filter"
+              placeholder="Filter"
+              aria-label="Filter repositories"
+              :autocorrect="false"
+            />
             <Button
               size="sm"
               variant="ghost"

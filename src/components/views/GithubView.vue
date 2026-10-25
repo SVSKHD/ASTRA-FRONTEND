@@ -433,7 +433,11 @@ function progressInner(pct: number) {
           ]"
         />
       </div>
-      <TextInput placeholder="Search by number or title…" v-model="filter.query" />
+      <TextInput
+        placeholder="Search by number or title…"
+        v-model="filter.query"
+        :autocorrect="false"
+      />
 
       <!-- Writing a new issue. Above the list, where the result will appear. -->
       <IssueForm

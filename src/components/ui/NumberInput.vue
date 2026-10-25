@@ -127,6 +127,7 @@ defineExpose({
       ref="input"
       class="ui-control__input ui-num__input ui-tabular"
       type="text"
+      data-autocorrect="off"
       inputmode="decimal"
       role="spinbutton"
       :value="text"

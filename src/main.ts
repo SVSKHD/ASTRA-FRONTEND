@@ -11,6 +11,7 @@ import './components/ui/disclosure.css'
 
 import { reportError, scrubValue } from './utils/scrub'
 import { installGlassTooltips } from './utils/glassTooltip'
+import { installAutoCorrect } from './utils/autoCorrectFields'
 
 const app = createApp(App)
 
@@ -37,3 +38,7 @@ app.use(createPinia()).use(router).directive('hover-style', vHoverStyle).mount('
 // Every `title` in the app shows as the rounded glass tooltip instead of the
 // browser's native black bubble.
 installGlassTooltips()
+
+// Every text field fixes its typos as you type, and Enter or a button click
+// waits for the fix so what is submitted is the corrected text.
+installAutoCorrect()

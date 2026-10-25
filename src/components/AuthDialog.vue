@@ -94,7 +94,9 @@ const orRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' 
       <Alert v-if="!configurationReady" tone="warning" title="Sign-in setup incomplete" dismissible>
         Add the Supabase and owner allowlist keys from .env.example.
       </Alert>
-      <Alert v-else-if="authError" tone="danger" title="Sign-in unavailable" dismissible>
+      <!-- One title for every failure, so it must not claim an outage: the
+           usual cause is a wrong passcode, and the message below says which. -->
+      <Alert v-else-if="authError" tone="danger" title="Couldn't sign in" dismissible>
         {{ authError }}
       </Alert>
     </div>

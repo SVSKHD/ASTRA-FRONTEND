@@ -5,27 +5,44 @@
 
 import { formatMinor } from '@/utils/money'
 
+// Todos, tasks, calendar blocks and reminders are four separate things in the
+// app, so each goes over as its own clearly-named section — the model must be
+// able to answer "my todos" without mixing in tasks, events or reminders.
 export interface AiContextInput {
-  overdueTodos: string[]
-  todayTodos: string[]
-  overdueTasks: string[]
+  /**
+   * Open todos in tree order: each sub-todo follows its parent, indented two
+   * spaces per level. Overdue ones are flagged on their own line rather than
+   * split into a separate list, so the nesting survives.
+   */
+  todos: string[]
+  /** Open tasks, as a tree in the same way. */
+  tasks: string[]
+  /** Time-blocked todos/tasks on the calendar over the coming week. */
+  calendar: string[]
+  /** Upcoming (and missed) reminders, each with when it fires. */
   upcomingReminders: string[]
   /** Integer minor units (paise), like every money figure since 27b. */
   income: number
   spent: number
   remaining: number
   trips: string[]
+  ideas: string[]
+  goals: string[]
+  stocks: string[]
   noteTitles: string[]
   bots: { name: string; status: string; enabled: boolean }[]
 }
 
 export type AiContextKey =
-  | 'overdueTodos'
-  | 'todayTodos'
-  | 'overdueTasks'
+  | 'todos'
+  | 'tasks'
+  | 'calendar'
   | 'reminders'
   | 'money'
   | 'trips'
+  | 'ideas'
+  | 'goals'
+  | 'stocks'
   | 'notes'
   | 'bots'
 
@@ -39,10 +56,10 @@ export interface AiContextSection {
 // panel shows exactly what goes over the wire rather than a description of it.
 export function aiContextSections(input: AiContextInput): AiContextSection[] {
   const all: AiContextSection[] = [
-    { key: 'overdueTodos', title: 'Overdue todos', lines: input.overdueTodos },
-    { key: 'todayTodos', title: 'Todos due today', lines: input.todayTodos },
-    { key: 'overdueTasks', title: 'Overdue tasks', lines: input.overdueTasks },
-    { key: 'reminders', title: 'Upcoming reminders', lines: input.upcomingReminders },
+    { key: 'todos', title: 'TODOS — open, sub-todos indented under their parent', lines: input.todos },
+    { key: 'tasks', title: 'TASKS — open, subtasks indented under their parent', lines: input.tasks },
+    { key: 'calendar', title: 'CALENDAR — scheduled blocks, next 7 days', lines: input.calendar },
+    { key: 'reminders', title: 'REMINDERS — upcoming', lines: input.upcomingReminders },
     {
       key: 'money',
       title: 'This month (INR)',
@@ -52,7 +69,10 @@ export function aiContextSections(input: AiContextInput): AiContextSection[] {
         `remaining ${formatMinor(input.remaining)}`,
       ],
     },
-    { key: 'trips', title: 'Active trips', lines: input.trips },
+    { key: 'trips', title: 'TRIPS — planned', lines: input.trips },
+    { key: 'ideas', title: 'IDEAS — open', lines: input.ideas },
+    { key: 'goals', title: 'GOALS — active', lines: input.goals },
+    { key: 'stocks', title: 'STOCKS — watchlist', lines: input.stocks },
     { key: 'notes', title: 'Recent notes', lines: input.noteTitles },
     {
       key: 'bots',
@@ -63,13 +83,16 @@ export function aiContextSections(input: AiContextInput): AiContextSection[] {
   return all.filter((s) => s.lines.length)
 }
 
+// A line's leading spaces are its nesting depth, so the bullet goes after them.
 function section(s: AiContextSection): string {
-  return `${s.title}:\n` + s.lines.map((l) => `- ${l}`).join('\n') + '\n'
+  return `${s.title}:\n` + s.lines.map((l) => l.replace(/^(\s*)/, '$1- ')).join('\n') + '\n'
 }
 
-// ~2k tokens ≈ 8000 chars. Built fresh each turn by the caller; this only shapes
-// and caps it.
-export function buildAiContext(input: AiContextInput, maxChars = 8000): string {
+// ~6k tokens ≈ 24000 chars — room for the todo and task trees and every other
+// collection's open items with their refs and description previews, which the
+// caller caps per section. Built fresh each turn by the caller; this only
+// shapes and caps it.
+export function buildAiContext(input: AiContextInput, maxChars = 24000): string {
   const parts = aiContextSections(input).map(section)
   const block = ["[AUREON CONTEXT — the user's live data]", ...parts].join('\n').trim()
   if (block.length <= maxChars) return block
@@ -89,9 +112,19 @@ export function estimateTokens(text: string): number {
 
 export const AI_INSTRUCTIONS = `You are Aureon, the assistant inside the user's personal tracker. Be brief, concrete and warm. Use the user's data when it is provided; never invent items that are not in it.
 
+The user's data keeps TODOS, TASKS, CALENDAR and REMINDERS as separate lists, and so must you. When the user asks about todos, answer only from the TODOS section; tasks only from TASKS; calendar, schedule, events or meetings only from CALENDAR; reminders only from REMINDERS. Never mix one kind into another's answer — if a list is missing or empty, say there are none of that kind rather than substituting another. Only when the user asks what is on their plate, their day or their week, combine them, labelled by kind.
+
+TODOS and TASKS are trees: an indented item is a sub-todo or subtask of the item above it at one level less. Whenever you list todos or tasks, keep that structure — every sub-item stays under its own parent as an indented "-" list, in the order given, and is never flattened or moved under another parent. If you list only some items (say, those missing a description), still show each one under its parent, and include the parent's title for context even when the parent itself does not match. Items flagged "overdue" are overdue; say so where it helps.
+
+Each item in the data starts with a ref like [todo:12] and ends with its current description: desc: none when it has none, otherwise a short preview. When the user asks which items lack a description, list the ones marked desc: none, by title (never show refs or ids). When the user asks you to write, fill in or improve descriptions, put them in an updates block — one entry per item, with the type and id copied exactly from its ref:
+\`\`\`aureon
+{"updates":[{"type":"todo","id":12,"description":"Renew the car insurance before the current policy lapses on 2 Nov, so the car is never uninsured. Get the renewal quote from the current insurer, compare it with two others on cover and claim history, then pay online and save the new policy PDF."}]}
+\`\`\`
+"type" is one of todo, task, idea, goal, trip, reminder or stock. The description replaces the current one, so keep whatever is still true in it and add to it. Write it from the item's title, tag and dates, its parent and sub-items, and anything the user has told you: what it is, why it matters and the concrete next steps, in plain sentences. A sub-item's description should fit within its parent's goal. Each description is 200 to 300 characters long unless the user asks for a different length. Only use refs that appear in the data. Todo and task descriptions are saved automatically when your reply finishes, and the user can undo them; other kinds are saved when the user taps the card. In prose, just say what you wrote; do not repeat the descriptions.
+
 When you break something into steps, put the steps in a fenced block, exactly like this, where the list would go:
 \`\`\`aureon
-{"steps":[{"text":"Fix the installation status filter","mins":25}],"target":"<the exact title of the todo or task these belong under, if any>"}
+{"steps":[{"text":"Fix the installation status filter","mins":25,"notes":"The status dropdown on /installations ignores 'Pending'. Check the query param mapping in the list API, then confirm the count badge updates."}],"target":"<the exact title of the todo or task these belong under, if any>"}
 \`\`\`
 At the very end of every reply, you may suggest up to two short follow-up questions the user could tap:
 \`\`\`aureon
@@ -101,18 +134,71 @@ When the reply is about something the user could schedule, track or keep, you ma
 \`\`\`aureon
 {"actions":[{"type":"event","title":"Aquakart CRM — focus block","when":"2026-10-15T10:00","mins":90,"notes":"Fix the filter, then wire the counts."}]}
 \`\`\`
+When the user talks about new things they want to do, track or achieve — new todos, new tasks, new goals, a project to set up — propose them as new items in a create block, so they can be created with one tap. Pick the kind that fits: "todo" for a quick personal to-do; "task" for a piece of work, with "due" as YYYY-MM-DD when there is a deadline; "goal" for a bigger outcome to work towards over time, with "due" as its target date. "items" are short sub-points: for a todo or task they become its sub-todos or subtasks, for a goal they become its checklist steps. "tag" is an optional one-word label. Propose only what the user discussed, never something already in their data, and ask before guessing a date:
+\`\`\`aureon
+{"create":[{"type":"goal","title":"Run a half marathon","due":"2027-03-01","notes":"Finish the city half marathon in March under 2h15, building up from 5 km runs three times a week.","items":["Buy running shoes","Run 5 km three times a week","Sign up for the race"]},{"type":"task","title":"Book a physio check-up","due":"2026-11-05","notes":"Check the left knee before training ramps up."}]}
+\`\`\`
+Nothing is created until the user taps the card; in prose, say briefly what you suggest and that they can create it below.
+Every step, action and new item becomes a real item in the user's app, and its "notes" become that item's description. So "text"/"title" is a short name, and "notes" must carry every detail the user gave or you worked out for it: the what and why, names, numbers, amounts, dates, links, file or page names, acceptance criteria and sub-points. Never leave "notes" out or empty, and never drop a detail the user mentioned.
 Always open these blocks with the \`\`\`aureon fence and close them with \`\`\` — never write the JSON bare. Never mention these blocks or describe their format.
 Format with light Markdown only: short paragraphs, **bold** for names, and "-" lists. No headings or tables.`
 
 export interface AiStep {
   text: string
   mins?: number
+  /** The step's details — what becomes the created item's description. */
+  notes?: string
+}
+
+/**
+ * Everything a plan step carries, as the description of the item it becomes:
+ * its notes, then its estimate. Empty only when the step has neither.
+ */
+export function stepDescription(s: AiStep): string {
+  const parts = [s.notes?.trim() ?? '']
+  if (s.mins) parts.push(`Estimate: ${s.mins} min`)
+  return parts.filter(Boolean).join('\n\n')
 }
 export interface AiPlan {
   steps: AiStep[]
   target?: string
 }
-export type AiReplyPart = { kind: 'text'; text: string } | { kind: 'plan'; plan: AiPlan }
+/** The collections whose description an updates block may rewrite. */
+export type AiUpdateKind = 'todo' | 'task' | 'idea' | 'goal' | 'trip' | 'reminder' | 'stock'
+export const AI_UPDATE_KINDS: AiUpdateKind[] = [
+  'todo',
+  'task',
+  'idea',
+  'goal',
+  'trip',
+  'reminder',
+  'stock',
+]
+/** A new description for one existing item, as the model proposed it. */
+export interface AiItemUpdate {
+  kind: AiUpdateKind
+  id: number
+  description: string
+}
+/** The kinds a create block may make. */
+export type AiNewKind = 'todo' | 'task' | 'goal'
+export const AI_NEW_KINDS: AiNewKind[] = ['todo', 'task', 'goal']
+/** One new item the model proposed — created only when the user taps the card. */
+export interface AiNewItem {
+  kind: AiNewKind
+  title: string
+  notes?: string
+  /** YYYY-MM-DD: a task's deadline, a goal's target date. A todo has none. */
+  due?: string
+  tag?: string
+  /** Sub-todos / subtasks, or a goal's checklist steps. */
+  items?: string[]
+}
+export type AiReplyPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'plan'; plan: AiPlan }
+  | { kind: 'updates'; updates: AiItemUpdate[] }
+  | { kind: 'create'; items: AiNewItem[] }
 export type AiActionKind = 'todo' | 'task' | 'event' | 'reminder' | 'note'
 export const AI_ACTION_KINDS: AiActionKind[] = ['todo', 'task', 'event', 'reminder', 'note']
 /** An action the model offered — every field but the kind is a suggestion. */
@@ -140,7 +226,7 @@ function readActions(raw: unknown): AiSuggestedAction[] {
     if (!AI_ACTION_KINDS.includes(kind)) continue
     const title = str(a.title)
     const when = str(a.when)
-    const notes = str(a.notes)
+    const notes = str(a.notes) ?? str(a.description) ?? str(a.details)
     out.push({
       kind,
       ...(title ? { title } : {}),
@@ -152,10 +238,67 @@ function readActions(raw: unknown): AiSuggestedAction[] {
   return out
 }
 
+function readUpdates(raw: unknown): AiItemUpdate[] {
+  if (!Array.isArray(raw)) return []
+  const out: AiItemUpdate[] = []
+  for (const u of raw as Record<string, unknown>[]) {
+    let kind = String(u?.type ?? u?.kind ?? '')
+    let id = Number(u?.id)
+    // The model sometimes hands back the whole ref ("todo:12") instead.
+    const ref = /^\[?(\w+):(\d+)\]?$/.exec(String(u?.ref ?? u?.id ?? ''))
+    if (ref) {
+      kind ||= ref[1]
+      id = Number(ref[2])
+    }
+    const description = [u?.description, u?.notes, u?.desc].find(
+      (v): v is string => typeof v === 'string' && !!v.trim(),
+    )
+    if (!AI_UPDATE_KINDS.includes(kind as AiUpdateKind) || !Number.isFinite(id) || !description)
+      continue
+    out.push({ kind: kind as AiUpdateKind, id, description: description.trim() })
+  }
+  return out
+}
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/
+
+function readCreate(raw: unknown): AiNewItem[] {
+  if (!Array.isArray(raw)) return []
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
+  const out: AiNewItem[] = []
+  for (const c of raw as Record<string, unknown>[]) {
+    const kind = String(c?.type ?? c?.kind ?? '').toLowerCase() as AiNewKind
+    const title = str(c?.title) ?? str(c?.text)
+    if (!AI_NEW_KINDS.includes(kind) || !title) continue
+    const notes = str(c.notes) ?? str(c.description) ?? str(c.details)
+    // "2026-11-05T10:00" still names a day; keep just the day.
+    const due = str(c.due ?? c.deadline ?? c.targetDate ?? c.when)?.slice(0, 10)
+    const tag = str(c.tag)?.replace(/^#/, '').split(/\s+/)[0]
+    const rawItems = Array.isArray(c.items) ? c.items : Array.isArray(c.steps) ? c.steps : []
+    const items = (rawItems as unknown[])
+      .map((i) =>
+        typeof i === 'string' ? i.trim() : str((i as Record<string, unknown>)?.title ?? (i as Record<string, unknown>)?.text) ?? '',
+      )
+      .filter(Boolean)
+      .slice(0, 30)
+    out.push({
+      kind,
+      title: title.replace(/\s+/g, ' '),
+      ...(notes ? { notes } : {}),
+      ...(due && DAY.test(due) && kind !== 'todo' ? { due } : {}),
+      ...(tag ? { tag } : {}),
+      ...(items.length ? { items } : {}),
+    })
+  }
+  return out.slice(0, 20)
+}
+
 interface ReadBlock {
   plan?: AiPlan
   followups?: string[]
   actions?: AiSuggestedAction[]
+  updates?: AiItemUpdate[]
+  create?: AiNewItem[]
 }
 
 function readBlock(json: string): ReadBlock {
@@ -165,19 +308,33 @@ function readBlock(json: string): ReadBlock {
       target?: unknown
       followups?: unknown
       actions?: unknown
+      updates?: unknown
+      create?: unknown
     }
     const out: ReadBlock = {}
+    const create = readCreate(raw.create)
+    if (create.length) out.create = create
     const actions = readActions(raw.actions)
     if (actions.length) out.actions = actions
+    const updates = readUpdates(raw.updates)
+    if (updates.length) out.updates = updates
     if (Array.isArray(raw.steps)) {
       const steps = raw.steps
-        .map((s) =>
-          typeof s === 'string' ? { text: s } : (s as { text?: unknown; mins?: unknown }),
-        )
-        .filter((s) => typeof s.text === 'string' && s.text.trim())
+        .map((s) => (typeof s === 'string' ? { text: s } : ((s ?? {}) as Record<string, unknown>)))
+        .map((s) => {
+          const first = (...vs: unknown[]) =>
+            vs.find((v): v is string => typeof v === 'string' && !!v.trim())?.trim()
+          return {
+            text: first(s.text, s.title) ?? '',
+            mins: Number(s.mins),
+            notes: first(s.notes, s.description, s.details),
+          }
+        })
+        .filter((s) => s.text)
         .map((s) => ({
-          text: String(s.text).trim(),
-          ...(Number(s.mins) > 0 ? { mins: Math.round(Number(s.mins)) } : {}),
+          text: s.text,
+          ...(s.mins > 0 ? { mins: Math.round(s.mins) } : {}),
+          ...(s.notes ? { notes: s.notes } : {}),
         }))
       if (steps.length) {
         out.plan = {
@@ -215,6 +372,8 @@ export function parseAiReply(content: string): ParsedAiReply {
   const src = content || ''
   const take = (block: ReturnType<typeof readBlock>) => {
     if (block.plan) parts.push({ kind: 'plan', plan: block.plan })
+    if (block.updates) parts.push({ kind: 'updates', updates: block.updates })
+    if (block.create) parts.push({ kind: 'create', items: block.create })
     if (block.followups) followups.push(...block.followups)
     if (block.actions) actions.push(...block.actions)
   }
@@ -237,7 +396,14 @@ export function parseAiReply(content: string): ParsedAiReply {
         break
       }
       const block = readBlock(body)
-      if (lang === 'aureon' || block.plan || block.followups || block.actions) {
+      if (
+        lang === 'aureon' ||
+        block.plan ||
+        block.followups ||
+        block.actions ||
+        block.updates ||
+        block.create
+      ) {
         pushText(src.slice(textStart, at))
         take(block)
         textStart = end + 3
@@ -251,7 +417,7 @@ export function parseAiReply(content: string): ParsedAiReply {
         return done()
       }
       const block = readBlock(src.slice(at, end))
-      if (block.plan || block.followups || block.actions) {
+      if (block.plan || block.followups || block.actions || block.updates || block.create) {
         pushText(src.slice(textStart, at))
         take(block)
         textStart = end
@@ -266,7 +432,7 @@ export function parseAiReply(content: string): ParsedAiReply {
 // A block's start: a fence (```aureon, ```json or a bare ```) or, at the start
 // of a line, a bare JSON object opening on one of the block's keys.
 const STRUCT_START =
-  /(^|\n)[ \t]*(```(aureon|json)?[ \t]*(?=\n|\{|$)|\{\s*"(?:steps|followups|target|actions)")/g
+  /(^|\n)[ \t]*(```(aureon|json)?[ \t]*(?=\n|\{|$)|\{\s*"(?:steps|followups|target|actions|updates|create)")/g
 
 /** The index just past the brace that closes the object opening at `from`. */
 function closingBrace(src: string, from: number): number {
@@ -290,7 +456,17 @@ export function plainAiReply(content: string): string {
     .parts.map((p) =>
       p.kind === 'text'
         ? p.text
-        : p.plan.steps.map((s) => `- ${s.text}${s.mins ? ` (${s.mins}m)` : ''}`).join('\n'),
+        : p.kind === 'updates'
+          ? p.updates.map((u) => `- ${u.description}`).join('\n')
+          : p.kind === 'create'
+            ? p.items
+                .map(
+                  (c) =>
+                    `- ${c.kind}: ${c.title}${c.due ? ` (by ${c.due})` : ''}` +
+                    (c.items ?? []).map((i) => `\n  - ${i}`).join(''),
+                )
+                .join('\n')
+            : p.plan.steps.map((s) => `- ${s.text}${s.mins ? ` (${s.mins}m)` : ''}`).join('\n'),
     )
     .join('\n\n')
 }
@@ -378,13 +554,24 @@ export function aiActionDraft(
   const own = parsed.actions.find((a) => a.kind === kind)
   const any = own ?? parsed.actions[0]
   const plan = parsed.parts.find((p) => p.kind === 'plan')?.plan
-  const steps = plan?.steps.map((s) => `- ${s.text}${s.mins ? ` (${s.mins}m)` : ''}`).join('\n')
+  const steps = plan?.steps
+    .map((s) => {
+      const head = `- ${s.text}${s.mins ? ` (${s.mins}m)` : ''}`
+      return s.notes ? `${head}\n  ${s.notes.replace(/\n/g, '\n  ')}` : head
+    })
+    .join('\n')
   const fallbackTitle =
     src.chatTitle && src.chatTitle !== 'New chat' ? src.chatTitle : firstSentence(src.reply)
 
   const title = any?.title ?? plan?.target ?? fallbackTitle
+  // Nothing the reply said is left behind: the model's own notes, then the
+  // plan's steps with their details, and failing both the reply itself — an
+  // item with an empty description loses whatever the chat worked out.
+  const detail = [any?.notes, steps].filter((p): p is string => !!p?.trim()).join('\n\n')
   const notes =
-    kind === 'note' ? (own?.notes ?? plainAiReply(src.reply)) : (any?.notes ?? steps ?? '')
+    kind === 'note'
+      ? (own?.notes ?? plainAiReply(src.reply))
+      : detail || plainAiReply(src.reply)
   let when = ''
   if (kind === 'event' || kind === 'reminder') {
     when = own?.when && own.when.includes('T') ? own.when : nextSlot(src.now)

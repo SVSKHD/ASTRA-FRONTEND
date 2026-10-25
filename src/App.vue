@@ -14,6 +14,7 @@ import CursorTail from '@/components/CursorTail.vue'
 import IconSprite from '@/components/ui/IconSprite.vue'
 import ProgressStack from '@/components/ProgressStack.vue'
 import WarningTray from '@/components/WarningTray.vue'
+import AutoCorrectBadge from '@/components/AutoCorrectBadge.vue'
 // "How to add a goal" (section 23). Mounted once, here, because it is opened
 // from the goals toolbar, from the goal dialog and from /ui — three surfaces on
 // two routes, and a panel mounted in each would be three of them. Loaded on
@@ -62,6 +63,8 @@ onMounted(() => {
   <CursorTail v-if="route.name !== 'profile'" />
   <RouterView />
   <GoalHelpPanel v-if="app.goalHelpOpen" />
+  <!-- Progress of the app-wide typo fixer, next to whichever field it is on. -->
+  <AutoCorrectBadge />
   <!-- The bottom-right corner, as one column so its two tenants never land on
        each other: work in flight as progress cards (route changes, the sync,
        long jobs such as a bulk delete — replacing the two-pixel bar that used

@@ -110,6 +110,7 @@ const unused = computed(() =>
         :id="fieldId"
         ref="input"
         v-model="draft"
+        data-autocorrect="off"
         class="ui-control__input ui-tags__input"
         :placeholder="modelValue.length ? '' : placeholder"
         :disabled="disabled || atLimit"

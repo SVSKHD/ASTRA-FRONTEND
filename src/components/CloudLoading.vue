@@ -31,7 +31,7 @@ const { cloudError } = storeToRefs(app)
     <div :style="s.dialogOverlay"></div>
     <div :style="s.authCard">
       <span :style="s.authLogo">AUREON</span>
-      <span :style="s.finMeta">Loading your Firebase workspace…</span>
+      <span :style="s.finMeta">Loading your workspace…</span>
       <span :style="s.loadingOrbit"></span>
     </div>
   </template>

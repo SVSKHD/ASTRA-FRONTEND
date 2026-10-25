@@ -113,7 +113,12 @@ function dotStyle(tag: string) {
     <div class="tm">
       <!-- Add -->
       <form class="tm__add" @submit.prevent="create">
-        <TextInput v-model="creating" placeholder="New tag…" aria-label="New tag" />
+        <TextInput
+          v-model="creating"
+          placeholder="New tag…"
+          aria-label="New tag"
+          :autocorrect="false"
+        />
         <button type="submit" class="tm__btn tm__btn--accent" :disabled="!isNew">Add</button>
       </form>
 
@@ -135,6 +140,7 @@ function dotStyle(tag: string) {
           size="sm"
           placeholder="Filter…"
           aria-label="Filter tags"
+          :autocorrect="false"
           class="tm__filter"
         />
       </div>

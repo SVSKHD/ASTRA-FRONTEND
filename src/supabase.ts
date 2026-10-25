@@ -33,3 +33,24 @@ export const supabase: SupabaseClient | null = supabaseEnabled
       },
     })
   : null
+
+/**
+ * The account in the session supabase-js keeps on this device, read without a
+ * network call. Offline with an expired access token, supabase-js reports "no
+ * session" yet keeps the stored one (a failed refresh is retryable), so this
+ * is still the signed-in owner — the app opens offline as them, and the next
+ * successful refresh confirms it. Null after a real sign-out, which removes
+ * the stored session.
+ */
+export function storedSessionUser(): import('@supabase/supabase-js').User | null {
+  if (!supabaseEnabled) return null
+  try {
+    // supabase-js's default storage key: sb-<project ref>-auth-token.
+    const refId = new URL(url).hostname.split('.')[0]
+    const raw = localStorage.getItem(`sb-${refId}-auth-token`)
+    const parsed = raw ? (JSON.parse(raw) as { user?: { id?: string } }) : null
+    return parsed?.user?.id ? (parsed.user as import('@supabase/supabase-js').User) : null
+  } catch {
+    return null
+  }
+}

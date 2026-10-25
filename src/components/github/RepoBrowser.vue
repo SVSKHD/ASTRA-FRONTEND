@@ -149,7 +149,12 @@ onMounted(() => {
     <CollapseTransition>
       <div v-if="open" class="rb__body">
         <div class="rb__row">
-          <TextInput v-model="filter" placeholder="Filter" aria-label="Filter repositories" />
+          <TextInput
+            v-model="filter"
+            placeholder="Filter"
+            aria-label="Filter repositories"
+            :autocorrect="false"
+          />
           <Button size="sm" variant="ghost" :loading="loading" @click="load">Refresh</Button>
         </div>
 

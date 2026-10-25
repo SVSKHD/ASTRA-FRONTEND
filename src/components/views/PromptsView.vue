@@ -22,7 +22,18 @@ import SearchField from '@/components/ui/SearchField.vue'
 import Switch from '@/components/ui/Switch.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import TextInput from '@/components/ui/TextInput.vue'
+import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import PromptGenerateDialog from '@/components/PromptGenerateDialog.vue'
 import type { IconName } from '@/components/ui/icons'
+import { useConnectivity } from '@/composables/useConnectivity'
+import {
+  REPLY_STYLES,
+  fillBlanks,
+  improveTemplate,
+  withReplyStyle,
+  type DraftTemplate,
+  type ReplyStyle,
+} from '@/utils/promptAi'
 import {
   BUILT_IN_PROMPTS,
   BUILT_IN_TOPICS,
@@ -71,6 +82,7 @@ const ownEntries = computed<PromptEntry[]>(() =>
     topic: p.topic,
     title: p.title,
     body: p.body,
+    ...(p.useCase ? { useCase: p.useCase } : {}),
   })),
 )
 // The user's own first: they made them because they use them.
@@ -92,7 +104,9 @@ const shown = computed(() => {
     if (topic.value === MINE && e.builtIn) return false
     if (topic.value !== ALL && topic.value !== MINE && e.topic !== topic.value) return false
     if (!q) return true
-    return (e.title + ' ' + e.topic + ' ' + e.body).toLowerCase().includes(q)
+    return (e.title + ' ' + e.topic + ' ' + (e.useCase ?? '') + ' ' + e.body)
+      .toLowerCase()
+      .includes(q)
   })
 })
 // Under a heading per topic, so a long library reads as sections rather than
@@ -143,8 +157,13 @@ const baseTokens = computed(() => (selected.value ? estimateTokens(selected.valu
 // Compact squeezes the whitespace out of the finished prompt. On by default:
 // nobody wants to pay for the indentation of a pasted stack trace.
 const compact = ref(true)
+// One line at the end asking the model for a clean, neat reply — Concise,
+// Steps or Sections — or nothing (Any). Remembered for the visit.
+const replyStyle = ref<ReplyStyle>('concise')
 const raw = computed(() => (selected.value ? fillPrompt(selected.value.body, values.value) : ''))
-const output = computed(() => (compact.value ? compactPrompt(raw.value) : raw.value))
+const output = computed(() =>
+  withReplyStyle(compact.value ? compactPrompt(raw.value) : raw.value, replyStyle.value),
+)
 const tokens = computed(() => estimateTokens(output.value))
 const saved = computed(() => Math.max(0, estimateTokens(raw.value) - tokens.value))
 // The meter: how heavy the prompt is, on a scale where 500 tokens is full —
@@ -163,6 +182,50 @@ function pick(key: string) {
 }
 function clearFills() {
   fills[selectedKey.value] = {}
+}
+
+// ---- AI ---------------------------------------------------------------------
+const { isOnline } = useConnectivity()
+
+// Fill with AI: the situation in plain words, kept per template like the fills.
+const situations = reactive<Record<string, string>>({})
+const fillBusy = ref(false)
+async function aiFill() {
+  const e = selected.value
+  const text = (situations[selectedKey.value] ?? '').trim()
+  if (!e || !text || fillBusy.value) return
+  fillBusy.value = true
+  try {
+    const got = await fillBlanks(e.body, blanks.value, text)
+    const mine = fills[selectedKey.value] ?? (fills[selectedKey.value] = {})
+    // What the user typed stays; the AI only fills what is still empty.
+    let n = 0
+    for (const [b, v] of Object.entries(got)) {
+      if (mine[b]?.trim()) continue
+      mine[b] = v
+      n++
+    }
+    app.showToastMsg(n ? `Filled ${n} blank${n === 1 ? '' : 's'}` : 'Nothing new to fill in')
+  } catch (err) {
+    app.showToastMsg((err as Error).message || 'Could not fill the blanks')
+  } finally {
+    fillBusy.value = false
+  }
+}
+
+// Generate with AI: several templates for a use case, saved as the user's own.
+const generateOpen = ref(false)
+function saveGenerated(drafts: DraftTemplate[]) {
+  let first: number | null = null
+  for (const d of drafts) {
+    const id = app.addPrompt(d)
+    if (first == null && id != null) first = id
+  }
+  generateOpen.value = false
+  if (first == null) return
+  topic.value = MINE
+  selectedKey.value = 'u:' + first
+  app.showToastMsg(`Saved ${drafts.length} template${drafts.length === 1 ? '' : 's'}`)
 }
 
 const copied = ref(false)
@@ -191,7 +254,28 @@ const editor = reactive({
   topic: '',
   title: '',
   body: '',
+  useCase: '',
 })
+// Improve with AI: the same template, clearer and tighter, same blanks.
+const improveBusy = ref(false)
+async function aiImprove() {
+  if (!editor.body.trim() || improveBusy.value) return
+  improveBusy.value = true
+  try {
+    const out = await improveTemplate(editor.body, editor.useCase)
+    if (!out) {
+      app.showToastMsg('The AI rewrite dropped a blank, so it was not used')
+      return
+    }
+    editor.body = out.body
+    if (out.useCase && !editor.useCase.trim()) editor.useCase = out.useCase
+    app.showToastMsg('Improved — check it, then save')
+  } catch (err) {
+    app.showToastMsg((err as Error).message || 'Could not improve the template')
+  } finally {
+    improveBusy.value = false
+  }
+}
 const editorBlanks = computed(() => blanksOf(editor.body))
 const editorTokens = computed(() => estimateTokens(compactPrompt(editor.body)))
 const topicSuggestions = computed(() => [
@@ -199,7 +283,7 @@ const topicSuggestions = computed(() => [
 ])
 
 function openNew() {
-  Object.assign(editor, { open: true, id: null, topic: '', title: '', body: '' })
+  Object.assign(editor, { open: true, id: null, topic: '', title: '', body: '', useCase: '' })
 }
 function openEdit(e: PromptEntry) {
   if (e.builtIn) {
@@ -210,6 +294,7 @@ function openEdit(e: PromptEntry) {
       topic: e.topic,
       title: e.title + ' (mine)',
       body: e.body,
+      useCase: e.useCase ?? '',
     })
     return
   }
@@ -219,18 +304,25 @@ function openEdit(e: PromptEntry) {
     topic: e.topic,
     title: e.title,
     body: e.body,
+    useCase: e.useCase ?? '',
   })
 }
 function saveEditor() {
   if (!editor.body.trim()) return
+  const fields = {
+    topic: editor.topic,
+    title: editor.title,
+    body: editor.body,
+    useCase: editor.useCase,
+  }
   if (editor.id == null) {
-    const id = app.addPrompt({ topic: editor.topic, title: editor.title, body: editor.body })
+    const id = app.addPrompt(fields)
     if (id != null) {
       selectedKey.value = 'u:' + id
       app.showToastMsg('Template saved')
     }
   } else {
-    app.updatePrompt(editor.id, { topic: editor.topic, title: editor.title, body: editor.body })
+    app.updatePrompt(editor.id, fields)
     app.showToastMsg('Template updated')
   }
   editor.open = false
@@ -262,6 +354,15 @@ defineExpose({ focus: openNew })
           <span class="pv__sub"
             >{{ entries.length }} templates · {{ ownEntries.length }} yours</span
           >
+          <button
+            type="button"
+            class="pv__gen"
+            title="Describe a use case — AI writes templates for it"
+            :disabled="!isOnline"
+            @click="generateOpen = true"
+          >
+            <Icon name="sparkles" size="xs" /> Generate
+          </button>
           <button
             type="button"
             class="pv__new"
@@ -310,6 +411,7 @@ defineExpose({ focus: openNew })
               </span>
               <span class="pv__row-text">
                 <span class="pv__row-title">{{ e.title }}</span>
+                <span v-if="e.useCase" class="pv__row-use">{{ e.useCase }}</span>
                 <span class="pv__row-meta">
                   {{ plural(blanksOf(e.body).length, 'blank') }} · ≈{{ estimateTokens(e.body) }}
                   tokens
@@ -371,6 +473,9 @@ defineExpose({ focus: openNew })
                   </span>
                 </span>
                 <h3 class="pv__title">{{ selected.title }}</h3>
+                <p v-if="selected.useCase" class="pv__use">
+                  <Icon name="target" size="xs" />{{ selected.useCase }}
+                </p>
                 <span v-if="!isMobile" class="pv__stats">
                   <span class="pv__stat"
                     ><Icon name="list" size="xs" />{{ plural(blanks.length, 'blank') }}</span
@@ -425,6 +530,29 @@ defineExpose({ focus: openNew })
                   <Icon name="rotate-ccw" size="xs" /> Clear
                 </button>
               </div>
+              <!-- Fill with AI: say what it is for, the AI fills the empty blanks. -->
+              <form class="pv__aifill" @submit.prevent="aiFill">
+                <TextInput
+                  v-model="situations[selectedKey]"
+                  :placeholder="
+                    isOnline
+                      ? 'Describe your situation — AI fills the blanks'
+                      : 'Offline — filling with AI needs a connection'
+                  "
+                  aria-label="Your situation, for AI to fill the blanks"
+                  :disabled="fillBusy || !isOnline"
+                  icon="sparkles"
+                />
+                <Button
+                  type="submit"
+                  variant="tinted"
+                  size="sm"
+                  :loading="fillBusy"
+                  :disabled="!situations[selectedKey]?.trim() || fillBusy || !isOnline"
+                >
+                  Fill with AI
+                </Button>
+              </form>
               <div class="pv__fields">
                 <div
                   v-for="b in blanks"
@@ -467,6 +595,21 @@ defineExpose({ focus: openNew })
                   <span v-else class="pv__hole">{{ p.name }}</span>
                 </template>
               </p>
+            </div>
+
+            <!-- Reply style: one line on the end of the prompt asking for a
+                 clean, neat answer. It shows in the copied text, not the preview. -->
+            <div class="pv__style">
+              <span class="pv__style-label">Ask for a reply that is</span>
+              <SegmentedControl
+                v-model="replyStyle"
+                :options="REPLY_STYLES"
+                size="sm"
+                aria-label="Reply style"
+              />
+              <span v-if="replyStyle !== 'any'" class="pv__style-line">{{
+                REPLY_STYLES.find((s) => s.value === replyStyle)?.line
+              }}</span>
             </div>
 
             <!-- A phone's sheet has no room for Customise in its head. -->
@@ -535,6 +678,13 @@ defineExpose({ focus: openNew })
       </section>
     </div>
 
+    <PromptGenerateDialog
+      :open="generateOpen"
+      :topics="topicSuggestions"
+      @close="generateOpen = false"
+      @save="saveGenerated"
+    />
+
     <!-- ---- create / edit ---- -->
     <Modal
       :open="editor.open"
@@ -560,11 +710,17 @@ defineExpose({ focus: openNew })
             {{ t }}
           </button>
         </div>
+        <TextInput
+          v-model="editor.useCase"
+          label="Use case"
+          placeholder="When to use it, e.g. Friday status note for the team"
+        />
         <TextArea
           v-model="editor.body"
           label="Prompt"
           :rows="6"
           max-height="320px"
+          :autocorrect="false"
           placeholder="Summarise in {{length}} for {{audience}}. Keep key numbers.&#10;{{text}}"
           hint="Write each fill-in as {{name}}. Keep it short — every word is a token."
         />
@@ -573,6 +729,16 @@ defineExpose({ focus: openNew })
             <span v-if="!editorBlanks.length">No blanks yet</span>
             <span v-for="b in editorBlanks" :key="b" class="pv__hole">{{ b }}</span>
           </span>
+          <Button
+            variant="tinted"
+            size="sm"
+            :loading="improveBusy"
+            :disabled="!editor.body.trim() || improveBusy || !isOnline"
+            title="Rewrite it clearer and tighter, keeping its blanks"
+            @click="aiImprove"
+          >
+            <Icon name="sparkles" size="xs" /> Improve with AI
+          </Button>
           <span class="pv__editor-tokens">≈{{ editorTokens }} tokens</span>
         </div>
       </div>
@@ -656,6 +822,35 @@ defineExpose({ focus: openNew })
 .pv__new:hover {
   filter: brightness(1.06);
 }
+/* "Generate": the AI way in, a soft pill beside the round New. */
+.pv__gen {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  align-self: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--pv-wash-strong);
+  color: var(--theme-text);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.pv__gen:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pv__gen:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+.pv__cols.is-stacked .pv__gen {
+  grid-area: gen;
+}
 .pv__new:focus-visible {
   outline: 2px solid var(--theme-accent);
   outline-offset: 2px;
@@ -664,10 +859,10 @@ defineExpose({ focus: openNew })
    corner spanning both lines. */
 .pv__cols.is-stacked .pv__head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-areas:
-    'sub new'
-    'h new';
+    'sub gen new'
+    'h gen new';
   align-items: center;
   row-gap: 2px;
 }
@@ -844,6 +1039,14 @@ defineExpose({ focus: openNew })
   overflow: hidden;
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pv__row-use {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--theme-dim);
+  font-size: var(--text-xs);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -1092,6 +1295,52 @@ defineExpose({ focus: openNew })
   font-weight: var(--weight-semibold);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.pv__use {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--theme-dim);
+  font-size: var(--text-sm);
+}
+.pv__use :deep(svg) {
+  flex-shrink: 0;
+  color: var(--theme-accent);
+}
+/* Fill with AI: one line, a field and its button. */
+.pv__aifill {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.pv__aifill > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+/* Reply style: a label, the choice, and the line it adds. */
+.pv__style {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.pv__style-label {
+  color: var(--theme-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.pv__style-line {
+  flex: 1 0 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--theme-dim);
+  font-size: var(--text-xs);
+  font-style: italic;
 }
 .pv__stats {
   display: flex;

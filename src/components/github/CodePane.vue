@@ -489,6 +489,7 @@ watch(
               :auto-grow="false"
               aria-label="File contents"
               class="cdp__textarea"
+              :autocorrect="false"
             />
             <div class="cdp__commit">
               <span class="cdp__commit-icon"><Icon name="check" size="sm" /></span>

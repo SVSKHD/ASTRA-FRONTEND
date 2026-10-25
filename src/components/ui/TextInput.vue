@@ -48,8 +48,14 @@ const props = withDefaults(
     maxlength?: number
     autocomplete?: string
     inputmode?: 'text' | 'numeric' | 'decimal' | 'email' | 'url' | 'search' | 'tel'
+    /**
+     * Fix typos with AI after a pause in typing (utils/autoCorrectFields). Only
+     * ever runs on a plain text field — never number, email, password, url,
+     * search or tel. False marks the input `data-autocorrect="off"`.
+     */
+    autocorrect?: boolean
   }>(),
-  { type: 'text', size: 'md' },
+  { type: 'text', size: 'md', autocorrect: true },
 )
 const emit = defineEmits<{
   // focus and blur are forwarded explicitly rather than left to attribute
@@ -80,6 +86,10 @@ const isInvalid = computed(() => props.invalid || !!props.error)
 const showClear = computed(
   () => props.clearable && !!String(props.modelValue ?? '') && !props.disabled && !props.readonly,
 )
+
+function onInput(event: Event) {
+  emit('update:modelValue', (event.target as HTMLInputElement).value)
+}
 
 function clear() {
   emit('update:modelValue', '')
@@ -124,7 +134,8 @@ defineExpose({
         :aria-label="ariaLabel || undefined"
         :aria-invalid="isInvalid"
         :aria-describedby="describedBy"
-        @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+        :data-autocorrect="autocorrect ? undefined : 'off'"
+        @input="onInput"
         @focus="emit('focus', $event)"
         @blur="emit('blur', $event)"
       />

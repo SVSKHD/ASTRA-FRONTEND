@@ -36,6 +36,11 @@ const emit = defineEmits<{ toggle: [boolean] }>()
   border-radius: var(--radius-md);
   background: var(--glass-card);
   overflow: hidden;
+  /* `overflow: hidden` drops a flex item's minimum height to 0, so in a
+     fixed-height column (the Todos and Tasks lists) the accordion was squeezed
+     and clipped its own content — a scrolling section inside it lost its
+     bottom, and nothing overflowed for the column to scroll either. */
+  flex-shrink: 0;
 }
 .ui-accordion__head {
   display: flex;

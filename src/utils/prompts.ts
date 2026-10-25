@@ -18,6 +18,8 @@ export interface PromptEntry {
   topic: string
   title: string
   body: string
+  /** When to reach for it, in a sentence. */
+  useCase?: string
 }
 
 const BLANK_RE = /\{\{\s*([^{}]+?)\s*\}\}/g

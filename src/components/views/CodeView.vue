@@ -134,6 +134,7 @@ defineExpose({ focus: () => {} })
           :model-value="adding"
           placeholder="owner/name"
           aria-label="Track a repository"
+          :autocorrect="false"
           @update:model-value="adding = String($event)"
           @keydown.enter="track"
         />

@@ -43,19 +43,113 @@ export interface Timestamped {
 }
 
 // ---- AI chat (Part A) -----------------------------------------------------
-// The available models. `id` is what the `/api/ai` Netlify function forwards to
-// the Gemini API (it keeps the same list server-side); the label is what the
-// header dropdown and the per-message badge show. Kept as data so adding a model
-// later is one line here and one in netlify/functions/ai.ts.
+// Two providers behind `/api/ai` (netlify/functions/ai.ts), picked in the AI
+// tab's header together with a model (utils/aiSettings). When the picked one
+// refuses a turn, the other answers and the header and reply badge say so.
+export type AiProvider = 'bytez' | 'openrouter'
 export interface AiModel {
   id: string
   label: string
+  via: string
 }
-export const AI_MODELS: AiModel[] = [
-  { id: 'gemini-2.5-flash', label: 'Gemini Flash' },
-  { id: 'gemini-2.5-pro', label: 'Gemini Pro' },
-  { id: 'gemini-2.5-flash-lite', label: 'Gemini Flash Lite' },
-]
+export interface AiModelOption {
+  id: string
+  label: string
+  /** A short hint shown beside the name in the picker. */
+  note?: string
+  /**
+   * What the model makes. 'text' models answer in the chat; 'image' models
+   * draw pictures, which the chat cannot show yet, so they are listed (to make
+   * the difference clear) but cannot be picked.
+   */
+  output: 'text' | 'image'
+  /** Can read an image you give it (vision), as well as text. */
+  vision?: boolean
+  /** USD per million tokens, from OpenRouter's model list. Bytez bills per second instead. */
+  price?: { in: number; out: number }
+}
+export const AI_PROVIDERS: Record<
+  AiProvider,
+  { label: string; models: AiModelOption[]; defaultModel: string; cheapModel: string }
+> = {
+  bytez: {
+    label: 'Bytez',
+    defaultModel: 'Qwen/Qwen3-4B',
+    cheapModel: 'Qwen/Qwen3-4B',
+    // Open models from the Bytez catalog. Any other catalog id can be typed in.
+    models: [
+      { id: 'Qwen/Qwen3-4B', label: 'Qwen3 4B', note: 'default', output: 'text' },
+      { id: 'Qwen/Qwen3-8B', label: 'Qwen3 8B', output: 'text' },
+      { id: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen2.5 7B Instruct', output: 'text' },
+      { id: 'meta-llama/Llama-3.1-8B-Instruct', label: 'Llama 3.1 8B Instruct', output: 'text' },
+      { id: 'google/gemma-3-4b-it', label: 'Gemma 3 4B', output: 'text', vision: true },
+      { id: 'microsoft/Phi-3-mini-4k-instruct', label: 'Phi-3 Mini', output: 'text' },
+    ],
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    defaultModel: 'google/gemini-2.5-flash',
+    cheapModel: 'google/gemini-2.5-flash-lite',
+    // Ids, abilities and prices checked against OpenRouter's model list
+    // (openrouter.ai/api/v1/models); any other slug can be typed in.
+    models: [
+      // Text: write replies. All of these but DeepSeek can also read an image.
+      { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', note: 'default', output: 'text', vision: true, price: { in: 0.3, out: 2.5 } },
+      { id: 'google/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', note: 'cheapest', output: 'text', vision: true, price: { in: 0.1, out: 0.4 } },
+      { id: 'google/gemini-3.8-flash', label: 'Gemini 3.8 Flash', output: 'text', vision: true, price: { in: 0.75, out: 3.75 } },
+      { id: 'anthropic/claude-haiku-5.5', label: 'Claude Haiku 5.5', note: 'fast', output: 'text', vision: true, price: { in: 0.1, out: 0.5 } },
+      { id: 'anthropic/claude-sonnet-5.5', label: 'Claude Sonnet 5.5', output: 'text', vision: true, price: { in: 2, out: 10 } },
+      { id: 'anthropic/claude-opus-5.5', label: 'Claude Opus 5.5', note: 'most capable', output: 'text', vision: true, price: { in: 4, out: 20 } },
+      { id: 'openai/gpt-5.6-luna', label: 'GPT-5.6 Luna', output: 'text', vision: true, price: { in: 0.2, out: 1.2 } },
+      { id: 'openai/gpt-5.5', label: 'GPT-5.5', output: 'text', vision: true, price: { in: 5, out: 30 } },
+      { id: 'deepseek/deepseek-v3.2', label: 'DeepSeek V3.2', output: 'text', price: { in: 0.259, out: 0.8 } },
+      { id: 'qwen/qwen3.8-flash', label: 'Qwen3.8 Flash', output: 'text', vision: true, price: { in: 0.15, out: 0.47 } },
+      { id: 'meta-llama/llama-4-maverick', label: 'Llama 4 Maverick', output: 'text', vision: true, price: { in: 0.188, out: 0.652 } },
+      { id: 'mistralai/mistral-medium-3-5', label: 'Mistral Medium 3.5', output: 'text', vision: true, price: { in: 1.5, out: 7.5 } },
+      // Image: draw pictures from a prompt (text → image). Not usable in chat yet.
+      { id: 'google/gemini-2.5-flash-image', label: 'Nano Banana (Gemini 2.5 Flash Image)', output: 'image', vision: true, price: { in: 0.3, out: 2.5 } },
+      { id: 'google/gemini-3.1-flash-lite-image', label: 'Nano Banana 2 Lite', output: 'image', vision: true, price: { in: 0.25, out: 1.5 } },
+      { id: 'google/gemini-3.1-flash-image', label: 'Nano Banana 2', output: 'image', vision: true, price: { in: 0.5, out: 3 } },
+      { id: 'google/gemini-3-pro-image', label: 'Nano Banana Pro', output: 'image', vision: true, price: { in: 2, out: 12 } },
+      { id: 'openai/gpt-5-image-mini', label: 'GPT-5 Image Mini', output: 'image', vision: true, price: { in: 2.5, out: 2 } },
+      { id: 'openai/gpt-5-image', label: 'GPT-5 Image', output: 'image', vision: true, price: { in: 10, out: 10 } },
+      { id: 'openai/gpt-5.4-image-2', label: 'GPT-5.4 Image 2', output: 'image', vision: true, price: { in: 8, out: 15 } },
+    ],
+  },
+}
+/** The out-of-the-box choice: Bytez (BYTEZ_API_KEY), as asked for. */
+export const AI_MODEL: AiModel = {
+  id: AI_PROVIDERS.bytez.defaultModel,
+  label: 'Qwen3 4B',
+  via: AI_PROVIDERS.bytez.label,
+}
+/**
+ * A readable name for any model id a message carries — one from the catalog
+ * above, or any other slug (`google/gemini-2.5-pro`, an older Claude id): the
+ * vendor prefix and dated suffix go, words are capitalised.
+ */
+export function aiModelInfo(id: string): AiModelOption | undefined {
+  for (const p of Object.values(AI_PROVIDERS)) {
+    const hit = p.models.find((m) => m.id === id)
+    if (hit) return hit
+  }
+  return undefined
+}
+/** Whether a model draws pictures rather than writing text. */
+export function isImageModel(id: string): boolean {
+  return aiModelInfo(id)?.output === 'image' || /-image(-|$)|image-\d|dall-e|flux|stable-diffusion/i.test(id)
+}
+export function aiModelLabel(id: string): string {
+  const hit = aiModelInfo(id)
+  if (hit) return hit.label
+  if (id === AI_MODEL.id) return AI_MODEL.label
+  const name = id.split('/').pop() ?? id
+  return name
+    .replace(/-\d{6,8}$/, '')
+    .split('-')
+    .map((w) => (/^\d/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ')
+}
 export type AiRole = 'user' | 'assistant'
 export interface AiMessage {
   id: number
@@ -70,6 +164,12 @@ export interface AiMessage {
   // Plan cards in this reply whose steps were already added, by their index
   // among the reply's plans — so the button reads "Added" after a reload.
   appliedPlans?: number[]
+  // Description-update cards in this reply that were applied, by their index
+  // among the reply's update cards — same idea as appliedPlans.
+  appliedUpdates?: number[]
+  // New-item cards (todos, tasks, goals) already created, by their index among
+  // the reply's create cards — same idea again.
+  appliedCreates?: number[]
   createdAt: number
 }
 export interface AiChat {
@@ -160,6 +260,8 @@ export interface PromptTemplate {
   topic: string
   title: string
   body: string
+  /** When to reach for it, in a sentence. Optional; older templates have none. */
+  useCase?: string
   createdAt: number
   updatedAt: number
 }

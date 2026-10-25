@@ -144,6 +144,7 @@ function tagText(tag: string) {
             v-model="creating"
             placeholder="Find or create a tag…"
             aria-label="Find or create a tag"
+            :autocorrect="false"
             @keydown="onKey"
           />
           <button v-if="isNew" :style="s.addBtn2" @click="create">

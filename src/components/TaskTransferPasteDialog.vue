@@ -162,6 +162,7 @@ function importNow() {
         ref="area"
         v-model="raw"
         :label="`${targetNoun} JSON or link`"
+        :autocorrect="false"
         :placeholder="placeholder"
         :error="parseError"
         :rows="12"

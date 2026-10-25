@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -14,61 +14,73 @@ vi.mock('@/composables/useSettings', () => ({
   }),
 }))
 import TradeRulesDialog from './TradeRulesDialog.vue'
-import NoteEditor from '@/components/notes/NoteEditor.vue'
-import MarkdownView from '@/components/notes/MarkdownView.vue'
+import RulesEditor from './RulesEditor.vue'
 import UnsavedSheet from '@/components/ui/UnsavedSheet.vue'
 import { useUiStore } from '@/stores/ui'
 const mountDialog = () =>
   mount(TradeRulesDialog, {
-    global: { stubs: { teleport: true, NoteEditor: true, MarkdownView: true, UnsavedSheet: true } },
+    global: { stubs: { teleport: true, RulesEditor: true, UnsavedSheet: true } },
   })
+const button = (wrapper: ReturnType<typeof mountDialog>, text: string) =>
+  wrapper.findAll('button').find((b) => b.text() === text)!
+
 describe('personal trade book rules', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     setActivePinia(createPinia())
     settings.value = { tradeBookRules: '' }
     state.save.mockReset()
     useUiStore().tradeRulesOpen = true
   })
-  it('creates rules and returns to reading mode after a successful save', async () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('shows the editor straight away and saves on its own after typing stops', async () => {
     state.save.mockImplementation(async (patch) => {
       settings.value = patch
       return true
     })
     const wrapper = mountDialog()
-    expect(wrapper.findComponent(NoteEditor).exists()).toBe(true)
-    wrapper.findComponent(NoteEditor).vm.$emit('update:modelValue', '# My rules\n- Check my setup')
+    const editor = wrapper.findComponent(RulesEditor)
+    expect(editor.exists()).toBe(true)
+    editor.vm.$emit('update:modelValue', '# My rules\n\n- [ ] Check my setup')
     await wrapper.vm.$nextTick()
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Save rules')!
-      .trigger('click')
+    expect(state.save).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1000)
     await flushPromises()
-    expect(state.save).toHaveBeenCalledWith({ tradeBookRules: '# My rules\n- Check my setup' })
-    expect(wrapper.findComponent(MarkdownView).props('source')).toBe('# My rules\n- Check my setup')
-    expect(wrapper.findComponent(NoteEditor).exists()).toBe(false)
+    expect(state.save).toHaveBeenCalledWith({
+      tradeBookRules: '# My rules\n\n- [ ] Check my setup',
+    })
+    expect(wrapper.text()).toContain('Saved')
     wrapper.unmount()
   })
-  it('keeps a failed draft and asks before discarding changes', async () => {
+
+  it('saves pending changes on Done', async () => {
+    state.save.mockImplementation(async (patch) => {
+      settings.value = patch
+      return true
+    })
+    const wrapper = mountDialog()
+    wrapper.findComponent(RulesEditor).vm.$emit('update:modelValue', '- [ ] Wait for close')
+    await wrapper.vm.$nextTick()
+    await button(wrapper, 'Done').trigger('click')
+    await flushPromises()
+    expect(state.save).toHaveBeenCalledWith({ tradeBookRules: '- [ ] Wait for close' })
+    expect(useUiStore().tradeRulesOpen).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps a failed draft and asks before discarding it', async () => {
     settings.value.tradeBookRules = 'Saved rules'
     state.save.mockResolvedValue(false)
     const wrapper = mountDialog()
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Edit rules')!
-      .trigger('click')
-    wrapper.findComponent(NoteEditor).vm.$emit('update:modelValue', 'Unsaved rules')
+    wrapper.findComponent(RulesEditor).vm.$emit('update:modelValue', 'Unsaved rules')
     await wrapper.vm.$nextTick()
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Save rules')!
-      .trigger('click')
+    await button(wrapper, 'Done').trigger('click')
     await flushPromises()
-    expect(wrapper.findComponent(NoteEditor).props('modelValue')).toBe('Unsaved rules')
+    expect(wrapper.findComponent(RulesEditor).props('modelValue')).toBe('Unsaved rules')
     expect(wrapper.find('[role="alert"]').text()).toContain('Could not save')
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Close')!
-      .trigger('click')
     expect(wrapper.findComponent(UnsavedSheet).props('open')).toBe(true)
     expect(useUiStore().tradeRulesOpen).toBe(true)
     wrapper.findComponent(UnsavedSheet).vm.$emit('discard')

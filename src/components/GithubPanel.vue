@@ -194,7 +194,7 @@ const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShri
         </div>
         <div v-if="ghError" :style="bannerStyle(DANGER)">{{ ghError }}</div>
 
-        <TextInput placeholder="Search repositories…" v-model="search" />
+        <TextInput placeholder="Search repositories…" v-model="search" :autocorrect="false" />
 
         <div v-if="ghBusy && !ghInstalled" :style="s.ghShimmer"></div>
         <div v-else-if="!pickerRepos.length" :style="s.empty">

@@ -5,26 +5,37 @@
 // phone it is one pane at a time: the list, or the thread with a back button.
 //
 // The send loop lives in useAiChat, outside this component, so a reply keeps
-// streaming (and the chat dock follows it) after the tab is left. The Gemini key
+// streaming (and the chat dock follows it) after the tab is left. The OpenRouter key
 // never touches the client — see netlify/functions/ai.ts.
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import ListToolbar from '@/components/ListToolbar.vue'
-import Select from '@/components/ui/Select.vue'
 import SearchField from '@/components/ui/SearchField.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import Switch from '@/components/ui/Switch.vue'
 import Icon from '@/components/ui/Icon.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import ProgressRing from '@/components/ui/ProgressRing.vue'
 import AiActionDialog from '@/components/AiActionDialog.vue'
+import AiTypoFixDialog from '@/components/AiTypoFixDialog.vue'
 import type { IconName } from '@/components/ui/icons'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
 import { useConnectivity } from '@/composables/useConnectivity'
-import { aiContextInput, resolvePlanTarget, useAiChat } from '@/composables/useAiChat'
-import { AI_MODELS, type AiChat, type AiMessage } from '@/types'
+import {
+  aiContextInput,
+  resolvePlanTarget,
+  resolveUpdateTarget,
+  useAiChat,
+  type AiCreated,
+} from '@/composables/useAiChat'
+import AiCreatedDialog from '@/components/AiCreatedDialog.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
+import { AI_PROVIDERS, aiModelLabel, type AiChat, type AiMessage } from '@/types'
+import { chatTarget } from '@/utils/aiSettings'
+import AiModelPicker from '@/components/AiModelPicker.vue'
 import {
   SUGGESTION_CHIPS,
   aiContextSections,
@@ -36,7 +47,12 @@ import {
   AI_ACTION_META,
   type AiActionKind,
   type AiContextKey,
+  type AiItemUpdate,
+  type AiNewItem,
+  type AiNewKind,
+  AI_NEW_KINDS,
   type AiPlan,
+  type AiUpdateKind,
 } from '@/utils/ai'
 import { renderMarkdown } from '@/utils/markdown'
 
@@ -49,6 +65,9 @@ const ai = useAiChat()
 const { streaming, run } = ai
 
 defineExpose({ focus: () => composerRef.value?.focus() })
+
+// "Fix typos in my items": proofread existing todos, tasks, goals, reminders.
+const typoOpen = ref(false)
 
 // On a phone the list and the thread take turns.
 const mobilePane = ref<'list' | 'thread'>('thread')
@@ -199,6 +218,14 @@ function send(prompt?: string) {
   mobilePane.value = 'thread'
   void ai.send(body)
 }
+// The whole composer card is the text field: a tap anywhere on it that is not
+// one of its buttons puts the caret in the box.
+function focusComposer(e: MouseEvent) {
+  if ((e.target as HTMLElement | null)?.closest('button, textarea')) return
+  composerRef.value?.focus()
+}
+// The chat a reply is streaming into — its row in the list wears a spinner.
+const streamingChatId = computed(() => (streaming.value ? (run.value?.chatId ?? null) : null))
 function onComposerKey(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault()
@@ -207,10 +234,15 @@ function onComposerKey(e: KeyboardEvent) {
 }
 
 // --- thread -----------------------------------------------------------------
-const modelOptions = AI_MODELS.map((m) => ({ value: m.id, label: m.label }))
-const modelLabel = (mid: string) => AI_MODELS.find((m) => m.id === mid)?.label ?? mid
+// The provider and model are picked in the bar under the header
+// (AiModelPicker); the phone header repeats the model's name.
+const chosenLabel = computed(() => aiModelLabel(chatTarget().model))
+const modelTitle = computed(() => {
+  const { provider, model } = chatTarget()
+  return `${model} through ${AI_PROVIDERS[provider].label}`
+})
 const msgTokens = (m: AiMessage) => (m.tokensIn || 0) + (m.tokensOut || 0)
-// The count is Gemini's own, reported when a reply finishes: what it read (the
+// The count is the model's own, reported when a reply finishes: what it read (the
 // instructions, your data block and the whole conversation so far) plus what it
 // wrote. Reading grows every turn, which is why later replies cost more.
 function tokenTitle(m: AiMessage): string {
@@ -267,6 +299,102 @@ function addPlan(m: AiMessage, idx: number, plan: AiPlan) {
   ai.applyPlan(activeAiChat.value.id, m.id, idx, plan)
 }
 
+// Description-update cards: the n-th in a message, each row's live item, and
+// whether the card was applied. A row whose ref matches nothing is shown but
+// skipped, so a hallucinated id can never write anywhere.
+const UPDATE_KIND_LABEL: Record<AiUpdateKind, string> = {
+  todo: 'Todo',
+  task: 'Task',
+  idea: 'Idea',
+  goal: 'Goal',
+  trip: 'Trip',
+  reminder: 'Reminder',
+  stock: 'Stock',
+}
+function updatesIndex(m: AiMessage, partIndex: number): number {
+  const parts = parsed.value.get(m.id)?.parts ?? []
+  return parts.slice(0, partIndex).filter((p) => p.kind === 'updates').length
+}
+const updateTarget = (u: AiItemUpdate) => resolveUpdateTarget(app, u)
+function updatesApplied(m: AiMessage, idx: number): boolean {
+  return (m.appliedUpdates ?? []).includes(idx)
+}
+function updatesLabel(updates: AiItemUpdate[]): string {
+  const n = updates.filter((u) => updateTarget(u)).length
+  return n ? `Update ${n} description${n === 1 ? '' : 's'}` : 'Nothing to update'
+}
+function applyUpdates(m: AiMessage, idx: number, updates: AiItemUpdate[]) {
+  if (!activeAiChat.value || updatesApplied(m, idx)) return
+  ai.applyUpdates(activeAiChat.value.id, m.id, idx, updates)
+}
+
+// New-item cards: todos, tasks and goals the reply proposes from what was
+// discussed. Every row starts ticked; untick what you do not want, then Create.
+// Afterwards a pop-up lists what was made, with Open and Undo.
+const NEW_KIND_LABEL: Record<AiNewKind, string> = { todo: 'Todo', task: 'Task', goal: 'Goal' }
+const NEW_SUB_LABEL: Record<AiNewKind, string> = {
+  todo: 'sub-todo',
+  task: 'subtask',
+  goal: 'step',
+}
+function createIndex(m: AiMessage, partIndex: number): number {
+  const parts = parsed.value.get(m.id)?.parts ?? []
+  return parts.slice(0, partIndex).filter((p) => p.kind === 'create').length
+}
+function createApplied(m: AiMessage, idx: number): boolean {
+  return (m.appliedCreates ?? []).includes(idx)
+}
+// Rows unticked on each card, keyed by message and card.
+const unticked = ref<Record<string, number[]>>({})
+const cardKey = (m: AiMessage, idx: number) => `${m.id}:${idx}`
+function isTicked(m: AiMessage, idx: number, row: number): boolean {
+  return !(unticked.value[cardKey(m, idx)] ?? []).includes(row)
+}
+function setTicked(m: AiMessage, idx: number, row: number, on: boolean) {
+  const key = cardKey(m, idx)
+  const rest = (unticked.value[key] ?? []).filter((r) => r !== row)
+  unticked.value = { ...unticked.value, [key]: on ? rest : [...rest, row] }
+}
+function tickedItems(m: AiMessage, idx: number, items: AiNewItem[]): AiNewItem[] {
+  return items.filter((_, row) => isTicked(m, idx, row))
+}
+function createLabel(items: AiNewItem[]): string {
+  if (!items.length) return 'Nothing ticked'
+  const counts = AI_NEW_KINDS.map((k) => [k, items.filter((i) => i.kind === k).length] as const)
+    .filter(([, n]) => n)
+    .map(([k, n]) => `${n} ${k}${n === 1 ? '' : 's'}`)
+  return `Create ${counts.join(', ')}`
+}
+function subLine(it: AiNewItem): string {
+  const parts: string[] = []
+  if (it.due) parts.push(it.kind === 'goal' ? `target ${it.due}` : `due ${it.due}`)
+  if (it.tag) parts.push(`#${it.tag}`)
+  const n = it.items?.length ?? 0
+  if (n) parts.push(`${n} ${NEW_SUB_LABEL[it.kind]}${n === 1 ? '' : 's'}`)
+  return parts.join(' · ')
+}
+
+const created = ref<{ chatId: number; msgId: number; idx: number; items: AiCreated[] } | null>(
+  null,
+)
+const createdOpen = ref(false)
+function runCreate(m: AiMessage, idx: number, items: AiNewItem[]) {
+  const chat = activeAiChat.value
+  if (!chat || createApplied(m, idx)) return
+  const made = ai.createItems(chat.id, m.id, idx, tickedItems(m, idx, items))
+  if (!made.length) return
+  created.value = { chatId: chat.id, msgId: m.id, idx, items: made }
+  createdOpen.value = true
+}
+function undoCreate() {
+  const c = created.value
+  createdOpen.value = false
+  if (!c) return
+  ai.undoCreated(c.chatId, c.msgId, c.idx, c.items)
+  created.value = null
+  app.showToastMsg('Removed the new items')
+}
+
 // --- add from a reply ---------------------------------------------------------
 const action = ref<{ kind: AiActionKind; reply: string } | null>(null)
 function openAction(m: AiMessage, kind: AiActionKind) {
@@ -287,14 +415,46 @@ async function copyMsg(m: AiMessage) {
   }
 }
 
+// Read a reply aloud with the browser's own speech — no extra AI call. One
+// reply speaks at a time; pressing the speaker again (or on another reply)
+// stops it. Markdown marks are stripped so they are not read out.
+const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window
+const speakingId = ref<number | null>(null)
+function stopSpeaking() {
+  if (canSpeak) window.speechSynthesis.cancel()
+  speakingId.value = null
+}
+function toggleSpeak(m: AiMessage) {
+  if (!canSpeak) return
+  const wasThis = speakingId.value === m.id
+  stopSpeaking()
+  if (wasThis) return
+  const words = plainAiReply(m.content)
+    .replace(/[*_`#>~]/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .trim()
+  if (!words) return
+  const say = new SpeechSynthesisUtterance(words)
+  say.onend = say.onerror = () => {
+    if (speakingId.value === m.id) speakingId.value = null
+  }
+  speakingId.value = m.id
+  window.speechSynthesis.speak(say)
+}
+watch(aiActiveChatId, stopSpeaking)
+onBeforeUnmount(stopSpeaking)
+
 // --- what Aureon sees -------------------------------------------------------
 const ctxInput = computed(() => aiContextInput(app))
 const ctxSections = computed(() => aiContextSections(ctxInput.value))
 const ctxTokens = computed(() => estimateTokens(buildAiContext(ctxInput.value)))
 const CTX_ICONS: Record<AiContextKey, IconName> = {
-  overdueTodos: 'square-check-big',
-  todayTodos: 'square-check-big',
-  overdueTasks: 'list-checks',
+  todos: 'square-check-big',
+  tasks: 'list-checks',
+  calendar: 'calendar',
+  ideas: 'lightbulb',
+  goals: 'target',
+  stocks: 'trending-up',
   reminders: 'bell',
   money: 'indian-rupee',
   trips: 'plane',
@@ -312,6 +472,13 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
       :reply="action?.reply ?? ''"
       :chat-title="activeAiChat?.title ?? ''"
       @close="action = null"
+    />
+    <AiTypoFixDialog :open="typoOpen" @close="typoOpen = false" />
+    <AiCreatedDialog
+      :open="createdOpen"
+      :created="created?.items ?? []"
+      @close="createdOpen = false"
+      @undo="undoCreate"
     />
     <div class="ai" :class="{ 'ai--phone': isMobile }">
       <!-- chat list -->
@@ -336,6 +503,15 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                   <span class="ai-row__title">{{ ch.title }}</span>
                   <span class="ai-row__preview">{{ previewOf(ch) }}</span>
                 </div>
+                <ProgressRing
+                  v-if="ch.id === streamingChatId"
+                  class="ai-row__busy"
+                  indeterminate
+                  hide-value
+                  :size="16"
+                  :stroke="2"
+                  label="Replying"
+                />
                 <IconButton
                   size="sm"
                   :label="ch.pinned ? 'Unpin' : 'Pin'"
@@ -369,15 +545,19 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
           </IconButton>
           <div class="ai-head__titles ai-head__titles--center">
             <h2 class="ai-head__title">{{ activeAiChat?.title ?? 'New chat' }}</h2>
-            <Select
-              v-if="activeAiChat"
-              class="ai-head__model ai-head__model--bare"
-              size="sm"
-              :model-value="activeAiChat.model"
-              :options="modelOptions"
-              @update:model-value="app.setAiChatModel(activeAiChat.id, $event)"
-            />
+            <span class="ai-head__model ai-head__model--bare" :title="modelTitle">{{
+              chosenLabel
+            }}</span>
           </div>
+          <IconButton
+            size="lg"
+            variant="outline"
+            label="Fix typos in my items"
+            :disabled="!isOnline"
+            @click="typoOpen = true"
+          >
+            <Icon name="spell-check" />
+          </IconButton>
           <IconButton size="lg" variant="solid" label="New chat" @click="newChat">
             <Icon name="square-pen" />
           </IconButton>
@@ -389,19 +569,19 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
               <span class="ai-head__meta">{{ threadMeta }}</span>
             </div>
           </Transition>
-          <Select
-            v-if="activeAiChat"
-            class="ai-head__model"
-            size="sm"
-            :model-value="activeAiChat.model"
-            :options="modelOptions"
-            @update:model-value="app.setAiChatModel(activeAiChat.id, $event)"
-          />
           <Switch
             :model-value="aiUseData"
             label="Use my data"
             @update:model-value="app.setAiUseData($event)"
           />
+          <IconButton
+            variant="outline"
+            label="Fix typos in my items"
+            :disabled="!isOnline"
+            @click="typoOpen = true"
+          >
+            <Icon name="spell-check" />
+          </IconButton>
           <IconButton
             class="ai-head__ctx"
             variant="outline"
@@ -412,6 +592,11 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             <Icon name="panel-right" />
           </IconButton>
         </header>
+
+        <!-- Provider switch and model, under the header on every screen size. -->
+        <div class="ai-modelbar">
+          <AiModelPicker :disabled="streaming" />
+        </div>
 
         <button
           v-if="isMobile"
@@ -445,6 +630,15 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
               >
                 {{ chip }}
               </button>
+              <button
+                type="button"
+                class="ai-chip"
+                :style="{ '--i': SUGGESTION_CHIPS.length }"
+                :disabled="!isOnline"
+                @click="typoOpen = true"
+              >
+                Fix typos in my todos, tasks, goals &amp; events
+              </button>
             </div>
           </div>
 
@@ -471,7 +665,115 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                       v-html="renderMarkdown(part.text)"
                     ></div>
                     <div
-                      v-else
+                      v-else-if="part.kind === 'updates'"
+                      class="ai-plan"
+                      :class="{ 'is-applied': updatesApplied(m, updatesIndex(m, pi)) }"
+                    >
+                      <ul class="ai-plan__steps">
+                        <li
+                          v-for="(u, ui) in part.updates"
+                          :key="ui"
+                          class="ai-plan__step"
+                          :class="{ 'is-missing': !updateTarget(u) }"
+                          :style="{ '--i': ui }"
+                        >
+                          <span class="ai-plan__ring" aria-hidden="true"
+                            ><Icon name="check" size="xs"
+                          /></span>
+                          <span class="ai-plan__text"
+                            >{{ UPDATE_KIND_LABEL[u.kind] }} ·
+                            {{ updateTarget(u)?.title ?? 'item not found — skipped'
+                            }}<span class="ai-plan__notes">{{ u.description }}</span></span
+                          >
+                        </li>
+                      </ul>
+                      <button
+                        type="button"
+                        class="ai-plan__add"
+                        :disabled="
+                          updatesApplied(m, updatesIndex(m, pi)) ||
+                          isStreamingMsg(m.id) ||
+                          !part.updates.some((u) => updateTarget(u))
+                        "
+                        @click="applyUpdates(m, updatesIndex(m, pi), part.updates)"
+                      >
+                        <Transition name="ai-swap" mode="out-in">
+                          <span
+                            v-if="updatesApplied(m, updatesIndex(m, pi))"
+                            key="done"
+                            class="ai-plan__label"
+                          >
+                            <Icon name="check" />Updated
+                          </span>
+                          <span v-else key="add" class="ai-plan__label">
+                            <Icon name="pencil" />{{ updatesLabel(part.updates) }}
+                          </span>
+                        </Transition>
+                      </button>
+                    </div>
+                    <div
+                      v-else-if="part.kind === 'create'"
+                      class="ai-plan ai-create"
+                      :class="{ 'is-applied': createApplied(m, createIndex(m, pi)) }"
+                    >
+                      <p class="ai-create__head">
+                        <Icon name="sparkles" size="xs" />New items from this chat
+                      </p>
+                      <ul class="ai-plan__steps">
+                        <li
+                          v-for="(it, ri) in part.items"
+                          :key="ri"
+                          class="ai-plan__step ai-create__row"
+                          :class="{ 'is-off': !isTicked(m, createIndex(m, pi), ri) }"
+                          :style="{ '--i': ri }"
+                        >
+                          <Checkbox
+                            :model-value="isTicked(m, createIndex(m, pi), ri)"
+                            :aria-label="`Create ${NEW_KIND_LABEL[it.kind]}: ${it.title}`"
+                            :disabled="createApplied(m, createIndex(m, pi)) || isStreamingMsg(m.id)"
+                            @update:model-value="setTicked(m, createIndex(m, pi), ri, $event)"
+                          />
+                          <span class="ai-plan__text">
+                            <span class="ai-create__kind" :data-kind="it.kind">{{
+                              NEW_KIND_LABEL[it.kind]
+                            }}</span>
+                            {{ it.title }}
+                            <span v-if="subLine(it)" class="ai-create__meta">{{ subLine(it) }}</span>
+                            <span v-if="it.notes" class="ai-plan__notes">{{ it.notes }}</span>
+                            <ul v-if="it.items?.length" class="ai-create__subs">
+                              <li v-for="(s, si) in it.items" :key="si">{{ s }}</li>
+                            </ul>
+                          </span>
+                        </li>
+                      </ul>
+                      <button
+                        type="button"
+                        class="ai-plan__add"
+                        :disabled="
+                          createApplied(m, createIndex(m, pi)) ||
+                          isStreamingMsg(m.id) ||
+                          !tickedItems(m, createIndex(m, pi), part.items).length
+                        "
+                        @click="runCreate(m, createIndex(m, pi), part.items)"
+                      >
+                        <Transition name="ai-swap" mode="out-in">
+                          <span
+                            v-if="createApplied(m, createIndex(m, pi))"
+                            key="done"
+                            class="ai-plan__label"
+                          >
+                            <Icon name="check" />Created
+                          </span>
+                          <span v-else key="add" class="ai-plan__label">
+                            <Icon name="plus" />{{
+                              createLabel(tickedItems(m, createIndex(m, pi), part.items))
+                            }}
+                          </span>
+                        </Transition>
+                      </button>
+                    </div>
+                    <div
+                      v-else-if="part.kind === 'plan'"
                       class="ai-plan"
                       :class="{ 'is-applied': planApplied(m, planIndex(m, pi)) }"
                     >
@@ -485,7 +787,10 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                           <span class="ai-plan__ring" aria-hidden="true"
                             ><Icon name="check" size="xs"
                           /></span>
-                          <span class="ai-plan__text">{{ s.text }}</span>
+                          <span class="ai-plan__text"
+                            >{{ s.text
+                            }}<span v-if="s.notes" class="ai-plan__notes">{{ s.notes }}</span></span
+                          >
                           <span v-if="s.mins" class="ai-plan__mins">{{ s.mins }}m</span>
                         </li>
                       </ul>
@@ -510,11 +815,19 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                       </button>
                     </div>
                   </template>
-                  <span v-if="isStreamingMsg(m.id)" class="ai-cursor" aria-hidden="true"></span>
+                  <div
+                    v-if="isStreamingMsg(m.id) && !m.content.trim()"
+                    class="ai-thinking"
+                    role="status"
+                  >
+                    <ProgressRing indeterminate hide-value :size="18" :stroke="2.5" />
+                    Thinking…
+                  </div>
+                  <span v-else-if="isStreamingMsg(m.id)" class="ai-cursor" aria-hidden="true"></span>
 
                   <div v-if="!isStreamingMsg(m.id)" class="ai-meta">
-                    <span class="ai-meta__model">{{
-                      modelLabel(m.model || activeAiChat.model)
+                    <span class="ai-meta__model" :title="m.model || activeAiChat.model">{{
+                      aiModelLabel(m.model || activeAiChat.model)
                     }}</span>
                     <span v-if="msgTokens(m)" class="ai-meta__tok" :title="tokenTitle(m)"
                       >{{ msgTokens(m).toLocaleString() }} tok</span
@@ -534,6 +847,23 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                         <Icon
                           :key="copiedId === m.id ? 'ok' : 'copy'"
                           :name="copiedId === m.id ? 'check' : 'copy'"
+                          size="xs"
+                        />
+                      </Transition>
+                    </IconButton>
+                    <IconButton
+                      v-if="canSpeak && m.content.trim()"
+                      class="ai-meta__copy"
+                      :class="{ 'is-shown': speakingId === m.id }"
+                      size="sm"
+                      :active="speakingId === m.id"
+                      :label="speakingId === m.id ? 'Stop reading' : 'Read aloud'"
+                      @click="toggleSpeak(m)"
+                    >
+                      <Transition name="ai-swap" mode="out-in">
+                        <Icon
+                          :key="speakingId === m.id ? 'stop' : 'speak'"
+                          :name="speakingId === m.id ? 'square' : 'volume-2'"
                           size="xs"
                         />
                       </Transition>
@@ -581,13 +911,22 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
         </Transition>
 
         <!-- composer -->
-        <div class="ai-composer">
+        <!-- The whole card is the field: no border of its own or round the box.
+             While a reply streams the next message can be typed but waits — the
+             spinner holds its place, and a tap on it stops the reply. -->
+        <div class="ai-composer" :class="{ 'is-busy': streaming }" @click="focusComposer">
           <TextArea
             ref="composerRef"
             class="ai-composer__field"
             :model-value="text"
             :disabled="!isOnline"
-            :placeholder="isOnline ? 'Message…' : 'AI needs internet'"
+            :placeholder="
+              !isOnline
+                ? 'AI needs internet'
+                : streaming
+                  ? 'Aureon is replying — your next message will wait…'
+                  : 'Message…'
+            "
             :rows="isMobile ? 1 : 2"
             max-height="30vh"
             @update:model-value="text = $event"
@@ -599,28 +938,32 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
               key="stop"
               type="button"
               class="ai-send is-stop"
-              aria-label="Stop"
-              title="Stop"
+              aria-label="Replying — stop"
+              title="Replying — click to stop"
               @click="ai.stop()"
             >
-              <Icon name="square" />
+              <ProgressRing indeterminate hide-value :size="28" :stroke="2.5" />
+              <Icon class="ai-send__stop" name="square" size="xs" />
             </button>
             <button
-              v-else
-              key="send"
+              v-else-if="text.trim() && isOnline"
+              key="enter"
               type="button"
               class="ai-send"
-              aria-label="Send"
-              title="Send"
-              :disabled="!isOnline || !text.trim()"
+              aria-label="Send (Enter)"
+              title="Send (Enter)"
               @click="send()"
             >
-              <Icon name="arrow-up" />
+              <Icon name="corner-down-left" />
             </button>
           </Transition>
         </div>
         <div v-if="!isMobile" class="ai-hint">
-          <span>Enter to send · Shift+Enter for a new line</span>
+          <span>{{
+            streaming
+              ? 'Waiting for the reply — Enter sends once it lands'
+              : 'Enter to send · Shift+Enter for a new line'
+          }}</span>
           <span v-if="aiUseData">Sends ≈{{ ctxTokens }} tokens of your data with each turn</span>
           <span v-else>Your data is not sent</span>
         </div>
@@ -819,17 +1162,33 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   line-height: var(--lh-xs);
   color: var(--theme-dim);
 }
+/* The model's name under the phone title (the picker is in the bar below). */
 .ai-head__model {
-  width: auto;
-  min-width: 150px;
   flex-shrink: 0;
-}
-/* The mockup's model control is a tinted pill, not a form field. */
-.ai-head__model:not(.ai-head__model--bare) :deep(.ui-control) {
-  border-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-3);
   border-radius: var(--radius-pill);
   background: color-mix(in oklch, var(--theme-accent) 14%, transparent);
+  color: var(--theme-text);
+  font-size: var(--text-sm);
+  line-height: var(--lh-sm);
   font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.ai-head__model :deep(svg) {
+  color: var(--theme-accent);
+}
+/* Provider switch and model picker, a slim row under the header. */
+.ai-modelbar {
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--glass-border);
+  min-width: 0;
+}
+.ai--phone .ai-modelbar {
+  padding: 0 0 var(--sp-2);
+  border-bottom: none;
 }
 .ai-head__ctx.is-active {
   background: color-mix(in oklch, var(--theme-accent) 22%, transparent);
@@ -837,13 +1196,11 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   color: var(--theme-accent);
 }
 .ai-head__model--bare {
-  min-width: 0;
-}
-.ai-head__model--bare :deep(.ui-control) {
-  border-color: transparent;
+  padding: 0;
   background: transparent;
   color: var(--theme-accent);
-  min-height: 0;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
 }
 
 .ai-datapill {
@@ -1021,7 +1378,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 }
 .ai-plan__step {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-2);
   min-width: 0;
@@ -1040,6 +1397,64 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   line-height: var(--lh-base);
   color: var(--theme-text);
   overflow-wrap: anywhere;
+}
+/* The step's details — what the created item's description will hold. */
+.ai-plan__notes {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--theme-dim);
+  white-space: pre-wrap;
+}
+/* An update naming an item that no longer exists: shown, never applied. */
+.ai-plan__step.is-missing {
+  opacity: 0.5;
+}
+/* New-item card: a heading, a kind chip per row, sub-points under each. */
+.ai-create__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-dim);
+}
+.ai-create__row {
+  align-items: flex-start;
+}
+.ai-create__row.is-off .ai-plan__text {
+  opacity: 0.45;
+}
+.ai-create__kind {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
+  color: var(--theme-accent);
+  vertical-align: 1px;
+}
+.ai-create__kind[data-kind='goal'] {
+  background: color-mix(in oklch, var(--theme-success, #3fb950) 18%, transparent);
+  color: var(--theme-success, #3fb950);
+}
+.ai-create__meta {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-2xs);
+  color: var(--theme-dim);
+}
+.ai-create__subs {
+  margin: 4px 0 0;
+  padding-left: 1.1em;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
 }
 .ai-plan__mins {
   flex-shrink: 0;
@@ -1233,32 +1648,41 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 }
 
 /* ---- composer ---- */
+/* One borderless card that is the text field — no outline on the card or on
+   the box inside it, focused or not. */
 .ai-composer {
   display: flex;
   align-items: flex-end;
   gap: var(--sp-2);
+  min-height: 56px;
   margin: 0 var(--sp-4);
   padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-1);
   border-radius: var(--radius-dialog);
-  border: 1px solid var(--glass-border);
+  border: none;
   background: var(--theme-input, var(--glass-control));
+  cursor: text;
 }
 .ai--phone .ai-composer {
   margin: 0;
+  min-height: 48px;
   border-radius: var(--radius-pill);
   align-items: center;
-}
-.ai-composer:focus-within {
-  border-color: var(--theme-accent);
 }
 .ai-composer__field {
   flex: 1;
   min-width: 0;
 }
-.ai-composer__field :deep(.ui-control) {
+.ai-composer__field :deep(.ui-control),
+.ai-composer__field :deep(.ui-control:hover),
+.ai-composer__field :deep(.ui-control:focus-within) {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
+  outline: none;
+}
+.ai-composer__field :deep(textarea:focus),
+.ai-composer__field :deep(textarea:focus-visible) {
+  outline: none;
 }
 .ai-send {
   flex-shrink: 0;
@@ -1276,10 +1700,26 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   opacity: 0.45;
   cursor: default;
 }
+/* Replying: a spinning ring with a stop square in its middle. */
 .ai-send.is-stop {
+  position: relative;
   background: transparent;
   color: var(--theme-accent);
-  box-shadow: inset 0 0 0 1.5px var(--theme-accent);
+}
+.ai-send.is-stop > * {
+  grid-area: 1 / 1;
+}
+.ai-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-sm);
+  color: var(--theme-dim);
+}
+.ai-row__busy {
+  flex-shrink: 0;
+  margin: 0 var(--sp-1);
+  color: var(--theme-accent);
 }
 .ai-hint {
   display: flex;
@@ -1529,14 +1969,6 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 }
 .ai-send:active:not(:disabled) {
   transform: scale(0.92);
-}
-.ai-composer {
-  transition:
-    border-color var(--dur-med) var(--ease-out),
-    box-shadow var(--dur-med) var(--ease-out);
-}
-.ai-composer:focus-within {
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--theme-accent) 18%, transparent);
 }
 .ai-datapill {
   transition:

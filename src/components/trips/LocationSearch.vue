@@ -119,6 +119,7 @@ const hintStyle = computed(() =>
       :placeholder="placeholder"
       type="text"
       autocomplete="off"
+      :autocorrect="false"
       @update:model-value="onInput"
       @focus="open = results.length > 0"
       @blur="onBlur"

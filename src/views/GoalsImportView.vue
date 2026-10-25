@@ -286,7 +286,7 @@ const mergeNote = computed(() =>
         @dragleave.prevent="dragActive = false"
         @drop.prevent="onDrop"
       >
-        <TextArea v-model="raw" placeholder="Paste a link or JSON…" />
+        <TextArea v-model="raw" placeholder="Paste a link or JSON…" :autocorrect="false" />
         <div :style="sub">Drag a .json file here, or</div>
         <label :style="btn">
           Choose file…

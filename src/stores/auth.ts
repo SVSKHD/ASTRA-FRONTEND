@@ -18,7 +18,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { AuthError, Session, User as SbUser } from '@supabase/supabase-js'
-import { supabase, supabaseEnabled } from '@/supabase'
+import { storedSessionUser, supabase, supabaseEnabled } from '@/supabase'
+import { clearLocalWorkspace } from '@/services/localWorkspace'
 import { setCalendarToken } from '@/utils/gcal'
 // Section 27a: sign-out must forget the device's session identity.
 import { clearSessionId } from '@/utils/sessionId'
@@ -156,7 +157,11 @@ export const useAuthStore = defineStore('auth', () => {
   const ghMenuLabel = computed(() => (githubLinked.value ? 'GitHub repos' : 'Link GitHub'))
 
   async function applySession(session: Session | null) {
-    const signedIn = session?.user ?? null
+    // No live session, but one is still stored: the token could not be
+    // refreshed because there is no connection (a real sign-out deletes it).
+    // Carry on as that owner so the app opens offline from the device copy;
+    // supabase-js refreshes the token when the connection returns.
+    const signedIn = session?.user ?? storedSessionUser()
 
     if (!signedIn) {
       user.value = null
@@ -203,6 +208,11 @@ export const useAuthStore = defineStore('auth', () => {
     supabase.auth.onAuthStateChange((_event, session) => {
       setTimeout(() => void applySession(session), 0)
     })
+    // Back online after opening offline with an expired token: ask for the
+    // session, which refreshes it, rather than waiting for the next tick.
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => void supabase?.auth.getSession())
+    }
   }
 
   async function signInWith(
@@ -271,6 +281,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function signOut() {
+    // The workspace copy kept on this device for offline use goes with the
+    // session: a signed-out device holds none of the owner's data.
+    const leaving = user.value?.uid
+    if (leaving) await clearLocalWorkspace(leaving)
     if (supabase) {
       try {
         await supabase.auth.signOut()

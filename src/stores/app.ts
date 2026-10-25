@@ -157,8 +157,14 @@ import {
   type CalendarViewKey,
 } from '@/utils/calendarEvents'
 import { reportError } from '@/utils/scrub'
+import {
+  readLocalWorkspace,
+  writeLocalWorkspace,
+  type LocalWorkspace,
+} from '@/services/localWorkspace'
+import { mergeWorkspace } from '@/utils/workspaceMerge'
 import { startProgress } from '@/services/progress'
-import { AI_MODELS, type AiChat, type AiMessage, type Bot } from '@/types'
+import { AI_MODEL, type AiChat, type AiMessage, type Bot } from '@/types'
 import type {
   Attachment,
   Debt,
@@ -601,7 +607,11 @@ export const useAppStore = defineStore('app', () => {
   const wallets = ref<Wallet[]>([])
   const cloudReady = ref(false)
   const cloudError = ref('')
-  const syncState = ref<'idle' | 'saving' | 'synced' | 'error'>('idle')
+  const syncState = ref<'idle' | 'saving' | 'synced' | 'error' | 'offline'>('idle')
+  // Opened from this device's copy because the cloud could not be reached
+  // (services/localWorkspace). Edits are kept on the device and merged into
+  // the cloud copy once it answers again — see reconnectCloud.
+  const offline = ref(false)
   // Offline sync signals, fed from the workspace snapshot's metadata. Because
   // the whole workspace is one document, `fromCache`/`hasPendingWrites` describe
   // the doc as a whole; per-item pending is recovered by diffing against
@@ -821,20 +831,30 @@ export const useAppStore = defineStore('app', () => {
   // readable rather than being refused: a template with a body is worth
   // keeping even if it was saved in a hurry. Returns the new id, or null when
   // there is no body to keep.
-  function addPrompt(input: { topic: string; title: string; body: string }): number | null {
+  function addPrompt(input: {
+    topic: string
+    title: string
+    body: string
+    useCase?: string
+  }): number | null {
     const body = input.body.trim()
     if (!body) return null
+    const useCase = input.useCase?.trim() ?? ''
     const p: PromptTemplate = {
       id: id(),
       topic: input.topic.trim() || 'My prompts',
       title: input.title.trim() || 'Untitled prompt',
       body,
+      ...(useCase ? { useCase } : {}),
       ...stamps(),
     }
     prompts.value = [p, ...prompts.value]
     return p.id
   }
-  function updatePrompt(pid: number, patch: { topic?: string; title?: string; body?: string }) {
+  function updatePrompt(
+    pid: number,
+    patch: { topic?: string; title?: string; body?: string; useCase?: string },
+  ) {
     prompts.value = prompts.value.map((p) =>
       p.id !== pid
         ? p
@@ -843,6 +863,8 @@ export const useAppStore = defineStore('app', () => {
             ...(patch.topic !== undefined ? { topic: patch.topic.trim() || p.topic } : {}),
             ...(patch.title !== undefined ? { title: patch.title.trim() || p.title } : {}),
             ...(patch.body !== undefined && patch.body.trim() ? { body: patch.body.trim() } : {}),
+            // An emptied use case is cleared, not kept.
+            ...(patch.useCase !== undefined ? { useCase: patch.useCase.trim() } : {}),
           }),
     )
   }
@@ -3641,6 +3663,8 @@ export const useAppStore = defineStore('app', () => {
       trip: trips.value,
       idea: ideas.value,
       stock: stocks.value,
+      // Goals made or edited offline count as unsynced too.
+      goal: goals.value,
     }
   }
   // Snapshot the current collections as the "last acknowledged" baseline. Called
@@ -4293,7 +4317,7 @@ export const useAppStore = defineStore('app', () => {
   const activeAiChat = computed<AiChat | null>(
     () => aiChats.value.find((ch) => ch.id === aiActiveChatId.value) ?? null,
   )
-  function newAiChat(model = AI_MODELS[0].id): number {
+  function newAiChat(model = AI_MODEL.id): number {
     const chatId = id()
     const ts = Date.now()
     aiChats.value = [
@@ -4378,6 +4402,15 @@ export const useAppStore = defineStore('app', () => {
         : ch,
     )
   }
+  // The model the proxy says actually answered, which can differ from the one
+  // asked for (the server falls back when a model is busy).
+  function setAiMessageModel(chatId: number, msgId: number, model: string) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? { ...ch, messages: ch.messages.map((m) => (m.id === msgId ? { ...m, model } : m)) }
+        : ch,
+    )
+  }
   function markAiPlanApplied(chatId: number, msgId: number, planIndex: number) {
     aiChats.value = aiChats.value.map((ch) =>
       ch.id === chatId
@@ -4388,6 +4421,41 @@ export const useAppStore = defineStore('app', () => {
                 ? { ...m, appliedPlans: [...new Set([...(m.appliedPlans ?? []), planIndex])] }
                 : m,
             ),
+          }
+        : ch,
+    )
+  }
+  // `applied: false` re-arms the card — the toast's Undo after an update.
+  function markAiUpdatesApplied(
+    chatId: number,
+    msgId: number,
+    updatesIndex: number,
+    applied = true,
+  ) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? {
+            ...ch,
+            messages: ch.messages.map((m) => {
+              if (m.id !== msgId) return m
+              const rest = (m.appliedUpdates ?? []).filter((i) => i !== updatesIndex)
+              return { ...m, appliedUpdates: applied ? [...rest, updatesIndex] : rest }
+            }),
+          }
+        : ch,
+    )
+  }
+  // `applied: false` re-arms the card — Undo in the "Created" pop-up.
+  function markAiCreatesApplied(chatId: number, msgId: number, createIndex: number, applied = true) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? {
+            ...ch,
+            messages: ch.messages.map((m) => {
+              if (m.id !== msgId) return m
+              const rest = (m.appliedCreates ?? []).filter((i) => i !== createIndex)
+              return { ...m, appliedCreates: applied ? [...rest, createIndex] : rest }
+            }),
           }
         : ch,
     )
@@ -7995,6 +8063,7 @@ export const useAppStore = defineStore('app', () => {
             topic: typeof p.topic === 'string' && p.topic.trim() ? p.topic : 'My prompts',
             title: typeof p.title === 'string' && p.title.trim() ? p.title : 'Untitled prompt',
             body: p.body as string,
+            ...(typeof p.useCase === 'string' && p.useCase.trim() ? { useCase: p.useCase } : {}),
             createdAt: typeof p.createdAt === 'number' ? p.createdAt : 0,
             updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : 0,
           }))
@@ -8184,6 +8253,40 @@ export const useAppStore = defineStore('app', () => {
     if (!savePending && writesInFlight === 0) return Promise.resolve()
     return new Promise((resolve) => saveWaiters.push(resolve))
   }
+  // ---- The device copy (offline mode) ----------------------------------------
+  // Every change is also written to IndexedDB, so the app can open, unlock and
+  // take edits with no connection. `localSyncedAt` is when the device copy last
+  // matched the cloud; the reconnect merge needs it to tell a deletion from an
+  // addition (utils/workspaceMerge).
+  let localSyncedAt = 0
+  let localTimer: ReturnType<typeof setTimeout> | undefined
+  function persistLocalNow(): Promise<void> {
+    clearTimeout(localTimer)
+    // Never while the lists are empty between sign-in and load: that would
+    // overwrite a good device copy with nothing.
+    if (!uid || !cloudReady.value) return Promise.resolve()
+    return writeLocalWorkspace({
+      uid,
+      data: snapshotData(),
+      dirty: offline.value || hasUnsavedEdits(),
+      savedAt: Date.now(),
+      syncedAt: localSyncedAt,
+    })
+  }
+  function persistLocalSoon() {
+    if (!uid) return
+    clearTimeout(localTimer)
+    localTimer = setTimeout(() => void persistLocalNow(), 400)
+  }
+  const looksOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false
+  // Leave the cloud aside until it answers again; edits keep landing on the device.
+  function goOffline() {
+    offline.value = true
+    syncState.value = 'offline'
+    cloudError.value = ''
+    persistLocalSoon()
+  }
+
   function writeCloud(): Promise<void> {
     clearTimeout(saveTimer)
     const cloud = firestoreReady()
@@ -8194,6 +8297,14 @@ export const useAppStore = defineStore('app', () => {
       unsentStatus.clear()
       localStatus.clear()
       if (statusBurst.size) refreshStatusSync('saved')
+      flushSaveWaiters()
+      return Promise.resolve()
+    }
+    if (offline.value || looksOffline()) {
+      // No connection: the edit stays pending (writtenSeq is not advanced) and
+      // on the device; reconnectCloud sends it when the cloud answers.
+      savePending = false
+      goOffline()
       flushSaveWaiters()
       return Promise.resolve()
     }
@@ -8215,8 +8326,17 @@ export const useAppStore = defineStore('app', () => {
         for (const key of sendingStatus) unsentStatus.delete(key)
         if (statusBurst.size)
           refreshStatusSync(unsentStatus.size ? statusSync.value.phase : 'saved')
+        localSyncedAt = at
+        persistLocalSoon()
       })
       .catch((error) => {
+        // The connection went away mid-write: not a failure to report, just
+        // offline. The edit is still pending and on the device.
+        if (looksOffline() || (error as { code?: string })?.code === 'unavailable') {
+          if (statusBurst.size) refreshStatusSync('queued')
+          goOffline()
+          return
+        }
         if (statusBurst.size) refreshStatusSync('error')
         syncState.value = 'error'
         cloudError.value = 'Could not save changes to Supabase.'
@@ -8250,6 +8370,8 @@ export const useAppStore = defineStore('app', () => {
     editSeq++
     savePending = true
     clearTimeout(saveTimer)
+    // On the device straight away, whatever the connection is doing.
+    persistLocalSoon()
     // While todos/tasks are being ticked, wait for the ticking to stop so the
     // whole burst goes in one write.
     const sinceTick = Date.now() - lastStatusEditAt
@@ -8288,52 +8410,167 @@ export const useAppStore = defineStore('app', () => {
     cloudReady.value = false
     cloudError.value = ''
     syncState.value = 'idle'
+    offline.value = false
+    localSyncedAt = 0
     uid = u && isUserAllowed(u) ? u.uid : null
     resetData()
     if (!uid) return
+    const me = uid
+    // This device's copy: what opens the app when the cloud cannot be reached,
+    // and the edits to merge in when it holds some the cloud never got.
+    const local = await readLocalWorkspace(me)
+    if (uid !== me) return
     // Sign-in is where Firestore is first genuinely needed, so this is where it
     // is fetched. Everything below runs after the SDK has landed.
     const cloud = await loadFirestore()
-    if (!cloud) return
+    if (!cloud) {
+      if (local) openFromDevice(local)
+      return
+    }
     const { db, fs } = cloud
     const ref = fs.doc(db, AUREON_COLLECTION, uid)
+    let sendMerged = false
     try {
       const snap = await fs.getDoc(ref)
-      if (snap.exists()) applyData(snap.data())
-      else {
+      if (uid !== me) return
+      if (snap.exists()) {
+        if (local?.dirty) {
+          // Edits made offline last time, never sent: join them with the cloud.
+          applyData(mergeWorkspace(local.data, snap.data(), local.syncedAt))
+          localSyncedAt = local.syncedAt
+          sendMerged = true
+        } else {
+          applyData(snap.data())
+          localSyncedAt = Date.now()
+        }
+      } else if (local?.dirty) {
+        applyData(local.data)
+        sendMerged = true
+      } else {
         // A brand-new workspace: seed the two default bots so the Bots tab has
         // something to show, then write the first document.
         bots.value = seedBots(id, Date.now())
         await fs.setDoc(ref, { ...snapshotData(), ownerId: uid, updatedAt: Date.now() })
+        localSyncedAt = Date.now()
       }
       // Baseline the acknowledged signature so nothing reads as pending on load.
       captureSyncedBaseline()
       cloudReady.value = true
       syncState.value = 'synced'
-      // Once hydration settles (applyData releases the guard on the next tick),
-      // run the auto-rollover if it is enabled and hasn't run today, and lazily
-      // materialise recurring-goal occurrences for today + the next 7 days.
-      setTimeout(() => {
-        // Existing subtasks that never had a tag pick up their parent's; the
-        // lists' watcher saves the result.
-        backfillSubtaskTags()
-        void runAutoRolloverIfDue()
-        runGoalGenerationIfDue()
-        // Recurring transactions, in the same window and for the same reason:
-        // hydration has settled, so a generated row is written against the
-        // real list rather than an empty one. It is idempotent, so a second
-        // device doing this at the same moment posts nothing.
-        generateRecurringTxns()
-        // Webhooks are primary; this is the every-10-minutes conditional
-        // fallback for a delivery that never arrived.
-        startGithubPolling()
-      }, 0)
+      afterLoad()
+      if (sendMerged) sendAfterHydration()
+      else persistLocalSoon()
     } catch (error) {
-      cloudError.value = 'Could not load your Supabase data.'
+      // No connection (or the cloud is down): open from the device copy.
+      if (local) {
+        openFromDevice(local)
+        return
+      }
+      cloudError.value = looksOffline()
+        ? 'You are offline, and this device has no saved copy of your workspace yet. Connect once to use it offline.'
+        : 'Could not load your Supabase data.'
       syncState.value = 'error'
       reportError('[Aureon] Cloud load failed:', error)
       return
     }
+    listenToCloud(fs, ref)
+  }
+
+  // Once hydration settles (applyData releases the guard on the next tick),
+  // run the auto-rollover if it is enabled and hasn't run today, and lazily
+  // materialise recurring-goal occurrences for today + the next 7 days.
+  function afterLoad() {
+    setTimeout(() => {
+      // Existing subtasks that never had a tag pick up their parent's; the
+      // lists' watcher saves the result.
+      backfillSubtaskTags()
+      void runAutoRolloverIfDue()
+      runGoalGenerationIfDue()
+      // Recurring transactions, in the same window and for the same reason:
+      // hydration has settled, so a generated row is written against the
+      // real list rather than an empty one. It is idempotent, so a second
+      // device doing this at the same moment posts nothing.
+      generateRecurringTxns()
+      // Webhooks are primary; this is the every-10-minutes conditional
+      // fallback for a delivery that never arrived.
+      startGithubPolling()
+    }, 0)
+  }
+
+  // A merged workspace is not yet in the cloud: write it once hydration has
+  // released the guard, as a normal pending edit.
+  function sendAfterHydration() {
+    setTimeout(() => {
+      editSeq++
+      savePending = true
+      persistLocalSoon()
+      saveCloud()
+    }, 0)
+  }
+
+  // Open the app from this device's copy: the cloud could not be reached.
+  function openFromDevice(local: LocalWorkspace) {
+    applyData(local.data)
+    captureSyncedBaseline()
+    localSyncedAt = local.syncedAt
+    // Unsent edits from last time stay pending, so they go out on reconnect.
+    if (local.dirty) editSeq++
+    cloudReady.value = true
+    goOffline()
+    setTimeout(() => {
+      backfillSubtaskTags()
+      runGoalGenerationIfDue()
+    }, 0)
+  }
+
+  /**
+   * Back online: read the cloud copy, merge this device's offline edits into
+   * it, send the result and resume live updates. Quietly does nothing while
+   * the cloud is still unreachable — the next `online` event or tick retries.
+   */
+  let reconnecting = false
+  async function reconnectCloud(): Promise<void> {
+    if (reconnecting || !uid || !offline.value || looksOffline()) return
+    reconnecting = true
+    const me = uid
+    try {
+      const cloud = await loadFirestore()
+      if (!cloud) return
+      const { db, fs } = cloud
+      const ref = fs.doc(db, AUREON_COLLECTION, me)
+      const snap = await fs.getDoc(ref)
+      if (uid !== me || !offline.value) return
+      const pending = hasUnsavedEdits()
+      if (snap.exists()) {
+        applyData(pending ? mergeWorkspace(snapshotData(), snap.data(), localSyncedAt) : snap.data())
+      }
+      captureSyncedBaseline()
+      offline.value = false
+      syncState.value = 'synced'
+      cloudError.value = ''
+      if (pending || !snap.exists()) sendAfterHydration()
+      else {
+        localSyncedAt = Date.now()
+        persistLocalSoon()
+      }
+      if (cloudUnsub) {
+        cloudUnsub()
+        cloudUnsub = null
+      }
+      listenToCloud(fs, ref)
+      afterLoad()
+    } catch {
+      /* still unreachable — stay on the device copy */
+    } finally {
+      reconnecting = false
+    }
+  }
+
+  // Live updates from other devices.
+  function listenToCloud(
+    fs: NonNullable<Awaited<ReturnType<typeof loadFirestore>>>['fs'],
+    ref: ReturnType<NonNullable<Awaited<ReturnType<typeof loadFirestore>>>['fs']['doc']>,
+  ) {
     // Live updates from other devices. includeMetadataChanges so the pending /
     // fromCache transitions (which carry no data change) still wake the pill.
     cloudUnsub = fs.onSnapshot(
@@ -8358,14 +8595,36 @@ export const useAppStore = defineStore('app', () => {
           captureSyncedBaseline()
           cloudReady.value = true
           syncState.value = 'synced'
+          localSyncedAt = Date.now()
+          persistLocalSoon()
         }
       },
       (error) => {
+        if (looksOffline()) {
+          goOffline()
+          return
+        }
         cloudError.value = 'Supabase realtime sync was interrupted.'
         syncState.value = 'error'
         reportError('[Aureon] Cloud listener failed:', error)
       },
     )
+  }
+
+  // Coming back online: merge and send what was done offline. A tick covers
+  // the cases with no `online` event (a captive portal, the cloud itself down).
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => void reconnectCloud())
+    window.addEventListener('offline', () => {
+      if (uid && cloudReady.value) goOffline()
+    })
+    setInterval(() => {
+      if (offline.value) void reconnectCloud()
+    }, 20_000)
+    // Closing or hiding the tab: make sure the device copy is current.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') void persistLocalNow()
+    })
   }
 
   // Re-run the connect for whoever is currently signed in, so a transient
@@ -8742,6 +9001,7 @@ export const useAppStore = defineStore('app', () => {
     newAiChat,
     selectAiChat,
     setAiChatModel,
+    setAiMessageModel,
     renameAiChat,
     toggleAiChatPin,
     deleteAiChat,
@@ -8749,6 +9009,8 @@ export const useAppStore = defineStore('app', () => {
     appendAiMessageContent,
     setAiMessageUsage,
     markAiPlanApplied,
+    markAiUpdatesApplied,
+    markAiCreatesApplied,
     setAiUseData,
     botById,
     patchBot,
@@ -8946,6 +9208,8 @@ export const useAppStore = defineStore('app', () => {
     reconnectCalendar,
     calendarNeedsAuth,
     retryCloud,
+    reconnectCloud,
+    offline,
     requestNotifPermission,
     checkReminders,
     snoozeNotif,

@@ -394,6 +394,7 @@ const painted = computed(() => Object.keys(props.dayMeta ?? {}).length > 0)
             v-model="picker.typed.value"
             class="gdp__input"
             type="text"
+            data-autocorrect="off"
             :placeholder="mode === 'time' ? '6pm, 18:30' : 'tomorrow, 25/12, in 3 days'"
             :aria-invalid="!!picker.typedError.value"
             @keydown.enter.prevent="picker.submitTyped()"

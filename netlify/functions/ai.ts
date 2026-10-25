@@ -1,18 +1,32 @@
-// The AI tab's proxy (`/api/ai`). It holds the Gemini key server-side — the
+// The AI tab's proxy (`/api/ai`). It holds the provider keys server-side — the
 // browser only ever sends its Supabase session token, verified here exactly as
-// `/api/github` does — and re-streams Gemini's SSE as the small envelope the
-// client reads: `data: {"text": "..."}` per chunk, one `data: {"usage": …}`
-// at the end, `data: {"error": "..."}` if the upstream fails mid-way.
+// `/api/github` does — and re-streams the upstream's SSE as the small envelope
+// the client reads: one `data: {"model": "..."}` naming the model that answered,
+// `data: {"text": "..."}` per chunk, one `data: {"usage": …}` at the end, and
+// `data: {"error": "..."}` if the upstream fails mid-way.
+//
+// Two providers: Bytez (BYTEZ_API_KEY) and OpenRouter (OPEN_ROUTER_API_KEY).
+// The client names the provider and model picked in the AI tab's header; the
+// other provider is the fallback (see answerPlan). Both speak OpenAI's
+// chat-completions stream, so one reader serves both. A provider that refuses
+// the request — not configured, a missing model, a 5xx — hands the turn on.
 
-const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models'
+const BYTEZ_API = 'https://api.bytez.com/models/v2/openai/v1/chat/completions'
+// Any chat model in the Bytez catalog; BYTEZ_MODEL overrides it.
+const BYTEZ_DEFAULT_MODEL = 'Qwen/Qwen3-4B'
 
-// Only these reach Google. Anything else (an old chat still carrying a Claude
-// id) is answered by the default rather than refused.
-const MODELS = new Set(['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'])
-const DEFAULT_MODEL = 'gemini-2.5-flash'
+const OPENROUTER_API = 'https://openrouter.ai/api/v1/chat/completions'
+
+// Bare ids older builds sent, mapped to OpenRouter slugs.
+const MODELS: Record<string, string> = {
+  'gemini-2.5-flash': 'google/gemini-2.5-flash',
+  'gemini-2.5-flash-lite': 'google/gemini-2.5-flash-lite',
+}
+const DEFAULT_MODEL = 'google/gemini-2.5-flash'
 
 const MAX_MESSAGES = 40
 const MAX_CHARS = 60_000
+const MAX_OUTPUT_TOKENS = 4096
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -20,6 +34,8 @@ interface ChatMessage {
 }
 
 interface RequestBody {
+  /** 'bytez' | 'openrouter', picked in the AI tab's header. */
+  provider?: string
   model?: string
   messages?: ChatMessage[]
   system?: string
@@ -73,8 +89,8 @@ function isAllowedUser(user: SignedInUser): boolean {
   return uids.includes(user.id.toLowerCase()) || (email.length > 0 && emails.includes(email))
 }
 
-/** Trim to the most recent turns that fit, and map to Gemini's shape. */
-function toContents(messages: ChatMessage[]) {
+/** Trim to the most recent turns that fit, opening on a user turn. */
+function toMessages(messages: ChatMessage[]): ChatMessage[] {
   const clean = messages
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
     .filter((m) => m.content.trim())
@@ -86,38 +102,182 @@ function toContents(messages: ChatMessage[]) {
     if (total > MAX_CHARS && kept.length) break
     kept.unshift(clean[i])
   }
-  // Gemini wants the conversation to open on a user turn.
+  // Some upstream models refuse a conversation that opens on an assistant turn.
   while (kept.length && kept[0].role !== 'user') kept.shift()
-  return kept.map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }))
+  return kept.map((m) => ({ role: m.role, content: m.content }))
 }
 
-async function callGemini(model: string, payload: unknown, key: string, signal: AbortSignal) {
-  return fetch(`${GEMINI_API}/${model}:streamGenerateContent?alt=sse`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify(payload),
-    signal,
+type ProviderId = 'bytez' | 'openrouter'
+const PROVIDER_LABEL: Record<ProviderId, string> = { bytez: 'Bytez', openrouter: 'OpenRouter' }
+// `owner/name`, as both providers spell model ids. Anything else is not sent on.
+const MODEL_ID = /^[A-Za-z0-9][\w.-]*\/[\w.:-]+$/
+
+function providerKey(p: ProviderId): string {
+  return p === 'bytez'
+    ? process.env.BYTEZ_API_KEY || ''
+    : process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_API_KEY || ''
+}
+
+function defaultModel(p: ProviderId): string {
+  return p === 'bytez' ? process.env.BYTEZ_MODEL || BYTEZ_DEFAULT_MODEL : DEFAULT_MODEL
+}
+
+/**
+ * Who should answer, best first: the provider and model the client picked,
+ * then (if that model was not the default) the same provider's default, then
+ * the other provider's default. Providers without a key are left out. A body
+ * from an older build names no provider; its model id decides.
+ */
+export function answerPlan(
+  body: { provider?: unknown; model?: unknown },
+  hasKey: (p: ProviderId) => boolean = (p) => !!providerKey(p),
+): { provider: ProviderId; model: string }[] {
+  const raw = typeof body.model === 'string' ? body.model.trim() : ''
+  const legacy = MODELS[raw]
+  const first: ProviderId =
+    body.provider === 'bytez' || body.provider === 'openrouter'
+      ? body.provider
+      : legacy
+        ? 'openrouter'
+        : 'bytez'
+  const other: ProviderId = first === 'bytez' ? 'openrouter' : 'bytez'
+  const picked =
+    first === 'openrouter' && legacy
+      ? legacy
+      : raw.length <= 120 && MODEL_ID.test(raw)
+        ? raw
+        : defaultModel(first)
+
+  const out: { provider: ProviderId; model: string }[] = []
+  const add = (provider: ProviderId, model: string) => {
+    if (!hasKey(provider)) return
+    if (out.some((a) => a.provider === provider && a.model === model)) return
+    out.push({ provider, model })
+  }
+  add(first, picked)
+  add(first, defaultModel(first))
+  add(other, defaultModel(other))
+  return out
+}
+
+interface Attempt {
+  provider: string
+  model: string
+  call: () => Promise<Response>
+}
+
+/** Every way this turn could be answered, best first. */
+function attempts(
+  body: RequestBody,
+  base: { messages: unknown[]; max_tokens: number },
+  signal: AbortSignal,
+): Attempt[] {
+  return answerPlan(body).map(({ provider, model }) => {
+    const key = providerKey(provider)
+    return {
+      provider: PROVIDER_LABEL[provider],
+      model,
+      call: () =>
+        provider === 'bytez'
+          ? fetch(BYTEZ_API, {
+              method: 'POST',
+              // The form bytez.js sends: "Key <key>", not "Bearer".
+              headers: { 'Content-Type': 'application/json', Authorization: `Key ${key}` },
+              body: JSON.stringify({ ...base, model, stream: true }),
+              signal,
+            })
+          : fetch(OPENROUTER_API, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${key}`,
+                'X-Title': 'Aureon',
+              },
+              body: JSON.stringify({
+                ...base,
+                model,
+                stream: true,
+                stream_options: { include_usage: true },
+              }),
+              signal,
+            }),
+    }
   })
 }
 
-function upstreamError(text: string, status: number): string {
+function upstreamError(provider: string, text: string, status: number): string {
   try {
-    const parsed = JSON.parse(text) as { error?: { message?: string } }
-    if (parsed.error?.message) return parsed.error.message
+    const parsed = JSON.parse(text) as { error?: string | { message?: string } }
+    const msg = typeof parsed.error === 'string' ? parsed.error : parsed.error?.message
+    if (msg) return `${provider}: ${msg}`
   } catch {
     /* not JSON */
   }
-  return `Gemini request failed (${status})`
+  return `${provider} request failed (${status})`
+}
+
+/**
+ * Drops `<think>…</think>` blocks (Qwen and other reasoning models write their
+ * thinking inline) from a stream that may split a tag across chunks.
+ */
+export function thinkFilter() {
+  const OPEN = '<think>'
+  const CLOSE = '</think>'
+  let pending = ''
+  let thinking = false
+  let started = false
+  // How much of the end of `s` could be the start of `tag`.
+  const partial = (s: string, tag: string) => {
+    for (let n = Math.min(tag.length - 1, s.length); n > 0; n--)
+      if (tag.startsWith(s.slice(-n))) return n
+    return 0
+  }
+  const emit = (s: string) => {
+    // The answer usually follows the thinking after a blank line or two.
+    if (!started) s = s.replace(/^\s+/, '')
+    if (s) started = true
+    return s
+  }
+  return {
+    push(text: string): string {
+      pending += text
+      let out = ''
+      for (;;) {
+        if (thinking) {
+          const end = pending.indexOf(CLOSE)
+          if (end < 0) {
+            pending = pending.slice(pending.length - partial(pending, CLOSE))
+            return out
+          }
+          pending = pending.slice(end + CLOSE.length)
+          thinking = false
+        } else {
+          const start = pending.indexOf(OPEN)
+          if (start < 0) {
+            const keep = partial(pending, OPEN)
+            out += emit(pending.slice(0, pending.length - keep))
+            pending = pending.slice(pending.length - keep)
+            return out
+          }
+          out += emit(pending.slice(0, start))
+          pending = pending.slice(start + OPEN.length)
+          thinking = true
+        }
+      }
+    },
+    flush(): string {
+      const rest = thinking ? '' : emit(pending)
+      pending = ''
+      return rest
+    },
+  }
 }
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405)
 
-  const key = process.env.GEMINI_API_KEY
-  if (!key) return json({ error: 'GEMINI_API_KEY is not configured.' }, 500)
+  if (!process.env.BYTEZ_API_KEY && !process.env.OPEN_ROUTER_API_KEY && !process.env.OPENROUTER_API_KEY)
+    return json({ error: 'No AI key configured: set BYTEZ_API_KEY (or OPEN_ROUTER_API_KEY).' }, 500)
 
   const accessToken = bearerToken(req)
   if (!accessToken) return json({ error: 'Sign in first.' }, 401)
@@ -136,27 +296,44 @@ export default async function handler(req: Request): Promise<Response> {
   } catch {
     return json({ error: 'Invalid JSON body.' }, 400)
   }
-  const contents = toContents(Array.isArray(body.messages) ? body.messages : [])
-  if (!contents.length) return json({ error: 'No message to send.' }, 400)
+  const messages = toMessages(Array.isArray(body.messages) ? body.messages : [])
+  if (!messages.length) return json({ error: 'No message to send.' }, 400)
 
-  const model = MODELS.has(String(body.model)) ? String(body.model) : DEFAULT_MODEL
-  const payload = {
-    contents,
-    ...(body.system?.trim()
-      ? { systemInstruction: { parts: [{ text: body.system.slice(0, 12_000) }] } }
-      : {}),
+  const system = body.system?.trim() ? body.system.slice(0, 12_000) : ''
+  const base = {
+    messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
+    // OpenRouter holds credit for the whole cap up front; the model default
+    // (64k) is refused outright on a low balance.
+    max_tokens: MAX_OUTPUT_TOKENS,
   }
 
-  // A busy model (503/429) falls back once to the default rather than failing
-  // the turn outright.
-  let upstream = await callGemini(model, payload, key, req.signal)
-  if ((upstream.status === 503 || upstream.status === 429) && model !== DEFAULT_MODEL) {
-    upstream = await callGemini(DEFAULT_MODEL, payload, key, req.signal)
+  // First provider that accepts the request answers it.
+  let upstream: Response | null = null
+  let answered: Attempt | null = null
+  let failure = { message: 'No AI provider answered.', status: 502 }
+  // Why the first choice did not answer, when a later one did.
+  let fallbackReason = ''
+  for (const attempt of attempts(body, base, req.signal)) {
+    let res: Response
+    try {
+      res = await attempt.call()
+    } catch (error) {
+      if (req.signal.aborted) return json({ error: 'Cancelled.' }, 499)
+      failure = { message: `${attempt.provider}: ${(error as Error).message}`, status: 502 }
+      fallbackReason ||= failure.message
+      continue
+    }
+    if (res.ok && res.body) {
+      upstream = res
+      answered = attempt
+      break
+    }
+    const text = await res.text().catch(() => '')
+    failure = { message: upstreamError(attempt.provider, text, res.status), status: res.status || 502 }
+    fallbackReason ||= failure.message
+    console.warn(`[ai] ${attempt.provider} ${attempt.model} refused: ${failure.message}`)
   }
-  if (!upstream.ok || !upstream.body) {
-    const text = await upstream.text().catch(() => '')
-    return json({ error: upstreamError(text, upstream.status) }, upstream.status || 502)
-  }
+  if (!upstream?.body) return json({ error: failure.message }, failure.status)
 
   const encoder = new TextEncoder()
   const decoder = new TextDecoder()
@@ -168,6 +345,14 @@ export default async function handler(req: Request): Promise<Response> {
     async start(ctrl) {
       let buffer = ''
       let usage: { in: number; out: number } | null = null
+      const think = thinkFilter()
+      // Who is answering, first, so the client can label the reply and the
+      // header honestly — including when the default provider was skipped.
+      send(ctrl, {
+        model: answered?.model,
+        provider: answered?.provider,
+        ...(fallbackReason ? { fallback: fallbackReason } : {}),
+      })
       try {
         for (;;) {
           const { value, done } = await reader.read()
@@ -176,22 +361,27 @@ export default async function handler(req: Request): Promise<Response> {
           const lines = buffer.split('\n')
           buffer = lines.pop() ?? ''
           for (const line of lines) {
+            // `: OPENROUTER PROCESSING` keep-alives and the closing `[DONE]` carry nothing.
             const trimmed = line.trim()
             if (!trimmed.startsWith('data:')) continue
+            const data = trimmed.slice(5).trim()
+            if (data === '[DONE]') continue
             try {
-              const evt = JSON.parse(trimmed.slice(5).trim())
-              const parts = evt?.candidates?.[0]?.content?.parts ?? []
-              const text = parts
-                .filter((p: { thought?: boolean }) => !p.thought)
-                .map((p: { text?: string }) => p.text ?? '')
-                .join('')
+              const evt = JSON.parse(data)
+              if (evt?.error) {
+                const msg = typeof evt.error === 'string' ? evt.error : evt.error.message
+                send(ctrl, { error: msg || 'The model stopped with an error.' })
+                continue
+              }
+              // `delta.reasoning` (the model thinking) is not shown.
+              const raw = evt?.choices?.[0]?.delta?.content
+              const text = raw ? think.push(raw) : ''
               if (text) send(ctrl, { text })
-              const meta = evt?.usageMetadata
+              const meta = evt?.usage
               if (meta) {
                 usage = {
-                  in: Number(meta.promptTokenCount || 0),
-                  out:
-                    Number(meta.candidatesTokenCount || 0) + Number(meta.thoughtsTokenCount || 0),
+                  in: Number(meta.prompt_tokens || 0),
+                  out: Number(meta.completion_tokens || 0),
                 }
               }
             } catch {
@@ -199,6 +389,8 @@ export default async function handler(req: Request): Promise<Response> {
             }
           }
         }
+        const tail = think.flush()
+        if (tail) send(ctrl, { text: tail })
         if (usage) send(ctrl, { usage })
       } catch (error) {
         send(ctrl, { error: (error as Error).message || 'Stream interrupted.' })

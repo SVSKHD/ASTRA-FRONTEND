@@ -37,8 +37,13 @@ const props = withDefaults(
     maxlength?: number
     id?: string
     describedBy?: string
+    /**
+     * Fix typos with AI after a pause in typing (utils/autoCorrectFields). Off
+     * for code, JSON, logs: false marks the textarea `data-autocorrect="off"`.
+     */
+    autocorrect?: boolean
   }>(),
-  { rows: 3, autoGrow: true, size: 'md', maxHeight: '40vh' },
+  { rows: 3, autoGrow: true, size: 'md', maxHeight: '40vh', autocorrect: true },
 )
 const emit = defineEmits<{
   // focus and blur are forwarded explicitly rather than left to attribute
@@ -122,6 +127,7 @@ defineExpose({
         :maxlength="maxlength"
         :aria-invalid="isInvalid"
         :aria-describedby="describedBy"
+        :data-autocorrect="autocorrect ? undefined : 'off'"
         @input="onInput"
         @focus="emit('focus', $event)"
         @blur="emit('blur', $event)"
@@ -150,6 +156,7 @@ defineExpose({
 /* A multi-line box pads vertically and lets its content set the height, where
    the single-line controls centre a fixed row. */
 .ui-ta__box {
+  position: relative;
   align-items: stretch;
   padding: var(--sp-2) 10px;
 }

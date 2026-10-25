@@ -28,12 +28,14 @@ import PanelHeader from '@/components/PanelHeader.vue'
 import OfflineChip from '@/components/OfflineChip.vue'
 import CarriedOverGroup from '@/components/CarriedOverGroup.vue'
 import CompletedSection from '@/components/CompletedSection.vue'
+import CompletedHistory from '@/components/CompletedHistory.vue'
 import ProgressLine from '@/components/ProgressLine.vue'
 import RemindBell from '@/components/RemindBell.vue'
 import TreeList from '@/components/TreeList.vue'
 import ItemPinButton from '@/components/ItemPinButton.vue'
 import DeleteUnpinned from '@/components/DeleteUnpinned.vue'
 import Accordion from '@/components/ui/Accordion.vue'
+import ScrollSection from '@/components/ScrollSection.vue'
 import { pinnedTreeIds } from '@/utils/pinnedItems'
 import TodoDetail from '@/components/TodoDetail.vue'
 import DetailPane from '@/components/ui/DetailPane.vue'
@@ -586,6 +588,22 @@ function toggleAll() {
 }
 // Carried-over and completed rows are rendered here rather than by TreeList, so
 // they host their own linked children (TreeList does the same for today's rows).
+// Pinned and Unpinned take turns: opening one collapses the other, so only one
+// list is ever scrolling in the tab. When only one of them exists it is open.
+const hasUnpinned = computed(
+  () => carried.value.length + active.value.length + completed.value.length > 0,
+)
+const pinnedOpen = computed(
+  () => !hasUnpinned.value || acc.isOpen('pinned:todos', true),
+)
+const unpinnedOpen = computed(
+  () => !pinnedRoots.value.length || acc.isOpen('unpinned:todos', !pinnedOpen.value),
+)
+function setSection(which: 'pinned' | 'unpinned', open: boolean) {
+  const other = which === 'pinned' ? 'unpinned' : 'pinned'
+  acc.set(which + ':todos', open)
+  if (open) acc.set(other + ':todos', false)
+}
 function linksOpen(t: Todo) {
   return t.linked.length > 0 && acc.isOpen(accKey(t))
 }
@@ -756,6 +774,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
       </template>
       <template #right>
         <DeleteUnpinned collection="todos" />
+        <CompletedHistory collection="todos" />
         <button v-if="anyLinked" type="button" class="panel-action" @click="toggleAll">
           {{ allExpanded ? 'Collapse links' : 'Expand links' }}
         </button>
@@ -903,16 +922,10 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
             v-if="pinnedRoots.length"
             aria-label="Pinned items"
             :title="'Pinned · ' + pinnedRoots.length"
-            :open="acc.isOpen('pinned:todos', true)"
-            @toggle="acc.set('pinned:todos', $event)"
+            :open="pinnedOpen"
+            @toggle="setSection('pinned', $event)"
           >
-            <div
-              class="pinned-scroll"
-              role="region"
-              aria-label="Pinned todos list"
-              tabindex="0"
-              data-own-keys
-            >
+            <ScrollSection label="Pinned todos list">
               <TreeList
                 collection="todos"
                 :root-ids="pinnedRoots.map((item) => item.id)"
@@ -924,16 +937,19 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                 :swipe-rows="isMobile"
                 @select="onTreeSelect"
               />
-            </div>
+            </ScrollSection>
           </Accordion>
           <Accordion
             v-if="carried.length || active.length || completed.length"
             aria-label="Unpinned items"
             :title="'Unpinned · ' + (carried.length + active.length + completed.length)"
-            :open="acc.isOpen('unpinned:todos', true)"
-            @toggle="acc.set('unpinned:todos', $event)"
+            :open="unpinnedOpen"
+            @toggle="setSection('unpinned', $event)"
           >
-            <div :style="{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }">
+            <ScrollSection
+              label="Unpinned todos list"
+              :style="{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }"
+            >
               <CarriedOverGroup
                 v-if="carried.length > 0"
                 collection="todos"
@@ -1120,7 +1136,7 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
                   hidden)
                 </button>
               </CompletedSection>
-            </div>
+            </ScrollSection>
           </Accordion>
         </div>
         <span v-if="!isMobile" :style="shortcutHint"
@@ -1146,13 +1162,3 @@ const doneAgo = (t: Todo) => (t.completedAt ? relLabel(t.completedAt - now.value
     </div>
   </div>
 </template>
-
-<style scoped>
-.pinned-scroll {
-  max-height: min(45dvh, 420px);
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scrollbar-gutter: stable;
-  padding-right: var(--sp-1);
-}
-</style>
