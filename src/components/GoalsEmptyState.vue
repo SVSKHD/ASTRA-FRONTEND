@@ -46,20 +46,20 @@ const CARDS = [
     key: 'new' as const,
     title: 'Create manually',
     body: 'Start blank and add points as you go.',
-    action: 'New goal',
+    action: 'New milestone',
     primary: true,
   },
   {
     key: 'paste-json' as const,
     title: 'Paste JSON',
-    body: 'Bring a structured goal with timeline and points.',
+    body: 'Bring a structured milestone with timeline and points.',
     action: 'Paste JSON',
     primary: false,
   },
   {
     key: 'import-link' as const,
     title: 'Import from link',
-    body: 'Open a spasta.online goals link.',
+    body: 'Open a spasta.online milestones link.',
     action: 'Import link',
     primary: false,
   },
@@ -184,7 +184,7 @@ const legend = () => pxify({ ...typeStep('xs'), color: c.value.dim, marginTop: 6
 <template>
   <div :style="wrap">
     <span :style="iconWrap()"><Icon name="football" size="xl" /></span>
-    <div :style="heading()">Set your first goal</div>
+    <div :style="heading()">Set your first milestone</div>
     <div :style="sub()">Track targets, checklists and daily wins.</div>
 
     <div :style="grid">

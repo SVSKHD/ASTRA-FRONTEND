@@ -526,7 +526,7 @@ const sourceFilters: {
 }[] = [
   { key: 'tasks', source: 'task', label: 'Tasks' },
   { key: 'todos', source: 'todo', label: 'Todos' },
-  { key: 'goals', source: 'goal', label: 'Goals' },
+  { key: 'goals', source: 'goal', label: 'Milestones' },
   { key: 'reminders', source: 'reminder', label: 'Reminders' },
 ]
 

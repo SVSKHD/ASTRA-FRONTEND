@@ -74,7 +74,7 @@ describe('the panel', () => {
     await wrapper.findAll('[role="tab"]')[1].trigger('click')
     expect(app.goalHelpTab).toBe('json')
     expect(wrapper.text()).toContain('Open Import → Paste JSON')
-    expect(wrapper.text()).not.toContain('Open New goal')
+    expect(wrapper.text()).not.toContain('Open New milestone')
   })
 
   it('is opened straight onto the JSON tab from the goal dialog', async () => {
@@ -89,7 +89,7 @@ describe('the schema reference', () => {
   it('is grouped by what the field hangs off', async () => {
     const { wrapper } = await mountPanel()
     const groups = wrapper.findAll('.ghelp__scopetitle').map((h) => h.text())
-    expect(groups).toEqual(['The document', 'Each goal', 'Each point'])
+    expect(groups).toEqual(['The document', 'Each milestone', 'Each point'])
   })
 
   it('gives every row a type, a required flag, an example and a note', async () => {
@@ -147,10 +147,10 @@ describe('the sample', () => {
   })
 
   it('loads into the import box in one click, and closes the panel behind it', async () => {
-    const { app, wrapper, router } = await mountPanel()
-    await buttonNamed(wrapper, 'Load sample goal')!.trigger('click')
+    const { app, wrapper } = await mountPanel()
+    await buttonNamed(wrapper, 'Load sample milestone')!.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/import/goals')
+    expect(app.goalImportOpen).toBe(true)
     expect(app.goalHelpOpen).toBe(false)
     // Handed over rather than imported: the reader lands in the box with it.
     expect(app.goalImportSeed).toBe(SAMPLE_GOAL_JSON)
@@ -159,7 +159,7 @@ describe('the sample', () => {
 
   it('hands the seed over exactly once', async () => {
     const { app, wrapper } = await mountPanel()
-    await buttonNamed(wrapper, 'Load sample goal')!.trigger('click')
+    await buttonNamed(wrapper, 'Load sample milestone')!.trigger('click')
     expect(app.takeGoalImportSeed()).toBe(SAMPLE_GOAL_JSON)
     // A second read must not re-seed a box the reader has since typed into.
     expect(app.takeGoalImportSeed()).toBe('')

@@ -48,6 +48,22 @@ describe('parseQuickAdd', () => {
   it('does not eat a word that merely starts like a weekday', () => {
     expect(parseQuickAdd('Update Sundays menu', NOW).date).toBeNull()
   })
+
+  it('reads month-first dates and takes a leading "by" with the date', () => {
+    expect(parseQuickAdd('Learn Rust by dec 31 #Learning', NOW)).toMatchObject({
+      title: 'Learn Rust',
+      tag: 'Learning',
+      date: '2026-12-31',
+    })
+    expect(parseQuickAdd('Ship it by fri', NOW)).toMatchObject({
+      title: 'Ship it',
+      date: '2026-09-25',
+    })
+  })
+
+  it('keeps a "by" that is not followed by a date', () => {
+    expect(parseQuickAdd('Pass by the office', NOW).title).toBe('Pass by the office')
+  })
 })
 
 describe('quickAddReminderStart', () => {

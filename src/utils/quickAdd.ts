@@ -46,10 +46,13 @@ const REPEAT: Record<string, RepeatType> = {
   year: 'years',
 }
 
+// A date may be led by "by" ("ship it by fri", "Learn Rust by dec 31"); the
+// word goes with the date rather than staying in the title.
 const DAY_WORD =
-  /(?:^|\s)(today|tonight|tomorrow|mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:rs|rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)(?=\s|$)/i
+  /(?:^|\s)(?:by\s+)?(today|tonight|tomorrow|mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:rs|rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)(?=\s|$)/i
+// Day-first ("31 dec") or month-first ("dec 31").
 const DAY_MONTH =
-  /(?:^|\s)(\d{1,2} (?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)(?=\s|$)/i
+  /(?:^|\s)(?:by\s+)?(\d{1,2} (?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2})(?=\s|$)/i
 const TIME = /(?:^|\s)(\d{1,2}(?::\d{2})?\s?(?:am|pm))(?=\s|$)/i
 
 function titleCase(word: string): string {

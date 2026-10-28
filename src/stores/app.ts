@@ -164,7 +164,14 @@ import {
 } from '@/services/localWorkspace'
 import { mergeWorkspace } from '@/utils/workspaceMerge'
 import { startProgress } from '@/services/progress'
-import { AI_MODEL, type AiChat, type AiMessage, type Bot } from '@/types'
+import {
+  AI_MODEL,
+  type AiChat,
+  type AiItemRef,
+  type AiMessage,
+  type AiSource,
+  type Bot,
+} from '@/types'
 import type {
   Attachment,
   Debt,
@@ -196,6 +203,7 @@ import {
   tidyTreeLayout,
 } from '@/utils/planning'
 import {
+  ancestorsOf,
   buildIndex,
   descendantsOf,
   inheritedTags,
@@ -208,6 +216,13 @@ import {
 import { useSyncGuard } from '@/composables/useSyncGuard'
 import type {
   ActiveNotif,
+  AcceptanceCheck,
+  Kpi,
+  MilestoneConclusion,
+  SkillGoal,
+  Subtask,
+  Learning,
+  LearningExample,
   Deadline,
   EditingState,
   Finance,
@@ -271,6 +286,26 @@ import type { ParsedGoalItem, GoalDoc, GoalPoint } from '@/utils/goals'
 import { horizonDates, localDateInTz } from '@/utils/recurrence'
 import { captureOutcome } from '@/utils/goalMetrics'
 import { exportGoalsJson } from '@/utils/goals'
+import {
+  nextLocalId,
+  normaliseAudit,
+  normaliseConclusion,
+  normaliseKpis,
+  normaliseLearnings,
+  normaliseSkillGoals,
+  normaliseSubtasks,
+} from '@/utils/milestoneTracking'
+import { writeLearningDoc, type ExportGoal, type LearningDoc } from '@/utils/learningDoc'
+import {
+  closeBlockers,
+  emptyConclusion,
+  isClosed,
+  isoWithOffset,
+  pointComplete,
+  pointProgress,
+  weightedProgress,
+  type Progress,
+} from '@/utils/milestoneProgress'
 import { parseQuotes, quoteKey } from '@/utils/quotes'
 import {
   parseItemsForParent,
@@ -462,6 +497,13 @@ export const useAppStore = defineStore('app', () => {
   // reference through their own goalIds; a goal never stores the item list.
   const goals = ref<Goal[]>([])
   const goalChecklist = ref<GoalChecklistItem[]>([])
+  // Goals above milestones (Learning & Goals). Milestones point up via skillGoalId.
+  const skillGoals = ref<SkillGoal[]>([])
+  // The imported document's project name and tracking_rules, kept for export.
+  const learningMeta = ref<{ project: string; trackingRules: unknown }>({
+    project: '',
+    trackingRules: null,
+  })
   // Dated occurrences of recurring goals (task 11). Flat array keyed by
   // (goalId, date); generation is idempotent on that pair so multi-device sync
   // never duplicates a day.
@@ -542,6 +584,9 @@ export const useAppStore = defineStore('app', () => {
   // the same session, and a sample left in the workspace doc would be a
   // surprise on the next device.
   const goalImportSeed = ref('')
+  // The import screen as a dialog over the workspace. The /import/goals route
+  // stays for an inbound spasta link that lands on the app from outside.
+  const goalImportOpen = ref(false)
   // Done/Not-done split preferences. hideCompleted collapses the Completed
   // section entirely for users who never want it; reminderSound plays a short
   // tone alongside the browser notification when a reminder fires.
@@ -725,6 +770,7 @@ export const useAppStore = defineStore('app', () => {
       ...goals.value.map((g) => g.id),
       ...goalChecklist.value.map((c) => c.id),
       ...goalOccurrences.value.map((o) => o.id),
+      ...skillGoals.value.map((g) => g.id),
       ...prompts.value.map((p) => p.id),
       ...timeline.value.map((e) => e.id),
       // AI chats and their messages draw from this same counter. Leaving them
@@ -2096,7 +2142,7 @@ export const useAppStore = defineStore('app', () => {
       ...goals.value,
       {
         id: newId,
-        title: 'New goal',
+        title: 'New milestone',
         description: '',
         status: 'active',
         targetDate: '',
@@ -2225,42 +2271,617 @@ export const useAppStore = defineStore('app', () => {
     }
     return newId
   }
-  // Delete a goal with an 8s Undo that restores the goal, its checklist, and the
+  // Delete goals with an 8s Undo that restores each goal, its checklist, and the
   // goalId links stripped from every attached task/todo. The whole payload is held
-  // in the toast handler's closure, not persisted.
+  // in the toast handler's closure, not persisted. One toast for the whole set,
+  // so a bulk delete is undone in one press rather than one per goal.
   function removeGoalWithUndo(gid: number) {
-    const g = goalById(gid)
-    if (!g) return
-    const savedChecklist = goalChecklist.value.filter((c) => c.goalId === gid)
-    const savedOccurrences = goalOccurrences.value.filter((o) => o.goalId === gid)
-    const attachedTaskIds = tasks.value.filter((t) => t.goalIds?.includes(gid)).map((t) => t.id)
-    const attachedTodoIds = todos.value.filter((t) => t.goalIds?.includes(gid)).map((t) => t.id)
-    deleteGoal(gid) // unlinks tasks/todos, removes checklist + occurrences + goal + reminders
-    const short = g.title.length > 28 ? g.title.slice(0, 28) + '…' : g.title || 'goal'
+    removeGoalsWithUndo([gid])
+  }
+  function removeGoalsWithUndo(gids: number[]) {
+    const saved = gids.flatMap((gid) => {
+      const g = goalById(gid)
+      if (!g) return []
+      return [
+        {
+          g,
+          checklist: goalChecklist.value.filter((c) => c.goalId === gid),
+          occurrences: goalOccurrences.value.filter((o) => o.goalId === gid),
+          taskIds: tasks.value.filter((t) => t.goalIds?.includes(gid)).map((t) => t.id),
+          todoIds: todos.value.filter((t) => t.goalIds?.includes(gid)).map((t) => t.id),
+        },
+      ]
+    })
+    if (!saved.length) return
+    // Unlinks tasks/todos, removes checklist + occurrences + goal + reminders.
+    for (const { g } of saved) deleteGoal(g.id)
+    const first = saved[0].g.title
+    const short = first.length > 28 ? first.slice(0, 28) + '…' : first || 'milestone'
     showToastWithUndo(
-      `Deleted "${short}"`,
+      saved.length === 1 ? `Deleted "${short}"` : `Deleted ${saved.length} milestones`,
       () => {
-        goals.value = [...goals.value, g]
-        goalChecklist.value = [...goalChecklist.value, ...savedChecklist]
-        goalOccurrences.value = [...goalOccurrences.value, ...savedOccurrences]
+        goals.value = [...goals.value, ...saved.map((x) => x.g)]
+        goalChecklist.value = [...goalChecklist.value, ...saved.flatMap((x) => x.checklist)]
+        goalOccurrences.value = [...goalOccurrences.value, ...saved.flatMap((x) => x.occurrences)]
+        // Put each goal's id back on the tasks and todos it was stripped from.
+        const relink = (pick: (x: (typeof saved)[number]) => number[]) => {
+          const byItem = new Map<number, number[]>()
+          for (const x of saved)
+            for (const itemId of pick(x))
+              byItem.set(itemId, [...(byItem.get(itemId) ?? []), x.g.id])
+          return <T extends { id: number; goalIds?: number[] }>(t: T): T => {
+            const add = byItem.get(t.id)
+            return add ? { ...t, goalIds: Array.from(new Set([...(t.goalIds ?? []), ...add])) } : t
+          }
+        }
+        tasks.value = tasks.value.map(relink((x) => x.taskIds))
+        todos.value = todos.value.map(relink((x) => x.todoIds))
         // Re-register the recurring reminders + calendar events if it was recurring.
-        if (g.recurrence?.enabled) syncGoalReminders(gid)
-        const reAttach = new Set(attachedTaskIds)
-        tasks.value = tasks.value.map((t) =>
-          reAttach.has(t.id)
-            ? { ...t, goalIds: Array.from(new Set([...(t.goalIds ?? []), gid])) }
-            : t,
-        )
-        const reAttachTodos = new Set(attachedTodoIds)
-        todos.value = todos.value.map((t) =>
-          reAttachTodos.has(t.id)
-            ? { ...t, goalIds: Array.from(new Set([...(t.goalIds ?? []), gid])) }
-            : t,
-        )
+        for (const { g } of saved) if (g.recurrence?.enabled) syncGoalReminders(g.id)
       },
       8000,
       'Undo',
     )
+  }
+
+  // --- milestone KPIs -----------------------------------------------------------
+  function patchKpis(gid: number, fn: (kpis: Kpi[]) => Kpi[]) {
+    const g = goalById(gid)
+    if (g) updateGoal(gid, { kpis: fn(g.kpis ?? []) })
+  }
+  function addKpi(gid: number, fields: Pick<Kpi, 'name' | 'unit' | 'start' | 'target'>): number {
+    const kid = nextLocalId(goalById(gid)?.kpis ?? [])
+    patchKpis(gid, (list) => [
+      ...list,
+      { ...fields, name: fields.name.trim(), id: kid, entries: [], createdAt: Date.now() },
+    ])
+    return kid
+  }
+  function updateKpi(gid: number, kid: number, fields: Partial<Omit<Kpi, 'id' | 'entries'>>) {
+    patchKpis(gid, (list) => list.map((k) => (k.id === kid ? { ...k, ...fields } : k)))
+  }
+  function removeKpi(gid: number, kid: number) {
+    patchKpis(gid, (list) => list.filter((k) => k.id !== kid))
+  }
+  function logKpi(gid: number, kid: number, value: number, note = '') {
+    if (!Number.isFinite(value)) return
+    patchKpis(gid, (list) =>
+      list.map((k) =>
+        k.id === kid
+          ? {
+              ...k,
+              entries: [
+                ...k.entries,
+                { id: nextLocalId(k.entries), at: Date.now(), value, note: note.trim() },
+              ],
+            }
+          : k,
+      ),
+    )
+  }
+  function removeKpiEntry(gid: number, kid: number, entryId: number) {
+    patchKpis(gid, (list) =>
+      list.map((k) =>
+        k.id === kid ? { ...k, entries: k.entries.filter((e) => e.id !== entryId) } : k,
+      ),
+    )
+  }
+
+  // --- point learnings ----------------------------------------------------------
+  function patchLearnings(itemId: number, fn: (list: Learning[]) => Learning[]) {
+    const item = goalChecklist.value.find((c) => c.id === itemId)
+    if (item) updateChecklistItem(itemId, { learnings: fn(item.learnings ?? []) })
+  }
+  function addLearning(
+    itemId: number,
+    text: string,
+    examples: Omit<LearningExample, 'id'>[] = [],
+  ): number {
+    const item = goalChecklist.value.find((c) => c.id === itemId)
+    const lid = nextLocalId(item?.learnings ?? [])
+    patchLearnings(itemId, (list) => [
+      ...list,
+      {
+        id: lid,
+        text: text.trim(),
+        examples: examples.map((e, i) => ({ ...e, id: i + 1 })),
+        createdAt: Date.now(),
+      },
+    ])
+    return lid
+  }
+  function updateLearning(itemId: number, lid: number, text: string) {
+    patchLearnings(itemId, (list) => list.map((l) => (l.id === lid ? { ...l, text } : l)))
+  }
+  function removeLearning(itemId: number, lid: number) {
+    patchLearnings(itemId, (list) => list.filter((l) => l.id !== lid))
+  }
+  function addLearningExample(itemId: number, lid: number, example: Omit<LearningExample, 'id'>) {
+    patchLearnings(itemId, (list) =>
+      list.map((l) =>
+        l.id === lid
+          ? { ...l, examples: [...l.examples, { ...example, id: nextLocalId(l.examples) }] }
+          : l,
+      ),
+    )
+  }
+  function updateLearningExample(
+    itemId: number,
+    lid: number,
+    exampleId: number,
+    fields: Partial<Omit<LearningExample, 'id'>>,
+  ) {
+    patchLearnings(itemId, (list) =>
+      list.map((l) =>
+        l.id === lid
+          ? {
+              ...l,
+              examples: l.examples.map((e) => (e.id === exampleId ? { ...e, ...fields } : e)),
+            }
+          : l,
+      ),
+    )
+  }
+  function removeLearningExample(itemId: number, lid: number, exampleId: number) {
+    patchLearnings(itemId, (list) =>
+      list.map((l) =>
+        l.id === lid ? { ...l, examples: l.examples.filter((e) => e.id !== exampleId) } : l,
+      ),
+    )
+  }
+
+  // --- point subtasks -------------------------------------------------------------
+  // A point's subtasks decide its `done`: ticked when every one is. Anything that
+  // takes a closed milestone below 100% reopens it, with the reason audited.
+  function writeSubtasks(itemId: number, next: Subtask[], reason: string) {
+    const item = goalChecklist.value.find((c) => c.id === itemId)
+    if (!item) return
+    const was = pointComplete(item)
+    const done = next.length ? next.every((st) => st.completed) : item.done
+    const now = Date.now()
+    updateChecklistItem(itemId, {
+      subtasks: next,
+      done,
+      completedAt: done ? (item.completedAt ?? now) : null,
+      startedAt: item.startedAt ?? (next.some((st) => st.completed) ? now : null),
+    })
+    if (was && !pointComplete({ done, subtasks: next })) reopenIfClosed(item.goalId, reason)
+  }
+  function subtasksOf(itemId: number): Subtask[] {
+    return goalChecklist.value.find((c) => c.id === itemId)?.subtasks ?? []
+  }
+  function addSubtask(itemId: number, title: string): number | undefined {
+    const text = title.trim()
+    if (!text) return undefined
+    const list = subtasksOf(itemId)
+    const sid = nextLocalId(list)
+    writeSubtasks(
+      itemId,
+      [...list, { id: sid, title: text, completed: false, completedAt: null }],
+      'Subtask added',
+    )
+    return sid
+  }
+  function toggleSubtask(itemId: number, sid: number) {
+    const now = Date.now()
+    writeSubtasks(
+      itemId,
+      subtasksOf(itemId).map((st) =>
+        st.id === sid
+          ? { ...st, completed: !st.completed, completedAt: st.completed ? null : now }
+          : st,
+      ),
+      'Subtask unchecked',
+    )
+  }
+  function renameSubtask(itemId: number, sid: number, title: string) {
+    const text = title.trim()
+    if (!text) return
+    writeSubtasks(
+      itemId,
+      subtasksOf(itemId).map((st) => (st.id === sid ? { ...st, title: text } : st)),
+      'Subtask renamed',
+    )
+  }
+  // A removed subtask takes its tick with it, so Undo puts it back in place.
+  function removeSubtask(itemId: number, sid: number) {
+    const before = subtasksOf(itemId)
+    const gone = before.find((st) => st.id === sid)
+    if (!gone) return
+    writeSubtasks(
+      itemId,
+      before.filter((st) => st.id !== sid),
+      'Subtask removed',
+    )
+    showToastWithUndo(`Deleted subtask "${gone.title}"`, () =>
+      writeSubtasks(itemId, before, 'Subtask restored'),
+    )
+  }
+  function moveSubtask(itemId: number, sid: number, toIndex: number) {
+    const list = subtasksOf(itemId)
+    const from = list.findIndex((st) => st.id === sid)
+    if (from === -1) return
+    const next = list.slice()
+    const [moved] = next.splice(from, 1)
+    next.splice(Math.max(0, Math.min(toIndex, next.length)), 0, moved)
+    writeSubtasks(itemId, next, 'Subtask moved')
+  }
+
+  // --- conclusion and closure -----------------------------------------------------
+  // Spec section 5: ticking everything reaches 100%; "Completed" needs a
+  // confirmed conclusion. Closing validates again here, whatever the UI showed.
+  function patchConclusion(gid: number, fn: (c: MilestoneConclusion) => MilestoneConclusion) {
+    const g = goalById(gid)
+    if (g) updateGoal(gid, { conclusion: fn(g.conclusion ?? emptyConclusion()) })
+  }
+  function setConclusionSummary(gid: number, summary: string) {
+    patchConclusion(gid, (c) => ({ ...c, summary }))
+  }
+  function setConclusionEvidence(gid: number, evidence: string[]) {
+    patchConclusion(gid, (c) => ({ ...c, evidence }))
+  }
+  function setEvidenceRequired(gid: number, required: boolean) {
+    patchConclusion(gid, (c) => {
+      const { evidenceRequired: _drop, ...rest } = c
+      void _drop
+      return required ? { ...rest, evidenceRequired: true } : rest
+    })
+  }
+  function addAcceptanceCheck(gid: number, text: string) {
+    const t = text.trim()
+    if (!t) return
+    patchConclusion(gid, (c) => ({
+      ...c,
+      acceptance: [...c.acceptance, { id: nextLocalId(c.acceptance), text: t, checked: false }],
+    }))
+  }
+  function toggleAcceptanceCheck(gid: number, checkId: number) {
+    patchConclusion(gid, (c) => ({
+      ...c,
+      acceptance: c.acceptance.map((a: AcceptanceCheck) =>
+        a.id === checkId ? { ...a, checked: !a.checked } : a,
+      ),
+    }))
+  }
+  function removeAcceptanceCheck(gid: number, checkId: number) {
+    patchConclusion(gid, (c) => ({
+      ...c,
+      acceptance: c.acceptance.filter((a) => a.id !== checkId),
+    }))
+  }
+  function milestoneBlockers(gid: number): string[] {
+    const g = goalById(gid)
+    if (!g) return ['Milestone not found']
+    return closeBlockers(goalProgress(gid), g.conclusion)
+  }
+  /** Close when every rule holds; returns what is still in the way otherwise. */
+  function closeMilestone(gid: number): string[] {
+    const blockers = milestoneBlockers(gid)
+    const g = goalById(gid)
+    if (blockers.length || !g) return blockers
+    const at = isoWithOffset()
+    updateGoal(gid, {
+      status: 'done',
+      conclusion: { ...(g.conclusion ?? emptyConclusion()), status: 'completed', closedAt: at },
+      audit: [...(g.audit ?? []), { at, action: 'closed', reason: 'Closed with conclusion' }],
+    })
+    showToastMsg(`Closed "${g.title.length > 28 ? g.title.slice(0, 28) + '…' : g.title}"`)
+    return []
+  }
+  /** Reopen for editing. The conclusion text stays; the audit records why. */
+  function reopenMilestone(gid: number, reason = 'Reopened') {
+    const g = goalById(gid)
+    if (!g || !isClosed(g)) return
+    updateGoal(gid, {
+      status: 'active',
+      conclusion: { ...(g.conclusion ?? emptyConclusion()), status: 'pending', closedAt: null },
+      audit: [...(g.audit ?? []), { at: isoWithOffset(), action: 'reopened', reason }],
+    })
+  }
+  function reopenIfClosed(gid: number, reason: string) {
+    const g = goalById(gid)
+    // Only a confirmed conclusion is reopened automatically; a milestone marked
+    // done the old way has nothing to reopen into.
+    if (g?.conclusion?.status === 'completed') reopenMilestone(gid, reason)
+  }
+
+  // --- goals above milestones -----------------------------------------------------
+  function skillGoalById(id: number): SkillGoal | undefined {
+    return skillGoals.value.find((g) => g.id === id)
+  }
+  function addSkillGoal(fields: Partial<SkillGoal> & { title: string }): number {
+    const newId = id()
+    const orders = skillGoals.value.map((g) => g.order)
+    skillGoals.value = [
+      ...skillGoals.value,
+      {
+        description: '',
+        startDate: '',
+        targetDate: '',
+        project: '',
+        order: orders.length ? Math.max(...orders) + 1 : 0,
+        ...fields,
+        title: fields.title.trim() || 'Untitled goal',
+        id: newId,
+        ...stamps(),
+      },
+    ]
+    return newId
+  }
+  function updateSkillGoal(sgid: number, fields: Partial<Omit<SkillGoal, 'id'>>) {
+    skillGoals.value = skillGoals.value.map((g) =>
+      g.id === sgid ? touched({ ...g, ...fields }) : g,
+    )
+  }
+  /** Removes the goal only; its milestones stay, ungrouped. One Undo restores both. */
+  function removeSkillGoal(sgid: number) {
+    const g = skillGoalById(sgid)
+    if (!g) return
+    const members = goals.value.filter((m) => m.skillGoalId === sgid).map((m) => m.id)
+    skillGoals.value = skillGoals.value.filter((x) => x.id !== sgid)
+    for (const mid of members) updateGoal(mid, { skillGoalId: null })
+    showToastWithUndo(
+      `Deleted goal "${g.title.length > 28 ? g.title.slice(0, 28) + '…' : g.title}"`,
+      () => {
+        skillGoals.value = [...skillGoals.value, g]
+        for (const mid of members) updateGoal(mid, { skillGoalId: sgid })
+      },
+      8000,
+      'Undo',
+    )
+  }
+  function setMilestoneGoal(gid: number, sgid: number | null) {
+    updateGoal(gid, { skillGoalId: sgid })
+  }
+  function milestonesOfSkillGoal(sgid: number): Goal[] {
+    return goals.value
+      .filter((g) => g.skillGoalId === sgid && g.status !== 'archived')
+      .sort(
+        (a, b) =>
+          (a.startDate || a.targetDate || '~').localeCompare(b.startDate || b.targetDate || '~') ||
+          a.order - b.order,
+      )
+  }
+  // --- Learning & Goals import and export ----------------------------------------
+  // Ids an exported item carries when it was made here rather than imported, so
+  // a re-import of our own export finds the same items again.
+  const exportId = {
+    goal: (g: SkillGoal) => g.sourceId ?? `goal-${g.id}`,
+    milestone: (m: Goal) => m.sourceId ?? `milestone-${m.id}`,
+    task: (c: GoalChecklistItem) => c.sourceId ?? `task-${c.id}`,
+    subtask: (c: GoalChecklistItem, st: Subtask) => st.sourceId ?? `subtask-${c.id}-${st.id}`,
+  }
+
+  /**
+   * Bring a parsed document in. Rows with an error are skipped (the preview
+   * listed them). An item already here — matched by its stable id — is updated
+   * in place, keeping what the document does not carry (learnings, KPIs, notes,
+   * acceptance checks); nothing here is deleted by an import. Built as whole
+   * arrays and assigned once, so hundreds of subtasks are one save, not hundreds.
+   */
+  function importLearningDoc(doc: LearningDoc): {
+    goals: number
+    milestones: number
+    tasks: number
+    subtasks: number
+    updated: number
+  } {
+    const out = { goals: 0, milestones: 0, tasks: 0, subtasks: 0, updated: 0 }
+    const now = Date.now()
+    let nextGoals = goals.value.slice()
+    let nextPoints = goalChecklist.value.slice()
+    let nextSkill = skillGoals.value.slice()
+    const goalOrder = () => (nextGoals.length ? Math.max(...nextGoals.map((g) => g.order)) + 1 : 0)
+
+    for (const dg of doc.goals) {
+      if (dg.error) continue
+      out.goals++
+      // By stable id, else by title: a single milestone exported on its own
+      // names its goal only by title, and that goal may have been made by hand.
+      const sameTitle = (g: SkillGoal) =>
+        g.title.trim().toLowerCase() === dg.title.trim().toLowerCase()
+      const prevSg = nextSkill.find((g) => exportId.goal(g) === dg.id) ?? nextSkill.find(sameTitle)
+      // What the document leaves out is kept, not blanked.
+      const sgFields = {
+        title: dg.title,
+        description: dg.description || prevSg?.description || '',
+        startDate: dg.start || prevSg?.startDate || '',
+        targetDate: dg.target || prevSg?.targetDate || '',
+        project: doc.project || prevSg?.project || '',
+        sourceId: prevSg?.sourceId ?? dg.id,
+        ...(dg.conclusion && { conclusion: { ...emptyConclusion(), ...dg.conclusion } }),
+      }
+      let sgid: number
+      if (prevSg) {
+        sgid = prevSg.id
+        nextSkill = nextSkill.map((g) => (g.id === sgid ? touched({ ...g, ...sgFields }) : g))
+        out.updated++
+      } else {
+        sgid = id()
+        const order = nextSkill.length ? Math.max(...nextSkill.map((g) => g.order)) + 1 : 0
+        nextSkill = [...nextSkill, { id: sgid, order, ...sgFields, ...stamps() }]
+      }
+
+      for (const dm of dg.milestones) {
+        if (dm.error) continue
+        out.milestones++
+        const prevM = nextGoals.find((g) => exportId.milestone(g) === dm.id)
+        const closed = dm.conclusion?.status === 'completed'
+        const conclusion: MilestoneConclusion | undefined = dm.conclusion
+          ? {
+              ...emptyConclusion(),
+              ...prevM?.conclusion,
+              status: dm.conclusion.status,
+              summary: dm.conclusion.summary,
+              evidence: dm.conclusion.evidence,
+              closedAt: closed ? (dm.conclusion.closedAt ?? isoWithOffset()) : null,
+            }
+          : prevM?.conclusion
+        const mFields = {
+          title: dm.title,
+          ...(dm.description && { description: dm.description }),
+          startDate: dm.start,
+          targetDate: dm.deadline,
+          skillGoalId: sgid,
+          sourceId: dm.id,
+          status: closed
+            ? ('done' as const)
+            : prevM && prevM.status !== 'done'
+              ? prevM.status
+              : ('active' as const),
+          ...(conclusion && { conclusion }),
+        }
+        let gid: number
+        if (prevM) {
+          gid = prevM.id
+          nextGoals = nextGoals.map((g) =>
+            g.id === gid ? touched({ ...g, ...mFields, localRev: g.localRev + 1 }) : g,
+          )
+          out.updated++
+        } else {
+          gid = id()
+          nextGoals = [
+            ...nextGoals,
+            {
+              id: gid,
+              description: '',
+              color: '',
+              icon: '',
+              tag: '',
+              source: 'manual',
+              sourceUrl: '',
+              parentId: null,
+              order: goalOrder(),
+              depth: 0,
+              rootId: gid,
+              localRev: 0,
+              updatedBy: uid ?? '',
+              ...mFields,
+              ...stamps(),
+            },
+          ]
+        }
+
+        dm.tasks.forEach((dt, ti) => {
+          out.tasks++
+          const prevP = nextPoints.find((c) => c.goalId === gid && exportId.task(c) === dt.id)
+          const subtasks: Subtask[] = []
+          for (const ds of dt.subtasks) {
+            out.subtasks++
+            const prevS = prevP?.subtasks?.find((st) => exportId.subtask(prevP, st) === ds.id)
+            subtasks.push({
+              id: prevS?.id ?? nextLocalId([...(prevP?.subtasks ?? []), ...subtasks]),
+              title: ds.title,
+              completed: ds.completed,
+              completedAt: ds.completed ? (prevS?.completedAt ?? now) : null,
+              sourceId: ds.id,
+            })
+          }
+          const done = subtasks.length ? subtasks.every((st) => st.completed) : dt.completed
+          const pFields = {
+            text: dt.title,
+            done,
+            completedAt: done ? (prevP?.completedAt ?? now) : null,
+            subtasks,
+            sourceId: dt.id,
+          }
+          if (prevP) {
+            nextPoints = nextPoints.map((c) =>
+              c.id === prevP.id ? touched({ ...c, ...pFields, localRev: c.localRev + 1 }) : c,
+            )
+          } else {
+            nextPoints = [
+              ...nextPoints,
+              {
+                id: id(),
+                goalId: gid,
+                order: (ti + 1) * CHECKLIST_GAP,
+                estimateMins: null,
+                spentMins: 0,
+                dueAt: '',
+                startAt: '',
+                tags: [],
+                startedAt: null,
+                timerStartedAt: null,
+                localRev: 0,
+                ...pFields,
+                ...stamps(),
+              },
+            ]
+          }
+        })
+      }
+    }
+    skillGoals.value = nextSkill
+    goals.value = nextGoals
+    goalChecklist.value = nextPoints
+    learningMeta.value = {
+      project: doc.project || learningMeta.value.project,
+      trackingRules: doc.trackingRules ?? learningMeta.value.trackingRules,
+    }
+    return out
+  }
+
+  /** Every goal, its milestones, points and subtasks, in the document shape. */
+  function exportLearningDoc(): string {
+    const docGoals: ExportGoal[] = skillGoals.value
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((sg) => ({
+        id: exportId.goal(sg),
+        title: sg.title,
+        description: sg.description,
+        start: sg.startDate,
+        target: sg.targetDate,
+        conclusion: sg.conclusion ?? null,
+        milestones: goals.value
+          .filter((m) => m.skillGoalId === sg.id)
+          .sort(
+            (a, b) =>
+              (a.startDate || a.targetDate || '~').localeCompare(
+                b.startDate || b.targetDate || '~',
+              ) || a.order - b.order,
+          )
+          .map((m) => ({
+            id: exportId.milestone(m),
+            title: m.title,
+            start: m.startDate,
+            deadline: m.targetDate,
+            conclusion: m.conclusion
+              ? {
+                  status: m.conclusion.status,
+                  summary: m.conclusion.summary,
+                  evidence: m.conclusion.evidence,
+                  closedAt: m.conclusion.closedAt,
+                }
+              : isClosed(m)
+                ? { status: 'completed' as const, summary: '', evidence: [], closedAt: null }
+                : null,
+            tasks: checklistOf(m.id).map((c) => ({
+              id: exportId.task(c),
+              title: c.text,
+              completed: c.done,
+              subtasks: (c.subtasks ?? []).map((st) => ({
+                id: exportId.subtask(c, st),
+                title: st.title,
+                completed: st.completed,
+              })),
+            })),
+          })),
+      }))
+    return writeLearningDoc(
+      learningMeta.value.project || 'learningandgoals',
+      docGoals,
+      learningMeta.value.trackingRules,
+      isoWithOffset(),
+    )
+  }
+
+  /** Weighted by each milestone's real unit count; closed milestones counted apart. */
+  function skillGoalProgress(sgid: number): Progress & { milestones: number; closed: number } {
+    const members = milestonesOfSkillGoal(sgid)
+    const p = weightedProgress(members.map((m) => goalProgress(m.id)))
+    return { ...p, milestones: members.length, closed: members.filter(isClosed).length }
   }
 
   // --- checklist CRUD ------------------------------------------------------
@@ -2340,6 +2961,7 @@ export const useAppStore = defineStore('app', () => {
   }
   function toggleChecklistItem(itemId: number) {
     const now = Date.now()
+    const item = goalChecklist.value.find((c) => c.id === itemId)
     goalChecklist.value = goalChecklist.value.map((c) => {
       if (c.id !== itemId) return c
       const done = !c.done
@@ -2349,8 +2971,17 @@ export const useAppStore = defineStore('app', () => {
         completedAt: done ? now : null,
         startedAt: c.startedAt ?? (done ? now : null),
         localRev: c.localRev + 1,
+        // A point with subtasks is its subtasks: ticking it ticks them all.
+        ...(c.subtasks?.length && {
+          subtasks: c.subtasks.map((st) => ({
+            ...st,
+            completed: done,
+            completedAt: done ? (st.completedAt ?? now) : null,
+          })),
+        }),
       })
     })
+    if (item?.done) reopenIfClosed(item.goalId, 'Point unchecked')
   }
   function deleteChecklistItem(itemId: number) {
     goalChecklist.value = goalChecklist.value.filter((c) => c.id !== itemId)
@@ -2441,7 +3072,7 @@ export const useAppStore = defineStore('app', () => {
     const already = goalMovedTo(gid)
     if (already) {
       showToastMsg(
-        `"${g.title || 'Goal'}" is already in ${already.collection === 'tasks' ? 'Tasks' : 'Todos'}`,
+        `"${g.title || 'Milestone'}" is already in ${already.collection === 'tasks' ? 'Tasks' : 'Todos'}`,
       )
       return already.id
     }
@@ -2543,7 +3174,14 @@ export const useAppStore = defineStore('app', () => {
       entry.total++
       if (done) entry.done++
     }
-    for (const item of goalChecklist.value) add(item.goalId, 'checklist', item.done)
+    // A point counts its subtasks, or itself when it has none (milestoneProgress).
+    for (const item of goalChecklist.value) {
+      const entry = slot(item.goalId)
+      const units = pointProgress(item)
+      entry.checklist++
+      entry.total += units.total
+      entry.done += units.done
+    }
     for (const task of tasks.value)
       for (const gid of task.goalIds ?? []) add(gid, 'tasks', task.done)
     for (const todo of todos.value)
@@ -2656,7 +3294,7 @@ export const useAppStore = defineStore('app', () => {
     if (mainId != null) ids.push(mainId)
     if (rec.endOfDayNudge) {
       const nudgeId = addReminder({
-        title: `${g.title || 'Goal'} — still pending?`,
+        title: `${g.title || 'Milestone'} — still pending?`,
         note: '',
         start: `${rec.startDate}T${rec.endOfDayNudge}`,
         repeat,
@@ -2830,7 +3468,7 @@ export const useAppStore = defineStore('app', () => {
     const gid = merging
       ? (opts.mergeGoalId as number)
       : addGoal({
-          title: opts.title.trim() || 'Imported Goals',
+          title: opts.title.trim() || 'Imported Milestones',
           source: 'url-import',
           sourceUrl: opts.sourceUrl,
         })
@@ -3497,6 +4135,17 @@ export const useAppStore = defineStore('app', () => {
   }
   // "Clear completed": archive (not delete) every done item in a collection, so
   // it drops out of the list but still counts in Overview and Calendar.
+  // Every ancestor of a live, unfinished item. "Clear completed" leaves these
+  // alone: archiving a done parent would hide the open work still under it.
+  function parentsOfUnfinished<T extends Task | Todo>(list: readonly T[]): Set<number> {
+    const index = buildIndex([...list])
+    const keep = new Set<number>()
+    for (const item of list) {
+      if (item.status === 'done' || item.archivedAt != null) continue
+      for (const a of ancestorsOf(index, item.id)) keep.add(a.id)
+    }
+    return keep
+  }
   function archiveCompleted(collection: RemindCollection) {
     const at = Date.now()
     if (collection === 'ideas') {
@@ -3504,12 +4153,18 @@ export const useAppStore = defineStore('app', () => {
         i.status === 'done' && i.archivedAt == null ? { ...i, archivedAt: at } : i,
       )
     } else if (collection === 'todos') {
+      const keep = parentsOfUnfinished(todos.value)
       todos.value = todos.value.map((t) =>
-        t.status === 'done' && t.archivedAt == null ? { ...t, archivedAt: at } : t,
+        t.status === 'done' && t.archivedAt == null && !keep.has(t.id)
+          ? { ...t, archivedAt: at }
+          : t,
       )
     } else {
+      const keep = parentsOfUnfinished(tasks.value)
       tasks.value = tasks.value.map((t) =>
-        t.status === 'done' && t.archivedAt == null ? { ...t, archivedAt: at } : t,
+        t.status === 'done' && t.archivedAt == null && !keep.has(t.id)
+          ? { ...t, archivedAt: at }
+          : t,
       )
     }
   }
@@ -4408,6 +5063,45 @@ export const useAppStore = defineStore('app', () => {
     aiChats.value = aiChats.value.map((ch) =>
       ch.id === chatId
         ? { ...ch, messages: ch.messages.map((m) => (m.id === msgId ? { ...m, model } : m)) }
+        : ch,
+    )
+  }
+  // What a reply made (card items, a plan's parent, "Add to"): `add` records
+  // more, `remove` takes them off again after an Undo.
+  function trackAiMade(
+    chatId: number,
+    msgId: number,
+    refs: AiItemRef[],
+    mode: 'add' | 'remove' = 'add',
+  ) {
+    if (!refs.length) return
+    const key = (r: AiItemRef) => `${r.kind}:${r.id}`
+    const keys = new Set(refs.map(key))
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? {
+            ...ch,
+            messages: ch.messages.map((m) => {
+              if (m.id !== msgId) return m
+              const rest = (m.made ?? []).filter((r) => !keys.has(key(r)))
+              return { ...m, made: mode === 'add' ? [...rest, ...refs] : rest }
+            }),
+          }
+        : ch,
+    )
+  }
+  // The web pages read for a reply (links in the user's message).
+  function setAiMessageSources(chatId: number, msgId: number, sources: AiSource[]) {
+    const clean = sources
+      .filter((s) => s && typeof s.url === 'string')
+      .slice(0, 5)
+      .map((s) => ({ url: s.url, title: String(s.title ?? '').slice(0, 160), ok: s.ok === true }))
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? {
+            ...ch,
+            messages: ch.messages.map((m) => (m.id === msgId ? { ...m, sources: clean } : m)),
+          }
         : ch,
     )
   }
@@ -6955,6 +7649,12 @@ export const useAppStore = defineStore('app', () => {
     goalImportSeed.value = json
     goalHelpOpen.value = false
   }
+  function openGoalImport() {
+    goalImportOpen.value = true
+  }
+  function closeGoalImport() {
+    goalImportOpen.value = false
+  }
   // Read once. Leaving it set would re-seed the box every time the import
   // screen is opened, overwriting whatever the reader had pasted themselves.
   function takeGoalImportSeed(): string {
@@ -7600,6 +8300,8 @@ export const useAppStore = defineStore('app', () => {
       goals: goals.value,
       goalChecklist: goalChecklist.value,
       goalOccurrences: goalOccurrences.value,
+      skillGoals: skillGoals.value,
+      learningMeta: learningMeta.value,
       lastGoalGenDay: lastGoalGenDay.value,
       goalsHelpSeen: goalsHelpSeen.value,
       tags: tags.value,
@@ -7658,6 +8360,8 @@ export const useAppStore = defineStore('app', () => {
     goals.value = []
     goalChecklist.value = []
     goalOccurrences.value = []
+    skillGoals.value = []
+    learningMeta.value = { project: '', trackingRules: null }
     lastGoalGenDay.value = ''
     tags.value = DEFAULT_TAGS.slice()
     quotes.value = []
@@ -7964,7 +8668,7 @@ export const useAppStore = defineStore('app', () => {
     const goalStatuses = ['active', 'paused', 'done', 'archived']
     goals.value = stamped<Goal>(data.goals).map((g, i) => ({
       ...g,
-      title: typeof g.title === 'string' ? g.title : 'Goal',
+      title: typeof g.title === 'string' ? g.title : 'Milestone',
       description: typeof g.description === 'string' ? g.description : '',
       status: goalStatuses.includes(g.status as string) ? (g.status as GoalStatus) : 'active',
       targetDate: typeof g.targetDate === 'string' ? g.targetDate : '',
@@ -7983,7 +8687,21 @@ export const useAppStore = defineStore('app', () => {
       updatedBy: typeof g.updatedBy === 'string' ? g.updatedBy : '',
       // Attached notes (section 21a), backfilled to [].
       noteIds: normaliseIds(g.noteIds),
+      // Milestone KPIs: sanitised when present, left absent when not.
+      ...(g.kpis !== undefined && { kpis: normaliseKpis(g.kpis) }),
+      // Learning & Goals: the parent goal, the conclusion and its audit trail.
+      ...(typeof g.skillGoalId === 'number' && { skillGoalId: g.skillGoalId }),
+      ...(g.conclusion !== undefined && { conclusion: normaliseConclusion(g.conclusion) }),
+      ...(g.audit !== undefined && { audit: normaliseAudit(g.audit) }),
     }))
+    skillGoals.value = normaliseSkillGoals(data.skillGoals)
+    {
+      const meta = data.learningMeta as { project?: unknown; trackingRules?: unknown } | undefined
+      learningMeta.value = {
+        project: typeof meta?.project === 'string' ? meta.project : '',
+        trackingRules: meta?.trackingRules ?? null,
+      }
+    }
     const incomingChecklist = stamped<GoalChecklistItem>(data.goalChecklist).map((c, i) => ({
       ...c,
       goalId: typeof c.goalId === 'number' ? c.goalId : 0,
@@ -7999,6 +8717,9 @@ export const useAppStore = defineStore('app', () => {
       completedAt: typeof c.completedAt === 'number' ? c.completedAt : null,
       timerStartedAt: typeof c.timerStartedAt === 'number' ? c.timerStartedAt : null,
       localRev: typeof c.localRev === 'number' ? c.localRev : 0,
+      // Point learnings: sanitised when present, left absent when not.
+      ...(c.learnings !== undefined && { learnings: normaliseLearnings(c.learnings) }),
+      ...(c.subtasks !== undefined && { subtasks: normaliseSubtasks(c.subtasks) }),
     }))
     // SYNC: keep the local copy of any checklist item being inline-edited or with
     // a live timer, so a remote snapshot can't reorder or clobber it mid-edit.
@@ -8674,6 +9395,8 @@ export const useAppStore = defineStore('app', () => {
         goals,
         goalChecklist,
         goalOccurrences,
+        skillGoals,
+        learningMeta,
         // The tag vocabulary. Missing here, adding or deleting a tag was never
         // saved on its own, and the next load put the old list back.
         tags,
@@ -8982,6 +9705,7 @@ export const useAppStore = defineStore('app', () => {
     goalHelpTab,
     goalsHelpSeen,
     goalImportSeed,
+    goalImportOpen,
     taskTransferHelpOpen,
     taskTransferHelpCollection,
     openGoalHelp,
@@ -8993,6 +9717,8 @@ export const useAppStore = defineStore('app', () => {
     maybeAutoOpenGoalHelp,
     seedGoalImport,
     takeGoalImportSeed,
+    openGoalImport,
+    closeGoalImport,
     editNoteView,
     saveNoteView,
     closeNoteView,
@@ -9009,6 +9735,8 @@ export const useAppStore = defineStore('app', () => {
     selectAiChat,
     setAiChatModel,
     setAiMessageModel,
+    setAiMessageSources,
+    trackAiMade,
     renameAiChat,
     toggleAiChatPin,
     deleteAiChat,
@@ -9156,6 +9884,43 @@ export const useAppStore = defineStore('app', () => {
     reorderGoal,
     duplicateGoal,
     removeGoalWithUndo,
+    removeGoalsWithUndo,
+    addKpi,
+    updateKpi,
+    removeKpi,
+    logKpi,
+    removeKpiEntry,
+    addLearning,
+    updateLearning,
+    removeLearning,
+    addLearningExample,
+    updateLearningExample,
+    removeLearningExample,
+    skillGoals,
+    skillGoalById,
+    addSkillGoal,
+    updateSkillGoal,
+    removeSkillGoal,
+    setMilestoneGoal,
+    milestonesOfSkillGoal,
+    skillGoalProgress,
+    learningMeta,
+    importLearningDoc,
+    exportLearningDoc,
+    addSubtask,
+    toggleSubtask,
+    renameSubtask,
+    removeSubtask,
+    moveSubtask,
+    setConclusionSummary,
+    setConclusionEvidence,
+    setEvidenceRequired,
+    addAcceptanceCheck,
+    toggleAcceptanceCheck,
+    removeAcceptanceCheck,
+    milestoneBlockers,
+    closeMilestone,
+    reopenMilestone,
     bulkAddChecklist,
     saveCloudNow,
     whenSaved,

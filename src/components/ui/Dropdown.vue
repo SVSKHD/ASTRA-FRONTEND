@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A menu of actions. Roving focus with the arrow keys, Escape closes, and the
 // items are buttons — a menu built from divs is unreachable by keyboard.
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import Popover from './Popover.vue'
 import Icon from '@/components/ui/Icon.vue'
 import type { IconName } from '@/components/ui/icons'
@@ -29,6 +29,22 @@ const emit = defineEmits<{ select: [string] }>()
 const open = ref(false)
 const itemsEl = ref<HTMLElement | null>(null)
 
+// The panel is portalled to the end of the body, so Tab from the trigger no
+// longer reaches it: opening moves focus onto the first item instead, and
+// closing hands it back to the trigger.
+const triggerEl = ref<HTMLElement | null>(null)
+async function toggle() {
+  open.value = !open.value
+  if (!open.value) return
+  await nextTick()
+  itemsEl.value?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
+}
+function close() {
+  const hadFocus = itemsEl.value?.contains(document.activeElement) ?? false
+  open.value = false
+  if (hadFocus) triggerEl.value?.focus()
+}
+
 function move(delta: number) {
   const buttons = Array.from(itemsEl.value?.querySelectorAll('button:not(:disabled)') ?? [])
   if (!buttons.length) return
@@ -38,14 +54,17 @@ function move(delta: number) {
 }
 function choose(value: string) {
   emit('select', value)
-  open.value = false
+  close()
 }
 </script>
 
 <template>
-  <Popover :open="open" @close="open = false">
+  <!-- The ⋯ trigger sits at a card's right edge, so its menu hangs leftward
+       from it, the way every card menu does, instead of off the card. -->
+  <Popover :open="open" :align="variant === 'icon' ? 'end' : 'start'" @close="close">
     <template #trigger>
       <button
+        ref="triggerEl"
         class="ui-dropdown__trigger ui-focus-ring"
         :class="`ui-dropdown__trigger--${variant}`"
         type="button"
@@ -53,7 +72,7 @@ function choose(value: string) {
         aria-haspopup="menu"
         :aria-label="variant === 'icon' ? label : undefined"
         :title="variant === 'icon' ? label : undefined"
-        @click="open = !open"
+        @click="toggle"
       >
         <Icon v-if="variant === 'icon'" name="more-horizontal" size="md" />
         <template v-else>

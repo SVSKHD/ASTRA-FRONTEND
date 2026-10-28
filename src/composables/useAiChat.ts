@@ -15,6 +15,7 @@ import { computed, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { supabase } from '@/supabase'
 import { chatTarget } from '@/utils/aiSettings'
+import type { AiItemRef, AiMessage, AiSource } from '@/types'
 import {
   AI_INSTRUCTIONS,
   buildAiContext,
@@ -286,7 +287,16 @@ async function send(prompt: string): Promise<void> {
 
   app.addAiMessage(chatId, { role: 'user', content: body })
   const usedData = app.aiUseData
-  const msgId = app.addAiMessage(chatId, { role: 'assistant', content: '', model, usedData })
+  // The item picked to work on, as it stands right now.
+  const working = focus.value ? focusInfo(app, focus.value) : null
+  if (focus.value && !working) setFocus(null) // deleted since it was picked
+  const msgId = app.addAiMessage(chatId, {
+    role: 'assistant',
+    content: '',
+    model,
+    usedData,
+    ...(working ? { focus: { collection: working.collection, id: working.id } } : {}),
+  })
 
   const url = proxyUrl()
   if (!url) {
@@ -315,8 +325,15 @@ async function send(prompt: string): Promise<void> {
       body: JSON.stringify({
         provider,
         model,
+        // Links in the message are fetched by the proxy and read by the model.
+        readLinks: true,
         messages: history,
-        system: [AI_INSTRUCTIONS, todayLine(), usedData ? buildAiContext(aiContextInput(app)) : '']
+        system: [
+          AI_INSTRUCTIONS,
+          todayLine(),
+          working ? focusBlock(working) : '',
+          usedData ? buildAiContext(aiContextInput(app)) : '',
+        ]
           .filter(Boolean)
           .join('\n\n'),
       }),
@@ -345,6 +362,7 @@ async function send(prompt: string): Promise<void> {
           model?: string
           provider?: string
           fallback?: string
+          sources?: AiSource[]
           usage?: { in: number; out: number }
           error?: string
         }
@@ -354,6 +372,7 @@ async function send(prompt: string): Promise<void> {
           continue /* keep-alive / non-JSON line */
         }
         if (evt.model) app.setAiMessageModel(chatId, msgId, evt.model)
+        if (Array.isArray(evt.sources)) app.setAiMessageSources(chatId, msgId, evt.sources)
         if (evt.model && evt.provider)
           setAnswerer({ model: evt.model, provider: evt.provider, fallback: evt.fallback })
         if (evt.text) app.appendAiMessageContent(chatId, msgId, evt.text)
@@ -391,6 +410,102 @@ export interface AiPlanTarget {
   collection: 'todos' | 'tasks'
   id: number
   label: string
+}
+
+// ---- The item the chat is working on --------------------------------------
+// Picked above the composer: an existing todo or task. Its sub-items are shown
+// there and sent with every turn, and whatever the reply suggests — steps or
+// new items — is added UNDER it, so a new topic is mapped onto that item
+// instead of arriving as separate todos. Each reply remembers the item it was
+// asked about (AiMessage.focus), so its card still adds to the right place
+// after the pick changes.
+
+export interface AiFocus {
+  collection: 'todos' | 'tasks'
+  id: number
+}
+export interface AiFocusChild {
+  id: number
+  title: string
+  done: boolean
+  /** Added from the chat during this visit. */
+  fresh: boolean
+}
+export interface AiFocusInfo extends AiFocus {
+  title: string
+  done: boolean
+  children: AiFocusChild[]
+}
+
+const focus = ref<AiFocus | null>(null)
+// `collection:id` of sub-items added from the chat this visit, to mark as new.
+const fresh = ref<Set<string>>(new Set())
+
+function setFocus(f: AiFocus | null) {
+  focus.value = f
+}
+
+/** The focused item as it stands now, with its direct sub-items; null if it is gone. */
+export function focusInfo(app: ReturnType<typeof useAppStore>, f: AiFocus): AiFocusInfo | null {
+  const list = f.collection === 'todos' ? app.todos : app.tasks
+  const item = (list as (Todo | Task)[]).find((x) => x.id === f.id)
+  if (!item) return null
+  const kids = childrenOf(buildIndex(list as (Todo | Task)[]), f.id)
+  const titleOf = (x: Todo | Task) => ('text' in x ? x.text : x.title)
+  return {
+    ...f,
+    title: titleOf(item),
+    done: item.done,
+    children: kids.map((k) => ({
+      id: k.id,
+      title: titleOf(k),
+      done: k.done,
+      fresh: fresh.value.has(`${f.collection}:${k.id}`),
+    })),
+  }
+}
+
+/** What the model is told about the focused item. */
+function focusBlock(info: AiFocusInfo): string {
+  const kind = info.collection === 'todos' ? 'todo' : 'task'
+  const sub = info.collection === 'todos' ? 'sub-todo' : 'subtask'
+  const kids = info.children.length
+    ? info.children.map((c) => `- ${c.title}${c.done ? ' (done)' : ''}`).join('\n')
+    : '(none yet)'
+  return `THE ITEM THE USER IS WORKING ON (picked in the chat): [${kind}:${info.id}] "${info.title}"
+Its ${sub}s now:
+${kids}
+Everything you suggest in this conversation is for this ${kind}: put new ${sub}s in a steps block with "target":"${info.title}", one step per new ${sub}, never repeating one that exists. When the user brings up a new topic, map it onto this ${kind} as new ${sub}s the same way, unless they clearly ask for a separate item. When asked what is already under it, list the ${sub}s above.`
+}
+
+function markFresh(collection: AiFocus['collection'], ids: number[]) {
+  const next = new Set(fresh.value)
+  for (const id of ids) next.add(`${collection}:${id}`)
+  fresh.value = next
+}
+function childIds(
+  app: ReturnType<typeof useAppStore>,
+  collection: AiFocus['collection'],
+  id: number,
+) {
+  const list = (collection === 'todos' ? app.todos : app.tasks) as (Todo | Task)[]
+  return childrenOf(buildIndex(list), id).map((c) => c.id)
+}
+
+/**
+ * Where a plan card's steps go: the item the reply was asked about, while it
+ * still exists — otherwise the item the model named.
+ */
+export function planTargetFor(
+  app: ReturnType<typeof useAppStore>,
+  msg: Pick<AiMessage, 'focus'> | undefined,
+  plan: AiPlan,
+): AiPlanTarget | null {
+  if (msg?.focus) {
+    const info = focusInfo(app, msg.focus)
+    if (info) return { collection: info.collection, id: info.id, label: info.title }
+  }
+  return resolvePlanTarget(app, plan)
 }
 
 /**
@@ -441,8 +556,39 @@ function createItems(
 ): AiCreated[] {
   const app = useAppStore()
   const made: AiCreated[] = []
+  // Asked about a picked item: its todos and tasks go under it, in its list.
+  const msg = app.aiChatById(chatId)?.messages.find((m) => m.id === msgId)
+  const under = msg?.focus ? focusInfo(app, msg.focus) : null
   for (const it of items) {
     const subs = it.items ?? []
+    if (under && it.kind !== 'goal') {
+      const inTodos = under.collection === 'todos'
+      const add = (title: string, notes = '', deadline = '') =>
+        inTodos
+          ? app.addTodo(title, it.tag ?? '', notes)
+          : app.addTask(title, it.tag ?? '', { notes, deadline })
+      const move = (cid: number, parent: number, at: number) =>
+        inTodos ? app.moveTodo(cid, parent, at) : app.moveTask(cid, parent, at)
+      const id = add(it.title, it.notes ?? '', it.due ?? '')
+      if (id == null) continue
+      move(id, under.id, childIds(app, under.collection, under.id).length)
+      const kids: number[] = []
+      subs.forEach((s, i) => {
+        const cid = add(s)
+        if (cid == null) return
+        move(cid, id, i)
+        kids.push(cid)
+      })
+      markFresh(under.collection, [id])
+      made.push({
+        kind: inTodos ? 'todo' : 'task',
+        id,
+        title: it.title,
+        due: it.due,
+        childIds: kids,
+      })
+      continue
+    }
     if (it.kind === 'todo') {
       const id = app.addTodo(it.title, it.tag ?? '', it.notes ?? '')
       if (id == null) continue
@@ -479,7 +625,14 @@ function createItems(
       made.push({ kind: 'goal', id, title: it.title, due: it.due, childIds })
     }
   }
-  if (made.length) app.markAiCreatesApplied(chatId, msgId, createIndex)
+  if (made.length) {
+    app.markAiCreatesApplied(chatId, msgId, createIndex)
+    app.trackAiMade(
+      chatId,
+      msgId,
+      made.map((c) => ({ kind: c.kind, id: c.id })),
+    )
+  }
   return made
 }
 
@@ -497,12 +650,19 @@ function undoCreated(chatId: number, msgId: number, createIndex: number, made: A
     app.deleteWithUndo(list, c.kind, c.id, { toast: false })
   }
   app.markAiCreatesApplied(chatId, msgId, createIndex, false)
+  app.trackAiMade(
+    chatId,
+    msgId,
+    made.map((c) => ({ kind: c.kind, id: c.id })),
+    'remove',
+  )
 }
 
 /** Add a plan's steps — under its target when there is one, else as todos. */
 function applyPlan(chatId: number, msgId: number, planIndex: number, plan: AiPlan): number {
   const app = useAppStore()
-  const target = resolvePlanTarget(app, plan)
+  const msg = app.aiChatById(chatId)?.messages.find((m) => m.id === msgId)
+  const target = planTargetFor(app, msg, plan)
   let count = 0
   // Each step keeps its details as the new item's description — a todo or
   // subtask made from a plan used to arrive as a bare title.
@@ -514,10 +674,40 @@ function applyPlan(chatId: number, msgId: number, planIndex: number, plan: AiPla
       description: asTask ? (s.notes ?? '') : stepDescription(s),
       ...(asTask && s.mins ? { estimateMins: s.mins } : {}),
     }))
+    const before = new Set(childIds(app, target.collection, target.id))
     count = app.addItemsUnder(target.collection, target.id, JSON.stringify(items)).count
+    // Show them where they landed: the item, with the new ones marked.
+    markFresh(
+      target.collection,
+      childIds(app, target.collection, target.id).filter((id) => !before.has(id)),
+    )
+    if (count) {
+      setFocus({ collection: target.collection, id: target.id })
+      app.trackAiMade(chatId, msgId, [
+        { kind: target.collection === 'todos' ? 'todo' : 'task', id: target.id },
+      ])
+    }
   } else {
-    for (const s of plan.steps) app.addTodo(s.text, '', stepDescription(s))
-    count = plan.steps.length
+    // No existing item to go under: the steps divide one new todo, as its
+    // sub-todos, rather than landing as a flat run of separate todos.
+    const parentTitle =
+      plan.title?.trim() || app.aiChatById(chatId)?.title?.trim() || 'Plan from AI chat'
+    const parentId = app.addTodo(parentTitle, '')
+    if (parentId != null) {
+      const made: number[] = []
+      plan.steps.forEach((s, i) => {
+        const cid = app.addTodo(s.text, '', stepDescription(s))
+        if (cid == null) return
+        app.moveTodo(cid, parentId, i)
+        made.push(cid)
+        count++
+      })
+      // The new todo becomes the one the chat is working on, so the next
+      // topic maps onto it — and its sub-todos are on show.
+      markFresh('todos', made)
+      setFocus({ collection: 'todos', id: parentId })
+      app.trackAiMade(chatId, msgId, [{ kind: 'todo', id: parentId }])
+    }
   }
   if (count) app.markAiPlanApplied(chatId, msgId, planIndex)
   return count
@@ -670,62 +860,80 @@ const ACTION_DONE: Record<AiActionDraft['kind'], string> = {
 /**
  * Create what a reply-action dialog describes, after the user has checked it.
  * Notes on a task or calendar block go in a note attached to it, which is where
- * the detail pane reads them. Returns the toast line, or null when nothing was
- * made.
+ * the detail pane reads them. Returns what was made (for the quick look), or
+ * null when nothing was. With `from`, the reply it came from records it too.
  */
-function createFromDraft(draft: AiActionDraft): string | null {
+function createFromDraft(
+  draft: AiActionDraft,
+  from?: { chatId: number; msgId: number },
+): AiItemRef | null {
   const app = useAppStore()
   const title = draft.title.trim()
   const notes = draft.notes.trim()
   const attach = (itemId: number | null | undefined) => {
-    if (itemId == null || !notes) return
+    if (itemId == null || !notes) return itemId ?? null
     const noteId = app.createNoteFor('task', itemId)
     if (noteId != null) app.setNoteText(noteId, notes)
+    return itemId
   }
+  let made: AiItemRef | null = null
+  const as = (kind: AiItemRef['kind'], id: number | null | undefined) =>
+    id == null ? null : { kind, id }
   switch (draft.kind) {
     case 'todo': {
       if (!title) return null
-      app.addTodo(title, '', notes)
+      made = as('todo', app.addTodo(title, '', notes))
       break
     }
     case 'task': {
       if (!title) return null
       const deadline = /^\d{4}-\d{2}-\d{2}/.exec(draft.when)?.[0] ?? ''
-      attach(app.addTask(title, '', { deadline }))
+      made = as('task', attach(app.addTask(title, '', { deadline })))
       break
     }
     case 'event': {
       const start = fromLocalInput(draft.when)
       if (!title || start == null) return null
       const mins = Math.max(5, draft.mins ?? 30)
-      attach(
-        app.createScheduledItem('task', title, '', {
-          startAt: start,
-          endAt: start + mins * 60_000,
-          allDay: false,
-          durationMins: mins,
-        }),
+      made = as(
+        'task',
+        attach(
+          app.createScheduledItem('task', title, '', {
+            startAt: start,
+            endAt: start + mins * 60_000,
+            allDay: false,
+            durationMins: mins,
+          }),
+        ),
       )
       break
     }
     case 'reminder': {
       if (!title || !draft.when) return null
-      app.addReminder({ title, note: notes, start: draft.when, repeat: { type: 'none' } })
+      made = as(
+        'reminder',
+        app.addReminder({ title, note: notes, start: draft.when, repeat: { type: 'none' } }),
+      )
       break
     }
     case 'note': {
-      if (app.addNote(title, notes) == null) return null
+      const id = app.addNote(title, notes)
+      if (id == null) return null
+      made = as('note', id)
       break
     }
   }
-  const line = ACTION_DONE[draft.kind]
-  app.showToastMsg(`${line} — ${title || 'Untitled'}`)
-  return line
+  if (!made) return null
+  if (from) app.trackAiMade(from.chatId, from.msgId, [made])
+  app.showToastMsg(`${ACTION_DONE[draft.kind]} — ${title || 'Untitled'}`)
+  return made
 }
 
 export function useAiChat() {
   return {
     run,
+    focus,
+    setFocus,
     streaming,
     answerer,
     send,

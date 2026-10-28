@@ -340,7 +340,7 @@ const cancelBtn = computed(() =>
     :size="wide ? 'lg' : 'compact'"
     :mode-icon="wide ? 'minimize' : 'maximize'"
     :mode-label="wide ? 'Compact drawer' : 'Wider drawer'"
-    title="New goal"
+    title="New milestone"
     @mode="app.toggleDrawerWide()"
     @close="cancel"
   >
@@ -348,7 +348,7 @@ const cancelBtn = computed(() =>
       <TextInput
         ref="titleInput"
         :model-value="goal?.title"
-        placeholder="Goal title"
+        placeholder="Milestone title"
         @update:model-value="set('title', $event)"
         @keydown.enter.prevent="create"
       />
@@ -425,7 +425,7 @@ const cancelBtn = computed(() =>
             @click="showFormat = !showFormat"
           >
             <Caret :open="showFormat" size="xs" />
-            Example JSON &amp; what a goal needs
+            Example JSON &amp; what a milestone needs
           </button>
           <Transition name="rx-fade">
             <button v-if="showFormat" :style="tinyBtn" @click="copySample">
@@ -443,8 +443,8 @@ const cancelBtn = computed(() =>
           <pre :style="sampleBox"><code>{{ SAMPLE_GOAL_JSON }}</code></pre>
 
           <div :style="reqNote">
-            <span :style="reqTag">Required</span> — everything else is optional, and a goal missing
-            a required field is skipped rather than failing the import.
+            <span :style="reqTag">Required</span> — everything else is optional, and a milestone
+            missing a required field is skipped rather than failing the import.
           </div>
           <div :style="fieldGrid">
             <template v-for="f in requiredFields" :key="`req-${f.scope}.${f.field}`">
@@ -471,7 +471,7 @@ const cancelBtn = computed(() =>
       </section>
 
       <div :style="footer">
-        <button :style="createBtn" :disabled="!canCreate" @click="create">Create goal</button>
+        <button :style="createBtn" :disabled="!canCreate" @click="create">Create milestone</button>
         <button :style="cancelBtn" @click="cancel">Cancel</button>
       </div>
     </div>

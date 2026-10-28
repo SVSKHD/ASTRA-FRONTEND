@@ -13,7 +13,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify } from '@/styles'
+import { pxify, typeStep } from '@/styles'
 import { debounce } from '@/utils/syncGuard'
 import { daysRemaining } from '@/utils/detailFields'
 import { matchesTagFilter } from '@/utils/tagFilter'
@@ -30,7 +30,17 @@ import GoalCard from '@/components/goals/GoalCard.vue'
 import GoalsSummary from '@/components/goals/GoalsSummary.vue'
 import GoalCardSkeleton from '@/components/goals/GoalCardSkeleton.vue'
 import GoalGrid from '@/components/goals/GoalGrid.vue'
+import Checkbox from '@/components/ui/Checkbox.vue'
+import Accordion from '@/components/ui/Accordion.vue'
+import SkillGoalSection from '@/components/goals/SkillGoalSection.vue'
+import SkillGoalDialog from '@/components/goals/SkillGoalDialog.vue'
+import { deadlineFrom } from '@/utils/milestoneProgress'
+import QuickAdd from '@/components/todo/QuickAdd.vue'
+import { useAccordionState } from '@/composables/useAccordionState'
+import { todayKey } from '@/utils/rollover'
+import Icon from '@/components/ui/Icon.vue'
 import { useTapOpen } from '@/composables/useTapOpen'
+import { downloadText } from '@/utils/noteExport'
 import { usePaneInset } from '@/composables/usePaneInset'
 import type { Goal, GoalStatus } from '@/types'
 import type { MenuItem } from '@/components/ui/Dropdown.vue'
@@ -38,7 +48,7 @@ import type { MenuItem } from '@/components/ui/Dropdown.vue'
 const app = useAppStore()
 const ui = useUiStore()
 const router = useRouter()
-const { s, isMobile, panelStyle } = useStyles()
+const { s, c, isMobile, panelStyle } = useStyles()
 const { goals } = storeToRefs(app)
 
 // The selected goal lives in the store, so /goals/:goalId can open it on a cold
@@ -95,7 +105,18 @@ const loading = computed(() => !app.cloudReady && goals.value.length === 0)
 // Enough to fill the fold without promising rows that may not exist.
 const SKELETON_COUNT = 6
 
-defineExpose({ focus: () => onNew() })
+// "/n" lands in quick add with its details open, as it does on Todos; the
+// slide-over (points, a metric, pasted JSON) stays behind "New milestone".
+const quickAdd = ref<InstanceType<typeof QuickAdd> | null>(null)
+function focusQuickAdd() {
+  if (quickAdd.value) quickAdd.value.focus(true)
+  else onNew()
+}
+defineExpose({ focus: focusQuickAdd })
+// A quick-added milestone opens beside the list, ready for its points.
+function onQuickAdded(goalId: number) {
+  if (!isMobile.value) panelGoalId.value = goalId
+}
 
 // Manual create now opens the slide-over (task 12c) rather than dropping a bare
 // "New goal" into the list.
@@ -121,8 +142,12 @@ function openGoal(goalId: number) {
     rows.value.map((r) => r.goal.id),
   )
 }
+// The goals, milestones, points and subtasks as one Learning & Goals document.
+function exportLearning() {
+  downloadText(app.exportLearningDoc(), 'learningandgoals.json', 'application/json')
+}
 function goImport() {
-  router.push('/import/goals')
+  app.openGoalImport()
 }
 
 // The one automatic open (section 23). Watched rather than done on mount: the
@@ -139,10 +164,17 @@ watch(
 // press-and-hold that starts a reorder drag (section 18b) — otherwise every
 // drag ends with a dialog open over the list it was dropped into.
 const pressedCard = ref<number | null>(null)
-const tap = useTapOpen(() => {
+const tap = useTapOpen((event) => {
   const goalId = pressedCard.value
   pressedCard.value = null
-  if (goalId != null) openGoal(goalId)
+  if (goalId == null) return
+  // While selecting, a tap picks rather than opens; outside it, Ctrl/⌘-click
+  // or Shift-click starts a selection the way a file list does.
+  if (selecting.value || event.ctrlKey || event.metaKey || event.shiftKey) {
+    pickCard(goalId, event.shiftKey)
+    return
+  }
+  openGoal(goalId)
 })
 function onCardPointerDown(event: PointerEvent, goalId: number) {
   pressedCard.value = goalId
@@ -175,6 +207,7 @@ function cardMenu(goalId: number): MenuItem[] {
 }
 const CARD_MENU: MenuItem[] = [
   { value: 'open', label: 'Open full page', icon: 'external-link' },
+  { value: 'select', label: 'Select', icon: 'list-checks' },
   { value: 'duplicate', label: 'Duplicate', icon: 'copy' },
   { value: 'archive', label: 'Archive', icon: 'archive' },
   { value: 'delete', label: 'Delete', icon: 'trash', danger: true },
@@ -186,17 +219,38 @@ function onCardMenu(goalId: number, action: string) {
     if (m) ui.setTab(m.collection === 'tasks' ? 'tasks' : 'todo')
   } else if (action === 'to-todos') app.moveGoalTo('todos', goalId)
   else if (action === 'to-tasks') app.moveGoalTo('tasks', goalId)
+  else if (action === 'select') pickCard(goalId)
   else if (action === 'duplicate') app.duplicateGoal(goalId)
   else if (action === 'archive') app.archiveGoal(goalId)
   else if (action === 'delete') app.removeGoalWithUndo(goalId)
 }
 
 // Keyboard: `g` then `n` opens New goal while the Goals tab is focused (task 12d).
+// While selecting: Delete removes the picks, Ctrl/⌘+A takes every visible card,
+// Escape ends the selection.
 let gPressedAt = 0
 function onKey(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null
   const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
-  if (typing || e.metaKey || e.ctrlKey || e.altKey) return
+  if (typing) return
+  if (selecting.value) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      endSelection()
+      return
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && pickedIds.value.length) {
+      e.preventDefault()
+      deletePicked()
+      return
+    }
+    if (e.key.toLowerCase() === 'a' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      picked.value = new Set(visibleIds.value)
+      return
+    }
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return
   if (e.key === 'g') {
     gPressedAt = Date.now()
     return
@@ -258,6 +312,160 @@ const rows = computed<GoalRow[]>(() => {
   return mapped
 })
 
+// --- sections -----------------------------------------------------------------
+// "Active & open" reads as Todos does: collapsible groups with a count, the
+// ones that need attention first and Completed folded away. A single-status
+// filter is already one group, so it stays one flat grid.
+//
+// Grouped by goal (the default once goals exist), each goal is a section with
+// its own progress, its milestones in timeline order, and a "No goal" section
+// last for the rest (spec 3.1–3.2).
+interface Section {
+  key: string
+  label: string
+  items: Goal[]
+  /** Set for a goal section; null for "No goal". */
+  goalId?: number | null
+}
+const acc = useAccordionState()
+const groupChoice = ref<'status' | 'goal' | null>(null)
+const groupBy = computed(() => groupChoice.value ?? (app.skillGoals.length ? 'goal' : 'status'))
+const grouped = computed(() => groupBy.value === 'goal' || statusFilter.value === 'all')
+const filtering = computed(
+  () => statusFilter.value !== 'all' || !!tagFilter.value || !!query.value.trim(),
+)
+// Milestones in the order they happen: by start (or deadline), then by hand.
+const byTimeline = (a: Goal, b: Goal) =>
+  (a.startDate || a.targetDate || '~').localeCompare(b.startDate || b.targetDate || '~') ||
+  a.order - b.order
+const sections = computed<Section[]>(() => {
+  const list = rows.value.map((r) => r.goal)
+  if (groupBy.value === 'goal') {
+    const ordered = (items: Goal[]) =>
+      sortKey.value === 'order' ? items.slice().sort(byTimeline) : items
+    const out: Section[] = app.skillGoals
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((sg) => ({
+        key: 'goal:' + sg.id,
+        label: sg.title,
+        goalId: sg.id,
+        items: ordered(list.filter((m) => m.skillGoalId === sg.id)),
+      }))
+      // A goal with nothing matching a filter is noise; unfiltered, an empty
+      // goal stays so its first milestone can be added.
+      .filter((sec) => sec.items.length || !filtering.value)
+    const loose = list.filter((m) => m.skillGoalId == null || !app.skillGoalById(m.skillGoalId))
+    if (loose.length) out.push({ key: 'goal:none', label: 'No goal', goalId: null, items: loose })
+    return out
+  }
+  if (!grouped.value) return [{ key: 'all', label: '', items: list }]
+  const today = todayKey()
+  const overdue = (g: Goal) => g.status === 'active' && !!g.targetDate && g.targetDate < today
+  const out: Section[] = [
+    { key: 'overdue', label: 'Overdue', items: list.filter(overdue) },
+    {
+      key: 'active',
+      label: 'In progress',
+      items: list.filter((g) => g.status === 'active' && !overdue(g)),
+    },
+    { key: 'paused', label: 'Paused', items: list.filter((g) => g.status === 'paused') },
+    { key: 'done', label: 'Completed', items: list.filter((g) => g.status === 'done') },
+  ]
+  return out.filter((sec) => sec.items.length)
+})
+// Remembered per group, like every list accordion; Completed starts folded.
+const sectionKey = (key: string) => 'milestones:' + key
+const sectionOpen = (key: string) => acc.isOpen(sectionKey(key), key !== 'done')
+function setSection(key: string, open: boolean) {
+  acc.set(sectionKey(key), open)
+}
+// What each section's wrapper is given: a goal section, a status accordion, or
+// the plain box around a flat grid.
+function sectionProps(sec: Section) {
+  if (sec.goalId !== undefined) return { goalId: sec.goalId, count: sec.items.length }
+  if (grouped.value)
+    return { title: `${sec.label} · ${sec.items.length}`, open: sectionOpen(sec.key) }
+  return { class: 'gv-flat' }
+}
+const sectionIs = (sec: Section) =>
+  sec.goalId !== undefined ? SkillGoalSection : grouped.value ? Accordion : 'div'
+
+// --- goals ---------------------------------------------------------------------
+const goalDialog = ref<{ open: boolean; id: number | null }>({ open: false, id: null })
+function newSkillGoal() {
+  goalDialog.value = { open: true, id: null }
+}
+function editSkillGoal(id: number) {
+  goalDialog.value = { open: true, id }
+}
+// A new milestone in a goal starts the day after the goal's last deadline (or
+// on the goal's start), so a timeline builds itself in order.
+function addMilestoneTo(sgid: number) {
+  const members = app.milestonesOfSkillGoal(sgid)
+  const last = members
+    .map((m) => m.targetDate)
+    .filter(Boolean)
+    .sort()
+    .pop()
+  const startDate = last ? deadlineFrom(last, 2) : (app.skillGoalById(sgid)?.startDate ?? '')
+  const gid = app.addGoal({ title: 'New milestone', skillGoalId: sgid, startDate })
+  openGoal(gid)
+}
+
+// --- multi-select ------------------------------------------------------------
+// Select (or Ctrl/⌘-click a card) turns the grid into a pick list: a tap
+// toggles, Shift-click takes the range from the last pick, and the bar above
+// the grid deletes the lot with one Undo for all of them.
+const selecting = ref(false)
+const picked = ref<Set<number>>(new Set())
+let anchorId: number | null = null
+// In the order they are drawn, so a Shift-range follows what the eye sees.
+const visibleIds = computed(() => sections.value.flatMap((sec) => sec.items.map((g) => g.id)))
+const pickedIds = computed(() => visibleIds.value.filter((id) => picked.value.has(id)))
+const allPicked = computed(
+  () => visibleIds.value.length > 0 && pickedIds.value.length === visibleIds.value.length,
+)
+// A filter or a delete that hides a picked card drops it from the selection, so
+// Delete never removes something the reader cannot see.
+watch(visibleIds, (ids) => {
+  const keep = new Set(ids)
+  const next = [...picked.value].filter((id) => keep.has(id))
+  if (next.length !== picked.value.size) picked.value = new Set(next)
+})
+function pickCard(goalId: number, range = false) {
+  selecting.value = true
+  const next = new Set(picked.value)
+  if (range && anchorId != null) {
+    const ids = visibleIds.value
+    const a = ids.indexOf(anchorId)
+    const b = ids.indexOf(goalId)
+    if (a !== -1 && b !== -1) {
+      for (const id of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(id)
+      picked.value = next
+      return
+    }
+  }
+  if (!next.delete(goalId)) next.add(goalId)
+  anchorId = goalId
+  picked.value = next
+}
+function toggleAll() {
+  picked.value = allPicked.value ? new Set() : new Set(visibleIds.value)
+}
+function endSelection() {
+  selecting.value = false
+  picked.value = new Set()
+  anchorId = null
+}
+function deletePicked() {
+  const ids = pickedIds.value
+  if (!ids.length) return
+  if (panelGoalId.value != null && ids.includes(panelGoalId.value)) panelGoalId.value = null
+  app.removeGoalsWithUndo(ids)
+  endSelection()
+}
+
 // --- grip-drag reorder (native DnD; writes fractional order via moveGoal) ----
 const dragId = ref<number | null>(null)
 function onDragStart(e: DragEvent, id: number) {
@@ -308,9 +516,22 @@ const listColumn = pxify({
   flex: 1,
   minHeight: 0,
 })
-// GoalGrid takes the goals themselves; the ratio and counts come from the
-// store's rollup index, which is O(1) per card (section 19d).
-const visibleGoals = computed(() => rows.value.map((r) => r.goal))
+// The "/n" hint under the list, as Todos shows it.
+const shortcutHint = computed(() =>
+  pxify({
+    alignSelf: 'center',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '5px 12px',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid ' + c.value.border,
+    ...typeStep('xs'),
+    color: c.value.dim,
+    flexShrink: 0,
+  }),
+)
+const shortcutKey = computed(() => pxify({ fontFamily: 'var(--font-mono)', color: c.value.accent }))
 
 // The card's position in the filtered list, for a drop that lands on it.
 function indexOf(goalId: number): number {
@@ -345,7 +566,14 @@ function cellStyle(id: number) {
         @update:status="statusFilter = $event"
         @update:tag="tagFilter = $event"
         @update:sort="sortKey = $event"
+        :selecting="selecting"
+        @select="selecting ? endSelection() : (selecting = true)"
+        :can-export="app.skillGoals.length > 0"
+        :group="groupBy"
+        @update:group="groupChoice = $event"
+        @new-goal="newSkillGoal"
         @import="goImport"
+        @export="exportLearning"
         @new="onNew"
         @help="app.openGoalHelp()"
       />
@@ -359,10 +587,44 @@ function cellStyle(id: number) {
 
       <div :style="splitView ? splitLayout : listColumn">
         <div :style="listColumn">
+          <QuickAdd
+            v-if="!loading && goals.length"
+            ref="quickAdd"
+            collection="goals"
+            :compact="isMobile"
+            @added="onQuickAdded"
+          />
+
+          <!-- The selection's own bar: what is picked and what can be done to it. -->
+          <div v-if="selecting" class="gv-bulk" role="toolbar" aria-label="Selected milestones">
+            <Checkbox
+              :model-value="allPicked"
+              :indeterminate="pickedIds.length > 0 && !allPicked"
+              aria-label="Select all milestones"
+              @update:model-value="toggleAll"
+            />
+            <span class="gv-bulk__count">
+              {{ pickedIds.length ? `${pickedIds.length} selected` : 'Tap milestones to select' }}
+            </span>
+            <span class="gv-bulk__hint"
+              >Shift-click for a range · Del to delete · Esc to finish</span
+            >
+            <button
+              type="button"
+              class="gv-bulk__btn gv-bulk__btn--danger"
+              :disabled="!pickedIds.length"
+              @click="deletePicked"
+            >
+              <Icon name="trash" size="xs" />
+              Delete{{ pickedIds.length ? ` ${pickedIds.length}` : '' }}
+            </button>
+            <button type="button" class="gv-bulk__btn" @click="endSelection">Done</button>
+          </div>
+
           <!-- Skeletons while the workspace is still arriving. Same box model as
                the real card, so the swap moves nothing (acceptance 95). First,
                because "nothing here" and "not here yet" are different answers. -->
-          <div v-if="loading" :style="grid" aria-busy="true" aria-label="Loading goals">
+          <div v-if="loading" :style="grid" aria-busy="true" aria-label="Loading milestones">
             <GoalCardSkeleton v-for="n in SKELETON_COUNT" :key="n" />
           </div>
 
@@ -372,43 +634,78 @@ function cellStyle(id: number) {
             @paste-json="goImport"
             @import-link="goImport"
           />
-          <div v-else-if="rows.length === 0" :style="s.empty">No goals match this filter.</div>
+          <div v-else-if="rows.length === 0" :style="s.empty">No milestones match this filter.</div>
 
-          <!-- One column while the pane is beside it; the whole tab once the
-               pane floats over it instead. -->
-          <GoalGrid v-else :items="visibleGoals" :mobile="isMobile || splitView">
-            <template #default="{ item }">
-              <div
-                :key="item.id"
-                v-memo="[
-                  item.id,
-                  item.updatedAt,
-                  sortKey,
-                  dragId === item.id,
-                  panelGoalId === item.id,
-                ]"
-                :style="cellStyle(item.id)"
-                :draggable="sortKey === 'order'"
-                @dragstart="onDragStart($event, item.id)"
-                @dragover="onDragOver"
-                @drop="onDropOn(indexOf(item.id))"
-                @pointerdown="onCardPointerDown($event, item.id)"
-                @pointercancel="tap.onPointerCancel"
-                @click="tap.onClick"
-              >
-                <GoalCard
-                  :goal="item"
-                  :ratio="app.goalProgress(item.id).ratio"
-                  :selected="!isMobile && panelGoalId === item.id"
-                  :counts="app.goalCounts(item.id)"
-                  :days-chip="daysChip(item.targetDate)"
-                  :menu="cardMenu(item.id)"
-                  :draggable="sortKey === 'order'"
-                  @menu="onCardMenu(item.id, $event)"
-                />
-              </div>
-            </template>
-          </GoalGrid>
+          <!-- Grouped: one accordion per group, the page scrolling them all.
+               Flat: one grid that scrolls (and virtualises) itself. One column
+               while the pane is beside it; the whole tab once it floats. -->
+          <div v-else class="gv-sections" :class="{ 'is-grouped': grouped }">
+            <component
+              :is="sectionIs(sec)"
+              v-for="sec in sections"
+              :key="sec.key"
+              v-bind="sectionProps(sec)"
+              :class="grouped && `gv-group gv-group--${sec.key}`"
+              @toggle="setSection(sec.key, $event)"
+              @edit="sec.goalId != null && editSkillGoal(sec.goalId)"
+              @add-milestone="sec.goalId != null && addMilestoneTo(sec.goalId)"
+            >
+              <GoalGrid :items="sec.items" :mobile="isMobile || splitView">
+                <template #default="{ item }">
+                  <div
+                    :key="item.id"
+                    v-memo="[
+                      item.id,
+                      item.updatedAt,
+                      // Ticking a point or subtask changes progress, not the
+                      // milestone itself, so the card has to hear about it.
+                      app.goalProgress(item.id).done,
+                      app.goalProgress(item.id).total,
+                      sortKey,
+                      dragId === item.id,
+                      panelGoalId === item.id,
+                      selecting,
+                      picked.has(item.id),
+                    ]"
+                    :style="cellStyle(item.id)"
+                    :draggable="sortKey === 'order' && !selecting"
+                    @dragstart="onDragStart($event, item.id)"
+                    @dragover="onDragOver"
+                    @drop="onDropOn(indexOf(item.id))"
+                    @pointerdown="onCardPointerDown($event, item.id)"
+                    @pointercancel="tap.onPointerCancel"
+                    @mousedown.shift.prevent
+                    @click="tap.onClick"
+                  >
+                    <GoalCard
+                      :goal="item"
+                      :ratio="app.goalProgress(item.id).ratio"
+                      :selected="!isMobile && panelGoalId === item.id"
+                      :counts="app.goalCounts(item.id)"
+                      :days-chip="daysChip(item.targetDate)"
+                      :menu="cardMenu(item.id)"
+                      :draggable="sortKey === 'order' && !selecting"
+                      :selecting="selecting"
+                      :picked="picked.has(item.id)"
+                      @pick="pickCard(item.id, $event)"
+                      @menu="onCardMenu(item.id, $event)"
+                    />
+                  </div>
+                </template>
+              </GoalGrid>
+            </component>
+            <button
+              v-if="groupBy === 'goal'"
+              type="button"
+              class="gv-newgoal"
+              @click="newSkillGoal"
+            >
+              <Icon name="plus" size="xs" />New goal
+            </button>
+          </div>
+          <span v-if="!isMobile && !loading && goals.length" :style="shortcutHint"
+            ><span :style="shortcutKey">/n</span>focus quick add</span
+          >
         </div>
 
         <!-- The selected goal's details (desktop). Inline it is the second
@@ -417,7 +714,7 @@ function cellStyle(id: number) {
         <DetailPane
           v-if="!isMobile"
           :open="panelGoalExists"
-          title="Goal details"
+          title="Milestone details"
           @width="paneWidth = $event"
           @close="panelGoalId = null"
         >
@@ -430,5 +727,135 @@ function cellStyle(id: number) {
     </template>
 
     <GoalCreateSlideOver v-if="showCreate" @close="showCreate = false" @created="onCreated" />
+    <SkillGoalDialog
+      :open="goalDialog.open"
+      :goal-id="goalDialog.id"
+      @close="goalDialog = { open: false, id: null }"
+    />
   </div>
 </template>
+
+<style scoped>
+/* The list under quick add. Flat, the grid scrolls itself; grouped, the
+   accordions stack and this column scrolls them. */
+.gv-sections {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.gv-sections.is-grouped {
+  gap: var(--sp-3);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 2px;
+}
+/* "New goal" at the foot of the goals, where the next one would go. */
+.gv-newgoal {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--glass-border);
+  background: transparent;
+  color: var(--theme-dim);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.gv-newgoal:hover {
+  border-color: var(--theme-accent);
+  color: var(--theme-accent);
+}
+.gv-flat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+/* Inside an accordion the grid is as tall as its cards: the column scrolls. */
+.gv-group :deep(.ggrid) {
+  overflow: visible;
+  padding: 2px 0 var(--sp-1);
+}
+/* Overdue says so in its header, as a carried-over group does on Todos. */
+.gv-group--overdue :deep(.ui-accordion__head) {
+  color: var(--theme-danger);
+}
+/* The selection bar: the accent-tinted strip every list's bulk bar is. */
+.gv-bulk {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--theme-accent);
+  background: color-mix(in oklch, var(--theme-accent) 12%, transparent);
+  animation: gvBulkIn 0.18s var(--ease-out, ease) both;
+}
+.gv-bulk__count {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.gv-bulk__hint {
+  flex: 1;
+  min-width: 0;
+  color: var(--theme-dim);
+  font-size: var(--text-2xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gv-bulk__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--theme-text);
+  font-family: inherit;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.gv-bulk__btn:hover:not(:disabled) {
+  border-color: var(--theme-accent);
+}
+.gv-bulk__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.gv-bulk__btn--danger {
+  border-color: color-mix(in oklch, var(--theme-danger) 50%, transparent);
+  color: var(--theme-danger);
+}
+.gv-bulk__btn--danger:hover:not(:disabled) {
+  border-color: var(--theme-danger);
+  background: color-mix(in oklch, var(--theme-danger) 14%, transparent);
+}
+@media (max-width: 640px) {
+  .gv-bulk__hint {
+    display: none;
+  }
+}
+@keyframes gvBulkIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gv-bulk {
+    animation: none;
+  }
+}
+</style>

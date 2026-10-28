@@ -11,6 +11,104 @@
 // chat-completions stream, so one reader serves both. A provider that refuses
 // the request — not configured, a missing model, a 5xx — hands the turn on.
 
+import { lookup } from 'node:dns/promises'
+import { isPrivateHost, linksIn, pageText } from '../../src/utils/webPage'
+
+// ---- Pages the user linked ---------------------------------------------------
+// A link in a chat message is fetched here, server-side (no CORS, and the
+// browser never fetches arbitrary sites on the app's behalf), turned into
+// plain text and handed to the model. Guarded: http(s) only, public hosts
+// only — checked on the name, on every address it resolves to, and again on
+// every redirect — a time limit, a size limit and text-like content only.
+const PAGE_TIMEOUT_MS = 8000
+const PAGE_MAX_BYTES = 1_500_000
+const PAGE_MAX_CHARS = 12_000
+const MAX_REDIRECTS = 3
+
+interface LinkedPage {
+  url: string
+  title: string
+  ok: boolean
+  text: string
+  error?: string
+}
+
+async function publicUrl(raw: string): Promise<URL> {
+  const u = new URL(raw)
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('only http(s) links')
+  if (u.username || u.password) throw new Error('links with a login are not read')
+  if (isPrivateHost(u.hostname)) throw new Error('private address')
+  const addrs = await lookup(u.hostname, { all: true }).catch(() => [])
+  if (!addrs.length) throw new Error('host not found')
+  if (addrs.some((a) => isPrivateHost(a.address))) throw new Error('private address')
+  return u
+}
+
+async function readPage(raw: string, signal: AbortSignal): Promise<LinkedPage> {
+  // The turn's own abort, plus a time limit of our own.
+  const ctrl = new AbortController()
+  const stop = () => ctrl.abort()
+  signal.addEventListener('abort', stop)
+  const timer = setTimeout(stop, PAGE_TIMEOUT_MS)
+  try {
+    let url = await publicUrl(raw)
+    let res: Response | null = null
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      res = await fetch(url, {
+        redirect: 'manual',
+        signal: ctrl.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; AureonReader/1.0)',
+          Accept: 'text/html,text/plain,application/json;q=0.9,*/*;q=0.1',
+        },
+      })
+      const next = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null
+      if (!next) break
+      url = await publicUrl(new URL(next, url).href)
+      res = null
+    }
+    if (!res) throw new Error('too many redirects')
+    if (!res.ok) throw new Error(`the site answered ${res.status}`)
+    const type = res.headers.get('content-type') || ''
+    if (!/text\/|json|xml/i.test(type)) throw new Error('not a text page')
+    // Read at most PAGE_MAX_BYTES, then stop.
+    const reader = res.body?.getReader()
+    const chunks: Uint8Array[] = []
+    let size = 0
+    while (reader) {
+      const { value, done } = await reader.read()
+      if (done || !value) break
+      chunks.push(value)
+      size += value.length
+      if (size >= PAGE_MAX_BYTES) {
+        void reader.cancel()
+        break
+      }
+    }
+    const all = new Uint8Array(size)
+    let at = 0
+    for (const c of chunks) {
+      all.set(c.subarray(0, Math.min(c.length, size - at)), at)
+      at += c.length
+    }
+    const html = new TextDecoder().decode(all)
+    const { title, text } = pageText(html, type, PAGE_MAX_CHARS)
+    if (!text) throw new Error('the page has no readable text (it may need JavaScript)')
+    return { url: url.href, title, ok: true, text }
+  } catch (error) {
+    const msg =
+      ctrl.signal.aborted && !signal.aborted ? 'it took too long' : (error as Error).message
+    return { url: raw, title: '', ok: false, text: '', error: msg }
+  } finally {
+    clearTimeout(timer)
+    signal.removeEventListener('abort', stop)
+  }
+}
+
+function readLinkedPages(urls: string[], signal: AbortSignal): Promise<LinkedPage[]> {
+  return Promise.all(urls.map((u) => readPage(u, signal)))
+}
+
 const BYTEZ_API = 'https://api.bytez.com/models/v2/openai/v1/chat/completions'
 // Any chat model in the Bytez catalog; BYTEZ_MODEL overrides it.
 const BYTEZ_DEFAULT_MODEL = 'Qwen/Qwen3-4B'
@@ -36,6 +134,8 @@ interface ChatMessage {
 interface RequestBody {
   /** 'bytez' | 'openrouter', picked in the AI tab's header. */
   provider?: string
+  /** Fetch the pages linked in the latest message and give them to the model. */
+  readLinks?: boolean
   model?: string
   messages?: ChatMessage[]
   system?: string
@@ -303,7 +403,21 @@ export default async function handler(req: Request): Promise<Response> {
   const messages = toMessages(Array.isArray(body.messages) ? body.messages : [])
   if (!messages.length) return json({ error: 'No message to send.' }, 400)
 
-  const system = body.system?.trim() ? body.system.slice(0, 12_000) : ''
+  // Links in the latest message, read here so the model can use the page's
+  // details (chat only — autocorrect and the sweep do not set readLinks).
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+  const pages = body.readLinks ? await readLinkedPages(linksIn(lastUser), req.signal) : []
+  const pageBlock = pages.length
+    ? '\n\nWEB PAGES THE USER LINKED (fetched just now; use them for details, and say if one could not be read):\n' +
+      pages
+        .map((p) =>
+          p.ok
+            ? `--- ${p.url}${p.title ? ` — ${p.title}` : ''}\n${p.text}`
+            : `--- ${p.url}\n(could not be read: ${p.error})`,
+        )
+        .join('\n\n')
+    : ''
+  const system = (body.system?.trim() ? body.system.slice(0, 12_000) : '') + pageBlock
   const base = {
     messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
     // OpenRouter holds credit for the whole cap up front; the model default
@@ -359,6 +473,10 @@ export default async function handler(req: Request): Promise<Response> {
         model: answered?.model,
         provider: answered?.provider,
         ...(fallbackReason ? { fallback: fallbackReason } : {}),
+        // The pages read for this turn, so the reply can show its sources.
+        ...(pages.length
+          ? { sources: pages.map((p) => ({ url: p.url, title: p.title, ok: p.ok })) }
+          : {}),
       })
       try {
         for (;;) {

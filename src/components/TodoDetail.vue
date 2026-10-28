@@ -26,6 +26,7 @@ import Icon from '@/components/ui/Icon.vue'
 import AddMoreDialog from '@/components/detail/AddMoreDialog.vue'
 import QuickAdd from '@/components/todo/QuickAdd.vue'
 import ExportJsonDialog from '@/components/detail/ExportJsonDialog.vue'
+import MoveSelectionDialog from '@/components/MoveSelectionDialog.vue'
 import { exportTaskTransferJson } from '@/utils/taskTransfer'
 import StrikeText from '@/components/ui/StrikeText.vue'
 import { useSubtaskGroups } from '@/composables/useSubtaskGroups'
@@ -133,11 +134,15 @@ watch(
     cancel()
     selecting.value = false
     picked.value = new Set()
+    movingInto.value = false
   },
 )
 
 // The "Add more" paste dialog, for this item's subtasks.
 const addingMore = ref(false)
+// "Move into…": re-file this todo (with its subtasks) under another todo —
+// pinned ones, at any depth, are listed first.
+const movingInto = ref(false)
 // Export: this todo and every subtask under it, at every depth, as JSON in the
 // transfer format, shown in a dialog to copy or download — it pastes straight
 // back into "Add more" or the tab's Import.
@@ -232,6 +237,11 @@ function moveTodoToTasks() {
               <PaneToolbar class="dp-actions">
                 <RemindBell collection="todos" size="md" icon-size="md" :id="todo.id" />
                 <ShareGlobeButton entity-type="todo" :item="todo" variant="row" icon-size="md" />
+                <PaneButton
+                  icon="corner-down-right"
+                  label="Move into another todo"
+                  @click="movingInto = true"
+                />
                 <PaneButton icon="refresh-cw" label="Move to tasks" @click="moveTodoToTasks" />
                 <MoveToDeadlineButton
                   type="todo"
@@ -297,6 +307,13 @@ function moveTodoToTasks() {
               :filename="exported?.filename ?? ''"
               :count="exported?.count ?? 0"
               @close="exported = null"
+            />
+            <MoveSelectionDialog
+              :open="movingInto"
+              collection="todos"
+              :ids="[todo.id]"
+              title="Move into…"
+              @close="movingInto = false"
             />
             <AddMoreDialog
               :open="addingMore"
@@ -469,7 +486,7 @@ function moveTodoToTasks() {
                 <span :style="infoVal">{{ fmtDate(todo.rolledOverAt) }}</span>
               </template>
               <template v-if="goals.length">
-                <span :style="infoKey">Goals</span>
+                <span :style="infoKey">Milestones</span>
                 <span :style="row">
                   <button
                     v-for="g in goals"
@@ -478,7 +495,7 @@ function moveTodoToTasks() {
                     :style="accentPill"
                     @click="app.openGoalDialog(g.id)"
                   >
-                    ◎ {{ g.title || 'Goal' }}
+                    ◎ {{ g.title || 'Milestone' }}
                   </button>
                 </span>
               </template>

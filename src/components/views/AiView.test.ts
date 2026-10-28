@@ -23,6 +23,29 @@ describe('<AiView />', () => {
     for (const chip of SUGGESTION_CHIPS) expect(wrapper.text()).toContain(chip)
   })
 
+  it('folds a group of chats, and hides and shows the whole history pane', async () => {
+    localStorage.clear()
+    const app = useAppStore()
+    const id = app.newAiChat()
+    app.addAiMessage(id, { role: 'user', content: 'Plan the week' })
+    const wrapper = mount(AiView, { global })
+    expect(wrapper.find('.ai-row').exists()).toBe(true)
+
+    // Today folds: its chats go, its heading stays.
+    await wrapper.find('.ai-list__group').trigger('click')
+    expect(wrapper.find('.ai-row').exists()).toBe(false)
+    expect(wrapper.find('.ai-list__group').attributes('aria-expanded')).toBe('false')
+    await wrapper.find('.ai-list__group').trigger('click')
+    expect(wrapper.find('.ai-row').exists()).toBe(true)
+
+    // The pane hides, and the header offers it back.
+    const hide = wrapper.find('button[aria-label="Hide chat history"]')
+    await hide.trigger('click')
+    expect(wrapper.find('.ai-list').exists()).toBe(false)
+    await wrapper.find('button[aria-label="Show chat history"]').trigger('click')
+    expect(wrapper.find('.ai-list').exists()).toBe(true)
+  })
+
   it('the New chat button creates a conversation', async () => {
     const app = useAppStore()
     const wrapper = mount(AiView, { global })
@@ -49,7 +72,8 @@ describe('<AiView />', () => {
     expect(wrapper.text()).toContain('What else is due?')
     expect(wrapper.text()).not.toContain('```')
 
-    const add = wrapper.findAll('button').find((b) => b.text().includes('Add 2 subtasks'))
+    // Under a todo the steps are sub-todos (subtasks are for a task).
+    const add = wrapper.findAll('button').find((b) => b.text().includes('Add 2 sub-todos'))
     expect(add).toBeTruthy()
     await add!.trigger('click')
     expect(app.todos.filter((t) => t.parentId === parent.id).map((t) => t.text)).toEqual([

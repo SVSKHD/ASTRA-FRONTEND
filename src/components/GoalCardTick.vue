@@ -10,6 +10,7 @@
 // drift into disagreeing about what a tick does.
 import { useGoalToday } from '@/composables/useGoalToday'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
+import Icon from '@/components/ui/Icon.vue'
 
 const props = defineProps<{ goalId: number }>()
 
@@ -37,8 +38,8 @@ const {
       :title="occurrence.status === 'done' ? 'Undo today' : 'Complete today'"
       @click.stop="onTick"
     >
-      <span v-if="occurrence.status === 'done'" aria-hidden="true">✓</span>
-      <span v-else-if="occurrence.status === 'missed'" aria-hidden="true">×</span>
+      <Icon v-if="occurrence.status === 'done'" name="check" size="xs" />
+      <Icon v-else-if="occurrence.status === 'missed'" name="x" size="xs" />
     </button>
     <span
       v-if="label"

@@ -8,6 +8,13 @@ import TaskDetailBody from '@/components/detail/TaskDetailBody.vue'
 import { useAppStore } from '@/stores/app'
 import type { Task } from '@/types'
 
+// Dropdown portals its menu to the body, so its items are not in the wrapper.
+// The last match is this test's menu; an earlier test may have left one open.
+function menuItem(label: string): HTMLButtonElement {
+  const items = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+  return items.filter((b) => b.textContent?.trim() === label).pop()!
+}
+
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
   useRoute: () => ({ query: {} }),
@@ -73,7 +80,7 @@ describe('what the body shows', () => {
       // section 22a retired it in favour of the notes section below.
       'Notes',
       'Subtasks',
-      'Goals',
+      'Milestones',
       'GitHub',
       'Calendar',
       'Activity',
@@ -277,7 +284,7 @@ describe('goals', () => {
     const wrapper = mountBody(1)
     await wrapper
       .findAll('button')
-      .find((b) => b.text().includes('Attach to goal'))!
+      .find((b) => b.text().includes('Attach to milestone'))!
       .trigger('click')
     await wrapper
       .findAll('.tdb__pick')
@@ -301,10 +308,9 @@ describe('the ⋯ menu', () => {
     const wrapper = mountBody(1)
     await wrapper.find('.ui-dropdown__trigger, [aria-haspopup]').trigger('click')
     await flushPromises()
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Duplicate')!
-      .trigger('click')
+    // The menu is portalled to the body, outside the wrapper.
+    menuItem('Duplicate').click()
+    await flushPromises()
     const copy = app.tasks.find((t) => t.title === 'Ship it (copy)')
     expect(copy).toBeTruthy()
     expect(wrapper.emitted('open')).toEqual([[{ kind: 'task', id: copy!.id }]])
@@ -315,10 +321,9 @@ describe('the ⋯ menu', () => {
     const wrapper = mountBody(1)
     await wrapper.find('.ui-dropdown__trigger, [aria-haspopup]').trigger('click')
     await flushPromises()
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Archive')!
-      .trigger('click')
+    // The menu is portalled to the body, outside the wrapper.
+    menuItem('Archive').click()
+    await flushPromises()
     expect(app.tasks[0].archivedAt).toBeTypeOf('number')
     expect(wrapper.emitted('close')).toHaveLength(1)
   })

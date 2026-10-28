@@ -7,7 +7,6 @@ import Checkbox from '@/components/ui/Checkbox.vue'
 // scroll, capped height so it never overflows the dashboard.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
@@ -16,11 +15,11 @@ import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import MetricCapturePopover from '@/components/MetricCapturePopover.vue'
 import { captureOutcome } from '@/utils/goalMetrics'
+import Icon from '@/components/ui/Icon.vue'
 
 const app = useAppStore()
 const ui = useUiStore()
 const auth = useAuthStore()
-const router = useRouter()
 const { c } = useStyles()
 const { goals, goalOccurrences, cloudReady } = storeToRefs(app)
 const { user } = storeToRefs(auth)
@@ -131,11 +130,11 @@ function viewAll() {
   ui.setTab('goals')
 }
 function createGoal() {
-  app.addGoal({ title: 'New goal' })
+  app.addGoal({ title: 'New milestone' })
   ui.setTab('goals')
 }
 function importUrl() {
-  void router.push('/import/goals')
+  app.openGoalImport()
 }
 
 // --- styles ------------------------------------------------------------------
@@ -174,6 +173,9 @@ const countChip = computed(() =>
 const viewAllBtn = computed(() =>
   pxify({
     marginLeft: 'auto',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 2,
     ...typeStep('xs'),
     fontWeight: 'var(--weight-semibold)',
     color: c.value.dim,
@@ -335,24 +337,28 @@ function skeleton() {
 <template>
   <div :style="card">
     <div :style="headRow">
-      <span :style="label">Goals</span>
+      <span :style="label">Milestones</span>
       <span v-if="activeGoals.length" :style="countChip">{{ activeGoals.length }} active</span>
-      <button :style="viewAllBtn" @click="viewAll">View all →</button>
+      <button :style="viewAllBtn" @click="viewAll">
+        View all<Icon name="chevron-right" size="xs" />
+      </button>
     </div>
 
     <!-- Today's recurring goals (task 11) -->
     <div v-if="dailies.length" :style="dailyStrip">
       <div :style="dailyHead">
-        {{ dailyAgg.done }} of {{ dailyAgg.total }} daily goal{{ dailyAgg.total === 1 ? '' : 's' }}
+        {{ dailyAgg.done }} of {{ dailyAgg.total }} daily milestone{{
+          dailyAgg.total === 1 ? '' : 's'
+        }}
         done today
       </div>
       <div v-for="d in dailies" :key="d.goal.id" :style="dailyRow">
         <Checkbox
           :model-value="d.occ!.status === 'done'"
-          :aria-label="'Complete ' + (d.goal.title || 'goal') + ' today'"
+          :aria-label="'Complete ' + (d.goal.title || 'milestone') + ' today'"
           @click.prevent="tickDaily(d.goal.id, !!d.goal.metric?.enabled, d.occ!.status)"
         />
-        <span :style="dailyTitle">{{ d.goal.title || 'Untitled goal' }}</span>
+        <span :style="dailyTitle">{{ d.goal.title || 'Untitled milestone' }}</span>
         <span :style="dailyValue(dailyLabel(d.goal, d.occ!).col)">
           {{ dailyLabel(d.goal, d.occ!).text }}
         </span>
@@ -376,9 +382,9 @@ function skeleton() {
 
     <!-- Empty state -->
     <template v-else-if="activeGoals.length === 0">
-      <div :style="emptyText">No active goals yet.</div>
+      <div :style="emptyText">No active milestones yet.</div>
       <div :style="btnRow">
-        <button :style="primaryBtn" @click="createGoal">Create a goal</button>
+        <button :style="primaryBtn" @click="createGoal">Create a milestone</button>
         <button :style="btn" @click="importUrl">Import from URL</button>
       </div>
     </template>
@@ -390,7 +396,7 @@ function skeleton() {
           <span :style="dot(row.goal.color)"></span>
           <div :style="titleCol">
             <div :style="titleRow">
-              <span :style="goalTitle">{{ row.goal.title || 'Untitled goal' }}</span>
+              <span :style="goalTitle">{{ row.goal.title || 'Untitled milestone' }}</span>
               <span v-if="row.chip" :style="chipStyle(row.chip.col)">{{ row.chip.text }}</span>
               <span :style="pctText">{{ Math.round(row.ratio * 100) }}%</span>
             </div>
@@ -404,7 +410,7 @@ function skeleton() {
         <ProgressRing :ratio="aggregate.ratio" :size="36" :stroke="3.5" />
         <span :style="footerText">
           {{ aggregate.done }}/{{ aggregate.total }} points done across
-          {{ activeGoals.length }} active goal{{ activeGoals.length === 1 ? '' : 's' }}
+          {{ activeGoals.length }} active milestone{{ activeGoals.length === 1 ? '' : 's' }}
         </span>
       </div>
     </template>

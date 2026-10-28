@@ -33,6 +33,12 @@ const props = defineProps<{
   mobile?: boolean
   // Filters are pointless on an empty tab.
   showFilters?: boolean
+  /** The grid is in multi-select; the Select button reads Done. */
+  selecting?: boolean
+  /** There are goals to export as a Learning & Goals document. */
+  canExport?: boolean
+  /** How the list is grouped: by status, or under each goal. */
+  group?: 'status' | 'goal'
 }>()
 const emit = defineEmits<{
   'update:search': [string]
@@ -41,8 +47,12 @@ const emit = defineEmits<{
   'update:tag': [string]
   'update:sort': ['order' | 'target' | 'progress']
   import: []
+  export: []
+  'update:group': ['status' | 'goal']
+  'new-goal': []
   new: []
   help: []
+  select: []
 }>()
 
 const STATUSES: { value: GoalStatus | 'all'; label: string }[] = [
@@ -59,9 +69,16 @@ const SORTS: { value: 'order' | 'target' | 'progress'; label: string }[] = [
 ]
 // One destination, so the menu explains the ways in rather than offering
 // different ones.
-const IMPORT_ITEMS = [
+// Export sits with them: the same document goes out the way it came in.
+const IMPORT_ITEMS = computed(() => [
   { value: 'paste', label: 'Paste JSON' },
   { value: 'link', label: 'Import from a link' },
+  ...(props.canExport ? [{ value: 'export', label: 'Export Learning & Goals JSON' }] : []),
+])
+
+const GROUPS = [
+  { value: 'goal', label: 'Group by goal' },
+  { value: 'status', label: 'Group by status' },
 ]
 
 const chips = computed(() => (props.mobile ? STATUSES : []))
@@ -70,24 +87,44 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
 <template>
   <div class="gtb">
     <!-- The same header row as every tab: name in the middle, Help, Import and
-         New in the right-hand corner. -->
-    <ListToolbar title="Goals" new-label="New goal" @new="emit('new')">
+         New in the right-hand corner. On a phone quick add is the way in, as on
+         Todos, so the header drops New rather than overflowing the screen. -->
+    <ListToolbar
+      title="Milestones"
+      :new-label="mobile ? undefined : 'New milestone'"
+      @new="emit('new')"
+    >
       <template #actions>
         <!-- Persistent, not tucked into the empty state: the question "how do I
              get a goal in from JSON again?" is asked most often by somebody who
              already has goals, which is exactly when an empty-state hint is
              gone (section 23). -->
         <button
+          v-if="showFilters"
+          type="button"
+          class="gtb__select-toggle panel-action"
+          :class="{ 'is-on': selecting }"
+          :aria-pressed="!!selecting"
+          title="Select several milestones"
+          @click="emit('select')"
+        >
+          {{ selecting ? 'Done' : 'Select' }}
+        </button>
+        <button
           type="button"
           class="gtb__help panel-action panel-action--icon"
-          aria-label="How to add a goal"
-          title="How to add a goal"
+          aria-label="How to add a milestone"
+          title="How to add a milestone"
           @click="emit('help')"
         >
           <Icon name="help" size="sm" />
         </button>
         <!-- The chevron is Dropdown's own now, so the label is just the word. -->
-        <Dropdown label="Import" :items="IMPORT_ITEMS" @select="emit('import')" />
+        <Dropdown
+          label="Import"
+          :items="IMPORT_ITEMS"
+          @select="$event === 'export' ? emit('export') : emit('import')"
+        />
       </template>
     </ListToolbar>
 
@@ -95,7 +132,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
       <TextInput
         type="search"
         icon="search"
-        placeholder="Search goals…"
+        placeholder="Search milestones…"
         :model-value="search"
         @update:model-value="emit('update:search', $event)"
         @keydown.enter.prevent="emit('submit-search')"
@@ -120,13 +157,22 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
           @update:model-value="emit('update:tag', $event)"
         />
         <Select
-          aria-label="Sort goals"
+          aria-label="Sort milestones"
           :model-value="sort"
           @update:model-value="emit('update:sort', $event as typeof sort)"
           :options="[
             ...SORTS.map((option) => ({ value: String(option.value), label: `${option.label}` })),
           ]"
         />
+        <Select
+          aria-label="Group milestones"
+          :model-value="group ?? 'status'"
+          :options="GROUPS"
+          @update:model-value="emit('update:group', $event as 'status' | 'goal')"
+        />
+        <button type="button" class="gtb__goal ui-focus-ring" @click="emit('new-goal')">
+          <Icon name="plus" size="xs" />New goal
+        </button>
       </template>
     </div>
 
@@ -146,7 +192,7 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
       />
       <Select
         class="gtb__select gtb__select--chip"
-        aria-label="Sort goals"
+        aria-label="Sort milestones"
         :model-value="sort"
         @update:model-value="emit('update:sort', $event as typeof sort)"
         :options="[
@@ -180,6 +226,27 @@ const chips = computed(() => (props.mobile ? STATUSES : []))
   color: var(--theme-text);
   font-size: var(--text-xs);
   font-family: inherit;
+}
+/* "New goal": the filter row's own control shape, icon and word on one line. */
+.gtb__goal {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--control-md);
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--glass-border);
+  background: transparent;
+  color: var(--theme-text);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.gtb__goal:hover {
+  border-color: var(--theme-accent);
+  color: var(--theme-accent);
 }
 .gtb__select {
   width: auto;

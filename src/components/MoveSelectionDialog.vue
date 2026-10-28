@@ -6,8 +6,14 @@ import { useStyles } from '@/composables/useStyles'
 import Modal from '@/components/ui/Modal.vue'
 import Combobox from '@/components/ui/Combobox.vue'
 import FormField from '@/components/ui/FormField.vue'
-import { buildIndex, selectedTreeRoots, wouldCreateCycle } from '@/utils/taskTree'
-const props = defineProps<{ open: boolean; collection: 'tasks' | 'todos'; ids: number[] }>()
+import { ancestorsOf, buildIndex, selectedTreeRoots, wouldCreateCycle } from '@/utils/taskTree'
+import { pinnedTreeIds } from '@/utils/pinnedItems'
+const props = defineProps<{
+  open: boolean
+  collection: 'tasks' | 'todos'
+  ids: number[]
+  title?: string
+}>()
 const emit = defineEmits<{ close: []; moved: [] }>()
 const app = useAppStore()
 const { s } = useStyles()
@@ -17,19 +23,45 @@ const index = computed(() =>
   buildIndex<Task | Todo>(props.collection === 'tasks' ? app.tasks : app.todos),
 )
 const roots = computed(() => selectedTreeRoots(index.value, props.ids))
-const options = computed(() => [
-  { value: 'root', label: 'Top level' },
-  ...[...index.value.byId.values()]
+const nameOf = (item: Task | Todo) => ('text' in item ? item.text : item.title) || '(untitled)'
+// Everything the list shows under "Pinned" (any item in a tree with a pinned
+// member, see pinnedTreeIds) comes first, in its own group and labelled with
+// its path (Parent › Child), so a subtodo inside a pinned tree is easy to find.
+// With nothing pinned the list stays flat.
+const pinnedIds = computed(() =>
+  pinnedTreeIds(props.collection === 'tasks' ? app.tasks : app.todos, props.collection),
+)
+const options = computed(() => {
+  const candidates = [...index.value.byId.values()]
     .filter(
       (item) =>
         props.collection !== 'todos' || (!item.done && item.status !== 'done' && !item.archivedAt),
     )
     .filter((item) => !roots.value.some((id) => wouldCreateCycle(index.value, id, item.id)))
-    .map((item) => ({
+    // Already the parent of everything being moved: picking it would be a no-op.
+    .filter(
+      (item) =>
+        !roots.value.length ||
+        !roots.value.every((id) => index.value.byId.get(id)?.parentId === item.id),
+    )
+  const pinned = candidates.filter((item) => pinnedIds.value.has(item.id))
+  const rest = candidates.filter((item) => !pinnedIds.value.has(item.id))
+  const grouped = pinned.length > 0
+  return [
+    { value: 'root', label: 'Top level' },
+    ...pinned.map((item) => ({
       value: String(item.id),
-      label: ('text' in item ? item.text : item.title) || '(untitled)',
+      label: [...ancestorsOf(index.value, item.id).reverse().map(nameOf), nameOf(item)].join(' › '),
+      ...(item.pinned ? { icon: 'pin' } : {}),
+      group: 'Pinned',
     })),
-])
+    ...rest.map((item) => ({
+      value: String(item.id),
+      label: nameOf(item),
+      ...(grouped ? { group: props.collection === 'tasks' ? 'Other tasks' : 'Other todos' } : {}),
+    })),
+  ]
+})
 watch(
   () => props.open,
   () => {
@@ -56,7 +88,7 @@ function move() {
 }
 </script>
 <template>
-  <Modal :open="open" title="Move selected items" size="sm" @close="emit('close')">
+  <Modal :open="open" :title="title ?? 'Move selected items'" size="sm" @close="emit('close')">
     <p>Choose one parent. Selected items keep their subtasks.</p>
     <FormField v-slot="field" :label="collection === 'tasks' ? 'Parent task' : 'Parent todo'">
       <Combobox

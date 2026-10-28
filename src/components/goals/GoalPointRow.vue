@@ -18,10 +18,20 @@ import NumberInput from '@/components/ui/NumberInput.vue'
 import { computed, nextTick, ref } from 'vue'
 import AutoTextarea from '@/components/ui/AutoTextarea.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
+import Icon from '@/components/ui/Icon.vue'
+import PointLearnings from '@/components/goals/PointLearnings.vue'
+import PointSubtasks from '@/components/goals/PointSubtasks.vue'
+import { pointProgress } from '@/utils/milestoneProgress'
 import { formatMinutes } from '@/utils/detailFields'
 import type { GoalChecklistItem } from '@/types'
 
-const props = defineProps<{ point: GoalChecklistItem; spent: number; mobile?: boolean }>()
+// `locked`: the milestone is closed, so the row is read-only until reopened.
+const props = defineProps<{
+  point: GoalChecklistItem
+  spent: number
+  mobile?: boolean
+  locked?: boolean
+}>()
 const emit = defineEmits<{
   toggle: []
   'update:text': [string]
@@ -72,18 +82,38 @@ const estimateLabel = computed(() =>
 // row; on a pointer device they appear on hover.
 const expanded = ref(false)
 const showExtras = computed(() => !props.mobile || expanded.value)
+
+// What this point taught, opened under the row. The count stays visible once
+// there is one, so a glance down the list shows which points have notes.
+const learnt = computed(() => props.point.learnings?.length ?? 0)
+const showLearnings = ref(false)
+
+// The point's subtasks, folded under it like a task group (spec 3.3). The chip
+// reads "2/4" once there are any; before that it offers to add the first.
+const subCount = computed(() => props.point.subtasks?.length ?? 0)
+const subProgress = computed(() => pointProgress(props.point))
+const showSubtasks = ref(false)
+const subtaskList = ref<InstanceType<typeof PointSubtasks> | null>(null)
+async function toggleSubtasks() {
+  showSubtasks.value = !showSubtasks.value
+  if (showSubtasks.value && !subCount.value) {
+    await nextTick()
+    subtaskList.value?.focusAdd()
+  }
+}
 </script>
 
 <template>
-  <div class="gpr" :class="mobile && 'gpr--touch'">
+  <div class="gpr" :class="[mobile && 'gpr--touch', locked && 'gpr--locked']">
     <button
       type="button"
       class="gpr__box"
       :class="point.done && 'gpr__box--on'"
+      :disabled="locked"
       :aria-label="point.done ? 'Mark not done' : 'Mark done'"
       @click="emit('toggle')"
     >
-      <span v-if="point.done" aria-hidden="true">✓</span>
+      <Icon v-if="point.done" name="check" size="xs" />
     </button>
 
     <AutoTextarea
@@ -92,6 +122,7 @@ const showExtras = computed(() => !props.mobile || expanded.value)
       placeholder="Untitled point"
       :model-value="point.text"
       :done="point.done"
+      :disabled="locked"
       @update:model-value="emit('update:text', $event)"
       @commit="emit('commit')"
       @revert="onRevert"
@@ -99,6 +130,33 @@ const showExtras = computed(() => !props.mobile || expanded.value)
     />
 
     <div class="gpr__controls">
+      <button
+        v-if="subCount || !locked"
+        type="button"
+        class="gpr__subs"
+        :class="{
+          'gpr__subs--empty': !subCount,
+          'is-open': showSubtasks,
+          'is-complete': subCount && subProgress.done === subProgress.total,
+        }"
+        :aria-expanded="showSubtasks"
+        :title="subCount ? 'Subtasks' : 'Break this point into subtasks'"
+        @click="toggleSubtasks"
+      >
+        <Icon name="list-checks" size="xs" />{{
+          subCount ? `${subProgress.done}/${subProgress.total}` : 'Subtasks'
+        }}
+      </button>
+      <button
+        type="button"
+        class="gpr__learnt"
+        :class="{ 'gpr__learnt--empty': !learnt, 'is-open': showLearnings }"
+        :aria-expanded="showLearnings"
+        :title="learnt ? 'What this point taught' : 'Write down what you learnt'"
+        @click="showLearnings = !showLearnings"
+      >
+        <Icon name="lightbulb" size="xs" />{{ learnt ? `Learnt · ${learnt}` : 'Learnt' }}
+      </button>
       <!-- Estimate: text at rest, field on click. -->
       <NumberInput
         v-if="editingEstimate"
@@ -132,10 +190,10 @@ const showExtras = computed(() => !props.mobile || expanded.value)
         :aria-expanded="expanded"
         @click="expanded = !expanded"
       >
-        ⋯
+        <Icon name="more-horizontal" size="sm" />
       </button>
 
-      <div v-show="showExtras" class="gpr__extras">
+      <div v-show="showExtras && !locked" class="gpr__extras">
         <GlassDatePicker
           size="sm"
           clearable
@@ -146,16 +204,33 @@ const showExtras = computed(() => !props.mobile || expanded.value)
         <button
           type="button"
           class="gpr__mini"
+          :class="{ 'is-running': running }"
           :title="running ? 'Stop the timer' : 'Start the timer'"
           @click="emit('toggle-timer')"
         >
-          {{ running ? '■' : '▶' }} {{ formatMinutes(spent) }}
+          <Icon :name="running ? 'pause' : 'timer'" size="xs" />{{ formatMinutes(spent) }}
         </button>
-        <button type="button" class="gpr__mini" aria-label="Delete point" @click="emit('remove')">
-          ×
+        <button
+          type="button"
+          class="gpr__mini gpr__mini--icon gpr__mini--danger"
+          aria-label="Delete point"
+          title="Delete point"
+          @click="emit('remove')"
+        >
+          <Icon name="trash" size="xs" />
         </button>
       </div>
     </div>
+
+    <PointSubtasks
+      v-if="showSubtasks"
+      ref="subtaskList"
+      class="gpr__learnings"
+      :point-id="point.id"
+      :subtasks="point.subtasks ?? []"
+      :locked="locked"
+    />
+    <PointLearnings v-if="showLearnings" class="gpr__learnings" :point-id="point.id" />
   </div>
 </template>
 
@@ -238,6 +313,8 @@ const showExtras = computed(() => !props.mobile || expanded.value)
   font-family: inherit;
 }
 .gpr__more {
+  display: inline-grid;
+  place-items: center;
   padding: 0 var(--sp-1);
   border: none;
   background: transparent;
@@ -276,7 +353,93 @@ const showExtras = computed(() => !props.mobile || expanded.value)
   cursor: pointer;
   white-space: nowrap;
 }
+.gpr__mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .gpr__mini:hover {
   color: var(--theme-text);
+}
+/* A running timer is the one control that should catch the eye. */
+.gpr__mini.is-running {
+  border-color: var(--theme-accent);
+  color: var(--theme-accent);
+}
+.gpr__mini--icon {
+  padding: var(--sp-1);
+}
+.gpr__mini--danger:hover {
+  border-color: color-mix(in oklch, var(--theme-danger) 50%, transparent);
+  color: var(--theme-danger);
+}
+.gpr__learnt {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in oklch, var(--theme-accent) 35%, transparent);
+  background: color-mix(in oklch, var(--theme-accent) 10%, transparent);
+  color: var(--theme-accent);
+  font-family: inherit;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.gpr__learnt.is-open {
+  background: color-mix(in oklch, var(--theme-accent) 20%, transparent);
+}
+/* With nothing learnt yet it waits for the row to be hovered, like the
+   estimate placeholder does. */
+.gpr__learnt--empty:not(.is-open) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--theme-dim);
+  opacity: 0;
+}
+.gpr:hover .gpr__learnt--empty,
+.gpr__learnt--empty:focus-visible,
+.gpr--touch .gpr__learnt--empty {
+  opacity: 0.8;
+}
+.gpr__learnings {
+  grid-column: 1 / -1;
+}
+/* Subtasks: a count while folded, green once every one is checked. */
+.gpr__subs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--theme-text);
+  font-family: inherit;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.gpr__subs.is-open {
+  border-color: var(--theme-accent);
+  color: var(--theme-accent);
+}
+.gpr__subs.is-complete {
+  color: var(--theme-success);
+}
+.gpr__subs--empty:not(.is-open) {
+  border-color: transparent;
+  color: var(--theme-dim);
+  opacity: 0;
+}
+.gpr:hover .gpr__subs--empty,
+.gpr__subs--empty:focus-visible,
+.gpr--touch .gpr__subs--empty {
+  opacity: 0.8;
+}
+.gpr--locked .gpr__box {
+  cursor: default;
 }
 </style>

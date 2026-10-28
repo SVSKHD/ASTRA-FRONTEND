@@ -243,7 +243,7 @@ describe('goals (acceptance 89)', () => {
     await settle(wrapper, '.gdb')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
     expect(
-      (wrapper.find('textarea[aria-label="Goal title"]').element as HTMLTextAreaElement).value,
+      (wrapper.find('textarea[aria-label="Milestone title"]').element as HTMLTextAreaElement).value,
     ).toBe('Ship it')
     expect(wrapper.text()).toContain('Points')
   })

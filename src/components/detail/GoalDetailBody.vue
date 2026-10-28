@@ -27,6 +27,12 @@ import Dropdown from '@/components/ui/Dropdown.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import GoalPointRow from '@/components/goals/GoalPointRow.vue'
+import MilestoneKpis from '@/components/goals/MilestoneKpis.vue'
+import MilestoneLearnings from '@/components/goals/MilestoneLearnings.vue'
+import MilestoneConclusion from '@/components/goals/MilestoneConclusion.vue'
+import MilestoneStatus from '@/components/goals/MilestoneStatus.vue'
+import { isClosed } from '@/utils/milestoneProgress'
+import { kpisRatio, learningProgress } from '@/utils/milestoneTracking'
 import NoteEditor from '@/components/notes/NoteEditor.vue'
 import ColorPicker from '@/components/ui/ColorPicker.vue'
 import TagPicker from '@/components/TagPicker.vue'
@@ -63,7 +69,9 @@ const description = useInlineField({
 })
 
 // --- header ------------------------------------------------------------------
-const STATUSES: GoalStatus[] = ['active', 'paused', 'done', 'archived']
+// Done is not offered: a milestone is completed by closing it with a
+// conclusion (the Conclusion section), not by picking a status.
+const STATUSES: GoalStatus[] = ['active', 'paused', 'archived']
 // The goal becomes a todo (or task) with its points as subtasks; ticking them
 // there ticks them here (app.moveGoalTo). Once moved, the two moves give way to
 // one entry saying where it went — a goal is never moved twice.
@@ -129,6 +137,12 @@ function onMenu(action: string) {
 const progress = computed(() => app.goalProgress(props.goalId))
 const counts = computed(() => app.goalCounts(props.goalId))
 const points = computed(() => app.checklistOf(props.goalId))
+// Closed milestones are read-only until reopened (spec section 5).
+const closed = computed(() => !!goal.value && isClosed(goal.value))
+const goalOptions = computed(() => [
+  { value: '', label: 'No goal' },
+  ...app.skillGoals.map((g) => ({ value: String(g.id), label: g.title })),
+])
 const attachedTasks = computed(() => app.tasksOfGoal(props.goalId))
 const attachedTodos = computed(() => app.todosOfGoal(props.goalId))
 const pointsDone = computed(() => points.value.filter((p) => p.done).length)
@@ -216,13 +230,14 @@ defineExpose({
     <div class="gdb__row gdb__row--head">
       <span class="gdb__swatch" :style="{ background: goal.color || 'var(--theme-accent)' }"></span>
       <ColorPicker
-        label="Goal colour"
+        label="Milestone colour"
         :model-value="goal.color"
         @update:model-value="app.setGoalColor(goal.id, $event)"
       />
       <Select
+        v-if="!closed"
         class="gdb__input gdb__status"
-        aria-label="Goal status"
+        aria-label="Milestone status"
         :model-value="goal.status"
         @update:model-value="app.setGoalStatus(goal.id, $event as GoalStatus)"
         :options="[...STATUSES.map((st) => ({ value: String(st), label: st }))]"
@@ -231,8 +246,10 @@ defineExpose({
         {{ daysChip.text }}
       </span>
       <span class="gdb__spacer"></span>
-      <Dropdown label="Goal actions" :items="menuItems" @select="onMenu" />
+      <Dropdown label="Milestone actions" :items="menuItems" @select="onMenu" />
     </div>
+
+    <MilestoneStatus :goal-id="goal.id" full />
 
     <!-- The same picker, from the same vocabulary, that a todo or a task is
          tagged with — which is what lets the Goals list filter on the same tags. -->
@@ -260,6 +277,13 @@ defineExpose({
       </div>
     </DetailSection>
 
+    <DetailSection
+      label="KPIs"
+      :hint="goal.kpis?.length ? `${Math.round((kpisRatio(goal.kpis) ?? 0) * 100)}%` : ''"
+    >
+      <MilestoneKpis :goal-id="goal.id" />
+    </DetailSection>
+
     <DetailSection label="Timeline">
       <div class="gdb__grid">
         <label class="gdb__field">
@@ -278,8 +302,19 @@ defineExpose({
             size="sm"
             clearable
             placeholder="No target date"
+            :min="goal.startDate || null"
             :model-value="goal.targetDate"
             @update:model-value="app.setGoalTimeline(goal.id, { target: String($event ?? '') })"
+          />
+        </label>
+        <label class="gdb__field">
+          <span class="gdb__key">Goal</span>
+          <Select
+            class="gdb__input"
+            aria-label="Goal this milestone belongs to"
+            :model-value="goal.skillGoalId != null ? String(goal.skillGoalId) : ''"
+            :options="goalOptions"
+            @update:model-value="app.setMilestoneGoal(goal.id, $event ? Number($event) : null)"
           />
         </label>
       </div>
@@ -294,7 +329,7 @@ defineExpose({
       <div
         v-for="(point, i) in points"
         :key="point.id"
-        draggable="true"
+        :draggable="!closed"
         @dragstart="dragPointId = point.id"
         @dragover.prevent
         @drop="onPointDrop(i)"
@@ -303,6 +338,7 @@ defineExpose({
           :point="point"
           :spent="liveSpent(point.id)"
           :mobile="isMobile"
+          :locked="closed"
           @toggle="app.toggleChecklistItem(point.id)"
           @update:text="app.updateChecklistItem(point.id, { text: $event })"
           @commit="onPointCommit(i)"
@@ -312,7 +348,7 @@ defineExpose({
           @remove="app.deleteChecklistItem(point.id)"
         />
       </div>
-      <div class="gdb__addrow">
+      <div v-if="!closed" class="gdb__addrow">
         <TextInput
           placeholder="Add a point…"
           :model-value="pointDraft"
@@ -321,6 +357,17 @@ defineExpose({
         />
         <button type="button" class="gdb__mini" @click="addPoint">Add</button>
       </div>
+    </DetailSection>
+
+    <DetailSection
+      label="What I've learnt"
+      :hint="`${learningProgress(points).covered}/${points.length}`"
+    >
+      <MilestoneLearnings :goal-id="goal.id" />
+    </DetailSection>
+
+    <DetailSection label="Conclusion" :hint="closed ? 'Completed' : 'Open'">
+      <MilestoneConclusion :goal-id="goal.id" />
     </DetailSection>
 
     <DetailSection label="Tasks" :hint="`${tasksDone}/${attachedTasks.length}`">

@@ -6,6 +6,13 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import GoalsToolbar from '@/components/goals/GoalsToolbar.vue'
 
+// Dropdown portals its menu to the body, so its items are not in the wrapper.
+// The last match is this test's menu; an earlier test may have left one open.
+function menuItem(label: string): HTMLButtonElement {
+  const items = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+  return items.filter((b) => b.textContent?.trim() === label).pop()!
+}
+
 const SOURCE = readFileSync(join(process.cwd(), 'src/components/goals/GoalsToolbar.vue'), 'utf8')
 function ruleHas(selector: string, declaration: string): boolean {
   const start = SOURCE.indexOf(`${selector} {`)
@@ -46,9 +53,9 @@ describe('the one-line layout', () => {
     const wrapper = mountToolbar()
     const filters = wrapper.find('.gtb__filters')
     expect(filters.find('input[type="search"]').exists()).toBe(true)
-    // Two listboxes, not two native selects: the toolbar is library controls
-    // now, so it is themed and portalled like everything beside it.
-    expect(filters.findAll('.ui-sel')).toHaveLength(2)
+    // Listboxes (status, sort, group), not native selects: the toolbar is
+    // library controls now, so it is themed and portalled like everything beside it.
+    expect(filters.findAll('.ui-sel')).toHaveLength(3)
     expect(filters.findAll('select')).toHaveLength(0)
   })
 
@@ -71,7 +78,9 @@ describe('the actions', () => {
     const wrapper = mountToolbar()
     expect(wrapper.findAll('button').filter((b) => b.text() === 'Paste JSON')).toHaveLength(0)
     await wrapper.find('[aria-haspopup]').trigger('click')
-    const labels = wrapper.findAll('button').map((b) => b.text())
+    const labels = Array.from(document.body.querySelectorAll('[role="menuitem"]')).map((b) =>
+      b.textContent?.trim(),
+    )
     expect(labels).toContain('Paste JSON')
     expect(labels).toContain('Import from a link')
   })
@@ -79,10 +88,8 @@ describe('the actions', () => {
   it('both ways in lead to the same place, because they always did', async () => {
     const wrapper = mountToolbar()
     await wrapper.find('[aria-haspopup]').trigger('click')
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Paste JSON')!
-      .trigger('click')
+    menuItem('Paste JSON').click()
+    await flushPromises()
     expect(wrapper.emitted('import')).toHaveLength(1)
   })
 
@@ -159,7 +166,7 @@ describe('the help button', () => {
   it('is in the toolbar, named for what it opens', () => {
     const button = mountToolbar().find('.gtb__help')
     expect(button.exists()).toBe(true)
-    expect(button.attributes('aria-label')).toBe('How to add a goal')
+    expect(button.attributes('aria-label')).toBe('How to add a milestone')
   })
 
   it('is there whether or not the tab has any goals', () => {

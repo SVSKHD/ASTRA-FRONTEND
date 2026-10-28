@@ -23,6 +23,12 @@ import {
   type ParsedImport,
   type GoalsDocument,
 } from '@/utils/goals'
+import { countDoc, isLearningDoc, parseLearningDoc, type LearningDoc } from '@/utils/learningDoc'
+
+// Embedded is the import dialog (GoalsImportDialog): no page around it, and
+// finishing closes the dialog instead of navigating back to the workspace.
+const props = defineProps<{ embedded?: boolean }>()
+const emit = defineEmits<{ done: [] }>()
 
 const app = useAppStore()
 const ui = useUiStore()
@@ -47,6 +53,9 @@ const initial =
 const raw = ref(initial)
 const parsed = ref<ParsedImport | null>(null)
 const jsonDoc = ref<(GoalsDocument & { parseError?: string }) | null>(null)
+// A Learning & Goals document (goals → milestones → tasks → subtasks).
+const learningDoc = ref<LearningDoc | null>(null)
+const learningCounts = computed(() => (learningDoc.value ? countDoc(learningDoc.value) : null))
 const title = ref('')
 const rows = ref<Row[]>([])
 const merge = ref(false)
@@ -91,9 +100,23 @@ const mergeCandidate = computed(() =>
 const overCap = computed(() => !!parsed.value && parsed.value.overCap)
 
 function doParse() {
+  learningDoc.value = null
   if (looksLikeJson(raw.value)) {
-    jsonDoc.value = parseGoalsJson(raw.value)
     parsed.value = null
+    // The goals → milestones shape has its own reader; anything else is the
+    // flat milestones JSON.
+    let obj: unknown = null
+    try {
+      obj = JSON.parse(raw.value)
+    } catch {
+      /* parseGoalsJson reports the error below */
+    }
+    if (obj && isLearningDoc(obj)) {
+      learningDoc.value = parseLearningDoc(obj)
+      jsonDoc.value = null
+      return
+    }
+    jsonDoc.value = parseGoalsJson(raw.value)
     return
   }
   jsonDoc.value = null
@@ -108,6 +131,16 @@ function doParse() {
     kind: 'checklist' as RowKind,
   }))
   merge.value = !!app.goalBySourceUrl(p.sourceUrl)
+}
+function doImportLearning() {
+  if (!learningDoc.value || !learningCounts.value?.milestones) return
+  const res = app.importLearningDoc(learningDoc.value)
+  app.showToastMsg(
+    `Imported ${res.goals} goal${res.goals === 1 ? '' : 's'}, ${res.milestones} milestone${
+      res.milestones === 1 ? '' : 's'
+    }${res.updated ? ` (${res.updated} updated)` : ''}`,
+  )
+  goHome()
 }
 function doImportJson() {
   if (!jsonDoc.value || importableJsonGoals.value.length === 0) return
@@ -163,7 +196,8 @@ function doImport() {
 }
 function goHome() {
   ui.setTab('goals')
-  router.push('/')
+  if (props.embedded) emit('done')
+  else router.push('/')
 }
 
 // --- styles ------------------------------------------------------------------
@@ -190,6 +224,7 @@ const card = computed(() =>
     '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
   }),
 )
+const bare = pxify({ display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' })
 const h1 = computed(() =>
   pxify({ ...typeStep('md'), fontWeight: 'var(--weight-semibold)', color: c.value.text }),
 )
@@ -269,14 +304,14 @@ const mergeNote = computed(() =>
 </script>
 
 <template>
-  <div :style="page">
-    <div :style="card">
-      <div :style="h1">Import goals</div>
+  <div :style="embedded ? undefined : page">
+    <div :style="embedded ? bare : card">
+      <div v-if="!embedded" :style="h1">Import milestones</div>
       <div :style="sub">
         Paste a <strong>spasta link</strong> (<code
           >?project=learningandgoals=read papers|build bot ~2h</code
-        >) or a <strong>goals JSON</strong> document, or drop a <code>.json</code> file below. Link
-        items may carry <code>~45m</code>/<code>~2h</code>, <code>@2026-09-01</code> and
+        >) or a <strong>milestones JSON</strong> document, or drop a <code>.json</code> file below.
+        Link items may carry <code>~45m</code>/<code>~2h</code>, <code>@2026-09-01</code> and
         <code>#tag</code>.
       </div>
 
@@ -298,6 +333,49 @@ const mergeNote = computed(() =>
         <button :style="btn" @click="goHome">Cancel</button>
       </div>
 
+      <!-- A Learning & Goals document: what will arrive, and every row that
+           will not, with why. -->
+      <template v-if="learningDoc && learningCounts">
+        <div :style="sub">
+          <strong>Learning &amp; Goals</strong> document<span v-if="learningDoc.project">
+            · project <strong>{{ learningDoc.project }}</strong></span
+          >: {{ learningCounts.goals }} goals, {{ learningCounts.milestones }} milestones,
+          {{ learningCounts.tasks }} points, {{ learningCounts.subtasks }} subtasks ({{
+            learningCounts.completedSubtasks
+          }}
+          already checked). Re-importing updates the same items instead of duplicating them.
+        </div>
+        <div v-for="g in learningDoc.goals" :key="g.id" :style="rowStyle">
+          <span :style="{ flex: 1, fontWeight: 'var(--weight-semibold)', color: c.text }">
+            {{ g.title || '(untitled)' }}
+          </span>
+          <span v-if="g.error" :style="warn">{{ g.error }}</span>
+          <span v-else :style="sub"
+            >{{ g.milestones.length }} milestone{{ g.milestones.length === 1 ? '' : 's'
+            }}<template v-if="g.start || g.target">
+              · {{ g.start || '…' }} → {{ g.target || '…' }}</template
+            ></span
+          >
+        </div>
+        <div v-if="learningCounts.errors.length">
+          <div :style="warn">
+            {{ learningCounts.errors.length }} row{{
+              learningCounts.errors.length === 1 ? '' : 's'
+            }}
+            will be skipped:
+          </div>
+          <ul :style="sub">
+            <li v-for="e in learningCounts.errors" :key="e">{{ e }}</li>
+          </ul>
+        </div>
+        <div :style="actions">
+          <button :style="primary" :disabled="!learningCounts.milestones" @click="doImportLearning">
+            Import {{ learningCounts.goals }} goals · {{ learningCounts.milestones }} milestones
+          </button>
+          <button :style="btn" @click="goHome">Cancel</button>
+        </div>
+      </template>
+
       <template v-if="jsonDoc">
         <div v-if="jsonDoc.parseError">
           <div :style="warn">Could not parse JSON: {{ jsonDoc.parseError }}</div>
@@ -307,11 +385,11 @@ const mergeNote = computed(() =>
           </div>
         </div>
         <div v-else-if="jsonDoc.goals.length === 0" :style="s.empty">
-          No goals found in that JSON.
+          No milestones found in that JSON.
         </div>
         <template v-else>
           <div :style="sub">
-            {{ importableJsonGoals.length }} goal{{
+            {{ importableJsonGoals.length }} milestone{{
               importableJsonGoals.length === 1 ? '' : 's'
             }}
             ready to import<span v-if="jsonDoc.project">
@@ -333,7 +411,7 @@ const mergeNote = computed(() =>
               :disabled="importableJsonGoals.length === 0"
               @click="doImportJson"
             >
-              Import {{ importableJsonGoals.length }} goal{{
+              Import {{ importableJsonGoals.length }} milestone{{
                 importableJsonGoals.length === 1 ? '' : 's'
               }}
             </button>
@@ -345,11 +423,11 @@ const mergeNote = computed(() =>
       <template v-if="parsed">
         <div :style="sub">
           Project <strong>{{ parsed.projectSlug || '—' }}</strong> — this workspace has no separate
-          projects, so it seeds the goal title below.
+          projects, so it seeds the milestone title below.
         </div>
 
-        <label :style="sub">Goal title</label>
-        <TextInput v-model="title" placeholder="Goal title" />
+        <label :style="sub">Milestone title</label>
+        <TextInput v-model="title" placeholder="Milestone title" />
 
         <div v-if="overCap" :style="warn">
           Too many items — {{ parsed.items.length }} shown, the import cap is
@@ -359,8 +437,8 @@ const mergeNote = computed(() =>
         <div v-if="mergeCandidate" :style="mergeNote">
           <Checkbox v-model="merge" />
           <span>
-            A goal already exists for this link (“{{ mergeCandidate.title }}”). Merge — appending
-            only new checklist items — instead of creating a duplicate.
+            A milestone already exists for this link (“{{ mergeCandidate.title }}”). Merge —
+            appending only new checklist items — instead of creating a duplicate.
           </span>
         </div>
 
@@ -403,7 +481,7 @@ const mergeNote = computed(() =>
 
         <div :style="actions">
           <button :style="primary" :disabled="overCap || rows.length === 0" @click="doImport">
-            {{ merge && mergeCandidate ? 'Merge into goal' : 'Import' }} ({{ rows.length }})
+            {{ merge && mergeCandidate ? 'Merge into milestone' : 'Import' }} ({{ rows.length }})
           </button>
           <button :style="btn" @click="goHome">Cancel</button>
         </div>

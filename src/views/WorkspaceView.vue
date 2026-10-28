@@ -137,7 +137,10 @@ const stageStyle = computed(() => {
 // list, the details pane). The stage body around them is not a scroller at all
 // — `clip`, not `hidden`, so not even a scrollIntoView or a focused input can
 // shift the whole tab up and leave a second scrollbar beside the list's.
-const FIXED_TABS = new Set(['todo', 'tasks'])
+// The AI tab is one of them: its chat list, thread and "What Aureon sees" each
+// scroll on their own, and the stage scrolling too put a second scrollbar over
+// the context pane.
+const FIXED_TABS = new Set(['todo', 'tasks', 'ai'])
 const stageBody = computed(() =>
   pxify({
     flex: '1 1 auto',
@@ -222,6 +225,7 @@ function overlaysOpen(): boolean {
     githubPanel: auth.githubPanelOpen,
     avatarMenu: auth.avatarMenuOpen,
     goalHelp: app.goalHelpOpen,
+    goalImport: app.goalImportOpen,
     taskTransferHelp: app.taskTransferHelpOpen,
   })
 }

@@ -154,7 +154,9 @@ const nestedIds = computed(() => nestedChildIds('tasks', tasks.value))
 // Tasks nested under another present task via the flat parentId hierarchy render
 // inside their parent's tree, so they drop out of the main (top-level) list.
 const treeNestedIds = computed(() => {
-  const present = new Set(tasks.value.map((t) => t.id))
+  // An archived parent is never drawn, so it must not swallow its live
+  // children: they surface as top-level rows (and in Pinned, if pinned).
+  const present = new Set(tasks.value.filter((t) => t.archivedAt == null).map((t) => t.id))
   const nested = new Set<number>()
   for (const t of tasks.value) {
     if (t.parentId != null && present.has(t.parentId)) nested.add(t.id)
@@ -498,12 +500,20 @@ function accKey(t: Task) {
 const hasUnpinned = computed(
   () => carried.value.length + active.value.length + completed.value.length > 0,
 )
-const pinnedOpen = computed(() => !hasUnpinned.value || acc.isOpen('pinned:tasks', true))
-const unpinnedOpen = computed(
-  () => !pinnedRoots.value.length || acc.isOpen('unpinned:tasks', !pinnedOpen.value),
+// A section on its own keeps a separate remembered state, so it can still be
+// collapsed (it used to be forced open) without the pair's state leaking in.
+const pinnedOpen = computed(() =>
+  hasUnpinned.value ? acc.isOpen('pinned:tasks', true) : acc.isOpen('pinned:tasks:solo', true),
+)
+const unpinnedOpen = computed(() =>
+  pinnedRoots.value.length
+    ? acc.isOpen('unpinned:tasks', !pinnedOpen.value)
+    : acc.isOpen('unpinned:tasks:solo', true),
 )
 function setSection(which: 'pinned' | 'unpinned', open: boolean) {
   const other = which === 'pinned' ? 'unpinned' : 'pinned'
+  const both = pinnedRoots.value.length > 0 && hasUnpinned.value
+  if (!both) return acc.set(which + ':tasks:solo', open)
   acc.set(which + ':tasks', open)
   if (open) acc.set(other + ':tasks', false)
 }

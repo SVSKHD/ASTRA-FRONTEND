@@ -39,11 +39,11 @@ describe('<FloatingDock />', () => {
     const ui = useUiStore()
     ui.setTab('goals')
     const wrapper = mount(FloatingDock)
-    expect(centre(wrapper)).toBe('Goals')
+    expect(centre(wrapper)).toBe('Milestones')
     const col = column(wrapper)
     expect(col).toHaveLength(7)
-    expect(col[3]).toBe('Goals')
-    expect(byLabel(wrapper, 'Goals').attributes('aria-current')).toBe('page')
+    expect(col[3]).toBe('Milestones')
+    expect(byLabel(wrapper, 'Milestones').attributes('aria-current')).toBe('page')
   })
 
   it('wraps round: the first section still has neighbours above it', () => {

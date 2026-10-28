@@ -183,10 +183,7 @@ describe('the controls', () => {
   it('ticks, times and deletes', async () => {
     const wrapper = mountRow()
     await wrapper.find('.gpr__box').trigger('click')
-    await wrapper
-      .findAll('.gpr__mini')
-      .find((b) => b.text().includes('▶'))!
-      .trigger('click')
+    await wrapper.find('[title="Start the timer"]').trigger('click')
     await wrapper.find('[aria-label="Delete point"]').trigger('click')
     expect(wrapper.emitted('toggle')).toHaveLength(1)
     expect(wrapper.emitted('toggle-timer')).toHaveLength(1)

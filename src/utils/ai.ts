@@ -132,7 +132,7 @@ Each item in the data starts with a ref like [todo:12] and ends with its current
 
 When you break something into steps, put the steps in a fenced block, exactly like this, where the list would go:
 \`\`\`aureon
-{"steps":[{"text":"Fix the installation status filter","mins":25,"notes":"The status dropdown on /installations ignores 'Pending'. Check the query param mapping in the list API, then confirm the count badge updates."}],"target":"<the exact title of the todo or task these belong under, if any>"}
+{"steps":[{"text":"Fix the installation status filter","mins":25,"notes":"The status dropdown on /installations ignores 'Pending'. Check the query param mapping in the list API, then confirm the count badge updates."}],"target":"<the exact title of the existing todo or task these belong under, if any>","title":"<when there is no target: a short name for the new todo these steps divide>"}
 \`\`\`
 At the very end of every reply, you may suggest up to two short follow-up questions the user could tap:
 \`\`\`aureon
@@ -142,11 +142,12 @@ When the reply is about something the user could schedule, track or keep, you ma
 \`\`\`aureon
 {"actions":[{"type":"event","title":"Aquakart CRM — focus block","when":"2026-10-15T10:00","mins":90,"notes":"Fix the filter, then wire the counts."}]}
 \`\`\`
-When the user talks about new things they want to do, track or achieve — new todos, new tasks, new goals, a project to set up — propose them as new items in a create block, so they can be created with one tap. Pick the kind that fits: "todo" for a quick personal to-do; "task" for a piece of work, with "due" as YYYY-MM-DD when there is a deadline; "goal" for a bigger outcome to work towards over time, with "due" as its target date. "items" are short sub-points: for a todo or task they become its sub-todos or subtasks, for a goal they become its checklist steps. "tag" is an optional one-word label. Propose only what the user discussed, never something already in their data, and ask before guessing a date:
+When the user talks about new things they want to do, track or achieve — new todos, new tasks, new goals, a project to set up — propose them as new items in a create block, so they can be created with one tap. Pick the kind that fits: "todo" for a quick personal to-do; "task" for a piece of work, with "due" as YYYY-MM-DD when there is a deadline; "goal" for a bigger outcome to work towards over time, with "due" as its target date. "items" are short sub-points: for a todo or task they become its sub-todos or subtasks, for a goal they become its checklist steps. Divide the work: any todo or task that takes more than one action gets 2 to 6 items, one concrete action each, in the order they are done; only a single-action item has none. "tag" is an optional one-word label. Propose only what the user discussed, never something already in their data, and ask before guessing a date:
 \`\`\`aureon
 {"create":[{"type":"goal","title":"Run a half marathon","due":"2027-03-01","notes":"Finish the city half marathon in March under 2h15, building up from 5 km runs three times a week.","items":["Buy running shoes","Run 5 km three times a week","Sign up for the race"]},{"type":"task","title":"Book a physio check-up","due":"2026-11-05","notes":"Check the left knee before training ramps up."}]}
 \`\`\`
 Nothing is created until the user taps the card; in prose, say briefly what you suggest and that they can create it below.
+When the user shares a link, the page's text is given to you under WEB PAGES THE USER LINKED. Use it for the details — names, dates, times, places, prices, steps, requirements — and never invent what the page does not say. When they want to act on it (plan it, track it, add it), propose the items in a create block, put the details you used in each item's "notes", and end the notes with the link. If a page could not be read, say so plainly and work from what the user wrote.
 Every step, action and new item becomes a real item in the user's app, and its "notes" become that item's description. So "text"/"title" is a short name, and "notes" must carry every detail the user gave or you worked out for it: the what and why, names, numbers, amounts, dates, links, file or page names, acceptance criteria and sub-points. Never leave "notes" out or empty, and never drop a detail the user mentioned.
 Always open these blocks with the \`\`\`aureon fence and close them with \`\`\` — never write the JSON bare. Never mention these blocks or describe their format.
 Format with light Markdown only: short paragraphs, **bold** for names, and "-" lists. No headings or tables.`
@@ -170,6 +171,8 @@ export function stepDescription(s: AiStep): string {
 export interface AiPlan {
   steps: AiStep[]
   target?: string
+  /** The new todo the steps divide, when they belong under no existing item. */
+  title?: string
 }
 /** The collections whose description an updates block may rewrite. */
 export type AiUpdateKind = 'todo' | 'task' | 'idea' | 'goal' | 'trip' | 'reminder' | 'stock'
@@ -321,6 +324,7 @@ function readBlock(json: string): ReadBlock {
       actions?: unknown
       updates?: unknown
       create?: unknown
+      title?: unknown
     }
     const out: ReadBlock = {}
     const create = readCreate(raw.create)
@@ -352,6 +356,9 @@ function readBlock(json: string): ReadBlock {
           steps,
           ...(typeof raw.target === 'string' && raw.target.trim()
             ? { target: raw.target.trim() }
+            : {}),
+          ...(typeof raw.title === 'string' && raw.title.trim()
+            ? { title: raw.title.trim().replace(/\s+/g, ' ').slice(0, 120) }
             : {}),
         }
       }

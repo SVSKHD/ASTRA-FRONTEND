@@ -3,12 +3,19 @@
 // correct rather than measuring pixels — which is the level the bug lived at:
 // a flex child with no `min-width: 0` and no truncation.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import GoalCard from '@/components/goals/GoalCard.vue'
 import type { Goal } from '@/types'
+
+// Dropdown portals its menu to the body, so its items are not in the wrapper.
+// The last match is this test's menu; an earlier test may have left one open.
+function menuItem(label: string): HTMLButtonElement {
+  const items = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+  return items.filter((b) => b.textContent?.trim() === label).pop()!
+}
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -167,12 +174,12 @@ describe('what it renders', () => {
     expect(some.find('.gcard__pct').text()).toBe('50%')
   })
 
-  it('names an untitled goal rather than showing nothing', () => {
+  it('names an untitled milestone rather than showing nothing', () => {
     expect(
       mountCard(makeGoal({ title: '' }))
         .find('.gcard__title')
         .text(),
-    ).toBe('Untitled goal')
+    ).toBe('Untitled milestone')
   })
 
   it('omits the description element entirely when there is none', () => {
@@ -182,10 +189,30 @@ describe('what it renders', () => {
   it('reports a menu choice to its parent', async () => {
     const wrapper = mountCard()
     await wrapper.find('[aria-haspopup]').trigger('click')
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Archive')!
-      .trigger('click')
+    menuItem('Archive').click()
+    await flushPromises()
     expect(wrapper.emitted('menu')).toEqual([['archive']])
+  })
+})
+
+describe('multi-select', () => {
+  it('has no checkbox until the grid is selecting', () => {
+    expect(mountCard().find('.gcard__pick').exists()).toBe(false)
+  })
+
+  it('swaps the handle for a checkbox that reports Shift for a range', async () => {
+    const wrapper = mountCard(makeGoal(), { selecting: true, draggable: true })
+    expect(wrapper.find('.gcard__grip').exists()).toBe(false)
+    const box = wrapper.find('.gcard__pick')
+    expect(box.attributes('aria-checked')).toBe('false')
+    await box.trigger('click')
+    await box.trigger('click', { shiftKey: true })
+    expect(wrapper.emitted('pick')).toEqual([[false], [true]])
+  })
+
+  it('draws a picked card as picked', () => {
+    const wrapper = mountCard(makeGoal(), { selecting: true, picked: true })
+    expect(wrapper.find('.gcard').classes()).toContain('is-picked')
+    expect(wrapper.find('.gcard__pick').attributes('aria-checked')).toBe('true')
   })
 })

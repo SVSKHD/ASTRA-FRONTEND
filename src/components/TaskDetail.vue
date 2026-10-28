@@ -607,7 +607,7 @@ function moveTaskToTodos() {
                 <span :style="infoVal">{{ fmtDate(task.rolledOverAt) }}</span>
               </template>
               <template v-if="goals.length">
-                <span :style="infoKey">Goals</span>
+                <span :style="infoKey">Milestones</span>
                 <span :style="row">
                   <button
                     v-for="g in goals"
@@ -616,7 +616,7 @@ function moveTaskToTodos() {
                     :style="accentPill"
                     @click="app.openGoalDialog(g.id)"
                   >
-                    ◎ {{ g.title || 'Goal' }}
+                    ◎ {{ g.title || 'Milestone' }}
                   </button>
                 </span>
               </template>

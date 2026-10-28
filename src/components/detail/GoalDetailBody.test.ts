@@ -1,12 +1,19 @@
 // The goal body (section 18d): the blocks it shows, the points it edits inline,
 // and the drill-in from an attached task.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import GoalDetailBody from '@/components/detail/GoalDetailBody.vue'
 import { useAppStore } from '@/stores/app'
 import { INLINE_SAVE_MS } from '@/composables/useInlineField'
 import type { Goal, Task } from '@/types'
+
+// Dropdown portals its menu to the body, so its items are not in the wrapper.
+// The last match is this test's menu; an earlier test may have left one open.
+function menuItem(label: string): HTMLButtonElement {
+  const items = Array.from(document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+  return items.filter((b) => b.textContent?.trim() === label).pop()!
+}
 
 const push = vi.fn()
 vi.mock('vue-router', () => ({
@@ -185,13 +192,9 @@ describe('points', () => {
     const app = setup()
     app.addChecklistItem(10, 'A point')
     const wrapper = mountBody()
-    const timer = wrapper.findAll('button').find((b) => b.text().startsWith('▶'))!
-    await timer.trigger('click')
+    await wrapper.find('[title="Start the timer"]').trigger('click')
     expect(app.checklistOf(10)[0].timerStartedAt).toBeTypeOf('number')
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text().startsWith('■'))!
-      .trigger('click')
+    await wrapper.find('[title="Stop the timer"]').trigger('click')
     expect(app.checklistOf(10)[0].timerStartedAt).toBe(null)
   })
 
@@ -260,10 +263,8 @@ describe('the ⋯ menu', () => {
     const app = setup()
     const wrapper = mountBody()
     await wrapper.find('[aria-haspopup="menu"]').trigger('click')
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Archive')!
-      .trigger('click')
+    menuItem('Archive').click()
+    await flushPromises()
     expect(app.goals[0].status).toBe('archived')
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
@@ -275,10 +276,8 @@ describe('the ⋯ menu', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     const wrapper = mountBody()
     await wrapper.find('[aria-haspopup="menu"]').trigger('click')
-    await wrapper
-      .findAll('button')
-      .find((b) => b.text() === 'Export JSON')!
-      .trigger('click')
+    menuItem('Export JSON').click()
+    await flushPromises()
     expect(createObjectURL).toHaveBeenCalledTimes(1)
     expect((createObjectURL.mock.calls[0] as unknown as Blob[])[0].type).toContain(
       'application/json',

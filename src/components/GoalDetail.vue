@@ -3,12 +3,17 @@ import Select from '@/components/ui/Select.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
-// Goal detail (task 8): header (title/description/dates/status/progress + time
-// totals), an inline-CRUD checklist with per-item estimate/due and a start/stop
-// timer, and Tasks/Todos sections that reuse the existing TreeList row component
-// for attached items. Attaching/detaching is by reference — it never moves or
-// deletes the underlying task/todo. Deleting a goal prompts (unlink everything /
-// delete checklist only) and never cascade-deletes tasks or todos.
+import Button from '@/components/ui/Button.vue'
+import Modal from '@/components/ui/Modal.vue'
+import Dropdown from '@/components/ui/Dropdown.vue'
+// Goal detail (task 8), the wide page. Laid out as a hero (ring, title,
+// description, status), a strip of stat tiles (points, time, timeline, links),
+// then two columns once the page is wide enough: the work itself (checklist,
+// learnings, conclusion) on the left, its context (recurrence, KPIs, attached
+// tasks and todos) on the right. Attached items reuse TreeList and are linked
+// by reference — attaching never moves, detaching never deletes. Deleting a
+// goal prompts (unlink everything / delete checklist only) and never
+// cascade-deletes tasks or todos. Secondary actions live in one overflow menu.
 import { computed, ref, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -16,11 +21,19 @@ import { useUiStore } from '@/stores/ui'
 import { useGoals } from '@/composables/useGoals'
 import { useStyles } from '@/composables/useStyles'
 import { useSyncGuard } from '@/composables/useSyncGuard'
-import { pxify, rowBase, typeStep } from '@/styles'
+import { daysRemaining } from '@/utils/detailFields'
+import { vScrollFade } from '@/directives/scrollFade'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import TreeList from '@/components/TreeList.vue'
+import Icon from '@/components/ui/Icon.vue'
 import GoalMetricPanel from '@/components/GoalMetricPanel.vue'
 import GoalPointRow from '@/components/goals/GoalPointRow.vue'
+import MilestoneKpis from '@/components/goals/MilestoneKpis.vue'
+import MilestoneLearnings from '@/components/goals/MilestoneLearnings.vue'
+import MilestoneConclusion from '@/components/goals/MilestoneConclusion.vue'
+import MilestoneStatus from '@/components/goals/MilestoneStatus.vue'
+import MilestoneSaveState from '@/components/goals/MilestoneSaveState.vue'
+import { isClosed } from '@/utils/milestoneProgress'
 import type { GoalStatus } from '@/types'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 
@@ -30,12 +43,14 @@ const emit = defineEmits<{ (e: 'back'): void }>()
 const app = useAppStore()
 const ui = useUiStore()
 const goalsApi = useGoals()
-const { c, s, isMobile } = useStyles()
+const { isMobile } = useStyles()
 const guard = useSyncGuard()
 const { goals, goalChecklist, tasks, todos } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
 const goal = computed(() => goals.value.find((g) => g.id === props.goalId))
+// Closed milestones are read-only until reopened (spec section 5).
+const closed = computed(() => !!goal.value && isClosed(goal.value))
 // The checklist for this goal, reactive on the store array + now (for live timer).
 const checklist = computed(() => app.checklistOf(props.goalId))
 const progress = computed(() => app.goalProgress(props.goalId))
@@ -64,7 +79,8 @@ function liveSpent(itemId: number): number {
   return it.spentMins + running
 }
 
-const STATUS_OPTS: GoalStatus[] = ['active', 'paused', 'done', 'archived']
+// Done comes from closing with a conclusion, not from this picker.
+const STATUS_OPTS: GoalStatus[] = ['active', 'paused', 'archived']
 
 // --- attached items (reuse TreeList; root = attached with no attached parent) --
 function rootIdsOf(collection: 'tasks' | 'todos') {
@@ -75,6 +91,21 @@ function rootIdsOf(collection: 'tasks' | 'todos') {
 }
 const taskRootIds = computed(() => rootIdsOf('tasks'))
 const todoRootIds = computed(() => rootIdsOf('todos'))
+const taskCount = computed(() => app.tasksOfGoal(props.goalId).length)
+const todoCount = computed(() => app.todosOfGoal(props.goalId).length)
+
+// --- hero / stat tiles ---------------------------------------------------------
+const percent = computed(() => Math.round(progress.value.ratio * 100))
+// Ticks over with the ui clock, so "3 days left" rolls at midnight on its own.
+const daysLeft = computed(() =>
+  goal.value && !closed.value ? daysRemaining(goal.value.targetDate, new Date(now.value)) : null,
+)
+// Spent against estimate, capped for the bar; over-budget shows as a full bar
+// in the warning colour rather than overflowing the tile.
+const timeRatio = computed(() =>
+  time.value.estimate ? Math.min(1, time.value.spent / time.value.estimate) : 0,
+)
+const overBudget = computed(() => !!time.value.estimate && time.value.spent > time.value.estimate)
 
 // --- inline checklist add ----------------------------------------------------
 const draft = ref('')
@@ -196,6 +227,24 @@ function onToggleArchive() {
   else void goalsApi.archive(props.goalId)
 }
 
+// --- overflow menu -------------------------------------------------------------
+const menuItems = computed(() => [
+  { value: 'duplicate', label: 'Duplicate', icon: 'copy' as const },
+  {
+    value: 'archive',
+    label: goal.value?.status === 'archived' ? 'Unarchive' : 'Archive',
+    icon: 'archive' as const,
+  },
+  { value: 'export', label: 'Export as JSON', icon: 'download' as const },
+  { value: 'delete', label: 'Delete…', icon: 'trash' as const, danger: true },
+])
+function onMenu(value: string) {
+  if (value === 'duplicate') onDuplicate()
+  else if (value === 'archive') onToggleArchive()
+  else if (value === 'export') onExport()
+  else if (value === 'delete') confirmDelete.value = true
+}
+
 // --- delete prompt -----------------------------------------------------------
 const confirmDelete = ref(false)
 function doDelete(checklistOnly: boolean) {
@@ -209,283 +258,653 @@ function doDelete(checklistOnly: boolean) {
   void goalsApi.remove(props.goalId)
   emit('back')
 }
-
-// --- styles ------------------------------------------------------------------
-const wrap = pxify({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 'var(--sp-4)',
-  overflowY: 'auto',
-  flex: 1,
-  minHeight: 0,
-})
-const backBtn = computed(() =>
-  pxify({
-    alignSelf: 'flex-start',
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    padding: '6px 12px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + c.value.border,
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-  }),
-)
-const header = computed(() =>
-  pxify({
-    ...rowBase(c.value),
-    flexDirection: 'column',
-    gap: 'var(--sp-3)',
-    alignItems: 'stretch',
-  }),
-)
-const headTop = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
-const dateRow = pxify({
-  display: 'flex',
-  gap: 'var(--sp-3)',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-})
-const fieldLabel = computed(() => pxify({ ...typeStep('xs'), color: c.value.dim, marginRight: 4 }))
-const barTrack = computed(() =>
-  pxify({
-    flex: 1,
-    height: 8,
-    borderRadius: 'var(--radius-pill)',
-    background: c.value.input,
-    overflow: 'hidden',
-  }),
-)
-const barFill = computed(() =>
-  pxify({
-    height: '100%',
-    borderRadius: 'var(--radius-pill)',
-    background: c.value.accent,
-    transition: 'width .35s ease',
-  }),
-)
-const sectionTitle = computed(() =>
-  pxify({
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.06em',
-    color: c.value.dim,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--sp-2)',
-    marginTop: 6,
-  }),
-)
-const smallBtn = computed(() =>
-  pxify({
-    ...typeStep('xs'),
-    fontWeight: 'var(--weight-semibold)',
-    padding: '5px 10px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + c.value.border,
-    background: 'transparent',
-    color: c.value.dim,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  }),
-)
-const addRow = computed(() =>
-  pxify({ display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', padding: '2px 0' }),
-)
-const overlay = pxify({
-  position: 'fixed',
-  inset: '0',
-  background: 'rgba(0,0,0,0.5)',
-  display: 'grid',
-  placeItems: 'center',
-  zIndex: 60,
-  padding: 16,
-})
-const modal = computed(() =>
-  pxify({
-    ...rowBase(c.value),
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: 'var(--sp-3)',
-    width: 'min(520px, 100%)',
-    maxHeight: '80vh',
-    background: c.value.glass,
-    backdropFilter: 'blur(28px) saturate(1.6)',
-    '-webkit-backdrop-filter': 'blur(28px) saturate(1.6)',
-  }),
-)
-const pickList = pxify({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 'var(--sp-1)',
-  overflowY: 'auto',
-})
-const pickRow = computed(() =>
-  pxify({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--sp-3)',
-    padding: '8px 10px',
-    borderRadius: 'var(--radius-card)',
-    cursor: 'pointer',
-    ...typeStep('sm'),
-    color: c.value.text,
-    border: '1px solid ' + c.value.border,
-  }),
-)
 </script>
 
 <template>
-  <div v-if="goal" :style="wrap">
-    <button :style="backBtn" @click="emit('back')">← All goals</button>
-
-    <!-- Header -->
-    <div :style="header">
-      <div :style="headTop">
-        <ProgressRing :ratio="progress.ratio" :size="52" />
-        <TextInput
-          :model-value="goal.title"
-          placeholder="Goal title"
-          @update:model-value="app.updateGoal(goal.id, { title: $event })"
-        />
-        <Select
-          :model-value="goal.status"
-          @update:model-value="app.setGoalStatus(goal.id, $event as GoalStatus)"
-          :options="[...STATUS_OPTS.map((st) => ({ value: String(st), label: st }))]"
-        />
-        <button :style="smallBtn" title="Duplicate goal" @click="onDuplicate">Duplicate</button>
-        <button :style="smallBtn" title="Archive / unarchive" @click="onToggleArchive">
-          {{ goal.status === 'archived' ? 'Unarchive' : 'Archive' }}
+  <div v-if="goal" class="gd" :class="{ 'is-closed': closed, 'is-mobile': isMobile }">
+    <!-- The head stays put: what the milestone is and where it stands are
+         always in view while the sections below scroll under it. -->
+    <div class="gd__head">
+      <!-- Top bar: the way back, the save state, and every secondary action. -->
+      <div class="gd__bar">
+        <button type="button" class="panel-action gd__back" @click="emit('back')">
+          <Icon name="chevron-left" size="sm" />All milestones
         </button>
-        <button :style="smallBtn" title="Export as JSON" @click="onExport">Export</button>
-        <button :style="smallBtn" @click="confirmDelete = true">Delete</button>
-      </div>
-      <TextArea
-        :model-value="goal.description"
-        placeholder="Description…"
-        @update:model-value="app.updateGoal(goal.id, { description: $event })"
-      />
-      <div :style="dateRow">
-        <label :style="fieldLabel">Start</label>
-        <GlassDatePicker
-          :model-value="goal.startDate"
-          placeholder="Start"
-          @update:model-value="app.updateGoal(goal.id, { startDate: String($event ?? '') })"
-        />
-        <label :style="fieldLabel">Target</label>
-        <GlassDatePicker
-          :model-value="goal.targetDate"
-          :min="goal.startDate || null"
-          placeholder="Target"
-          @update:model-value="app.updateGoal(goal.id, { targetDate: String($event ?? '') })"
-        />
-      </div>
-      <div :style="dateRow">
-        <div :style="barTrack">
-          <div :style="[barFill, { width: progress.ratio * 100 + '%' }]"></div>
+        <div class="gd__bar-end">
+          <MilestoneSaveState />
+          <Dropdown :items="menuItems" label="Milestone actions" variant="icon" @select="onMenu" />
         </div>
-        <span :style="fieldLabel">{{ progress.done }}/{{ progress.total }}</span>
       </div>
-      <div :style="fieldLabel">
-        Time — estimated {{ fmtMins(time.estimate) }} · spent {{ fmtMins(time.spent) }}
+
+      <!-- Hero -->
+      <section class="gd__hero">
+        <ProgressRing :ratio="progress.ratio" :size="isMobile ? 56 : 76" :stroke="6" />
+        <div class="gd__heading">
+          <TextInput
+            class="gd__title"
+            :model-value="goal.title"
+            placeholder="Milestone title"
+            aria-label="Milestone title"
+            @update:model-value="app.updateGoal(goal.id, { title: $event })"
+          />
+          <div class="gd__meta">
+            <MilestoneStatus :goal-id="goal.id" full />
+            <Select
+              v-if="!closed"
+              class="gd__status"
+              :model-value="goal.status"
+              @update:model-value="app.setGoalStatus(goal.id, $event as GoalStatus)"
+              :options="[...STATUS_OPTS.map((st) => ({ value: String(st), label: st }))]"
+            />
+            <span v-if="daysLeft" class="gd__chip" :class="`is-${daysLeft.tone}`">
+              <Icon name="flag" size="xs" />{{ daysLeft.text }}
+            </span>
+          </div>
+          <TextArea
+            :model-value="goal.description"
+            placeholder="What does done look like? Add a description…"
+            @update:model-value="app.updateGoal(goal.id, { description: $event })"
+          />
+        </div>
+      </section>
+
+      <!-- Stat tiles: the four numbers worth a glance before scrolling. -->
+      <div class="gd__stats">
+        <div class="gd__tile">
+          <span class="gd__tile-label"><Icon name="check-square" size="xs" />Points</span>
+          <span class="gd__tile-value">
+            {{ progress.done }}<small>/ {{ progress.total }}</small>
+            <em>{{ percent }}%</em>
+          </span>
+          <div class="gd__bar-track">
+            <div class="gd__bar-fill" :style="{ width: progress.ratio * 100 + '%' }"></div>
+          </div>
+        </div>
+        <div class="gd__tile">
+          <span class="gd__tile-label"><Icon name="clock" size="xs" />Time</span>
+          <span class="gd__tile-value">
+            {{ fmtMins(time.spent) }}<small>/ {{ fmtMins(time.estimate) }} est.</small>
+          </span>
+          <div class="gd__bar-track">
+            <div
+              class="gd__bar-fill"
+              :class="{ 'is-over': overBudget }"
+              :style="{ width: timeRatio * 100 + '%' }"
+            ></div>
+          </div>
+        </div>
+        <div class="gd__tile gd__tile--wide">
+          <span class="gd__tile-label"><Icon name="calendar" size="xs" />Timeline</span>
+          <div class="gd__dates">
+            <GlassDatePicker
+              :model-value="goal.startDate"
+              placeholder="Start"
+              @update:model-value="app.updateGoal(goal.id, { startDate: String($event ?? '') })"
+            />
+            <Icon name="chevron-right" size="sm" class="gd__dates-arrow" />
+            <GlassDatePicker
+              :model-value="goal.targetDate"
+              :min="goal.startDate || null"
+              placeholder="Target"
+              @update:model-value="app.updateGoal(goal.id, { targetDate: String($event ?? '') })"
+            />
+          </div>
+        </div>
+        <div class="gd__tile">
+          <span class="gd__tile-label"><Icon name="paperclip" size="xs" />Linked</span>
+          <span class="gd__tile-value">
+            {{ taskCount }}<small>tasks</small>{{ todoCount }}<small>todos</small>
+          </span>
+        </div>
       </div>
     </div>
 
-    <!-- Recurring config + today's occurrence (task 11) -->
-    <GoalMetricPanel :goal-id="goalId" />
+    <!-- Only this part scrolls: as one column when narrow, each column on its
+         own when wide, so a long checklist never drags the tasks out of view. -->
+    <div v-scroll-fade class="gd__grid">
+      <!-- The work: points, what they taught, and how the milestone closes. -->
+      <div v-scroll-fade class="gd__col">
+        <section class="gd__card">
+          <header class="gd__card-head">
+            <Icon name="check-square" size="sm" />
+            <h3>Checklist</h3>
+            <span class="gd__count">{{ progress.done }}/{{ progress.total }}</span>
+          </header>
+          <div v-if="checklist.length === 0" class="gd__empty">
+            No points yet — break the milestone into the steps that get it done.
+          </div>
+          <div class="gd__points">
+            <div
+              v-for="(item, i) in checklist"
+              :key="item.id"
+              :draggable="!closed"
+              class="gd__point"
+              :class="{ 'is-dragging': dragItemId === item.id }"
+              @dragstart="onItemDragStart(item.id)"
+              @dragover.prevent
+              @drop="onItemDrop(i)"
+              @dragend="dragItemId = null"
+            >
+              <!-- The same row the dialog uses (section 20b), so a point reads and
+                   behaves identically on the wide page and in the dialog. -->
+              <GoalPointRow
+                :point="item"
+                :spent="liveSpent(item.id)"
+                :mobile="isMobile"
+                :locked="closed"
+                @toggle="app.toggleChecklistItem(item.id)"
+                @update:text="onItemTextValue(item.id, $event)"
+                @commit="onItemCommit(i)"
+                @update:estimate="onEstimateValue(item.id, $event)"
+                @update:due="onDueValue(item.id, $event)"
+                @toggle-timer="toggleTimer(item.id, item.timerStartedAt != null)"
+                @remove="app.deleteChecklistItem(item.id)"
+              />
+            </div>
+          </div>
+          <form v-if="!closed" class="gd__add" @submit.prevent="addItem">
+            <TextInput v-model="draft" icon="plus" placeholder="Add a point…" size="sm" />
+            <Button type="submit" size="sm" variant="tinted" :disabled="!draft.trim()">Add</Button>
+          </form>
+        </section>
 
-    <!-- Checklist -->
-    <div :style="sectionTitle">Checklist</div>
-    <div :style="addRow">
-      <TextInput
-        style="flex: 1"
-        v-model="draft"
-        placeholder="Add a checklist item…"
-        @keydown.enter="addItem"
-      />
-      <button :style="smallBtn" @click="addItem">Add</button>
-    </div>
-    <div v-if="checklist.length === 0" :style="s.empty">No checklist items yet.</div>
-    <div
-      v-for="(item, i) in checklist"
-      :key="item.id"
-      :draggable="true"
-      @dragstart="onItemDragStart(item.id)"
-      @dragover.prevent
-      @drop="onItemDrop(i)"
-    >
-      <!-- The same row the dialog uses (section 20b), so a point reads and
-           behaves identically on the wide page and in the dialog. -->
-      <GoalPointRow
-        :point="item"
-        :spent="liveSpent(item.id)"
-        :mobile="isMobile"
-        @toggle="app.toggleChecklistItem(item.id)"
-        @update:text="onItemTextValue(item.id, $event)"
-        @commit="onItemCommit(i)"
-        @update:estimate="onEstimateValue(item.id, $event)"
-        @update:due="onDueValue(item.id, $event)"
-        @toggle-timer="toggleTimer(item.id, item.timerStartedAt != null)"
-        @remove="app.deleteChecklistItem(item.id)"
-      />
+        <!-- Everything the points taught, with their examples. -->
+        <section class="gd__card">
+          <header class="gd__card-head">
+            <Icon name="notebook" size="sm" />
+            <h3>What I’ve learnt</h3>
+          </header>
+          <MilestoneLearnings :goal-id="goalId" />
+        </section>
+
+        <!-- How the milestone closes: the step that turns 100% into Completed. -->
+        <section class="gd__card">
+          <header class="gd__card-head">
+            <Icon name="flag" size="sm" />
+            <h3>Conclusion</h3>
+          </header>
+          <MilestoneConclusion :goal-id="goalId" />
+        </section>
+      </div>
+
+      <!-- The context: recurrence, the numbers, and the linked work. -->
+      <div v-scroll-fade class="gd__col">
+        <!-- GoalMetricPanel draws its own card, so it gets a heading, not a box. -->
+        <section class="gd__plain">
+          <header class="gd__card-head">
+            <Icon name="repeat" size="sm" />
+            <h3>Recurrence</h3>
+          </header>
+          <GoalMetricPanel :goal-id="goalId" />
+        </section>
+
+        <section class="gd__card">
+          <header class="gd__card-head">
+            <Icon name="star" size="sm" />
+            <h3>KPIs</h3>
+          </header>
+          <MilestoneKpis :goal-id="goalId" />
+        </section>
+
+        <section class="gd__card">
+          <header class="gd__card-head">
+            <Icon name="list" size="sm" />
+            <h3>Tasks</h3>
+            <span class="gd__count">{{ taskCount }}</span>
+            <div class="gd__card-actions">
+              <Button size="sm" variant="ghost" @click="openPicker('tasks')">Attach</Button>
+              <Button size="sm" variant="ghost" @click="createInGoal('tasks')">+ New</Button>
+            </div>
+          </header>
+          <div v-if="taskRootIds.length === 0" class="gd__empty">No tasks attached.</div>
+          <TreeList v-else collection="tasks" :root-ids="taskRootIds" />
+        </section>
+
+        <section class="gd__card">
+          <header class="gd__card-head">
+            <Icon name="check" size="sm" />
+            <h3>Todos</h3>
+            <span class="gd__count">{{ todoCount }}</span>
+            <div class="gd__card-actions">
+              <Button size="sm" variant="ghost" @click="openPicker('todos')">Attach</Button>
+              <Button size="sm" variant="ghost" @click="createInGoal('todos')">+ New</Button>
+            </div>
+          </header>
+          <div v-if="todoRootIds.length === 0" class="gd__empty">No todos attached.</div>
+          <TreeList v-else collection="todos" :root-ids="todoRootIds" />
+        </section>
+      </div>
     </div>
 
-    <!-- Tasks -->
-    <div :style="sectionTitle">
-      Tasks
-      <button :style="smallBtn" @click="openPicker('tasks')">Attach existing…</button>
-      <button :style="smallBtn" @click="createInGoal('tasks')">Create task</button>
-    </div>
-    <div v-if="taskRootIds.length === 0" :style="s.empty">No tasks attached.</div>
-    <TreeList v-else collection="tasks" :root-ids="taskRootIds" />
-
-    <!-- Todos -->
-    <div :style="sectionTitle">
-      Todos
-      <button :style="smallBtn" @click="openPicker('todos')">Attach existing…</button>
-      <button :style="smallBtn" @click="createInGoal('todos')">Create todo</button>
-    </div>
-    <div v-if="todoRootIds.length === 0" :style="s.empty">No todos attached.</div>
-    <TreeList v-else collection="todos" :root-ids="todoRootIds" />
-
-    <!-- Attach picker modal -->
-    <div v-if="pickerFor" :style="overlay" @click.self="pickerFor = null">
-      <div :style="modal">
-        <div :style="sectionTitle">Attach {{ pickerFor }}</div>
-        <TextInput v-model="pickerSearch" placeholder="Search…" />
-        <div :style="pickList">
-          <label v-for="row in pickerRows" :key="row.id" :style="pickRow">
+    <!-- Attach picker -->
+    <Modal :open="pickerFor != null" :title="`Attach ${pickerFor ?? ''}`" @close="pickerFor = null">
+      <div class="gd__picker">
+        <TextInput v-model="pickerSearch" icon="search" placeholder="Search…" size="sm" />
+        <div class="gd__pick-list">
+          <label
+            v-for="row in pickerRows"
+            :key="row.id"
+            class="gd__pick-row"
+            :class="{ 'is-on': row.attached }"
+          >
             <Checkbox
               :model-value="row.attached"
               @update:model-value="togglePick(row.id, row.attached)"
             />
             <span>{{ row.label }}</span>
           </label>
-          <div v-if="pickerRows.length === 0" :style="s.empty">Nothing to attach.</div>
+          <div v-if="pickerRows.length === 0" class="gd__empty">Nothing to attach.</div>
         </div>
-        <button :style="smallBtn" style="align-self: flex-end" @click="pickerFor = null">
-          Done
-        </button>
       </div>
-    </div>
+      <template #footer>
+        <Button variant="primary" @click="pickerFor = null">Done</Button>
+      </template>
+    </Modal>
 
     <!-- Delete prompt -->
-    <div v-if="confirmDelete" :style="overlay" @click.self="confirmDelete = false">
-      <div :style="modal">
-        <div :style="sectionTitle">Delete “{{ goal.title || 'goal' }}”?</div>
-        <div :style="fieldLabel">
-          Attached tasks and todos are never deleted — they only lose this goal link.
-        </div>
-        <button :style="smallBtn" @click="doDelete(false)">
-          Unlink everything &amp; delete goal
-        </button>
-        <button :style="smallBtn" @click="doDelete(true)">Delete checklist only (keep goal)</button>
-        <button :style="smallBtn" style="align-self: flex-end" @click="confirmDelete = false">
-          Cancel
-        </button>
-      </div>
-    </div>
+    <Modal
+      :open="confirmDelete"
+      :title="`Delete “${goal.title || 'milestone'}”?`"
+      size="sm"
+      @close="confirmDelete = false"
+    >
+      <p class="gd__note">
+        Attached tasks and todos are never deleted — they only lose this milestone link.
+      </p>
+      <template #footer>
+        <Button variant="secondary" @click="confirmDelete = false">Cancel</Button>
+        <Button variant="secondary" @click="doDelete(true)">Delete checklist only</Button>
+        <Button variant="danger" @click="doDelete(false)">Delete milestone</Button>
+      </template>
+    </Modal>
   </div>
 </template>
+
+<style scoped>
+/* The page itself never scrolls: the head is fixed and the grid below takes
+   the rest of the height and scrolls inside it. */
+.gd {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.gd__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  flex: none;
+}
+/* A long description would push the scrolling part off the screen, so it
+   scrolls inside its own field past a few lines. */
+.gd__heading :deep(textarea) {
+  max-height: 88px;
+  overflow-y: auto;
+}
+
+/* --- top bar ------------------------------------------------------------- */
+.gd__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.gd__back {
+  color: var(--theme-dim);
+}
+.gd__back:hover {
+  color: var(--theme-text);
+}
+.gd__bar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* --- hero ---------------------------------------------------------------- */
+.gd__hero {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border-radius: var(--radius-xl, var(--radius-card));
+  border: 1px solid var(--theme-border);
+  background:
+    radial-gradient(
+      120% 140% at 0% 0%,
+      color-mix(in srgb, var(--theme-accent) 10%, transparent),
+      transparent 60%
+    ),
+    var(--theme-card);
+}
+.gd__heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+/* The library field, dressed as a heading: no box until hovered or focused,
+   then it shows it is a field. */
+.gd__title {
+  margin-left: -11px;
+  width: calc(100% + 11px);
+}
+.gd__title :deep(.ui-control) {
+  padding: 2px 10px;
+  border-color: transparent;
+  background: transparent;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
+}
+.gd__title :deep(.ui-control:hover) {
+  border-color: var(--theme-border);
+}
+.gd__title :deep(.ui-control:focus-within) {
+  border-color: var(--theme-accent);
+  background: var(--theme-input);
+}
+.gd__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.gd__status {
+  width: auto;
+  min-width: 120px;
+}
+.gd__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--theme-border);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--theme-dim);
+}
+.gd__chip.is-today {
+  color: var(--theme-warning);
+  border-color: color-mix(in srgb, var(--theme-warning) 40%, transparent);
+}
+.gd__chip.is-overdue {
+  color: var(--theme-danger);
+  border-color: color-mix(in srgb, var(--theme-danger) 40%, transparent);
+  background: color-mix(in srgb, var(--theme-danger) 8%, transparent);
+}
+
+/* --- stat tiles ---------------------------------------------------------- */
+.gd__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--sp-3);
+}
+.gd__tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-card);
+}
+.gd__tile--wide {
+  grid-column: span 2;
+}
+.gd__tile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-dim);
+}
+.gd__tile-value {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--theme-text);
+}
+.gd__tile-value small {
+  margin: 0 10px 0 4px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-normal);
+  color: var(--theme-dim);
+}
+.gd__tile-value em {
+  font-style: normal;
+  font-size: var(--text-sm);
+  color: var(--theme-accent);
+}
+.gd__bar-track {
+  height: 6px;
+  margin-top: auto;
+  border-radius: var(--radius-pill);
+  background: var(--theme-input);
+  overflow: hidden;
+}
+.gd__bar-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--theme-accent);
+  transition: width 0.35s var(--ease-out, ease);
+}
+.gd__bar-fill.is-over {
+  background: var(--theme-warning);
+}
+.gd__dates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.gd__dates > :not(.gd__dates-arrow) {
+  flex: 1;
+  min-width: 130px;
+}
+.gd__dates-arrow {
+  color: var(--theme-dim);
+}
+
+/* --- body columns -------------------------------------------------------- */
+/* Narrow: one column, and the grid is the scroller. */
+.gd__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--sp-4);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: var(--sp-6);
+}
+.gd__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+/* Wide: two columns that each scroll on their own, so reading the checklist
+   never moves the tasks and KPIs out of view. */
+@container (min-width: 880px) {
+  .gd__grid {
+    grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+    align-content: stretch;
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+  .gd__col {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: var(--sp-6);
+    scrollbar-gutter: stable;
+  }
+}
+/* A phone or a short window has no room for a fixed head: it scrolls as one
+   page again, with only the top bar pinned so the way back is always there. */
+.gd.is-mobile {
+  overflow-y: auto;
+}
+.gd.is-mobile .gd__grid,
+.gd.is-mobile .gd__col {
+  overflow: visible;
+  flex: none;
+}
+.gd.is-mobile .gd__bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: var(--sp-2) 0;
+  background: var(--theme-surface);
+}
+@media (max-height: 640px) {
+  .gd {
+    overflow-y: auto;
+  }
+  .gd__grid,
+  .gd__col {
+    overflow: visible !important;
+    flex: none;
+  }
+  .gd__bar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: var(--sp-2) 0;
+    background: var(--theme-surface);
+  }
+}
+.gd__card,
+.gd__plain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.gd__card {
+  padding: var(--sp-4);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-card);
+}
+.gd__card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 28px;
+  color: var(--theme-dim);
+}
+.gd__card-head h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--theme-text);
+}
+.gd__count {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--theme-input);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-dim);
+}
+.gd__card-actions {
+  display: flex;
+  gap: var(--sp-1);
+  margin-left: auto;
+}
+.gd__empty {
+  padding: var(--sp-3);
+  border-radius: var(--radius-control);
+  border: 1px dashed var(--theme-border);
+  font-size: var(--text-sm);
+  text-align: center;
+  color: var(--theme-dim);
+}
+.gd__points {
+  display: flex;
+  flex-direction: column;
+}
+.gd__point {
+  border-radius: var(--radius-control);
+  transition: opacity var(--dur-fast, 150ms) ease;
+}
+.gd__point.is-dragging {
+  opacity: 0.4;
+}
+.gd__add {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.gd__add > :first-child {
+  flex: 1;
+}
+
+/* --- dialogs ------------------------------------------------------------- */
+.gd__picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.gd__pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.gd__pick-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--theme-border);
+  font-size: var(--text-sm);
+  color: var(--theme-text);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast, 150ms) ease,
+    border-color var(--dur-fast, 150ms) ease;
+}
+.gd__pick-row:hover {
+  background: var(--theme-input);
+}
+.gd__pick-row.is-on {
+  border-color: color-mix(in srgb, var(--theme-accent) 50%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 8%, transparent);
+}
+.gd__note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--theme-dim);
+}
+
+/* --- narrow -------------------------------------------------------------- */
+@container (max-width: 520px) {
+  .gd__hero {
+    flex-direction: column;
+    padding: var(--sp-4);
+  }
+  .gd__tile--wide {
+    grid-column: 1 / -1;
+  }
+  .gd__title :deep(.ui-control) {
+    font-size: var(--text-xl);
+  }
+}
+</style>

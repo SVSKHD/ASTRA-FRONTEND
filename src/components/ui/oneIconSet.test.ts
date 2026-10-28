@@ -58,6 +58,9 @@ const ALLOWED = new Set([
   //                       geometry projected from data, like the sparkline, and
   //                       deliberately not a map library (see the component)
   'components/security/SessionMap.vue',
+  //   KpiSparkline        a milestone KPI's logged values as a line — the
+  //                       same case as BotsView's sparkline
+  'components/goals/KpiSparkline.vue',
 ])
 
 // The trade family (section 28b) is the one place a second set is allowed, and

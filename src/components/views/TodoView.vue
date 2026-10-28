@@ -166,7 +166,9 @@ function dayOf(t: Todo): string {
 // and the flat parentId hierarchy.
 const nestedIds = computed(() => nestedChildIds('todos', todos.value))
 const treeNestedIds = computed(() => {
-  const present = new Set(todos.value.map((t) => t.id))
+  // An archived parent is never drawn, so it must not swallow its live
+  // children: they surface as top-level rows (and in Pinned, if pinned).
+  const present = new Set(todos.value.filter((t) => t.archivedAt == null).map((t) => t.id))
   const nested = new Set<number>()
   for (const t of todos.value) {
     if (t.parentId != null && present.has(t.parentId)) nested.add(t.id)
@@ -593,12 +595,20 @@ function toggleAll() {
 const hasUnpinned = computed(
   () => carried.value.length + active.value.length + completed.value.length > 0,
 )
-const pinnedOpen = computed(() => !hasUnpinned.value || acc.isOpen('pinned:todos', true))
-const unpinnedOpen = computed(
-  () => !pinnedRoots.value.length || acc.isOpen('unpinned:todos', !pinnedOpen.value),
+// A section on its own keeps a separate remembered state, so it can still be
+// collapsed (it used to be forced open) without the pair's state leaking in.
+const pinnedOpen = computed(() =>
+  hasUnpinned.value ? acc.isOpen('pinned:todos', true) : acc.isOpen('pinned:todos:solo', true),
+)
+const unpinnedOpen = computed(() =>
+  pinnedRoots.value.length
+    ? acc.isOpen('unpinned:todos', !pinnedOpen.value)
+    : acc.isOpen('unpinned:todos:solo', true),
 )
 function setSection(which: 'pinned' | 'unpinned', open: boolean) {
   const other = which === 'pinned' ? 'unpinned' : 'pinned'
+  const both = pinnedRoots.value.length > 0 && hasUnpinned.value
+  if (!both) return acc.set(which + ':todos:solo', open)
   acc.set(which + ':todos', open)
   if (open) acc.set(other + ':todos', false)
 }

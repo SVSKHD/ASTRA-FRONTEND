@@ -833,7 +833,7 @@ const rootStripStyle = computed(() =>
                   :key="g.id"
                   type="button"
                   :style="goalChip"
-                  title="Open this goal"
+                  title="Open this milestone"
                   @click.stop="openGoal(g.id)"
                 >
                   ◎ {{ g.label }}

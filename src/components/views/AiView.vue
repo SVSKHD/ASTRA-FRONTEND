@@ -24,16 +24,21 @@ import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
 import { useDraft } from '@/composables/useDraft'
 import { useConnectivity } from '@/composables/useConnectivity'
+import { useSpeechInput } from '@/composables/useSpeechInput'
 import {
   aiContextInput,
-  resolvePlanTarget,
+  focusInfo,
+  planTargetFor,
   resolveUpdateTarget,
   useAiChat,
   type AiCreated,
+  type AiFocus,
 } from '@/composables/useAiChat'
-import AiCreatedDialog from '@/components/AiCreatedDialog.vue'
+import AiFocusPicker from '@/components/AiFocusPicker.vue'
+import ScrollArrows from '@/components/ScrollArrows.vue'
+import AiQuickLook from '@/components/AiQuickLook.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
-import { AI_PROVIDERS, aiModelLabel, type AiChat, type AiMessage } from '@/types'
+import { AI_PROVIDERS, aiModelLabel, type AiChat, type AiItemRef, type AiMessage } from '@/types'
 import { chatTarget } from '@/utils/aiSettings'
 import AiModelPicker from '@/components/AiModelPicker.vue'
 import {
@@ -71,7 +76,49 @@ const typoOpen = ref(false)
 
 // On a phone the list and the thread take turns.
 const mobilePane = ref<'list' | 'thread'>('thread')
-const showList = computed(() => !isMobile.value || mobilePane.value === 'list')
+// The chat history pane folds away on a wide screen too (the header's left
+// button), remembered per device like the context pane.
+const LIST_KEY = 'aureon.ai.chatList'
+function readListPref(): boolean {
+  try {
+    return localStorage.getItem(LIST_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+const listOpen = ref(readListPref())
+function toggleList() {
+  listOpen.value = !listOpen.value
+  try {
+    localStorage.setItem(LIST_KEY, listOpen.value ? '1' : '0')
+  } catch {
+    /* private window — the toggle still works for this visit */
+  }
+}
+const showList = computed(() => (isMobile.value ? mobilePane.value === 'list' : listOpen.value))
+// Today / Yesterday / Earlier fold too; folded groups are remembered per device.
+const GROUPS_KEY = 'aureon.ai.foldedGroups'
+function readFolded(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(GROUPS_KEY) || '[]') as unknown
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+const foldedGroups = ref<string[]>(readFolded())
+function toggleGroup(label: string) {
+  foldedGroups.value = foldedGroups.value.includes(label)
+    ? foldedGroups.value.filter((g) => g !== label)
+    : [...foldedGroups.value, label]
+  try {
+    localStorage.setItem(GROUPS_KEY, JSON.stringify(foldedGroups.value))
+  } catch {
+    /* private window */
+  }
+}
+// A search shows every match, folded or not.
+const isFolded = (label: string) => !search.value.trim() && foldedGroups.value.includes(label)
 const showThread = computed(() => !isMobile.value || mobilePane.value === 'thread')
 
 // "What Aureon sees" — open by default on a wide screen, remembered per device.
@@ -145,6 +192,10 @@ function selectChat(id: number) {
 // --- composer + draft -------------------------------------------------------
 const composerRef = ref<InstanceType<typeof TextArea> | null>(null)
 const threadRef = ref<HTMLElement | null>(null)
+// The chat list and the context pane scroll on their own too; their arrows
+// (ScrollArrows) need the elements.
+const listScrollRef = ref<HTMLElement | null>(null)
+const ctxScrollRef = ref<HTMLElement | null>(null)
 const form = ref<Record<string, unknown>>({ text: '' })
 const draftId = computed(() => aiActiveChatId.value)
 useDraft('aiChat', draftId, form, {
@@ -154,6 +205,17 @@ const text = computed({
   get: () => String(form.value.text ?? ''),
   set: (v: string) => (form.value = { ...form.value, text: v }),
 })
+
+// The mic: dictate into the composer; Send stays a separate, deliberate tap.
+const mic = useSpeechInput({
+  current: () => text.value,
+  onText: (t) => (text.value = t),
+  onError: (msg) => app.showToastMsg(msg),
+})
+function toggleMic() {
+  mic.toggle()
+  composerRef.value?.focus()
+}
 
 // Scrolling follows the reader. A new turn glides to the bottom; a reply that
 // is still growing is followed only while the reader is already at the bottom,
@@ -284,19 +346,60 @@ function planIndex(m: AiMessage, partIndex: number): number {
   const parts = parsed.value.get(m.id)?.parts ?? []
   return parts.slice(0, partIndex).filter((p) => p.kind === 'plan').length
 }
-function planLabel(plan: AiPlan): string {
+function planLabel(m: AiMessage, plan: AiPlan): string {
   const n = plan.steps.length
-  const target = resolvePlanTarget(app, plan)
+  const target = planTargetFor(app, m, plan)
+  const sub = target?.collection === 'tasks' ? 'subtask' : 'sub-todo'
   return target
-    ? `Add ${n} subtask${n === 1 ? '' : 's'} to ${target.label}`
-    : `Add ${n} todo${n === 1 ? '' : 's'}`
+    ? `Add ${n} ${sub}${n === 1 ? '' : 's'} to “${target.label}”`
+    : `Add a todo with ${n} sub-todo${n === 1 ? '' : 's'}`
+}
+
+// ---- the item the chat works on ---------------------------------------------
+const focusPickerOpen = ref(false)
+const working = computed(() => (ai.focus.value ? focusInfo(app, ai.focus.value) : null))
+const workingKids = ref(false) // the sub-item list, open or folded
+const WORKING_SHOWN = 6
+const shownKids = computed(() =>
+  workingKids.value
+    ? (working.value?.children ?? [])
+    : (working.value?.children ?? []).slice(0, WORKING_SHOWN),
+)
+function pickFocus(f: AiFocus) {
+  ai.setFocus(f)
+  focusPickerOpen.value = false
+  composerRef.value?.focus()
+}
+function openWorking() {
+  const w = working.value
+  if (!w) return
+  if (w.collection === 'tasks') app.openTaskDialog(w.id)
+  else app.openEdit('todo', w.id)
+}
+// One-tap asks about the picked item.
+function askAboutWorking(kind: 'split' | 'missing' | 'list') {
+  const w = working.value
+  if (!w) return
+  const sub = w.collection === 'tasks' ? 'subtasks' : 'sub-todos'
+  send(
+    kind === 'split'
+      ? `Break “${w.title}” into ${sub}.`
+      : kind === 'missing'
+        ? `What's missing from “${w.title}”? Suggest new ${sub} for it.`
+        : `What ${sub} are under “${w.title}”, and which are done?`,
+  )
 }
 function planApplied(m: AiMessage, idx: number): boolean {
   return (m.appliedPlans ?? []).includes(idx)
 }
 function addPlan(m: AiMessage, idx: number, plan: AiPlan) {
-  if (!activeAiChat.value || planApplied(m, idx)) return
-  ai.applyPlan(activeAiChat.value.id, m.id, idx, plan)
+  const chat = activeAiChat.value
+  if (!chat || planApplied(m, idx)) return
+  if (!ai.applyPlan(chat.id, m.id, idx, plan)) return
+  // A quick look at where the steps landed: the item, with them under it.
+  const made = app.aiChatById(chat.id)?.messages.find((x) => x.id === m.id)?.made ?? []
+  const last = made[made.length - 1]
+  if (last) openLook([last])
 }
 
 // Description-update cards: the n-th in a message, each row's live item, and
@@ -331,7 +434,7 @@ function applyUpdates(m: AiMessage, idx: number, updates: AiItemUpdate[]) {
 // New-item cards: todos, tasks and goals the reply proposes from what was
 // discussed. Every row starts ticked; untick what you do not want, then Create.
 // Afterwards a pop-up lists what was made, with Open and Undo.
-const NEW_KIND_LABEL: Record<AiNewKind, string> = { todo: 'Todo', task: 'Task', goal: 'Goal' }
+const NEW_KIND_LABEL: Record<AiNewKind, string> = { todo: 'Todo', task: 'Task', goal: 'Milestone' }
 const NEW_SUB_LABEL: Record<AiNewKind, string> = {
   todo: 'sub-todo',
   task: 'subtask',
@@ -374,29 +477,87 @@ function subLine(it: AiNewItem): string {
   return parts.join(' · ')
 }
 
-const created = ref<{ chatId: number; msgId: number; idx: number; items: AiCreated[] } | null>(null)
-const createdOpen = ref(false)
+// ---- quick look ----------------------------------------------------------------
+// Whatever the chat makes — a card's items, a plan's parent, "Add to" — opens
+// in a quick look straight away, and stays one tap away under its reply.
+const look = ref<{
+  items: AiItemRef[]
+  // After a "New items" card: what Undo takes back.
+  undo?: { chatId: number; msgId: number; idx: number; made: AiCreated[] }
+} | null>(null)
+const lookOpen = ref(false)
+function openLook(items: AiItemRef[], undo?: NonNullable<typeof look.value>['undo']) {
+  if (!items.length) return
+  look.value = { items, ...(undo ? { undo } : {}) }
+  lookOpen.value = true
+}
+function closeLook() {
+  lookOpen.value = false
+}
+
 function runCreate(m: AiMessage, idx: number, items: AiNewItem[]) {
   const chat = activeAiChat.value
   if (!chat || createApplied(m, idx)) return
   const made = ai.createItems(chat.id, m.id, idx, tickedItems(m, idx, items))
   if (!made.length) return
-  created.value = { chatId: chat.id, msgId: m.id, idx, items: made }
-  createdOpen.value = true
+  openLook(
+    made.map((c) => ({ kind: c.kind, id: c.id })),
+    { chatId: chat.id, msgId: m.id, idx, made },
+  )
 }
 function undoCreate() {
-  const c = created.value
-  createdOpen.value = false
-  if (!c) return
-  ai.undoCreated(c.chatId, c.msgId, c.idx, c.items)
-  created.value = null
+  const u = look.value?.undo
+  lookOpen.value = false
+  if (!u) return
+  ai.undoCreated(u.chatId, u.msgId, u.idx, u.made)
+  look.value = null
   app.showToastMsg('Removed the new items')
+}
+// The chips under a reply: what it made, still there.
+const MADE_LABEL: Record<AiItemRef['kind'], string> = {
+  todo: 'Todo',
+  task: 'Task',
+  goal: 'Goal',
+  reminder: 'Reminder',
+  note: 'Note',
+}
+function madeTitle(r: AiItemRef): string | null {
+  const hit = <T extends { id: number }>(list: T[]) => list.find((x) => x.id === r.id)
+  switch (r.kind) {
+    case 'todo':
+      return hit(app.todos)?.text ?? null
+    case 'task':
+      return hit(app.tasks)?.title ?? null
+    case 'goal':
+      return hit(app.goals)?.title ?? null
+    case 'reminder':
+      return hit(app.reminders)?.title ?? null
+    case 'note': {
+      const n = hit(app.notes)
+      return n ? n.title || 'Note' : null
+    }
+  }
+  return null
+}
+function madeOf(m: AiMessage) {
+  return (m.made ?? [])
+    .map((r) => ({ ref: r, title: madeTitle(r) }))
+    .filter((x): x is { ref: AiItemRef; title: string } => x.title != null)
+}
+
+// A source chip's fallback name: the site.
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
 }
 
 // --- add from a reply ---------------------------------------------------------
-const action = ref<{ kind: AiActionKind; reply: string } | null>(null)
+const action = ref<{ kind: AiActionKind; reply: string; msgId: number } | null>(null)
 function openAction(m: AiMessage, kind: AiActionKind) {
-  action.value = { kind, reply: m.content }
+  action.value = { kind, reply: m.content, msgId: m.id }
 }
 const suggestedKinds = (m: AiMessage) => (parsed.value.get(m.id)?.actions ?? []).map((a) => a.kind)
 
@@ -469,71 +630,107 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
       :kind="action?.kind ?? 'todo'"
       :reply="action?.reply ?? ''"
       :chat-title="activeAiChat?.title ?? ''"
+      :from="action && activeAiChat ? { chatId: activeAiChat.id, msgId: action.msgId } : undefined"
       @close="action = null"
+      @created="openLook([$event])"
     />
     <AiTypoFixDialog :open="typoOpen" @close="typoOpen = false" />
-    <AiCreatedDialog
-      :open="createdOpen"
-      :created="created?.items ?? []"
-      @close="createdOpen = false"
+    <AiFocusPicker
+      :open="focusPickerOpen"
+      :current="ai.focus.value"
+      @close="focusPickerOpen = false"
+      @pick="pickFocus"
+    />
+    <AiQuickLook
+      :open="lookOpen"
+      :items="look?.items ?? []"
+      :undoable="!!look?.undo"
+      @close="closeLook"
       @undo="undoCreate"
     />
     <div class="ai" :class="{ 'ai--phone': isMobile }">
       <!-- chat list -->
-      <aside v-if="showList" class="ai-list" aria-label="Chats">
-        <h2 class="ai-list__title">Chats</h2>
-        <SearchField v-model="search" placeholder="Search chats" size="md" label="Search chats" />
-        <div class="ai-list__scroll">
-          <template v-for="g in groupedChats" :key="g.label">
-            <div class="ai-list__group">{{ g.label }}</div>
-            <TransitionGroup tag="div" name="ai-rows" class="ai-list__rows">
-              <div
-                v-for="ch in g.chats"
-                :key="ch.id"
-                class="ai-row"
-                :class="{ 'is-active': ch.id === aiActiveChatId && !isMobile }"
-                role="button"
-                tabindex="0"
-                @click="selectChat(ch.id)"
-                @keydown.enter.prevent="selectChat(ch.id)"
+      <Transition name="ai-listpane">
+        <aside v-if="showList" class="ai-list" aria-label="Chats">
+          <div class="ai-list__top">
+            <h2 class="ai-list__title">Chats</h2>
+            <IconButton v-if="!isMobile" size="sm" label="Hide chat history" @click="toggleList">
+              <Icon name="panel-left" />
+            </IconButton>
+          </div>
+          <SearchField v-model="search" placeholder="Search chats" size="md" label="Search chats" />
+          <ScrollArrows :target="listScrollRef" />
+          <div ref="listScrollRef" class="ai-list__scroll scroll-arrows-target">
+            <template v-for="g in groupedChats" :key="g.label">
+              <button
+                type="button"
+                class="ai-list__group"
+                :aria-expanded="!isFolded(g.label)"
+                @click="toggleGroup(g.label)"
               >
-                <div class="ai-row__text">
-                  <span class="ai-row__title">{{ ch.title }}</span>
-                  <span class="ai-row__preview">{{ previewOf(ch) }}</span>
-                </div>
-                <ProgressRing
-                  v-if="ch.id === streamingChatId"
-                  class="ai-row__busy"
-                  indeterminate
-                  hide-value
-                  :size="16"
-                  :stroke="2"
-                  label="Replying"
+                <Icon
+                  name="chevron-down"
+                  size="xs"
+                  class="ai-list__fold"
+                  :class="{ 'is-folded': isFolded(g.label) }"
                 />
-                <IconButton
-                  size="sm"
-                  :label="ch.pinned ? 'Unpin' : 'Pin'"
-                  :active="ch.pinned"
-                  :class="{ 'ai-row__pinned': ch.pinned }"
-                  @click.stop="app.toggleAiChatPin(ch.id)"
+                <span>{{ g.label }}</span>
+                <span class="ai-list__group-n">{{ g.chats.length }}</span>
+              </button>
+              <TransitionGroup
+                v-if="!isFolded(g.label)"
+                tag="div"
+                name="ai-rows"
+                class="ai-list__rows"
+              >
+                <div
+                  v-for="ch in g.chats"
+                  :key="ch.id"
+                  class="ai-row"
+                  :class="{ 'is-active': ch.id === aiActiveChatId && !isMobile }"
+                  role="button"
+                  tabindex="0"
+                  @click="selectChat(ch.id)"
+                  @keydown.enter.prevent="selectChat(ch.id)"
                 >
-                  <Icon name="pin" />
-                </IconButton>
-                <IconButton
-                  size="sm"
-                  tone="danger"
-                  label="Delete"
-                  @click.stop="app.deleteAiChat(ch.id)"
-                >
-                  <Icon name="trash-2" />
-                </IconButton>
-              </div>
-            </TransitionGroup>
-          </template>
-          <div v-if="!aiChats.length" class="ai-list__empty">No chats yet.</div>
-          <div v-else-if="!groupedChats.length" class="ai-list__empty">No chats match.</div>
-        </div>
-      </aside>
+                  <div class="ai-row__text">
+                    <span class="ai-row__title">{{ ch.title }}</span>
+                    <span class="ai-row__preview">{{ previewOf(ch) }}</span>
+                  </div>
+                  <ProgressRing
+                    v-if="ch.id === streamingChatId"
+                    class="ai-row__busy"
+                    indeterminate
+                    hide-value
+                    :size="16"
+                    :stroke="2"
+                    label="Replying"
+                  />
+                  <IconButton
+                    size="sm"
+                    :label="ch.pinned ? 'Unpin' : 'Pin'"
+                    :active="ch.pinned"
+                    :class="{ 'ai-row__pinned': ch.pinned }"
+                    @click.stop="app.toggleAiChatPin(ch.id)"
+                  >
+                    <Icon name="pin" />
+                  </IconButton>
+                  <IconButton
+                    size="sm"
+                    tone="danger"
+                    label="Delete"
+                    @click.stop="app.deleteAiChat(ch.id)"
+                  >
+                    <Icon name="trash-2" />
+                  </IconButton>
+                </div>
+              </TransitionGroup>
+            </template>
+            <div v-if="!aiChats.length" class="ai-list__empty">No chats yet.</div>
+            <div v-else-if="!groupedChats.length" class="ai-list__empty">No chats match.</div>
+          </div>
+        </aside>
+      </Transition>
 
       <!-- thread -->
       <section v-if="showThread" class="ai-main">
@@ -561,6 +758,14 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
           </IconButton>
         </header>
         <header v-else class="ai-head">
+          <IconButton
+            v-if="!listOpen"
+            variant="outline"
+            label="Show chat history"
+            @click="toggleList"
+          >
+            <Icon name="panel-left" />
+          </IconButton>
           <Transition name="ai-fade" mode="out-in">
             <div :key="aiActiveChatId ?? 'none'" class="ai-head__titles">
               <h2 class="ai-head__title">{{ activeAiChat?.title ?? 'New chat' }}</h2>
@@ -609,6 +814,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
           }}
         </button>
 
+        <ScrollArrows :target="threadRef" />
         <Transition name="ai-fade" mode="out-in" @enter="scrollToEnd(false)">
           <div
             v-if="!activeAiChat || !activeAiChat.messages.length"
@@ -616,7 +822,10 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             class="ai-empty"
           >
             <span class="ai-avatar ai-avatar--lg"><Icon name="sparkles" size="lg" /></span>
-            <p class="ai-empty__lead">Ask about your todos, money, reminders, or bots.</p>
+            <p class="ai-empty__lead">
+              Ask about your todos, money, reminders, or bots — or paste a link to turn it into
+              todos, tasks and goals.
+            </p>
             <div class="ai-empty__chips">
               <button
                 v-for="(chip, ci) in SUGGESTION_CHIPS"
@@ -635,7 +844,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                 :disabled="!isOnline"
                 @click="typoOpen = true"
               >
-                Fix typos in my todos, tasks, goals &amp; events
+                Fix typos in my todos, tasks, milestones &amp; events
               </button>
             </div>
           </div>
@@ -644,7 +853,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             v-else
             :key="'thread-' + activeAiChat.id"
             ref="threadRef"
-            class="ai-thread"
+            class="ai-thread scroll-arrows-target"
             @scroll.passive="onThreadScroll"
           >
             <template v-for="m in activeAiChat.messages" :key="m.id">
@@ -809,7 +1018,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                             <Icon name="check" />Added
                           </span>
                           <span v-else key="add" class="ai-plan__label">
-                            <Icon name="plus" />{{ planLabel(part.plan) }}
+                            <Icon name="plus" />{{ planLabel(m, part.plan) }}
                           </span>
                         </Transition>
                       </button>
@@ -828,6 +1037,48 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                     class="ai-cursor"
                     aria-hidden="true"
                   ></span>
+
+                  <!-- What this reply made: a tap is a quick look at it. -->
+                  <div v-if="madeOf(m).length" class="ai-made">
+                    <span class="ai-sources__label">Made from this reply</span>
+                    <button
+                      v-for="x in madeOf(m)"
+                      :key="x.ref.kind + x.ref.id"
+                      type="button"
+                      class="ai-source ai-made__chip"
+                      :title="'Quick look: ' + x.title"
+                      @click="openLook([x.ref])"
+                    >
+                      <span class="ai-made__kind">{{ MADE_LABEL[x.ref.kind] }}</span>
+                      <span class="ai-source__name">{{ x.title }}</span>
+                    </button>
+                    <button
+                      v-if="madeOf(m).length > 1"
+                      type="button"
+                      class="ai-source ai-made__all"
+                      @click="openLook(madeOf(m).map((x) => x.ref))"
+                    >
+                      Look at all {{ madeOf(m).length }}
+                    </button>
+                  </div>
+
+                  <!-- The pages this reply read, from links in the message. -->
+                  <div v-if="m.sources?.length" class="ai-sources">
+                    <span class="ai-sources__label">Read from</span>
+                    <a
+                      v-for="s in m.sources"
+                      :key="s.url"
+                      class="ai-source"
+                      :class="{ 'is-failed': !s.ok }"
+                      :href="s.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      :title="s.ok ? s.url : `Could not read ${s.url}`"
+                    >
+                      <Icon :name="s.ok ? 'globe' : 'alert-circle'" size="xs" />
+                      <span class="ai-source__name">{{ s.title || hostOf(s.url) }}</span>
+                    </a>
+                  </div>
 
                   <div v-if="!isStreamingMsg(m.id)" class="ai-meta">
                     <span class="ai-meta__model" :title="m.model || activeAiChat.model">{{
@@ -914,6 +1165,86 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
           </div>
         </Transition>
 
+        <!-- The item the chat works on: its sub-items, live, with what the
+             chat just added marked new; what is discussed next lands under it. -->
+        <div v-if="working" class="ai-work" aria-label="Working on">
+          <div class="ai-work__head">
+            <Icon
+              :name="working.collection === 'tasks' ? 'list-checks' : 'check-square'"
+              size="sm"
+            />
+            <span class="ai-work__label">Working on</span>
+            <button type="button" class="ai-work__title" title="Open it" @click="openWorking">
+              {{ working.title }}
+            </button>
+            <span class="ai-work__count"
+              >{{ working.children.length }}
+              {{ working.collection === 'tasks' ? 'subtask' : 'sub-todo'
+              }}{{ working.children.length === 1 ? '' : 's' }}</span
+            >
+            <button
+              type="button"
+              class="ai-work__x"
+              aria-label="Change the item"
+              title="Pick another"
+              @click="focusPickerOpen = true"
+            >
+              <Icon name="pencil" size="xs" />
+            </button>
+            <button
+              type="button"
+              class="ai-work__x"
+              aria-label="Stop working on it"
+              title="Stop working on it"
+              @click="ai.setFocus(null)"
+            >
+              <Icon name="x" size="xs" />
+            </button>
+          </div>
+          <ul v-if="working.children.length" class="ai-work__kids">
+            <li
+              v-for="c in shownKids"
+              :key="c.id"
+              class="ai-work__kid"
+              :class="{ 'is-done': c.done, 'is-fresh': c.fresh }"
+            >
+              <Icon :name="c.done ? 'check' : 'corner-down-right'" size="xs" />
+              <span class="ai-work__kid-text">{{ c.title }}</span>
+              <span v-if="c.fresh" class="ai-work__new">new</span>
+            </li>
+          </ul>
+          <p v-else class="ai-work__empty">Nothing under it yet — ask the AI to break it down.</p>
+          <div class="ai-work__actions">
+            <button
+              v-if="working.children.length > WORKING_SHOWN"
+              type="button"
+              class="ai-chip"
+              @click="workingKids = !workingKids"
+            >
+              {{ workingKids ? 'Show fewer' : `Show all ${working.children.length}` }}
+            </button>
+            <button
+              type="button"
+              class="ai-chip"
+              :disabled="streaming || !isOnline"
+              @click="askAboutWorking('split')"
+            >
+              Break it down
+            </button>
+            <button
+              type="button"
+              class="ai-chip"
+              :disabled="streaming || !isOnline"
+              @click="askAboutWorking('missing')"
+            >
+              What’s missing?
+            </button>
+          </div>
+        </div>
+        <button v-else type="button" class="ai-work-pick" @click="focusPickerOpen = true">
+          <Icon name="corner-down-right" size="xs" /> Work on an existing todo or task…
+        </button>
+
         <!-- composer -->
         <!-- The whole card is the field: no border of its own or round the box.
              While a reply streams the next message can be typed but waits — the
@@ -936,6 +1267,19 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             @update:model-value="text = $event"
             @keydown="onComposerKey"
           />
+          <button
+            v-if="mic.supported"
+            type="button"
+            class="ai-mic"
+            :class="{ 'is-on': mic.listening.value }"
+            :aria-pressed="mic.listening.value"
+            :aria-label="mic.listening.value ? 'Stop dictating' : 'Dictate'"
+            :title="mic.listening.value ? 'Listening — click to stop' : 'Speak your message'"
+            :disabled="!isOnline"
+            @click.stop="toggleMic"
+          >
+            <Icon :name="mic.listening.value ? 'mic-off' : 'mic'" />
+          </button>
           <Transition name="ai-swap" mode="out-in">
             <button
               v-if="streaming"
@@ -987,7 +1331,8 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             }}</span>
             <span class="ai-ctx__sent-tok">≈{{ ctxTokens }} tokens</span>
           </div>
-          <div class="ai-ctx__scroll">
+          <ScrollArrows :target="ctxScrollRef" />
+          <div ref="ctxScrollRef" class="ai-ctx__scroll scroll-arrows-target">
             <section
               v-for="(s, si) in ctxSections"
               :key="s.key"
@@ -1022,6 +1367,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 
 /* ---- chat list ---- */
 .ai-list {
+  position: relative; /* the box ScrollArrows lines up in */
   width: 268px;
   flex-shrink: 0;
   display: flex;
@@ -1050,14 +1396,48 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   flex-direction: column;
   gap: 2px;
 }
+/* A group heading is the button that folds it. */
 .ai-list__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
   padding: var(--sp-3) var(--sp-2) var(--sp-1);
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: var(--text-2xs);
   line-height: var(--lh-2xs);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--theme-dim);
+  text-align: left;
+  cursor: pointer;
+}
+.ai-list__group:hover {
+  color: var(--theme-text);
+}
+.ai-list__fold {
+  flex-shrink: 0;
+  transition: transform var(--dur-fast, 0.15s) ease;
+}
+.ai-list__fold.is-folded {
+  transform: rotate(-90deg);
+}
+.ai-list__group-n {
+  margin-left: auto;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+/* "Chats" and the button that hides the pane, on one line. */
+.ai-list__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-width: 0;
 }
 .ai-list__empty {
   padding: var(--sp-2);
@@ -1110,6 +1490,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 
 /* ---- thread ---- */
 .ai-main {
+  position: relative; /* the box ScrollArrows lines up in */
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -1507,6 +1888,71 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   line-height: var(--lh-xs);
   color: var(--theme-dim);
 }
+/* "Made from this reply": chips that open a quick look. */
+.ai-made {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--sp-2);
+  min-width: 0;
+}
+.ai-made__chip,
+.ai-made__all {
+  border: 0;
+  font: inherit;
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+.ai-made__kind {
+  flex-shrink: 0;
+  font-weight: var(--weight-semibold);
+  color: var(--theme-accent);
+}
+.ai-made__all {
+  background: transparent;
+  color: var(--theme-dim);
+  text-decoration: underline;
+}
+/* "Read from" chips: the pages a reply used. */
+.ai-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--sp-2);
+  min-width: 0;
+}
+.ai-sources__label {
+  font-size: var(--text-2xs);
+  color: var(--theme-dim);
+}
+.ai-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 260px;
+  min-width: 0;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--theme-accent) 12%, transparent);
+  color: var(--theme-text);
+  font-size: var(--text-2xs);
+  text-decoration: none;
+}
+.ai-source:hover {
+  background: color-mix(in oklch, var(--theme-accent) 20%, transparent);
+}
+.ai-source.is-failed {
+  background: color-mix(in oklch, var(--theme-text) 6%, transparent);
+  color: var(--theme-dim);
+}
+.ai-source__name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .ai-meta__model {
   padding: 2px var(--sp-2);
   border-radius: var(--radius-pill);
@@ -1651,6 +2097,145 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   max-width: 460px;
 }
 
+/* ---- "Working on": the picked todo or task, above the composer ---- */
+.ai-work {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: var(--sp-2);
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--theme-accent) 9%, transparent);
+  border: 1px solid color-mix(in oklch, var(--theme-accent) 25%, transparent);
+}
+.ai-work__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--theme-accent);
+}
+.ai-work__label {
+  flex-shrink: 0;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-dim);
+}
+.ai-work__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--theme-text);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.ai-work__title:hover {
+  text-decoration: underline;
+}
+.ai-work__count {
+  flex-shrink: 0;
+  font-size: var(--text-2xs);
+  color: var(--theme-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ai-work__x {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--theme-dim);
+  cursor: pointer;
+}
+.ai-work__x:hover {
+  background: color-mix(in oklch, var(--theme-text) 8%, transparent);
+  color: var(--theme-text);
+}
+.ai-work__kids {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 28vh;
+  overflow-y: auto;
+}
+.ai-work__kid {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--theme-text);
+}
+.ai-work__kid :deep(svg) {
+  flex-shrink: 0;
+  color: var(--theme-dim);
+}
+.ai-work__kid-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ai-work__kid.is-done .ai-work__kid-text {
+  text-decoration: line-through;
+  color: var(--theme-dim);
+}
+.ai-work__kid.is-fresh .ai-work__kid-text {
+  font-weight: var(--weight-semibold);
+}
+.ai-work__new {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+}
+.ai-work__empty {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+}
+.ai-work__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-work-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-bottom: var(--sp-2);
+  padding: 4px 10px;
+  border: 1px dashed color-mix(in oklch, var(--theme-text) 20%, transparent);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--theme-dim);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.ai-work-pick:hover {
+  color: var(--theme-text);
+  border-color: var(--theme-accent);
+}
+
 /* ---- composer ---- */
 /* One borderless card that is the text field — no outline on the card or on
    the box inside it, focused or not. */
@@ -1704,6 +2289,41 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   opacity: 0.45;
   cursor: default;
 }
+/* The mic: a quiet round button beside Send; listening, it fills and pulses. */
+.ai-mic {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--theme-text) 7%, transparent);
+  color: var(--theme-text);
+  cursor: pointer;
+}
+.ai-mic:hover {
+  background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
+}
+.ai-mic:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ai-mic.is-on {
+  background: var(--theme-danger, #e5484d);
+  color: #fff;
+  animation: aiMicPulse 1.4s ease-in-out infinite;
+}
+@keyframes aiMicPulse {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklch, var(--theme-danger, #e5484d) 25%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-mic.is-on {
+    animation: none;
+  }
+}
 /* Replying: a spinning ring with a stop square in its middle. */
 .ai-send.is-stop {
   position: relative;
@@ -1741,6 +2361,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 
 /* ---- what Aureon sees ---- */
 .ai-ctx {
+  position: relative; /* the box ScrollArrows lines up in */
   width: 300px;
   flex-shrink: 0;
   display: flex;
@@ -2074,6 +2695,27 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 
 /* The context pane slides in from the right; its negative margin lets the
    thread widen and narrow with it instead of jumping. */
+/* The chat history pane slides off to the left the same way. */
+.ai:not(.ai--phone) .ai-listpane-enter-active,
+.ai:not(.ai--phone) .ai-listpane-leave-active {
+  transition:
+    opacity var(--dur-slide) var(--ease-sheet),
+    transform var(--dur-slide) var(--ease-sheet),
+    margin-left var(--dur-slide) var(--ease-sheet);
+}
+.ai:not(.ai--phone) .ai-listpane-enter-from,
+.ai:not(.ai--phone) .ai-listpane-leave-to {
+  opacity: 0;
+  transform: translateX(-24px);
+  margin-left: calc(-268px - var(--sp-3));
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai:not(.ai--phone) .ai-listpane-enter-active,
+  .ai:not(.ai--phone) .ai-listpane-leave-active,
+  .ai-list__fold {
+    transition: none;
+  }
+}
 .ai-ctx-enter-active,
 .ai-ctx-leave-active {
   transition:

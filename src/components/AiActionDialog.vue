@@ -14,6 +14,7 @@ import NumberInput from '@/components/ui/NumberInput.vue'
 import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import { useAiChat } from '@/composables/useAiChat'
+import type { AiItemRef } from '@/types'
 import {
   AI_ACTION_KINDS,
   AI_ACTION_META,
@@ -28,8 +29,11 @@ const props = defineProps<{
   kind: AiActionKind
   reply: string
   chatTitle: string
+  /** The reply this is made from, so the reply records what it made. */
+  from?: { chatId: number; msgId: number }
 }>()
-const emit = defineEmits<{ close: [] }>()
+// `created` carries what was made, for the quick look.
+const emit = defineEmits<{ close: []; created: [AiItemRef] }>()
 const { createFromDraft } = useAiChat()
 
 const kinds = AI_ACTION_KINDS.map((k) => ({ value: k, label: AI_ACTION_META[k].label }))
@@ -79,7 +83,10 @@ const canAdd = computed(() => {
 
 function add() {
   if (!canAdd.value) return
-  if (createFromDraft(draft.value)) emit('close')
+  const made = createFromDraft(draft.value, props.from)
+  if (!made) return
+  emit('close')
+  emit('created', made)
 }
 </script>
 

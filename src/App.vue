@@ -21,6 +21,7 @@ import AutoCorrectBadge from '@/components/AutoCorrectBadge.vue'
 // demand: most sessions never ask for it.
 const GoalHelpPanel = defineAsyncComponent(() => import('@/components/goals/GoalHelpPanel.vue'))
 import { useStyles } from '@/composables/useStyles'
+import GoalsImportDialog from '@/components/goals/GoalsImportDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { firebaseEnabled, onPersistenceResolved, supabaseEnabled } from '@/firebase'
 
@@ -63,6 +64,9 @@ onMounted(() => {
   <CursorTail v-if="route.name !== 'profile'" />
   <RouterView />
   <GoalHelpPanel v-if="app.goalHelpOpen" />
+  <!-- Always mounted, so the Modal sees `open` change and moves focus in and
+       back out; the screen inside is fetched on the first open. -->
+  <GoalsImportDialog />
   <!-- Progress of the app-wide typo fixer, next to whichever field it is on. -->
   <AutoCorrectBadge />
   <!-- The bottom-right corner, as one column so its two tenants never land on

@@ -14,8 +14,10 @@
 // the field with the details already unfolded; a typed #tag still wins over the
 // picked one.
 //
-// One box for three lists (`collection`): todos, tasks and ideas. The parse,
-// the tag and the reminder work the same; only the list it adds to differs.
+// One box for four lists (`collection`): todos, tasks, ideas and milestones.
+// The parse and the tag work the same; only the list it adds to differs. A
+// milestone takes the typed date as its target and has no reminder, so the
+// time, priority and repeat chips are not offered for it.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
@@ -27,7 +29,7 @@ import Chip from '@/components/ui/Chip.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
-type QuickCollection = 'todos' | 'tasks' | 'ideas'
+type QuickCollection = 'todos' | 'tasks' | 'ideas' | 'goals'
 
 const props = withDefaults(
   defineProps<{
@@ -43,16 +45,24 @@ const props = withDefaults(
   }>(),
   { compact: false, collection: 'todos', parentId: null },
 )
-const isSub = computed(() => props.parentId != null && props.collection !== 'ideas')
+const isSub = computed(
+  () => props.parentId != null && props.collection !== 'ideas' && props.collection !== 'goals',
+)
 const emit = defineEmits<{ added: [id: number] }>()
 
 const app = useAppStore()
-const { todos, tasks, ideas } = storeToRefs(app)
-const NOUN: Record<QuickCollection, string> = { todos: 'todo', tasks: 'task', ideas: 'idea' }
+const { todos, tasks, ideas, goals } = storeToRefs(app)
+const NOUN: Record<QuickCollection, string> = {
+  todos: 'todo',
+  tasks: 'task',
+  ideas: 'idea',
+  goals: 'milestone',
+}
 const EXAMPLE: Record<QuickCollection, string> = {
   todos: 'Call vendor fri 5pm #CRM !high',
   tasks: 'Ship invoice export fri #Billing',
   ideas: 'Referral rewards #Growth',
+  goals: 'Learn Rust by dec 31 #Learning',
 }
 const noun = computed(() => (isSub.value ? 'subtask' : NOUN[props.collection]))
 // "an idea", "a todo", "a task".
@@ -63,6 +73,17 @@ const example = computed(() =>
 
 const text = ref('')
 const parsed = computed(() => parseQuickAdd(text.value))
+// What the parse understood, minus what this list cannot use. A milestone's
+// date is its target, so the chip says so.
+const chips = computed(() =>
+  props.collection === 'goals'
+    ? parsed.value.chips
+        .filter((ch) => ch.kind === 'tag' || ch.kind === 'date')
+        .map((ch) =>
+          ch.kind === 'date' ? { ...ch, icon: 'flag' as const, text: `Target ${ch.text}` } : ch,
+        )
+    : parsed.value.chips,
+)
 const field = ref<InstanceType<typeof TextInput> | null>(null)
 
 const detailsOpen = ref(false)
@@ -74,6 +95,21 @@ const canAdd = computed(() => !!parsed.value.title)
 function submit() {
   const q = parseQuickAdd(text.value)
   if (!q.title) return
+  // A milestone: title, tag, description and the typed date as its target. It
+  // goes to the top of the manual order, where the reader is looking.
+  if (props.collection === 'goals') {
+    const orders = goals.value.map((g) => g.order)
+    const gid = app.addGoal({
+      title: q.title,
+      tag: q.tag || tag.value,
+      description: description.value.trim(),
+      targetDate: q.date ?? '',
+      order: orders.length ? Math.min(...orders) - 1 : 0,
+    })
+    reset()
+    emit('added', gid)
+    return
+  }
   // New items enter at the top of the list, where the reader is looking.
   const list =
     props.collection === 'ideas'
@@ -119,17 +155,21 @@ function submit() {
 // ready for the next one, and the id to whoever is listening.
 function finish(q: ReturnType<typeof parseQuickAdd>, id: number) {
   const start = quickAddReminderStart(q)
-  if (start) {
+  // Milestones return before reaching here; the guard narrows the type.
+  if (start && props.collection !== 'goals') {
     app.createReminderFromItem(props.collection, id, {
       start,
       repeat: q.repeat ? { type: q.repeat, n: 1 } : { type: 'none' },
       priority: q.priority ?? 'normal',
     })
   }
+  reset()
+  emit('added', id)
+}
+function reset() {
   text.value = ''
   tag.value = ''
   description.value = ''
-  emit('added', id)
   field.value?.focus()
 }
 function onEscape() {
@@ -185,14 +225,8 @@ defineExpose({
         </button>
       </div>
 
-      <div v-if="parsed.chips.length" class="qa__chips" aria-live="polite">
-        <Chip
-          v-for="ch in parsed.chips"
-          :key="ch.kind"
-          tone="accent"
-          :icon="ch.icon"
-          :label="ch.text"
-        />
+      <div v-if="chips.length" class="qa__chips" aria-live="polite">
+        <Chip v-for="ch in chips" :key="ch.kind" tone="accent" :icon="ch.icon" :label="ch.text" />
       </div>
 
       <CollapseTransition>

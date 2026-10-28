@@ -139,7 +139,7 @@ const titleText = computed(() => {
   if (!frame.value) return ''
   if (frame.value.kind === 'task')
     return task.value ? task.value.title || 'Untitled task' : 'Loading…'
-  return goal.value ? goal.value.title || 'Untitled goal' : 'Loading…'
+  return goal.value ? goal.value.title || 'Untitled milestone' : 'Loading…'
 })
 const exists = computed(() => !!task.value || !!goal.value)
 
@@ -250,7 +250,7 @@ function onOpen(target: { kind: DetailKind; id: number }) {
         class="dhost__title"
         variant="title"
         :model-value="title.draft.value"
-        :label="frame?.kind === 'goal' ? 'Goal title' : 'Task title'"
+        :label="frame?.kind === 'goal' ? 'Milestone title' : 'Task title'"
         @update:model-value="title.set"
         @commit="onTitleCommit"
         @revert="title.revert"

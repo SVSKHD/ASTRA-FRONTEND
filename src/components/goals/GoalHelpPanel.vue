@@ -12,7 +12,6 @@
 // note is a one-line change over there and nothing here.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import {
   GOAL_HELP_STEPS,
@@ -29,7 +28,6 @@ import Button from '@/components/ui/Button.vue'
 import Icon from '@/components/ui/Icon.vue'
 
 const app = useAppStore()
-const router = useRouter()
 const { goalHelpOpen, goalHelpTab } = storeToRefs(app)
 
 // Its own width, not the detail panes' mode: this drawer is mounted globally
@@ -47,7 +45,7 @@ const steps = computed(() => GOAL_HELP_STEPS[tab.value])
 // the question a flat list of nineteen rows makes hardest to answer.
 const SCOPES: { key: SchemaField['scope']; label: string }[] = [
   { key: 'document', label: 'The document' },
-  { key: 'goal', label: 'Each goal' },
+  { key: 'goal', label: 'Each milestone' },
   { key: 'point', label: 'Each point' },
 ]
 const fieldsIn = (scope: SchemaField['scope']) =>
@@ -65,11 +63,11 @@ async function copySchema() {
   }
 }
 
-// Hands the sample to the import screen and goes there, rather than importing
+// Hands the sample to the import dialog and opens it, rather than importing
 // it from here: the point of a sample is to be edited before it is written.
 function loadSample() {
   app.seedGoalImport(SAMPLE_GOAL_JSON)
-  void router.push('/import/goals')
+  app.openGoalImport()
 }
 </script>
 
@@ -79,14 +77,14 @@ function loadSample() {
     :size="wide ? 'lg' : 'compact'"
     :mode-icon="wide ? 'minimize' : 'maximize'"
     :mode-label="wide ? 'Compact drawer' : 'Wider drawer'"
-    title="How to add a goal"
+    title="How to add a milestone"
     @mode="app.toggleDrawerWide()"
     @close="app.closeGoalHelp()"
   >
     <div class="ghelp">
       <p class="ghelp__lede">
-        Three ways in, and they end in the same place — a goal with a name, an optional timeline and
-        a list of points.
+        Three ways in, and they end in the same place — a milestone with a name, an optional
+        timeline and a list of points.
       </p>
 
       <Tabs v-model="tab" :tabs="GOAL_HELP_TABS" aria-label="Help section" />
@@ -143,7 +141,7 @@ function loadSample() {
           <Button variant="ghost" size="sm" @click="copySchema">
             {{ copied ? 'Copied' : 'Copy sample' }}
           </Button>
-          <Button variant="primary" size="sm" @click="loadSample">Load sample goal</Button>
+          <Button variant="primary" size="sm" @click="loadSample">Load sample milestone</Button>
         </div>
 
         <pre class="ghelp__sample"><code>{{ SAMPLE_GOAL_JSON }}</code></pre>

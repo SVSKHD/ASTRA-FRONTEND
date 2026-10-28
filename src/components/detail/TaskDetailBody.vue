@@ -66,7 +66,7 @@ function fieldDirty(name: string) {
 const goalChoices = computed(() => goals.value.filter((g) => g.status !== 'archived'))
 const menuItems = computed(() => [
   { value: 'duplicate', label: 'Duplicate' },
-  { value: 'convert', label: 'Convert to goal point', disabled: !goalChoices.value.length },
+  { value: 'convert', label: 'Convert to milestone point', disabled: !goalChoices.value.length },
   { value: 'archive', label: 'Archive' },
   { value: 'delete', label: 'Delete' },
 ])
@@ -273,7 +273,7 @@ defineExpose({
           class="tdb__pick"
           @click="convertTo(g.id)"
         >
-          {{ g.title || 'Untitled goal' }}
+          {{ g.title || 'Untitled milestone' }}
         </button>
         <button type="button" class="tdb__pick" @click="converting = false">Cancel</button>
       </div>
@@ -425,7 +425,7 @@ defineExpose({
         </div>
       </DetailSection>
 
-      <DetailSection label="Goals">
+      <DetailSection label="Milestones">
         <div class="tdb__chips">
           <button
             v-for="g in attachedGoals"
@@ -434,7 +434,7 @@ defineExpose({
             class="tdb__goal"
             @click="emit('open', { kind: 'goal', id: g.id })"
           >
-            ◎ {{ g.title || 'Untitled goal' }}
+            ◎ {{ g.title || 'Untitled milestone' }}
             <span
               class="tdb__x"
               role="none"
@@ -448,7 +448,7 @@ defineExpose({
             class="tdb__mini"
             @click="attaching = !attaching"
           >
-            {{ attaching ? 'Cancel' : 'Attach to goal…' }}
+            {{ attaching ? 'Cancel' : 'Attach to milestone…' }}
           </button>
         </div>
         <div v-if="attaching" class="tdb__picker">
@@ -459,7 +459,7 @@ defineExpose({
             class="tdb__pick"
             @click="attach(g.id)"
           >
-            {{ g.title || 'Untitled goal' }}
+            {{ g.title || 'Untitled milestone' }}
           </button>
         </div>
       </DetailSection>

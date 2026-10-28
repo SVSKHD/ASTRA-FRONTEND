@@ -143,4 +143,16 @@ describe('archiveCompleted', () => {
     expect(app.todos.find((t) => t.id === 1)!.archivedAt).toBeTypeOf('number')
     expect(app.todos.find((t) => t.id === 2)!.archivedAt ?? null).toBeNull()
   })
+
+  it('keeps a done parent live while it still has unfinished subtodos', () => {
+    const app = useAppStore()
+    app.todos = [
+      makeTodo({ id: 1, status: 'done', done: true, completedAt: Date.now() }),
+      makeTodo({ id: 2, status: 'pending', parentId: 1, rootId: 1, depth: 1 }),
+      makeTodo({ id: 3, status: 'done', done: true, completedAt: Date.now(), parentId: 1 }),
+    ]
+    app.archiveCompleted('todos')
+    expect(app.todos.find((t) => t.id === 1)!.archivedAt ?? null).toBeNull()
+    expect(app.todos.find((t) => t.id === 3)!.archivedAt).toBeTypeOf('number')
+  })
 })

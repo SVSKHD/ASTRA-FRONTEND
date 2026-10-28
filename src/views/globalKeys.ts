@@ -121,6 +121,7 @@ export interface ShellOverlays {
   githubPanel: boolean
   avatarMenu: boolean
   goalHelp: boolean
+  goalImport: boolean
   taskTransferHelp: boolean
 }
 

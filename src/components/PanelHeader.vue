@@ -91,44 +91,7 @@ defineEmits<{ new: [] }>()
   outline: 2px solid var(--theme-accent);
   outline-offset: 2px;
 }
-/* The same pill, outlined, for everything beside New. */
-:slotted(.panel-action) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
-  min-width: 32px;
-  padding: 0 12px;
-  flex-shrink: 0;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--theme-border);
-  background: transparent;
-  color: var(--theme-text);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background var(--dur-fast, 120ms) ease,
-    border-color var(--dur-fast, 120ms) ease,
-    color var(--dur-fast, 120ms) ease;
-}
-:slotted(.panel-action:hover) {
-  background: var(--theme-card);
-}
-:slotted(.panel-action.is-on) {
-  border-color: var(--theme-accent);
-  background: color-mix(in srgb, var(--theme-accent) 12%, transparent);
-  color: var(--theme-accent);
-}
-:slotted(.panel-action--icon) {
-  width: 32px;
-  padding: 0;
-}
-:slotted(.panel-action:focus-visible) {
-  outline: 2px solid var(--theme-accent);
-  outline-offset: 2px;
-}
+/* The outlined `.panel-action` pill beside New lives in style.css, not here as
+   :slotted(): a button rendered by a multi-root child (CompletedHistory's
+   button + Modal) never gets the slot scope id, so it would miss the style. */
 </style>

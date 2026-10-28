@@ -56,9 +56,9 @@ export interface HelpStep {
 export const GOAL_HELP_STEPS: Record<GoalHelpTab, HelpStep[]> = {
   manual: [
     {
-      title: 'Open New goal',
-      body: 'The button at the top right of this tab, or press g then n. A goal starts blank — there is nothing to fill in before it exists.',
-      demo: { kind: 'card', title: 'Untitled goal', meta: 'Active · 0 points' },
+      title: 'Open New milestone',
+      body: 'The button at the top right of this tab, or press g then n. A milestone starts blank — there is nothing to fill in before it exists.',
+      demo: { kind: 'card', title: 'Untitled milestone', meta: 'Active · 0 points' },
     },
     {
       title: 'Give it a name and a timeline',
@@ -83,14 +83,14 @@ export const GOAL_HELP_STEPS: Record<GoalHelpTab, HelpStep[]> = {
     },
     {
       title: 'Optional: make it recur, or give it a number',
-      body: 'A recurring goal generates a dated occurrence per day and can carry a metric — a target you record against each time. Both are set on the goal itself, not in the JSON.',
+      body: 'A recurring milestone generates a dated occurrence per day and can carry a metric — a target you record against each time. Both are set on the milestone itself, not in the JSON.',
       demo: { kind: 'card', title: 'Read 30 minutes', meta: 'Daily · at least 30 mins' },
     },
   ],
   json: [
     {
       title: 'Start from the schema',
-      body: 'Copy the sample below, or use Load sample goal to drop a working document straight into the import box. Every field is in the reference table.',
+      body: 'Copy the sample below, or use Load sample milestone to drop a working document straight into the import box. Every field is in the reference table.',
       demo: { kind: 'code', code: '{ "goals": [{ "title": "…", "points": ["…"] }] }' },
     },
     {
@@ -100,12 +100,12 @@ export const GOAL_HELP_STEPS: Record<GoalHelpTab, HelpStep[]> = {
     },
     {
       title: 'Check the preview',
-      body: 'Every goal in the document is listed before anything is written. A goal missing a title is flagged and skipped; the rest still import.',
+      body: 'Every milestone in the document is listed before anything is written. A milestone missing a title is flagged and skipped; the rest still import.',
       demo: { kind: 'card', title: 'Ship the trading bot', meta: '3 points · ready' },
     },
     {
       title: 'Import',
-      body: 'One write for the whole document. Points arrive as the goal’s checklist, with their estimates, due dates and tags already parsed.',
+      body: 'One write for the whole document. Points arrive as the milestone’s checklist, with their estimates, due dates and tags already parsed.',
       demo: {
         kind: 'points',
         lines: ['Finish the backtest harness — 2h, #research', 'Paper trade — due Sep 15'],
@@ -114,7 +114,7 @@ export const GOAL_HELP_STEPS: Record<GoalHelpTab, HelpStep[]> = {
   ],
   link: [
     {
-      title: 'Copy a goals link',
+      title: 'Copy a milestones link',
       body: 'A spasta.online link of the shape ?project=<name>&goals=<items>. The older ?project=name=a|b|c form works too.',
       demo: { kind: 'code', code: 'spasta.online/?project=trading&goals=Backtest|Paper trade' },
     },
@@ -125,13 +125,13 @@ export const GOAL_HELP_STEPS: Record<GoalHelpTab, HelpStep[]> = {
     },
     {
       title: 'Edit the preview',
-      body: 'The project name becomes the goal title and each item becomes a point. Rename, reorder or drop rows before importing — and choose whether each row lands as a point, a task or a todo.',
+      body: 'The project name becomes the milestone title and each item becomes a point. Rename, reorder or drop rows before importing — and choose whether each row lands as a point, a task or a todo.',
       demo: { kind: 'points', lines: ['Backtest the strategy', 'Paper trade for two weeks'] },
     },
     {
       title: 'Import, or merge',
-      body: 'Re-importing a link you have used before offers to merge into the goal it made, rather than creating a second copy of it.',
-      demo: { kind: 'card', title: 'Trading', meta: 'Merge into existing goal' },
+      body: 'Re-importing a link you have used before offers to merge into the milestone it made, rather than creating a second copy of it.',
+      demo: { kind: 'card', title: 'Trading', meta: 'Merge into existing milestone' },
     },
   ],
 }

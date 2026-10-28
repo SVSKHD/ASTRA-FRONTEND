@@ -164,8 +164,8 @@ const pct = computed(() =>
       </div>
       <Checkbox v-model="includeDone" label="Include finished and archived items" />
       <p class="atf__note">
-        Calendar events are your scheduled todos, tasks, goals and reminders, so fixing those fixes
-        the calendar too. Reminders already on Google Calendar are updated there as well.
+        Calendar events are your scheduled todos, tasks, milestones and reminders, so fixing those
+        fixes the calendar too. Reminders already on Google Calendar are updated there as well.
       </p>
       <p v-if="error" class="atf__error" role="alert">{{ error }}</p>
     </div>

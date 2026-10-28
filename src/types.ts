@@ -290,7 +290,26 @@ export interface AiMessage {
   // New-item cards (todos, tasks, goals) already created, by their index among
   // the reply's create cards — same idea again.
   appliedCreates?: number[]
+  // Web pages read for this reply, from links in the user's message.
+  sources?: AiSource[]
+  // The todo or task picked to work on when this was asked; its cards add
+  // under that item.
+  focus?: { collection: 'todos' | 'tasks'; id: number }
+  // What was made from this reply — card items, a plan's parent, "Add to" —
+  // so a quick look at any of them is one tap away under the reply.
+  made?: AiItemRef[]
   createdAt: number
+}
+/** An item the AI chat made, by kind and id (an event is a scheduled task). */
+export interface AiItemRef {
+  kind: 'todo' | 'task' | 'goal' | 'reminder' | 'note'
+  id: number
+}
+/** A web page the proxy fetched for a reply; `ok` false when it could not be read. */
+export interface AiSource {
+  url: string
+  title: string
+  ok: boolean
 }
 export interface AiChat {
   id: number
@@ -667,6 +686,111 @@ export interface Goal extends Timestamped, Hierarchical {
   reminderIds?: number[]
   // Notes attached to this goal (section 21a). See Todo.noteIds.
   noteIds?: number[]
+  // The milestone's own KPIs, each with a logged history. Absent = none.
+  kpis?: Kpi[]
+  // The goal this milestone belongs to (a SkillGoal id). Absent/null = none.
+  skillGoalId?: number | null
+  // How the milestone is closed (see utils/milestoneProgress). Absent = pending,
+  // nothing recorded yet.
+  conclusion?: MilestoneConclusion
+  // Every close and reopen, oldest first. Never rewritten, only appended to.
+  audit?: MilestoneAuditEntry[]
+  // Identity in an imported document, for a re-import that updates rather than
+  // duplicates. Absent for milestones made here.
+  sourceId?: string
+}
+
+// A goal above milestones ("JavaScript — Junior to Advanced"). Its progress is
+// derived from its milestones' subtasks, never stored.
+export interface SkillGoal extends Timestamped {
+  id: number
+  title: string
+  description: string
+  // ISO YYYY-MM-DD, '' = unset.
+  startDate: string
+  targetDate: string
+  order: number
+  // The project the goal was imported under, '' when made here.
+  project: string
+  sourceId?: string
+  // An imported goal-level conclusion, kept so export round-trips it.
+  conclusion?: MilestoneConclusion
+}
+
+// A milestone is "Completed" only once this is recorded and confirmed: ticking
+// every subtask reaches 100%, it does not close the milestone.
+export interface MilestoneConclusion {
+  status: 'pending' | 'completed'
+  summary: string
+  // URLs or artifact references.
+  evidence: string[]
+  // When set, Close requires at least one evidence entry.
+  evidenceRequired?: boolean
+  // Criteria that must each be confirmed before Close.
+  acceptance: AcceptanceCheck[]
+  // ISO 8601 with offset, set on close; null while open.
+  closedAt: string | null
+}
+
+export interface AcceptanceCheck {
+  id: number
+  text: string
+  checked: boolean
+}
+
+export interface MilestoneAuditEntry {
+  // ISO 8601 with offset.
+  at: string
+  action: 'closed' | 'reopened'
+  // Why, e.g. "Subtask unchecked" for an automatic reopen.
+  reason: string
+}
+
+export interface Subtask {
+  // Local to its point's list (see utils/milestoneTracking.nextLocalId).
+  id: number
+  title: string
+  completed: boolean
+  completedAt: number | null
+  sourceId?: string
+}
+
+// A measurable target on a milestone ("Problems solved: 42 / 150"). Progress
+// runs from `start` to `target`, so a KPI that should fall (a weight, a page
+// load time) works the same way as one that should rise. Ids are local to the
+// milestone's own list (see utils/milestoneTracking).
+export interface Kpi {
+  id: number
+  name: string
+  unit: string
+  start: number
+  target: number
+  // Oldest first. The latest entry is the KPI's current value.
+  entries: KpiEntry[]
+  createdAt: number
+}
+
+export interface KpiEntry {
+  id: number
+  at: number // epoch ms
+  value: number
+  note: string
+}
+
+// Something learnt while working a point, with worked examples. Ids are local
+// to the point's own list.
+export interface Learning {
+  id: number
+  text: string
+  examples: LearningExample[]
+  createdAt: number
+}
+
+export interface LearningExample {
+  id: number
+  // `code` renders monospaced and keeps its whitespace; `text` is prose.
+  kind: 'code' | 'text'
+  body: string
 }
 
 // One dated instance of a recurring goal (task 11). The doc id IS the local date
@@ -707,6 +831,12 @@ export interface GoalChecklistItem extends Timestamped {
   // stop, elapsed minutes are folded into spentMins. Not counted as an edit.
   timerStartedAt: number | null
   localRev: number
+  // What was learnt on this point, with examples. Absent = nothing yet.
+  learnings?: Learning[]
+  // The point's subtasks. With any, `done` is derived from them (all checked);
+  // without, the point is one checkable unit of its own.
+  subtasks?: Subtask[]
+  sourceId?: string
 }
 
 export interface Deadline extends Timestamped {

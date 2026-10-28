@@ -338,7 +338,7 @@ async function bulkDelete() {
                   title="Rename"
                   @click="startEdit(e)"
                 >
-                  {{ e.title }}
+                  <span class="hist__titleText">{{ e.title }}</span>
                 </button>
                 <div class="hist__meta">
                   <span v-if="e.archivedAt" class="hist__badge">Cleared</span>
@@ -552,6 +552,23 @@ async function bulkDelete() {
 }
 .hist__title:hover {
   color: var(--theme-text);
+}
+/* Two lines at rest so a long title does not stretch its row; hovered (or
+   focused from the keyboard) the rest scrolls vertically inside the same box. */
+.hist__titleText {
+  display: block;
+  min-width: 0;
+  max-height: calc(2 * 1.45em);
+  line-height: 1.45;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--theme-text) 25%, transparent) transparent;
+}
+.hist__title:hover .hist__titleText,
+.hist__title:focus-visible .hist__titleText {
+  overflow-y: auto;
 }
 .hist__meta {
   display: flex;

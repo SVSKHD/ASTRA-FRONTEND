@@ -43,13 +43,13 @@ const stats = computed(() => {
 </script>
 
 <template>
-  <section class="gsum" aria-label="Goals at a glance">
+  <section class="gsum" aria-label="Milestones at a glance">
     <button
       type="button"
       class="gsum__stat gsum__stat--btn"
       :class="{ 'is-on': status === 'active' }"
       :aria-pressed="status === 'active'"
-      title="Show active goals"
+      title="Show active milestones"
       @click="emit('filter', status === 'active' ? 'all' : 'active')"
     >
       <span class="gsum__value">{{ stats.active }}</span>
@@ -75,7 +75,7 @@ const stats = computed(() => {
       class="gsum__stat gsum__stat--btn"
       :class="{ 'is-on': status === 'done' }"
       :aria-pressed="status === 'done'"
-      title="Show completed goals"
+      title="Show completed milestones"
       @click="emit('filter', status === 'done' ? 'all' : 'done')"
     >
       <span class="gsum__value">{{ stats.done }}</span>

@@ -60,4 +60,29 @@ describe('move parent picker', () => {
     expect(app.tasks.find((item) => item.id === selected)?.parentId).toBe(target)
     wrapper.unmount()
   })
+  it('lists pinned todos first with their path and skips the current parent', () => {
+    const app = useAppStore()
+    const loose = app.addTodo('Loose parent')!
+    const pinnedParent = app.addTodo('Pinned parent')!
+    app.addTodo('Other')
+    const moving = app.addTodo('Moving')!
+    const pinnedChild = app.addTodo('Pinned child')!
+    app.moveTodo(moving, loose, 0)
+    app.moveTodo(pinnedChild, pinnedParent, 0)
+    // Only the child carries the pin; its parent is shown as pinned anyway.
+    app.updateTodo(pinnedChild, { pinned: true })
+    const wrapper = mount(MoveSelectionDialog, {
+      props: { open: true, collection: 'todos', ids: [moving] },
+      global: { stubs: { teleport: true } },
+    })
+    const opts = options(wrapper) as { value: string; label: string; group?: string }[]
+    expect(opts.map((o) => [o.label, o.group])).toEqual([
+      ['Top level', undefined],
+      ['Pinned parent', 'Pinned'],
+      ['Pinned parent › Pinned child', 'Pinned'],
+      ['Other', 'Other todos'],
+    ])
+    expect(opts.some((o) => o.value === String(loose))).toBe(false)
+    wrapper.unmount()
+  })
 })

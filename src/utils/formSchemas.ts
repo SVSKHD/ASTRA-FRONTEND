@@ -58,7 +58,7 @@ export type TaskForm = z.infer<typeof taskFormSchema>
 
 export const goalFormSchema = z
   .object({
-    title: requiredText('a goal name'),
+    title: requiredText('a milestone name'),
     description: z
       .string({ error: 'Enter a description, or leave it blank.' })
       .max(2000, 'Keep the description under 2000 characters.'),

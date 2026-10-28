@@ -27,8 +27,10 @@ import { computed } from 'vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import Icon from '@/components/ui/Icon.vue'
 import GoalCardTick from '@/components/GoalCardTick.vue'
+import MilestoneStatus from '@/components/goals/MilestoneStatus.vue'
 import Dropdown, { type MenuItem } from '@/components/ui/Dropdown.vue'
 import { cardMeta, ringPercent, showRing, statusBadge } from '@/utils/goalCardMeta'
+import { kpisRatio } from '@/utils/milestoneTracking'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, tagChip } from '@/styles'
 import type { DaysChip } from '@/utils/detailFields'
@@ -43,8 +45,13 @@ const props = defineProps<{
   draggable?: boolean
   /** The goal open in the details pane; drawn like a selected todo or task. */
   selected?: boolean
+  /** The grid is a pick list: a checkbox replaces the drag handle. */
+  selecting?: boolean
+  /** Picked for a bulk action. */
+  picked?: boolean
 }>()
-const emit = defineEmits<{ menu: [string] }>()
+// `pick` carries whether Shift was held, for a range.
+const emit = defineEmits<{ menu: [string]; pick: [boolean] }>()
 
 const goalColor = computed(() => props.goal.color || 'var(--theme-accent)')
 // Section 19b: only the states worth noticing wear a badge, only counts above
@@ -54,6 +61,11 @@ const meta = computed(() => cardMeta(props.counts, props.daysChip))
 const hasProgress = computed(() => showRing(props.ratio))
 const percent = computed(() => ringPercent(props.ratio))
 const isDone = computed(() => props.goal.status === 'done')
+// The KPIs together, as one chip: how far the numbers have moved.
+const kpiPct = computed(() => {
+  const r = kpisRatio(props.goal.kpis)
+  return r == null ? null : Math.round(r * 100)
+})
 
 // A glyph per meta chip, so each says what it counts before it is read.
 const CHIP_ICON: Record<string, 'clock' | 'list' | 'check-square' | 'flag'> = {
@@ -72,13 +84,33 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
 <template>
   <article
     class="gcard"
-    :class="{ 'is-done': isDone, 'is-selected': selected }"
+    :class="{
+      'is-done': isDone,
+      'is-selected': selected,
+      'is-picked': picked,
+      'is-selecting': selecting,
+    }"
     :style="{ '--goal': goalColor }"
     :aria-current="selected || undefined"
   >
     <header class="gcard__head">
+      <!-- Selecting: the handle's column holds the checkbox instead. Its own
+           click stops here, so the card's tap does not toggle it a second time. -->
+      <button
+        v-if="selecting"
+        type="button"
+        class="gcard__pick"
+        :class="{ 'is-on': picked }"
+        role="checkbox"
+        :aria-checked="!!picked"
+        :aria-label="`Select ${goal.title || 'milestone'}`"
+        @pointerdown.stop
+        @click.stop="emit('pick', $event.shiftKey)"
+      >
+        <Icon v-if="picked" name="check" size="xs" />
+      </button>
       <span
-        v-if="draggable"
+        v-else-if="draggable"
         class="gcard__grip"
         role="button"
         aria-label="Drag to reorder"
@@ -104,14 +136,14 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
 
       <div class="gcard__titleblock">
         <span class="gcard__dot" aria-hidden="true"></span>
-        <h3 class="gcard__title">{{ goal.title || 'Untitled goal' }}</h3>
+        <h3 class="gcard__title">{{ goal.title || 'Untitled milestone' }}</h3>
       </div>
 
       <div class="gcard__actions">
         <GoalCardTick :goal-id="goal.id" />
         <span @click.stop>
           <Dropdown
-            label="Goal actions"
+            label="Milestone actions"
             variant="icon"
             :items="menu"
             @select="emit('menu', $event)"
@@ -124,7 +156,13 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
 
     <div class="gcard__meta">
       <span v-if="goal.tag" class="gcard__tag" :style="tagStyle">{{ goal.tag }}</span>
-      <span v-if="badge" :class="['gcard__badge', `gcard__badge--${goal.status}`]">
+      <!-- Not started / In progress / Overdue / Completed, in words and a glyph. -->
+      <MilestoneStatus class="gcard__state" :goal-id="goal.id" />
+      <!-- Paused and archived are not states of the work, so they keep their own badge. -->
+      <span
+        v-if="badge && goal.status !== 'done'"
+        :class="['gcard__badge', `gcard__badge--${goal.status}`]"
+      >
         {{ badge }}
       </span>
       <span
@@ -134,6 +172,10 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
       >
         <Icon v-if="CHIP_ICON[chip.key]" :name="CHIP_ICON[chip.key]" size="xs" />
         {{ chip.text }}
+      </span>
+      <span v-if="kpiPct != null" class="gcard__chip gcard__chip--kpi" title="KPIs, together">
+        <Icon name="target" size="xs" />
+        {{ kpiPct }}% KPIs
       </span>
       <span v-if="meta.overflow" class="gcard__chip" :title="meta.overflowTitle">
         +{{ meta.overflow }}
@@ -176,6 +218,44 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
 }
 .gcard.is-done {
   opacity: 0.6;
+}
+/* While picking, a click is a toggle, not the start of a text selection. */
+.gcard.is-selecting {
+  user-select: none;
+}
+/* Picked for a bulk action: the accent edge and wash, plus a ring, so it reads
+   apart from the one open in the pane. */
+.gcard.is-picked {
+  border-color: var(--theme-accent);
+  background-color: color-mix(in srgb, var(--theme-accent) 12%, var(--theme-card));
+  box-shadow: 0 0 0 1px var(--theme-accent);
+  opacity: 1;
+}
+.gcard__pick {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--glass-border);
+  background: transparent;
+  color: var(--theme-on-accent, #fff);
+  cursor: pointer;
+  animation: gcardPickIn 0.16s var(--ease-out, ease) both;
+}
+.gcard__pick:hover {
+  border-color: var(--theme-accent);
+}
+.gcard__pick.is-on {
+  border-color: var(--theme-accent);
+  background: var(--theme-accent);
+}
+@keyframes gcardPickIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
 }
 
 /* handle | ring | title block | actions. Four declared tracks, so nothing has
@@ -316,6 +396,9 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
   flex-shrink: 0;
   white-space: nowrap;
 }
+.gcard__state {
+  flex-shrink: 0;
+}
 .gcard__none {
   font-size: var(--text-2xs);
   color: var(--theme-dim);
@@ -336,6 +419,9 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
 }
 .gcard__chip {
   color: var(--theme-dim);
+}
+.gcard__chip--kpi {
+  color: var(--theme-accent);
 }
 .gcard__chip--overdue {
   color: var(--theme-danger);
@@ -367,6 +453,9 @@ const tagStyle = computed(() => pxify(tagChip(c.value, props.goal.tag, dark.valu
 @media (prefers-reduced-motion: reduce) {
   .gcard {
     transition: none;
+  }
+  .gcard__pick {
+    animation: none;
   }
 }
 </style>
