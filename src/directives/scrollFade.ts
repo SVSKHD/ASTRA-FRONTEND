@@ -1,4 +1,5 @@
 import type { Directive } from 'vue'
+import { attachScrollArrows, type ScrollArrows } from './scrollArrows'
 
 // v-scroll-fade: a scrolling column's content fades out at an edge where there
 // is more to see, instead of being cut off by a hard line. The top fade appears
@@ -12,11 +13,17 @@ import type { Directive } from 'vue'
 //
 // Scroll moves the edges; a resize or a change of content (a section opening,
 // a row arriving) can too, so both are watched.
+//
+// The column also has no scrollbar: up/down arrows (scrollArrows.ts) sit on
+// its edges while there is more that way, the app-wide way of saying "this
+// scrolls". `v-scroll-fade.noarrows` keeps the fade alone, for a scroller that
+// draws its own arrows.
 type FadeEl = HTMLElement & {
   __fadeUpdate?: () => void
   __fadeRo?: ResizeObserver
   __fadeMo?: MutationObserver
   __fadeFrame?: number
+  __fadeArrows?: ScrollArrows
 }
 
 const EDGE_PX = 28
@@ -27,11 +34,13 @@ function update(el: FadeEl) {
   const below = scrollTop + clientHeight < scrollHeight - 1
   el.style.setProperty('--fade-top', above ? EDGE_PX + 'px' : '0px')
   el.style.setProperty('--fade-bottom', below ? EDGE_PX + 'px' : '0px')
+  el.__fadeArrows?.update()
 }
 
 export const vScrollFade: Directive<FadeEl> = {
-  mounted(el) {
+  mounted(el, binding) {
     el.classList.add('scroll-fade')
+    if (!binding.modifiers.noarrows) el.__fadeArrows = attachScrollArrows(el)
     const schedule = () => {
       if (el.__fadeFrame != null) return
       el.__fadeFrame = requestAnimationFrame(() => {
@@ -41,6 +50,9 @@ export const vScrollFade: Directive<FadeEl> = {
     }
     el.__fadeUpdate = schedule
     el.addEventListener('scroll', schedule, { passive: true })
+    // The arrows sit by offset, so a window resize that moves the column
+    // without resizing it still has to move them.
+    window.addEventListener('resize', schedule)
     if (typeof ResizeObserver !== 'undefined') {
       el.__fadeRo = new ResizeObserver(schedule)
       el.__fadeRo.observe(el)
@@ -55,7 +67,11 @@ export const vScrollFade: Directive<FadeEl> = {
     el.__fadeUpdate?.()
   },
   beforeUnmount(el) {
-    if (el.__fadeUpdate) el.removeEventListener('scroll', el.__fadeUpdate)
+    if (el.__fadeUpdate) {
+      el.removeEventListener('scroll', el.__fadeUpdate)
+      window.removeEventListener('resize', el.__fadeUpdate)
+    }
+    el.__fadeArrows?.destroy()
     el.__fadeRo?.disconnect()
     el.__fadeMo?.disconnect()
     if (el.__fadeFrame != null) cancelAnimationFrame(el.__fadeFrame)

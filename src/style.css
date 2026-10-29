@@ -478,6 +478,48 @@ textarea:focus,
   );
 }
 
+/* The arrows that replace a scrollbar (directives/scrollArrows.ts): the same
+   pill as ScrollSection's, placed on the scroller's edges by the directive. */
+.scroll-arrows-target {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-y: contain;
+}
+.scroll-arrows-target::-webkit-scrollbar {
+  display: none;
+}
+.scroll-arrow {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border, var(--glass-border));
+  background: var(--surface-overlay, var(--theme-card));
+  color: var(--accent, var(--theme-accent));
+  box-shadow: var(--layer-raised-shadow, none);
+  cursor: pointer;
+  opacity: 0.92;
+  transition: opacity 0.15s ease;
+}
+.scroll-arrow:hover {
+  opacity: 1;
+}
+.scroll-arrow .ui-icon {
+  display: block;
+  flex-shrink: 0;
+}
+.scroll-arrow--up {
+  transform: translateX(-50%) rotate(180deg);
+}
+.scroll-arrow--down {
+  transform: translateX(-50%);
+}
+
 /* The small × on a tag chip. The same as a row's delete (IconButton's danger
    tone), at chip size: a round target that turns into a red disc with a white
    cross on hover. */

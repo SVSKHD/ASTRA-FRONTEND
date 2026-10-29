@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, normalizePath, type Plugin } from 'vite'
 import netlify from '@netlify/vite-plugin'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
@@ -143,6 +143,31 @@ const APP_VERSION = (
     version: string
   }
 ).version
+
+// The define above is read once, when the config loads, so a bump made while
+// `vite` is running would not show until a manual restart. This restarts the
+// dev server when package.json's version changes — and only then, so an
+// `npm install` touching the file does not bounce it.
+function appVersionReload(): Plugin {
+  const pkgPath = normalizePath(fileURLToPath(new URL('./package.json', import.meta.url)))
+  return {
+    name: 'app-version-reload',
+    apply: 'serve',
+    configureServer(server) {
+      server.watcher.add(pkgPath)
+      server.watcher.on('change', (file) => {
+        if (normalizePath(file) !== pkgPath) return
+        try {
+          const next = (JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version: string }).version
+          if (next && next !== APP_VERSION) void server.restart()
+        } catch {
+          /* mid-save or invalid JSON: wait for the next change */
+        }
+      })
+    },
+  }
+}
+plugins.push(appVersionReload() as never)
 
 // https://vite.dev/config/
 export default defineConfig({

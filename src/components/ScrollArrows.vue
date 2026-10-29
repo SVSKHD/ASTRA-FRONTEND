@@ -5,7 +5,7 @@
 // ancestor with `position: relative` (the scroller's offsetParent): the arrows
 // line up with the scroller's own edges, an arrow shows only while there is
 // more that way, and a tap scrolls most of a page. Give the scroller the
-// global `scroll-arrows-target` class (below) to hide its own bar.
+// global `scroll-arrows-target` class (style.css) to hide its own bar.
 import { onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
 
@@ -127,17 +127,5 @@ function page(dir: 1 | -1) {
 }
 .scroll-arrows--down {
   transform: translateX(-50%);
-}
-</style>
-
-<style>
-/* On the scroller the arrows serve: no bar of its own. */
-.scroll-arrows-target {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  overscroll-behavior-y: contain;
-}
-.scroll-arrows-target::-webkit-scrollbar {
-  display: none;
 }
 </style>

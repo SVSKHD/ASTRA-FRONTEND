@@ -92,6 +92,7 @@ export type ThemeKey =
   | 'nebula'
   | 'carbon'
   | 'forest'
+  | 'pitchBlack'
   | 'paper'
   | 'arctic'
   | 'sand'

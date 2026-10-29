@@ -178,6 +178,28 @@ export const EXTRA_THEMES: Record<string, Theme> = {
     ribbonColor: 'rgba(120,200,150,0.3)',
     corner: 'tr',
   },
+  // Pitch Black: an ordinary dark theme on a true #000000 page — unlike Mono
+  // dark, Kung Fu and High Contrast it keeps the glass panes and a coloured
+  // accent. The panes are neutral greys at low alpha, so the page stays black
+  // through them and only the accent carries hue.
+  pitchBlack: {
+    ...darkGlass,
+    label: 'Pitch Black',
+    glass: 'rgba(18,18,20,0.62)',
+    card: 'rgba(28,28,32,0.55)',
+    input: 'rgba(255,255,255,0.05)',
+    border: 'rgba(255,255,255,0.12)',
+    text: '#f2f2f5',
+    dim: 'rgba(242,242,245,0.6)',
+    onAccent: '#06080f',
+    shadow:
+      '0 26px 70px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 0 rgba(255,255,255,0.08)',
+    pageBg: '#000000',
+    bgSolid: '#000000',
+    accent: 'oklch(0.78 0.12 250)',
+    colorScheme: 'dark',
+    celestial: 'none',
+  },
   // ---- light family -------------------------------------------------------
   paper: {
     ...lightGlass,
