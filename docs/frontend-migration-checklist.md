@@ -43,20 +43,25 @@ the flag flips together with stage 3.
 
 ## Stage 3 — finance data
 
-| Feature                                                                         | Old source                                                                 | New endpoint                             | Status                        |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------- | ----------------------------- |
-| Trades (journal)                                                                | `astra-trades` / normalised `trades` (`useTrades`, `services/tradeDoc.ts`) | `/api/finance/trades`                    | **blocked**: backend Phase 2b |
-| Expenses                                                                        | `astra-expenses` / `expenses` (`useExpenses`, `services/expenseDoc.ts`)    | `/api/finance/expenses`                  | **blocked**: backend Phase 2b |
-| Secured ledger                                                                  | `astra-secured` / `secured` (`useSecured`)                                 | `/api/finance/secured`                   | **blocked**: backend Phase 2b |
-| Logger settings, budget, targets                                                | `Astra-users/{uid}` (`useSettings`)                                        | `/api/finance/settings`                  | **blocked**: backend Phase 2b |
-| Workspace finance fields (finances, transactions, debts, wallets, stocks, bots) | workspace doc `aureon-notes/{uid}` (`stores/app.ts`)                       | `/api/finance/*` or a workspace endpoint | **blocked**: backend Phase 2b |
-| Portfolio profile                                                               | Supabase `portfolio_profiles` (`utils/profile.ts`)                         | `/api/finance/portfolio-profile`         | **blocked**: backend Phase 2b |
-| Offline queue                                                                   | IndexedDB outbox → `fs.setDoc` (`services/outbox.ts`)                      | the same outbox replaying to Aureon      | planned with stage 3          |
+All of it goes through one Aureon implementation of the Firestore-shaped `loadFirestore()` handle
+(`src/aureonFirestore.ts`), selected with `VITE_AUTH_PROVIDER=aureon`. `useTrades`, `useExpenses`, `useSecured`,
+`useSettings` and the workspace are unchanged, and so are the payload shapes and the client-minted ids.
 
-**Blocker:** backend Phase 2b is waiting on the live finance DDL (Aureon `docs/00-inspection.md` §4). Once those
-endpoints exist, the plan is to put an Aureon implementation behind the existing Firestore-shaped `loadFirestore()`
-handle (`src/firebase.ts`, `src/supabaseFirestore.ts`). Then `useTrades`, `useExpenses` and the rest stay unchanged
-and the payload shapes are preserved.
+| Feature                                                                         | Old source                                                                 | New endpoint                                                                                    | Status |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Trades (journal)                                                                | `astra-trades` / normalised `trades` (`useTrades`, `services/tradeDoc.ts`) | `/api/finance/trades` (POST at the client id; a 409 replay is a PATCH)                          | ready  |
+| Expenses                                                                        | `astra-expenses` / `expenses` (`useExpenses`, `services/expenseDoc.ts`)    | `/api/finance/expenses`                                                                         | ready  |
+| Secured ledger                                                                  | `astra-secured` / `secured` (`useSecured`)                                 | `/api/finance/secured`                                                                          | ready  |
+| Logger settings, budget, targets                                                | `Astra-users/{uid}` (`useSettings`)                                        | `/api/finance/documents/Astra-users/{uid}` (setDoc merge = PUT `merge: true`)                   | ready  |
+| Workspace finance fields (finances, transactions, debts, wallets, stocks, bots) | workspace doc `aureon-notes/{uid}` (`stores/app.ts`)                       | `/api/finance/documents/aureon-notes/{uid}`                                                     | ready  |
+| Other compat namespaces (renamed collections, …)                                | `astra_documents` namespaces                                               | `/api/finance/documents/{namespace}/{doc_id}`                                                   | ready  |
+| Portfolio profile                                                               | Supabase `portfolio_profiles` (`utils/profile.ts`)                         | `/api/finance/portfolio-profiles/hithesh` (write: admin)                                        | ready  |
+| Live updates (`onSnapshot`)                                                     | Supabase Realtime                                                          | one shared poller on `GET /api/finance/changes?since=` (5 s while visible, backoff to 60 s)     | ready  |
+| Offline queue                                                                   | IndexedDB outbox → `fs.setDoc` (`services/outbox.ts`)                      | the same outbox, replaying through the Aureon handle                                            | ready  |
+| Money                                                                           | `double precision` numbers                                                 | decimal strings on the wire; numbers at the handle boundary (readers unchanged), ≤ 8 dp written | ready  |
+
+**Server step before the flip:** the owner's legacy rows are invisible until an admin claims them
+(`POST /api/finance/claim`, backend `docs/02-auth-and-finance.md`). Run the dry run, then `apply`.
 
 ## Stage 4 — AI
 

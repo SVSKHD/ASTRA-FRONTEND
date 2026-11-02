@@ -12,6 +12,7 @@ import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { getAuth, type Auth } from 'firebase/auth'
 import type { Firestore } from 'firebase/firestore'
 import { supabase, supabaseEnabled } from '@/supabase'
+import { authProvider } from '@/auth/provider'
 import { usableEnvValue } from '@/utils/env'
 
 export { supabaseEnabled }
@@ -34,8 +35,15 @@ const isTestRunner = import.meta.env.MODE === 'test'
 export const firebaseEnabled =
   Boolean(config.apiKey && config.projectId && config.appId) && !isTestRunner
 
-/** Whether the app has a cloud data store at all: Supabase, or the Firestore fallback. */
-export const cloudEnabled = supabaseEnabled || firebaseEnabled
+/**
+ * Aureon_Agentic holds the data (migration stage 3): selected with sign-in,
+ * because the data needs the Aureon session cookie. Never in the test runner,
+ * whose tests build the handle they need themselves.
+ */
+export const aureonDataEnabled = authProvider() === 'aureon' && !isTestRunner
+
+/** Whether the app has a cloud data store at all: Aureon, Supabase, or the Firestore fallback. */
+export const cloudEnabled = aureonDataEnabled || supabaseEnabled || firebaseEnabled
 
 export const defaultLockMinutes = Math.max(
   1,
@@ -94,8 +102,11 @@ export function loadFirestore(): Promise<FirestoreHandle | null> {
     return import('@/dev/fixture').then((m) => m.fixtureHandle(m.forcedState()))
   }
   if (!firestoreLoad) {
+    // Aureon first: with VITE_AUTH_PROVIDER=aureon there is no Supabase
+    // session, so Supabase's row-level security would answer nothing.
+    if (aureonDataEnabled) firestoreLoad = initAureonData()
     // Supabase does not need Firebase at all any more — sign-in included.
-    if (supabaseEnabled && supabase) firestoreLoad = initSupabaseData()
+    else if (supabaseEnabled && supabase) firestoreLoad = initSupabaseData()
     else if (firebaseEnabled && app) firestoreLoad = initFirebaseFirestore(app)
     else return Promise.resolve(null)
   }
@@ -104,6 +115,26 @@ export function loadFirestore(): Promise<FirestoreHandle | null> {
 
 export function firestoreReady(): FirestoreHandle | null {
   return firestoreHandle
+}
+
+async function initAureonData(): Promise<FirestoreHandle | null> {
+  try {
+    const [{ createAureonFirestoreHandle }, { useAuthStore }] = await Promise.all([
+      import('@/aureonFirestore'),
+      import('@/stores/auth'),
+    ])
+    const handle = createAureonFirestoreHandle({ uid: () => useAuthStore().user?.uid ?? '' })
+    // The same deliberate cast as the Supabase adapter (see below).
+    firestoreHandle = handle as unknown as FirestoreHandle
+    // Live updates come from the shared /api/finance/changes poller; refused
+    // writes are parked by the IndexedDB outbox, which replays through here.
+    setPersistence('memory')
+    return firestoreHandle
+  } catch (err) {
+    console.error('[Aureon] Aureon data initialisation failed:', err)
+    setPersistence('none')
+    return null
+  }
 }
 
 async function initSupabaseData(): Promise<FirestoreHandle | null> {
