@@ -199,7 +199,7 @@ async function askBatch(batch: Piece[], signal: AbortSignal): Promise<Map<string
   // Short numeric keys keep the request small; mapped back to the piece keys here.
   const payload: Record<string, string> = {}
   batch.forEach((p, i) => (payload[String(i)] = p.text))
-  const answer = await askProofreader(SWEEP_INSTRUCTIONS, JSON.stringify(payload), signal)
+  const answer = await askProofreader(SWEEP_INSTRUCTIONS, JSON.stringify(payload), signal, true)
   if (answer == null) throw new Error('unavailable')
   const parsed = parseSweepAnswer(answer) ?? {}
   const out = new Map<string, string>()

@@ -63,8 +63,11 @@ export function askProofreader(
   system: string,
   text: string,
   signal?: AbortSignal,
+  asked = false,
 ): Promise<string | null> {
-  return askAi(system, text, { target: proofreadTarget(), signal })
+  // `asked`: the user started it (the typo sweep), as opposed to proofreading
+  // on every pause in typing. Only asked-for work runs on the local Aureon model.
+  return askAi(system, text, { target: proofreadTarget(), signal, background: !asked })
 }
 
 /**

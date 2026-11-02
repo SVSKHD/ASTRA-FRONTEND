@@ -15,6 +15,7 @@ import { computed, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { supabase } from '@/supabase'
 import { chatTarget } from '@/utils/aiSettings'
+import { aiBackend, aureonAi, streamChat } from '@/ai/aureonChat'
 import type { AiItemRef, AiMessage, AiSource } from '@/types'
 import {
   AI_INSTRUCTIONS,
@@ -298,6 +299,11 @@ async function send(prompt: string): Promise<void> {
     ...(working ? { focus: { collection: working.collection, id: working.id } } : {}),
   })
 
+  if (aiBackend() === 'aureon') {
+    await sendAureon(app, chatId, msgId, body, working, usedData)
+    return
+  }
+
   const url = proxyUrl()
   if (!url) {
     app.appendAiMessageContent(
@@ -393,6 +399,77 @@ async function send(prompt: string): Promise<void> {
     const stopped = abort?.signal.aborted ?? false
     finish(failed ? 'error' : 'done')
     // Only a reply that finished on its own fills descriptions in by itself.
+    if (!failed && !stopped) autoApplyUpdates(chatId, msgId)
+  }
+}
+
+/**
+ * Migration stage 4: the same turn against Aureon's local Ollama (POST /api/chat).
+ * Aureon keeps the conversation server-side, so only the new prompt is sent,
+ * plus the instructions and live context as the system message (src/ai/aureonChat.ts).
+ */
+async function sendAureon(
+  app: ReturnType<typeof useAppStore>,
+  chatId: number,
+  msgId: number,
+  prompt: string,
+  working: ReturnType<typeof focusInfo> | null,
+  usedData: boolean,
+): Promise<void> {
+  const model = aureonAi.model
+  if (!model) {
+    app.appendAiMessageContent(
+      chatId,
+      msgId,
+      '⚠️ Pick a local model in the header first (the list comes from the server). Your message is saved.',
+    )
+    return
+  }
+  app.setAiMessageModel(chatId, msgId, model)
+  run.value = { chatId, msgId, status: 'streaming', startedAt: Date.now() }
+  abort = new AbortController()
+  let failed = false
+  try {
+    const turns = app
+      .aiChatById(chatId)!
+      .messages.filter((m) => m.id !== msgId && m.content)
+      .map((m) => ({ role: m.role, content: m.content }))
+    const system = [
+      AI_INSTRUCTIONS,
+      todayLine(),
+      working ? focusBlock(working) : '',
+      usedData ? buildAiContext(aiContextInput(app)) : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+    for await (const evt of streamChat({
+      model,
+      system,
+      history: turns.slice(0, -1), // the last turn is this prompt
+      prompt,
+      chatKey: String(chatId),
+      signal: abort.signal,
+    })) {
+      if (evt.model) {
+        app.setAiMessageModel(chatId, msgId, evt.model)
+        setAnswerer({ model: evt.model, provider: 'Aureon (local)' })
+      }
+      if (evt.text) app.appendAiMessageContent(chatId, msgId, evt.text)
+      if (evt.usage) app.setAiMessageUsage(chatId, msgId, evt.usage.in, evt.usage.out)
+      if (evt.error) throw new Error(evt.error)
+    }
+  } catch (err) {
+    if ((err as Error).name !== 'AbortError') {
+      failed = true
+      app.appendAiMessageContent(
+        chatId,
+        msgId,
+        `\n\n⚠️ ${(err as Error).message || 'Stream failed.'}`,
+      )
+    }
+  } finally {
+    const stopped = abort?.signal.aborted ?? false
+    finish(failed ? 'error' : 'done')
     if (!failed && !stopped) autoApplyUpdates(chatId, msgId)
   }
 }

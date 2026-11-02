@@ -60,12 +60,12 @@ and the payload shapes are preserved.
 
 ## Stage 4 — AI
 
-| Feature                                            | Old source                                                         | New endpoint                         | Status                              |
-| -------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------ | ----------------------------------- |
-| AI chat tab                                        | Netlify `/api/ai` (Bytez / OpenRouter), `composables/useAiChat.ts` | `POST /api/chat` (SSE), local Ollama | planned (flag `VITE_AI_BACKEND`)    |
-| Model picker                                       | static `AI_PROVIDERS` catalogue (`types.ts`)                       | `GET /api/models`                    | planned                             |
-| One-shot asks (autocorrect, typo sweep, prompt AI) | `utils/aiAsk.ts` → `/api/ai`                                       | `POST /api/chat`, collected          | planned                             |
-| Read linked pages (`readLinks`)                    | server-side fetch in `netlify/functions/ai.ts`                     | none (Aureon is offline by design)   | remove: links are no longer fetched |
+| Feature                                            | Old source                                                         | New endpoint                                                                                                             | Status                                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| AI chat tab                                        | Netlify `/api/ai` (Bytez / OpenRouter), `composables/useAiChat.ts` | `POST /api/chat` (SSE), local Ollama                                                                                     | ready (flag `VITE_AI_BACKEND=aureon`; needs the stage 2 session) |
+| Model picker                                       | static `AI_PROVIDERS` catalogue (`types.ts`)                       | `GET /api/models` (`AureonModelPicker.vue`)                                                                              | ready                                                            |
+| One-shot asks (autocorrect, typo sweep, prompt AI) | `utils/aiAsk.ts` → `/api/ai`                                       | `POST /api/chat`, collected (`askOnce`); as-you-type autocorrect is off on Aureon, the typo sweep and prompt helpers run | ready                                                            |
+| Read linked pages (`readLinks`)                    | server-side fetch in `netlify/functions/ai.ts`                     | none (Aureon is offline by design)                                                                                       | remove: links are no longer fetched                              |
 
 ## Stage 5 — GitHub
 
