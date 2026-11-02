@@ -28,6 +28,9 @@ import '@/components/control/control.css'
 const PAGES: Partial<Record<ModuleKey, ReturnType<typeof defineAsyncComponent>>> = {
   github: defineAsyncComponent(() => import('@/components/control/CcGithub.vue')),
   repo: defineAsyncComponent(() => import('@/components/control/CcRepo.vue')),
+  issues: defineAsyncComponent(() => import('@/components/control/CcIssues.vue')),
+  pulls: defineAsyncComponent(() => import('@/components/control/CcPulls.vue')),
+  reviews: defineAsyncComponent(() => import('@/components/control/CcReviews.vue')),
 }
 const AVAILABLE = MODULES.filter((m) => PAGES[m.value])
 const NAV = PHONE_NAV.filter((m) => PAGES[m])
