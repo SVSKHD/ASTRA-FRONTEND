@@ -194,6 +194,121 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/code/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze
+         * @description Explain code with the local Ollama coding model (read-only; the answer arrives in the
+         *     task's result).
+         */
+        post: operations["analyze_api_code_analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tasks */
+        get: operations["list_tasks_api_code_tasks_get"];
+        put?: never;
+        /**
+         * Create Task
+         * @description Queue a change: a patch made in an isolated worktree on an aureon/task-* branch, then
+         *     tested with the repo's allowlisted commands. Nothing reaches a real branch until approved.
+         */
+        post: operations["create_task_api_code_tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Task */
+        get: operations["get_task_api_code_tasks__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/tasks/{task_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Task
+         * @description Keep the tested change on its own branch (optionally also named feature/... or
+         *     fix/...). Never main/dev01, never pushed, never deployed.
+         */
+        post: operations["approve_task_api_code_tasks__task_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/tasks/{task_id}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Diff */
+        get: operations["get_diff_api_code_tasks__task_id__diff_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/tasks/{task_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Task */
+        post: operations["reject_task_api_code_tasks__task_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/conversations": {
         parameters: {
             query?: never;
@@ -391,6 +506,91 @@ export interface paths {
         };
         /** Models Status */
         get: operations["models_status_api_models_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/repos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Repos */
+        get: operations["list_repos_api_repos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/repos/{name}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Repo Branches */
+        get: operations["repo_branches_api_repos__name__branches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/repos/{name}/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Repo Commits */
+        get: operations["repo_commits_api_repos__name__commits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/repos/{name}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Repo File */
+        get: operations["repo_file_api_repos__name__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/repos/{name}/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Repo Tree */
+        get: operations["repo_tree_api_repos__name__tree_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -613,6 +813,57 @@ export interface paths {
         };
         /** Account Orders */
         get: operations["account_orders_api_trading_accounts__account_id__orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/accounts/{account_id}/paper": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Paper Summary */
+        get: operations["paper_summary_api_trading_accounts__account_id__paper_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/accounts/{account_id}/paper/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Paper Reconcile */
+        post: operations["paper_reconcile_api_trading_accounts__account_id__paper_reconcile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/accounts/{account_id}/paper/reconciliations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Paper Reconciliations */
+        get: operations["paper_reconciliations_api_trading_accounts__account_id__paper_reconciliations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -936,6 +1187,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trading/order-intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Order Intents */
+        get: operations["list_order_intents_api_trading_order_intents_get"];
+        put?: never;
+        /**
+         * Create Order Intent
+         * @description 201 with the new intent (already risk-checked: PENDING_RISK or REJECTED), or 200 with
+         *     the existing one when this correlation_id was already used for the same request.
+         */
+        post: operations["create_order_intent_api_trading_order_intents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/order-intents/{intent_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Order Intent */
+        get: operations["get_order_intent_api_trading_order_intents__intent_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/order-intents/{intent_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Order Intent */
+        post: operations["approve_order_intent_api_trading_order_intents__intent_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/order-intents/{intent_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Order Intent */
+        post: operations["cancel_order_intent_api_trading_order_intents__intent_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trading/quotes": {
         parameters: {
             query?: never;
@@ -1220,6 +1544,22 @@ export interface components {
             /** Summary */
             summary: string;
         };
+        /** AnalyzeIn */
+        AnalyzeIn: {
+            /** Paths */
+            paths?: string[];
+            /** Question */
+            question: string;
+            /** Ref */
+            ref?: string | null;
+            /** Repo */
+            repo: string;
+        };
+        /** ApproveIn */
+        ApproveIn: {
+            /** Feature Branch */
+            feature_branch?: string | null;
+        };
         /** AssetOut */
         AssetOut: {
             /**
@@ -1476,6 +1816,68 @@ export interface components {
             /** Temperature */
             temperature?: number | null;
         };
+        /** CodeTaskOut */
+        CodeTaskOut: {
+            /** Base Ref */
+            base_ref: string;
+            /** Base Sha */
+            base_sha: string | null;
+            /** Branch */
+            branch: string | null;
+            /** Commit Sha */
+            commit_sha: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Instruction */
+            instruction: string;
+            /** Kind */
+            kind: string;
+            /** Model */
+            model: string | null;
+            /** Paths */
+            paths: string[];
+            /** Repo */
+            repo: string;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            };
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+            /** Tests */
+            tests: {
+                [key: string]: unknown;
+            }[];
+            /** Title */
+            title: string;
+        };
+        /** CommitOut */
+        CommitOut: {
+            /** Author */
+            author: string;
+            /** Date */
+            date: string;
+            /** Sha */
+            sha: string;
+            /** Subject */
+            subject: string;
+        };
         /** ConversationDetail */
         ConversationDetail: {
             /**
@@ -1532,6 +1934,18 @@ export interface components {
             offset: number;
             /** Total */
             total: number;
+        };
+        /** DiffOut */
+        DiffOut: {
+            /** Diff */
+            diff: string;
+            /** Files */
+            files: string[];
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
         };
         /**
          * ExecutionMode
@@ -1590,6 +2004,21 @@ export interface components {
              * @default true
              */
             queued: boolean;
+        };
+        /** FileOut */
+        FileOut: {
+            /** Binary */
+            binary: boolean;
+            /** Content */
+            content: string | null;
+            /** Path */
+            path: string;
+            /** Ref */
+            ref: string;
+            /** Size */
+            size: number;
+            /** Truncated */
+            truncated: boolean;
         };
         /** FundsOut */
         FundsOut: {
@@ -2022,6 +2451,168 @@ export interface components {
             /** Strike */
             strike: string;
         };
+        /** OrderEventOut */
+        OrderEventOut: {
+            /** Correlation Id */
+            correlation_id: string | null;
+            /** Event Type */
+            event_type: string;
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        /** OrderIntentDetail */
+        OrderIntentDetail: {
+            /**
+             * Broker Account Id
+             * Format: uuid
+             */
+            broker_account_id: string;
+            /** Correlation Id */
+            correlation_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /**
+             * Events
+             * @default []
+             */
+            events: components["schemas"]["OrderEventOut"][];
+            /**
+             * Executions
+             * @default []
+             */
+            executions: components["schemas"]["ExecutionOut"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Instrument Id */
+            instrument_id: number;
+            /** Limit Price */
+            limit_price: string | null;
+            /** Mode */
+            mode: string;
+            /** Order Type */
+            order_type: string;
+            /** Product */
+            product: string | null;
+            /** Quantity */
+            quantity: string;
+            /**
+             * Risk Decisions
+             * @default []
+             */
+            risk_decisions: components["schemas"]["RiskDecisionOut"][];
+            /** Side */
+            side: string;
+            /** Signal Id */
+            signal_id: string | null;
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Validity */
+            validity: string;
+        };
+        /** OrderIntentIn */
+        OrderIntentIn: {
+            /**
+             * Account Id
+             * Format: uuid
+             */
+            account_id: string;
+            /** Correlation Id */
+            correlation_id?: string | null;
+            /** Instrument Id */
+            instrument_id: number;
+            /** Limit Price */
+            limit_price?: number | string | null;
+            /**
+             * Order Type
+             * @default MARKET
+             * @enum {string}
+             */
+            order_type: "MARKET" | "LIMIT";
+            /** Product */
+            product?: string | null;
+            /** Quantity */
+            quantity: number | string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "BUY" | "SELL";
+            /** Signal Id */
+            signal_id?: string | null;
+        };
+        /** OrderIntentOut */
+        OrderIntentOut: {
+            /**
+             * Broker Account Id
+             * Format: uuid
+             */
+            broker_account_id: string;
+            /** Correlation Id */
+            correlation_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Instrument Id */
+            instrument_id: number;
+            /** Limit Price */
+            limit_price: string | null;
+            /** Mode */
+            mode: string;
+            /** Order Type */
+            order_type: string;
+            /** Product */
+            product: string | null;
+            /** Quantity */
+            quantity: string;
+            /** Side */
+            side: string;
+            /** Signal Id */
+            signal_id: string | null;
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Validity */
+            validity: string;
+        };
         /** OrderOut */
         OrderOut: {
             /** Account Id */
@@ -2084,6 +2675,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[CodeTaskOut] */
+        Page_CodeTaskOut_: {
+            /** Items */
+            items: components["schemas"]["CodeTaskOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
         /** Page[ExecutionOut] */
         Page_ExecutionOut_: {
             /** Items */
@@ -2128,6 +2730,17 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[OrderIntentOut] */
+        Page_OrderIntentOut_: {
+            /** Items */
+            items: components["schemas"]["OrderIntentOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
         /** Page[OrderOut] */
         Page_OrderOut_: {
             /** Items */
@@ -2143,6 +2756,17 @@ export interface components {
         Page_PositionOut_: {
             /** Items */
             items: components["schemas"]["PositionOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[ReconciliationOut] */
+        Page_ReconciliationOut_: {
+            /** Items */
+            items: components["schemas"]["ReconciliationOut"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -2193,6 +2817,75 @@ export interface components {
             offset: number;
             /** Total */
             total: number;
+        };
+        /** PaperPositionOut */
+        PaperPositionOut: {
+            /** Avg Price */
+            avg_price: string;
+            /** Instrument Id */
+            instrument_id: number | null;
+            /** Last Price */
+            last_price: string | null;
+            /** Quantity */
+            quantity: string;
+            /** Realized Pnl */
+            realized_pnl: string | null;
+            /** Symbol */
+            symbol: string;
+            /** Unrealized Pnl */
+            unrealized_pnl: string | null;
+        };
+        /** PaperReconciliationState */
+        PaperReconciliationState: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Drift */
+            drift: {
+                [key: string]: unknown;
+            }[];
+            /** Ok */
+            ok: boolean;
+        };
+        /**
+         * PaperSummaryOut
+         * @description The paper book. Money and quantities are exact decimal strings.
+         */
+        PaperSummaryOut: {
+            /**
+             * Account Id
+             * Format: uuid
+             */
+            account_id: string;
+            /** Currency */
+            currency: string;
+            /** Equity */
+            equity: string;
+            /** Fees */
+            fees: string;
+            /** Max Drawdown Pct */
+            max_drawdown_pct: string;
+            /** Mode */
+            mode: string;
+            /** Positions */
+            positions: components["schemas"]["PaperPositionOut"][];
+            /** Positions As Of */
+            positions_as_of: string | null;
+            /** Realized Pnl */
+            realized_pnl: string;
+            reconciliation: components["schemas"]["PaperReconciliationState"] | null;
+            /**
+             * Source
+             * @default simulated
+             * @constant
+             */
+            source: "simulated";
+            /** Starting Capital */
+            starting_capital: string;
+            /** Unrealized Pnl */
+            unrealized_pnl: string;
         };
         /** PositionOut */
         PositionOut: {
@@ -2247,6 +2940,48 @@ export interface components {
             /** Volume */
             volume: string | null;
         };
+        /** ReconciliationOut */
+        ReconciliationOut: {
+            /**
+             * Broker Account Id
+             * Format: uuid
+             */
+            broker_account_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Drift */
+            drift: {
+                [key: string]: unknown;
+            }[];
+            /** Id */
+            id: number;
+            /** Ok */
+            ok: boolean;
+            /** Summary */
+            summary: {
+                [key: string]: unknown;
+            };
+        };
+        /** RepoOut */
+        RepoOut: {
+            /** Available */
+            available: boolean;
+            /** Base */
+            base: string;
+            /** Branches */
+            branches?: number | null;
+            /** Detail */
+            detail?: string | null;
+            /** Head */
+            head?: string | null;
+            /** Name */
+            name: string;
+            /** Tests */
+            tests: string[][];
+        };
         /** RevokeAllResponse */
         RevokeAllResponse: {
             /** Revoked */
@@ -2276,6 +3011,8 @@ export interface components {
             inputs: {
                 [key: string]: unknown;
             };
+            /** Order Intent Id */
+            order_intent_id?: string | null;
             /** Reason */
             reason: string;
             /** Signal Id */
@@ -2501,6 +3238,17 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** TaskIn */
+        TaskIn: {
+            /** Instruction */
+            instruction: string;
+            /** Paths */
+            paths?: string[];
+            /** Repo */
+            repo: string;
+            /** Title */
+            title: string;
+        };
         /**
          * Timeframe
          * @enum {string}
@@ -2552,6 +3300,19 @@ export interface components {
             paused: boolean;
             /** State */
             state: string;
+        };
+        /** TreeItem */
+        TreeItem: {
+            /** Mode */
+            mode: string;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /** Size */
+            size: string;
+            /** Type */
+            type: string;
         };
         /** UserOut */
         UserOut: {
@@ -2918,6 +3679,233 @@ export interface operations {
             };
         };
     };
+    analyze_api_code_analyze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyzeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeTaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tasks_api_code_tasks_get: {
+        parameters: {
+            query?: {
+                repo?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CodeTaskOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_task_api_code_tasks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeTaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_api_code_tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeTaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_task_api_code_tasks__task_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApproveIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeTaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_diff_api_code_tasks__task_id__diff_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_task_api_code_tasks__task_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeTaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_conversations_api_conversations_get: {
         parameters: {
             query?: {
@@ -3275,6 +4263,160 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelStatusList"];
+                };
+            };
+        };
+    };
+    list_repos_api_repos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepoOut"][];
+                };
+            };
+        };
+    };
+    repo_branches_api_repos__name__branches_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    repo_commits_api_repos__name__commits_get: {
+        parameters: {
+            query?: {
+                ref?: string | null;
+                path?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommitOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    repo_file_api_repos__name__file_get: {
+        parameters: {
+            query: {
+                path: string;
+                ref?: string | null;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    repo_tree_api_repos__name__tree_get: {
+        parameters: {
+            query?: {
+                ref?: string | null;
+                path?: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TreeItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3693,6 +4835,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_OrderOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    paper_summary_api_trading_accounts__account_id__paper_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperSummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    paper_reconcile_api_trading_accounts__account_id__paper_reconcile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    paper_reconciliations_api_trading_accounts__account_id__paper_reconciliations_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReconciliationOut_"];
                 };
             };
             /** @description Validation Error */
@@ -4303,6 +5541,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_order_intents_api_trading_order_intents_get: {
+        parameters: {
+            query?: {
+                account_id?: string | null;
+                status?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_OrderIntentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_order_intent_api_trading_order_intents_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderIntentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderIntentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_order_intent_api_trading_order_intents__intent_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderIntentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_order_intent_api_trading_order_intents__intent_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderIntentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_order_intent_api_trading_order_intents__intent_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderIntentDetail"];
                 };
             };
             /** @description Validation Error */
