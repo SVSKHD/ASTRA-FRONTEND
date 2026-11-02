@@ -19,6 +19,10 @@
 [build.environment]
   NETLIFY_USE_PNPM = "false"
   NPM_FLAGS = "--include=dev"
+  # The app now defaults to Aureon (VITE_AUTH_PROVIDER=aureon, VITE_AI_BACKEND=aureon),
+  # which only works served same-origin by nginx on spasta.online: Aureon's cookies
+  # are SameSite=Strict. A Netlify site sets VITE_AUTH_PROVIDER=supabase and
+  # VITE_AI_BACKEND=proxy in its Netlify environment settings (docs/decisions.md, D-F2).
 
 # Aureon is a single-page app that uses client-side history paths
 # (share links like /todos/:slug and /tasks/:id/view). Serve index.html

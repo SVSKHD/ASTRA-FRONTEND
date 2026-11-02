@@ -1,6 +1,8 @@
 // AiView shows the empty-state suggestion chips, and (with no proxy configured)
 // a suggestion still records the turn locally and explains the missing backend.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// These cover the old path, which is no longer the default (docs/decisions.md, D-F1).
+vi.hoisted(() => vi.stubEnv('VITE_AI_BACKEND', 'proxy'))
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AiView from '@/components/views/AiView.vue'
@@ -15,6 +17,7 @@ describe('<AiView />', () => {
     setActivePinia(createPinia())
     // A local .env may point at /api/ai; these tests are about the unset case.
     vi.stubEnv('VITE_AI_PROXY_URL', '')
+    vi.stubEnv('VITE_AI_BACKEND', 'proxy')
   })
   afterEach(() => vi.unstubAllEnvs())
 

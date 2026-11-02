@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// These cover the old path, which is no longer the default (docs/decisions.md, D-F1).
+vi.hoisted(() => vi.stubEnv('VITE_AUTH_PROVIDER', 'supabase'))
 
 // Firestore is mocked at the module boundary: these tests are about the
 // service's own mapping logic (denied -> needs-auth, missing -> not-found,

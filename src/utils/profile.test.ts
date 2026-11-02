@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// These cover the old path, which is no longer the default (docs/decisions.md, D-F1).
+vi.hoisted(() => vi.stubEnv('VITE_AUTH_PROVIDER', 'supabase'))
 const mocks = vi.hoisted(() => ({ getUser: vi.fn(), upsert: vi.fn(), from: vi.fn() }))
 vi.mock('@/supabase', () => ({ supabase: { auth: { getUser: mocks.getUser }, from: mocks.from } }))
 import { defaultProfile, profileSchema, saveProfile } from './profile'

@@ -3,48 +3,49 @@
 This is the migration of ASTRA-FRONTEND off Supabase, the Netlify functions and Firebase, onto the self-hosted
 backend [SVSKHD/Aureon_agents_Assembler](https://github.com/SVSKHD/Aureon_agents_Assembler) ("Aureon").
 
-- **Stages:** each stage is its own PR, and the old path stays until the new one is validated on the server.
+- **Stages:** each stage was its own PR. Since Prompt 11 the Aureon paths are the **default**
+  (`VITE_AUTH_PROVIDER=aureon`, `VITE_AI_BACKEND=aureon`; [decisions.md](decisions.md) D-F1). The old paths stay
+  selectable (`supabase` / `proxy`) until the new ones have been validated on the server.
 - **Same origin:** nginx serves the SPA and routes `/api/*` to Aureon on `127.0.0.1:8000` (backend
   `deploy/nginx/aureon-api.conf`). This is required because Aureon's session and CSRF cookies are `SameSite=Strict`.
 - **Tripwire:** `npm run e2e:smoke` checks every finance route offline, before and after each stage.
 
 Status values:
 
-- **done**: merged and validated
-- **ready**: PR open, behind a flag, old path still the default
-- **blocked**: needs a backend piece that does not exist yet
-- **planned**: not started
+- **done**: merged, and nothing is left to do on the frontend
+- **ready**: merged and the default; the old path is kept until the on-server validation below has passed
+- **planned → Phase 21**: GitHub only; waits for the backend's `/api/v1/github/*`
 - **remove**: dropped, with the reason given
 
 ## Stage 1 — typed client
 
 | Feature           | Old source                            | New endpoint                                                                                      | Status |
 | ----------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- | ------ |
-| API types         | none (hand-written fetches)           | `src/api/schema.d.ts` from Aureon's OpenAPI (`npm run api:gen`)                                   | ready  |
-| HTTP client       | per-feature `fetch` + Supabase bearer | `src/api/client.ts`: `openapi-fetch`, cookies, `X-CSRF-Token`, 401 hook                           | ready  |
-| Streams           | per-feature SSE parsing               | `src/api/sse.ts`: `readSse` (POST/fetch) and `openStream` (EventSource with reconnect and cursor) | ready  |
-| Finance e2e smoke | none                                  | `scripts/e2e-smoke.mjs` (`npm run e2e:smoke`)                                                     | ready  |
+| API types         | none (hand-written fetches)           | `src/api/schema.d.ts` from Aureon's OpenAPI (`npm run api:gen`)                                   | done   |
+| HTTP client       | per-feature `fetch` + Supabase bearer | `src/api/client.ts`: `openapi-fetch`, cookies, `X-CSRF-Token`, 401 hook                           | done   |
+| Streams           | per-feature SSE parsing               | `src/api/sse.ts`: `readSse` (POST/fetch) and `openStream` (EventSource with reconnect and cursor) | done   |
+| Finance e2e smoke | none                                  | `scripts/e2e-smoke.mjs` (`npm run e2e:smoke`)                                                     | done   |
 
 ## Stage 2 — sign-in
 
-| Feature                     | Old source                                            | New endpoint                                                                                               | Status                                            |
-| --------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Email + passcode sign-in    | `supabase.auth.signInWithPassword` (`stores/auth.ts`) | `POST /api/auth/login`                                                                                     | ready (flag `VITE_AUTH_PROVIDER=aureon`)          |
-| Session restore on load     | `supabase.auth.getSession` / `onAuthStateChange`      | `GET /api/auth/me`; any later 401 returns to sign-in                                                       | ready                                             |
-| Sign-out                    | `supabase.auth.signOut`                               | `POST /api/auth/logout`                                                                                    | ready                                             |
-| Sign out other devices      | Firebase callable `revokeOtherSessions`               | `DELETE /api/auth/sessions/{id}` per other session; `POST /api/auth/sessions/revoke-all` for every session | ready                                             |
-| GitHub OAuth sign-in / link | `signInWithOAuth`, `linkIdentity`                     | none (Aureon has email + password only)                                                                    | remove: the button is hidden under Aureon sign-in |
-| Owner allowlist             | `VITE_ALLOWED_UIDS` / `VITE_ALLOWED_EMAILS`           | Aureon accounts (admin bootstrap; the server decides)                                                      | ready                                             |
-| PIN lock                    | `stores/lock.ts` (hash in workspace doc)              | unchanged; it is local                                                                                     | n/a                                               |
+| Feature                     | Old source                                            | New endpoint                                                                                               | Status                                                 |
+| --------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Email + passcode sign-in    | `supabase.auth.signInWithPassword` (`stores/auth.ts`) | `POST /api/auth/login`                                                                                     | ready (default; `VITE_AUTH_PROVIDER=supabase` reverts) |
+| Session restore on load     | `supabase.auth.getSession` / `onAuthStateChange`      | `GET /api/auth/me`; any later 401 returns to sign-in                                                       | ready                                                  |
+| Sign-out                    | `supabase.auth.signOut`                               | `POST /api/auth/logout`                                                                                    | ready                                                  |
+| Sign out other devices      | Firebase callable `revokeOtherSessions`               | `DELETE /api/auth/sessions/{id}` per other session; `POST /api/auth/sessions/revoke-all` for every session | ready                                                  |
+| GitHub OAuth sign-in / link | `signInWithOAuth`, `linkIdentity`                     | none (Aureon has email + password only)                                                                    | remove: the button is hidden under Aureon sign-in      |
+| Owner allowlist             | `VITE_ALLOWED_UIDS` / `VITE_ALLOWED_EMAILS`           | Aureon accounts (admin bootstrap; the server decides)                                                      | ready                                                  |
+| PIN lock                    | `stores/lock.ts` (hash in workspace doc)              | unchanged; it is local                                                                                     | done (nothing to move)                                 |
 
-**Caveat:** finance and workspace data still come from Supabase, and its RLS needs a Supabase session. Switching
-sign-in to Aureon before stage 3 would sign the owner in to an empty app. Stage 2 therefore ships behind the flag, and
-the flag flips together with stage 3.
+**Flipped with stage 3.** Sign-in and the data move together: `VITE_AUTH_PROVIDER` selects both, because Supabase's RLS
+needs a Supabase session and Aureon's data needs the Aureon cookie. The old caveat (an empty app if sign-in moved
+first) no longer applies.
 
 ## Stage 3 — finance data
 
 All of it goes through one Aureon implementation of the Firestore-shaped `loadFirestore()` handle
-(`src/aureonFirestore.ts`), selected with `VITE_AUTH_PROVIDER=aureon`. `useTrades`, `useExpenses`, `useSecured`,
+(`src/aureonFirestore.ts`), selected with `VITE_AUTH_PROVIDER=aureon` (the default). `useTrades`, `useExpenses`, `useSecured`,
 `useSettings` and the workspace are unchanged, and so are the payload shapes and the client-minted ids.
 
 | Feature                                                                         | Old source                                                                 | New endpoint                                                                                    | Status |
@@ -60,17 +61,17 @@ All of it goes through one Aureon implementation of the Firestore-shaped `loadFi
 | Offline queue                                                                   | IndexedDB outbox → `fs.setDoc` (`services/outbox.ts`)                      | the same outbox, replaying through the Aureon handle                                            | ready  |
 | Money                                                                           | `double precision` numbers                                                 | decimal strings on the wire; numbers at the handle boundary (readers unchanged), ≤ 8 dp written | ready  |
 
-**Server step before the flip:** the owner's legacy rows are invisible until an admin claims them
+**Server step before the first sign-in on the new default:** the owner's legacy rows are invisible until an admin claims them
 (`POST /api/finance/claim`, backend `docs/02-auth-and-finance.md`). Run the dry run, then `apply`.
 
 ## Stage 4 — AI
 
-| Feature                                            | Old source                                                         | New endpoint                                                                                                             | Status                                                           |
-| -------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| AI chat tab                                        | Netlify `/api/ai` (Bytez / OpenRouter), `composables/useAiChat.ts` | `POST /api/chat` (SSE), local Ollama                                                                                     | ready (flag `VITE_AI_BACKEND=aureon`; needs the stage 2 session) |
-| Model picker                                       | static `AI_PROVIDERS` catalogue (`types.ts`)                       | `GET /api/models` (`AureonModelPicker.vue`)                                                                              | ready                                                            |
-| One-shot asks (autocorrect, typo sweep, prompt AI) | `utils/aiAsk.ts` → `/api/ai`                                       | `POST /api/chat`, collected (`askOnce`); as-you-type autocorrect is off on Aureon, the typo sweep and prompt helpers run | ready                                                            |
-| Read linked pages (`readLinks`)                    | server-side fetch in `netlify/functions/ai.ts`                     | none (Aureon is offline by design)                                                                                       | remove: links are no longer fetched                              |
+| Feature                                            | Old source                                                         | New endpoint                                                                                                             | Status                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| AI chat tab                                        | Netlify `/api/ai` (Bytez / OpenRouter), `composables/useAiChat.ts` | `POST /api/chat` (SSE), local Ollama                                                                                     | ready (default; `VITE_AI_BACKEND=proxy` reverts) |
+| Model picker                                       | static `AI_PROVIDERS` catalogue (`types.ts`)                       | `GET /api/models` (`AureonModelPicker.vue`)                                                                              | ready                                            |
+| One-shot asks (autocorrect, typo sweep, prompt AI) | `utils/aiAsk.ts` → `/api/ai`                                       | `POST /api/chat`, collected (`askOnce`); as-you-type autocorrect is off on Aureon, the typo sweep and prompt helpers run | ready                                            |
+| Read linked pages (`readLinks`)                    | server-side fetch in `netlify/functions/ai.ts`                     | none (Aureon is offline by design)                                                                                       | remove: links are no longer fetched              |
 
 ## Stage 5 — GitHub
 
@@ -89,7 +90,7 @@ All of it goes through one Aureon implementation of the Firestore-shaped `loadFi
 | Receipt attachments | Firebase Storage (`services/attachments.ts`), broken today because there is no Firebase user | `/api/finance/attachments` (multipart `kind` + `ref`, list, `…/{id}/file`, delete): Receipts on expense rows    | ready (workspace transactions have no server row, so on Aureon their Attach says to use the expense; see blockers) |
 | Security → Devices  | Firebase callables + Firestore `users/{uid}/sessions`, `/activity`                           | `GET /api/auth/sessions`, `DELETE /api/auth/sessions/{id}`, `POST /api/auth/sessions/revoke-all`                | ready (no locations or activity feed on Aureon; the panel says what is stored)                                     |
 | News / forex feed   | Firebase `pullNews` + Firestore `forex` (failing today)                                      | `GET /api/public/forex` (backend `news_pull` job), re-read every 5 min while shown                              | ready (the job is off until `NEWS_FEED_URLS` is set on the server; the feed-health panel is hidden on Aureon)      |
-| Dacoit signals      | Firebase `dacoitSignal` + Firestore `astra-dacoit-signals`                                   | `/api/trading/signals` (trading panel, Signals)                                                                 | done-by-trading-panel                                                                                              |
+| Dacoit signals      | Firebase `dacoitSignal` + Firestore `astra-dacoit-signals`                                   | `/api/trading/signals` (trading panel, Signals)                                                                 | done (by the trading panel)                                                                                        |
 | GitHub webhooks     | Firebase `githubEvent` / `githubSweep`                                                       | `/api/v1/github/*`                                                                                              | planned → Phase 21                                                                                                 |
 | Shares              | compat namespace `aureon-shares` (Supabase)                                                  | owner: `PUT /api/finance/documents/aureon-shares/{uuid}` with `isPublic`; reader: `GET /api/public/shares/{id}` | ready (new share ids are UUIDs; a private share is read as the owner's document)                                   |
 | Wallet balance      | `VITE_WALLET_BALANCE_URL` Cloud Function (unset)                                             | none                                                                                                            | remove: unset today; no chain API in the backend                                                                   |
@@ -102,9 +103,24 @@ All of it goes through one Aureon implementation of the Firestore-shaped `loadFi
 | Paper trading (Trading Phase F): "Send to paper" on signals, Paper tab (paper book, intents, admin approve / cancel, reconcile, manual paper order), admin OBSERVE ⇄ PAPER switch; "Approve live" stays disabled                                                        | none (new) | `/api/trading/order-intents[/{id}[/approve\|cancel]]`, `/api/trading/accounts/{id}/paper[/reconcile]`, `/api/trading/accounts/{id}/mode`                                      | ready  |
 | Paper extras (Prompt 11): admin approval inbox (every PENDING_RISK intent across accounts, count on the Paper tab), simulated executions with charges, reconciliation history, refresh on new risk decisions / signals from the live stream or every 15 s while visible | none (new) | `/api/trading/order-intents?status=PENDING_RISK`, `/api/trading/executions` (source=simulated), `/api/trading/accounts/{id}/paper/reconciliations`, `GET /api/trading/stream` | ready  |
 
+## Blockers and notes
+
+- **No frontend blockers remain.** Backend Phase 2b (finance), the sessions list, attachments, public shares and the
+  forex job all exist on the backend main, and the frontend uses them.
+- **GitHub (planned → Phase 21):** the issue / pull-request mirror, the GitHub setup and the webhooks wait for the
+  backend's `/api/v1/github/*` (Phases 15/16/21). Until then the Code tab says so and links to Code (Aureon).
+- **Receipts on workspace transactions:** the attachments API attaches to finance rows only. On Aureon, receipts are
+  added from the Expenses tab. A document-scoped attachment kind on the backend would bring them back to the Finances
+  tab ([decisions.md](decisions.md) D-F7).
+- **Netlify:** a Netlify-hosted build must set `VITE_AUTH_PROVIDER=supabase` and `VITE_AI_BACKEND=proxy` in its
+  environment. Aureon's cookies are `SameSite=Strict`, and production is served same-origin by nginx on spasta.online
+  (D-F2).
+- **Server steps before the first Aureon sign-in:** `alembic upgrade 0011`, then claim the legacy rows
+  (`POST /api/finance/claim`: a dry run, then `apply`). Set `NEWS_FEED_URLS` to turn the news job on.
+
 ## Validation per stage (on the server)
 
 1. `npm run build` exits 0 (format, stylelint, vue-tsc, vitest).
 2. `npm run e2e:smoke` passes.
-3. Deploy behind nginx (backend `docs/14-frontend.md`), flip the stage's flag, use the feature for a day, then make
-   the flag the default. Only then delete the old path.
+3. Deploy behind nginx (backend `docs/14-frontend.md`) with the defaults, and use every feature for a day. Only then
+   delete the old path (Supabase data and sign-in, the Netlify AI proxy, the Firebase callables).
