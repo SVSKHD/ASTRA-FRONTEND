@@ -22,6 +22,70 @@ const PAGE = (items: unknown[]) => ({ items, total: items.length, limit: 50, off
 
 let signedIn = true
 const calls: string[] = []
+const posts: { path: string; body: unknown }[] = []
+
+const INTENT = (status: string, extra: Record<string, unknown> = {}) => ({
+  id: '22222222-2222-4222-8222-222222222222',
+  broker_account_id: ACCOUNT.id,
+  instrument_id: 42,
+  signal_id: 's1',
+  side: 'BUY',
+  order_type: 'MARKET',
+  quantity: '10',
+  limit_price: null,
+  product: null,
+  validity: 'DAY',
+  mode: 'PAPER',
+  status,
+  source: 'strategy',
+  created_by: 'u',
+  correlation_id: 'sig-s1-11111111',
+  created_at: NOW,
+  updated_at: NOW,
+  events: [{ id: 1, event_type: 'CREATED', correlation_id: 'c', payload: {}, occurred_at: NOW }],
+  risk_decisions: [
+    {
+      id: 7,
+      broker_account_id: ACCOUNT.id,
+      signal_id: 's1',
+      order_intent_id: 'x',
+      approved: true,
+      reason: 'all checks passed',
+      checks: [],
+      inputs: {},
+      created_at: NOW,
+    },
+  ],
+  executions: [],
+  ...extra,
+})
+const FILL = {
+  id: 'e1',
+  broker_account_id: ACCOUNT.id,
+  instrument_id: 42,
+  order_intent_id: 'x',
+  broker_trade_id: 'paper-x',
+  side: 'BUY',
+  quantity: '10',
+  price: '1000.2',
+  fees: '4.21',
+  currency: 'INR',
+  executed_at: NOW,
+  session: 'London',
+  is_simulated: true,
+  source: 'simulated',
+}
+
+function post(path: string, body: unknown): [number, unknown] {
+  posts.push({ path, body })
+  if (path === '/api/trading/order-intents') return [201, INTENT('PENDING_RISK')]
+  if (path.endsWith('/approve')) return [200, INTENT('FILLED', { executions: [FILL] })]
+  if (path.endsWith('/mode')) {
+    ACCOUNT.mode = (body as { mode: string }).mode
+    return [200, ACCOUNT]
+  }
+  return [404, { detail: 'not found' }]
+}
 
 function route(path: string): [number, unknown] {
   if (path === '/api/auth/me')
@@ -131,6 +195,26 @@ function route(path: string): [number, unknown] {
       ],
     ]
   if (path === '/api/trading/candles' || path === '/api/trading/indicators') return [200, []]
+  if (path === '/api/trading/order-intents') return [200, PAGE([INTENT('PENDING_RISK')])]
+  if (path.endsWith('/paper'))
+    return [
+      200,
+      {
+        account_id: ACCOUNT.id,
+        mode: 'PAPER',
+        currency: 'INR',
+        starting_capital: '1000000',
+        realized_pnl: '95.5',
+        fees: '8.42',
+        unrealized_pnl: '0',
+        equity: '1000087.08',
+        max_drawdown_pct: '0.001',
+        positions: [],
+        positions_as_of: NOW,
+        reconciliation: { ok: true, drift: [], at: NOW },
+        source: 'simulated',
+      },
+    ]
   return [200, PAGE([])]
 }
 
@@ -148,12 +232,17 @@ class FakeES {
 beforeEach(() => {
   signedIn = true
   calls.length = 0
+  posts.length = 0
+  ACCOUNT.mode = 'OBSERVE'
   vi.resetModules()
   vi.stubGlobal('EventSource', FakeES)
   vi.stubGlobal('fetch', async (req: Request) => {
     const url = new URL(req.url)
     calls.push(`${req.method} ${url.pathname}`)
-    const [status, body] = route(url.pathname)
+    const [status, body] =
+      req.method === 'POST' && !url.pathname.startsWith('/api/auth')
+        ? post(url.pathname, JSON.parse((await req.text()) || '{}'))
+        : route(url.pathname)
     return new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' },
@@ -215,6 +304,7 @@ describe('TradingView', () => {
     ['signals', 'Explain with AI'],
     ['strategies', 'ema-9-21'],
     ['orders', 'P&L on open positions'],
+    ['paper', 'No account is in PAPER mode'],
     ['risk', 'No policy yet'],
     ['agents', 'Risk agent'],
   ]
@@ -225,12 +315,88 @@ describe('TradingView', () => {
     })
   }
 
-  it('keeps approval controls disabled', async () => {
+  it('keeps Send to paper off without a PAPER account, and Approve live always off', async () => {
     const w = await mountAt('/trading/signals')
     await sees(w, 'Send to paper')
     const buttons = w.findAll('button').filter((b) => /Send to paper|Approve live/.test(b.text()))
     expect(buttons.length).toBeGreaterThan(0)
     expect(buttons.every((b) => b.attributes('disabled') !== undefined)).toBe(true)
+    expect(posts).toEqual([])
+  })
+
+  it('sends a signal to paper, then an admin approves the simulated fill', async () => {
+    ACCOUNT.mode = 'PAPER'
+    const w = await mountAt('/trading/signals')
+    await sees(w, 'Send to paper')
+    const live = w.findAll('button').find((b) => b.text() === 'Approve live')
+    expect(live?.attributes('disabled')).toBeDefined()
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Send to paper')!
+      .trigger('click')
+    await sees(w, 'Paper BUY 1')
+    await w.find('input[aria-label="Quantity"]').setValue('10')
+    await w.find('form').trigger('submit')
+    await sees(w, 'waiting for admin approval')
+    expect(posts[0]).toEqual({
+      path: '/api/trading/order-intents',
+      body: {
+        account_id: ACCOUNT.id,
+        instrument_id: 42,
+        side: 'BUY',
+        order_type: 'MARKET',
+        quantity: '10',
+        signal_id: 's1',
+        correlation_id: 'sig-s1-11111111',
+      },
+    })
+    expect(w.text()).toContain('Risk: all checks passed')
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Approve paper fill'))!
+      .trigger('click')
+    await sees(w, 'Filled (simulated)')
+    expect(w.text()).toContain('10 @ 1000.2 · fees 4.21 INR')
+    expect(posts.map((p) => p.path)).toEqual([
+      '/api/trading/order-intents',
+      '/api/trading/order-intents/22222222-2222-4222-8222-222222222222/approve',
+    ])
+    // Nothing anywhere talks to a broker order endpoint, and LIVE was never requested.
+    expect(posts.some((p) => JSON.stringify(p.body).includes('LIVE'))).toBe(false)
+  })
+
+  it('shows the paper book and lets an admin approve an intent there', async () => {
+    ACCOUNT.mode = 'PAPER'
+    const w = await mountAt('/trading/paper')
+    await sees(w, 'Paper book')
+    await sees(w, 'BUY 10 · instrument 42')
+    expect(w.text()).toContain('1,000,087.08')
+    expect(w.text()).toContain('Simulated')
+    expect(w.text()).toContain('no drift')
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Approve paper fill'))!
+      .trigger('click')
+    await sees(w, 'Filled (simulated)')
+    expect(posts.map((p) => p.path)).toEqual([
+      '/api/trading/order-intents/22222222-2222-4222-8222-222222222222/approve',
+    ])
+  })
+
+  it('lets an admin switch an account to PAPER, never to LIVE', async () => {
+    const w = await mountAt('/trading/risk')
+    await sees(w, 'Switch to PAPER')
+    const liveBtn = w.findAll('button').find((b) => b.text() === 'Switch to LIVE')
+    expect(liveBtn?.attributes('disabled')).toBeDefined()
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Switch to PAPER')!
+      .trigger('click')
+    await sees(w, 'Now PAPER')
+    expect(posts).toEqual([
+      { path: `/api/trading/accounts/${ACCOUNT.id}/mode`, body: { mode: 'PAPER' } },
+    ])
+    await sees(w, 'DHAN Main: PAPER')
   })
 
   it('sums positions exactly and labels the source', async () => {

@@ -9,7 +9,6 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import StatRow from '@/components/ui/StatRow.vue'
 import Table from '@/components/ui/Table.vue'
 import AccountPicker from './AccountPicker.vue'
-import ApprovalControls from './ApprovalControls.vue'
 import SourceTag from './SourceTag.vue'
 import { aureon } from '@/api/client'
 import { dec, signed, sumDec, toneOf, when } from '@/trading/format'
@@ -121,9 +120,8 @@ const execRows = computed(() =>
         </template>
         <StatRow :stats="pnl" />
         <p class="tp-note">
-          Totals are exact sums of the broker's figures. Account drawdown needs an equity history,
-          which paper trading (Phase F) starts recording; simulated drawdowns are under Strategies
-          &amp; backtests.
+          Totals are exact sums of the broker's figures. The paper book's equity and drawdown are
+          under Paper; simulated backtest drawdowns are under Strategies &amp; backtests.
         </p>
       </Card>
       <Card>
@@ -172,7 +170,10 @@ const execRows = computed(() =>
           caption="Orders"
         />
         <p v-else-if="!orders.loading.value" class="tp-note">No orders today.</p>
-        <ApprovalControls />
+        <p class="tp-note">
+          These are the broker's own orders (read-only). Paper orders and their simulated fills are
+          under Paper.
+        </p>
       </Card>
       <Card title="Executions">
         <Alert v-if="executions.error.value" tone="warning">{{ executions.error.value }}</Alert>

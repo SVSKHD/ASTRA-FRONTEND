@@ -443,6 +443,67 @@
         "title": "AiAnalysisOut",
         "type": "object"
       },
+      "AnalyzeIn": {
+        "properties": {
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Paths",
+            "type": "array"
+          },
+          "question": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "repo": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+            "title": "Repo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "question"
+        ],
+        "title": "AnalyzeIn",
+        "type": "object"
+      },
+      "ApproveIn": {
+        "properties": {
+          "feature_branch": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feature Branch"
+          }
+        },
+        "title": "ApproveIn",
+        "type": "object"
+      },
       "AssetOut": {
         "properties": {
           "created_at": {
@@ -1077,6 +1138,206 @@
         "title": "ChatRequest",
         "type": "object"
       },
+      "CodeTaskOut": {
+        "properties": {
+          "base_ref": {
+            "title": "Base Ref",
+            "type": "string"
+          },
+          "base_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Sha"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instruction": {
+            "title": "Instruction",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "repo": {
+            "title": "Repo",
+            "type": "string"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tests": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Tests",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "repo",
+          "title",
+          "instruction",
+          "paths",
+          "status",
+          "base_ref",
+          "base_sha",
+          "branch",
+          "commit_sha",
+          "model",
+          "result",
+          "tests",
+          "error",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "decided_at"
+        ],
+        "title": "CodeTaskOut",
+        "type": "object"
+      },
+      "CommitOut": {
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "sha": {
+            "title": "Sha",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha",
+          "author",
+          "date",
+          "subject"
+        ],
+        "title": "CommitOut",
+        "type": "object"
+      },
       "ConversationDetail": {
         "properties": {
           "created_at": {
@@ -1186,6 +1447,33 @@
           "offset"
         ],
         "title": "ConversationPage",
+        "type": "object"
+      },
+      "DiffOut": {
+        "properties": {
+          "diff": {
+            "title": "Diff",
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "files",
+          "diff"
+        ],
+        "title": "DiffOut",
         "type": "object"
       },
       "ExecutionMode": {
@@ -1314,6 +1602,51 @@
           "position"
         ],
         "title": "ExplainQueued",
+        "type": "object"
+      },
+      "FileOut": {
+        "properties": {
+          "binary": {
+            "title": "Binary",
+            "type": "boolean"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "ref",
+          "size",
+          "binary",
+          "truncated",
+          "content"
+        ],
+        "title": "FileOut",
         "type": "object"
       },
       "FundsOut": {
@@ -2741,6 +3074,430 @@
         "title": "OptionStrikeOut",
         "type": "object"
       },
+      "OrderEventOut": {
+        "properties": {
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "correlation_id",
+          "payload",
+          "occurred_at"
+        ],
+        "title": "OrderEventOut",
+        "type": "object"
+      },
+      "OrderIntentDetail": {
+        "properties": {
+          "broker_account_id": {
+            "format": "uuid",
+            "title": "Broker Account Id",
+            "type": "string"
+          },
+          "correlation_id": {
+            "title": "Correlation Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "events": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/OrderEventOut"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "executions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ExecutionOut"
+            },
+            "title": "Executions",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "limit_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Price"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "order_type": {
+            "title": "Order Type",
+            "type": "string"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "risk_decisions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RiskDecisionOut"
+            },
+            "title": "Risk Decisions",
+            "type": "array"
+          },
+          "side": {
+            "title": "Side",
+            "type": "string"
+          },
+          "signal_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Id"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "validity": {
+            "title": "Validity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "broker_account_id",
+          "instrument_id",
+          "signal_id",
+          "side",
+          "order_type",
+          "quantity",
+          "limit_price",
+          "product",
+          "validity",
+          "mode",
+          "status",
+          "source",
+          "created_by",
+          "correlation_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrderIntentDetail",
+        "type": "object"
+      },
+      "OrderIntentIn": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 8,
+                "pattern": "^[A-Za-z0-9._:-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "limit_price": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Price"
+          },
+          "order_type": {
+            "default": "MARKET",
+            "enum": [
+              "MARKET",
+              "LIMIT"
+            ],
+            "title": "Order Type",
+            "type": "string"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "side": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "signal_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Id"
+          }
+        },
+        "required": [
+          "account_id",
+          "instrument_id",
+          "side",
+          "quantity"
+        ],
+        "title": "OrderIntentIn",
+        "type": "object"
+      },
+      "OrderIntentOut": {
+        "properties": {
+          "broker_account_id": {
+            "format": "uuid",
+            "title": "Broker Account Id",
+            "type": "string"
+          },
+          "correlation_id": {
+            "title": "Correlation Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "limit_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Price"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "order_type": {
+            "title": "Order Type",
+            "type": "string"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "side": {
+            "title": "Side",
+            "type": "string"
+          },
+          "signal_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Id"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "validity": {
+            "title": "Validity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "broker_account_id",
+          "instrument_id",
+          "signal_id",
+          "side",
+          "order_type",
+          "quantity",
+          "limit_price",
+          "product",
+          "validity",
+          "mode",
+          "status",
+          "source",
+          "created_by",
+          "correlation_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrderIntentOut",
+        "type": "object"
+      },
       "OrderOut": {
         "properties": {
           "account_id": {
@@ -2921,6 +3678,37 @@
         "title": "Page[BacktestRunOut]",
         "type": "object"
       },
+      "Page_CodeTaskOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CodeTaskOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[CodeTaskOut]",
+        "type": "object"
+      },
       "Page_ExecutionOut_": {
         "properties": {
           "items": {
@@ -3045,6 +3833,37 @@
         "title": "Page[LogOut]",
         "type": "object"
       },
+      "Page_OrderIntentOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrderIntentOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[OrderIntentOut]",
+        "type": "object"
+      },
       "Page_OrderOut_": {
         "properties": {
           "items": {
@@ -3105,6 +3924,37 @@
           "offset"
         ],
         "title": "Page[PositionOut]",
+        "type": "object"
+      },
+      "Page_ReconciliationOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[ReconciliationOut]",
         "type": "object"
       },
       "Page_RiskDecisionOut_": {
@@ -3229,6 +4079,198 @@
           "offset"
         ],
         "title": "Page[TradeOut]",
+        "type": "object"
+      },
+      "PaperPositionOut": {
+        "properties": {
+          "avg_price": {
+            "title": "Avg Price",
+            "type": "string"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "realized_pnl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realized Pnl"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "unrealized_pnl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealized Pnl"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "symbol",
+          "quantity",
+          "avg_price",
+          "last_price",
+          "unrealized_pnl",
+          "realized_pnl"
+        ],
+        "title": "PaperPositionOut",
+        "type": "object"
+      },
+      "PaperReconciliationState": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "drift": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Drift",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "drift",
+          "at"
+        ],
+        "title": "PaperReconciliationState",
+        "type": "object"
+      },
+      "PaperSummaryOut": {
+        "description": "The paper book. Money and quantities are exact decimal strings.",
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "equity": {
+            "title": "Equity",
+            "type": "string"
+          },
+          "fees": {
+            "title": "Fees",
+            "type": "string"
+          },
+          "max_drawdown_pct": {
+            "title": "Max Drawdown Pct",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PaperPositionOut"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "positions_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positions As Of"
+          },
+          "realized_pnl": {
+            "title": "Realized Pnl",
+            "type": "string"
+          },
+          "reconciliation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaperReconciliationState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "const": "simulated",
+            "default": "simulated",
+            "title": "Source",
+            "type": "string"
+          },
+          "starting_capital": {
+            "title": "Starting Capital",
+            "type": "string"
+          },
+          "unrealized_pnl": {
+            "title": "Unrealized Pnl",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "mode",
+          "currency",
+          "starting_capital",
+          "realized_pnl",
+          "fees",
+          "unrealized_pnl",
+          "equity",
+          "max_drawdown_pct",
+          "positions",
+          "positions_as_of",
+          "reconciliation"
+        ],
+        "title": "PaperSummaryOut",
         "type": "object"
       },
       "PositionOut": {
@@ -3411,6 +4453,118 @@
         "title": "QuoteOut",
         "type": "object"
       },
+      "ReconciliationOut": {
+        "properties": {
+          "broker_account_id": {
+            "format": "uuid",
+            "title": "Broker Account Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "drift": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Drift",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "broker_account_id",
+          "ok",
+          "drift",
+          "summary",
+          "created_at"
+        ],
+        "title": "ReconciliationOut",
+        "type": "object"
+      },
+      "RepoOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "base": {
+            "title": "Base",
+            "type": "string"
+          },
+          "branches": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branches"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tests": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Tests",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "base",
+          "available",
+          "tests"
+        ],
+        "title": "RepoOut",
+        "type": "object"
+      },
       "RevokeAllResponse": {
         "properties": {
           "revoked": {
@@ -3456,6 +4610,18 @@
             "additionalProperties": true,
             "title": "Inputs",
             "type": "object"
+          },
+          "order_intent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Intent Id"
           },
           "reason": {
             "title": "Reason",
@@ -4045,6 +5211,44 @@
         "title": "StrategyVersionOut",
         "type": "object"
       },
+      "TaskIn": {
+        "properties": {
+          "instruction": {
+            "maxLength": 16000,
+            "minLength": 1,
+            "title": "Instruction",
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Paths",
+            "type": "array"
+          },
+          "repo": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+            "title": "Repo",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "title",
+          "instruction"
+        ],
+        "title": "TaskIn",
+        "type": "object"
+      },
       "Timeframe": {
         "enum": [
           "1m",
@@ -4174,6 +5378,39 @@
           "details"
         ],
         "title": "TradingAgentStatus",
+        "type": "object"
+      },
+      "TreeItem": {
+        "properties": {
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "type",
+          "mode",
+          "size"
+        ],
+        "title": "TreeItem",
         "type": "object"
       },
       "UserOut": {
@@ -4742,6 +5979,350 @@
         ]
       }
     },
+    "/api/code/analyze": {
+      "post": {
+        "description": "Explain code with the local Ollama coding model (read-only; the answer arrives in the\ntask's result).",
+        "operationId": "analyze_api_code_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeTaskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/tasks": {
+      "get": {
+        "operationId": "list_tasks_api_code_tasks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Repo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CodeTaskOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Tasks",
+        "tags": [
+          "code"
+        ]
+      },
+      "post": {
+        "description": "Queue a change: a patch made in an isolated worktree on an aureon/task-* branch, then\ntested with the repo's allowlisted commands. Nothing reaches a real branch until approved.",
+        "operationId": "create_task_api_code_tasks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeTaskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Task",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/tasks/{task_id}": {
+      "get": {
+        "operationId": "get_task_api_code_tasks__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeTaskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Task",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/tasks/{task_id}/approve": {
+      "post": {
+        "description": "Keep the tested change on its own branch (optionally also named feature/... or\nfix/...). Never main/dev01, never pushed, never deployed.",
+        "operationId": "approve_task_api_code_tasks__task_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ApproveIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeTaskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Task",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/tasks/{task_id}/diff": {
+      "get": {
+        "operationId": "get_diff_api_code_tasks__task_id__diff_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Diff",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/tasks/{task_id}/reject": {
+      "post": {
+        "operationId": "reject_task_api_code_tasks__task_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeTaskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Task",
+        "tags": [
+          "code"
+        ]
+      }
+    },
     "/api/conversations": {
       "get": {
         "operationId": "list_conversations_api_conversations_get",
@@ -5217,6 +6798,302 @@
         "summary": "Models Status",
         "tags": [
           "ai"
+        ]
+      }
+    },
+    "/api/repos": {
+      "get": {
+        "operationId": "list_repos_api_repos_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RepoOut"
+                  },
+                  "title": "Response List Repos Api Repos Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Repos",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/repos/{name}/branches": {
+      "get": {
+        "operationId": "repo_branches_api_repos__name__branches_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Repo Branches Api Repos  Name  Branches Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Repo Branches",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/repos/{name}/commits": {
+      "get": {
+        "operationId": "repo_commits_api_repos__name__commits_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ref"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CommitOut"
+                  },
+                  "title": "Response Repo Commits Api Repos  Name  Commits Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Repo Commits",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/repos/{name}/file": {
+      "get": {
+        "operationId": "repo_file_api_repos__name__file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "maxLength": 1000,
+              "minLength": 1,
+              "title": "Path",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ref"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Repo File",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/repos/{name}/tree": {
+      "get": {
+        "operationId": "repo_tree_api_repos__name__tree_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ref"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TreeItem"
+                  },
+                  "title": "Response Repo Tree Api Repos  Name  Tree Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Repo Tree",
+        "tags": [
+          "code"
         ]
       }
     },
@@ -5843,6 +7720,158 @@
         "summary": "Account Orders",
         "tags": [
           "trading"
+        ]
+      }
+    },
+    "/api/trading/accounts/{account_id}/paper": {
+      "get": {
+        "operationId": "paper_summary_api_trading_accounts__account_id__paper_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperSummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Paper Summary",
+        "tags": [
+          "paper trading"
+        ]
+      }
+    },
+    "/api/trading/accounts/{account_id}/paper/reconcile": {
+      "post": {
+        "operationId": "paper_reconcile_api_trading_accounts__account_id__paper_reconcile_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Paper Reconcile",
+        "tags": [
+          "paper trading"
+        ]
+      }
+    },
+    "/api/trading/accounts/{account_id}/paper/reconciliations": {
+      "get": {
+        "operationId": "paper_reconciliations_api_trading_accounts__account_id__paper_reconciliations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReconciliationOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Paper Reconciliations",
+        "tags": [
+          "paper trading"
         ]
       }
     },
@@ -7060,6 +9089,265 @@
         "summary": "Option Expiries",
         "tags": [
           "trading"
+        ]
+      }
+    },
+    "/api/trading/order-intents": {
+      "get": {
+        "operationId": "list_order_intents_api_trading_order_intents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_OrderIntentOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Order Intents",
+        "tags": [
+          "paper trading"
+        ]
+      },
+      "post": {
+        "description": "201 with the new intent (already risk-checked: PENDING_RISK or REJECTED), or 200 with\nthe existing one when this correlation_id was already used for the same request.",
+        "operationId": "create_order_intent_api_trading_order_intents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderIntentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderIntentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Order Intent",
+        "tags": [
+          "paper trading"
+        ]
+      }
+    },
+    "/api/trading/order-intents/{intent_id}": {
+      "get": {
+        "operationId": "get_order_intent_api_trading_order_intents__intent_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "intent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Intent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderIntentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Order Intent",
+        "tags": [
+          "paper trading"
+        ]
+      }
+    },
+    "/api/trading/order-intents/{intent_id}/approve": {
+      "post": {
+        "operationId": "approve_order_intent_api_trading_order_intents__intent_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "intent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Intent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderIntentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Order Intent",
+        "tags": [
+          "paper trading"
+        ]
+      }
+    },
+    "/api/trading/order-intents/{intent_id}/cancel": {
+      "post": {
+        "operationId": "cancel_order_intent_api_trading_order_intents__intent_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "intent_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Intent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderIntentDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Order Intent",
+        "tags": [
+          "paper trading"
         ]
       }
     },

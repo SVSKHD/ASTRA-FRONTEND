@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Risk settings per account and the risk agent's decisions. Editing the policy
-// is admin-only (the server enforces it, and audits every change). The mode
-// switch is shown but disabled: PAPER is Phase F, LIVE is Phase G.
+// is admin-only (the server enforces it, and audits every change). An admin can
+// switch an account between OBSERVE and PAPER (simulated fills, Phase F); LIVE
+// stays disabled until Phase G and written approval.
 import { computed, reactive, ref, watch } from 'vue'
 import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -23,6 +24,7 @@ import { must, useLoad, ApiFailure } from '@/trading/useLoad'
 import type { Account } from './types'
 
 const props = defineProps<{ accounts: Account[] }>()
+const emit = defineEmits<{ 'accounts-changed': [] }>()
 const accountId = ref('')
 const account = computed(() => props.accounts.find((a) => a.id === accountId.value))
 const path = () => ({ params: { path: { account_id: accountId.value } } })
@@ -119,6 +121,27 @@ const policyStats = computed(() => {
   ]
 })
 const openChecks = ref<number | null>(null)
+
+const switching = ref(false)
+const modeMsg = ref('')
+async function setMode(mode: 'OBSERVE' | 'PAPER') {
+  switching.value = true
+  modeMsg.value = ''
+  try {
+    const a = must(
+      await aureon.POST('/api/trading/accounts/{account_id}/mode', { ...path(), body: { mode } }),
+    )
+    modeMsg.value =
+      a.mode === 'PAPER'
+        ? 'Now PAPER: order intents are accepted and filled with simulated fills only.'
+        : 'Now OBSERVE: no new order intents are accepted.'
+    emit('accounts-changed')
+  } catch (e) {
+    modeMsg.value = (e as Error).message
+  } finally {
+    switching.value = false
+  }
+}
 </script>
 
 <template>
@@ -139,13 +162,46 @@ const openChecks = ref<number | null>(null)
             </div>
           </template>
           <p class="tp-note">
-            OBSERVE: data, signals and analysis only. PAPER (simulated fills) arrives in Phase F;
-            LIVE needs Phase G, a server-side feature flag and written approval.
+            OBSERVE: data, signals and analysis only. PAPER: order intents are risk-checked and,
+            after an admin's approval, filled with simulated fills (no broker order). LIVE needs
+            Phase G, a server-side feature flag and written approval.
           </p>
-          <div class="tp-row" role="group" aria-label="Change mode (disabled)">
-            <Button size="sm" variant="secondary" disabled>Switch to PAPER</Button>
-            <Button size="sm" variant="secondary" disabled>Switch to LIVE</Button>
+          <div class="tp-row" role="group" aria-label="Change mode">
+            <Button
+              v-if="account?.mode !== 'PAPER'"
+              size="sm"
+              variant="secondary"
+              :disabled="!isAdmin() || account?.mode === 'LIVE'"
+              :loading="switching"
+              :title="isAdmin() ? 'Simulated fills only' : 'Admins only'"
+              @click="setMode('PAPER')"
+            >
+              Switch to PAPER
+            </Button>
+            <Button
+              v-else
+              size="sm"
+              variant="secondary"
+              :disabled="!isAdmin()"
+              :loading="switching"
+              :title="isAdmin() ? 'Stop accepting paper intents' : 'Admins only'"
+              @click="setMode('OBSERVE')"
+            >
+              Back to OBSERVE
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled
+              title="Live orders need Phase G and written approval"
+            >
+              Switch to LIVE
+            </Button>
           </div>
+          <p v-if="modeMsg" class="tp-note" role="status">{{ modeMsg }}</p>
+          <p v-if="account?.mode !== 'PAPER' && !policyStats.length" class="tp-note">
+            Set a risk policy first: without one every paper intent is rejected.
+          </p>
         </Card>
         <Card title="Risk policy">
           <Alert v-if="policy.error.value" tone="warning">{{ policy.error.value }}</Alert>
