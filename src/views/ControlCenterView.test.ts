@@ -118,6 +118,84 @@ function route(method: string, path: string): [number, unknown] {
         target: null,
       },
     ]
+  if (path === `${R}/pulls/7`)
+    return [
+      200,
+      {
+        ...PULL,
+        commits: 2,
+        changed_files: 1,
+        additions: 3,
+        deletions: 1,
+        comments: 0,
+        review_comments: 0,
+        mergeable: true,
+        mergeable_state: 'clean',
+        rebaseable: true,
+      },
+    ]
+  if (path === `${R}/pulls/7/issue-comments`)
+    return [
+      200,
+      [
+        {
+          id: 1,
+          body: 'Looks right',
+          user: 'svskhd',
+          created_at: NOW,
+          updated_at: NOW,
+          html_url: null,
+        },
+      ],
+    ]
+  if (path === `${R}/pulls/7/comments`) return [200, []]
+  if (path === `${R}/pulls/7/diff`)
+    return [
+      200,
+      {
+        number: 7,
+        diff: 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n',
+        truncated: false,
+        too_large_upstream: false,
+        bytes_returned: 60,
+        max_bytes: 2097152,
+      },
+    ]
+  if (path === `${R}/issues/3`)
+    return [
+      200,
+      {
+        ...ISSUE,
+        comment_list: [
+          {
+            id: 5,
+            body: 'Seen on an SE',
+            user: 'svskhd',
+            created_at: NOW,
+            updated_at: NOW,
+            html_url: null,
+          },
+        ],
+        comments_truncated: false,
+        links: LINKS,
+      },
+    ]
+  if (path === '/api/finance/documents/aureon-notes/u')
+    return [
+      200,
+      {
+        doc_id: 'u',
+        namespace: 'aureon-notes',
+        updated_at: NOW,
+        data: {
+          tasks: [
+            { id: 41, title: 'Fix the phone layout', status: 'todo' },
+            { id: 42, title: 'Old', status: 'done', archivedAt: 1 },
+          ],
+        },
+      },
+    ]
+  if (path === '/api/v1/reviews') return [200, { items: [REVIEW], total: 1, limit: 50, offset: 0 }]
   if (path === '/api/trading/order-intents')
     return [200, { items: [], total: 0, limit: 200, offset: 0 }]
   if (path === '/api/v1/approvals/inbox') return [404, { detail: 'Not Found' }]
@@ -167,6 +245,30 @@ const ISSUE = {
   updated_at: NOW,
   closed_at: null,
 }
+let LINKS: unknown[] = []
+const REVIEW = {
+  id: 'rv1',
+  repo: 'svskhd/astra',
+  pr_number: 7,
+  head_sha: 'feedface01',
+  base_sha: 'base0001',
+  status: 'done',
+  verdict: 'CHANGES_REQUESTED',
+  reason: null,
+  summary: 'One real problem.',
+  findings: [{ file: 'src/x.ts', line: 4, severity: 'major', message: 'Unchecked null' }],
+  classification: { outcome: 'REDACT', reasons: ['email'] },
+  cli_version: '1',
+  duration_ms: 42000,
+  forced: false,
+  published: false,
+  published_at: null,
+  published_review_id: null,
+  requested_by: 'u',
+  created_at: NOW,
+  finished_at: NOW,
+  advisory: true,
+}
 const RUN = {
   id: 99,
   name: 'CI',
@@ -211,6 +313,7 @@ beforeEach(() => {
   calls.length = 0
   writes.length = 0
   overrides = {}
+  LINKS = []
   FakeES.all = []
   try {
     localStorage.clear()
@@ -260,6 +363,21 @@ function button(w: ReturnType<typeof mount>, label: string | RegExp) {
     .find((x) => (typeof label === 'string' ? x.text() === label : label.test(x.text())))
   if (!b) throw new Error(`no button ${label}`)
   return b
+}
+
+/** Buttons inside a teleported Modal live on document.body, not in the wrapper. */
+async function clickInBody(label: string) {
+  await vi.waitFor(
+    () => {
+      const b = [...document.body.querySelectorAll('button')].find(
+        (x) => x.textContent?.trim() === label,
+      )
+      expect(b, label).toBeTruthy()
+      b!.click()
+    },
+    { timeout: 4000, interval: 20 },
+  )
+  await settle()
 }
 
 async function mountAt(path: string) {
@@ -338,6 +456,124 @@ describe('repository explorer', () => {
     await button(w, 'View').trigger('click')
     await sees(w, '# Astra')
     expect(calls).toContain(`GET ${R}/contents/README.md`)
+    w.unmount()
+  })
+})
+
+describe('pull requests', () => {
+  it('lists open pull requests and opens one with its conversation', async () => {
+    const { w } = await mountAt('/dev/pulls')
+    await sees(w, '#7 Add the control center')
+    // The last "Open" is the row's; the first is the state filter.
+    await w
+      .findAll('button')
+      .filter((b) => b.text() === 'Open')
+      .at(-1)!
+      .trigger('click')
+    await sees(w, 'head feedfac')
+    await sees(w, 'Looks right')
+    expect(w.text()).toContain('Merging needs an approval with your password')
+    w.unmount()
+  })
+
+  it('files a gated merge, shows Approval required, and makes no direct merge call', async () => {
+    overrides[`POST ${R}/pulls/7/merge`] = (body) => [
+      202,
+      {
+        approval_id: 'ap-1',
+        status: 'pending',
+        kind: 'github.pr.merge',
+        target: 'svskhd/astra#7',
+        artifact_sha256: 'abc123def456',
+        expires_at: LATER,
+        operation_id: 3,
+        artifact: { head_sha: (body as { expected_head_sha: string }).expected_head_sha },
+      },
+    ]
+    const { w, router } = await mountAt('/dev/pulls?n=7')
+    await sees(w, 'Request merge')
+    await button(w, 'Request merge').trigger('click')
+    await clickInBody('Request approval')
+    await sees(w, 'Approval required')
+    expect(w.text()).toContain('github.pr.merge on svskhd/astra#7 waits for an admin')
+    // Exactly one write: the gated request, with the head the approver will see.
+    expect(writes).toEqual([
+      {
+        method: 'POST',
+        path: `${R}/pulls/7/merge`,
+        body: { merge_method: 'squash', expected_head_sha: 'feedface01' },
+      },
+    ])
+    expect(calls.some((c) => c.includes('/approve'))).toBe(false)
+    expect(calls.some((c) => c.startsWith('PUT '))).toBe(false)
+    await button(w, 'Open in the approval inbox').trigger('click')
+    await settle()
+    expect(router.currentRoute.value.fullPath).toBe('/dev/inbox?id=ap-1')
+    w.unmount()
+  })
+
+  it('shows the unified diff', async () => {
+    const { w } = await mountAt('/dev/pulls?n=7')
+    await sees(w, 'Request merge')
+    await button(w, 'Diff').trigger('click')
+    await sees(w, '+new')
+    expect(w.find('[aria-label="Pull request diff"]').exists()).toBe(true)
+    w.unmount()
+  })
+})
+
+describe('issues', () => {
+  it('shows an issue with comments and links it to a workspace task', async () => {
+    overrides[`POST ${R}/issues/3/links`] = (body) => {
+      LINKS = [
+        {
+          id: 1,
+          repo_full_name: 'svskhd/astra',
+          issue_number: 3,
+          issue_node_id: 'I_1',
+          task_ref: (body as { task_ref: string }).task_ref,
+          task_kind: 'spasta_task',
+          created_by: 'u',
+          created_at: NOW,
+        },
+      ]
+      return [201, LINKS[0]]
+    }
+    const { w } = await mountAt('/dev/issues?n=3')
+    await sees(w, '#3 Phone layout overflows')
+    await sees(w, 'Seen on an SE')
+    expect(w.text()).toContain('This issue is not linked to a task yet.')
+    await w.find('input[placeholder="Find a task by title"]').setValue('Fix')
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Fix the phone layout'))
+    expect(document.body.textContent).not.toContain('Old')
+    const opt = [...document.body.querySelectorAll('[role="option"]')].find((o) =>
+      o.textContent?.includes('Fix the phone layout'),
+    ) as HTMLElement
+    opt.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    opt.click()
+    await settle()
+    await button(w, 'Link task').trigger('click')
+    await sees(w, 'task 41')
+    expect(writes).toEqual([
+      {
+        method: 'POST',
+        path: `${R}/issues/3/links`,
+        body: { task_ref: '41', task_kind: 'spasta_task' },
+      },
+    ])
+    w.unmount()
+  })
+})
+
+describe('reviews', () => {
+  it('shows the verdict, findings and classification, and labels publish as advisory', async () => {
+    const { w } = await mountAt('/dev/reviews?pr=7')
+    await sees(w, 'CHANGES_REQUESTED')
+    expect(w.text()).toContain('Unchecked null')
+    expect(w.text()).toContain('src/x.ts:4')
+    expect(w.text()).toContain('Classification: REDACT: email')
+    expect(w.text()).toContain('Publish as comment (advisory)')
+    expect(w.text()).toContain('Request review of #7')
     w.unmount()
   })
 })

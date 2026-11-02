@@ -22,6 +22,20 @@ built phone-first (375 px, no horizontal page scroll). Decisions are in [decisio
 
 `R` = `/api/v1/github/repositories/{owner}/{repo}`.
 
+## Gated operations
+
+A merge (and, in Actions, a production dispatch or re-run) never runs from the page. The endpoint answers
+202 with an approval id; the page shows **Approval required** with a link to `/dev/inbox?id=<approval id>`,
+where an admin approves with their password. The request carries `expected_head_sha`, so a push after the
+request invalidates it.
+
+## Issue ↔ task links
+
+`task_ref` is the workspace task id as a string (backend D-16-1). The picker reads the tasks the app store
+holds when the workspace is loaded in this tab, and otherwise the workspace document
+`aureon-notes/{uid}` once; archived tasks are left out. A numeric id can be typed when no task list is
+available.
+
 ## Shared pieces
 
 - `src/control/api.ts`: the selected repo, `must`, `rawGet` / `rawPost` for endpoints not yet in the schema.

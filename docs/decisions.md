@@ -67,6 +67,11 @@ would change it. The backend keeps its own log in `Aureon_agents_Assembler/docs/
   stay on the Aureon server. `src/security/viteSecrets.test.ts` scans `src`, `env.d.ts` and every `.env*` file
   for `VITE_` names matching `TOKEN|SECRET|PAT|KEY`, and fails on any that is not one of the three known public
   values (the Supabase publishable / anon key and the Firebase web API key), each listed with why it is public.
+- **D-21-3: a merge is a request, never a merge.** "Request merge" sends `POST R/pulls/{n}/merge` with the
+  PR's current head as `expected_head_sha` and shows the 202 as "Approval required" with a link into the
+  inbox. There is no other merge path in the frontend; a test asserts the gated POST is the only write.
+  - Links use `task_ref` = the workspace task id; the picker reads pinia's `app` state when it is loaded and
+    the workspace document otherwise, so the `/dev` chunk never imports the whole workspace store.
 - **D-21-4: polling is visibility-aware where there is no stream.** `usePoll` (`src/control/poll.ts`) runs
   only while the page is visible and once more when it becomes visible again. The GitHub dashboard re-reads
   its counts every 60 s.
