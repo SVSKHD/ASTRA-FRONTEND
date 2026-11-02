@@ -19,6 +19,7 @@ import { computed, ref, type Ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { nanoid } from '@/utils/nanoid'
+import { mintShareId } from '@/utils/shares'
 import { copyText } from '@/utils/clipboard'
 import { buildPublicShareUrl } from '@/utils/share'
 import type { ItemType, Shareable } from '@/types'
@@ -63,7 +64,7 @@ export function useShareLink(entityType: ItemType, docRef: Ref<ShareableItem | n
     setBusy(true)
     // Reuse an existing id if one survives (never stopped), otherwise mint one
     // — the mint happens exactly once per share lifetime.
-    const nextId = item.shareId || nanoid(SHARE_ID_LENGTH)
+    const nextId = item.shareId || mintShareId(() => nanoid(SHARE_ID_LENGTH))
     const prev = { isPublic: item.isPublic, shareId: item.shareId, sharedAt: item.sharedAt }
     app.patchItem(entityType, item.id, {
       isPublic: true,

@@ -34,6 +34,13 @@ const routes: RouteRecordRaw[] = [
     name: 'trading',
     component: () => import('@/views/TradingView.vue'),
   },
+  // Code (Aureon): the read-only repository browser and code tasks on the
+  // self-hosted coding agent. The GitHub mirror moves here in Phase 21.
+  {
+    path: '/code-aureon',
+    name: 'code-aureon',
+    component: () => import('@/views/CodeAureonView.vue'),
+  },
   {
     path: '/astra',
     name: 'astra',

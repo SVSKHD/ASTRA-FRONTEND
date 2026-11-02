@@ -19,6 +19,8 @@ import ExpenseCalendar from '@/components/expenses/ExpenseCalendar.vue'
 import ExpenseForm from '@/components/expenses/ExpenseForm.vue'
 import ExpenseTable from '@/components/expenses/ExpenseTable.vue'
 import ExpenseHeader from '@/components/expenses/ExpenseHeader.vue'
+import ExpenseReceipts from '@/components/expenses/ExpenseReceipts.vue'
+import { attachmentsOnAureon } from '@/services/attachments'
 import TradeSkeleton from '@/components/trades/TradeSkeleton.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useAppStore } from '@/stores/app'
@@ -64,6 +66,13 @@ const categories = computed(() => byCategory(log.expenses.value))
 const categoryNames = computed(() => categories.value.map((c) => c.category))
 
 const busy = ref(false)
+
+// Receipts on an expense (Aureon attachments, stage 6).
+const receiptsAvailable = attachmentsOnAureon()
+const receiptsFor = ref('')
+const receiptsExpense = computed(
+  () => log.expenses.value.find((e) => e.id === receiptsFor.value) ?? null,
+)
 
 async function onSubmit(draft: ExpenseDraft) {
   busy.value = true
@@ -130,7 +139,14 @@ defineExpose({ focus: () => form.value?.focus() })
           route.day.value ? `Nothing spent on ${route.day.value}` : 'Nothing spent this month'
         "
         empty-description="Log the first one above — the calendar, the budget bar and the header all come from these rows."
+        :receipts="receiptsAvailable"
         @delete="log.remove($event)"
+        @receipts="receiptsFor = $event"
+      />
+      <ExpenseReceipts
+        v-if="receiptsAvailable"
+        :expense="receiptsExpense"
+        @close="receiptsFor = ''"
       />
 
       <section v-if="categories.length" class="ev__cats">

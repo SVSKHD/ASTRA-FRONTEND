@@ -28,10 +28,12 @@ import { useRowFlash } from '@/composables/useRowFlash'
 import { useSettings } from '@/composables/useSettings'
 import { countOf, dayLabel } from '@/utils/format'
 import { IST, ymdOn } from '@/utils/tradeTime'
-import { githubMirrorAvailable } from '@/utils/ghSetup'
+import { codeOnAureon, githubMirrorAvailable } from '@/utils/ghSetup'
+import { useRouter } from 'vue-router'
 import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
 const { panelStyle } = useStyles()
+const router = useRouter()
 const store = useSettings()
 const { settings, ready } = store
 const live = useGithubLive()
@@ -105,6 +107,14 @@ defineExpose({ focus: () => {} })
     <ListToolbar title="Code">
       <template #actions>
         <Button
+          v-if="codeOnAureon"
+          variant="secondary"
+          size="sm"
+          @click="router.push('/code-aureon')"
+        >
+          Code (Aureon)
+        </Button>
+        <Button
           v-if="githubMirrorAvailable"
           variant="ghost"
           size="sm"
@@ -119,7 +129,12 @@ defineExpose({ focus: () => {} })
          setup that calls out and waits, and not an empty list that looks
          broken. -->
     <EmptyState
-      v-if="!githubMirrorAvailable"
+      v-if="!githubMirrorAvailable && codeOnAureon"
+      title="GitHub moves to Aureon in Phase 21"
+      description="Issues, pull requests and their comments come back when Aureon's GitHub integration lands. Meanwhile, Code (Aureon) browses the repositories on the server and runs code tasks."
+    />
+    <EmptyState
+      v-else-if="!githubMirrorAvailable"
       title="GitHub is moving"
       description="The Code tab reads from GitHub functions that still run on Firebase, which this build no longer connects to. It comes back when those functions move to Supabase — your tracked repositories are kept until then."
     />

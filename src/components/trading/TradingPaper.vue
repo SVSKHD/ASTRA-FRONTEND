@@ -30,6 +30,7 @@ import {
   validQuantity,
   type IntentDetail,
 } from '@/trading/paper'
+import { inbox, loadInbox, useLiveRefresh } from '@/trading/inbox'
 import { isAdmin, tradingSession } from '@/trading/session'
 import { must, useLoad } from '@/trading/useLoad'
 import type { Account } from './types'
@@ -66,12 +67,53 @@ const intents = useLoad(async () => {
   return filter.value === 'OPEN' ? items.filter((i) => OPEN.has(i.status)) : items
 }, false)
 
+// Simulated fills only: the executions endpoint also carries broker fills.
+const executions = useLoad(async () => {
+  const items = must(
+    await aureon.GET('/api/trading/executions', {
+      params: { query: { account_id: accountId.value, limit: 100 } },
+    }),
+  ).items
+  return items.filter((e) => e.source === 'simulated')
+}, false)
+const execRows = computed(() =>
+  (executions.data.value ?? []).map((e) => ({
+    id: e.id,
+    when: when(e.executed_at),
+    side: e.side,
+    instrument: String(e.instrument_id),
+    qty: dec(e.quantity),
+    price: dec(e.price),
+    fees: `${dec(e.fees, 2)} ${e.currency}`,
+  })),
+)
+
+const reconciliations = useLoad(
+  async () =>
+    must(
+      await aureon.GET('/api/trading/accounts/{account_id}/paper/reconciliations', {
+        params: { path: { account_id: accountId.value }, query: { limit: 20 } },
+      }),
+    ).items,
+  false,
+)
+
 function reloadAll() {
   if (!accountId.value) return
   void summary.reload()
   void intents.reload()
+  void executions.reload()
+  void reconciliations.reload()
 }
 watch(accountId, reloadAll)
+// New risk decisions or signals on the live stream, or every 15 s while visible.
+// (The inbox itself is refreshed by the panel, which shows its count on the tab.)
+useLiveRefresh(reloadAll)
+
+function accountName(id: string): string {
+  const a = props.accounts.find((x) => x.id === id)
+  return a ? `${a.broker.toUpperCase()} ${a.label || a.account_id}` : 'unknown account'
+}
 watch(filter, () => void intents.reload())
 
 const stats = computed(() => {
@@ -136,6 +178,7 @@ async function act(id: string, fn: (id: string) => Promise<IntentDetail>) {
     details[id] = d
     actionMsg[id] = STATUS_TEXT[d.status] ?? d.status
     reloadAll()
+    void loadInbox()
   } catch (e) {
     actionMsg[id] = (e as Error).message
   } finally {
@@ -198,6 +241,7 @@ async function reconcile() {
       ? 'Reconciled: positions and ledger agree.'
       : `Drift found in ${r.drift.length} item(s). Check the rows changed outside the engine.`
     void summary.reload()
+    void reconciliations.reload()
   } catch (e) {
     reconcileMsg.value = (e as Error).message
   } finally {
@@ -208,6 +252,58 @@ async function reconcile() {
 
 <template>
   <div class="tp-page">
+    <Card v-if="isAdmin()">
+      <template #header>
+        <div class="tp-head">
+          <span class="tp-title">Approval inbox</span>
+          <Badge
+            :tone="inbox.items.length ? 'warning' : 'neutral'"
+            :label="`${inbox.items.length} waiting`"
+          />
+        </div>
+      </template>
+      <Alert v-if="inbox.error" tone="warning">{{ inbox.error }}</Alert>
+      <ul v-if="inbox.items.length" class="tp-list">
+        <li v-for="i in inbox.items" :key="i.id" class="tp-item pp__intent">
+          <div class="tp-main">
+            <span class="tp-strong">
+              {{ i.side }} {{ dec(i.quantity) }} · instrument {{ i.instrument_id }} ·
+              {{ i.order_type
+              }}<template v-if="i.limit_price"> @ {{ dec(i.limit_price) }}</template>
+            </span>
+            <span class="tp-note">
+              {{ accountName(i.broker_account_id) }} · {{ i.source }} · {{ when(i.created_at) }}
+            </span>
+            <span v-if="actionMsg[i.id]" class="tp-note" role="status">{{ actionMsg[i.id] }}</span>
+          </div>
+          <div class="tp-row">
+            <Button
+              size="sm"
+              variant="primary"
+              :loading="busy[i.id]"
+              @click="act(i.id, approveIntent)"
+            >
+              Approve paper fill
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              :loading="busy[i.id]"
+              @click="act(i.id, cancelIntent)"
+            >
+              Cancel
+            </Button>
+            <Button size="sm" variant="ghost" disabled title="Live trading stays off">
+              Approve live
+            </Button>
+          </div>
+        </li>
+      </ul>
+      <p v-else-if="!inbox.loading" class="tp-note">
+        Nothing is waiting for approval on any account.
+      </p>
+    </Card>
+
     <EmptyState
       v-if="!paper.length"
       title="No account is in PAPER mode"
@@ -339,6 +435,54 @@ async function reconcile() {
         </ul>
         <p v-else-if="!intents.loading.value" class="tp-note">
           No intents here. Send one from a signal, or create one below.
+        </p>
+      </Card>
+
+      <Card>
+        <template #header>
+          <div class="tp-head">
+            <span class="tp-title">Simulated executions</span>
+            <SourceTag source="simulated" />
+          </div>
+        </template>
+        <Alert v-if="executions.error.value" tone="warning">{{ executions.error.value }}</Alert>
+        <Table
+          v-else-if="execRows.length"
+          :columns="[
+            { key: 'when', label: 'Filled' },
+            { key: 'side', label: 'Side' },
+            { key: 'instrument', label: 'Instrument' },
+            { key: 'qty', label: 'Qty', align: 'right' },
+            { key: 'price', label: 'Price', align: 'right' },
+            { key: 'fees', label: 'Charges', align: 'right' },
+          ]"
+          :rows="execRows"
+          caption="Simulated executions"
+        />
+        <p v-else-if="!executions.loading.value" class="tp-note">
+          No simulated fills on this account yet.
+        </p>
+      </Card>
+
+      <Card title="Reconciliation history">
+        <Alert v-if="reconciliations.error.value" tone="warning">{{
+          reconciliations.error.value
+        }}</Alert>
+        <ul v-else-if="reconciliations.data.value?.length" class="tp-list">
+          <li v-for="r in reconciliations.data.value" :key="r.id" class="tp-item">
+            <div class="tp-main">
+              <span class="tp-strong">{{ when(r.created_at) }}</span>
+              <span class="tp-note">{{
+                r.ok
+                  ? 'No drift: positions and the ledger agree.'
+                  : `Drift in ${r.drift.length} item(s).`
+              }}</span>
+            </div>
+            <Badge :tone="r.ok ? 'success' : 'danger'" :label="r.ok ? 'OK' : 'Drift'" />
+          </li>
+        </ul>
+        <p v-else-if="!reconciliations.loading.value" class="tp-note">
+          Not reconciled yet. The server runs it every 15 minutes.
         </p>
       </Card>
 

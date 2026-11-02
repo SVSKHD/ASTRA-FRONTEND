@@ -22,9 +22,12 @@ import {
   clearActivityHistory,
   fetchActivity,
   fetchSessions,
+  onAureon,
+  revokeAllSessions,
   revokeOtherSessions,
   revokeSession,
 } from '@/services/deviceSessions'
+import { useAuthStore } from '@/stores/auth'
 import { mapPoints, newCountryAlert } from '@/utils/sessionView'
 import { locationLabel } from '@/utils/device'
 import { useAppStore } from '@/stores/app'
@@ -100,6 +103,24 @@ async function run(id: string, action: () => Promise<unknown>): Promise<void> {
 const onRevoke = (id: string) => run(id, () => revokeSession(id))
 const onRevokeAll = () => run('all', () => revokeOtherSessions())
 const onClearHistory = () => run('history', () => clearActivityHistory())
+
+// Aureon keeps sessions on the server: no locations, no activity feed, and one
+// more action — ending every session, this one included.
+const aureonSessions = onAureon()
+const auth = useAuthStore()
+async function onRevokeEverything(): Promise<void> {
+  busyId.value = 'everything'
+  error.value = ''
+  try {
+    await revokeAllSessions()
+    emit('close')
+    await auth.signOut()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'That did not work. Try again.'
+  } finally {
+    busyId.value = null
+  }
+}
 
 function dismissAlert(): void {
   const at = alert.value?.at ?? Date.now()
@@ -179,6 +200,16 @@ onMounted(() => {
           title="No devices recorded yet"
           description="This device will appear here the next time the app loads."
         />
+        <Button
+          v-if="aureonSessions && sessions.length"
+          class="sec__everywhere"
+          size="sm"
+          variant="ghost"
+          :disabled="busyId !== null"
+          @click="onRevokeEverything"
+        >
+          Sign out everywhere, this device included
+        </Button>
       </section>
 
       <section v-if="points.length" class="sec__block">
@@ -186,7 +217,7 @@ onMounted(() => {
         <SessionMap :points="points" :now="now" />
       </section>
 
-      <section class="sec__block">
+      <section v-if="!aureonSessions" class="sec__block">
         <header class="sec__head">
           <h3 class="sec__title">Recent activity</h3>
           <Button
@@ -207,7 +238,12 @@ onMounted(() => {
         <Icon name="shield" size="sm" class="sec__privacy-icon" />
         <div class="sec__privacy-text">
           <p class="sec__privacy-title">What is stored</p>
-          <p class="sec__privacy-body">
+          <p v-if="aureonSessions" class="sec__privacy-body">
+            For each signed-in device: when it signed in, when the session expires, its IP address
+            and its browser's user agent. Sessions end on their own after 12 hours. Sign-ins and
+            sign-outs are kept in the server's audit log.
+          </p>
+          <p v-else class="sec__privacy-body">
             An approximate location (city and country, to about 10km), the device type, and the
             browser and operating system. Your IP address is <strong>not</strong> stored — it is
             hashed on the server and discarded. Activity older than 90 days and devices you signed
@@ -229,6 +265,9 @@ onMounted(() => {
   display: grid;
   gap: var(--sp-3);
   min-width: 0;
+}
+.sec__everywhere {
+  justify-self: start;
 }
 .sec__head {
   display: flex;

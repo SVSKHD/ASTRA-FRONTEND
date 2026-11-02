@@ -21,6 +21,7 @@
 //   permissions rather than a classic one that can push.
 
 import { loadFunctions, supabaseEnabled } from '@/firebase'
+import { authProvider } from '@/auth/provider'
 
 export interface GhRateLimit {
   limit: number
@@ -63,7 +64,10 @@ export interface GhTestResult {
  * be read. Until the functions move to Supabase (phase 4) the Code tab says so
  * once, instead of calling out and waiting on answers that never come.
  */
-export const githubMirrorAvailable = !supabaseEnabled
+export const githubMirrorAvailable = !supabaseEnabled && authProvider() !== 'aureon'
+
+/** Whether to offer Code (Aureon) from the Code tab (VITE_AUTH_PROVIDER=aureon). */
+export const codeOnAureon = authProvider() === 'aureon'
 
 // A call that has not answered by now is not going to; the panel says so
 // rather than sitting on its loading state for good.

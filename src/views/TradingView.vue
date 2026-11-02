@@ -17,7 +17,8 @@ import Tabs from '@/components/ui/Tabs.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import ModeBadge from '@/components/trading/ModeBadge.vue'
 import { aureon } from '@/api/client'
-import { checkSession, signIn, tradingSession } from '@/trading/session'
+import { checkSession, isAdmin, signIn, tradingSession } from '@/trading/session'
+import { inbox, loadInbox, useLiveRefresh } from '@/trading/inbox'
 import { connect, disconnect, live } from '@/trading/stream'
 import { must, useLoad } from '@/trading/useLoad'
 import '@/components/trading/trading.css'
@@ -59,6 +60,15 @@ function go(s: string) {
   void router.push(s === 'overview' ? '/trading' : `/trading/${s}`)
 }
 
+// The Paper tab carries the admin's approval count.
+const tabs = computed(() =>
+  SECTIONS.map((s) =>
+    s.value === 'paper' && inbox.items.length
+      ? { value: s.value, label: `${s.label} (${inbox.items.length})` }
+      : { value: s.value, label: s.label },
+  ),
+)
+
 const email = ref('')
 const passcode = ref('')
 
@@ -76,12 +86,17 @@ watch(
   (u) => {
     if (u) {
       void accounts.reload()
+      if (isAdmin()) void loadInbox()
       connect()
     } else {
       disconnect()
     }
   },
 )
+// The approval count stays current on every section, not only on Paper.
+useLiveRefresh(() => {
+  if (tradingSession.user && isAdmin()) void loadInbox()
+})
 onMounted(() => void checkSession())
 onBeforeUnmount(disconnect)
 </script>
@@ -133,7 +148,7 @@ onBeforeUnmount(disconnect)
     <template v-else>
       <Tabs
         :model-value="section"
-        :tabs="[...SECTIONS]"
+        :tabs="tabs"
         aria-label="Trading sections"
         @update:model-value="go"
       />

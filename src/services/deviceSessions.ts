@@ -8,6 +8,8 @@
 // been using, and the user-agent string.
 
 import { auth, loadFirestore, loadFunctions } from '@/firebase'
+import { aureon, errorMessage } from '@/api/client'
+import { authProvider } from '@/auth/provider'
 import type { ActivityEvent, ActivityKind, DeviceKind, DeviceSession } from '@/types'
 import { describeDevice } from '@/utils/device'
 import { sessionId } from '@/utils/sessionId'
@@ -70,16 +72,91 @@ export function heartbeat(): Promise<{ revoked: boolean } | null> {
   return call<{ revoked: boolean }>('heartbeat', { sessionId: sessionId() })
 }
 
-export function revokeSession(id: string, hard = false): Promise<{ ok: boolean } | null> {
+export async function revokeSession(id: string, hard = false): Promise<{ ok: boolean } | null> {
+  if (onAureon()) {
+    await aureonRevoke(id)
+    return { ok: true }
+  }
   return call<{ ok: boolean }>('revokeSession', { sessionId: id, hard })
 }
 
-export function revokeOtherSessions(): Promise<{ revoked: number } | null> {
+export async function revokeOtherSessions(): Promise<{ revoked: number } | null> {
+  if (onAureon()) {
+    // One DELETE per other session: revoke-all would end this one too.
+    const others = (await fetchAureonSessions()).filter((s) => !s.current)
+    for (const s of others) await aureonRevoke(s.id)
+    return { revoked: others.length }
+  }
   return call<{ revoked: number }>('revokeOtherSessions', { sessionId: sessionId() })
 }
 
 export function clearActivityHistory(): Promise<{ deleted: number } | null> {
+  // Aureon keeps its sign-in history in the audit log, which the owner does not edit.
+  if (onAureon()) return Promise.resolve({ deleted: 0 })
   return call<{ deleted: number }>('clearActivityHistory', { sessionId: sessionId() })
+}
+
+// ---- Aureon (VITE_AUTH_PROVIDER=aureon) -------------------------------------
+//
+// The server keeps the sessions (core.sessions): GET /api/auth/sessions lists
+// your live ones, DELETE /api/auth/sessions/{id} ends one, and
+// POST /api/auth/sessions/revoke-all ends every one, this device included.
+// There is no location and no activity feed: Aureon stores the IP and the user
+// agent of each session, and nothing else.
+
+/** Whether Security → Devices reads Aureon's sessions. */
+export function onAureon(): boolean {
+  return authProvider() === 'aureon'
+}
+
+async function aureonRevoke(id: string): Promise<void> {
+  const { error, response } = await aureon.DELETE('/api/auth/sessions/{session_id}', {
+    params: { path: { session_id: id } },
+  })
+  // Already gone (revoked or expired elsewhere) is the outcome that was asked for.
+  if (!response.ok && response.status !== 404)
+    throw new Error(
+      errorMessage(error, `That device could not be signed out (HTTP ${response.status}).`),
+    )
+}
+
+async function fetchAureonSessions(): Promise<DeviceSession[]> {
+  const { data, error, response } = await aureon.GET('/api/auth/sessions')
+  if (!data)
+    throw new Error(errorMessage(error, `Could not load your devices (HTTP ${response.status}).`))
+  return data
+    .map((s) => {
+      const device = describeDevice(s.user_agent ?? '')
+      const created = Date.parse(s.created_at) || Date.now()
+      return {
+        id: s.id,
+        deviceLabel: device.deviceLabel,
+        deviceType: device.deviceType,
+        os: device.os,
+        browser: device.browser,
+        ipHash: null,
+        city: null,
+        region: null,
+        country: null,
+        approxLat: null,
+        approxLng: null,
+        createdAt: created,
+        // Aureon does not track activity per session; the sign-in time stands in.
+        lastActiveAt: created,
+        revokedAt: null,
+        userAgent: s.user_agent ?? '',
+        current: s.current,
+      } satisfies DeviceSession
+    })
+    .sort((a, b) => Number(b.current) - Number(a.current) || b.createdAt - a.createdAt)
+}
+
+/** Every session, this device included. The caller returns to sign-in after it. */
+export async function revokeAllSessions(): Promise<number> {
+  const { data, error, response } = await aureon.POST('/api/auth/sessions/revoke-all')
+  if (!data)
+    throw new Error(errorMessage(error, `Could not sign out everywhere (HTTP ${response.status}).`))
+  return data.revoked
 }
 
 // ---- reads -----------------------------------------------------------------
@@ -113,6 +190,7 @@ function toSession(id: string, data: Record<string, unknown>, currentId: string)
  * than a handful of rows is not worth having.
  */
 export async function fetchSessions(): Promise<DeviceSession[]> {
+  if (onAureon()) return fetchAureonSessions()
   const uid = auth?.currentUser?.uid
   const cloud = await loadFirestore()
   if (!uid || !cloud) return []
@@ -125,6 +203,7 @@ export async function fetchSessions(): Promise<DeviceSession[]> {
 }
 
 export async function fetchActivity(limit = ACTIVITY_LIMIT): Promise<ActivityEvent[]> {
+  if (onAureon()) return []
   const uid = auth?.currentUser?.uid
   const cloud = await loadFirestore()
   if (!uid || !cloud) return []

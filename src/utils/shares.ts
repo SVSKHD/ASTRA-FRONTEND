@@ -12,6 +12,8 @@
 // never opens a share should not pay for it, and no module may import the query
 // builders statically without pulling the SDK back into the initial chunk.
 import { loadFirestore } from '@/firebase'
+import { aureon } from '@/api/client'
+import { authProvider } from '@/auth/provider'
 import type { ItemType } from '@/types'
 
 export const SHARES_COLLECTION = 'aureon-shares'
@@ -30,6 +32,17 @@ export type ShareLoad =
   | { status: 'not-found' }
   | { status: 'needs-auth' }
   | { status: 'unavailable' }
+
+/**
+ * A new share id. On Aureon a UUID: anyone holding the id can read a public
+ * share through GET /api/public/shares/{id}, so it has to be unguessable, and
+ * the documents API takes it as the doc id as it is.
+ */
+export function mintShareId(fallback: () => string): string {
+  if (authProvider() === 'aureon' && typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+    return crypto.randomUUID()
+  return fallback()
+}
 
 // Strip reactivity/undefined before handing the item to Firestore, which
 // rejects undefined values outright.
@@ -111,6 +124,7 @@ export async function updateShareItem(
 // permission-denied is reported as needs-auth rather than not-found: for a
 // private share the honest prompt is "sign in", not "this doesn't exist".
 export async function fetchShare(shareId: string): Promise<ShareLoad> {
+  if (authProvider() === 'aureon') return fetchAureonShare(shareId)
   const cloud = await loadFirestore()
   if (!cloud) return { status: 'unavailable' }
   const { db, fs } = cloud
@@ -141,4 +155,44 @@ export async function deleteShare(shareId: string): Promise<void> {
   const cloud = await loadFirestore()
   if (!cloud) return
   await cloud.fs.deleteDoc(cloud.fs.doc(cloud.db, SHARES_COLLECTION, shareId))
+}
+
+/**
+ * Aureon: the public read needs no session. The owner publishes through the
+ * documents API (namespace `aureon-shares`, `isPublic: true`); this endpoint
+ * answers only a public share, with the owner's ids stripped. A private share
+ * is a 404 there, so it is then asked for as the signed-in owner's own document.
+ */
+async function fetchAureonShare(shareId: string): Promise<ShareLoad> {
+  try {
+    const { data, response } = await aureon.GET('/api/public/shares/{doc_id}', {
+      params: { path: { doc_id: shareId } },
+    })
+    if (data) return readyShare(data.doc_id, data.data)
+    if (response.status !== 404) return { status: 'unavailable' }
+    // Not public: the owner can still open it through their own documents.
+    const own = await aureon.GET('/api/finance/documents/{namespace}/{doc_id}', {
+      params: { path: { namespace: SHARES_COLLECTION, doc_id: shareId } },
+    })
+    if (own.data) return readyShare(own.data.doc_id, own.data.data)
+    if (own.response.status === 401) return { status: 'needs-auth' }
+    return { status: 'not-found' }
+  } catch (error) {
+    console.error('[Aureon] Share load failed:', error)
+    return { status: 'unavailable' }
+  }
+}
+
+function readyShare(id: string, doc: Record<string, unknown>): ShareLoad {
+  return {
+    status: 'ready',
+    share: {
+      id,
+      ownerId: '',
+      type: doc.type as ItemType,
+      item: (doc.item || {}) as Record<string, unknown>,
+      isPublic: doc.isPublic === true,
+      createdAt: Number(doc.createdAt || 0),
+    },
+  }
 }
