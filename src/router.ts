@@ -41,6 +41,15 @@ const routes: RouteRecordRaw[] = [
     name: 'code-aureon',
     component: () => import('@/views/CodeAureonView.vue'),
   },
+  // The control center (Phase 21): GitHub, Actions, agents, repairs, reviews
+  // and the approval inbox, admin-only, behind the same Aureon gate as
+  // /trading. `/dev/<module>`. The DEV-only /dev/login and /dev/shot/* below
+  // are static segments, so they still win over `:module` in development.
+  {
+    path: '/dev/:module?',
+    name: 'control-center',
+    component: () => import('@/views/ControlCenterView.vue'),
+  },
   {
     path: '/astra',
     name: 'astra',

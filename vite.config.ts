@@ -7,6 +7,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { THEMES } from './src/themes/index'
+
+/** Every Aureon API path. The service worker never caches or shells these. */
+const API_PATH = /^\/api\//
 
 // The PWA/service worker is a build+serve concern only. It is skipped under
 // Vitest so the test run stays a plain module graph with no SW virtual modules.
@@ -58,11 +62,22 @@ if (!process.env.VITEST) {
         name: 'Aureon',
         short_name: 'Aureon',
         description: 'Liquid-glass personal tracker — todos, tasks, deadlines, finances.',
-        theme_color: '#181a34',
-        background_color: '#181a34',
+        // From the theme tokens: the default dark theme's opaque surface, so the
+        // installed app's title bar and splash match the first paint.
+        theme_color: THEMES.deepSpace.bgSolid,
+        background_color: THEMES.deepSpace.bgSolid,
         display: 'standalone',
         start_url: '/',
-        icons: [{ src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+        scope: '/',
+        icons: [
+          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+        ],
+        // The control center (Phase 21) as a launcher shortcut on an installed app.
+        shortcuts: [
+          { name: 'Control center', short_name: 'Control', url: '/dev' },
+          { name: 'Approvals', short_name: 'Approvals', url: '/dev/inbox' },
+        ],
       },
       workbox: {
         // Precache the built app shell + assets so routes load with no network.
@@ -81,12 +96,22 @@ if (!process.env.VITEST) {
           '**/leaflet-*.css',
           '**/firebase-firestore-*.js',
         ],
-        // SPA: any offline navigation falls back to the cached shell.
+        // SPA: any offline navigation falls back to the cached shell — except
+        // the API, which is never answered from the shell or from a cache.
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [API_PATH],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
         runtimeCaching: [
+          {
+            // THE API IS NETWORK-ONLY, and listed first so no rule below can
+            // claim it (D-21-6). Its answers are the owner's data — approvals,
+            // logs, diffs, money — and a cached copy is a stale or leaked one.
+            // That covers JSON, SSE streams, text logs and attachment images.
+            urlPattern: ({ url }: { url: URL }) => API_PATH.test(url.pathname),
+            handler: 'NetworkOnly',
+          },
           {
             // HTML / navigations: prefer the network, fall back to cache offline.
             urlPattern: ({ request }: { request: Request }) => request.mode === 'navigate',

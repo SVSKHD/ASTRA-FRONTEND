@@ -1,0 +1,83 @@
+/* The control center's shared layout, on top of trading.css. Tokens only. */
+.cc-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--text-primary);
+  min-width: 0;
+}
+/* A viewer that scrolls inside its own box, so a wide diff or a long log never
+   scrolls the page sideways. Lines wrap on a phone and keep their shape wider. */
+.cc-box {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-card);
+  padding: var(--sp-2) 0;
+  min-width: 0;
+  overscroll-behavior: contain;
+}
+.cc-line {
+  margin: 0;
+  padding: 0 var(--sp-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+@media (min-width: 768px) {
+  .cc-line {
+    white-space: pre;
+    overflow-wrap: normal;
+  }
+}
+.cc-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.cc-body {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.cc-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+/* An inline notice (Alert reports to the corner tray; these stay in place).
+   The tone is a bar on the left; the text stays --text-primary. */
+.cc-notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--cc-tone, var(--theme-accent));
+  background: var(--glass-card);
+  color: var(--text-primary);
+  min-width: 0;
+}
+.cc-notice--warning {
+  --cc-tone: var(--theme-warning);
+}
+.cc-notice--danger {
+  --cc-tone: var(--theme-danger);
+}
+.cc-notice--success {
+  --cc-tone: var(--theme-success);
+}
+.cc-notice__title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  min-width: 0;
+}
