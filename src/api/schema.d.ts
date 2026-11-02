@@ -157,6 +157,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sessions
+         * @description The current user's active (not revoked, not expired) sessions.
+         */
+        get: operations["list_sessions_api_auth_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/sessions/revoke-all": {
         parameters: {
             query?: never;
@@ -172,6 +192,26 @@ export interface paths {
          */
         post: operations["revoke_all_api_auth_sessions_revoke_all_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Session
+         * @description Sign out one of your own sessions. Another user's (or an unknown) id is 404.
+         */
+        delete: operations["revoke_session_api_auth_sessions__session_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -344,6 +384,278 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/finance/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Attachments */
+        get: operations["list_attachments_api_finance_attachments_get"];
+        put?: never;
+        /** Upload Attachment */
+        post: operations["upload_attachment_api_finance_attachments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Attachment */
+        get: operations["get_attachment_api_finance_attachments__attachment_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Attachment */
+        delete: operations["delete_attachment_api_finance_attachments__attachment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/attachments/{attachment_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Attachment File */
+        get: operations["attachment_file_api_finance_attachments__attachment_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Changes
+         * @description Rows, documents and deletes changed after `since`. Store `cursor`, send it next time.
+         */
+        get: operations["changes_api_finance_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim */
+        post: operations["claim_api_finance_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/documents/{namespace}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Documents */
+        get: operations["list_documents_api_finance_documents__namespace__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/documents/{namespace}/{doc_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document */
+        get: operations["get_document_api_finance_documents__namespace___doc_id__get"];
+        /** Put Document */
+        put: operations["put_document_api_finance_documents__namespace___doc_id__put"];
+        post?: never;
+        /** Delete Document */
+        delete: operations["delete_document_api_finance_documents__namespace___doc_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Expenses */
+        get: operations["list_expenses_api_finance_expenses_get"];
+        put?: never;
+        /** Create Expenses */
+        post: operations["create_expenses_api_finance_expenses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/expenses/{row_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Expenses */
+        get: operations["get_expenses_api_finance_expenses__row_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Expenses */
+        delete: operations["delete_expenses_api_finance_expenses__row_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Expenses */
+        patch: operations["patch_expenses_api_finance_expenses__row_id__patch"];
+        trace?: never;
+    };
+    "/api/finance/portfolio-profiles/{profile_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portfolio */
+        get: operations["get_portfolio_api_finance_portfolio_profiles__profile_id__get"];
+        /** Put Portfolio */
+        put: operations["put_portfolio_api_finance_portfolio_profiles__profile_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/secured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Secured */
+        get: operations["list_secured_api_finance_secured_get"];
+        put?: never;
+        /** Create Secured */
+        post: operations["create_secured_api_finance_secured_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/secured/{row_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Secured */
+        get: operations["get_secured_api_finance_secured__row_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Secured */
+        delete: operations["delete_secured_api_finance_secured__row_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Secured */
+        patch: operations["patch_secured_api_finance_secured__row_id__patch"];
+        trace?: never;
+    };
+    "/api/finance/totals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Totals */
+        get: operations["totals_api_finance_totals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Trades */
+        get: operations["list_trades_api_finance_trades_get"];
+        put?: never;
+        /** Create Trades */
+        post: operations["create_trades_api_finance_trades_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/trades/{row_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Trades */
+        get: operations["get_trades_api_finance_trades__row_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Trades */
+        delete: operations["delete_trades_api_finance_trades__row_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Trades */
+        patch: operations["patch_trades_api_finance_trades__row_id__patch"];
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -506,6 +818,40 @@ export interface paths {
         };
         /** Models Status */
         get: operations["models_status_api_models_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/forex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Forex */
+        get: operations["list_forex_api_public_forex_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/shares/{doc_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Share */
+        get: operations["get_share_api_public_shares__doc_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1607,6 +1953,31 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** AttachmentOut */
+        AttachmentOut: {
+            /** Content Type */
+            content_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Filename */
+            filename: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Ref */
+            ref: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
         /** BacktestCosts */
         BacktestCosts: {
             /**
@@ -1756,6 +2127,18 @@ export interface components {
             /** Side */
             side: string;
         };
+        /** Body_upload_attachment_api_finance_attachments_post */
+        Body_upload_attachment_api_finance_attachments_post: {
+            /** File */
+            file: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trades" | "expenses" | "secured";
+            /** Ref */
+            ref: string;
+        };
         /**
          * Broker
          * @enum {string}
@@ -1787,6 +2170,29 @@ export interface components {
             /** Volume */
             volume: string;
         };
+        /** ChangesOut */
+        ChangesOut: {
+            /**
+             * Cursor
+             * Format: date-time
+             */
+            cursor: string;
+            /** Deleted */
+            deleted: components["schemas"]["TombstoneOut"][];
+            /** Documents */
+            documents: components["schemas"]["DocumentOut"][];
+            /** Expenses */
+            expenses: components["schemas"]["ExpenseOut"][];
+            /** Secured */
+            secured: components["schemas"]["SecuredOut"][];
+            /** Trades */
+            trades: components["schemas"]["app__schemas__finance__TradeOut"][];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
         /** ChatMessageIn */
         ChatMessageIn: {
             /** Content */
@@ -1815,6 +2221,37 @@ export interface components {
             num_ctx?: number | null;
             /** Temperature */
             temperature?: number | null;
+        };
+        /** ClaimIn */
+        ClaimIn: {
+            /**
+             * Apply
+             * @default false
+             */
+            apply: boolean;
+            /** Legacy User Id */
+            legacy_user_id: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** ClaimOut */
+        ClaimOut: {
+            /** Applied */
+            applied: boolean;
+            /** Legacy User Id */
+            legacy_user_id: string;
+            /** Rows */
+            rows: {
+                [key: string]: number;
+            };
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
         };
         /** CodeTaskOut */
         CodeTaskOut: {
@@ -1947,6 +2384,34 @@ export interface components {
              */
             task_id: string;
         };
+        /** DocumentIn */
+        DocumentIn: {
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
+            /**
+             * Merge
+             * @default false
+             */
+            merge: boolean;
+        };
+        /** DocumentOut */
+        DocumentOut: {
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
+            /** Doc Id */
+            doc_id: string;
+            /** Namespace */
+            namespace: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /**
          * ExecutionMode
          * @enum {string}
@@ -1995,6 +2460,84 @@ export interface components {
              */
             source: "broker" | "simulated" | "calculated";
         };
+        /** ExpenseIn */
+        ExpenseIn: {
+            /**
+             * Amount
+             * @default 0
+             */
+            amount: number | string;
+            /**
+             * Category
+             * @default Other
+             */
+            category: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Id */
+            id?: string | null;
+            /**
+             * Kind
+             * @default one-off
+             * @enum {string}
+             */
+            kind: "one-off" | "recurring";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /** Recur Day */
+            recur_day?: number | null;
+        };
+        /** ExpenseOut */
+        ExpenseOut: {
+            /** Amount */
+            amount: string;
+            /** Category */
+            category: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Note */
+            note: string;
+            /** Recur Day */
+            recur_day: number | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ExpensePatch */
+        ExpensePatch: {
+            /** Amount */
+            amount?: number | string | null;
+            /** Category */
+            category?: string | null;
+            /** Date */
+            date?: string | null;
+            /** Kind */
+            kind?: ("one-off" | "recurring") | null;
+            /** Note */
+            note?: string | null;
+            /** Recur Day */
+            recur_day?: number | null;
+        };
         /** ExplainQueued */
         ExplainQueued: {
             /** Position */
@@ -2019,6 +2562,28 @@ export interface components {
             size: number;
             /** Truncated */
             truncated: boolean;
+        };
+        /**
+         * FinanceTotals
+         * @description Exact sums for a date range (what the month screens show).
+         */
+        FinanceTotals: {
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            /** Expenses */
+            expenses: string;
+            /** Expenses Count */
+            expenses_count: number;
+            /** Secured */
+            secured: string;
+            /** Secured Count */
+            secured_count: number;
+            /** Trade Pl */
+            trade_pl: string;
+            /** Trades */
+            trades: number;
         };
         /** FundsOut */
         FundsOut: {
@@ -2686,10 +3251,32 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[DocumentOut] */
+        Page_DocumentOut_: {
+            /** Items */
+            items: components["schemas"]["DocumentOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
         /** Page[ExecutionOut] */
         Page_ExecutionOut_: {
             /** Items */
             items: components["schemas"]["ExecutionOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[ExpenseOut] */
+        Page_ExpenseOut_: {
+            /** Items */
+            items: components["schemas"]["ExpenseOut"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -2796,10 +3383,10 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** Page[SignalOut] */
-        Page_SignalOut_: {
+        /** Page[SecuredOut] */
+        Page_SecuredOut_: {
             /** Items */
-            items: components["schemas"]["SignalOut"][];
+            items: components["schemas"]["SecuredOut"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -2807,10 +3394,10 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** Page[TradeOut] */
-        Page_TradeOut_: {
+        /** Page[SignalOut] */
+        Page_SignalOut_: {
             /** Items */
-            items: components["schemas"]["TradeOut"][];
+            items: components["schemas"]["SignalOut"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -2887,6 +3474,27 @@ export interface components {
             /** Unrealized Pnl */
             unrealized_pnl: string;
         };
+        /** PortfolioIn */
+        PortfolioIn: {
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            };
+        };
+        /** PortfolioOut */
+        PortfolioOut: {
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** PositionOut */
         PositionOut: {
             /** Account Id */
@@ -2915,6 +3523,20 @@ export interface components {
             symbol: string;
             /** Unrealized Pnl */
             unrealized_pnl: string | null;
+        };
+        /** PublicDocumentOut */
+        PublicDocumentOut: {
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
+            /** Doc Id */
+            doc_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** QuoteOut */
         QuoteOut: {
@@ -3129,12 +3751,89 @@ export interface components {
             /** Timeout Seconds */
             timeout_seconds: number;
         };
+        /** SecuredIn */
+        SecuredIn: {
+            /**
+             * Amt
+             * @default 0
+             */
+            amt: number | string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Id */
+            id?: string | null;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /** SecuredOut */
+        SecuredOut: {
+            /** Amt */
+            amt: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Id */
+            id: string;
+            /** Note */
+            note: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SecuredPatch */
+        SecuredPatch: {
+            /** Amt */
+            amt?: number | string | null;
+            /** Date */
+            date?: string | null;
+            /** Note */
+            note?: string | null;
+        };
         /**
          * Session
          * @description Same values as the existing Spasta trades table (Asia / London / NY).
          * @enum {string}
          */
         Session: "Asia" | "London" | "NY";
+        /** SessionOut */
+        SessionOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Current */
+            current: boolean;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ip */
+            ip: string | null;
+            /** User Agent */
+            user_agent: string | null;
+        };
         /** SignalOut */
         SignalOut: {
             /**
@@ -3254,35 +3953,134 @@ export interface components {
          * @enum {string}
          */
         Timeframe: "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1d";
-        /** TradeOut */
-        TradeOut: {
-            /** Account Id */
-            account_id: string;
-            /** Broker Instrument Id */
-            broker_instrument_id: string | null;
+        /** TombstoneOut */
+        TombstoneOut: {
             /**
-             * Executed At
+             * Deleted At
              * Format: date-time
              */
-            executed_at: string;
-            /** Order Id */
-            order_id: string;
-            /** Price */
-            price: string;
-            /** Quantity */
-            quantity: string;
-            /** Side */
-            side: string;
+            deleted_at: string;
+            /** Kind */
+            kind: string;
+            /** Ref */
+            ref: string;
+        };
+        /** TradeIn */
+        TradeIn: {
             /**
-             * Source
-             * @default broker
+             * Broker Offset Minutes
+             * @default 180
+             */
+            broker_offset_minutes: number;
+            /**
+             * Entry
+             * @default 0
+             */
+            entry: number | string;
+            /** Entry At */
+            entry_at?: string | null;
+            /**
+             * Exit
+             * @default 0
+             */
+            exit: number | string;
+            /** Exit At */
+            exit_at?: string | null;
+            /** Id */
+            id?: string | null;
+            /**
+             * Ist Date
+             * Format: date
+             */
+            ist_date: string;
+            /**
+             * Ist Time
+             * @default
+             */
+            ist_time: string;
+            /**
+             * Lot
+             * @default 1
+             */
+            lot: number | string;
+            /**
+             * Move
+             * @default 0
+             */
+            move: number | string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Pl
+             * @default 0
+             */
+            pl: number | string;
+            /**
+             * Session
+             * @default London
              * @enum {string}
              */
-            source: "broker" | "simulated" | "calculated";
-            /** Symbol */
+            session: "Asia" | "London" | "NY";
+            /**
+             * Side
+             * @default buy
+             * @enum {string}
+             */
+            side: "buy" | "sell";
+            /** Signal Id */
+            signal_id?: string | null;
+            /**
+             * Symbol
+             * @default
+             */
             symbol: string;
-            /** Trade Id */
-            trade_id: string;
+            /**
+             * Time Estimated
+             * @default false
+             */
+            time_estimated: boolean;
+            /** Ts */
+            ts?: string | null;
+        };
+        /** TradePatch */
+        TradePatch: {
+            /** Broker Offset Minutes */
+            broker_offset_minutes?: number | null;
+            /** Entry */
+            entry?: number | string | null;
+            /** Entry At */
+            entry_at?: string | null;
+            /** Exit */
+            exit?: number | string | null;
+            /** Exit At */
+            exit_at?: string | null;
+            /** Ist Date */
+            ist_date?: string | null;
+            /** Ist Time */
+            ist_time?: string | null;
+            /** Lot */
+            lot?: number | string | null;
+            /** Move */
+            move?: number | string | null;
+            /** Note */
+            note?: string | null;
+            /** Pl */
+            pl?: number | string | null;
+            /** Session */
+            session?: ("Asia" | "London" | "NY") | null;
+            /** Side */
+            side?: ("buy" | "sell") | null;
+            /** Signal Id */
+            signal_id?: string | null;
+            /** Symbol */
+            symbol?: string | null;
+            /** Time Estimated */
+            time_estimated?: boolean | null;
+            /** Ts */
+            ts?: string | null;
         };
         /** TradingAgentStatus */
         TradingAgentStatus: {
@@ -3340,6 +4138,110 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** Page[TradeOut] */
+        app__schemas__common__Page_TradeOut___1: {
+            /** Items */
+            items: components["schemas"]["app__schemas__finance__TradeOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[TradeOut] */
+        app__schemas__common__Page_TradeOut___2: {
+            /** Items */
+            items: components["schemas"]["app__schemas__trading__TradeOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** TradeOut */
+        app__schemas__finance__TradeOut: {
+            /** Broker Offset Minutes */
+            broker_offset_minutes: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entry */
+            entry: string;
+            /** Entry At */
+            entry_at: string | null;
+            /** Exit */
+            exit: string;
+            /** Exit At */
+            exit_at: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Ist Date
+             * Format: date
+             */
+            ist_date: string;
+            /** Ist Time */
+            ist_time: string;
+            /** Lot */
+            lot: string;
+            /** Move */
+            move: string;
+            /** Note */
+            note: string;
+            /** Pl */
+            pl: string;
+            /** Session */
+            session: string;
+            /** Side */
+            side: string;
+            /** Signal Id */
+            signal_id: string | null;
+            /** Symbol */
+            symbol: string;
+            /** Time Estimated */
+            time_estimated: boolean;
+            /** Ts */
+            ts: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** TradeOut */
+        app__schemas__trading__TradeOut: {
+            /** Account Id */
+            account_id: string;
+            /** Broker Instrument Id */
+            broker_instrument_id: string | null;
+            /**
+             * Executed At
+             * Format: date-time
+             */
+            executed_at: string;
+            /** Order Id */
+            order_id: string;
+            /** Price */
+            price: string;
+            /** Quantity */
+            quantity: string;
+            /** Side */
+            side: string;
+            /**
+             * Source
+             * @default broker
+             * @enum {string}
+             */
+            source: "broker" | "simulated" | "calculated";
+            /** Symbol */
+            symbol: string;
+            /** Trade Id */
+            trade_id: string;
         };
     };
     responses: never;
@@ -3605,6 +4507,26 @@ export interface operations {
             };
         };
     };
+    list_sessions_api_auth_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"][];
+                };
+            };
+        };
+    };
     revoke_all_api_auth_sessions_revoke_all_post: {
         parameters: {
             query?: never;
@@ -3621,6 +4543,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RevokeAllResponse"];
+                };
+            };
+        };
+    };
+    revoke_session_api_auth_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3998,6 +4949,959 @@ export interface operations {
             };
         };
     };
+    list_attachments_api_finance_attachments_get: {
+        parameters: {
+            query?: {
+                kind?: ("trades" | "expenses" | "secured") | null;
+                ref?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_attachment_api_finance_attachments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_attachment_api_finance_attachments_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_attachment_api_finance_attachments__attachment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_attachment_api_finance_attachments__attachment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attachment_file_api_finance_attachments__attachment_id__file_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    changes_api_finance_changes_get: {
+        parameters: {
+            query: {
+                since: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_api_finance_claim_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaimIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_documents_api_finance_documents__namespace__get: {
+        parameters: {
+            query?: {
+                updated_since?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DocumentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_document_api_finance_documents__namespace___doc_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+                doc_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_document_api_finance_documents__namespace___doc_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+                doc_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_document_api_finance_documents__namespace___doc_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+                doc_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_expenses_api_finance_expenses_get: {
+        parameters: {
+            query?: {
+                date_from?: string | null;
+                date_to?: string | null;
+                symbol?: string | null;
+                session?: string | null;
+                side?: string | null;
+                category?: string | null;
+                kind?: string | null;
+                updated_since?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ExpenseOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_expenses_api_finance_expenses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_expenses_api_finance_expenses__row_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                row_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_expenses_api_finance_expenses__row_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                row_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_expenses_api_finance_expenses__row_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                row_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpensePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_portfolio_api_finance_portfolio_profiles__profile_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_portfolio_api_finance_portfolio_profiles__profile_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_secured_api_finance_secured_get: {
+        parameters: {
+            query?: {
+                date_from?: string | null;
+                date_to?: string | null;
+                symbol?: string | null;
+                session?: string | null;
+                side?: string | null;
+                category?: string | null;
+                kind?: string | null;
+                updated_since?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SecuredOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_secured_api_finance_secured_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecuredIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuredOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_secured_api_finance_secured__row_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                row_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuredOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_secured_api_finance_secured__row_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                row_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_secured_api_finance_secured__row_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                row_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecuredPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuredOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    totals_api_finance_totals_get: {
+        parameters: {
+            query?: {
+                date_from?: string | null;
+                date_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinanceTotals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_trades_api_finance_trades_get: {
+        parameters: {
+            query?: {
+                date_from?: string | null;
+                date_to?: string | null;
+                symbol?: string | null;
+                session?: string | null;
+                side?: string | null;
+                category?: string | null;
+                kind?: string | null;
+                updated_since?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__common__Page_TradeOut___1"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_trades_api_finance_trades_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TradeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__finance__TradeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trades_api_finance_trades__row_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                row_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__finance__TradeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_trades_api_finance_trades__row_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                row_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_trades_api_finance_trades__row_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                row_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TradePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__finance__TradeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     liveness_api_health_get: {
         parameters: {
             query?: never;
@@ -4263,6 +6167,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelStatusList"];
+                };
+            };
+        };
+    };
+    list_forex_api_public_forex_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDocumentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_share_api_public_shares__doc_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                doc_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5064,7 +7030,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_TradeOut_"];
+                    "application/json": components["schemas"]["app__schemas__common__Page_TradeOut___2"];
                 };
             };
             /** @description Validation Error */

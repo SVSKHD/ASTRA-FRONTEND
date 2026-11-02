@@ -74,8 +74,12 @@ describe('every listener is torn down', () => {
     //                            channels (Supabase migration, phase 1). Every
     //                            listener above goes through it, and it hands
     //                            back the unsubscribe the owners call.
+    //   aureonFirestore          not a consumer either: the Aureon adapter's
+    //                            `onSnapshot`, fed by one shared poller on
+    //                            /api/finance/changes (migration stage 3).
     const listeners = FILES.filter((f) => f.body.includes('onSnapshot(')).map((f) => f.path)
     expect(listeners.sort()).toEqual([
+      'aureonFirestore.ts',
       'components/news/FeedHealthPanel.vue',
       'composables/useGhThread.ts',
       'composables/useGithubLive.ts',

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { supabase } from '@/supabase'
+import { authProvider } from '@/auth/provider'
+import { aureon, errorMessage } from '@/api/client'
 import defaults from '@/data/profile.json'
 const link = z.object({
   label: z.string(),
@@ -61,24 +63,53 @@ export const profileSchema = z.object({
 })
 export type Profile = z.infer<typeof profileSchema>
 export const defaultProfile = (): Profile => profileSchema.parse(defaults)
+/** The one portfolio profile there is (the public page is Hithesh's). */
+export const PROFILE_ID = 'hithesh'
+
 export async function fetchProfile(): Promise<Profile | null> {
+  if (authProvider() === 'aureon') {
+    const { data, error, response } = await aureon.GET(
+      '/api/finance/portfolio-profiles/{profile_id}',
+      {
+        params: { path: { profile_id: PROFILE_ID } },
+      },
+    )
+    if (data) return profileSchema.parse(data.content)
+    if (response.status === 404) return null
+    throw new Error(
+      errorMessage(error, `The profile could not be loaded (HTTP ${response.status}).`),
+    )
+  }
   if (!supabase) return null
   const { data, error } = await supabase
     .from('portfolio_profiles')
     .select('content')
-    .eq('id', 'hithesh')
+    .eq('id', PROFILE_ID)
     .maybeSingle()
   if (error) throw error
   return data ? profileSchema.parse(data.content) : null
 }
 export async function saveProfile(content: Profile): Promise<void> {
+  if (authProvider() === 'aureon') {
+    // Writes are admin-only on the server (and audited).
+    const { error, response } = await aureon.PUT('/api/finance/portfolio-profiles/{profile_id}', {
+      params: { path: { profile_id: PROFILE_ID } },
+      body: { content: profileSchema.parse(content) },
+    })
+    if (response.ok) return
+    if (response.status === 401) throw new Error('Sign in before saving your profile.')
+    if (response.status === 403) throw new Error('Only an admin can save the profile.')
+    throw new Error(
+      errorMessage(error, `The profile could not be saved (HTTP ${response.status}).`),
+    )
+  }
   if (!supabase) throw new Error('Cloud storage is not configured.')
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) throw new Error('Sign in before saving your profile.')
   const { error } = await supabase.from('portfolio_profiles').upsert({
-    id: 'hithesh',
+    id: PROFILE_ID,
     content: profileSchema.parse(content),
     updated_at: new Date().toISOString(),
   })
