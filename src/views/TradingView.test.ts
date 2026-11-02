@@ -196,6 +196,29 @@ function route(path: string): [number, unknown] {
     ]
   if (path === '/api/trading/candles' || path === '/api/trading/indicators') return [200, []]
   if (path === '/api/trading/order-intents') return [200, PAGE([INTENT('PENDING_RISK')])]
+  if (path === '/api/trading/executions')
+    return [
+      200,
+      PAGE([
+        FILL,
+        { ...FILL, id: 'b1', is_simulated: false, source: 'broker', fees: '99.99', price: '7' },
+      ]),
+    ]
+  if (path.endsWith('/paper/reconciliations'))
+    return [
+      200,
+      PAGE([
+        {
+          id: 2,
+          broker_account_id: ACCOUNT.id,
+          ok: false,
+          drift: [{}, {}],
+          summary: {},
+          created_at: NOW,
+        },
+        { id: 1, broker_account_id: ACCOUNT.id, ok: true, drift: [], summary: {}, created_at: NOW },
+      ]),
+    ]
   if (path.endsWith('/paper'))
     return [
       200,
@@ -381,6 +404,51 @@ describe('TradingView', () => {
     expect(posts.map((p) => p.path)).toEqual([
       '/api/trading/order-intents/22222222-2222-4222-8222-222222222222/approve',
     ])
+  })
+
+  it('shows the admin approval inbox with a count on the Paper tab', async () => {
+    ACCOUNT.mode = 'PAPER'
+    const w = await mountAt('/trading/paper')
+    await sees(w, 'Approval inbox')
+    await sees(w, 'Paper (1)')
+    expect(w.text()).toContain('1 waiting')
+    expect(w.text()).toContain('DHAN Main')
+    expect(calls).toContain('GET /api/trading/order-intents')
+    // Approve live exists only as a disabled control.
+    const live = w.findAll('button').filter((b) => b.text() === 'Approve live')
+    expect(live.length).toBeGreaterThan(0)
+    expect(live.every((b) => b.attributes('disabled') !== undefined)).toBe(true)
+  })
+
+  it('lists simulated executions with charges and the reconciliation history', async () => {
+    ACCOUNT.mode = 'PAPER'
+    const w = await mountAt('/trading/paper')
+    await sees(w, 'Simulated executions')
+    await sees(w, '4.21 INR')
+    // The broker fill is not part of the paper book.
+    expect(w.text()).not.toContain('99.99')
+    await sees(w, 'Drift in 2 item(s).')
+    expect(w.text()).toContain('No drift: positions and the ledger agree.')
+  })
+
+  it('reloads the paper tab when the live stream reports a new risk decision', async () => {
+    ACCOUNT.mode = 'PAPER'
+    const w = await mountAt('/trading/paper')
+    await sees(w, 'Paper book')
+    const { live } = await import('@/trading/stream')
+    const before = calls.filter((c) => c.endsWith('/paper')).length
+    live.risks.unshift({
+      id: 99,
+      broker_account_id: ACCOUNT.id,
+      signal_id: null,
+      approved: true,
+      reason: 'ok',
+      created_at: NOW,
+    })
+    await vi.waitFor(
+      () => expect(calls.filter((c) => c.endsWith('/paper')).length).toBeGreaterThan(before),
+      { timeout: 4000, interval: 20 },
+    )
   })
 
   it('lets an admin switch an account to PAPER, never to LIVE', async () => {

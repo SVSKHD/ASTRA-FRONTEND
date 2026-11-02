@@ -21,7 +21,7 @@ import IconForex from '@/components/feedicons/IconForex.vue'
 import IconAi from '@/components/feedicons/IconAi.vue'
 import IconCode from '@/components/feedicons/IconCode.vue'
 import { useStyles } from '@/composables/useStyles'
-import { useNews } from '@/composables/useNews'
+import { newsOnAureon, useNews } from '@/composables/useNews'
 import { useSettings } from '@/composables/useSettings'
 import { countOf } from '@/utils/format'
 import type { NewsCategory } from '@/types'
@@ -51,6 +51,9 @@ function toggle(category: NewsCategory) {
 }
 
 const showHealth = ref(false)
+// The feed-health panel reads the Firebase pipeline's own record. Aureon's news
+// job keeps its per-feed errors in the scheduler logs instead.
+const healthAvailable = !newsOnAureon()
 const counts = computed<Record<string, number>>(() => {
   const out: Record<string, number> = {}
   for (const item of news.items.value) out[item.category] = (out[item.category] ?? 0) + 1
@@ -92,7 +95,7 @@ defineExpose({ focus: () => {} })
         </Button>
       </template>
       <template #actions>
-        <Button variant="ghost" size="sm" @click="showHealth = !showHealth">
+        <Button v-if="healthAvailable" variant="ghost" size="sm" @click="showHealth = !showHealth">
           {{ showHealth ? 'Hide feeds' : 'Feeds' }}
         </Button>
       </template>
@@ -137,7 +140,7 @@ defineExpose({ focus: () => {} })
         </button>
       </section>
 
-      <FeedHealthPanel v-if="showHealth" />
+      <FeedHealthPanel v-if="healthAvailable && showHealth" />
 
       <!-- Refreshing, not loading: the items on screen stay while the new
            category query lands, so what is happening is a replacement of

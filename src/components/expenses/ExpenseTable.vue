@@ -13,6 +13,7 @@ import { computed } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 import IconDelete from '@/components/icons/IconDelete.vue'
+import Icon from '@/components/ui/Icon.vue'
 import { amount2, orDash } from '@/utils/format'
 import { byDay, daysInMonth, spendStep, spendWashVar } from '@/utils/expenseMath'
 import type { Expense } from '@/types'
@@ -23,8 +24,10 @@ const props = defineProps<{
   month: string
   emptyTitle: string
   emptyDescription: string
+  /** Show the Receipts action (Aureon attachments). */
+  receipts?: boolean
 }>()
-defineEmits<{ delete: [string] }>()
+defineEmits<{ delete: [string]; receipts: [string] }>()
 
 const days = computed(() => byDay(props.expenses))
 
@@ -86,6 +89,14 @@ function railVar(expense: Expense) {
           <!-- Never signed. An expense is a size. -->
           <td class="is-num is-mono">{{ amount2(e.amount) }}</td>
           <td class="etable__act">
+            <IconButton
+              v-if="receipts"
+              :label="`Receipts for the ${e.category} expense on ${e.date}`"
+              size="sm"
+              @click="$emit('receipts', e.id)"
+            >
+              <Icon name="paperclip" size="xs" />
+            </IconButton>
             <IconButton
               class="etable__del"
               :label="`Delete the ${e.category} expense on ${e.date}`"
