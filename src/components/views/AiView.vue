@@ -41,6 +41,8 @@ import Checkbox from '@/components/ui/Checkbox.vue'
 import { AI_PROVIDERS, aiModelLabel, type AiChat, type AiItemRef, type AiMessage } from '@/types'
 import { chatTarget } from '@/utils/aiSettings'
 import AiModelPicker from '@/components/AiModelPicker.vue'
+import AureonModelPicker from '@/components/AureonModelPicker.vue'
+import { aiBackend } from '@/ai/aureonChat'
 import {
   SUGGESTION_CHIPS,
   aiContextSections,
@@ -60,6 +62,9 @@ import {
   type AiUpdateKind,
 } from '@/utils/ai'
 import { renderMarkdown } from '@/utils/markdown'
+
+/** Migration stage 4: the AI tab talks to Aureon's local Ollama (VITE_AI_BACKEND=aureon). */
+const onAureon = aiBackend() === 'aureon'
 
 const app = useAppStore()
 const { panelStyle, isMobile } = useStyles()
@@ -798,7 +803,8 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 
         <!-- Provider switch and model, under the header on every screen size. -->
         <div class="ai-modelbar">
-          <AiModelPicker :disabled="streaming" />
+          <AureonModelPicker v-if="onAureon" :disabled="streaming" />
+          <AiModelPicker v-else :disabled="streaming" />
         </div>
 
         <button

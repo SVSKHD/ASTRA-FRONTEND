@@ -5,6 +5,7 @@
 
 import { supabase } from '@/supabase'
 import type { AiProvider } from '@/types'
+import { AureonChatError, aiBackend, askOnce, aureonAi } from '@/ai/aureonChat'
 
 export interface AiTarget {
   provider: AiProvider
@@ -19,8 +20,19 @@ export interface AiTarget {
 export async function askAi(
   system: string,
   text: string,
-  opts: { target: AiTarget; signal?: AbortSignal },
+  opts: { target: AiTarget; signal?: AbortSignal; background?: boolean },
 ): Promise<string | null> {
+  if (aiBackend() === 'aureon') {
+    // Local Ollama on the server CPU: as-you-type proofreading (background) would
+    // queue behind every chat reply, so it is off there. Asked-for work runs.
+    if (opts.background || !aureonAi.model) return null
+    try {
+      return await askOnce(system, text, { model: aureonAi.model, signal: opts.signal })
+    } catch (err) {
+      if (err instanceof AureonChatError) return null
+      throw err
+    }
+  }
   const url = import.meta.env.VITE_AI_PROXY_URL || ''
   if (!url) return null
   const session = supabase ? (await supabase.auth.getSession()).data.session : null

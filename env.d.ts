@@ -39,6 +39,8 @@ interface ImportMetaEnv {
   readonly VITE_AUREON_API_URL?: string
   // Migration stage 2: 'aureon' signs in through Aureon's /api/auth; default 'supabase'.
   readonly VITE_AUTH_PROVIDER?: string
+  // Migration stage 4: 'aureon' runs the AI tab on Aureon's local Ollama (/api/chat); default 'proxy'.
+  readonly VITE_AI_BACKEND?: string
 }
 
 interface ImportMeta {
