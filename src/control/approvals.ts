@@ -1,34 +1,30 @@
 // The approval inbox: one shared, reactive copy of the pending requests, read
 // by the nav badge and by the Inbox module so the two never disagree.
 //
-// Two backends (D-21-3):
-// • the approval engine (backend Phase 20): GET /api/v1/approvals/inbox, kept
-//   live by the SSE stream /api/v1/approvals/stream. Any event reloads the list.
-// • before Phase 20: GET /api/v1/approvals?status=pending, polled every 15 s
-//   while the page is visible.
-// Which one is decided by probing the inbox endpoint once: a 404 means legacy.
+// Two backends (D-21-8):
+// • the approval engine (backend Phase 20): GET /api/v1/approvals/inbox (what
+//   THIS admin can act on, with the re-auth mode), kept live by the SSE stream
+//   /api/v1/approvals/stream. Any `approval` event re-reads the inbox.
+// • an older server: GET /api/v1/approvals?status=pending, polled.
+// The 15 s visibility-aware poll runs in both modes as the backstop.
 
 import { reactive } from 'vue'
 import { aureon } from '@/api/client'
 import { apiUrl } from '@/api/config'
 import { openStream, type StreamHandle, type StreamStatus } from '@/api/sse'
-import { must, rawGet, type Schemas } from '@/control/api'
+import { must, type Schemas } from '@/control/api'
 
-export type Approval = Schemas['ApprovalOut']
+/** An inbox item; `reauth` is absent when the list came from an older server. */
+export type Approval = Schemas['ApprovalOut'] & { reauth?: string }
 export const POLL_MS = 15_000
-export const STREAM_EVENTS = [
-  'hello',
-  'approval',
-  'approval.requested',
-  'approval.decided',
-  'approval.updated',
-  'approval.expired',
-]
+export const STREAM_EVENTS = ['hello', 'approval', 'bye']
 
 export const approvals = reactive({
   items: [] as Approval[],
   mode: 'unknown' as 'unknown' | 'engine' | 'legacy',
   stream: 'closed' as StreamStatus,
+  /** When this session's re-auth stamp lapses (engine only). */
+  stampExpiresAt: null as string | null,
   loading: false,
   loaded: false,
   error: '',
@@ -37,34 +33,26 @@ export const approvals = reactive({
 let handle: StreamHandle | null = null
 let timer: ReturnType<typeof setInterval> | null = null
 
-function itemsOf(body: unknown): Approval[] {
-  if (Array.isArray(body)) return body as Approval[]
-  const items = (body as { items?: unknown } | null)?.items
-  return Array.isArray(items) ? (items as Approval[]) : []
-}
-
-async function detect(): Promise<void> {
-  if (approvals.mode !== 'unknown') return
-  try {
-    await rawGet('/api/v1/approvals/inbox', { limit: 1 })
-    approvals.mode = 'engine'
-  } catch {
-    approvals.mode = 'legacy'
-  }
-}
-
 export async function loadApprovals(): Promise<void> {
   approvals.loading = true
   try {
-    await detect()
-    approvals.items =
-      approvals.mode === 'engine'
-        ? itemsOf(await rawGet('/api/v1/approvals/inbox', { limit: 200 }))
-        : must(
-            await aureon.GET('/api/v1/approvals', {
-              params: { query: { status: 'pending', limit: 200 } },
-            }),
-          ).items
+    if (approvals.mode !== 'legacy') {
+      const r = await aureon.GET('/api/v1/approvals/inbox')
+      if (r.response.status === 404) approvals.mode = 'legacy'
+      else {
+        const inbox = must(r)
+        approvals.mode = 'engine'
+        approvals.items = inbox.items
+        approvals.stampExpiresAt = inbox.reauth_stamp_expires_at ?? null
+      }
+    }
+    if (approvals.mode === 'legacy') {
+      approvals.items = must(
+        await aureon.GET('/api/v1/approvals', {
+          params: { query: { status: 'pending', limit: 200 } },
+        }),
+      ).items
+    }
     approvals.error = ''
   } catch (e) {
     approvals.error = (e as Error).message
@@ -81,7 +69,7 @@ export async function startApprovals(seam: { EventSourceImpl?: typeof EventSourc
     handle = openStream(apiUrl('/api/v1/approvals/stream'), {
       events: STREAM_EVENTS,
       onEvent: (e) => {
-        if (e.event !== 'hello') void loadApprovals()
+        if (e.event === 'approval') void loadApprovals()
       },
       onStatus: (s) => (approvals.stream = s),
       ...seam,
@@ -107,6 +95,7 @@ export function resetApprovals(): void {
   stopApprovals()
   approvals.items = []
   approvals.mode = 'unknown'
+  approvals.stampExpiresAt = null
   approvals.loaded = false
   approvals.error = ''
 }

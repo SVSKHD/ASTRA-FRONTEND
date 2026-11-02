@@ -559,8 +559,75 @@
         "title": "AnalyzeIn",
         "type": "object"
       },
+      "ApprovalArtifactOut": {
+        "properties": {
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "content_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Ref"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "sha256",
+          "size",
+          "content",
+          "content_ref",
+          "truncated",
+          "captured_at"
+        ],
+        "title": "ApprovalArtifactOut",
+        "type": "object"
+      },
       "ApprovalDetail": {
         "properties": {
+          "approvers": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Approvers",
+            "type": "array"
+          },
           "artifact_sha256": {
             "anyOf": [
               {
@@ -571,6 +638,24 @@
               }
             ],
             "title": "Artifact Sha256"
+          },
+          "artifacts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ApprovalArtifactOut"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "chain": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChainOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "created_at": {
             "format": "date-time",
@@ -600,6 +685,16 @@
               }
             ],
             "title": "Decided By"
+          },
+          "drift": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriftOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "events": {
             "default": [],
@@ -640,6 +735,32 @@
             "title": "Payload",
             "type": "object"
           },
+          "policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policy_subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Subject"
+          },
+          "received_approvals": {
+            "default": 0,
+            "title": "Received Approvals",
+            "type": "integer"
+          },
           "requested_by": {
             "anyOf": [
               {
@@ -651,6 +772,11 @@
               }
             ],
             "title": "Requested By"
+          },
+          "required_approvals": {
+            "default": 1,
+            "title": "Required Approvals",
+            "type": "integer"
           },
           "result": {
             "anyOf": [
@@ -664,9 +790,25 @@
             ],
             "title": "Result"
           },
+          "risk_level": {
+            "default": "medium",
+            "title": "Risk Level",
+            "type": "string"
+          },
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
           },
           "target": {
             "title": "Target",
@@ -732,6 +874,90 @@
           "at"
         ],
         "title": "ApprovalEventOut",
+        "type": "object"
+      },
+      "ApprovalEventsOut": {
+        "properties": {
+          "approval_id": {
+            "format": "uuid",
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "chain": {
+            "$ref": "#/components/schemas/ChainOut"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalEventOut"
+            },
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "approval_id",
+          "events",
+          "chain"
+        ],
+        "title": "ApprovalEventsOut",
+        "type": "object"
+      },
+      "ApprovalFiledOut": {
+        "description": "202 answer of an endpoint that filed an approval request instead of acting.",
+        "properties": {
+          "approval_id": {
+            "format": "uuid",
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "artifact_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Sha256"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "received_approvals": {
+            "title": "Received Approvals",
+            "type": "integer"
+          },
+          "required_approvals": {
+            "title": "Required Approvals",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id",
+          "status",
+          "kind",
+          "target",
+          "artifact_sha256",
+          "expires_at",
+          "required_approvals",
+          "received_approvals"
+        ],
+        "title": "ApprovalFiledOut",
         "type": "object"
       },
       "ApprovalOut": {
@@ -807,6 +1033,22 @@
             "title": "Payload",
             "type": "object"
           },
+          "policy_subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Subject"
+          },
+          "received_approvals": {
+            "default": 0,
+            "title": "Received Approvals",
+            "type": "integer"
+          },
           "requested_by": {
             "anyOf": [
               {
@@ -818,6 +1060,11 @@
               }
             ],
             "title": "Requested By"
+          },
+          "required_approvals": {
+            "default": 1,
+            "title": "Required Approvals",
+            "type": "integer"
           },
           "result": {
             "anyOf": [
@@ -831,9 +1078,25 @@
             ],
             "title": "Result"
           },
+          "risk_level": {
+            "default": "medium",
+            "title": "Risk Level",
+            "type": "string"
+          },
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
           },
           "target": {
             "title": "Target",
@@ -856,6 +1119,45 @@
           "created_at"
         ],
         "title": "ApprovalOut",
+        "type": "object"
+      },
+      "ApprovalPage": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "counts"
+        ],
+        "title": "ApprovalPage",
         "type": "object"
       },
       "AssetOut": {
@@ -1008,6 +1310,110 @@
           "created_at"
         ],
         "title": "AttachmentOut",
+        "type": "object"
+      },
+      "AuditEventOut": {
+        "properties": {
+          "actor_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Email"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "target_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target User Id"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "actor_user_id",
+          "actor_email",
+          "target_user_id",
+          "ip",
+          "user_agent",
+          "request_id",
+          "details",
+          "created_at"
+        ],
+        "title": "AuditEventOut",
         "type": "object"
       },
       "BacktestCosts": {
@@ -1552,6 +1958,51 @@
           "is_gap"
         ],
         "title": "CandleOut",
+        "type": "object"
+      },
+      "ChainOut": {
+        "properties": {
+          "broken_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Broken At"
+          },
+          "legacy": {
+            "title": "Legacy",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "verified",
+          "legacy"
+        ],
+        "title": "ChainOut",
         "type": "object"
       },
       "ChangesOut": {
@@ -2565,6 +3016,38 @@
         "title": "DocumentOut",
         "type": "object"
       },
+      "DriftOut": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "drifted": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Drifted",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "DriftOut",
+        "type": "object"
+      },
       "ExecutionMode": {
         "enum": [
           "OBSERVE",
@@ -3361,6 +3844,211 @@
         "title": "HoldingOut",
         "type": "object"
       },
+      "InboxItem": {
+        "properties": {
+          "artifact_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Sha256"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "executed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executed At"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "policy_subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Subject"
+          },
+          "reauth": {
+            "enum": [
+              "password",
+              "session_stamp",
+              "none"
+            ],
+            "title": "Reauth",
+            "type": "string"
+          },
+          "received_approvals": {
+            "default": 0,
+            "title": "Received Approvals",
+            "type": "integer"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By"
+          },
+          "required_approvals": {
+            "default": 1,
+            "title": "Required Approvals",
+            "type": "integer"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "risk_level": {
+            "default": "medium",
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "target",
+          "payload",
+          "artifact_sha256",
+          "status",
+          "requested_by",
+          "decided_by",
+          "decided_at",
+          "expires_at",
+          "executed_at",
+          "result",
+          "created_at",
+          "reauth"
+        ],
+        "title": "InboxItem",
+        "type": "object"
+      },
+      "InboxOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InboxItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "reauth_stamp_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reauth Stamp Expires At"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "reauth_stamp_expires_at"
+        ],
+        "title": "InboxOut",
+        "type": "object"
+      },
       "IncidentDetail": {
         "properties": {
           "count": {
@@ -3692,6 +4380,26 @@
           "underlying"
         ],
         "title": "InstrumentOut",
+        "type": "object"
+      },
+      "IntentApproveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "title": "IntentApproveIn",
         "type": "object"
       },
       "IssueClose": {
@@ -6102,11 +6810,11 @@
         "title": "Page[AccountOut]",
         "type": "object"
       },
-      "Page_ApprovalOut_": {
+      "Page_AuditEventOut_": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/ApprovalOut"
+              "$ref": "#/components/schemas/AuditEventOut"
             },
             "title": "Items",
             "type": "array"
@@ -6130,7 +6838,7 @@
           "limit",
           "offset"
         ],
-        "title": "Page[ApprovalOut]",
+        "title": "Page[AuditEventOut]",
         "type": "object"
       },
       "Page_BacktestRunOut_": {
@@ -6974,6 +7682,193 @@
           "reconciliation"
         ],
         "title": "PaperSummaryOut",
+        "type": "object"
+      },
+      "PoliciesPutIn": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          },
+          "policies": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyIn"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Policies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "password",
+          "policies"
+        ],
+        "title": "PoliciesPutIn",
+        "type": "object"
+      },
+      "PolicyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_self_approval": {
+            "default": true,
+            "title": "Allow Self Approval",
+            "type": "boolean"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "expiry_seconds": {
+            "anyOf": [
+              {
+                "maximum": 604800.0,
+                "minimum": 60.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry Seconds"
+          },
+          "kind_pattern": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_.*?\\-]+$",
+            "title": "Kind Pattern",
+            "type": "string"
+          },
+          "notify_channels": {
+            "items": {
+              "const": "discord",
+              "type": "string"
+            },
+            "title": "Notify Channels",
+            "type": "array"
+          },
+          "reauth_max_age_seconds": {
+            "default": 0,
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "title": "Reauth Max Age Seconds",
+            "type": "integer"
+          },
+          "require_reauth": {
+            "default": true,
+            "title": "Require Reauth",
+            "type": "boolean"
+          },
+          "required_approvals": {
+            "default": 1,
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Required Approvals",
+            "type": "integer"
+          },
+          "risk_level": {
+            "default": "medium",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "title": "Risk Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind_pattern"
+        ],
+        "title": "PolicyIn",
+        "type": "object"
+      },
+      "PolicyOut": {
+        "description": "A policy as applied to a request (snapshot) or as stored.",
+        "properties": {
+          "allow_self_approval": {
+            "title": "Allow Self Approval",
+            "type": "boolean"
+          },
+          "expiry_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry Seconds"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "kind_pattern": {
+            "title": "Kind Pattern",
+            "type": "string"
+          },
+          "notify_channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notify Channels",
+            "type": "array"
+          },
+          "reauth_max_age_seconds": {
+            "title": "Reauth Max Age Seconds",
+            "type": "integer"
+          },
+          "require_reauth": {
+            "title": "Require Reauth",
+            "type": "boolean"
+          },
+          "required_approvals": {
+            "title": "Required Approvals",
+            "type": "integer"
+          },
+          "risk_level": {
+            "title": "Risk Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind_pattern",
+          "required_approvals",
+          "expiry_seconds",
+          "allow_self_approval",
+          "require_reauth",
+          "reauth_max_age_seconds",
+          "notify_channels",
+          "risk_level"
+        ],
+        "title": "PolicyOut",
         "type": "object"
       },
       "PortfolioIn": {
@@ -8084,6 +8979,47 @@
           }
         },
         "title": "RateLimitOut",
+        "type": "object"
+      },
+      "ReauthIn": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "ReauthIn",
+        "type": "object"
+      },
+      "ReauthOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "stamped_at": {
+            "format": "date-time",
+            "title": "Stamped At",
+            "type": "string"
+          },
+          "ttl_seconds": {
+            "title": "Ttl Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stamped_at",
+          "expires_at",
+          "ttl_seconds"
+        ],
+        "title": "ReauthOut",
         "type": "object"
       },
       "ReconciliationOut": {
@@ -10248,6 +11184,112 @@
         "title": "StepOut",
         "type": "object"
       },
+      "StoredPolicyOut": {
+        "properties": {
+          "allow_self_approval": {
+            "title": "Allow Self Approval",
+            "type": "boolean"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "expiry_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry Seconds"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "kind_pattern": {
+            "title": "Kind Pattern",
+            "type": "string"
+          },
+          "notify_channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notify Channels",
+            "type": "array"
+          },
+          "reauth_max_age_seconds": {
+            "title": "Reauth Max Age Seconds",
+            "type": "integer"
+          },
+          "require_reauth": {
+            "title": "Require Reauth",
+            "type": "boolean"
+          },
+          "required_approvals": {
+            "title": "Required Approvals",
+            "type": "integer"
+          },
+          "risk_level": {
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By"
+          }
+        },
+        "required": [
+          "id",
+          "kind_pattern",
+          "required_approvals",
+          "expiry_seconds",
+          "allow_self_approval",
+          "require_reauth",
+          "reauth_max_age_seconds",
+          "notify_channels",
+          "risk_level",
+          "description",
+          "enabled",
+          "updated_by",
+          "updated_at"
+        ],
+        "title": "StoredPolicyOut",
+        "type": "object"
+      },
       "StrategyCreate": {
         "description": "A new strategy (version 1) or, for an existing name, its next version.",
         "properties": {
@@ -11305,6 +12347,77 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VoiceIn": {
+        "additionalProperties": false,
+        "properties": {
+          "transcript": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Transcript",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transcript"
+        ],
+        "title": "VoiceIn",
+        "type": "object"
+      },
+      "VoiceOut": {
+        "properties": {
+          "intent": {
+            "title": "Intent",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "source": {
+            "enum": [
+              "grammar",
+              "ollama",
+              "none"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent",
+          "route",
+          "params",
+          "source",
+          "note"
+        ],
+        "title": "VoiceOut",
+        "type": "object"
+      },
       "WebhookAck": {
         "properties": {
           "delivery_id": {
@@ -11486,15 +12599,24 @@
         "additionalProperties": false,
         "properties": {
           "password": {
-            "maxLength": 1024,
-            "minLength": 1,
-            "title": "Password",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "use_reauth": {
+            "default": false,
+            "title": "Use Reauth",
+            "type": "boolean"
           }
         },
-        "required": [
-          "password"
-        ],
         "title": "ApproveIn",
         "type": "object"
       },
@@ -18435,6 +19557,7 @@
     },
     "/api/trading/order-intents/{intent_id}/approve": {
       "post": {
+        "description": "Backward-compatible wrapper over the approval engine. Files (or reuses) the pending\n`trading.paper_intent` request for this intent. With {\"password\"} and a policy needing a\nsingle approval, approves it now: 200 with the intent (FILLED, SUBMITTED or REJECTED by\nrisk). Otherwise 202 with the approval id, to approve from the inbox.",
         "operationId": "approve_order_intent_api_trading_order_intents__intent_id__approve_post",
         "parameters": [
           {
@@ -18448,6 +19571,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/IntentApproveIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -18458,6 +19598,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalFiledOut"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "content": {
@@ -19099,7 +20249,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_ApprovalOut_"
+                  "$ref": "#/components/schemas/ApprovalPage"
                 }
               }
             },
@@ -19122,8 +20272,218 @@
         ]
       }
     },
+    "/api/v1/approvals/inbox": {
+      "get": {
+        "description": "Pending requests the current admin can approve or deny, newest first, with what\napproving each one needs right now.",
+        "operationId": "inbox_api_v1_approvals_inbox_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Inbox",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/policies": {
+      "get": {
+        "operationId": "list_policies_api_v1_approvals_policies_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StoredPolicyOut"
+                  },
+                  "title": "Response List Policies Api V1 Approvals Policies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Policies",
+        "tags": [
+          "approvals"
+        ]
+      },
+      "put": {
+        "description": "Upsert policies by kind_pattern (audited with before/after). Needs the admin's\npassword: a policy can switch re-auth off. Pending requests keep the policy they were\nfiled under.",
+        "operationId": "put_policies_api_v1_approvals_policies_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PoliciesPutIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StoredPolicyOut"
+                  },
+                  "title": "Response Put Policies Api V1 Approvals Policies Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Policies",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/reauth": {
+      "delete": {
+        "operationId": "clear_reauth_api_v1_approvals_reauth_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Clear Reauth",
+        "tags": [
+          "approvals"
+        ]
+      },
+      "post": {
+        "description": "Verify the password once and stamp this login session (server-side, in Redis). Requests\nwhose policy has reauth_max_age_seconds > 0 can then be approved with\n{\"use_reauth\": true} while the stamp is young enough.",
+        "operationId": "reauth_api_v1_approvals_reauth_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReauthIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reauth",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/stream": {
+      "get": {
+        "description": "SSE: one `approval` event per approval state change (see app/services/\napproval_stream.py). Resumes after `Last-Event-ID` or `?last_event_id=`.",
+        "operationId": "stream_api_v1_approvals_stream_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "last_event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last Event Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
     "/api/v1/approvals/{approval_id}": {
       "get": {
+        "description": "With `check_drift=true` the artifacts of a pending request are recomputed now (this may\ncall GitHub) and compared with what was filed.",
         "operationId": "get_approval_api_v1_approvals__approval_id__get",
         "parameters": [
           {
@@ -19134,6 +20494,16 @@
               "format": "uuid",
               "title": "Approval Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "check_drift",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Check Drift",
+              "type": "boolean"
             }
           }
         ],
@@ -19167,7 +20537,7 @@
     },
     "/api/v1/approvals/{approval_id}/approve": {
       "post": {
-        "description": "Re-verifies the admin's password, then executes. 200 with status `executed` or\n`failed`; 409 when expired, already used or invalidated by drift; 403 on a wrong\npassword (audited) or a refused self-approval.",
+        "description": "Re-authenticates (the password, or this session's re-auth stamp when the policy accepts\none), counts the approval and, once the policy's quorum is reached, executes. 200 with\nstatus `pending` (more approvals needed), `executed` or `failed`; 409 when expired,\nalready used, already approved by you or invalidated by drift; 403 on a wrong or missing\nre-auth (audited) or a refused self-approval.",
         "operationId": "approve_api_v1_approvals__approval_id__approve_post",
         "parameters": [
           {
@@ -19276,6 +20646,174 @@
         "summary": "Deny",
         "tags": [
           "approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/{approval_id}/events": {
+      "get": {
+        "description": "The events in order and the hash-chain verification (`chain.status` ok | broken |\nlegacy | empty).",
+        "operationId": "get_events_api_v1_approvals__approval_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Approval Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalEventsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Events",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/audit/events": {
+      "get": {
+        "operationId": "list_audit_events_api_v1_audit_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor User Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AuditEventOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Audit Events",
+        "tags": [
+          "audit"
         ]
       }
     },
@@ -24059,6 +25597,47 @@
         "summary": "Publish Review",
         "tags": [
           "reviews"
+        ]
+      }
+    },
+    "/api/v1/voice/intent": {
+      "post": {
+        "operationId": "voice_intent_api_v1_voice_intent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Intent",
+        "tags": [
+          "voice"
         ]
       }
     }

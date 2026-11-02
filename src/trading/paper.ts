@@ -4,7 +4,7 @@
 // admin approves it; only then is it filled, with a SIMULATED fill. Nothing here
 // can reach a broker's order API. LIVE stays unreachable (Phase G).
 import { aureon, type components } from '@/api/client'
-import { must } from './useLoad'
+import { ApiFailure, must } from './useLoad'
 import type { Account } from '@/components/trading/types'
 
 export type Intent = components['schemas']['OrderIntentOut']
@@ -55,12 +55,30 @@ export async function createIntent(body: IntentIn): Promise<IntentDetail> {
   return must(await aureon.POST('/api/trading/order-intents', { body }))
 }
 
-export async function approveIntent(id: string): Promise<IntentDetail> {
-  return must(
-    await aureon.POST('/api/trading/order-intents/{intent_id}/approve', {
-      params: { path: { intent_id: id } },
-    }),
-  )
+export type ApprovalFiled = components['schemas']['ApprovalFiledOut']
+export type ApproveResult =
+  { kind: 'filled'; intent: IntentDetail } | { kind: 'filed'; approval: ApprovalFiled }
+
+/**
+ * Approve a paper intent through the approval engine (backend Phase 20).
+ *
+ * With the admin's password the server re-authenticates, and when the policy
+ * needs one approval it fills at once (200, the intent). Without a password, or
+ * when the policy needs more approvers, it files a `trading.paper_intent`
+ * request (202) that is approved from the /dev approval inbox.
+ */
+export async function approveIntent(id: string, password?: string): Promise<ApproveResult> {
+  const r = await aureon.POST('/api/trading/order-intents/{intent_id}/approve', {
+    params: { path: { intent_id: id } },
+    body: password ? { password } : {},
+  })
+  if (r.response.status === 202 && r.data && 'approval_id' in r.data)
+    return { kind: 'filed', approval: r.data }
+  if (r.response.status === 403)
+    throw new ApiFailure('That password is not right. Nothing was filled.', 403)
+  const d = must(r)
+  if ('approval_id' in d) return { kind: 'filed', approval: d }
+  return { kind: 'filled', intent: d }
 }
 
 export async function cancelIntent(id: string): Promise<IntentDetail> {

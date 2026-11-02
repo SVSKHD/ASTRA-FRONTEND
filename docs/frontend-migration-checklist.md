@@ -104,21 +104,24 @@ All of it goes through one Aureon implementation of the Firestore-shaped `loadFi
 
 ## Control center (Phase 21)
 
-| Feature                                                                                       | Old source | New endpoint                                                  | Status                                                          |
-| --------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------- | --------------------------------------------------------------- |
-| `/dev`: GitHub dashboard, repo explorer, issues, PRs (gated merge), reviews, Actions          | none (new) | `/api/v1/github/*`, `/api/v1/reviews`                         | done                                                            |
-| `/dev/agents`, `/dev/repairs`                                                                 | none (new) | `/api/agents`, `/api/scheduler/jobs`, `/api/v1/repairs/*`     | done                                                            |
-| `/dev/inbox`: approval inbox with password approve / deny, live count                         | none (new) | `/api/v1/approvals` (poll); Phase 20 inbox + SSE when present | ready (polls until backend Phase 20 adds the inbox and stream)  |
-| `/dev/audit`                                                                                  | none (new) | `/api/v1/audit/events` (Phase 20)                             | ready (says "needs backend Phase 20" until the endpoint exists) |
-| PWA: manifest from tokens, offline shell, `/api/*` network-only; no secrets in `VITE_` (test) | vite-pwa   | n/a                                                           | done                                                            |
+| Feature                                                                                                                       | Old source                                     | New endpoint                                                           | Status |
+| ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------- | ------ |
+| `/dev`: GitHub dashboard, repo explorer, issues, PRs (gated merge), reviews, Actions                                          | none (new)                                     | `/api/v1/github/*`, `/api/v1/reviews`                                  | done   |
+| `/dev/agents`, `/dev/repairs`                                                                                                 | none (new)                                     | `/api/agents`, `/api/scheduler/jobs`, `/api/v1/repairs/*`              | done   |
+| `/dev/inbox`: approval inbox with password approve / deny, live count                                                         | none (new)                                     | `/api/v1/approvals/inbox` + `/api/v1/approvals/stream` (SSE)           | done   |
+| `/dev/audit`                                                                                                                  | none (new)                                     | `/api/v1/audit/events`                                                 | done   |
+| Paper approval through the approval engine: "Approve paper fill" asks for the password, or files the request for `/dev/inbox` | `POST …/order-intents/{id}/approve` (one call) | the same call, now 200 with `{password}` or 202 `trading.paper_intent` | done   |
+| PWA: manifest from tokens, offline shell, `/api/*` network-only; no secrets in `VITE_` (test)                                 | vite-pwa                                       | n/a                                                                    | done   |
 
 ## Blockers and notes
 
 - **No frontend blockers remain.** Backend Phase 2b (finance), the sessions list, attachments, public shares and the
   forex job all exist on the backend main, and the frontend uses them.
 - **GitHub (done, Phase 21):** the control center at `/dev` ([control-center.md](control-center.md)) covers the
-  issue / pull-request work, the GitHub setup, Actions and the webhook-fed runs on `/api/v1/github/*`. The
-  approval inbox and the audit log wait partly on backend Phase 20 (D-21-8, D-21-9).
+  issue / pull-request work, the GitHub setup, Actions and the webhook-fed runs on `/api/v1/github/*`, with the
+  approval inbox and the audit log on backend Phase 20.
+- **Paper approval (Phase 20):** "Approve paper fill" now asks for the password (server re-auth) or files the
+  request for the `/dev` inbox ([decisions.md](decisions.md) D-21-12).
 - **Receipts on workspace transactions:** the attachments API attaches to finance rows only. On Aureon, receipts are
   added from the Expenses tab. A document-scoped attachment kind on the backend would bring them back to the Finances
   tab ([decisions.md](decisions.md) D-F7).
