@@ -5,8 +5,9 @@
 // It signs in to Aureon on its own (src/trading/session.ts) so it works whether
 // the app's sign-in is still Supabase or already Aureon. Every value shows where
 // it came from (broker / simulated / calculated), and the execution mode of each
-// account is always on screen. Nothing on this page can place an order: the
-// approval controls stay disabled until Phase F (paper) and G (live).
+// account is always on screen. Nothing on this page can place a broker order.
+// Paper trading (Phase F) creates order intents that the server risk-checks and,
+// after an admin's approval, fills with a SIMULATED fill; LIVE stays off (Phase G).
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Alert from '@/components/ui/Alert.vue'
@@ -29,6 +30,7 @@ const SECTIONS = [
   { value: 'signals', label: 'Signals' },
   { value: 'strategies', label: 'Strategies & backtests' },
   { value: 'orders', label: 'Orders & positions' },
+  { value: 'paper', label: 'Paper' },
   { value: 'risk', label: 'Risk' },
   { value: 'agents', label: 'Agents' },
 ] as const
@@ -42,6 +44,7 @@ const PAGES: Record<Section, ReturnType<typeof defineAsyncComponent>> = {
   signals: defineAsyncComponent(() => import('@/components/trading/TradingSignals.vue')),
   strategies: defineAsyncComponent(() => import('@/components/trading/TradingStrategies.vue')),
   orders: defineAsyncComponent(() => import('@/components/trading/TradingOrders.vue')),
+  paper: defineAsyncComponent(() => import('@/components/trading/TradingPaper.vue')),
   risk: defineAsyncComponent(() => import('@/components/trading/TradingRisk.vue')),
   agents: defineAsyncComponent(() => import('@/components/trading/TradingAgents.vue')),
 }
@@ -88,7 +91,9 @@ onBeforeUnmount(disconnect)
     <header class="tv__bar">
       <div class="tv__brand">
         <h1 class="tv__h1">Trading</h1>
-        <span class="tp-note">Aureon · read-only · no order can be placed from here</span>
+        <span class="tp-note"
+          >Aureon · no broker order can be placed from here · paper fills are simulated</span
+        >
       </div>
       <div v-if="tradingSession.user" class="tp-row" aria-label="Execution mode per account">
         <template v-if="accounts.data.value?.items.length">
@@ -134,7 +139,11 @@ onBeforeUnmount(disconnect)
       />
       <Alert v-if="tradingSession.error" tone="warning">{{ tradingSession.error }}</Alert>
       <main class="tv__main">
-        <component :is="PAGES[section]" :accounts="accounts.data.value?.items ?? []" />
+        <component
+          :is="PAGES[section]"
+          :accounts="accounts.data.value?.items ?? []"
+          @accounts-changed="accounts.reload()"
+        />
       </main>
     </template>
   </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The execution mode, always on screen (Prompt 11, item 8). OBSERVE is the
-// only mode reachable today; PAPER arrives in Phase F and LIVE in Phase G.
+// The execution mode, always on screen (Prompt 11, item 8). OBSERVE and PAPER
+// (simulated fills, Phase F) are reachable today; LIVE needs Phase G.
 import { computed } from 'vue'
 import Badge from '@/components/ui/Badge.vue'
 

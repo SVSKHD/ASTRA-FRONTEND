@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Signals from the versioned strategies, newest first, with the local AI's
 // explanation on demand. The explanation is text only; it cannot create or
-// approve anything.
+// approve anything. "Send to paper" turns a signal into a PAPER order intent,
+// risk-checked on the server and filled (simulated) only after admin approval.
 import { computed, reactive, ref, watch } from 'vue'
 import Alert from '@/components/ui/Alert.vue'
 import Button from '@/components/ui/Button.vue'
@@ -16,6 +17,9 @@ import { dec, when } from '@/trading/format'
 import { live } from '@/trading/stream'
 import { must, useLoad } from '@/trading/useLoad'
 import type { components } from '@/api/client'
+import type { Account } from './types'
+
+defineProps<{ accounts: Account[] }>()
 
 type Analysis = components['schemas']['AiAnalysisOut']
 const PAGE = 25
@@ -150,7 +154,7 @@ function inputsLine(inputs: Record<string, unknown> | undefined): string {
               <Button size="sm" variant="ghost" @click="showAnalyses(s.id)">Explanations</Button>
               <Button size="sm" variant="secondary" @click="explain(s.id)">Explain with AI</Button>
             </div>
-            <ApprovalControls v-if="s.side !== 'NO_TRADE'" />
+            <ApprovalControls v-if="s.side !== 'NO_TRADE'" :signal="s" :accounts="accounts" />
           </div>
         </li>
       </ul>

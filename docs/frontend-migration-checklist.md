@@ -89,9 +89,10 @@ and the payload shapes are preserved.
 
 ## Trading panel (Trading Phase E)
 
-| Feature                                                                                                                                                                                                          | Old source | New endpoint                                                 | Status |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------ | ------ |
-| `/trading` panel: overview, Dhan, MT5, watchlist + charts, signals + AI explanation, strategies + backtests, orders / executions / positions / P&L, risk (admin), agents, mode badge, disabled approval controls | none (new) | `/api/trading/*`, `GET /api/trading/stream` (SSE, resumable) | ready  |
+| Feature                                                                                                                                                                                                          | Old source | New endpoint                                                                                                                             | Status |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `/trading` panel: overview, Dhan, MT5, watchlist + charts, signals + AI explanation, strategies + backtests, orders / executions / positions / P&L, risk (admin), agents, mode badge, disabled approval controls | none (new) | `/api/trading/*`, `GET /api/trading/stream` (SSE, resumable)                                                                             | ready  |
+| Paper trading (Trading Phase F): "Send to paper" on signals, Paper tab (paper book, intents, admin approve / cancel, reconcile, manual paper order), admin OBSERVE ⇄ PAPER switch; "Approve live" stays disabled | none (new) | `/api/trading/order-intents[/{id}[/approve\|cancel]]`, `/api/trading/accounts/{id}/paper[/reconcile]`, `/api/trading/accounts/{id}/mode` | ready  |
 
 ## Validation per stage (on the server)
 
