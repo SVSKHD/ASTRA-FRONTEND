@@ -34,6 +34,9 @@ interface ImportMetaEnv {
   // API key sits in the client. Unset means the per-wallet balance opt-in
   // reports itself as unconfigured rather than silently showing nothing.
   readonly VITE_WALLET_BALANCE_URL: string
+  // Aureon_Agentic (self-hosted backend, docs/frontend-migration-checklist.md).
+  // Origin of its API; empty = same origin (nginx routes /api/* to 127.0.0.1:8000).
+  readonly VITE_AUREON_API_URL?: string
 }
 
 interface ImportMeta {

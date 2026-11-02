@@ -21,7 +21,9 @@
     "check:theme": "node scripts/check-theme.mjs",
     "check:feeds": "node scripts/check-feeds.mjs",
     "dev:fixture": "VITE_FIXTURE=1 vite",
-    "seed:demo": "node scripts/seed.mjs"
+    "seed:demo": "node scripts/seed.mjs",
+    "api:gen": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts",
+    "e2e:smoke": "node scripts/e2e-smoke.mjs"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.21",
@@ -44,6 +46,7 @@
     "markdown-it-footnote": "^4.0.0",
     "markdown-it-mark": "^4.0.0",
     "markdown-it-task-lists": "^2.1.1",
+    "openapi-fetch": "0.13.8",
     "pinia": "^3.0.1",
     "qrcode": "^1.5.4",
     "turndown": "^7.2.4",
@@ -63,6 +66,7 @@
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.11",
     "jsdom": "^29.1.1",
+    "openapi-typescript": "7.8.0",
     "playwright": "^1.62.1",
     "postcss-html": "^1.8.1",
     "prettier": "^3.9.5",
