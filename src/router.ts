@@ -27,6 +27,13 @@ export const TAB_ROUTES: Record<string, TabKey> = {
 
 const routes: RouteRecordRaw[] = [
   { path: '/profile', name: 'profile', component: () => import('@/views/ProfileView.vue') },
+  // The trading panel (Trading Phase E): read-only views over Aureon_Agentic's
+  // trading API. `/trading/<section>`; it signs in to Aureon on its own.
+  {
+    path: '/trading/:section?',
+    name: 'trading',
+    component: () => import('@/views/TradingView.vue'),
+  },
   {
     path: '/astra',
     name: 'astra',
