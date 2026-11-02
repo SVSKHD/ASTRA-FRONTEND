@@ -61,6 +61,8 @@ const ALLOWED = new Set([
   //   KpiSparkline        a milestone KPI's logged values as a line — the
   //                       same case as BotsView's sparkline
   'components/goals/KpiSparkline.vue',
+  // A data chart (candles + EMA lines), not an icon — like the sparkline above.
+  'components/trading/CandleChart.vue',
 ])
 
 // The trade family (section 28b) is the one place a second set is allowed, and
