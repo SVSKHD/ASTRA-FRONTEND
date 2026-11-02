@@ -79,7 +79,24 @@ const FILL = {
 function post(path: string, body: unknown): [number, unknown] {
   posts.push({ path, body })
   if (path === '/api/trading/order-intents') return [201, INTENT('PENDING_RISK')]
-  if (path.endsWith('/approve')) return [200, INTENT('FILLED', { executions: [FILL] })]
+  // Phase 20: with the password and a one-approval policy it fills at once;
+  // without, it files a trading.paper_intent request for the inbox (202).
+  if (path.endsWith('/approve'))
+    return (body as { password?: string }).password
+      ? [200, INTENT('FILLED', { executions: [FILL] })]
+      : [
+          202,
+          {
+            approval_id: 'ap-paper',
+            status: 'pending',
+            kind: 'trading.paper_intent',
+            target: 'intent',
+            artifact_sha256: 'aa',
+            expires_at: NOW,
+            required_approvals: 1,
+            received_approvals: 0,
+          },
+        ]
   if (path.endsWith('/mode')) {
     ACCOUNT.mode = (body as { mode: string }).mode
     return [200, ACCOUNT]
@@ -273,11 +290,35 @@ beforeEach(() => {
   })
   setActivePinia(createPinia())
 })
-afterEach(() => vi.unstubAllGlobals())
+const mounted: { unmount(): void }[] = []
+afterEach(() => {
+  for (const w of mounted.splice(0)) w.unmount()
+  vi.unstubAllGlobals()
+})
 
 /** The sections are lazy chunks: let the dynamic imports and their fetches finish. */
 async function settle() {
   for (let i = 0; i < 5; i++) await flushPromises()
+}
+
+/** The approve dialog is a teleported Modal: fill the password and submit. */
+async function approveWithPassword(
+  w: { findAll(s: string): { text(): string; trigger(e: string): Promise<void> }[] },
+  password = 'hunter2',
+) {
+  await w
+    .findAll('button')
+    .find((b) => b.text().includes('Approve paper fill'))!
+    .trigger('click')
+  await settle()
+  const pw = document.body.querySelector('input[aria-label="Password"]') as HTMLInputElement
+  pw.value = password
+  pw.dispatchEvent(new Event('input'))
+  await settle()
+  ;[...document.body.querySelectorAll('button')]
+    .find((b) => b.textContent?.trim() === 'Approve and fill')!
+    .click()
+  await settle()
 }
 
 /** Wait for text rather than for a number of ticks, so a loaded machine cannot flake it. */
@@ -295,7 +336,8 @@ async function mountAt(path: string) {
     ],
   })
   await router.push(path)
-  const wrapper = mount(TradingView, { global: { plugins: [router] } })
+  const wrapper = mount(TradingView, { global: { plugins: [router] }, attachTo: document.body })
+  mounted.push(wrapper)
   await settle()
   return wrapper
 }
@@ -374,10 +416,7 @@ describe('TradingView', () => {
       },
     })
     expect(w.text()).toContain('Risk: all checks passed')
-    await w
-      .findAll('button')
-      .find((b) => b.text().includes('Approve paper fill'))!
-      .trigger('click')
+    await approveWithPassword(w)
     await sees(w, 'Filled (simulated)')
     expect(w.text()).toContain('10 @ 1000.2 · fees 4.21 INR')
     expect(posts.map((p) => p.path)).toEqual([
@@ -396,13 +435,32 @@ describe('TradingView', () => {
     expect(w.text()).toContain('1,000,087.08')
     expect(w.text()).toContain('Simulated')
     expect(w.text()).toContain('no drift')
+    await approveWithPassword(w)
+    await sees(w, 'Filled (simulated)')
+    expect(posts).toEqual([
+      {
+        path: '/api/trading/order-intents/22222222-2222-4222-8222-222222222222/approve',
+        body: { password: 'hunter2' },
+      },
+    ])
+  })
+
+  it('files a paper approval for the inbox without a password, and links there', async () => {
+    ACCOUNT.mode = 'PAPER'
+    const w = await mountAt('/trading/paper')
+    await sees(w, 'Paper book')
     await w
       .findAll('button')
       .find((b) => b.text().includes('Approve paper fill'))!
       .trigger('click')
-    await sees(w, 'Filled (simulated)')
-    expect(posts.map((p) => p.path)).toEqual([
-      '/api/trading/order-intents/22222222-2222-4222-8222-222222222222/approve',
+    await settle()
+    ;[...document.body.querySelectorAll('button')]
+      .find((b) => b.textContent?.trim() === 'Send to the inbox')!
+      .click()
+    await sees(w, 'Waiting in the approval inbox (0 of 1 approvals).')
+    expect(w.text()).toContain('Open in the approval inbox')
+    expect(posts).toEqual([
+      { path: '/api/trading/order-intents/22222222-2222-4222-8222-222222222222/approve', body: {} },
     ])
   })
 

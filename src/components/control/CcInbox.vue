@@ -15,7 +15,7 @@ import Modal from '@/components/ui/Modal.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import { aureon } from '@/api/client'
-import { codeOf, must, short } from '@/control/api'
+import { codeOf, must, short, type Schemas } from '@/control/api'
 import { approvals, loadApprovals, type Approval } from '@/control/approvals'
 import { countdown, useNow } from '@/control/poll'
 import { approvalTone } from '@/control/status'
@@ -62,6 +62,7 @@ const liveLine = computed(() =>
 )
 
 function summary(a: Approval): string {
+  if (a.summary) return a.summary
   const p = a.payload as Record<string, unknown>
   if (typeof p.summary === 'string') return p.summary
   const art = (p.artifact ?? {}) as Record<string, unknown>
@@ -74,15 +75,41 @@ function summary(a: Approval): string {
   if (typeof p.ref === 'string') bits.push(`on ${p.ref}`)
   return bits.join(' · ') || a.kind.replaceAll('.', ' ')
 }
-/** The engine reports drift itself; before it, the check happens at approval. */
+// Drift is checked on demand (`?check_drift=true` may call GitHub), and always
+// again by the server right before anything runs.
+const driftOf = ref<Record<string, Schemas['DriftOut'] | 'checking' | 'error'>>({})
+async function checkDrift(a: Approval) {
+  driftOf.value[a.id] = 'checking'
+  try {
+    const d = must(
+      await aureon.GET('/api/v1/approvals/{approval_id}', {
+        params: { path: { approval_id: a.id }, query: { check_drift: true } },
+      }),
+    )
+    driftOf.value[a.id] = d.drift ?? { status: 'unknown', drifted: [], detail: null }
+  } catch {
+    driftOf.value[a.id] = 'error'
+  }
+}
 function drift(a: Approval): { tone: 'success' | 'danger' | 'neutral'; text: string } {
-  const d =
-    (a as unknown as { drift?: unknown; artifact_drift?: unknown }).drift ??
-    (a as unknown as { artifact_drift?: unknown }).artifact_drift
-  if (d === true || d === 'drifted')
-    return { tone: 'danger', text: 'Artifact changed since the request' }
-  if (d === false || d === 'unchanged') return { tone: 'success', text: 'Artifact unchanged' }
-  return { tone: 'neutral', text: 'Re-checked on approval' }
+  const d = driftOf.value[a.id]
+  if (d === 'checking') return { tone: 'neutral', text: 'Checking the artifact…' }
+  if (d === 'error') return { tone: 'neutral', text: 'Drift check failed' }
+  if (!d) return { tone: 'neutral', text: 'Re-checked on approval' }
+  if (d.status === 'ok') return { tone: 'success', text: 'Artifact unchanged' }
+  if (d.status === 'drifted')
+    return {
+      tone: 'danger',
+      text: `Artifact changed${d.drifted?.length ? `: ${d.drifted.join(', ')}` : ''}`,
+    }
+  return { tone: 'neutral', text: `Drift ${d.status.replaceAll('_', ' ')}` }
+}
+function riskTone(r: string) {
+  return r === 'critical' || r === 'high' ? 'danger' : r === 'medium' ? 'warning' : 'neutral'
+}
+/** This session's re-auth stamp still counts for this request. */
+function stampOk(a: Approval) {
+  return a.reauth === 'session_stamp' || a.reauth === 'none'
 }
 
 // ── approve / deny ──────────────────────────────────────────────────────────
@@ -109,13 +136,14 @@ const CONFLICT: Record<string, string> = {
   approval_expired: 'This request expired before it was approved. File it again.',
   approval_already_used: 'This request was already used. It cannot run twice.',
   approval_not_pending: 'This request is no longer pending.',
+  already_approved_by_you: 'You already approved this request; it waits for another admin.',
   approval_invalidated:
     'What was approved has changed since the request (for a merge: the head or the diff). Nothing ran; file it again.',
 }
 
-async function approve() {
+async function approve(useStamp = false) {
   const a = target.value
-  if (!a || !password.value) return
+  if (!a || (!useStamp && !password.value)) return
   busy.value = true
   error.value = ''
   try {
@@ -125,21 +153,25 @@ async function approve() {
       response,
     } = await aureon.POST('/api/v1/approvals/{approval_id}/approve', {
       params: { path: { approval_id: a.id } },
-      body: { password: password.value },
+      body: useStamp ? { use_reauth: true } : { password: password.value, use_reauth: false },
     })
     const code = codeOf(body)
     if (data) {
       done.value =
         data.status === 'executed'
           ? `Approved and executed: ${a.kind} on ${a.target}.`
-          : `Approved, but it failed when run: ${a.kind} on ${a.target}. See the result in recent decisions.`
+          : data.status === 'pending'
+            ? `Your approval is recorded (${data.received_approvals} of ${data.required_approvals}); it waits for another admin.`
+            : `Approved, but it failed when run: ${a.kind} on ${a.target}. See the result in recent decisions.`
       close()
     } else if (response.status === 403) {
       // Wrong password: the request stays pending, and the dialog stays open.
       error.value =
         code === 'self_approval_not_allowed'
-          ? 'You filed this request, and another admin exists: they have to approve it.'
-          : 'That password is not right. The request is still pending.'
+          ? 'You filed this request, and the policy needs another admin to approve it.'
+          : code === 'reauth_required'
+            ? 'Your re-auth has lapsed for this request. Enter your password.'
+            : 'That password is not right. The request is still pending.'
       password.value = ''
     } else if (response.status === 409) {
       done.value = CONFLICT[code] ?? 'This request can no longer be approved.'
@@ -214,7 +246,21 @@ async function deny() {
           <span class="tp-note">{{ a.target }}</span>
           <p class="cc-body">{{ summary(a) }}</p>
           <div class="tp-row">
+            <Badge :tone="riskTone(a.risk_level)" :label="`risk ${a.risk_level}`" />
+            <Badge
+              v-if="a.required_approvals > 1"
+              tone="info"
+              :label="`${a.received_approvals} of ${a.required_approvals} approvals`"
+            />
             <Badge :tone="drift(a).tone" :label="drift(a).text" />
+            <Button
+              v-if="approvals.mode === 'engine'"
+              size="sm"
+              variant="ghost"
+              :disabled="driftOf[a.id] === 'checking'"
+              @click="checkDrift(a)"
+              >Check drift</Button
+            >
             <span class="tp-note"
               >artifact {{ short(a.artifact_sha256) }} · requested by {{ a.requested_by ?? '—' }}
               {{ ago(a.created_at, now) }}</span
@@ -320,6 +366,13 @@ async function deny() {
             :loading="busy"
             :disabled="mode === 'approve' && !password"
             >{{ mode === 'approve' ? 'Approve and run' : 'Deny' }}</Button
+          >
+          <Button
+            v-if="mode === 'approve' && stampOk(target)"
+            variant="secondary"
+            :loading="busy"
+            @click="approve(true)"
+            >Approve without the password</Button
           >
         </div>
       </form>

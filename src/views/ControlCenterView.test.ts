@@ -422,6 +422,11 @@ const APPROVAL = (id: string) => ({
   result: null,
   expires_at: LATER,
   created_at: NOW,
+  summary: null,
+  policy_subject: 'github.pr.merge',
+  risk_level: 'high',
+  required_approvals: 1,
+  received_approvals: 0,
 })
 let PENDING: unknown[] = []
 const REVIEW = {
@@ -925,7 +930,11 @@ describe('approval inbox', () => {
     await clickInBody('Approve and run')
     await sees(w, 'Approved and executed: github.pr.merge on svskhd/astra#7.')
     expect(writes).toEqual([
-      { method: 'POST', path: '/api/v1/approvals/ap-1/approve', body: { password: 'hunter2' } },
+      {
+        method: 'POST',
+        path: '/api/v1/approvals/ap-1/approve',
+        body: { password: 'hunter2', use_reauth: false },
+      },
     ])
     await sees(w, 'Nothing is waiting for approval')
     w.unmount()
@@ -1004,14 +1013,14 @@ describe('approval inbox', () => {
     PENDING = [APPROVAL('ap-1')]
     overrides['GET /api/v1/approvals/inbox'] = () => [
       200,
-      { items: PENDING, total: PENDING.length },
+      { items: PENDING, total: PENDING.length, reauth_stamp_expires_at: null },
     ]
     const { w } = await mountAt('/dev')
     await sees(w, 'Approvals (1)')
     const es = FakeES.all.find((e) => e.url.includes('/api/v1/approvals/stream'))
     expect(es).toBeTruthy()
     PENDING = [APPROVAL('ap-1'), APPROVAL('ap-2')]
-    es!.emit('approval.requested', { id: 'ap-2' })
+    es!.emit('approval', { id: 'ap-2', status: 'pending' })
     await sees(w, 'Approvals (2)')
     // The phone bar's Inbox button carries the same count.
     const inbox = w.findAll('.cc__nav button').find((b) => b.text().includes('Inbox'))!
@@ -1031,8 +1040,13 @@ describe('audit', () => {
     const ev = (i: number) => ({
       id: i,
       event_type: 'approval_executed',
-      actor: 'owner',
-      at: NOW,
+      actor_user_id: 'u',
+      actor_email: 'owner@spasta.online',
+      target_user_id: null,
+      ip: null,
+      user_agent: null,
+      request_id: null,
+      created_at: NOW,
       details: { kind: 'github.pr.merge' },
     })
     overrides['GET /api/v1/audit/events'] = [
@@ -1042,10 +1056,65 @@ describe('audit', () => {
     const { w } = await mountAt('/dev/audit')
     await sees(w, '1–50 of 120')
     expect(w.text()).toContain('approval_executed')
-    await button(w, 'Next').trigger('click')
+    expect(w.text()).toContain('owner@spasta.online')
+    await w.find('input[aria-label="Event type"]').setValue('approval_')
+    await button(w, 'Filter').trigger('click')
     await vi.waitFor(() =>
       expect(calls.filter((c) => c === 'GET /api/v1/audit/events').length).toBe(2),
     )
+    await button(w, 'Next').trigger('click')
+    await vi.waitFor(() =>
+      expect(calls.filter((c) => c === 'GET /api/v1/audit/events').length).toBe(3),
+    )
+    w.unmount()
+  })
+})
+
+describe('approval engine (Phase 20)', () => {
+  it('shows risk, the approval count and drift, and approves with the session re-auth', async () => {
+    PENDING = [
+      {
+        ...APPROVAL('ap-9'),
+        summary: 'Merge #7 into dev01',
+        risk_level: 'critical',
+        required_approvals: 2,
+        received_approvals: 1,
+        reauth: 'session_stamp',
+      },
+    ]
+    overrides['GET /api/v1/approvals/inbox'] = () => [
+      200,
+      { items: PENDING, total: PENDING.length, reauth_stamp_expires_at: LATER },
+    ]
+    overrides['GET /api/v1/approvals/ap-9'] = [
+      200,
+      {
+        ...APPROVAL('ap-9'),
+        events: [],
+        artifacts: [],
+        approvers: [],
+        drift: { status: 'drifted', drifted: ['diff'], detail: null },
+      },
+    ]
+    overrides['POST /api/v1/approvals/ap-9/approve'] = () => {
+      PENDING = []
+      return [
+        200,
+        { ...APPROVAL('ap-9'), status: 'executed', required_approvals: 2, received_approvals: 2 },
+      ]
+    }
+    const { w } = await mountAt('/dev/inbox')
+    await sees(w, 'Merge #7 into dev01')
+    expect(w.text()).toContain('risk critical')
+    expect(w.text()).toContain('1 of 2 approvals')
+    await button(w, 'Check drift').trigger('click')
+    await sees(w, 'Artifact changed: diff')
+    await button(w, 'Approve…').trigger('click')
+    await clickInBody('Approve without the password')
+    await sees(w, 'Approved and executed')
+    expect(writes).toEqual([
+      { method: 'POST', path: '/api/v1/approvals/ap-9/approve', body: { use_reauth: true } },
+    ])
     w.unmount()
   })
 })

@@ -122,3 +122,23 @@ describe('routes', () => {
     expect(r.resolve('/nope').name).toBe('not-found')
   })
 })
+
+describe('the control center routes', () => {
+  it('resolves /dev and its modules', async () => {
+    const { router } = await import('@/router')
+    expect(router.resolve('/dev').name).toBe('control-center')
+    expect(router.resolve('/dev/inbox').name).toBe('control-center')
+  }, 30_000)
+
+  it("sends the engine's Discord and voice links to the right module", async () => {
+    const { router } = await import('@/router')
+    const target = async (path: string) => {
+      const r = createRouter({ history: createMemoryHistory(), routes: router.options.routes })
+      await r.push(path)
+      return r.currentRoute.value.fullPath
+    }
+    expect(await target('/dev/approvals/abc-123')).toBe('/dev/inbox?id=abc-123')
+    expect(await target('/dev/approvals')).toBe('/dev/inbox')
+    expect(await target('/dev/prs/42')).toBe('/dev/pulls?n=42')
+  }, 30_000)
+})

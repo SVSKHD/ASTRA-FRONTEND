@@ -87,9 +87,9 @@ would change it. The backend keeps its own log in `Aureon_agents_Assembler/docs/
   `Alert.vue` renders a placeholder and posts its text to the warning tray, which cannot hold a link or a
   button. "Approval required" and "not configured" are inline `.cc-notice` blocks (`control.css`): a tone bar
   on the left, `--text-primary` text.
-- **D-21-8: the inbox probes for the approval engine and falls back to polling.** Backend Phase 20
-  (`docs/23-approval-engine.md`) adds `/api/v1/approvals/inbox` and an SSE stream, but it is not on the backend
-  main yet. `src/control/approvals.ts` probes the inbox once: a 404 means "legacy", and the pending list
+- **D-21-8: the inbox uses the approval engine, and falls back to polling on an older server.** Backend Phase 20
+  (`docs/23-approval-engine.md`) adds `/api/v1/approvals/inbox` and an SSE stream. When this was first built the
+  engine was not on the backend main yet. `src/control/approvals.ts` probes the inbox once: a 404 means "legacy", and the pending list
   (`GET /api/v1/approvals?status=pending`) is polled every 15 s while visible. When the inbox answers, the
   stream is opened with `openStream`, and any event other than `hello` re-reads the inbox. Re-reading
   instead of applying the event means the stream's payload shape does not matter yet.
@@ -100,3 +100,24 @@ would change it. The backend keeps its own log in `Aureon_agents_Assembler/docs/
 - **D-21-10: one count, one copy.** The nav badge and the inbox read the same reactive store, and paper
   intents waiting for approval (from the shared trading inbox) are added to the count unless the engine
   already lists `trading.*` kinds.
+- **D-21-11: the engine's inbox, re-auth stamp and drift check are used as they are.** The inbox lists what
+  this admin can act on, with `reauth` (`password`, `session_stamp`, `none`). When it says `session_stamp` or
+  `none`, the approve dialog also offers "Approve without the password" (`{use_reauth: true}`); otherwise the
+  password is required. The page never creates a stamp itself: `POST /approvals/reauth` is left to a later
+  change, because stamping from the inbox would make the password prompt optional by default.
+  - Drift is checked on demand ("Check drift" → `GET /approvals/{id}?check_drift=true`), because that call
+    may hit GitHub. The server re-checks before anything runs anyway.
+  - Each request shows its risk level and "n of m approvals" when the policy needs more than one. A partial
+    approval (200 `pending`) says it waits for another admin.
+- **D-21-12: paper approval goes through the engine and asks for the password.** `POST
+/api/trading/order-intents/{id}/approve` now files a `trading.paper_intent` request.
+  - "Approve paper fill" (on the Paper tab, its inbox and the signal's Send-to-paper control) opens a password
+    dialog. With the password and a one-approval policy, the server fills at once (200, the intent). "Send to
+    the inbox" files the request without a password (202), and the control then links to
+    `/dev/inbox?id=…`, where it is approved like any other request. A wrong password (403) fills nothing.
+  - The engine lists `trading.*` kinds in its inbox, so the control center stops showing the separate
+    paper card once one appears (D-21-10).
+- **D-21-13: the engine's links have routes.** The Discord deep link `/dev/approvals/{id}` and the
+  voice-navigation routes `/dev/approvals` and `/dev/prs/{n}` redirect to `/dev/inbox?id=…`, `/dev/inbox` and
+  `/dev/pulls?n=…`. `/dev/repairs` and `/dev/agents` already match. Voice input itself (`POST /api/v1/voice/intent`)
+  has no UI yet; the routes it returns already work.

@@ -9,11 +9,11 @@ import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Select from '@/components/ui/Select.vue'
 import TextInput from '@/components/ui/TextInput.vue'
+import PaperApprove from './PaperApprove.vue'
 import { isAdmin } from '@/trading/session'
 import {
   STATUS_TEXT,
   STATUS_TONE,
-  approveIntent,
   createIntent,
   fillLine,
   paperAccounts,
@@ -64,19 +64,6 @@ async function send() {
       correlation_id: signalCorrelationId(props.signal.id, acct.id),
     })
     open.value = false
-  } catch (e) {
-    error.value = (e as Error).message
-  } finally {
-    busy.value = false
-  }
-}
-
-async function approve() {
-  if (!intent.value) return
-  busy.value = true
-  error.value = ''
-  try {
-    intent.value = await approveIntent(intent.value.id)
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -149,15 +136,12 @@ async function approve() {
       <span class="appr__note">{{ STATUS_TEXT[intent.status] ?? intent.status }}</span>
       <span v-if="riskLine(intent)" class="appr__note">{{ riskLine(intent) }}</span>
       <span v-if="fillLine(intent)" class="appr__note">{{ fillLine(intent) }}</span>
-      <Button
+      <PaperApprove
         v-if="intent.status === 'PENDING_RISK' && isAdmin()"
-        size="sm"
-        variant="primary"
+        :intent-id="intent.id"
         :loading="busy"
-        @click="approve"
-      >
-        Approve paper fill
-      </Button>
+        @filled="intent = $event"
+      />
     </div>
     <span v-if="error" class="appr__error" role="alert">{{ error }}</span>
   </div>

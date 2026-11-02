@@ -45,6 +45,18 @@ const routes: RouteRecordRaw[] = [
   // and the approval inbox, admin-only, behind the same Aureon gate as
   // /trading. `/dev/<module>`. The DEV-only /dev/login and /dev/shot/* below
   // are static segments, so they still win over `:module` in development.
+  // The approval engine's Discord deep link (`/dev/approvals/{id}`) and the
+  // voice-navigation routes (backend docs/23) land on the modules here.
+  { path: '/dev/approvals', redirect: '/dev/inbox' },
+  {
+    path: '/dev/approvals/:id',
+    redirect: (to) => ({ path: '/dev/inbox', query: { id: String(to.params.id) } }),
+  },
+  { path: '/dev/prs', redirect: '/dev/pulls' },
+  {
+    path: '/dev/prs/:n',
+    redirect: (to) => ({ path: '/dev/pulls', query: { n: String(to.params.n) } }),
+  },
   {
     path: '/dev/:module?',
     name: 'control-center',

@@ -16,6 +16,7 @@ import Table from '@/components/ui/Table.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import AccountPicker from './AccountPicker.vue'
 import SourceTag from './SourceTag.vue'
+import PaperApprove from './PaperApprove.vue'
 import { aureon } from '@/api/client'
 import { dec, signed, toneOf, when } from '@/trading/format'
 import {
@@ -23,7 +24,6 @@ import {
   OPEN,
   STATUS_TEXT,
   STATUS_TONE,
-  approveIntent,
   cancelIntent,
   createIntent,
   paperAccounts,
@@ -185,6 +185,16 @@ async function act(id: string, fn: (id: string) => Promise<IntentDetail>) {
     busy[id] = false
   }
 }
+function onFilled(id: string, d: IntentDetail) {
+  details[id] = d
+  actionMsg[id] = STATUS_TEXT[d.status] ?? d.status
+  reloadAll()
+  void loadInbox()
+}
+function onFiled(id: string) {
+  actionMsg[id] = 'Filed for approval in the /dev approval inbox.'
+  void loadInbox()
+}
 function canCancel(i: { status: string; created_by: string | null }): boolean {
   return OPEN.has(i.status) && (isAdmin() || i.created_by === tradingSession.user?.uid)
 }
@@ -277,14 +287,12 @@ async function reconcile() {
             <span v-if="actionMsg[i.id]" class="tp-note" role="status">{{ actionMsg[i.id] }}</span>
           </div>
           <div class="tp-row">
-            <Button
-              size="sm"
-              variant="primary"
+            <PaperApprove
+              :intent-id="i.id"
               :loading="busy[i.id]"
-              @click="act(i.id, approveIntent)"
-            >
-              Approve paper fill
-            </Button>
+              @filled="onFilled(i.id, $event)"
+              @filed="onFiled(i.id)"
+            />
             <Button
               size="sm"
               variant="secondary"
@@ -411,15 +419,13 @@ async function reconcile() {
                 <Button size="sm" variant="ghost" @click="toggle(i.id)">
                   {{ details[i.id] ? 'Hide' : 'Details' }}
                 </Button>
-                <Button
+                <PaperApprove
                   v-if="i.status === 'PENDING_RISK' && isAdmin()"
-                  size="sm"
-                  variant="primary"
+                  :intent-id="i.id"
                   :loading="busy[i.id]"
-                  @click="act(i.id, approveIntent)"
-                >
-                  Approve paper fill
-                </Button>
+                  @filled="onFilled(i.id, $event)"
+                  @filed="onFiled(i.id)"
+                />
                 <Button
                   v-if="canCancel(i)"
                   size="sm"

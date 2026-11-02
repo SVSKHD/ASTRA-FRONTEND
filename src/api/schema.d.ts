@@ -1581,7 +1581,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve Order Intent */
+        /**
+         * Approve Order Intent
+         * @description Backward-compatible wrapper over the approval engine. Files (or reuses) the pending
+         *     `trading.paper_intent` request for this intent. With {"password"} and a policy needing a
+         *     single approval, approves it now: 200 with the intent (FILLED, SUBMITTED or REJECTED by
+         *     risk). Otherwise 202 with the approval id, to approve from the inbox.
+         */
         post: operations["approve_order_intent_api_trading_order_intents__intent_id__approve_post"];
         delete?: never;
         options?: never;
@@ -1758,6 +1764,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approvals/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inbox
+         * @description Pending requests the current admin can approve or deny, newest first, with what
+         *     approving each one needs right now.
+         */
+        get: operations["inbox_api_v1_approvals_inbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Policies */
+        get: operations["list_policies_api_v1_approvals_policies_get"];
+        /**
+         * Put Policies
+         * @description Upsert policies by kind_pattern (audited with before/after). Needs the admin's
+         *     password: a policy can switch re-auth off. Pending requests keep the policy they were
+         *     filed under.
+         */
+        put: operations["put_policies_api_v1_approvals_policies_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reauth
+         * @description Verify the password once and stamp this login session (server-side, in Redis). Requests
+         *     whose policy has reauth_max_age_seconds > 0 can then be approved with
+         *     {"use_reauth": true} while the stamp is young enough.
+         */
+        post: operations["reauth_api_v1_approvals_reauth_post"];
+        /** Clear Reauth */
+        delete: operations["clear_reauth_api_v1_approvals_reauth_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream
+         * @description SSE: one `approval` event per approval state change (see app/services/
+         *     approval_stream.py). Resumes after `Last-Event-ID` or `?last_event_id=`.
+         */
+        get: operations["stream_api_v1_approvals_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approvals/{approval_id}": {
         parameters: {
             query?: never;
@@ -1765,7 +1859,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Approval */
+        /**
+         * Get Approval
+         * @description With `check_drift=true` the artifacts of a pending request are recomputed now (this may
+         *     call GitHub) and compared with what was filed.
+         */
         get: operations["get_approval_api_v1_approvals__approval_id__get"];
         put?: never;
         post?: never;
@@ -1786,9 +1884,11 @@ export interface paths {
         put?: never;
         /**
          * Approve
-         * @description Re-verifies the admin's password, then executes. 200 with status `executed` or
-         *     `failed`; 409 when expired, already used or invalidated by drift; 403 on a wrong
-         *     password (audited) or a refused self-approval.
+         * @description Re-authenticates (the password, or this session's re-auth stamp when the policy accepts
+         *     one), counts the approval and, once the policy's quorum is reached, executes. 200 with
+         *     status `pending` (more approvals needed), `executed` or `failed`; 409 when expired,
+         *     already used, already approved by you or invalidated by drift; 403 on a wrong or missing
+         *     re-auth (audited) or a refused self-approval.
          */
         post: operations["approve_api_v1_approvals__approval_id__approve_post"];
         delete?: never;
@@ -1808,6 +1908,44 @@ export interface paths {
         put?: never;
         /** Deny */
         post: operations["deny_api_v1_approvals__approval_id__deny_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{approval_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Events
+         * @description The events in order and the hash-chain verification (`chain.status` ok | broken |
+         *     legacy | empty).
+         */
+        get: operations["get_events_api_v1_approvals__approval_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Audit Events */
+        get: operations["list_audit_events_api_v1_audit_events_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2829,6 +2967,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/voice/intent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Voice Intent */
+        post: operations["voice_intent_api_v1_voice_intent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3014,10 +3169,41 @@ export interface components {
             /** Repo */
             repo: string;
         };
+        /** ApprovalArtifactOut */
+        ApprovalArtifactOut: {
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /** Content */
+            content: string | null;
+            /** Content Ref */
+            content_ref: string | null;
+            /** Name */
+            name: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size */
+            size: number;
+            /** Truncated */
+            truncated: boolean;
+        };
         /** ApprovalDetail */
         ApprovalDetail: {
+            /**
+             * Approvers
+             * @default []
+             */
+            approvers: string[];
             /** Artifact Sha256 */
             artifact_sha256: string | null;
+            /**
+             * Artifacts
+             * @default []
+             */
+            artifacts: components["schemas"]["ApprovalArtifactOut"][];
+            chain?: components["schemas"]["ChainOut"] | null;
             /**
              * Created At
              * Format: date-time
@@ -3027,6 +3213,7 @@ export interface components {
             decided_at: string | null;
             /** Decided By */
             decided_by: string | null;
+            drift?: components["schemas"]["DriftOut"] | null;
             /**
              * Events
              * @default []
@@ -3050,14 +3237,34 @@ export interface components {
             payload: {
                 [key: string]: unknown;
             };
+            policy?: components["schemas"]["PolicyOut"] | null;
+            /** Policy Subject */
+            policy_subject?: string | null;
+            /**
+             * Received Approvals
+             * @default 0
+             */
+            received_approvals: number;
             /** Requested By */
             requested_by: string | null;
+            /**
+             * Required Approvals
+             * @default 1
+             */
+            required_approvals: number;
             /** Result */
             result: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Risk Level
+             * @default medium
+             */
+            risk_level: string;
             /** Status */
             status: string;
+            /** Summary */
+            summary?: string | null;
             /** Target */
             target: string;
         };
@@ -3078,6 +3285,45 @@ export interface components {
             event: string;
             /** Id */
             id: number;
+        };
+        /** ApprovalEventsOut */
+        ApprovalEventsOut: {
+            /**
+             * Approval Id
+             * Format: uuid
+             */
+            approval_id: string;
+            chain: components["schemas"]["ChainOut"];
+            /** Events */
+            events: components["schemas"]["ApprovalEventOut"][];
+        };
+        /**
+         * ApprovalFiledOut
+         * @description 202 answer of an endpoint that filed an approval request instead of acting.
+         */
+        ApprovalFiledOut: {
+            /**
+             * Approval Id
+             * Format: uuid
+             */
+            approval_id: string;
+            /** Artifact Sha256 */
+            artifact_sha256: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Kind */
+            kind: string;
+            /** Received Approvals */
+            received_approvals: number;
+            /** Required Approvals */
+            required_approvals: number;
+            /** Status */
+            status: string;
+            /** Target */
+            target: string;
         };
         /** ApprovalOut */
         ApprovalOut: {
@@ -3110,16 +3356,50 @@ export interface components {
             payload: {
                 [key: string]: unknown;
             };
+            /** Policy Subject */
+            policy_subject?: string | null;
+            /**
+             * Received Approvals
+             * @default 0
+             */
+            received_approvals: number;
             /** Requested By */
             requested_by: string | null;
+            /**
+             * Required Approvals
+             * @default 1
+             */
+            required_approvals: number;
             /** Result */
             result: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Risk Level
+             * @default medium
+             */
+            risk_level: string;
             /** Status */
             status: string;
+            /** Summary */
+            summary?: string | null;
             /** Target */
             target: string;
+        };
+        /** ApprovalPage */
+        ApprovalPage: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Items */
+            items: components["schemas"]["ApprovalOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
         };
         /** AssetOut */
         AssetOut: {
@@ -3192,6 +3472,34 @@ export interface components {
             sha256: string;
             /** Size Bytes */
             size_bytes: number;
+        };
+        /** AuditEventOut */
+        AuditEventOut: {
+            /** Actor Email */
+            actor_email: string | null;
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            };
+            /** Event Type */
+            event_type: string;
+            /** Id */
+            id: number;
+            /** Ip */
+            ip: string | null;
+            /** Request Id */
+            request_id: string | null;
+            /** Target User Id */
+            target_user_id: string | null;
+            /** User Agent */
+            user_agent: string | null;
         };
         /** BacktestCosts */
         BacktestCosts: {
@@ -3404,6 +3712,19 @@ export interface components {
             ts: string;
             /** Volume */
             volume: string;
+        };
+        /** ChainOut */
+        ChainOut: {
+            /** Broken At */
+            broken_at?: number | null;
+            /** Legacy */
+            legacy: number;
+            /** Reason */
+            reason?: string | null;
+            /** Status */
+            status: string;
+            /** Verified */
+            verified: number;
         };
         /** ChangesOut */
         ChangesOut: {
@@ -3740,6 +4061,18 @@ export interface components {
              */
             updated_at: string;
         };
+        /** DriftOut */
+        DriftOut: {
+            /** Detail */
+            detail?: string | null;
+            /**
+             * Drifted
+             * @default []
+             */
+            drifted: string[];
+            /** Status */
+            status: string;
+        };
         /**
          * ExecutionMode
          * @enum {string}
@@ -4036,6 +4369,81 @@ export interface components {
             /** Symbol */
             symbol: string;
         };
+        /** InboxItem */
+        InboxItem: {
+            /** Artifact Sha256 */
+            artifact_sha256: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided By */
+            decided_by: string | null;
+            /** Executed At */
+            executed_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Policy Subject */
+            policy_subject?: string | null;
+            /**
+             * Reauth
+             * @enum {string}
+             */
+            reauth: "password" | "session_stamp" | "none";
+            /**
+             * Received Approvals
+             * @default 0
+             */
+            received_approvals: number;
+            /** Requested By */
+            requested_by: string | null;
+            /**
+             * Required Approvals
+             * @default 1
+             */
+            required_approvals: number;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Risk Level
+             * @default medium
+             */
+            risk_level: string;
+            /** Status */
+            status: string;
+            /** Summary */
+            summary?: string | null;
+            /** Target */
+            target: string;
+        };
+        /** InboxOut */
+        InboxOut: {
+            /** Items */
+            items: components["schemas"]["InboxItem"][];
+            /** Reauth Stamp Expires At */
+            reauth_stamp_expires_at: string | null;
+            /** Total */
+            total: number;
+        };
         /** IncidentDetail */
         IncidentDetail: {
             /** Count */
@@ -4158,6 +4566,11 @@ export interface components {
             tick_size: string;
             /** Underlying */
             underlying: string | null;
+        };
+        /** IntentApproveIn */
+        IntentApproveIn: {
+            /** Password */
+            password?: string | null;
         };
         /** IssueClose */
         IssueClose: {
@@ -4912,10 +5325,10 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** Page[ApprovalOut] */
-        Page_ApprovalOut_: {
+        /** Page[AuditEventOut] */
+        Page_AuditEventOut_: {
             /** Items */
-            items: components["schemas"]["ApprovalOut"][];
+            items: components["schemas"]["AuditEventOut"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -5222,6 +5635,79 @@ export interface components {
             starting_capital: string;
             /** Unrealized Pnl */
             unrealized_pnl: string;
+        };
+        /** PoliciesPutIn */
+        PoliciesPutIn: {
+            /** Password */
+            password: string;
+            /** Policies */
+            policies: components["schemas"]["PolicyIn"][];
+        };
+        /** PolicyIn */
+        PolicyIn: {
+            /**
+             * Allow Self Approval
+             * @default true
+             */
+            allow_self_approval: boolean;
+            /** Description */
+            description?: string | null;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Expiry Seconds */
+            expiry_seconds?: number | null;
+            /** Kind Pattern */
+            kind_pattern: string;
+            /** Notify Channels */
+            notify_channels?: "discord"[];
+            /**
+             * Reauth Max Age Seconds
+             * @default 0
+             */
+            reauth_max_age_seconds: number;
+            /**
+             * Require Reauth
+             * @default true
+             */
+            require_reauth: boolean;
+            /**
+             * Required Approvals
+             * @default 1
+             */
+            required_approvals: number;
+            /**
+             * Risk Level
+             * @default medium
+             * @enum {string}
+             */
+            risk_level: "low" | "medium" | "high" | "critical";
+        };
+        /**
+         * PolicyOut
+         * @description A policy as applied to a request (snapshot) or as stored.
+         */
+        PolicyOut: {
+            /** Allow Self Approval */
+            allow_self_approval: boolean;
+            /** Expiry Seconds */
+            expiry_seconds: number | null;
+            /** Id */
+            id: number | null;
+            /** Kind Pattern */
+            kind_pattern: string;
+            /** Notify Channels */
+            notify_channels: string[];
+            /** Reauth Max Age Seconds */
+            reauth_max_age_seconds: number;
+            /** Require Reauth */
+            require_reauth: boolean;
+            /** Required Approvals */
+            required_approvals: number;
+            /** Risk Level */
+            risk_level: string;
         };
         /** PortfolioIn */
         PortfolioIn: {
@@ -5560,6 +6046,26 @@ export interface components {
             resource?: string | null;
             /** Used */
             used?: number | null;
+        };
+        /** ReauthIn */
+        ReauthIn: {
+            /** Password */
+            password: string;
+        };
+        /** ReauthOut */
+        ReauthOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Stamped At
+             * Format: date-time
+             */
+            stamped_at: string;
+            /** Ttl Seconds */
+            ttl_seconds: number;
         };
         /** ReconciliationOut */
         ReconciliationOut: {
@@ -6204,6 +6710,38 @@ export interface components {
             /** Status */
             status?: string | null;
         };
+        /** StoredPolicyOut */
+        StoredPolicyOut: {
+            /** Allow Self Approval */
+            allow_self_approval: boolean;
+            /** Description */
+            description: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Expiry Seconds */
+            expiry_seconds: number | null;
+            /** Id */
+            id: number | null;
+            /** Kind Pattern */
+            kind_pattern: string;
+            /** Notify Channels */
+            notify_channels: string[];
+            /** Reauth Max Age Seconds */
+            reauth_max_age_seconds: number;
+            /** Require Reauth */
+            require_reauth: boolean;
+            /** Required Approvals */
+            required_approvals: number;
+            /** Risk Level */
+            risk_level: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Updated By */
+            updated_by: string | null;
+        };
         /**
          * StrategyCreate
          * @description A new strategy (version 1) or, for an existing name, its next version.
@@ -6553,6 +7091,29 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VoiceIn */
+        VoiceIn: {
+            /** Transcript */
+            transcript: string;
+        };
+        /** VoiceOut */
+        VoiceOut: {
+            /** Intent */
+            intent: string;
+            /** Note */
+            note: string | null;
+            /** Params */
+            params: {
+                [key: string]: string;
+            };
+            /** Route */
+            route: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "grammar" | "ollama" | "none";
+        };
         /** WebhookAck */
         WebhookAck: {
             /** Delivery Id */
@@ -6615,7 +7176,12 @@ export interface components {
         /** ApproveIn */
         app__schemas__approvals__ApproveIn: {
             /** Password */
-            password: string;
+            password?: string | null;
+            /**
+             * Use Reauth
+             * @default false
+             */
+            use_reauth: boolean;
         };
         /** ApproveIn */
         app__schemas__code__ApproveIn: {
@@ -10356,7 +10922,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["IntentApproveIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10365,6 +10935,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderIntentDetail"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalFiledOut"];
                 };
             };
             /** @description Validation Error */
@@ -10683,7 +11262,164 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_ApprovalOut_"];
+                    "application/json": components["schemas"]["ApprovalPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inbox_api_v1_approvals_inbox_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxOut"];
+                };
+            };
+        };
+    };
+    list_policies_api_v1_approvals_policies_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredPolicyOut"][];
+                };
+            };
+        };
+    };
+    put_policies_api_v1_approvals_policies_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PoliciesPutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredPolicyOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reauth_api_v1_approvals_reauth_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReauthIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_reauth_api_v1_approvals_reauth_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    stream_api_v1_approvals_stream_get: {
+        parameters: {
+            query?: {
+                last_event_id?: string | null;
+            };
+            header?: {
+                "last-event-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
                 };
             };
             /** @description Validation Error */
@@ -10699,7 +11435,9 @@ export interface operations {
     };
     get_approval_api_v1_approvals__approval_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                check_drift?: boolean;
+            };
             header?: never;
             path: {
                 approval_id: string;
@@ -10785,6 +11523,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApprovalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_events_api_v1_approvals__approval_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalEventsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_audit_events_api_v1_audit_events_get: {
+        parameters: {
+            query?: {
+                event_type?: string | null;
+                actor_user_id?: string | null;
+                since?: string | null;
+                until?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AuditEventOut_"];
                 };
             };
             /** @description Validation Error */
@@ -13171,6 +13976,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublishOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voice_intent_api_v1_voice_intent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoiceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceOut"];
                 };
             };
             /** @description Validation Error */
