@@ -54,3 +54,31 @@ would change it. The backend keeps its own log in `Aureon_agents_Assembler/docs/
 - **D-F10: Security → Devices on Aureon shows what the server keeps.** That is the sign-in time, the expiry, the IP
   and the user agent. There is no location map and no activity feed. "Sign out everywhere else" deletes each other
   session. "Sign out everywhere, this device included" uses `revoke-all`.
+
+## D-21 — Control center (Phase 21)
+
+- **D-21-1: `/dev` reuses the trading panel's Aureon gate.** The control center signs in through
+  `src/trading/session.ts` (`GET /api/auth/me`), so one sign-in serves `/trading` and `/dev`. Signed out it
+  asks for the Aureon passcode; signed in as a non-admin it says the page is for admins and calls no
+  `/api/v1/*` endpoint. The server checks the role on every call anyway; the gate only keeps the page honest.
+  - The DEV-only `/dev/login` and `/dev/shot/*` routes are static segments, so they still win over
+    `/dev/:module` in development.
+- **D-21-2: no credential in a `VITE_` variable, enforced by a test.** GitHub, Claude and Discord credentials
+  stay on the Aureon server. `src/security/viteSecrets.test.ts` scans `src`, `env.d.ts` and every `.env*` file
+  for `VITE_` names matching `TOKEN|SECRET|PAT|KEY`, and fails on any that is not one of the three known public
+  values (the Supabase publishable / anon key and the Firebase web API key), each listed with why it is public.
+- **D-21-4: polling is visibility-aware where there is no stream.** `usePoll` (`src/control/poll.ts`) runs
+  only while the page is visible and once more when it becomes visible again. The GitHub dashboard re-reads
+  its counts every 60 s.
+- **D-21-5: the diff viewer is capped, not virtualised.** A diff renders at most 2,000 lines
+  (`DIFF_MAX_LINES`) and says how many it left out; a log shows its last 3,000 lines and a file its first
+  3,000. Each sits in its own scroll box, so a wide line never scrolls the page sideways; lines wrap below
+  768 px and keep their shape above. Virtualising would need fixed row heights, which wrapped lines do not have.
+- **D-21-6: the service worker never caches the API.** `/api/*` is matched first in `runtimeCaching` with
+  `NetworkOnly`, and `navigateFallbackDenylist` keeps API navigations off the offline shell. That covers JSON,
+  SSE streams, text logs and attachment images. The manifest takes its colours from the theme tokens (the
+  default dark theme's `bgSolid`), keeps the existing icon, and adds `/dev` and `/dev/inbox` as shortcuts.
+- **D-21-7: `Alert` reports to the corner tray, so the control center draws inline notices itself.**
+  `Alert.vue` renders a placeholder and posts its text to the warning tray, which cannot hold a link or a
+  button. "Approval required" and "not configured" are inline `.cc-notice` blocks (`control.css`): a tone bar
+  on the left, `--text-primary` text.
