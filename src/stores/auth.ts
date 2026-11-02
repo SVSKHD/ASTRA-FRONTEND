@@ -30,8 +30,8 @@ import * as aureonSession from '@/auth/aureonSession'
 
 /**
  * Migration stage 2 (docs/frontend-migration-checklist.md): which backend signs
- * the owner in. Default Supabase; `VITE_AUTH_PROVIDER=aureon` uses the
- * self-hosted API's cookie session instead. The store's public shape is the
+ * the owner in. Default Aureon (the self-hosted API's cookie session);
+ * `VITE_AUTH_PROVIDER=supabase` brings back Supabase Auth. The store's public shape is the
  * same either way, so nothing that reads it changes.
  */
 const PROVIDER = authProvider()

@@ -3,6 +3,8 @@
 // "Reply ready" when it lands, and "Open chat" goes back to that conversation.
 // Hidden while the AI tab itself is showing.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// These cover the old path, which is no longer the default (docs/decisions.md, D-F1).
+vi.hoisted(() => vi.stubEnv('VITE_AI_BACKEND', 'proxy'))
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AiChatDock from '@/components/AiChatDock.vue'
@@ -37,6 +39,7 @@ describe('<AiChatDock />', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.stubEnv('VITE_AI_PROXY_URL', '/api/ai')
+    vi.stubEnv('VITE_AI_BACKEND', 'proxy')
   })
   afterEach(() => {
     useAiChat().stop()

@@ -1,11 +1,13 @@
 // Which backend signs the owner in (migration stage 2).
 //
-//   VITE_AUTH_PROVIDER=supabase   (default) Supabase Auth, as before
-//   VITE_AUTH_PROVIDER=aureon     Aureon_Agentic: POST /api/auth/login, cookie session
+//   VITE_AUTH_PROVIDER=aureon     (default) Aureon_Agentic: POST /api/auth/login, cookie session,
+//                                 and the finance data on /api/finance (stage 3)
+//   VITE_AUTH_PROVIDER=supabase   Supabase Auth and Supabase data, as before
 //
-// The flag exists because the DATA still lives in Supabase until stage 3, and
-// Supabase's row-level security needs a Supabase session. Flip it together with
-// the finance data (docs/frontend-migration-checklist.md, stage 2 caveat).
+// The default flipped to Aureon with stage 3 (docs/decisions.md, D-F1). The
+// cookies are SameSite=Strict, so an Aureon build has to be served from the same
+// origin as the API (nginx on spasta.online). A build hosted anywhere else, such
+// as a Netlify deploy, sets VITE_AUTH_PROVIDER=supabase in its environment (D-F2).
 
 export type AuthProvider = 'supabase' | 'aureon'
 
@@ -14,7 +16,7 @@ export function authProvider(
 ): AuthProvider {
   return String(env ?? '')
     .trim()
-    .toLowerCase() === 'aureon'
-    ? 'aureon'
-    : 'supabase'
+    .toLowerCase() === 'supabase'
+    ? 'supabase'
+    : 'aureon'
 }

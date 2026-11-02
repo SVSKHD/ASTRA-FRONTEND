@@ -46,11 +46,12 @@ afterEach(() => {
 })
 
 describe('authProvider', () => {
-  it('defaults to supabase and only accepts aureon explicitly', () => {
-    expect(authProvider(undefined)).toBe('supabase')
-    expect(authProvider('')).toBe('supabase')
+  it('defaults to aureon and only accepts supabase explicitly', () => {
+    expect(authProvider(undefined)).toBe('aureon')
+    expect(authProvider('')).toBe('aureon')
     expect(authProvider(' Aureon ')).toBe('aureon')
-    expect(authProvider('firebase')).toBe('supabase')
+    expect(authProvider(' Supabase ')).toBe('supabase')
+    expect(authProvider('firebase')).toBe('aureon')
   })
 })
 

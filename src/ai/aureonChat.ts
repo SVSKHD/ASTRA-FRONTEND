@@ -1,8 +1,8 @@
 // The AI tab on Aureon_Agentic (migration stage 4): local Ollama behind
 // POST /api/chat, instead of the Netlify /api/ai proxy (Bytez / OpenRouter).
 //
-//   VITE_AI_BACKEND=proxy    (default) the Netlify function, as before
-//   VITE_AI_BACKEND=aureon   Aureon: offline, a model picked from GET /api/models
+//   VITE_AI_BACKEND=aureon   (default) Aureon: offline, a model picked from GET /api/models
+//   VITE_AI_BACKEND=proxy    the Netlify function, as before (a Netlify-hosted build)
 //
 // Two differences from the proxy shape the code here absorbs:
 //
@@ -29,9 +29,9 @@ export type AiBackend = 'proxy' | 'aureon'
 export function aiBackend(env: string | undefined = import.meta.env.VITE_AI_BACKEND): AiBackend {
   return String(env ?? '')
     .trim()
-    .toLowerCase() === 'aureon'
-    ? 'aureon'
-    : 'proxy'
+    .toLowerCase() === 'proxy'
+    ? 'proxy'
+    : 'aureon'
 }
 
 /** Per-field limit on the server (ChatMessageIn.content). */

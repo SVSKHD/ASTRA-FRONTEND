@@ -41,10 +41,11 @@ afterEach(() => {
 })
 
 describe('aiBackend', () => {
-  it('defaults to the proxy', () => {
-    expect(aiBackend(undefined)).toBe('proxy')
+  it('defaults to Aureon and only accepts proxy explicitly', () => {
+    expect(aiBackend(undefined)).toBe('aureon')
     expect(aiBackend('AUREON')).toBe('aureon')
-    expect(aiBackend('ollama')).toBe('proxy')
+    expect(aiBackend('ollama')).toBe('aureon')
+    expect(aiBackend(' Proxy ')).toBe('proxy')
   })
 })
 
