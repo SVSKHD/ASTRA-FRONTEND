@@ -24,6 +24,18 @@ import { setCalendarToken } from '@/utils/gcal'
 // Section 27a: sign-out must forget the device's session identity.
 import { clearSessionId } from '@/utils/sessionId'
 import type { AureonUser } from '@/types'
+import { onUnauthorized } from '@/api/client'
+import { authProvider } from '@/auth/provider'
+import * as aureonSession from '@/auth/aureonSession'
+
+/**
+ * Migration stage 2 (docs/frontend-migration-checklist.md): which backend signs
+ * the owner in. Default Supabase; `VITE_AUTH_PROVIDER=aureon` uses the
+ * self-hosted API's cookie session instead. The store's public shape is the
+ * same either way, so nothing that reads it changes.
+ */
+const PROVIDER = authProvider()
+const AUREON_ONLY = 'Not available with Aureon sign-in yet (email + passcode only).'
 
 const GOOGLE_COLOR = 'oklch(0.62 0.15 255)'
 const GITHUB_COLOR = 'oklch(0.5 0.02 260)'
@@ -149,12 +161,17 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isSignedIn = computed(() => !!user.value)
   const hasAllowlist = computed(() => allowedUids.length > 0 || allowedEmails.length > 0)
-  const configurationReady = computed(() => supabaseEnabled && hasAllowlist.value)
+  const configurationReady = computed(() =>
+    // Aureon: the server owns the accounts, so the browser allowlist is not needed.
+    PROVIDER === 'aureon' ? true : supabaseEnabled && hasAllowlist.value,
+  )
   const avatarInitial = computed(() => user.value?.initial || 'A')
   const avatarName = computed(() => user.value?.name || 'Aureon')
   const avatarSub = computed(() => user.value?.email || '')
   const avatarColor = computed(() => user.value?.color || 'oklch(0.7 0.02 260)')
   const ghMenuLabel = computed(() => (githubLinked.value ? 'GitHub repos' : 'Link GitHub'))
+  /** Aureon sign-in is email + passcode only; the GitHub button is hidden there. */
+  const githubSignInAvailable = computed(() => PROVIDER !== 'aureon')
 
   async function applySession(session: Session | null) {
     // No live session, but one is still stored: the token could not be
@@ -188,7 +205,31 @@ export const useAuthStore = defineStore('auth', () => {
     authReady.value = true
   }
 
-  if (!supabaseEnabled || !supabase) {
+  /** Aureon session: ask the API once at start, and drop to sign-in on any 401. */
+  async function restoreAureon() {
+    const res = await aureonSession.currentUser()
+    if (res.ok) {
+      user.value = res.user
+      authOpen.value = false
+      authError.value = ''
+    } else {
+      user.value = null
+      authOpen.value = true
+      if (!res.signedOut) authError.value = res.message
+    }
+    authReady.value = true
+  }
+
+  if (PROVIDER === 'aureon' && !FIXTURE) {
+    void restoreAureon()
+    onUnauthorized((path) => {
+      // A 401 from the sign-in call itself is a wrong passcode, not an expiry.
+      if (path.endsWith('/api/auth/login') || !user.value) return
+      user.value = null
+      authOpen.value = true
+      authError.value = 'Your session ended. Sign in again.'
+    })
+  } else if (!supabaseEnabled || !supabase) {
     authReady.value = true
     authError.value =
       'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.'
@@ -242,6 +283,27 @@ export const useAuthStore = defineStore('auth', () => {
    * the allowlist still has the last word on who may use the app.
    */
   async function loginWithPasscode(email: string, passcode: string) {
+    if (PROVIDER === 'aureon') {
+      const address = email.trim()
+      if (!address || !passcode) {
+        authError.value = 'Enter your email and passcode.'
+        return
+      }
+      authBusy.value = true
+      authError.value = ''
+      try {
+        const res = await aureonSession.login(address, passcode)
+        if (res.ok) {
+          user.value = res.user
+          authOpen.value = false
+        } else {
+          authError.value = res.message
+        }
+      } finally {
+        authBusy.value = false
+      }
+      return
+    }
     if (!supabase) {
       authError.value = 'Supabase is not configured.'
       return
@@ -272,6 +334,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function loginGithub() {
+    if (PROVIDER === 'aureon') {
+      authError.value = AUREON_ONLY
+      return
+    }
     await signInWith('github', { scopes: 'repo' })
   }
 
@@ -285,7 +351,9 @@ export const useAuthStore = defineStore('auth', () => {
     // session: a signed-out device holds none of the owner's data.
     const leaving = user.value?.uid
     if (leaving) await clearLocalWorkspace(leaving)
-    if (supabase) {
+    if (PROVIDER === 'aureon') {
+      await aureonSession.logout()
+    } else if (supabase) {
       try {
         await supabase.auth.signOut()
       } catch (error) {
@@ -311,6 +379,10 @@ export const useAuthStore = defineStore('auth', () => {
   // Attach a GitHub identity to the signed-in account. Needs "Allow manual
   // linking" on in the Supabase project; a redirect, like sign-in.
   async function linkGithub() {
+    if (PROVIDER === 'aureon') {
+      authError.value = AUREON_ONLY
+      return
+    }
     if (!supabase || !user.value) return
     const { error } = await supabase.auth.linkIdentity({
       provider: 'github',
@@ -358,6 +430,7 @@ export const useAuthStore = defineStore('auth', () => {
     avatarSub,
     avatarColor,
     ghMenuLabel,
+    githubSignInAvailable,
     loginWithPasscode,
     loginGithub,
     reconnectCalendar,

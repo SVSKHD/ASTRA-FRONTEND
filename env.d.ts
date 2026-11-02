@@ -37,6 +37,8 @@ interface ImportMetaEnv {
   // Aureon_Agentic (self-hosted backend, docs/frontend-migration-checklist.md).
   // Origin of its API; empty = same origin (nginx routes /api/* to 127.0.0.1:8000).
   readonly VITE_AUREON_API_URL?: string
+  // Migration stage 2: 'aureon' signs in through Aureon's /api/auth; default 'supabase'.
+  readonly VITE_AUTH_PROVIDER?: string
 }
 
 interface ImportMeta {

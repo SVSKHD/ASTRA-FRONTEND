@@ -1446,7 +1446,7 @@ export interface AureonUser {
   uid: string
   name: string
   email: string
-  provider: 'google' | 'github'
+  provider: 'google' | 'github' | 'aureon'
   initial: string
   color: string
 }

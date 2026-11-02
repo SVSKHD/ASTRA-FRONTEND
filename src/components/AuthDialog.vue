@@ -17,7 +17,8 @@ import TextInput from '@/components/ui/TextInput.vue'
 
 const auth = useAuthStore()
 const { s } = useStyles()
-const { authOpen, authReady, authBusy, authError, configurationReady } = storeToRefs(auth)
+const { authOpen, authReady, authBusy, authError, configurationReady, githubSignInAvailable } =
+  storeToRefs(auth)
 
 const email = ref(ownerEmail)
 const passcode = ref('')
@@ -73,7 +74,7 @@ const orRow = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' 
             Sign in
           </Button>
         </form>
-        <div :style="orRow">
+        <div v-if="githubSignInAvailable" :style="orRow">
           <span :style="s.finMeta">or</span>
           <button
             :style="s.authBtn"

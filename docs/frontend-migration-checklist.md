@@ -27,15 +27,15 @@ Status values:
 
 ## Stage 2 — sign-in
 
-| Feature                     | Old source                                            | New endpoint                                     | Status                                 |
-| --------------------------- | ----------------------------------------------------- | ------------------------------------------------ | -------------------------------------- |
-| Email + passcode sign-in    | `supabase.auth.signInWithPassword` (`stores/auth.ts`) | `POST /api/auth/login`                           | planned (flag `VITE_AUTH_PROVIDER`)    |
-| Session restore on load     | `supabase.auth.getSession` / `onAuthStateChange`      | `GET /api/auth/me`                               | planned                                |
-| Sign-out                    | `supabase.auth.signOut`                               | `POST /api/auth/logout`                          | planned                                |
-| Sign out other devices      | Firebase callable `revokeOtherSessions`               | `POST /api/auth/sessions/revoke-all`             | planned                                |
-| GitHub OAuth sign-in / link | `signInWithOAuth`, `linkIdentity`                     | none (Aureon has email + password only)          | remove: owner signs in with a passcode |
-| Owner allowlist             | `VITE_ALLOWED_UIDS` / `VITE_ALLOWED_EMAILS`           | Aureon accounts (created by the admin bootstrap) | planned                                |
-| PIN lock                    | `stores/lock.ts` (hash in workspace doc)              | unchanged; it is local                           | n/a                                    |
+| Feature                     | Old source                                            | New endpoint                                          | Status                                            |
+| --------------------------- | ----------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------- |
+| Email + passcode sign-in    | `supabase.auth.signInWithPassword` (`stores/auth.ts`) | `POST /api/auth/login`                                | ready (flag `VITE_AUTH_PROVIDER=aureon`)          |
+| Session restore on load     | `supabase.auth.getSession` / `onAuthStateChange`      | `GET /api/auth/me`; any later 401 returns to sign-in  | ready                                             |
+| Sign-out                    | `supabase.auth.signOut`                               | `POST /api/auth/logout`                               | ready                                             |
+| Sign out other devices      | Firebase callable `revokeOtherSessions`               | `POST /api/auth/sessions/revoke-all`                  | planned                                           |
+| GitHub OAuth sign-in / link | `signInWithOAuth`, `linkIdentity`                     | none (Aureon has email + password only)               | remove: the button is hidden under Aureon sign-in |
+| Owner allowlist             | `VITE_ALLOWED_UIDS` / `VITE_ALLOWED_EMAILS`           | Aureon accounts (admin bootstrap; the server decides) | ready                                             |
+| PIN lock                    | `stores/lock.ts` (hash in workspace doc)              | unchanged; it is local                                | n/a                                               |
 
 **Caveat:** finance and workspace data still come from Supabase, and its RLS needs a Supabase session. Switching
 sign-in to Aureon before stage 3 would sign the owner in to an empty app. Stage 2 therefore ships behind the flag, and
