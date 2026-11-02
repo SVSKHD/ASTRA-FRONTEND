@@ -87,3 +87,16 @@ would change it. The backend keeps its own log in `Aureon_agents_Assembler/docs/
   `Alert.vue` renders a placeholder and posts its text to the warning tray, which cannot hold a link or a
   button. "Approval required" and "not configured" are inline `.cc-notice` blocks (`control.css`): a tone bar
   on the left, `--text-primary` text.
+- **D-21-8: the inbox probes for the approval engine and falls back to polling.** Backend Phase 20
+  (`docs/23-approval-engine.md`) adds `/api/v1/approvals/inbox` and an SSE stream, but it is not on the backend
+  main yet. `src/control/approvals.ts` probes the inbox once: a 404 means "legacy", and the pending list
+  (`GET /api/v1/approvals?status=pending`) is polled every 15 s while visible. When the inbox answers, the
+  stream is opened with `openStream`, and any event other than `hello` re-reads the inbox. Re-reading
+  instead of applying the event means the stream's payload shape does not matter yet.
+  - Would change when Phase 20 lands: regenerate the types, move the inbox and audit calls onto the typed client,
+    and switch approve to the engine's re-auth endpoint if it replaces the password body.
+- **D-21-9: the audit module is hidden behind a 404 check.** `GET /api/v1/audit/events` is Phase 20 too. Until
+  it exists, the module says "needs backend Phase 20" rather than showing an empty list.
+- **D-21-10: one count, one copy.** The nav badge and the inbox read the same reactive store, and paper
+  intents waiting for approval (from the shared trading inbox) are added to the count unless the engine
+  already lists `trading.*` kinds.

@@ -14,7 +14,6 @@ Status values:
 
 - **done**: merged, and nothing is left to do on the frontend
 - **ready**: merged and the default; the old path is kept until the on-server validation below has passed
-- **planned → Phase 21**: GitHub only; waits for the backend's `/api/v1/github/*`
 - **remove**: dropped, with the reason given
 
 ## Stage 1 — typed client
@@ -75,13 +74,13 @@ All of it goes through one Aureon implementation of the Firestore-shaped `loadFi
 
 ## Stage 5 — GitHub
 
-| Feature                                              | Old source                                                                   | New endpoint                                                                                       | Status                                                                                      |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Repository browser (read-only)                       | Netlify `/api/github` (`utils/ghProxy.ts`)                                   | `/api/repos`, `…/{name}/branches`, `…/tree`, `…/file`, `…/commits` — Code (Aureon), `/code-aureon` | ready (admin; linked from the Code tab when the Aureon flag is on)                          |
-| Code tasks (analyze, change, diff, approve / reject) | none (new)                                                                   | `/api/code/analyze`, `/api/code/tasks[/{id}[/diff\|approve\|reject]]` — Code (Aureon)              | ready (admin; approve makes a local branch, nothing is pushed)                              |
-| Issues, pulls, comments (18 ops)                     | Netlify `/api/github` (`utils/ghProxy.ts`)                                   | `/api/v1/github/*`                                                                                 | planned → Phase 21: the backend GitHub integration is being built (Phases 15/16/21)         |
-| Code tab live mirror                                 | Firestore `gh-repos`, `gh-pulls`, `gh-comments` (already failing)            | `/api/v1/github/*`                                                                                 | planned → Phase 21: same; the adapter reports these namespaces unavailable with that reason |
-| GitHub setup                                         | Firebase callables `githubConnect`/`Status`/`Repos`/`Disconnect`/`TestEvent` | `/api/v1/github/*`                                                                                 | planned → Phase 21: same; the Code tab shows "GitHub moves to Aureon in Phase 21"           |
+| Feature                                              | Old source                                                                   | New endpoint                                                                                              | Status                                                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Repository browser (read-only)                       | Netlify `/api/github` (`utils/ghProxy.ts`)                                   | `/api/repos`, `…/{name}/branches`, `…/tree`, `…/file`, `…/commits` — Code (Aureon), `/code-aureon`        | ready (admin; linked from the Code tab when the Aureon flag is on)                         |
+| Code tasks (analyze, change, diff, approve / reject) | none (new)                                                                   | `/api/code/analyze`, `/api/code/tasks[/{id}[/diff\|approve\|reject]]` — Code (Aureon)                     | ready (admin; approve makes a local branch, nothing is pushed)                             |
+| Issues, pulls, comments (18 ops)                     | Netlify `/api/github` (`utils/ghProxy.ts`)                                   | `/api/v1/github/repositories/{owner}/{repo}/issues\|pulls/*` — control center `/dev/issues`, `/dev/pulls` | done (Phase 21; merge is gated through `/api/v1/approvals`)                                |
+| Code tab live mirror                                 | Firestore `gh-repos`, `gh-pulls`, `gh-comments` (already failing)            | `/api/v1/github/*` — control center `/dev` (dashboard, repo explorer, PRs, Actions)                       | done (Phase 21; the Code tab keeps its "unavailable" note for the old mirror and links on) |
+| GitHub setup                                         | Firebase callables `githubConnect`/`Status`/`Repos`/`Disconnect`/`TestEvent` | `GET /api/v1/github/connection`, `POST …/connection/check`, `GET …/repositories?refresh=true`             | done (Phase 21; the token lives in the server's `GITHUB_TOKEN`, never in the browser)      |
 
 ## Stage 6 — Firebase leftovers
 
@@ -91,7 +90,7 @@ All of it goes through one Aureon implementation of the Firestore-shaped `loadFi
 | Security → Devices  | Firebase callables + Firestore `users/{uid}/sessions`, `/activity`                           | `GET /api/auth/sessions`, `DELETE /api/auth/sessions/{id}`, `POST /api/auth/sessions/revoke-all`                | ready (no locations or activity feed on Aureon; the panel says what is stored)                                     |
 | News / forex feed   | Firebase `pullNews` + Firestore `forex` (failing today)                                      | `GET /api/public/forex` (backend `news_pull` job), re-read every 5 min while shown                              | ready (the job is off until `NEWS_FEED_URLS` is set on the server; the feed-health panel is hidden on Aureon)      |
 | Dacoit signals      | Firebase `dacoitSignal` + Firestore `astra-dacoit-signals`                                   | `/api/trading/signals` (trading panel, Signals)                                                                 | done (by the trading panel)                                                                                        |
-| GitHub webhooks     | Firebase `githubEvent` / `githubSweep`                                                       | `/api/v1/github/*`                                                                                              | planned → Phase 21                                                                                                 |
+| GitHub webhooks     | Firebase `githubEvent` / `githubSweep`                                                       | `POST /api/v1/github/webhooks` (server-side, HMAC); runs shown in `/dev/actions`                                | done (Phase 21; nothing in the browser receives webhooks)                                                          |
 | Shares              | compat namespace `aureon-shares` (Supabase)                                                  | owner: `PUT /api/finance/documents/aureon-shares/{uuid}` with `isPublic`; reader: `GET /api/public/shares/{id}` | ready (new share ids are UUIDs; a private share is read as the owner's document)                                   |
 | Wallet balance      | `VITE_WALLET_BALANCE_URL` Cloud Function (unset)                                             | none                                                                                                            | remove: unset today; no chain API in the backend                                                                   |
 
@@ -103,12 +102,23 @@ All of it goes through one Aureon implementation of the Firestore-shaped `loadFi
 | Paper trading (Trading Phase F): "Send to paper" on signals, Paper tab (paper book, intents, admin approve / cancel, reconcile, manual paper order), admin OBSERVE ⇄ PAPER switch; "Approve live" stays disabled                                                        | none (new) | `/api/trading/order-intents[/{id}[/approve\|cancel]]`, `/api/trading/accounts/{id}/paper[/reconcile]`, `/api/trading/accounts/{id}/mode`                                      | ready  |
 | Paper extras (Prompt 11): admin approval inbox (every PENDING_RISK intent across accounts, count on the Paper tab), simulated executions with charges, reconciliation history, refresh on new risk decisions / signals from the live stream or every 15 s while visible | none (new) | `/api/trading/order-intents?status=PENDING_RISK`, `/api/trading/executions` (source=simulated), `/api/trading/accounts/{id}/paper/reconciliations`, `GET /api/trading/stream` | ready  |
 
+## Control center (Phase 21)
+
+| Feature                                                                                       | Old source | New endpoint                                                  | Status                                                          |
+| --------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------- | --------------------------------------------------------------- |
+| `/dev`: GitHub dashboard, repo explorer, issues, PRs (gated merge), reviews, Actions          | none (new) | `/api/v1/github/*`, `/api/v1/reviews`                         | done                                                            |
+| `/dev/agents`, `/dev/repairs`                                                                 | none (new) | `/api/agents`, `/api/scheduler/jobs`, `/api/v1/repairs/*`     | done                                                            |
+| `/dev/inbox`: approval inbox with password approve / deny, live count                         | none (new) | `/api/v1/approvals` (poll); Phase 20 inbox + SSE when present | ready (polls until backend Phase 20 adds the inbox and stream)  |
+| `/dev/audit`                                                                                  | none (new) | `/api/v1/audit/events` (Phase 20)                             | ready (says "needs backend Phase 20" until the endpoint exists) |
+| PWA: manifest from tokens, offline shell, `/api/*` network-only; no secrets in `VITE_` (test) | vite-pwa   | n/a                                                           | done                                                            |
+
 ## Blockers and notes
 
 - **No frontend blockers remain.** Backend Phase 2b (finance), the sessions list, attachments, public shares and the
   forex job all exist on the backend main, and the frontend uses them.
-- **GitHub (planned → Phase 21):** the issue / pull-request mirror, the GitHub setup and the webhooks wait for the
-  backend's `/api/v1/github/*` (Phases 15/16/21). Until then the Code tab says so and links to Code (Aureon).
+- **GitHub (done, Phase 21):** the control center at `/dev` ([control-center.md](control-center.md)) covers the
+  issue / pull-request work, the GitHub setup, Actions and the webhook-fed runs on `/api/v1/github/*`. The
+  approval inbox and the audit log wait partly on backend Phase 20 (D-21-8, D-21-9).
 - **Receipts on workspace transactions:** the attachments API attaches to finance rows only. On Aureon, receipts are
   added from the Expenses tab. A document-scoped attachment kind on the backend would bring them back to the Finances
   tab ([decisions.md](decisions.md) D-F7).
