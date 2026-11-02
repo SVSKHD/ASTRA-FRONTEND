@@ -8,3 +8,7 @@ tsconfig.tsbuildinfo
 
 tmp
 .next
+
+# generated from the Aureon backend (npm run api:gen)
+src/api/openapi.json
+src/api/schema.d.ts
