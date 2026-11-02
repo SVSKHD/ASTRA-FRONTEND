@@ -359,7 +359,9 @@ function route(method: string, path: string): [number, unknown] {
   if (path === '/api/trading/order-intents')
     return [200, { items: [], total: 0, limit: 200, offset: 0 }]
   if (path === '/api/v1/approvals/inbox') return [404, { detail: 'Not Found' }]
-  if (path === '/api/v1/approvals') return [200, { items: [], total: 0, limit: 200, offset: 0 }]
+  if (path === '/api/v1/approvals')
+    return [200, { items: PENDING, total: PENDING.length, limit: 200, offset: 0 }]
+  if (path === '/api/v1/audit/events') return [404, { detail: 'Not Found' }]
   void method
   return [200, { items: [], total: 0, limit: 50, offset: 0 }]
 }
@@ -406,6 +408,22 @@ const ISSUE = {
   closed_at: null,
 }
 let LINKS: unknown[] = []
+const APPROVAL = (id: string) => ({
+  id,
+  kind: 'github.pr.merge',
+  target: 'svskhd/astra#7',
+  payload: { merge_method: 'squash', artifact: { head_sha: 'feedface01', base_ref: 'dev01' } },
+  artifact_sha256: 'abc123def456',
+  status: 'pending',
+  requested_by: 'u',
+  decided_by: null,
+  decided_at: null,
+  executed_at: null,
+  result: null,
+  expires_at: LATER,
+  created_at: NOW,
+})
+let PENDING: unknown[] = []
 const REVIEW = {
   id: 'rv1',
   repo: 'svskhd/astra',
@@ -500,6 +518,7 @@ beforeEach(() => {
   writes.length = 0
   overrides = {}
   LINKS = []
+  PENDING = []
   FakeES.all = []
   try {
     localStorage.clear()
@@ -532,8 +551,8 @@ beforeEach(() => {
   setActivePinia(createPinia())
 })
 afterEach(async () => {
-  const { stopApprovals } = await import('@/control/approvals')
-  stopApprovals()
+  const { resetApprovals } = await import('@/control/approvals')
+  resetApprovals()
   vi.unstubAllGlobals()
 })
 
@@ -866,6 +885,167 @@ describe('repairs', () => {
     await button(w, 'Retry').trigger('click')
     await settle()
     expect(writes.map((x) => x.path)).toContain('/api/v1/repairs/rp1/retry')
+    w.unmount()
+  })
+})
+
+describe('approval inbox', () => {
+  it('lists pending approvals with kind, target, summary and an expiry countdown', async () => {
+    PENDING = [APPROVAL('ap-1')]
+    const { w } = await mountAt('/dev/inbox?id=ap-1')
+    await sees(w, 'Waiting for approval (1)')
+    expect(w.text()).toContain('github.pr.merge')
+    expect(w.text()).toContain('svskhd/astra#7')
+    expect(w.text()).toContain('squash merge · into dev01 · head feedfac')
+    expect(w.text()).toMatch(/expires in (19|20) min/)
+    expect(w.text()).toContain('Re-checked on approval')
+    expect(w.text()).toContain('Refreshing every 15 s')
+    expect(calls).toContain('GET /api/v1/approvals')
+    // Paper intents are listed with a way to the Paper tab.
+    expect(w.text()).toContain('Open the Paper tab')
+    expect(w.text()).toContain('Inbox')
+    w.unmount()
+  })
+
+  it('approves with the password and reports the execution', async () => {
+    PENDING = [APPROVAL('ap-1')]
+    overrides['POST /api/v1/approvals/ap-1/approve'] = () => {
+      PENDING = []
+      return [200, { ...APPROVAL('ap-1'), status: 'executed' }]
+    }
+    const { w } = await mountAt('/dev/inbox')
+    await sees(w, 'Approve…')
+    await button(w, 'Approve…').trigger('click')
+    const pw = document.body.querySelector(
+      'input[type="password"][aria-label="Password"]',
+    ) as HTMLInputElement
+    pw.value = 'hunter2'
+    pw.dispatchEvent(new Event('input'))
+    await settle()
+    await clickInBody('Approve and run')
+    await sees(w, 'Approved and executed: github.pr.merge on svskhd/astra#7.')
+    expect(writes).toEqual([
+      { method: 'POST', path: '/api/v1/approvals/ap-1/approve', body: { password: 'hunter2' } },
+    ])
+    await sees(w, 'Nothing is waiting for approval')
+    w.unmount()
+  })
+
+  it('keeps the request pending on a wrong password (403)', async () => {
+    PENDING = [APPROVAL('ap-1')]
+    overrides['POST /api/v1/approvals/ap-1/approve'] = [
+      403,
+      { detail: { code: 'reauth_failed', detail: 'Re-authentication failed' } },
+    ]
+    const { w } = await mountAt('/dev/inbox')
+    await sees(w, 'Approve…')
+    await button(w, 'Approve…').trigger('click')
+    const pw = document.body.querySelector('input[aria-label="Password"]') as HTMLInputElement
+    pw.value = 'wrong'
+    pw.dispatchEvent(new Event('input'))
+    await settle()
+    await clickInBody('Approve and run')
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain(
+        'That password is not right. The request is still pending.',
+      ),
+    )
+    expect(w.text()).toContain('Waiting for approval (1)')
+    // The field is cleared; the password is not kept anywhere.
+    expect(
+      (document.body.querySelector('input[aria-label="Password"]') as HTMLInputElement).value,
+    ).toBe('')
+    w.unmount()
+  })
+
+  it('explains a 409 (drift) and refreshes the list', async () => {
+    PENDING = [APPROVAL('ap-1')]
+    overrides['POST /api/v1/approvals/ap-1/approve'] = () => {
+      PENDING = []
+      return [409, { detail: { code: 'approval_invalidated', detail: 'artifact changed' } }]
+    }
+    const { w } = await mountAt('/dev/inbox')
+    await sees(w, 'Approve…')
+    await button(w, 'Approve…').trigger('click')
+    const pw = document.body.querySelector('input[aria-label="Password"]') as HTMLInputElement
+    pw.value = 'hunter2'
+    pw.dispatchEvent(new Event('input'))
+    await settle()
+    await clickInBody('Approve and run')
+    await sees(w, 'What was approved has changed since the request')
+    await sees(w, 'Nothing is waiting for approval')
+    w.unmount()
+  })
+
+  it('denies with a reason', async () => {
+    PENDING = [APPROVAL('ap-1')]
+    overrides['POST /api/v1/approvals/ap-1/deny'] = () => {
+      PENDING = []
+      return [200, { ...APPROVAL('ap-1'), status: 'denied' }]
+    }
+    const { w } = await mountAt('/dev/inbox')
+    await sees(w, 'Deny…')
+    await button(w, 'Deny…').trigger('click')
+    const ta = document.body.querySelector(
+      'textarea[placeholder="Why (optional)"]',
+    ) as HTMLTextAreaElement
+    ta.value = 'not now'
+    ta.dispatchEvent(new Event('input'))
+    await settle()
+    await clickInBody('Deny')
+    await sees(w, 'Denied: github.pr.merge')
+    expect(writes).toEqual([
+      { method: 'POST', path: '/api/v1/approvals/ap-1/deny', body: { reason: 'not now' } },
+    ])
+    w.unmount()
+  })
+
+  it('updates the nav count on an SSE event from the approval engine', async () => {
+    PENDING = [APPROVAL('ap-1')]
+    overrides['GET /api/v1/approvals/inbox'] = () => [
+      200,
+      { items: PENDING, total: PENDING.length },
+    ]
+    const { w } = await mountAt('/dev')
+    await sees(w, 'Approvals (1)')
+    const es = FakeES.all.find((e) => e.url.includes('/api/v1/approvals/stream'))
+    expect(es).toBeTruthy()
+    PENDING = [APPROVAL('ap-1'), APPROVAL('ap-2')]
+    es!.emit('approval.requested', { id: 'ap-2' })
+    await sees(w, 'Approvals (2)')
+    // The phone bar's Inbox button carries the same count.
+    const inbox = w.findAll('.cc__nav button').find((b) => b.text().includes('Inbox'))!
+    expect(inbox.text()).toContain('2')
+    w.unmount()
+  })
+})
+
+describe('audit', () => {
+  it('says it needs backend Phase 20 while the endpoint is missing', async () => {
+    const { w } = await mountAt('/dev/audit')
+    await sees(w, 'The audit log needs backend Phase 20')
+    w.unmount()
+  })
+
+  it('pages audit events and filters them once the endpoint exists', async () => {
+    const ev = (i: number) => ({
+      id: i,
+      event_type: 'approval_executed',
+      actor: 'owner',
+      at: NOW,
+      details: { kind: 'github.pr.merge' },
+    })
+    overrides['GET /api/v1/audit/events'] = [
+      200,
+      { items: Array.from({ length: 50 }, (_, i) => ev(i)), total: 120, limit: 50, offset: 0 },
+    ]
+    const { w } = await mountAt('/dev/audit')
+    await sees(w, '1–50 of 120')
+    expect(w.text()).toContain('approval_executed')
+    await button(w, 'Next').trigger('click')
+    await vi.waitFor(() =>
+      expect(calls.filter((c) => c === 'GET /api/v1/audit/events').length).toBe(2),
+    )
     w.unmount()
   })
 })
