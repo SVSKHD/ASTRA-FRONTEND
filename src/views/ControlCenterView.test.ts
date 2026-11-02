@@ -196,6 +196,166 @@ function route(method: string, path: string): [number, unknown] {
       },
     ]
   if (path === '/api/v1/reviews') return [200, { items: [REVIEW], total: 1, limit: 50, offset: 0 }]
+  if (path === `${R}/actions/workflows`)
+    return [
+      200,
+      [
+        {
+          id: 1,
+          name: 'CI',
+          path: '.github/workflows/ci.yml',
+          file: 'ci.yml',
+          state: 'active',
+          html_url: null,
+          dispatch_allowed: true,
+          production: false,
+        },
+        {
+          id: 2,
+          name: 'Deploy',
+          path: '.github/workflows/deploy.yml',
+          file: 'deploy.yml',
+          state: 'active',
+          html_url: null,
+          dispatch_allowed: true,
+          production: true,
+        },
+        {
+          id: 3,
+          name: 'Nightly',
+          path: '.github/workflows/nightly.yml',
+          file: 'nightly.yml',
+          state: 'active',
+          html_url: null,
+          dispatch_allowed: false,
+          production: false,
+        },
+      ],
+    ]
+  if (path === `${R}/actions/runs/99/jobs`)
+    return [
+      200,
+      [
+        {
+          id: 501,
+          run_id: 99,
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          run_attempt: 1,
+          html_url: null,
+          started_at: NOW,
+          completed_at: NOW,
+          runner_name: null,
+          labels: [],
+          steps: [
+            {
+              number: 3,
+              name: 'npm test',
+              status: 'completed',
+              conclusion: 'failure',
+              started_at: NOW,
+              completed_at: NOW,
+            },
+          ],
+        },
+      ],
+    ]
+  if (path === `${R}/actions/jobs/501/logs`)
+    return [200, '2026-11-02 Run npm test\nFAIL src/x.test.ts\nexit 1']
+  if (path === '/api/agents')
+    return [
+      200,
+      {
+        agents: [
+          {
+            id: 'github',
+            name: 'GitHub sync',
+            kind: 'integration',
+            state: 'idle',
+            reported_state: 'idle',
+            paused: false,
+            host: null,
+            version: null,
+            details: {},
+            registered_at: NOW,
+            last_heartbeat_at: new Date(Date.now() - 30_000).toISOString(),
+            last_activity_at: NOW,
+            seconds_since_heartbeat: 30,
+          },
+        ],
+      },
+    ]
+  if (path === '/api/scheduler/jobs')
+    return [
+      200,
+      [
+        {
+          id: 'github-sync',
+          agent_id: 'github',
+          task: 'github_sync',
+          cron: '*/20 * * * *',
+          paused: false,
+          running: false,
+          attempt: 0,
+          consecutive_failures: 0,
+          last_error: null,
+          last_run_at: NOW,
+          last_status: 'succeeded',
+          next_run_at: LATER,
+          max_retries: 3,
+          retry_backoff_seconds: 30,
+          timeout_seconds: 300,
+        },
+      ],
+    ]
+  if (path === '/api/v1/repairs/status')
+    return [
+      200,
+      {
+        enabled: true,
+        paused: false,
+        reason: null,
+        model: null,
+        repo: 'x',
+        github_repo: 'svskhd/astra',
+      },
+    ]
+  if (path === '/api/v1/repairs/incidents')
+    return [
+      200,
+      {
+        items: [
+          {
+            id: 'inc1',
+            fingerprint: 'f',
+            source: 'scheduler',
+            severity: 'error',
+            title: 'github_sync keeps failing',
+            first_seen: NOW,
+            last_seen: NOW,
+            count: 4,
+            status: 'open',
+            resolved_at: null,
+            recovery_attempts: 2,
+            last_recovery_at: NOW,
+          },
+        ],
+        total: 1,
+        limit: 30,
+        offset: 0,
+      },
+    ]
+  if (path === '/api/v1/repairs') return [200, { items: [REPAIR], total: 1, limit: 30, offset: 0 }]
+  if (path === '/api/v1/repairs/rp1')
+    return [
+      200,
+      {
+        ...REPAIR,
+        patch: '--- a/app/x.py\n+++ b/app/x.py\n@@ -1 +1 @@\n-bad\n+good\n',
+        test_output: '3 failed\nAssertionError',
+      },
+    ]
   if (path === '/api/trading/order-intents')
     return [200, { items: [], total: 0, limit: 200, offset: 0 }]
   if (path === '/api/v1/approvals/inbox') return [404, { detail: 'Not Found' }]
@@ -268,6 +428,32 @@ const REVIEW = {
   created_at: NOW,
   finished_at: NOW,
   advisory: true,
+}
+const REPAIR = {
+  id: 'rp1',
+  incident_id: 'inc1',
+  status: 'tests_failed',
+  repo: 'x',
+  github_repo: 'svskhd/astra',
+  target_paths: ['app/x.py'],
+  files: ['app/x.py'],
+  branch: 'repair/rp1',
+  worktree: null,
+  base_sha: 'base0001',
+  model: null,
+  prompt_digest: null,
+  patch: null,
+  test_output: null,
+  pr_url: null,
+  pr_number: null,
+  blocked_reason: null,
+  error: null,
+  attempts: 1,
+  parent_repair_id: null,
+  created_by: 'u',
+  created_at: NOW,
+  started_at: NOW,
+  finished_at: NOW,
 }
 const RUN = {
   id: 99,
@@ -574,6 +760,112 @@ describe('reviews', () => {
     expect(w.text()).toContain('Classification: REDACT: email')
     expect(w.text()).toContain('Publish as comment (advisory)')
     expect(w.text()).toContain('Request review of #7')
+    w.unmount()
+  })
+})
+
+describe('actions', () => {
+  it('lists workflows, offers dispatch only on the allowlist, and shows a job log as text', async () => {
+    const { w } = await mountAt('/dev/actions')
+    await sees(w, 'Not on the dispatch allowlist')
+    expect(w.text()).toContain('Run (approval required)')
+    await sees(w, 'CI #12')
+    await button(w, 'Jobs').trigger('click')
+    await sees(w, 'step 3 npm test: failure')
+    await button(w, 'Log').trigger('click')
+    await sees(w, 'FAIL src/x.test.ts')
+    const box = w.find('[role="log"]')
+    expect(box.classes()).toContain('cc-mono')
+    expect(box.findAll('.cc-line').map((l) => l.text())).toEqual([
+      '2026-11-02 Run npm test',
+      'FAIL src/x.test.ts',
+      'exit 1',
+    ])
+    w.unmount()
+  })
+
+  it('files a production dispatch for approval instead of sending it', async () => {
+    overrides[`POST ${R}/actions/workflows/deploy.yml/dispatch`] = [
+      202,
+      {
+        status: 'pending_approval',
+        action: 'workflow_dispatch',
+        repo: 'svskhd/astra',
+        target: 'deploy.yml@main',
+        approval: {
+          approval_id: 'ap-2',
+          status: 'pending',
+          kind: 'github.workflow_dispatch_prod',
+          target: 'svskhd/astra:deploy.yml@main',
+          artifact_sha256: 'aa11',
+          expires_at: LATER,
+          operation_id: 4,
+          artifact: {},
+        },
+      },
+    ]
+    const { w } = await mountAt('/dev/actions')
+    await sees(w, 'Run (approval required)')
+    await button(w, 'Run (approval required)').trigger('click')
+    await clickInBody('Request approval')
+    await sees(w, 'Approval required')
+    expect(w.text()).toContain('github.workflow_dispatch_prod')
+    expect(writes.map((x) => x.path)).toEqual([`${R}/actions/workflows/deploy.yml/dispatch`])
+    expect(writes[0].body).toEqual({ ref: 'main', inputs: {} })
+    w.unmount()
+  })
+
+  it('cancels and re-runs through Aureon', async () => {
+    overrides[`POST ${R}/actions/runs/99/rerun-failed`] = [
+      202,
+      {
+        status: 'sent',
+        action: 'rerun_failed',
+        repo: 'svskhd/astra',
+        target: '99',
+        approval: null,
+      },
+    ]
+    const { w } = await mountAt('/dev/actions')
+    await sees(w, 'CI #12')
+    await button(w, 'Jobs').trigger('click')
+    await sees(w, 'Re-run failed jobs')
+    await button(w, 'Re-run failed jobs').trigger('click')
+    await sees(w, 'Re-run failed jobs: sent to GitHub.')
+    w.unmount()
+  })
+})
+
+describe('agents', () => {
+  it('shows the registry with heartbeat age and pauses an agent', async () => {
+    overrides['POST /api/agents/github/pause'] = [200, {}]
+    const { w } = await mountAt('/dev/agents')
+    await sees(w, 'GitHub sync')
+    expect(w.text()).toMatch(/heartbeat \d+ s ago/)
+    await sees(w, 'github-sync')
+    expect(w.text()).toContain('*/20 * * * *')
+    await button(w, 'Pause').trigger('click')
+    await settle()
+    expect(writes.map((x) => x.path)).toContain('/api/agents/github/pause')
+    // The trading stream carries live agent state.
+    expect(FakeES.all.some((e) => e.url.includes('/api/trading/stream'))).toBe(true)
+    w.unmount()
+  })
+})
+
+describe('repairs', () => {
+  it('shows incidents, a repair with its patch and test output, and retries it', async () => {
+    overrides['POST /api/v1/repairs/rp1/retry'] = [201, { ...REPAIR, id: 'rp2', status: 'queued' }]
+    const { w } = await mountAt('/dev/repairs')
+    await sees(w, 'github_sync keeps failing')
+    await sees(w, 'tests_failed')
+    await button(w, 'Details').trigger('click')
+    await sees(w, '+good')
+    expect(w.text()).toContain('AssertionError')
+    expect(w.find('[aria-label="Repair patch"]').exists()).toBe(true)
+    await button(w, 'Retry').trigger('click')
+    await settle()
+    expect(writes.map((x) => x.path)).toContain('/api/v1/repairs/rp1/retry')
     w.unmount()
   })
 })

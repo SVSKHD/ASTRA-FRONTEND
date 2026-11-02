@@ -15,12 +15,24 @@ built phone-first (375 px, no horizontal page scroll). Decisions are in [decisio
 
 ## Modules
 
-| Route       | Module                                                                                             | Endpoints                                                                                                                                                                                          |
-| ----------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/dev`      | GitHub dashboard: connection health, rate limit, repositories, recent runs, open PR / issue counts | `GET /api/v1/github/connection`, `POST …/connection/check`, `GET /api/v1/github/repositories[?refresh=true]`, `GET R/pulls?state=open`, `GET R/issues?state=open`, `GET R/actions/runs?per_page=5` |
-| `/dev/repo` | Repository explorer: branches, commits, tree, text file viewer                                     | `GET R/branches`, `GET R/commits?sha=`, `GET R/tree?ref=&path=`, `GET R/contents/{path}?ref=`                                                                                                      |
+| Route          | Module                                                                                                                                                                                                      | Endpoints                                                                                                                                                                                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/dev`         | GitHub dashboard: connection health, rate limit, repositories, recent runs, open PR / issue counts                                                                                                          | `GET /api/v1/github/connection`, `POST …/connection/check`, `GET /api/v1/github/repositories[?refresh=true]`, `GET R/pulls?state=open`, `GET R/issues?state=open`, `GET R/actions/runs?per_page=5`                                                                  |
+| `/dev/repo`    | Repository explorer: branches, commits, tree, text file viewer                                                                                                                                              | `GET R/branches`, `GET R/commits?sha=`, `GET R/tree?ref=&path=`, `GET R/contents/{path}?ref=`                                                                                                                                                                       |
+| `/dev/actions` | Actions: workflows (dispatch only when allowlisted; production asks for approval), runs with status filter and pages, jobs with failed steps, the job log (text/plain, tail), re-run, re-run failed, cancel | `GET R/actions/workflows`, `GET R/actions/runs`, `GET R/actions/runs/{id}/jobs`, `GET R/actions/jobs/{id}/logs` (text/plain), `POST R/actions/workflows/{file}/dispatch`, `POST R/actions/runs/{id}/rerun\|rerun-failed\|cancel` (202 `sent` or `pending_approval`) |
+| `/dev/agents`  | Agents: the registry with heartbeat age, pause / resume, recent runs and logs; the scheduler jobs with pause / resume / run now                                                                             | `GET /api/agents`, `POST /api/agents/{id}/pause\|resume`, `GET /api/agents/{id}/runs`, `GET /api/agents/{id}/logs`, `GET /api/scheduler/jobs`, `POST /api/scheduler/jobs/{id}/pause\|resume\|run`; live state from `GET /api/trading/stream` (`agent` events)       |
+| `/dev/repairs` | Repairs: status, incidents (repair / resolve / ignore), repair tasks with the patch (diff viewer) and test output (log viewer), retry, cancel                                                               | `GET /api/v1/repairs/status`, `GET /api/v1/repairs/incidents`, `POST …/incidents/{id}/resolve\|ignore`, `GET/POST /api/v1/repairs`, `GET /api/v1/repairs/{id}`, `POST /api/v1/repairs/{id}/retry\|cancel`                                                           |
 
 `R` = `/api/v1/github/repositories/{owner}/{repo}`.
+
+## Live updates
+
+| Data                           | How                                                                                                             |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Agent state                    | the trading stream's `agent` events (SSE), plus a 15 s poll for runs, jobs and fields the stream does not carry |
+| Actions runs and jobs, repairs | 15 s visibility-aware poll                                                                                      |
+| Dashboard counts               | 60 s visibility-aware poll                                                                                      |
+| Reviews                        | 5 s poll while one is queued or running                                                                         |
 
 ## Gated operations
 

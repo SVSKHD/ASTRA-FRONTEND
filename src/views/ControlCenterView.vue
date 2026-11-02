@@ -31,6 +31,9 @@ const PAGES: Partial<Record<ModuleKey, ReturnType<typeof defineAsyncComponent>>>
   issues: defineAsyncComponent(() => import('@/components/control/CcIssues.vue')),
   pulls: defineAsyncComponent(() => import('@/components/control/CcPulls.vue')),
   reviews: defineAsyncComponent(() => import('@/components/control/CcReviews.vue')),
+  actions: defineAsyncComponent(() => import('@/components/control/CcActions.vue')),
+  agents: defineAsyncComponent(() => import('@/components/control/CcAgents.vue')),
+  repairs: defineAsyncComponent(() => import('@/components/control/CcRepairs.vue')),
 }
 const AVAILABLE = MODULES.filter((m) => PAGES[m.value])
 const NAV = PHONE_NAV.filter((m) => PAGES[m])
