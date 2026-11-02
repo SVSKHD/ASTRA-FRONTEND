@@ -89,9 +89,9 @@ and the payload shapes are preserved.
 
 ## Trading panel (Trading Phase E)
 
-| Feature                                                                     | Old source | New endpoint                                      | Status  |
-| --------------------------------------------------------------------------- | ---------- | ------------------------------------------------- | ------- |
-| `/trading` overview, Dhan, MT5, signals, backtests, positions, risk, agents | none (new) | `/api/trading/*`, `GET /api/trading/stream` (SSE) | planned |
+| Feature                                                                                                                                                                                                          | Old source | New endpoint                                                 | Status |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------ | ------ |
+| `/trading` panel: overview, Dhan, MT5, watchlist + charts, signals + AI explanation, strategies + backtests, orders / executions / positions / P&L, risk (admin), agents, mode badge, disabled approval controls | none (new) | `/api/trading/*`, `GET /api/trading/stream` (SSE, resumable) | ready  |
 
 ## Validation per stage (on the server)
 

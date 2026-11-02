@@ -56,6 +56,8 @@ const ROUTES = [
   { name: 'wallets tab', path: '/?tab=wallets' },
   { name: 'stocks tab', path: '/?tab=stocks' },
   { name: 'bots tab', path: '/?tab=bots' },
+  // The new trading panel boots too (it stops at its Aureon sign-in offline).
+  { name: '/trading', path: '/trading' },
 ]
 
 /** Noise that is not a failure of the page under test. */
