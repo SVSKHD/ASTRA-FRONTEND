@@ -77,7 +77,11 @@ function constrainSize() {
   if (dimensions.value) setDimensions(dimensions.value.width, dimensions.value.height)
 }
 onMounted(() => window.addEventListener('resize', constrainSize))
-onBeforeUnmount(() => window.removeEventListener('resize', constrainSize))
+// Guarded: an unmount that runs after the page (or a test's jsdom) is gone has
+// no window to detach from, and must not throw on the way out.
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') window.removeEventListener('resize', constrainSize)
+})
 
 let restoreTo: HTMLElement | null = null
 
