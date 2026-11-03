@@ -1457,6 +1457,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trading/mt5/bot-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bot Status */
+        get: operations["bot_status_api_trading_mt5_bot_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Failures */
+        get: operations["failures_api_trading_mt5_failures_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/ingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ingest
+         * @description The MT5 bot pushes one aureon.mt5.push/v1 document per status poll. Idempotent by
+         *     push_id (a repeat answers 200 {"duplicate": true}) and per event id. Never touches orders.
+         */
+        post: operations["ingest_api_trading_mt5_ingest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trading/mt5/instruments/{symbol}": {
         parameters: {
             query?: never;
@@ -1478,6 +1533,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trading/mt5/market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Market */
+        get: operations["market_api_trading_mt5_market_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Positions */
+        get: operations["positions_api_trading_mt5_positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report */
+        get: operations["report_api_trading_mt5_report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Signals
+         * @description Journal timeline, newest first. `kind` (repeatable): P, cross, protected, secured, exit,
+         *     closed, error, or a raw event name (position_seen, process_start, ...).
+         */
+        get: operations["signals_api_trading_mt5_signals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trading/mt5/status": {
         parameters: {
             query?: never;
@@ -1491,6 +1618,23 @@ export interface paths {
          *     calculated from its journal (labelled `calculated`). Nothing is sent to the bot.
          */
         get: operations["mt5_status_api_trading_mt5_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/strategy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Strategy */
+        get: operations["strategy_api_trading_mt5_strategy_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2961,6 +3105,27 @@ export interface paths {
         put?: never;
         /** Publish Review */
         post: operations["publish_review_api_v1_reviews__review_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Integrations
+         * @description The Spasta health card: MT5 feed freshness, Dhan, GitHub, webhook worker, Claude CLI,
+         *     Ollama models, Discord, the DB role and backups. Read-only; admin only.
+         */
+        get: operations["integrations_api_v1_system_integrations_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4935,6 +5100,8 @@ export interface components {
         };
         /** ModelList */
         ModelList: {
+            /** Default Model */
+            default_model?: string | null;
             /** Models */
             models: components["schemas"]["ModelOut"][];
         };
@@ -4976,6 +5143,208 @@ export interface components {
             reachable: boolean;
         };
         /**
+         * Mt5BotStatusOut
+         * @description Status card: heartbeat = the time of the last accepted push (server clock).
+         */
+        Mt5BotStatusOut: {
+            /** Age S */
+            age_s: number | null;
+            /** Bot */
+            bot: {
+                [key: string]: unknown;
+            };
+            /** Generated At */
+            generated_at: string | null;
+            /** Halt */
+            halt: {
+                [key: string]: unknown;
+            } | null;
+            /** Health */
+            health: {
+                [key: string]: unknown;
+            };
+            /** Last Heartbeat At */
+            last_heartbeat_at: string | null;
+            /** Open Failures */
+            open_failures: number;
+            /** Push Id */
+            push_id: string | null;
+            /** Reasons */
+            reasons: string[];
+            /** Seq */
+            seq: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /** Stale After S */
+            stale_after_s: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "online" | "stale" | "error";
+        };
+        /** Mt5CandleOut */
+        Mt5CandleOut: {
+            /** C */
+            c: string;
+            /** Ema */
+            ema: {
+                [key: string]: string | null;
+            };
+            /** H */
+            h: string;
+            /** L */
+            l: string;
+            /** O */
+            o: string;
+            /**
+             * T
+             * Format: date-time
+             */
+            t: string;
+            /** V */
+            v: string | null;
+        };
+        /** Mt5DailyOut */
+        Mt5DailyOut: {
+            /** Date */
+            date: string;
+            /** Exits */
+            exits: number;
+            /** Losses */
+            losses: number;
+            /** Net Points */
+            net_points: string;
+            /** Wins */
+            wins: number;
+        };
+        /** Mt5EventOut */
+        Mt5EventOut: {
+            /** Event */
+            event: string;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Symbol */
+            symbol: string | null;
+            /**
+             * T
+             * Format: date-time
+             */
+            t: string;
+            /** Ticket */
+            ticket: number | null;
+        };
+        /** Mt5FailureOut */
+        Mt5FailureOut: {
+            /** Count */
+            count: number;
+            /**
+             * First Seen
+             * Format: date-time
+             */
+            first_seen: string;
+            /** Id */
+            id: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "mt5_disconnected" | "stale_ticks" | "guardian_error" | "discord_error" | "exception" | "stale_heartbeat";
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
+            /** Open */
+            open: boolean;
+            /** Reason */
+            reason: string;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Symbol */
+            symbol: string | null;
+        };
+        /** Mt5FailuresOut */
+        Mt5FailuresOut: {
+            /** Items */
+            items: components["schemas"]["Mt5FailureOut"][];
+            /** Open Count */
+            open_count: number;
+        };
+        /**
+         * Mt5GuardianOut
+         * @description phase: the guardian's word (pre | protect | secured | ride); leg_phase: the A/B leg.
+         */
+        Mt5GuardianOut: {
+            /** Bars */
+            bars: number | null;
+            /** Direction */
+            direction: string | null;
+            /** Entry */
+            entry: string | null;
+            /** Frozen */
+            frozen: boolean | null;
+            /** Leg Phase */
+            leg_phase: string | null;
+            /** Peak */
+            peak: string | null;
+            /** Peak Pts */
+            peak_pts: string | null;
+            /** Phase */
+            phase: string | null;
+            /** Profile */
+            profile: string | null;
+            /** Secured Level */
+            secured_level: string | null;
+            /** Secured Pts */
+            secured_pts: string | null;
+            /** Sl */
+            sl: string | null;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** Mt5IngestAccepted */
+        Mt5IngestAccepted: {
+            /**
+             * Accepted
+             * @default true
+             * @constant
+             */
+            accepted: true;
+            /** Events Duplicate */
+            events_duplicate: number;
+            /** Events New */
+            events_new: number;
+            /**
+             * Push Id
+             * Format: uuid
+             */
+            push_id: string;
+        };
+        /** Mt5IngestDuplicate */
+        Mt5IngestDuplicate: {
+            /**
+             * Duplicate
+             * @default true
+             * @constant
+             */
+            duplicate: true;
+            /**
+             * Push Id
+             * Format: uuid
+             */
+            push_id: string;
+        };
+        /**
          * Mt5InstrumentIn
          * @description Contract spec typed in by an admin from MT5's symbol Specification window.
          *     The bot's export does not carry it, so Aureon never guesses it.
@@ -5002,6 +5371,96 @@ export interface components {
             volume_min?: number | string | null;
             /** Volume Step */
             volume_step?: number | string | null;
+        };
+        /** Mt5MarketOut */
+        Mt5MarketOut: {
+            /** As Of */
+            as_of: string | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /**
+             * Session
+             * @enum {string}
+             */
+            session: "Asia" | "London" | "NY";
+            /** Symbols */
+            symbols: components["schemas"]["Mt5SymbolMarketOut"][];
+        };
+        /** Mt5PositionOut */
+        Mt5PositionOut: {
+            /** Current */
+            current: string | null;
+            /** Direction */
+            direction: string;
+            guardian: components["schemas"]["Mt5GuardianOut"] | null;
+            /** Opened At */
+            opened_at: string | null;
+            /** Points */
+            points: string | null;
+            /** Price Open */
+            price_open: string;
+            /** Sl */
+            sl: string | null;
+            /** Symbol */
+            symbol: string;
+            /** Ticket */
+            ticket: number;
+            /** Tp */
+            tp: string | null;
+            /** Volume */
+            volume: string;
+        };
+        /** Mt5PositionsOut */
+        Mt5PositionsOut: {
+            /** As Of */
+            as_of: string | null;
+            /** Guardian Orphans */
+            guardian_orphans: {
+                [key: string]: components["schemas"]["Mt5GuardianOut"][];
+            };
+            /** Items */
+            items: components["schemas"]["Mt5PositionOut"][];
+            /** Stale */
+            stale: boolean;
+        };
+        /** Mt5ReportOut */
+        Mt5ReportOut: {
+            /** Backtests */
+            backtests: {
+                [key: string]: unknown;
+            }[];
+            /** Daily */
+            daily: components["schemas"]["Mt5DailyOut"][];
+            /** Days */
+            days: number;
+            /** Ema921E Trades */
+            ema921e_trades: {
+                [key: string]: unknown;
+            }[];
+            /** Performance */
+            performance: {
+                [key: string]: unknown;
+            };
+        };
+        /** Mt5SignalsOut */
+        Mt5SignalsOut: {
+            /** Items */
+            items: components["schemas"]["Mt5EventOut"][];
+            /** Latest */
+            latest: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
         };
         /**
          * Mt5StatusOut
@@ -5050,6 +5509,55 @@ export interface components {
              * @enum {string}
              */
             source: "file" | "http";
+        };
+        /** Mt5StrategyOut */
+        Mt5StrategyOut: {
+            /** As Of */
+            as_of: string | null;
+            /** Bot Version */
+            bot_version: string | null;
+            /** Ema */
+            ema: {
+                [key: string]: unknown;
+            };
+            /** Exec Tf */
+            exec_tf: string | null;
+            /** Mode */
+            mode: string | null;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Symbols */
+            symbols: string[];
+            /** Timeframes */
+            timeframes: string[];
+        };
+        /** Mt5SymbolMarketOut */
+        Mt5SymbolMarketOut: {
+            /** Bot Session */
+            bot_session: string | null;
+            /** Candles */
+            candles: components["schemas"]["Mt5CandleOut"][];
+            /** Ema Periods */
+            ema_periods: string[];
+            /** Last Price */
+            last_price: string | null;
+            /** Last Price At */
+            last_price_at: string | null;
+            /** Open */
+            open: boolean | null;
+            /**
+             * Session
+             * @enum {string}
+             */
+            session: "Asia" | "London" | "NY";
+            /** Symbol */
+            symbol: string;
+            /** Tick Age S */
+            tick_age_s: string | null;
+            /** Timeframe */
+            timeframe: string;
         };
         /** OptionChainOut */
         OptionChainOut: {
@@ -10694,6 +11202,137 @@ export interface operations {
             };
         };
     };
+    bot_status_api_trading_mt5_bot_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5BotStatusOut"];
+                };
+            };
+        };
+    };
+    failures_api_trading_mt5_failures_get: {
+        parameters: {
+            query?: {
+                include_resolved?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5FailuresOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_api_trading_mt5_ingest_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "content-encoding"?: string | null;
+                "x-aureon-push-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description push_id already ingested */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5IngestDuplicate"];
+                };
+            };
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5IngestAccepted"];
+                };
+            };
+            /** @description bad or missing bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description body over 2 MiB, or over 8 MiB decompressed */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Content-Encoding other than gzip */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description not aureon.mt5.push/v1 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description too many pushes */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ingest disabled (MT5_INGEST_TOKEN unset) or storage unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     put_mt5_instrument_api_trading_mt5_instruments__symbol__put: {
         parameters: {
             query?: never;
@@ -10729,6 +11368,123 @@ export interface operations {
             };
         };
     };
+    market_api_trading_mt5_market_get: {
+        parameters: {
+            query?: {
+                timeframe?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5MarketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    positions_api_trading_mt5_positions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5PositionsOut"];
+                };
+            };
+        };
+    };
+    report_api_trading_mt5_report_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5ReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    signals_api_trading_mt5_signals_get: {
+        parameters: {
+            query?: {
+                kind?: string[] | null;
+                symbol?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5SignalsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mt5_status_api_trading_mt5_status_get: {
         parameters: {
             query?: never;
@@ -10745,6 +11501,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Mt5StatusOut"];
+                };
+            };
+        };
+    };
+    strategy_api_trading_mt5_strategy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5StrategyOut"];
                 };
             };
         };
@@ -13985,6 +14761,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    integrations_api_v1_system_integrations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

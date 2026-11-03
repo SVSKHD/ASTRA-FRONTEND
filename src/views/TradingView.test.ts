@@ -21,6 +21,153 @@ const ACCOUNT = {
 const PAGE = (items: unknown[]) => ({ items, total: items.length, limit: 50, offset: 0 })
 
 let signedIn = true
+// MT5 push mode: false = the bot never pushed (the page falls back to the pull view).
+let mt5Pushed = false
+const MT5_BOT_STATUS = () => ({
+  state: mt5Pushed ? 'online' : 'stale',
+  reasons: mt5Pushed ? [] : ['no push received yet'],
+  last_heartbeat_at: mt5Pushed ? NOW : null,
+  age_s: mt5Pushed ? 3 : null,
+  stale_after_s: 90,
+  push_id: mt5Pushed ? '33333333-3333-4333-8333-333333333333' : null,
+  seq: mt5Pushed ? 12 : null,
+  generated_at: mt5Pushed ? NOW : null,
+  bot: mt5Pushed ? { version: '3.1.0', mode: 'ema5080' } : {},
+  health: mt5Pushed ? { status: 'ok', mt5: { connected: true, terminal: 'CONNECTED' } } : {},
+  halt: null,
+  open_failures: mt5Pushed ? 1 : 0,
+  server_time: NOW,
+})
+const MT5: Record<string, unknown> = {
+  '/api/trading/mt5/market': {
+    server_time: NOW,
+    session: 'London',
+    as_of: NOW,
+    symbols: [
+      {
+        symbol: 'XAUUSD',
+        open: true,
+        session: 'London',
+        bot_session: 'london',
+        tick_age_s: '1.4',
+        last_price: '2655.25',
+        last_price_at: NOW,
+        timeframe: 'M5',
+        ema_periods: ['50', '80'],
+        candles: [
+          {
+            t: NOW,
+            o: '2650',
+            h: '2656',
+            l: '2649',
+            c: '2655.25',
+            v: null,
+            ema: { '50': '2651', '80': '2650' },
+          },
+        ],
+      },
+    ],
+  },
+  '/api/trading/mt5/positions': {
+    as_of: NOW,
+    stale: false,
+    items: [
+      {
+        symbol: 'XAUUSD',
+        ticket: 101,
+        direction: 'long',
+        volume: '0.1',
+        price_open: '2650.55',
+        current: '2655.25',
+        sl: '2648',
+        tp: null,
+        points: '4.7',
+        opened_at: NOW,
+        guardian: {
+          phase: 'secured',
+          leg_phase: 'B',
+          profile: 'gold',
+          secured_pts: '2',
+          peak_pts: '5.6',
+          bars: 7,
+          frozen: false,
+          sl: '2648',
+          secured_level: '2652.5',
+          peak: '2656.1',
+          direction: 'long',
+          entry: '2650.55',
+          updated_at: NOW,
+        },
+      },
+    ],
+    guardian_orphans: {},
+  },
+  '/api/trading/mt5/signals': {
+    items: [
+      {
+        id: 'e1',
+        t: NOW,
+        event: 'signal',
+        kind: 'cross',
+        symbol: 'XAUUSD',
+        ticket: null,
+        payload: { side: 'LONG' },
+      },
+      {
+        id: 'e2',
+        t: NOW,
+        event: 'trail_update',
+        kind: 'trail_update',
+        symbol: 'XAUUSD',
+        ticket: 101,
+        payload: {},
+      },
+    ],
+    total: 2,
+    limit: 60,
+    offset: 0,
+    latest: { XAUUSD: { cross: { side: 'LONG' } } },
+  },
+  '/api/trading/mt5/failures': {
+    open_count: 1,
+    items: [
+      {
+        id: 1,
+        kind: 'stale_ticks',
+        symbol: 'XAGUSD',
+        reason: 'market open but the last XAGUSD tick is 300 s old (limit 120 s)',
+        first_seen: NOW,
+        last_seen: NOW,
+        count: 3,
+        resolved_at: null,
+        open: true,
+      },
+    ],
+  },
+  '/api/trading/mt5/strategy': {
+    as_of: NOW,
+    bot_version: '3.1.0',
+    mode: 'ema5080',
+    symbols: ['XAUUSD'],
+    exec_tf: 'M5',
+    timeframes: ['M5'],
+    ema: { fast: 50, slow: 80 },
+    params: { poll_seconds: 15, htf_align: false },
+  },
+  '/api/trading/mt5/report': {
+    days: 7,
+    performance: {
+      source: 'calculated',
+      exits_by_symbol: {
+        XAUUSD: { exits: 2, wins: 1, losses: 1, net_points: '8.5', win_rate: '0.5' },
+      },
+      ema921e: null,
+    },
+    daily: [{ date: '2026-11-03', exits: 2, wins: 1, losses: 1, net_points: '8.5' }],
+    ema921e_trades: [],
+    backtests: [],
+  },
+}
 const calls: string[] = []
 const posts: { path: string; body: unknown }[] = []
 
@@ -142,6 +289,8 @@ function route(path: string): [number, unknown] {
         },
       ]),
     ]
+  if (path === '/api/trading/mt5/bot-status') return [200, MT5_BOT_STATUS()]
+  if (path in MT5) return [200, MT5[path]]
   if (path === '/api/trading/mt5/status')
     return [501, { detail: { code: 'not_supported', broker: 'mt5', operation: 'mt5_status' } }]
   if (path.endsWith('/health'))
@@ -271,6 +420,7 @@ class FakeES {
 
 beforeEach(() => {
   signedIn = true
+  mt5Pushed = false
   calls.length = 0
   posts.length = 0
   ACCOUNT.mode = 'OBSERVE'
@@ -379,6 +529,19 @@ describe('TradingView', () => {
       await sees(w, text)
     })
   }
+
+  it('shows the MT5 push dashboard once the bot has pushed (read-only)', async () => {
+    mt5Pushed = true
+    const w = await mountAt('/trading/mt5')
+    await sees(w, 'ONLINE')
+    await sees(w, 'Guardian: secured')
+    await sees(w, 'Why: market open but the last XAGUSD tick')
+    await sees(w, 'Trail update')
+    await sees(w, 'EMA 50')
+    expect(w.text()).toContain('ema5080')
+    expect(w.text()).not.toContain('not connected to Aureon')
+    expect(calls.every((c) => c.startsWith('GET '))).toBe(true)
+  }, 20_000)
 
   it('keeps Send to paper off without a PAPER account, and Approve live always off', async () => {
     const w = await mountAt('/trading/signals')
