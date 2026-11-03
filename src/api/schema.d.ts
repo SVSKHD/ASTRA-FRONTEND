@@ -255,6 +255,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/code/git/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Git Clone
+         * @description Queue a clone of an allowlisted repo into CODE_CLONE_ROOT/<owner>/<repo>.
+         */
+        post: operations["git_clone_api_code_git_clone_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/git/ops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Git Ops */
+        get: operations["git_ops_api_code_git_ops_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/git/ops/{op_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Git Op */
+        get: operations["git_op_api_code_git_ops__op_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/git/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Git Pull
+         * @description Queue a fetch + fast-forward of the clone's default branch.
+         */
+        post: operations["git_pull_api_code_git_pull_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/git/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Git Push
+         * @description Queue a push of one feature branch (never main/master/dev01, the default branch, a
+         *     protected branch, or a name outside CODE_PUSH_BRANCH_PREFIXES) and a PR to the default
+         *     branch. Merging stays behind the approval gate.
+         */
+        post: operations["git_push_api_code_git_push_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/code/git/repos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Git Repos
+         * @description GITHUB_CODING_REPO_ALLOWLIST with each repo's clone state.
+         */
+        get: operations["git_repos_api_code_git_repos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/code/tasks": {
         parameters: {
             query?: never;
@@ -1952,6 +2068,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/github/actions/monitor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monitor
+         * @description Host deploys (`deployer` agent runs) and GitHub Actions CI runs, newest first. DB only:
+         *     never calls GitHub (the webhook worker and the sync job keep the runs fresh).
+         */
+        get: operations["monitor_api_v1_github_actions_monitor_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/github/connection": {
         parameters: {
             query?: never;
@@ -2961,6 +3098,27 @@ export interface paths {
         put?: never;
         /** Publish Review */
         post: operations["publish_review_api_v1_reviews__review_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Integrations
+         * @description The Spasta health card: MT5 feed freshness, Dhan, GitHub, webhook worker, Claude CLI,
+         *     Ollama models, Discord, the DB role and backups. Read-only; admin only.
+         */
+        get: operations["integrations_api_v1_system_integrations_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4326,6 +4484,77 @@ export interface components {
             /** Steps */
             steps?: number | null;
         };
+        /** GitOpOut */
+        GitOpOut: {
+            /** Branch */
+            branch: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Head Sha */
+            head_sha: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Op */
+            op: string;
+            /** Pr Number */
+            pr_number: number | null;
+            /** Pr Url */
+            pr_url: string | null;
+            /** Repo */
+            repo: string;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            };
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string | null;
+        };
+        /** GitPushIn */
+        GitPushIn: {
+            /** Body */
+            body?: string | null;
+            /** Branch */
+            branch: string;
+            /** Repo */
+            repo: string;
+            /** Title */
+            title?: string | null;
+        };
+        /** GitRepoIn */
+        GitRepoIn: {
+            /** Repo */
+            repo: string;
+        };
+        /**
+         * GitRepoStateOut
+         * @description One allowlisted repo: whether it is cloned, and the coding-repo name it has.
+         */
+        GitRepoStateOut: {
+            /** Cloned */
+            cloned: boolean;
+            /** Coding Repo */
+            coding_repo: string;
+            /** Default Branch */
+            default_branch: string | null;
+            /** Push Prefixes */
+            push_prefixes: string[];
+            /** Repo */
+            repo: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -4935,6 +5164,8 @@ export interface components {
         };
         /** ModelList */
         ModelList: {
+            /** Default Model */
+            default_model?: string | null;
             /** Models */
             models: components["schemas"]["ModelOut"][];
         };
@@ -4974,6 +5205,55 @@ export interface components {
             models: components["schemas"]["ModelStatus"][];
             /** Reachable */
             reachable: boolean;
+        };
+        /**
+         * MonitorItemOut
+         * @description One row of the combined Actions monitor: a host deploy (a `deployer` agent run) or a
+         *     GitHub Actions CI run (github.workflow_runs), on one timeline.
+         */
+        MonitorItemOut: {
+            /** Branch */
+            branch?: string | null;
+            /** Conclusion */
+            conclusion?: string | null;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** Error */
+            error?: string | null;
+            /** Event */
+            event?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "deploy" | "ci";
+            /** Name */
+            name: string;
+            /** Raw Status */
+            raw_status?: string | null;
+            /** Repo */
+            repo?: string | null;
+            /** Rolled Back */
+            rolled_back?: boolean | null;
+            /** Sha */
+            sha?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status: string;
+            /** Url */
+            url?: string | null;
+        };
+        /** MonitorOut */
+        MonitorOut: {
+            /** Items */
+            items: components["schemas"]["MonitorItemOut"][];
+            /** Latest At */
+            latest_at?: string | null;
         };
         /**
          * Mt5InstrumentIn
@@ -5384,6 +5664,17 @@ export interface components {
         Page_ExpenseOut_: {
             /** Items */
             items: components["schemas"]["ExpenseOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[GitOpOut] */
+        Page_GitOpOut_: {
+            /** Items */
+            items: components["schemas"]["GitOpOut"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -7954,6 +8245,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    git_clone_api_code_git_clone_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitRepoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitOpOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    git_ops_api_code_git_ops_get: {
+        parameters: {
+            query?: {
+                repo?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_GitOpOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    git_op_api_code_git_ops__op_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                op_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitOpOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    git_pull_api_code_git_pull_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitRepoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitOpOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    git_push_api_code_git_push_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitPushIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitOpOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    git_repos_api_code_git_repos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitRepoStateOut"][];
                 };
             };
         };
@@ -11603,6 +12077,39 @@ export interface operations {
             };
         };
     };
+    monitor_api_v1_github_actions_monitor_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                kind?: ("deploy" | "ci") | null;
+                repo?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_connection_api_v1_github_connection_get: {
         parameters: {
             query?: never;
@@ -13985,6 +14492,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    integrations_api_v1_system_integrations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
