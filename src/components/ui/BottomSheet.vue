@@ -78,18 +78,27 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   z-index: 50;
   background: color-mix(in oklch, var(--glass-solid) 42%, transparent);
 }
+/* Docked to the bottom edge, full width, with the rounded top of a phone's
+   own sheet. The head stays put; only the body scrolls. */
 .ui-sheet {
   position: fixed;
-  inset: auto var(--sp-3) var(--sp-3) var(--sp-3);
+  inset: auto 0 0 0;
   z-index: 51;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
+  width: 100%;
+  max-width: 560px;
   min-height: 220px;
   max-height: 86vh;
-  overflow-y: auto;
-  padding: var(--sp-3) var(--sp-4) var(--sp-5);
+  margin: 0 auto;
+  overflow: hidden;
+  padding: var(--sp-2) var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
   border: 1px solid var(--glass-border);
+  border-bottom: 0;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: 0 -12px 40px color-mix(in oklch, black 28%, transparent);
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
@@ -103,16 +112,23 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
 }
 @keyframes uiSheetIn {
   from {
-    transform: translateY(14%);
-    opacity: 0;
+    transform: translateY(100%);
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .ui-sheet {
+    animation: none;
+  }
+}
+/* A wider hit area than the bar it draws: easy to catch with a thumb. */
 .ui-sheet__grip {
-  width: 36px;
-  height: 6px;
+  flex-shrink: 0;
+  width: 44px;
+  height: 5px;
   border-radius: var(--radius-pill);
-  background: var(--glass-border);
-  margin: 0 auto;
+  background: color-mix(in oklch, var(--theme-dim) 45%, transparent);
+  margin: var(--sp-1) auto var(--sp-2);
+  outline: 10px solid transparent;
   cursor: ns-resize;
   touch-action: none;
   transition:
@@ -127,8 +143,17 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
 }
 .ui-sheet__head {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--sp-2);
+}
+.ui-sheet__body {
+  flex: 1;
+  min-height: 0;
+  margin: 0 calc(-1 * var(--sp-4));
+  padding: 0 var(--sp-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .ui-sheet__title {
   flex: 1;
@@ -136,11 +161,26 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   font-size: var(--text-md);
 }
 .ui-sheet__x {
-  border: none;
-  background: transparent;
-  color: var(--theme-dim);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--theme-dim) 10%, transparent);
+  color: var(--theme-text);
   font-size: var(--text-lg);
-  cursor: pointer;
   line-height: 1;
+  cursor: pointer;
+  transition: background-color 120ms var(--ease-out);
+}
+.ui-sheet__x:hover {
+  background: color-mix(in oklch, var(--theme-dim) 22%, transparent);
+}
+.ui-sheet__x:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
 }
 </style>

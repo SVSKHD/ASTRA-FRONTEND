@@ -12,6 +12,7 @@ import './components/ui/disclosure.css'
 import { reportError, scrubValue } from './utils/scrub'
 import { installGlassTooltips } from './utils/glassTooltip'
 import { installAutoCorrect } from './utils/autoCorrectFields'
+import { startAutoScrollArrows } from './directives/autoScrollArrows'
 
 const app = createApp(App)
 
@@ -38,6 +39,10 @@ app.use(createPinia()).use(router).directive('hover-style', vHoverStyle).mount('
 // Every `title` in the app shows as the rounded glass tooltip instead of the
 // browser's native black bubble.
 installGlassTooltips()
+
+// No scrollbar anywhere (style.css): every scroller gets arrows instead, up/down
+// for a column and left/right for a strip, shown only while there is more.
+startAutoScrollArrows()
 
 // Every text field fixes its typos as you type, and Enter or a button click
 // waits for the fix so what is submitted is the corrected text.

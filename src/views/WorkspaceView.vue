@@ -116,6 +116,10 @@ useScrollMemory(tab)
 // theme is.
 const stageWrap = pxify(stageWrapGeometry())
 const stageStyle = computed(() => {
+  // A phone: no card — no glass, border, radius or shadow — the page fills the
+  // screen and the blurred edge bands below stand in for the card's edges.
+  if (isPhone.value)
+    return pxify({ ...stageGeometry({ vw: vw.value, isPhone: true }), padding: '0 12px' })
   return pxify({
     ...stageGeometry({ vw: vw.value, isPhone: isPhone.value }),
     background: c.value.glass,
@@ -160,9 +164,36 @@ const stageBody = computed(() =>
           scrollbarGutter: 'stable',
         }),
     overscrollBehaviorY: 'contain',
-    padding: isPhone.value ? '0 2px 18px 0' : '0 4px 22px 0',
+    // A phone's top and bottom are under the blurred bands: the first and last
+    // rows start clear of them and only blur as they scroll underneath.
+    padding: isPhone.value ? `${EDGE.top}px 0 ${EDGE.bottom}px` : '0 4px 22px 0',
   }),
 )
+
+// The phone's edges: content scrolling off the top or bottom of the page goes
+// soft — frosted and fading — instead of being cut at a card's border. Thin and
+// lightly blurred, so the blur stays cheap over the moving starfield.
+const EDGE = { top: 20, bottom: 28 }
+function edgeBand(side: 'top' | 'bottom') {
+  const toward = side === 'top' ? 'to bottom' : 'to top'
+  const fade = `linear-gradient(${toward}, #000 35%, transparent)`
+  return pxify({
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    [side]: 0,
+    height: EDGE[side],
+    zIndex: 3,
+    pointerEvents: 'none',
+    background: `linear-gradient(${toward}, color-mix(in oklch, ${c.value.pageBg} 72%, transparent), transparent)`,
+    backdropFilter: 'blur(8px)',
+    '-webkit-backdrop-filter': 'blur(8px)',
+    maskImage: fade,
+    '-webkit-mask-image': fade,
+  })
+}
+const edgeTop = computed(() => edgeBand('top'))
+const edgeBottom = computed(() => edgeBand('bottom'))
 const { isSignedIn, authReady } = storeToRefs(auth)
 const { cloudReady } = storeToRefs(app)
 const { canUseApp } = storeToRefs(lock)
@@ -462,6 +493,10 @@ onBeforeUnmount(() => {
       <!-- What is coming up, in the gutter beside the stage where it fits. -->
       <ReminderDock :stage="stageEl" />
       <div ref="stageEl" :style="stageStyle">
+        <template v-if="isPhone">
+          <div :style="edgeTop" class="workspace-stage__edge" aria-hidden="true"></div>
+          <div :style="edgeBottom" class="workspace-stage__edge" aria-hidden="true"></div>
+        </template>
         <div :style="stageBody" class="workspace-stage__body">
           <component :is="currentView" ref="activeView" />
           <!-- Teaches "/n", counts the times it is used, and stops after three. -->

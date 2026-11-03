@@ -1116,8 +1116,6 @@ defineExpose({ focus: openNew })
   box-shadow:
     0 1px 2px color-mix(in srgb, var(--shadow-ink, #000) 5%, transparent),
     0 16px 36px -22px color-mix(in srgb, var(--shadow-ink, #000) 30%, transparent);
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--theme-text) 22%, transparent) transparent;
 }
 .pv__compose-slot {
   position: sticky;

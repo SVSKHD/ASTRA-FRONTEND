@@ -35,6 +35,8 @@
   --radius-card: 12px;
   --radius-dialog: 16px;
   --radius-pill: 999px;
+  /* A bottom sheet's top corners: the phone's own sheet curve. */
+  --radius-sheet: 28px;
   --radius-sm: var(--radius-control);
   --radius-md: var(--radius-card);
   --radius-lg: var(--radius-dialog);

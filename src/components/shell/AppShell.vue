@@ -79,26 +79,11 @@ onBeforeUnmount(() => unregisterShell())
 </template>
 
 <style scoped>
-/* The one scrollport gets a scrollbar that matches the theme rather than the
-   OS. The document no longer scrolls, so the global scrollbar rules in
-   style.css have nothing to style. */
+/* The one scrollport. No scrollbar (style.css hides them all): arrows on its
+   edges say there is more (directives/autoScrollArrows.ts). */
 .app-shell__content {
   /* Scrolling past the top or bottom stops here instead of handing the
      gesture to the page — which on a phone is pull-to-refresh. */
   overscroll-behavior-y: contain;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--theme-accent) 45%, transparent) transparent;
-}
-.app-shell__content::-webkit-scrollbar {
-  width: 10px;
-}
-.app-shell__content::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  background-clip: padding-box;
-  border-radius: 999px;
-  background-color: color-mix(in oklch, var(--theme-accent) 45%, transparent);
-}
-.app-shell__content::-webkit-scrollbar-track {
-  background: transparent;
 }
 </style>

@@ -18,7 +18,7 @@ describe('the stage is in flow and the page is what scrolls', () => {
       ['desktop', desktop],
       ['phone', phone],
     ] as const) {
-      expect(style.height, name).toBe(name === 'phone' ? 'calc(100% - 20px)' : 'calc(100% - 28px)')
+      expect(style.height, name).toBe(name === 'phone' ? '100%' : 'calc(100% - 28px)')
       expect(style.minHeight, name).toBe(0)
       expect(style.overflow, name).toBe('hidden')
     }
@@ -39,7 +39,12 @@ describe('the stage is in flow and the page is what scrolls', () => {
 
   it('fills its region rather than measuring the viewport itself', () => {
     expect(stageWrapGeometry().height).toBe('100%')
-    expect(phone.height).toBe('calc(100% - 20px)')
+    expect(phone.height).toBe('100%')
+  })
+
+  it('has no card on a phone: edge to edge, no margin', () => {
+    expect(phone.width).toBe('100%')
+    expect(phone.margin).toBe('0')
   })
 
   it('sizes itself against its container, never against the viewport', () => {

@@ -17,6 +17,7 @@
 import createClient, { type Middleware } from 'openapi-fetch'
 import { AUREON_API_URL } from './config'
 import { needsCsrf, readCsrfToken } from './csrf'
+import { resilientFetch, type ResilientOptions } from './resilient'
 import type { paths } from './schema'
 
 export type { components, paths } from './schema'
@@ -47,11 +48,17 @@ export const authMiddleware: Middleware = {
   },
 }
 
-export function createAureonClient(baseUrl: string = AUREON_API_URL, fetchImpl?: typeof fetch) {
+export function createAureonClient(
+  baseUrl: string = AUREON_API_URL,
+  fetchImpl?: typeof fetch,
+  policy?: ResilientOptions,
+) {
   const client = createClient<paths>({
     baseUrl: baseUrl || globalThis.location?.origin || '',
     credentials: 'include',
-    ...(fetchImpl ? { fetch: fetchImpl } : {}),
+    // Safe reads time out and retry (resilient.ts); mutations go through as-is.
+    // The global fetch is looked up per call, so a stubbed one is honoured.
+    fetch: resilientFetch((input, init) => (fetchImpl ?? globalThis.fetch)(input, init), policy),
   })
   client.use(authMiddleware)
   return client

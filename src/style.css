@@ -65,16 +65,17 @@ textarea:focus,
 /* Cross-cutting themed surfaces the inline JS styles cannot reach. The tokens
    are set on :root by applyThemeToDom on every theme change; the fallbacks keep
    things sane before the first paint / in the share pages. */
+/* No scrollbars, anywhere. Scrollers show arrows instead while there is more
+   to see (directives/autoScrollArrows.ts); wheel, touch, trackpad and keyboard
+   scrolling are unchanged. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--theme-border, rgba(150, 160, 220, 0.35));
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--theme-dim, rgba(150, 160, 220, 0.5));
+  display: none;
+  width: 0;
+  height: 0;
 }
 ::selection {
   background: var(--theme-accent, oklch(0.74 0.14 255));
@@ -518,6 +519,13 @@ textarea:focus,
 }
 .scroll-arrow--down {
   transform: translateX(-50%);
+}
+/* Left/right: placed by their centre, the down chevron turned to point the way. */
+.scroll-arrow--left {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+.scroll-arrow--right {
+  transform: translate(-50%, -50%) rotate(-90deg);
 }
 
 /* The small × on a tag chip. The same as a row's delete (IconButton's danger

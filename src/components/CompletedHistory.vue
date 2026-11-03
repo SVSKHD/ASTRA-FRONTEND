@@ -563,8 +563,6 @@ async function bulkDelete() {
   overflow: hidden;
   overflow-wrap: anywhere;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--theme-text) 25%, transparent) transparent;
 }
 .hist__title:hover .hist__titleText,
 .hist__title:focus-visible .hist__titleText {

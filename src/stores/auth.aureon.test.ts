@@ -79,9 +79,12 @@ describe('auth store with VITE_AUTH_PROVIDER=aureon', () => {
     handler = () => {
       throw new TypeError('Failed to fetch')
     }
+    calls.length = 0
     auth = await store()
+    // A dropped connection on a read is retried (api/resilient.ts) before it is an error.
+    await vi.waitFor(() => expect(auth.authError).toContain('unreachable'), { timeout: 5000 })
     expect(auth.isSignedIn).toBe(false)
-    expect(auth.authError).toContain('unreachable')
+    expect(calls).toHaveLength(3)
   })
 
   it('signs in with email + passcode, and reports a mismatch without saying which', async () => {

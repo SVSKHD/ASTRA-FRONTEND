@@ -59,17 +59,19 @@ export function stageGeometry({ vw, isPhone }: StageInput) {
   // Percentages of the CONTENT REGION, not of the viewport: the rail has its
   // own column now, so a `vw` width would be measured against a viewport the
   // stage no longer spans and would run under the dock at every breakpoint.
-  const width = isPhone ? '99%' : vw < 1024 ? '98%' : vw < 1440 ? '97%' : '95%'
+  // A phone has no card: the stage fills the content region edge to edge, and
+  // blurred bands at its top and bottom (WorkspaceView) take the card's place.
+  const width = isPhone ? '100%' : vw < 1024 ? '98%' : vw < 1440 ? '97%' : '95%'
   return {
     position: 'relative',
     pointerEvents: 'auto',
     width,
     maxWidth: 1500,
     minWidth: 0,
-    height: isPhone ? 'calc(100% - 20px)' : 'calc(100% - 28px)',
+    height: isPhone ? '100%' : 'calc(100% - 28px)',
     minHeight: 0,
     overflow: 'hidden',
-    margin: isPhone ? '12px 0 8px' : '18px 0 10px',
+    margin: isPhone ? '0' : '18px 0 10px',
     display: 'flex',
     flexDirection: 'column',
   } as const

@@ -195,8 +195,28 @@ function appVersionReload(): Plugin {
 plugins.push(appVersionReload() as never)
 
 // https://vite.dev/config/
+// LOCAL DEV AGAINST THE REAL API. With `AUREON_DEV_PROXY=https://spasta.online`
+// in `.env`, the dev server forwards `/api/*` there, so the browser still sees
+// one origin (localhost) and the SameSite=Strict session + CSRF cookies work:
+// the backend sets them with no Domain, and browsers accept Secure cookies on
+// localhost. `/api/ai` and `/api/github` stay with the local Netlify functions.
+// Unset (the default), nothing is proxied and `/api/*` has no backend locally.
+const DEV_API = (process.env.AUREON_DEV_PROXY ?? '').trim().replace(/\/+$/, '')
+const devProxy = DEV_API
+  ? {
+      '^/api/(?!(?:ai|github)(?:[/?]|$))': {
+        target: DEV_API,
+        changeOrigin: true,
+        secure: true,
+        // A cookie scoped to the API's host would never be sent back to localhost.
+        cookieDomainRewrite: '',
+      },
+    }
+  : undefined
+
 export default defineConfig({
   plugins,
+  ...(devProxy ? { server: { proxy: devProxy } } : {}),
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
   },

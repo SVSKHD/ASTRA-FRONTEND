@@ -1002,8 +1002,6 @@ const hintStyle = computed(() =>
 
 /* Week and day still scroll their hours; the bar does it quietly. */
 .cal-host .fc .fc-scroller {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--theme-text) 18%, transparent) transparent;
 }
 
 /* FullCalendar's own variables, remapped onto the app's theme tokens so the grid
