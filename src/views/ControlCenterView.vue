@@ -21,6 +21,7 @@ import { inbox as paperInbox, loadInbox as loadPaperInbox } from '@/trading/inbo
 import { approvals, startApprovals, stopApprovals } from '@/control/approvals'
 import { loadRepos } from '@/control/repos'
 import { MODULES, PHONE_NAV, type ModuleKey } from '@/control/modules'
+import { useVoiceNav } from '@/control/voice'
 import '@/components/trading/trading.css'
 import '@/components/control/control.css'
 
@@ -80,6 +81,17 @@ watch(
   },
   { immediate: true },
 )
+// Voice: one tap, one phrase, then (at most) a navigation. See src/control/voice.ts.
+const voiceMsg = ref('')
+const voice = useVoiceNav({
+  go: (r) => router.push(r),
+  say: (m) => (voiceMsg.value = m),
+})
+function toggleVoice() {
+  voiceMsg.value = ''
+  voice.toggle()
+}
+
 onMounted(() => void checkSession())
 onBeforeUnmount(stopApprovals)
 </script>
@@ -93,6 +105,16 @@ onBeforeUnmount(stopApprovals)
       </div>
       <div v-if="admin" class="tp-row">
         <RepoPicker v-if="meta.repo" />
+        <Button
+          v-if="voice.supported"
+          size="sm"
+          :variant="voice.state.value === 'listening' ? 'tinted' : 'ghost'"
+          :loading="voice.state.value === 'resolving'"
+          :aria-pressed="voice.state.value === 'listening'"
+          title="Voice navigation: say “open approvals”, “open PR 42”, “show agents”. It only opens screens. Your browser recognises the speech (Google on Android Chrome, Apple on iPhone)."
+          @click="toggleVoice"
+          >{{ voice.state.value === 'listening' ? 'Listening…' : 'Voice' }}</Button
+        >
         <Button variant="ghost" size="sm" @click="router.push('/')">Back to Aureon</Button>
       </div>
     </header>
@@ -134,6 +156,7 @@ onBeforeUnmount(stopApprovals)
           @update:model-value="go"
         />
       </div>
+      <p v-if="voiceMsg" class="tp-note" role="status" aria-live="polite">{{ voiceMsg }}</p>
       <Alert v-if="tradingSession.error" tone="warning">{{ tradingSession.error }}</Alert>
       <main class="cc__main">
         <component :is="PAGES[current]" />

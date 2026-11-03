@@ -9,7 +9,7 @@
 
 import { onBeforeUnmount, ref } from 'vue'
 
-interface Recognition {
+export interface Recognition {
   lang: string
   continuous: boolean
   interimResults: boolean
@@ -20,13 +20,13 @@ interface Recognition {
   onerror: ((e: { error: string }) => void) | null
   onend: (() => void) | null
 }
-interface RecognitionEvent {
+export interface RecognitionEvent {
   resultIndex: number
   results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>
 }
 type RecognitionCtor = new () => Recognition
 
-function recognitionCtor(): RecognitionCtor | null {
+export function recognitionCtor(): RecognitionCtor | null {
   if (typeof window === 'undefined') return null
   const w = window as unknown as {
     SpeechRecognition?: RecognitionCtor
@@ -35,13 +35,16 @@ function recognitionCtor(): RecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
-const ERRORS: Record<string, string> = {
+export const ERRORS: Record<string, string> = {
   'not-allowed': 'Microphone access is blocked — allow it in the browser’s site settings.',
   'service-not-allowed': 'Microphone access is blocked — allow it in the browser’s site settings.',
   'no-speech': 'Didn’t hear anything — try again.',
   'audio-capture': 'No microphone was found.',
   network: 'Speech recognition needs a connection.',
 }
+
+/** start() threw: no secure context, or the page's Permissions-Policy denies the mic. */
+export const START_FAILED = 'Couldn’t start the microphone — open the app over HTTPS and allow it.'
 
 export function useSpeechInput(opts: {
   /** The field's current text, read when the mic starts. */
@@ -93,6 +96,7 @@ export function useSpeechInput(opts: {
       listening.value = true
     } catch {
       rec = null
+      opts.onError?.(START_FAILED)
     }
   }
 
