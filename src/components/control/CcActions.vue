@@ -2,7 +2,8 @@
 // GitHub Actions on the selected repo: workflows, runs, jobs with steps and the
 // job log (text/plain, tail first). Dispatch is offered only for workflows on
 // the server's allowlist; a production workflow's dispatch or re-run is filed
-// for approval instead of sent, and says so. Cancel is always direct.
+// for approval instead of sent, and says so. Cancel is always direct. On top,
+// the Deploys and CI monitor (all repos, no repo selection needed).
 import { computed, ref, watch } from 'vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -12,6 +13,7 @@ import Modal from '@/components/ui/Modal.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Select from '@/components/ui/Select.vue'
 import ApprovalRequired from '@/components/control/ApprovalRequired.vue'
+import CcActionsMonitor from '@/components/control/CcActionsMonitor.vue'
 import LogViewer from '@/components/control/LogViewer.vue'
 import { aureon } from '@/api/client'
 import { cc, must, repoParams, short, type Gated, type Schemas } from '@/control/api'
@@ -192,6 +194,7 @@ const isActive = (r: Run) =>
 
 <template>
   <div class="tp-page">
+    <CcActionsMonitor />
     <EmptyState
       v-if="!cc.repo"
       title="No repository selected"

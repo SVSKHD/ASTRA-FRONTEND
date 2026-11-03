@@ -6,8 +6,10 @@
 //     (GET /api/repos, …/branches, …/tree, …/file, …/commits)
 //   - code tasks (/api/code/*): ask a question about a repo (analyze) or ask for
 //     a change. A change runs in its own worktree and branch with the repo's
-//     tests; an admin reads the diff and approves (a local branch only — nothing
-//     is pushed or deployed) or rejects it.
+//     tests; an admin reads the diff and approves or rejects it. Approval queues
+//     a git op on the server's coding worker (keep the branch; for a clone of an
+//     allowlisted GitHub repo, push it and open a PR), polled here until it ends.
+//     Nothing is merged or deployed.
 //
 // The GitHub mirror (issues, pull requests, comments) and the GitHub setup move
 // to Aureon in Phase 21; until then the old Code tab says so and links here.
@@ -28,6 +30,7 @@ import { when } from '@/trading/format'
 import '@/components/trading/trading.css'
 
 type Task = components['schemas']['CodeTaskOut']
+type GitOp = components['schemas']['GitOpOut']
 
 const router = useRouter()
 const email = ref('')
@@ -213,25 +216,51 @@ async function showDiff(t: Task) {
   }
 }
 
+function opLine(op: GitOp): string {
+  const b = op.branch ?? ''
+  if (op.status === 'queued' || op.status === 'running')
+    return `Approved. The coding worker is ${op.status === 'queued' ? 'about to keep' : 'keeping'} ${b}…`
+  if (op.status === 'failed')
+    return `Approved, but the git step failed: ${op.error ?? 'unknown error'}`
+  if (op.pr_url)
+    return `Approved: ${b} pushed, pull request #${op.pr_number ?? ''} opened (${op.pr_url}).`
+  return `Approved on the local branch ${b}. Nothing was pushed.`
+}
+
+/** Follow the queued git op until it is done or failed (about 10 minutes at most). */
+async function follow(taskId: string, op: GitOp) {
+  taskMsg[taskId] = opLine(op)
+  for (let i = 0; i < 200 && (op.status === 'queued' || op.status === 'running'); i++) {
+    await new Promise((r) => setTimeout(r, i === 0 ? 1500 : 3000))
+    try {
+      op = must(
+        await aureon.GET('/api/code/git/ops/{op_id}', { params: { path: { op_id: op.id } } }),
+      )
+    } catch {
+      continue
+    }
+    taskMsg[taskId] = opLine(op)
+  }
+}
+
 async function decide(t: Task, verdict: 'approve' | 'reject') {
   busy[t.id] = true
   taskMsg[t.id] = ''
   try {
     const path = { params: { path: { task_id: t.id } } }
     const feature = featureBranch[t.id]?.trim()
-    const out =
-      verdict === 'approve'
-        ? must(
-            await aureon.POST('/api/code/tasks/{task_id}/approve', {
-              ...path,
-              body: feature ? { feature_branch: feature } : null,
-            }),
-          )
-        : must(await aureon.POST('/api/code/tasks/{task_id}/reject', path))
-    taskMsg[t.id] =
-      out.status === 'approved'
-        ? `Approved on the local branch ${String(out.result?.feature_branch ?? out.branch ?? '')}. Nothing was pushed.`
-        : 'Rejected; the agent branch was removed.'
+    if (verdict === 'approve') {
+      const out = must(
+        await aureon.POST('/api/code/tasks/{task_id}/approve', {
+          ...path,
+          body: feature ? { feature_branch: feature } : null,
+        }),
+      )
+      void follow(t.id, out.git_op)
+    } else {
+      must(await aureon.POST('/api/code/tasks/{task_id}/reject', path))
+      taskMsg[t.id] = 'Rejected; the agent branch was removed.'
+    }
     void tasks.reload()
   } catch (e) {
     taskMsg[t.id] = (e as Error).message

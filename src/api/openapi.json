@@ -1160,6 +1160,183 @@
         "title": "ApprovalPage",
         "type": "object"
       },
+      "ApproveOut": {
+        "description": "The approved task plus the queued `task` git op (poll GET /api/code/git/ops/{id}).",
+        "properties": {
+          "base_ref": {
+            "title": "Base Ref",
+            "type": "string"
+          },
+          "base_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Sha"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "git_op": {
+            "$ref": "#/components/schemas/GitOpOut"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instruction": {
+            "title": "Instruction",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "repo": {
+            "title": "Repo",
+            "type": "string"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tests": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Tests",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "repo",
+          "title",
+          "instruction",
+          "paths",
+          "status",
+          "base_ref",
+          "base_sha",
+          "branch",
+          "commit_sha",
+          "model",
+          "result",
+          "tests",
+          "error",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "decided_at",
+          "git_op"
+        ],
+        "title": "ApproveOut",
+        "type": "object"
+      },
       "AssetOut": {
         "properties": {
           "created_at": {
@@ -3706,6 +3883,264 @@
         "title": "GenerateRequest",
         "type": "object"
       },
+      "GitOpOut": {
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "head_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Sha"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "op": {
+            "title": "Op",
+            "type": "string"
+          },
+          "pr_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Number"
+          },
+          "pr_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Url"
+          },
+          "repo": {
+            "title": "Repo",
+            "type": "string"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "id",
+          "op",
+          "repo",
+          "branch",
+          "title",
+          "status",
+          "head_sha",
+          "pr_number",
+          "pr_url",
+          "result",
+          "error",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "GitOpOut",
+        "type": "object"
+      },
+      "GitPushIn": {
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "branch": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Branch",
+            "type": "string"
+          },
+          "repo": {
+            "maxLength": 201,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$",
+            "title": "Repo",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "repo",
+          "branch"
+        ],
+        "title": "GitPushIn",
+        "type": "object"
+      },
+      "GitRepoIn": {
+        "properties": {
+          "repo": {
+            "maxLength": 201,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$",
+            "title": "Repo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "title": "GitRepoIn",
+        "type": "object"
+      },
+      "GitRepoStateOut": {
+        "description": "One allowlisted repo: whether it is cloned, and the coding-repo name it has.",
+        "properties": {
+          "cloned": {
+            "title": "Cloned",
+            "type": "boolean"
+          },
+          "coding_repo": {
+            "title": "Coding Repo",
+            "type": "string"
+          },
+          "default_branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Branch"
+          },
+          "push_prefixes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Push Prefixes",
+            "type": "array"
+          },
+          "repo": {
+            "title": "Repo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "cloned",
+          "coding_repo",
+          "default_branch",
+          "push_prefixes"
+        ],
+        "title": "GitRepoStateOut",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5776,10 +6211,32 @@
         "title": "ModelStatusList",
         "type": "object"
       },
-      "Mt5BotStatusOut": {
-        "description": "Status card: heartbeat = the time of the last accepted push (server clock).",
+      "MonitorItemOut": {
+        "description": "One row of the combined Actions monitor: a host deploy (a `deployer` agent run) or a\nGitHub Actions CI run (github.workflow_runs), on one timeline.",
         "properties": {
-          "age_s": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "conclusion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conclusion"
+          },
+          "duration_ms": {
             "anyOf": [
               {
                 "type": "integer"
@@ -5788,163 +6245,9 @@
                 "type": "null"
               }
             ],
-            "title": "Age S"
+            "title": "Duration Ms"
           },
-          "bot": {
-            "additionalProperties": true,
-            "title": "Bot",
-            "type": "object"
-          },
-          "generated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Generated At"
-          },
-          "halt": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Halt"
-          },
-          "health": {
-            "additionalProperties": true,
-            "title": "Health",
-            "type": "object"
-          },
-          "last_heartbeat_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Heartbeat At"
-          },
-          "open_failures": {
-            "title": "Open Failures",
-            "type": "integer"
-          },
-          "push_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Push Id"
-          },
-          "reasons": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Reasons",
-            "type": "array"
-          },
-          "seq": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seq"
-          },
-          "server_time": {
-            "format": "date-time",
-            "title": "Server Time",
-            "type": "string"
-          },
-          "stale_after_s": {
-            "title": "Stale After S",
-            "type": "number"
-          },
-          "state": {
-            "enum": [
-              "online",
-              "stale",
-              "error"
-            ],
-            "title": "State",
-            "type": "string"
-          }
-        },
-        "required": [
-          "state",
-          "reasons",
-          "last_heartbeat_at",
-          "age_s",
-          "stale_after_s",
-          "push_id",
-          "seq",
-          "generated_at",
-          "bot",
-          "health",
-          "halt",
-          "open_failures",
-          "server_time"
-        ],
-        "title": "Mt5BotStatusOut",
-        "type": "object"
-      },
-      "Mt5CandleOut": {
-        "properties": {
-          "c": {
-            "title": "C",
-            "type": "string"
-          },
-          "ema": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Ema",
-            "type": "object"
-          },
-          "h": {
-            "title": "H",
-            "type": "string"
-          },
-          "l": {
-            "title": "L",
-            "type": "string"
-          },
-          "o": {
-            "title": "O",
-            "type": "string"
-          },
-          "t": {
-            "format": "date-time",
-            "title": "T",
-            "type": "string"
-          },
-          "v": {
+          "error": {
             "anyOf": [
               {
                 "type": "string"
@@ -5953,173 +6256,48 @@
                 "type": "null"
               }
             ],
-            "title": "V"
-          }
-        },
-        "required": [
-          "t",
-          "o",
-          "h",
-          "l",
-          "c",
-          "v",
-          "ema"
-        ],
-        "title": "Mt5CandleOut",
-        "type": "object"
-      },
-      "Mt5DailyOut": {
-        "properties": {
-          "date": {
-            "title": "Date",
-            "type": "string"
+            "title": "Error"
           },
-          "exits": {
-            "title": "Exits",
-            "type": "integer"
-          },
-          "losses": {
-            "title": "Losses",
-            "type": "integer"
-          },
-          "net_points": {
-            "title": "Net Points",
-            "type": "string"
-          },
-          "wins": {
-            "title": "Wins",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "date",
-          "exits",
-          "wins",
-          "losses",
-          "net_points"
-        ],
-        "title": "Mt5DailyOut",
-        "type": "object"
-      },
-      "Mt5EventOut": {
-        "properties": {
           "event": {
-            "title": "Event",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
           },
           "id": {
             "title": "Id",
             "type": "string"
           },
           "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "payload": {
-            "additionalProperties": true,
-            "title": "Payload",
-            "type": "object"
-          },
-          "symbol": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Symbol"
-          },
-          "t": {
-            "format": "date-time",
-            "title": "T",
-            "type": "string"
-          },
-          "ticket": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ticket"
-          }
-        },
-        "required": [
-          "id",
-          "t",
-          "event",
-          "kind",
-          "symbol",
-          "ticket",
-          "payload"
-        ],
-        "title": "Mt5EventOut",
-        "type": "object"
-      },
-      "Mt5FailureOut": {
-        "properties": {
-          "count": {
-            "title": "Count",
-            "type": "integer"
-          },
-          "first_seen": {
-            "format": "date-time",
-            "title": "First Seen",
-            "type": "string"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Id"
-          },
-          "kind": {
             "enum": [
-              "mt5_disconnected",
-              "stale_ticks",
-              "guardian_error",
-              "discord_error",
-              "exception",
-              "stale_heartbeat"
+              "deploy",
+              "ci"
             ],
             "title": "Kind",
             "type": "string"
           },
-          "last_seen": {
-            "format": "date-time",
-            "title": "Last Seen",
+          "name": {
+            "title": "Name",
             "type": "string"
           },
-          "open": {
-            "title": "Open",
-            "type": "boolean"
-          },
-          "reason": {
-            "title": "Reason",
-            "type": "string"
-          },
-          "resolved_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolved At"
-          },
-          "symbol": {
+          "raw_status": {
             "anyOf": [
               {
                 "type": "string"
@@ -6128,59 +6306,9 @@
                 "type": "null"
               }
             ],
-            "title": "Symbol"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "symbol",
-          "reason",
-          "first_seen",
-          "last_seen",
-          "count",
-          "resolved_at",
-          "open"
-        ],
-        "title": "Mt5FailureOut",
-        "type": "object"
-      },
-      "Mt5FailuresOut": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Mt5FailureOut"
-            },
-            "title": "Items",
-            "type": "array"
+            "title": "Raw Status"
           },
-          "open_count": {
-            "title": "Open Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "open_count",
-          "items"
-        ],
-        "title": "Mt5FailuresOut",
-        "type": "object"
-      },
-      "Mt5GuardianOut": {
-        "description": "phase: the guardian's word (pre | protect | secured | ride); leg_phase: the A/B leg.",
-        "properties": {
-          "bars": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bars"
-          },
-          "direction": {
+          "repo": {
             "anyOf": [
               {
                 "type": "string"
@@ -6189,20 +6317,9 @@
                 "type": "null"
               }
             ],
-            "title": "Direction"
+            "title": "Repo"
           },
-          "entry": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Entry"
-          },
-          "frozen": {
+          "rolled_back": {
             "anyOf": [
               {
                 "type": "boolean"
@@ -6211,9 +6328,9 @@
                 "type": "null"
               }
             ],
-            "title": "Frozen"
+            "title": "Rolled Back"
           },
-          "leg_phase": {
+          "sha": {
             "anyOf": [
               {
                 "type": "string"
@@ -6222,9 +6339,25 @@
                 "type": "null"
               }
             ],
-            "title": "Leg Phase"
+            "title": "Sha"
           },
-          "peak": {
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
             "anyOf": [
               {
                 "type": "string"
@@ -6233,152 +6366,44 @@
                 "type": "null"
               }
             ],
-            "title": "Peak"
-          },
-          "peak_pts": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Peak Pts"
-          },
-          "phase": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phase"
-          },
-          "profile": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Profile"
-          },
-          "secured_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Secured Level"
-          },
-          "secured_pts": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Secured Pts"
-          },
-          "sl": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sl"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
+            "title": "Url"
           }
         },
         "required": [
-          "phase",
-          "leg_phase",
-          "profile",
-          "secured_pts",
-          "peak_pts",
-          "bars",
-          "frozen",
-          "sl",
-          "secured_level",
-          "peak",
-          "direction",
-          "entry",
-          "updated_at"
+          "kind",
+          "id",
+          "name",
+          "status"
         ],
-        "title": "Mt5GuardianOut",
+        "title": "MonitorItemOut",
         "type": "object"
       },
-      "Mt5IngestAccepted": {
+      "MonitorOut": {
         "properties": {
-          "accepted": {
-            "const": true,
-            "default": true,
-            "title": "Accepted",
-            "type": "boolean"
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MonitorItemOut"
+            },
+            "title": "Items",
+            "type": "array"
           },
-          "events_duplicate": {
-            "title": "Events Duplicate",
-            "type": "integer"
-          },
-          "events_new": {
-            "title": "Events New",
-            "type": "integer"
-          },
-          "push_id": {
-            "format": "uuid",
-            "title": "Push Id",
-            "type": "string"
+          "latest_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest At"
           }
         },
         "required": [
-          "push_id",
-          "events_new",
-          "events_duplicate"
+          "items"
         ],
-        "title": "Mt5IngestAccepted",
-        "type": "object"
-      },
-      "Mt5IngestDuplicate": {
-        "properties": {
-          "duplicate": {
-            "const": true,
-            "default": true,
-            "title": "Duplicate",
-            "type": "boolean"
-          },
-          "push_id": {
-            "format": "uuid",
-            "title": "Push Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "push_id"
-        ],
-        "title": "Mt5IngestDuplicate",
+        "title": "MonitorOut",
         "type": "object"
       },
       "Mt5InstrumentIn": {
@@ -6502,286 +6527,6 @@
         "title": "Mt5InstrumentIn",
         "type": "object"
       },
-      "Mt5MarketOut": {
-        "properties": {
-          "as_of": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "As Of"
-          },
-          "server_time": {
-            "format": "date-time",
-            "title": "Server Time",
-            "type": "string"
-          },
-          "session": {
-            "enum": [
-              "Asia",
-              "London",
-              "NY"
-            ],
-            "title": "Session",
-            "type": "string"
-          },
-          "symbols": {
-            "items": {
-              "$ref": "#/components/schemas/Mt5SymbolMarketOut"
-            },
-            "title": "Symbols",
-            "type": "array"
-          }
-        },
-        "required": [
-          "server_time",
-          "session",
-          "as_of",
-          "symbols"
-        ],
-        "title": "Mt5MarketOut",
-        "type": "object"
-      },
-      "Mt5PositionOut": {
-        "properties": {
-          "current": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current"
-          },
-          "direction": {
-            "title": "Direction",
-            "type": "string"
-          },
-          "guardian": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Mt5GuardianOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "opened_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Opened At"
-          },
-          "points": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Points"
-          },
-          "price_open": {
-            "title": "Price Open",
-            "type": "string"
-          },
-          "sl": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sl"
-          },
-          "symbol": {
-            "title": "Symbol",
-            "type": "string"
-          },
-          "ticket": {
-            "title": "Ticket",
-            "type": "integer"
-          },
-          "tp": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tp"
-          },
-          "volume": {
-            "title": "Volume",
-            "type": "string"
-          }
-        },
-        "required": [
-          "symbol",
-          "ticket",
-          "direction",
-          "volume",
-          "price_open",
-          "current",
-          "sl",
-          "tp",
-          "points",
-          "opened_at",
-          "guardian"
-        ],
-        "title": "Mt5PositionOut",
-        "type": "object"
-      },
-      "Mt5PositionsOut": {
-        "properties": {
-          "as_of": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "As Of"
-          },
-          "guardian_orphans": {
-            "additionalProperties": {
-              "items": {
-                "$ref": "#/components/schemas/Mt5GuardianOut"
-              },
-              "type": "array"
-            },
-            "title": "Guardian Orphans",
-            "type": "object"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Mt5PositionOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "stale": {
-            "title": "Stale",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "as_of",
-          "stale",
-          "items",
-          "guardian_orphans"
-        ],
-        "title": "Mt5PositionsOut",
-        "type": "object"
-      },
-      "Mt5ReportOut": {
-        "properties": {
-          "backtests": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Backtests",
-            "type": "array"
-          },
-          "daily": {
-            "items": {
-              "$ref": "#/components/schemas/Mt5DailyOut"
-            },
-            "title": "Daily",
-            "type": "array"
-          },
-          "days": {
-            "title": "Days",
-            "type": "integer"
-          },
-          "ema921e_trades": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Ema921E Trades",
-            "type": "array"
-          },
-          "performance": {
-            "additionalProperties": true,
-            "title": "Performance",
-            "type": "object"
-          }
-        },
-        "required": [
-          "days",
-          "performance",
-          "daily",
-          "ema921e_trades",
-          "backtests"
-        ],
-        "title": "Mt5ReportOut",
-        "type": "object"
-      },
-      "Mt5SignalsOut": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Mt5EventOut"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "latest": {
-            "additionalProperties": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Latest",
-            "type": "object"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset",
-          "latest"
-        ],
-        "title": "Mt5SignalsOut",
-        "type": "object"
-      },
       "Mt5StatusOut": {
         "description": "The bot as Aureon sees it right now (live read of its export).",
         "properties": {
@@ -6877,196 +6622,6 @@
           "export_errors"
         ],
         "title": "Mt5StatusOut",
-        "type": "object"
-      },
-      "Mt5StrategyOut": {
-        "properties": {
-          "as_of": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "As Of"
-          },
-          "bot_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bot Version"
-          },
-          "ema": {
-            "additionalProperties": true,
-            "title": "Ema",
-            "type": "object"
-          },
-          "exec_tf": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exec Tf"
-          },
-          "mode": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mode"
-          },
-          "params": {
-            "additionalProperties": true,
-            "title": "Params",
-            "type": "object"
-          },
-          "symbols": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Symbols",
-            "type": "array"
-          },
-          "timeframes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Timeframes",
-            "type": "array"
-          }
-        },
-        "required": [
-          "as_of",
-          "bot_version",
-          "mode",
-          "symbols",
-          "exec_tf",
-          "timeframes",
-          "ema",
-          "params"
-        ],
-        "title": "Mt5StrategyOut",
-        "type": "object"
-      },
-      "Mt5SymbolMarketOut": {
-        "properties": {
-          "bot_session": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bot Session"
-          },
-          "candles": {
-            "items": {
-              "$ref": "#/components/schemas/Mt5CandleOut"
-            },
-            "title": "Candles",
-            "type": "array"
-          },
-          "ema_periods": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Ema Periods",
-            "type": "array"
-          },
-          "last_price": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Price"
-          },
-          "last_price_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Price At"
-          },
-          "open": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Open"
-          },
-          "session": {
-            "enum": [
-              "Asia",
-              "London",
-              "NY"
-            ],
-            "title": "Session",
-            "type": "string"
-          },
-          "symbol": {
-            "title": "Symbol",
-            "type": "string"
-          },
-          "tick_age_s": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tick Age S"
-          },
-          "timeframe": {
-            "title": "Timeframe",
-            "type": "string"
-          }
-        },
-        "required": [
-          "symbol",
-          "open",
-          "session",
-          "bot_session",
-          "tick_age_s",
-          "last_price",
-          "last_price_at",
-          "timeframe",
-          "ema_periods",
-          "candles"
-        ],
-        "title": "Mt5SymbolMarketOut",
         "type": "object"
       },
       "OptionChainOut": {
@@ -8080,6 +7635,37 @@
           "offset"
         ],
         "title": "Page[ExpenseOut]",
+        "type": "object"
+      },
+      "Page_GitOpOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GitOpOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[GitOpOut]",
         "type": "object"
       },
       "Page_HoldingOut_": {
@@ -15495,6 +15081,273 @@
         ]
       }
     },
+    "/api/code/git/clone": {
+      "post": {
+        "description": "Queue a clone of an allowlisted repo into CODE_CLONE_ROOT/<owner>/<repo>.",
+        "operationId": "git_clone_api_code_git_clone_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitRepoIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitOpOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Git Clone",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/git/ops": {
+      "get": {
+        "operationId": "git_ops_api_code_git_ops_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Repo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_GitOpOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Git Ops",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/git/ops/{op_id}": {
+      "get": {
+        "operationId": "git_op_api_code_git_ops__op_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "op_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Op Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitOpOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Git Op",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/git/pull": {
+      "post": {
+        "description": "Queue a fetch + fast-forward of the clone's default branch.",
+        "operationId": "git_pull_api_code_git_pull_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitRepoIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitOpOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Git Pull",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/git/push": {
+      "post": {
+        "description": "Queue a push of one feature branch (never main/master/dev01, the default branch, a\nprotected branch, or a name outside CODE_PUSH_BRANCH_PREFIXES) and a PR to the default\nbranch. Merging stays behind the approval gate.",
+        "operationId": "git_push_api_code_git_push_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitPushIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitOpOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Git Push",
+        "tags": [
+          "code"
+        ]
+      }
+    },
+    "/api/code/git/repos": {
+      "get": {
+        "description": "GITHUB_CODING_REPO_ALLOWLIST with each repo's clone state.",
+        "operationId": "git_repos_api_code_git_repos_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GitRepoStateOut"
+                  },
+                  "title": "Response Git Repos Api Code Git Repos Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Git Repos",
+        "tags": [
+          "code"
+        ]
+      }
+    },
     "/api/code/tasks": {
       "get": {
         "operationId": "list_tasks_api_code_tasks_get",
@@ -15652,7 +15505,7 @@
     },
     "/api/code/tasks/{task_id}/approve": {
       "post": {
-        "description": "Keep the tested change on its own branch (optionally also named feature/... or\nfix/...). Never main/dev01, never pushed, never deployed.",
+        "description": "Approve a tested change. The git work (keep the branch, optional feature/... or fix/...\nname, worktree cleanup, and for a GitHub clone push + PR) is queued as a `task` git op for\nthe coding worker; poll GET /api/code/git/ops/{git_op.id}. Never main/dev01, never merged,\nnever deployed: merging a PR stays behind the approval gate.",
         "operationId": "approve_task_api_code_tasks__task_id__approve_post",
         "parameters": [
           {
@@ -15688,7 +15541,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CodeTaskOut"
+                  "$ref": "#/components/schemas/ApproveOut"
                 }
               }
             },
@@ -20269,196 +20122,6 @@
         ]
       }
     },
-    "/api/trading/mt5/bot-status": {
-      "get": {
-        "operationId": "bot_status_api_trading_mt5_bot_status_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Mt5BotStatusOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Bot Status",
-        "tags": [
-          "trading",
-          "mt5"
-        ]
-      }
-    },
-    "/api/trading/mt5/failures": {
-      "get": {
-        "operationId": "failures_api_trading_mt5_failures_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "include_resolved",
-            "required": false,
-            "schema": {
-              "default": true,
-              "title": "Include Resolved",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 500,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Mt5FailuresOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Failures",
-        "tags": [
-          "trading",
-          "mt5"
-        ]
-      }
-    },
-    "/api/trading/mt5/ingest": {
-      "post": {
-        "description": "The MT5 bot pushes one aureon.mt5.push/v1 document per status poll. Idempotent by\npush_id (a repeat answers 200 {\"duplicate\": true}) and per event id. Never touches orders.",
-        "operationId": "ingest_api_trading_mt5_ingest_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "in": "header",
-            "name": "content-encoding",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Content-Encoding"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-aureon-push-id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 64,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Aureon-Push-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Mt5IngestDuplicate"
-                }
-              }
-            },
-            "description": "push_id already ingested"
-          },
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Mt5IngestAccepted"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "description": "bad or missing bearer token"
-          },
-          "413": {
-            "description": "body over 2 MiB, or over 8 MiB decompressed"
-          },
-          "415": {
-            "description": "Content-Encoding other than gzip"
-          },
-          "422": {
-            "description": "not aureon.mt5.push/v1"
-          },
-          "429": {
-            "description": "too many pushes"
-          },
-          "503": {
-            "description": "ingest disabled (MT5_INGEST_TOKEN unset) or storage unavailable"
-          }
-        },
-        "summary": "Ingest",
-        "tags": [
-          "trading",
-          "mt5"
-        ]
-      }
-    },
     "/api/trading/mt5/instruments/{symbol}": {
       "put": {
         "description": "Register an MT5 symbol's contract spec so the bot's signals and positions can be\nlinked to it. Admin-only, CSRF-protected, audited.",
@@ -20515,232 +20178,6 @@
         ]
       }
     },
-    "/api/trading/mt5/market": {
-      "get": {
-        "operationId": "market_api_trading_mt5_market_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "timeframe",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Za-z0-9]{1,4}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Timeframe"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 120,
-              "maximum": 300,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Mt5MarketOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Market",
-        "tags": [
-          "trading",
-          "mt5"
-        ]
-      }
-    },
-    "/api/trading/mt5/positions": {
-      "get": {
-        "operationId": "positions_api_trading_mt5_positions_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Mt5PositionsOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Positions",
-        "tags": [
-          "trading",
-          "mt5"
-        ]
-      }
-    },
-    "/api/trading/mt5/report": {
-      "get": {
-        "operationId": "report_api_trading_mt5_report_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "days",
-            "required": false,
-            "schema": {
-              "default": 7,
-              "maximum": 90,
-              "minimum": 1,
-              "title": "Days",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Mt5ReportOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Report",
-        "tags": [
-          "trading",
-          "mt5"
-        ]
-      }
-    },
-    "/api/trading/mt5/signals": {
-      "get": {
-        "description": "Journal timeline, newest first. `kind` (repeatable): P, cross, protected, secured, exit,\nclosed, error, or a raw event name (position_seen, process_start, ...).",
-        "operationId": "signals_api_trading_mt5_signals_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "kind",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "items": {
-                    "type": "string"
-                  },
-                  "maxItems": 20,
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Kind"
-            }
-          },
-          {
-            "in": "query",
-            "name": "symbol",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 64,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Symbol"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 500,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Mt5SignalsOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Signals",
-        "tags": [
-          "trading",
-          "mt5"
-        ]
-      }
-    },
     "/api/trading/mt5/status": {
       "get": {
         "description": "Live read of the bot's export: health, agents, positions, backtests and performance\ncalculated from its journal (labelled `calculated`). Nothing is sent to the bot.",
@@ -20760,28 +20197,6 @@
         "summary": "Mt5 Status",
         "tags": [
           "trading"
-        ]
-      }
-    },
-    "/api/trading/mt5/strategy": {
-      "get": {
-        "operationId": "strategy_api_trading_mt5_strategy_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Mt5StrategyOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Strategy",
-        "tags": [
-          "trading",
-          "mt5"
         ]
       }
     },
@@ -22338,6 +21753,89 @@
         "summary": "List Audit Events",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/api/v1/github/actions/monitor": {
+      "get": {
+        "description": "Host deploys (`deployer` agent runs) and GitHub Actions CI runs, newest first. DB only:\nnever calls GitHub (the webhook worker and the sync job keep the runs fresh).",
+        "operationId": "monitor_api_v1_github_actions_monitor_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "deploy",
+                    "ci"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 201,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Repo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Monitor",
+        "tags": [
+          "github"
         ]
       }
     },

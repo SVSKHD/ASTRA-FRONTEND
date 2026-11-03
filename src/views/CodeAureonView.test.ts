@@ -30,6 +30,24 @@ const TASK = {
   decided_at: null,
 }
 
+const GIT_OP = {
+  id: 'op-1',
+  op: 'task',
+  repo: 'demo',
+  task_id: 't-1',
+  branch: 'feature/b',
+  title: 'aureon: b',
+  status: 'done',
+  head_sha: null,
+  pr_number: null,
+  pr_url: null,
+  result: { pushed: false },
+  error: null,
+  created_at: '2026-11-03T10:00:00Z',
+  started_at: null,
+  finished_at: null,
+}
+
 function route(method: string, path: string, query: URLSearchParams): [number, unknown] {
   if (path === '/api/auth/me')
     return [200, { id: 'u', email: 'owner@spasta.online', role, last_login_at: null }]
@@ -65,7 +83,16 @@ function route(method: string, path: string, query: URLSearchParams): [number, u
   if (path.endsWith('/diff'))
     return [200, { task_id: TASK.id, files: ['src/a.ts'], diff: '+export const b = 1' }]
   if (path.endsWith('/approve'))
-    return [200, { ...TASK, status: 'approved', result: { feature_branch: 'feature/b' } }]
+    return [
+      200,
+      {
+        ...TASK,
+        status: 'approved',
+        result: { feature_branch: 'feature/b' },
+        git_op: { ...GIT_OP, status: 'queued' },
+      },
+    ]
+  if (path === `/api/code/git/ops/${GIT_OP.id}`) return [200, GIT_OP]
   if (path === '/api/code/analyze') return [202, { ...TASK, kind: 'analyze', status: 'queued' }]
   return [404, { detail: 'not found' }]
 }
@@ -147,8 +174,14 @@ describe('CodeAureonView', () => {
       .findAll('button')
       .find((b) => b.text() === 'Approve')!
       .trigger('click')
-    await sees(w, 'Approved on the local branch feature/b. Nothing was pushed.')
+    await sees(w, 'The coding worker is about to keep feature/b')
+    // the queued git op is polled (first after 1.5 s) until it ends
+    await vi.waitFor(
+      () =>
+        expect(w.text()).toContain('Approved on the local branch feature/b. Nothing was pushed.'),
+      { timeout: 5000, interval: 50 },
+    )
     expect(posts.map((p) => p.path)).toEqual([`/api/code/tasks/${TASK.id}/approve`])
     w.unmount()
-  })
+  }, 20_000)
 })
