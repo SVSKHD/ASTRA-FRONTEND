@@ -421,8 +421,10 @@ export interface paths {
         put?: never;
         /**
          * Approve Task
-         * @description Keep the tested change on its own branch (optionally also named feature/... or
-         *     fix/...). Never main/dev01, never pushed, never deployed.
+         * @description Approve a tested change. The git work (keep the branch, optional feature/... or fix/...
+         *     name, worktree cleanup, and for a GitHub clone push + PR) is queued as a `task` git op for
+         *     the coding worker; poll GET /api/code/git/ops/{git_op.id}. Never main/dev01, never merged,
+         *     never deployed: merging a PR stays behind the approval gate.
          */
         post: operations["approve_task_api_code_tasks__task_id__approve_post"];
         delete?: never;
@@ -3559,6 +3561,61 @@ export interface components {
             /** Total */
             total: number;
         };
+        /**
+         * ApproveOut
+         * @description The approved task plus the queued `task` git op (poll GET /api/code/git/ops/{id}).
+         */
+        ApproveOut: {
+            /** Base Ref */
+            base_ref: string;
+            /** Base Sha */
+            base_sha: string | null;
+            /** Branch */
+            branch: string | null;
+            /** Commit Sha */
+            commit_sha: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            git_op: components["schemas"]["GitOpOut"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Instruction */
+            instruction: string;
+            /** Kind */
+            kind: string;
+            /** Model */
+            model: string | null;
+            /** Paths */
+            paths: string[];
+            /** Repo */
+            repo: string;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            };
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+            /** Tests */
+            tests: {
+                [key: string]: unknown;
+            }[];
+            /** Title */
+            title: string;
+        };
         /** AssetOut */
         AssetOut: {
             /**
@@ -4520,6 +4577,8 @@ export interface components {
             started_at: string | null;
             /** Status */
             status: string;
+            /** Task Id */
+            task_id?: string | null;
             /** Title */
             title: string | null;
         };
@@ -8550,7 +8609,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CodeTaskOut"];
+                    "application/json": components["schemas"]["ApproveOut"];
                 };
             };
             /** @description Validation Error */

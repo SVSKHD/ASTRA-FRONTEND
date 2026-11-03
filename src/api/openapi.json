@@ -1160,6 +1160,183 @@
         "title": "ApprovalPage",
         "type": "object"
       },
+      "ApproveOut": {
+        "description": "The approved task plus the queued `task` git op (poll GET /api/code/git/ops/{id}).",
+        "properties": {
+          "base_ref": {
+            "title": "Base Ref",
+            "type": "string"
+          },
+          "base_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Sha"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "git_op": {
+            "$ref": "#/components/schemas/GitOpOut"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instruction": {
+            "title": "Instruction",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "repo": {
+            "title": "Repo",
+            "type": "string"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tests": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Tests",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "repo",
+          "title",
+          "instruction",
+          "paths",
+          "status",
+          "base_ref",
+          "base_sha",
+          "branch",
+          "commit_sha",
+          "model",
+          "result",
+          "tests",
+          "error",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "decided_at",
+          "git_op"
+        ],
+        "title": "ApproveOut",
+        "type": "object"
+      },
       "AssetOut": {
         "properties": {
           "created_at": {
@@ -3813,6 +3990,18 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
           },
           "title": {
             "anyOf": [
@@ -15316,7 +15505,7 @@
     },
     "/api/code/tasks/{task_id}/approve": {
       "post": {
-        "description": "Keep the tested change on its own branch (optionally also named feature/... or\nfix/...). Never main/dev01, never pushed, never deployed.",
+        "description": "Approve a tested change. The git work (keep the branch, optional feature/... or fix/...\nname, worktree cleanup, and for a GitHub clone push + PR) is queued as a `task` git op for\nthe coding worker; poll GET /api/code/git/ops/{git_op.id}. Never main/dev01, never merged,\nnever deployed: merging a PR stays behind the approval gate.",
         "operationId": "approve_task_api_code_tasks__task_id__approve_post",
         "parameters": [
           {
@@ -15352,7 +15541,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CodeTaskOut"
+                  "$ref": "#/components/schemas/ApproveOut"
                 }
               }
             },
