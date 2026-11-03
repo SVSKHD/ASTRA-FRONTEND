@@ -179,3 +179,11 @@ only ever flips `enabled`. Wire the bot's service account to these paths under
 > This repo is the frontend control surface. The `aiProxy` Cloud Function, the
 > Firestore security rules, and the Python bot process itself live outside it and
 > are wired up via the contracts above.
+
+## Server deploy
+
+Every merge to `dev01` is deployed on the Spasta server within about a minute: the backend
+repo's `aureon-deploy.timer` notices the new commit and runs `scripts/deploy.sh` (build in a
+container, atomic release swap under `/srv/www/spasta/current`, smoke check, automatic swap
+back on failure). Roll back with `scripts/deploy.sh --rollback`. Details:
+`Aureon_agents_Assembler/docs/deploy-automation.md`.
