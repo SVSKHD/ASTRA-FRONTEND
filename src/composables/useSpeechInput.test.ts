@@ -79,4 +79,17 @@ describe('useSpeechInput', () => {
     FakeRecognition.last.onerror?.({ error: 'not-allowed' })
     expect(errors[0]).toMatch(/blocked/)
   })
+
+  it('says so when the browser refuses to start the mic', async () => {
+    class Throws extends FakeRecognition {
+      start() {
+        throw new Error('NotAllowedError')
+      }
+    }
+    ;(window as unknown as Record<string, unknown>).webkitSpeechRecognition = Throws
+    const { api, errors } = await setup()
+    api.start()
+    expect(api.listening.value).toBe(false)
+    expect(errors[0]).toMatch(/microphone/)
+  })
 })
