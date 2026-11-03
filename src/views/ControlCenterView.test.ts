@@ -362,9 +362,49 @@ function route(method: string, path: string): [number, unknown] {
   if (path === '/api/v1/approvals')
     return [200, { items: PENDING, total: PENDING.length, limit: 200, offset: 0 }]
   if (path === '/api/v1/audit/events') return [404, { detail: 'Not Found' }]
+  if (path === '/api/v1/github/actions/monitor') return [200, { items: MONITOR, latest_at: NOW }]
   void method
   return [200, { items: [], total: 0, limit: 50, offset: 0 }]
 }
+
+const MONITOR = [
+  {
+    kind: 'ci',
+    id: 'ci:77',
+    name: 'Lint',
+    repo: 'svskhd/astra',
+    branch: 'feat/x',
+    sha: 'abcdef1234567890',
+    status: 'failure',
+    raw_status: 'completed',
+    conclusion: 'failure',
+    event: 'pull_request',
+    started_at: NOW,
+    finished_at: NOW,
+    duration_ms: 185_000,
+    url: 'https://github.com/svskhd/astra/actions/runs/77',
+    error: null,
+    rolled_back: null,
+  },
+  {
+    kind: 'deploy',
+    id: 'deploy:5',
+    name: 'deploy:backend',
+    repo: 'SVSKHD/Aureon_agents_Assembler',
+    branch: 'main',
+    sha: '1234567aaaaaaaaa',
+    status: 'success',
+    raw_status: 'succeeded',
+    conclusion: null,
+    event: null,
+    started_at: NOW,
+    finished_at: NOW,
+    duration_ms: 42_000,
+    url: 'https://github.com/SVSKHD/Aureon_agents_Assembler/commit/1234567aaaaaaaaa',
+    error: null,
+    rolled_back: true,
+  },
+]
 
 const PULL = {
   number: 7,
@@ -789,6 +829,23 @@ describe('reviews', () => {
 })
 
 describe('actions', () => {
+  it('shows deploys and CI runs on one timeline, with links and durations', async () => {
+    const { w } = await mountAt('/dev/actions')
+    await sees(w, 'Deploys and CI')
+    await sees(w, 'Deploy · backend')
+    expect(w.text()).toContain('CI · Lint')
+    expect(w.text()).toContain('SVSKHD/Aureon_agents_Assembler · main · 1234567')
+    expect(w.text()).toContain('3 min 05 s')
+    expect(w.text()).toContain('success · rolled back')
+    const links = w
+      .findAll('a[target="_blank"]')
+      .map((a) => a.attributes('href'))
+      .filter((h) => h?.startsWith('https://github.com/'))
+    expect(links).toContain('https://github.com/svskhd/astra/actions/runs/77')
+    expect(calls.some((c) => c.includes('/api/v1/github/actions/monitor'))).toBe(true)
+    w.unmount()
+  })
+
   it('lists workflows, offers dispatch only on the allowlist, and shows a job log as text', async () => {
     const { w } = await mountAt('/dev/actions')
     await sees(w, 'Not on the dispatch allowlist')
