@@ -277,6 +277,14 @@ export interface AiMessage {
   content: string
   // The model that produced an assistant message (badge). Absent on user turns.
   model?: string
+  // Aureon: who answered (local Ollama or OpenRouter) and why it ran locally
+  // when OpenRouter was picked — drives the "Local only" / "Fell back" badges.
+  route?: {
+    provider: 'ollama' | 'openrouter'
+    fallbackReason?: string | null
+    localOnly?: boolean
+    costUsd?: string | null
+  }
   tokensIn?: number
   tokensOut?: number
   // An assistant turn sent with the "Use my data" context block attached.

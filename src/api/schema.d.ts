@@ -106,6 +106,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ai/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ai Usage
+         * @description Today's (UTC) OpenRouter spend, tokens and calls against the daily cap.
+         */
+        get: operations["ai_usage_api_ai_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -801,6 +821,26 @@ export interface paths {
         };
         /** List Models */
         get: operations["list_models_api_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/models/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Model Catalog
+         * @description The picker's list: installed Ollama models plus the allowed OpenRouter ids.
+         */
+        get: operations["model_catalog_api_models_catalog_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2967,6 +3007,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Integrations
+         * @description The Spasta health card: MT5 feed freshness, Dhan, GitHub, webhook worker, Claude CLI,
+         *     Ollama models, Discord, the DB role and backups. Read-only; admin only.
+         */
+        get: operations["integrations_api_v1_system_integrations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/voice/intent": {
         parameters: {
             query?: never;
@@ -3157,6 +3218,44 @@ export interface components {
             signal_id: string | null;
             /** Summary */
             summary: string;
+        };
+        /**
+         * AiUsage
+         * @description Today's (UTC) OpenRouter spend against OPENROUTER_DAILY_LIMIT_USD.
+         */
+        AiUsage: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /** Calls */
+            calls: number;
+            /** Cap Reached */
+            cap_reached: boolean;
+            /** Completion Tokens */
+            completion_tokens: number;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Failures */
+            failures: number;
+            /** Limit Usd */
+            limit_usd: string;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /**
+             * Provider
+             * @default openrouter
+             * @constant
+             */
+            provider: "openrouter";
+            /** Remaining Usd */
+            remaining_usd: string;
+            /** Spent Usd */
+            spent_usd: string;
         };
         /** AnalyzeIn */
         AnalyzeIn: {
@@ -3713,6 +3812,28 @@ export interface components {
             /** Volume */
             volume: string;
         };
+        /** CatalogModel */
+        CatalogModel: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "ollama" | "openrouter";
+        };
+        /** CatalogTarget */
+        CatalogTarget: {
+            /** Model */
+            model: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "ollama" | "openrouter";
+        };
         /** ChainOut */
         ChainOut: {
             /** Broken At */
@@ -3762,9 +3883,18 @@ export interface components {
         /**
          * ChatRequest
          * @description `messages` are the NEW turns only; for an existing conversation the server prepends
-         *     its stored history before calling Ollama.
+         *     its stored history before calling the model.
+         *
+         *     `provider`/`model` pick who should answer (docs/25-openrouter.md). Both may be omitted:
+         *     an existing conversation keeps its own, a new one gets the server default (OpenRouter's
+         *     default model when it is usable, else the local default). A `model` without a
+         *     `provider` means OpenRouter only when it is one of the allowed OpenRouter ids.
+         *     `context` links a conversation to finance/trading/research (forces local inference);
+         *     a link only ever gets stricter.
          */
         ChatRequest: {
+            /** Context */
+            context?: ("general" | "finance" | "trading" | "research") | null;
             /** Conversation Id */
             conversation_id?: string | null;
             /** Max Tokens */
@@ -3772,9 +3902,11 @@ export interface components {
             /** Messages */
             messages: components["schemas"]["ChatMessageIn"][];
             /** Model */
-            model: string;
+            model?: string | null;
             /** Num Ctx */
             num_ctx?: number | null;
+            /** Provider */
+            provider?: ("ollama" | "openrouter") | null;
             /** Temperature */
             temperature?: number | null;
         };
@@ -3965,6 +4097,11 @@ export interface components {
         /** ConversationDetail */
         ConversationDetail: {
             /**
+             * Context
+             * @default general
+             */
+            context: string;
+            /**
              * Created At
              * Format: date-time
              */
@@ -3978,6 +4115,11 @@ export interface components {
             messages: components["schemas"]["MessageOut"][];
             /** Model */
             model: string;
+            /**
+             * Provider
+             * @default ollama
+             */
+            provider: string;
             /** Title */
             title: string;
             /**
@@ -3988,6 +4130,11 @@ export interface components {
         };
         /** ConversationOut */
         ConversationOut: {
+            /**
+             * Context
+             * @default general
+             */
+            context: string;
             /**
              * Created At
              * Format: date-time
@@ -4000,6 +4147,11 @@ export interface components {
             id: string;
             /** Model */
             model: string;
+            /**
+             * Provider
+             * @default ollama
+             */
+            provider: string;
             /** Title */
             title: string;
             /**
@@ -4898,6 +5050,8 @@ export interface components {
             completion_tokens: number | null;
             /** Content */
             content: string;
+            /** Cost Usd */
+            cost_usd?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -4907,12 +5061,16 @@ export interface components {
             duration_ms: number | null;
             /** Error */
             error: string | null;
+            /** Fallback Reason */
+            fallback_reason?: string | null;
             /** Id */
             id: number;
             /** Model */
             model: string | null;
             /** Prompt Tokens */
             prompt_tokens: number | null;
+            /** Provider */
+            provider?: string | null;
             /** Role */
             role: string;
             /** Status */
@@ -4933,8 +5091,25 @@ export interface components {
             confirmation_token?: string | null;
             mode: components["schemas"]["ExecutionMode"];
         };
+        /**
+         * ModelCatalog
+         * @description Everything the SPA's picker offers. OpenRouter ids come from the server's allowlist;
+         *     the browser never talks to OpenRouter.
+         */
+        ModelCatalog: {
+            default: components["schemas"]["CatalogTarget"];
+            /** Local Fallback Model */
+            local_fallback_model: string | null;
+            /** Models */
+            models: components["schemas"]["CatalogModel"][];
+            /** Ollama Reachable */
+            ollama_reachable: boolean;
+            openrouter: components["schemas"]["OpenRouterStatus"];
+        };
         /** ModelList */
         ModelList: {
+            /** Default Model */
+            default_model?: string | null;
             /** Models */
             models: components["schemas"]["ModelOut"][];
         };
@@ -5050,6 +5225,15 @@ export interface components {
              * @enum {string}
              */
             source: "file" | "http";
+        };
+        /** OpenRouterStatus */
+        OpenRouterStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Research External Allowed */
+            research_external_allowed: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
         };
         /** OptionChainOut */
         OptionChainOut: {
@@ -7731,6 +7915,26 @@ export interface operations {
             };
         };
     };
+    ai_usage_api_ai_usage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiUsage"];
+                };
+            };
+        };
+    };
     login_api_auth_login_post: {
         parameters: {
             query?: never;
@@ -9442,6 +9646,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelList"];
+                };
+            };
+        };
+    };
+    model_catalog_api_models_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelCatalog"];
                 };
             };
         };
@@ -13985,6 +14209,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    integrations_api_v1_system_integrations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

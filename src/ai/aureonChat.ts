@@ -17,6 +17,13 @@
 //
 // Requires an Aureon session (stage 2, VITE_AUTH_PROVIDER=aureon): the request
 // is cookie-authenticated with the CSRF header.
+//
+// Providers (backend docs/25-openrouter.md): each conversation picks a provider
+// and model — the local Ollama or an allowed OpenRouter model — from
+// GET /api/models/catalog. The browser never talks to OpenRouter and never sees
+// its key: the server routes, filters (finance, trading, broker, positions,
+// secrets and logs always stay local) and falls back to the local model on any
+// error. Every stream says who actually answered and why (`AiRoute`).
 
 import { reactive, watch } from 'vue'
 import { aureon } from '@/api/client'
@@ -58,10 +65,69 @@ function write(key: string, value: unknown) {
   }
 }
 
+export type AiProvider = 'ollama' | 'openrouter'
+
+/** A provider + model pick. */
+export interface AiTarget {
+  provider: AiProvider
+  model: string
+}
+
+export interface CatalogModel {
+  provider: AiProvider
+  id: string
+  label: string
+}
+
+export interface ModelCatalog {
+  default: { provider: AiProvider; model: string | null }
+  localFallbackModel: string | null
+  ollamaReachable: boolean
+  models: CatalogModel[]
+  /** null = OpenRouter is usable; else why every turn stays local. */
+  openrouterOff: string | null
+}
+
+export interface AiUsageInfo {
+  day: string
+  spentUsd: number
+  limitUsd: number
+  remainingUsd: number
+  tokens: number
+  calls: number
+  capReached: boolean
+  available: boolean
+}
+
+/** Who answered a turn and why — from the stream's meta/fallback/done events. */
+export interface AiRoute {
+  provider: AiProvider
+  model: string
+  requestedProvider?: AiProvider
+  /** Why it is not OpenRouter although OpenRouter was picked (null = it is). */
+  fallbackReason?: string | null
+  /** The data had to stay local (the classification filter or a linked context). */
+  localOnly?: boolean
+  costUsd?: string | null
+}
+
+const TARGET_KEY = 'aureon.ai.targets'
+
 export const aureonAi = reactive({
   model: read<string>(MODEL_KEY, ''),
   conversations: read<Record<string, string>>(CONV_KEY, {}),
+  /** The provider + model each chat uses, by chat key (per device). */
+  targets: read<Record<string, AiTarget>>(TARGET_KEY, {}),
+  /** Picked while no chat is open: the next new chat takes it. */
+  pending: null as AiTarget | null,
+  catalog: null as ModelCatalog | null,
+  usage: null as AiUsageInfo | null,
 })
+watch(
+  () => aureonAi.targets,
+  (t) => write(TARGET_KEY, t),
+  { deep: true },
+)
 watch(
   () => aureonAi.model,
   (m) => write(MODEL_KEY, m),
@@ -97,6 +163,95 @@ export async function listModels(): Promise<LocalModel[]> {
   return models
 }
 
+/** The picker's list (local models, then allowed OpenRouter ones) and the server default. */
+export async function loadCatalog(): Promise<ModelCatalog> {
+  const { data, error } = await aureon.GET('/api/models/catalog')
+  if (!data) throw new Error(error ? 'Could not list models.' : 'No answer from Aureon.')
+  const catalog: ModelCatalog = {
+    default: { provider: data.default.provider, model: data.default.model ?? null },
+    localFallbackModel: data.local_fallback_model ?? null,
+    ollamaReachable: data.ollama_reachable,
+    models: data.models.map((m) => ({ provider: m.provider, id: m.id, label: m.label })),
+    openrouterOff: data.openrouter.unavailable_reason ?? null,
+  }
+  aureonAi.catalog = catalog
+  const local = catalog.models.filter((m) => m.provider === 'ollama')
+  // The prompt helpers and the typo sweep stay on the local model.
+  if (local.length && !local.some((m) => m.id === aureonAi.model)) {
+    aureonAi.model = local.find((m) => m.id === catalog.localFallbackModel)?.id ?? local[0].id
+  }
+  return catalog
+}
+
+/** Today's OpenRouter spend against the daily cap. */
+export async function loadUsage(): Promise<AiUsageInfo | null> {
+  const { data } = await aureon.GET('/api/ai/usage')
+  if (!data) return null
+  const num = (v: string | number) => Number(v) || 0
+  aureonAi.usage = {
+    day: data.day,
+    spentUsd: num(data.spent_usd),
+    limitUsd: num(data.limit_usd),
+    remainingUsd: num(data.remaining_usd),
+    tokens: data.prompt_tokens + data.completion_tokens,
+    calls: data.calls,
+    capReached: data.cap_reached,
+    available: data.available ?? true,
+  }
+  return aureonAi.usage
+}
+
+/**
+ * The provider + model a chat sends with. Its own pick first; a chat that
+ * already has a server conversation from before providers existed stays on the
+ * local model; a new chat takes the pending pick, then the server default.
+ * null = send neither and let the server decide.
+ */
+export function targetFor(chatKey: string | null): AiTarget | null {
+  if (chatKey && aureonAi.targets[chatKey]) return aureonAi.targets[chatKey]
+  if (chatKey && aureonAi.conversations[chatKey]) {
+    return aureonAi.model ? { provider: 'ollama', model: aureonAi.model } : null
+  }
+  if (aureonAi.pending) return aureonAi.pending
+  const d = aureonAi.catalog?.default
+  if (d?.model) return { provider: d.provider, model: d.model }
+  return aureonAi.model ? { provider: 'ollama', model: aureonAi.model } : null
+}
+
+/** Pick a provider + model for a chat (or for the next new chat). */
+export function setTarget(chatKey: string | null, target: AiTarget) {
+  if (chatKey) aureonAi.targets[chatKey] = target
+  else aureonAi.pending = target
+  if (target.provider === 'ollama') aureonAi.model = target.model
+}
+
+const REASONS: Record<string, string> = {
+  filter: 'the message has data that stays on this server',
+  context: 'this chat is linked to finance, trading or research',
+  disabled: 'OpenRouter is turned off on the server',
+  not_configured: 'OpenRouter is not set up on the server',
+  no_budget: 'OpenRouter has no daily budget',
+  daily_cap_reached: "today's OpenRouter budget is used up",
+  usage_unavailable: "today's OpenRouter spend could not be checked",
+  model_not_allowed: 'that OpenRouter model is not allowed',
+  rate_limited: 'OpenRouter is rate-limiting',
+  upstream_error: 'OpenRouter had an error',
+  rejected: 'OpenRouter refused the request',
+  timeout: 'OpenRouter timed out',
+  unavailable: 'OpenRouter could not be reached',
+}
+
+/** Why a turn ran locally, in words. */
+export function fallbackText(reason: string | null | undefined): string {
+  if (!reason) return ''
+  return REASONS[reason] ?? reason.replace(/_/g, ' ')
+}
+
+/** "OpenRouter · google/gemini-2.5-flash-lite" / "Local · qwen2.5:3b". */
+export function targetLabel(t: { provider: AiProvider; model: string }): string {
+  return `${t.provider === 'openrouter' ? 'OpenRouter' : 'Local'} · ${t.model}`
+}
+
 // --- the stream ------------------------------------------------------------------------------
 
 export interface ChatTurn {
@@ -104,12 +259,32 @@ export interface ChatTurn {
   content: string
 }
 
-/** Same shape the proxy's events were read into. */
+/** Same shape the proxy's events were read into, plus who answered. */
 export interface ChatEvent {
   model?: string
   text?: string
   usage?: { in: number; out: number }
   error?: string
+  /** Who answers (meta, fallback) / answered (done, error). */
+  route?: AiRoute
+  /** OpenRouter failed mid-reply: drop the text so far, the local answer follows. */
+  reset?: boolean
+}
+
+function routeOf(data: Record<string, unknown>, fallbackModel: string): AiRoute {
+  const provider: AiProvider = data.provider === 'openrouter' ? 'openrouter' : 'ollama'
+  const reason = (data.fallback_reason ?? data.reason ?? null) as string | null
+  return {
+    provider,
+    model: String(data.model ?? fallbackModel),
+    requestedProvider:
+      data.requested_provider === 'openrouter' || data.requested_provider === 'ollama'
+        ? data.requested_provider
+        : undefined,
+    fallbackReason: reason,
+    localOnly: data.local_only === true,
+    costUsd: typeof data.cost_usd === 'string' ? data.cost_usd : null,
+  }
 }
 
 function clip(text: string): string {
@@ -154,6 +329,7 @@ export class AureonChatError extends Error {
 function httpMessage(status: number, body: unknown): string {
   const detail = (body as { detail?: unknown } | null)?.detail
   if (status === 401) return 'Sign in to Aureon to use the local AI.'
+  if (status === 404 && typeof detail === 'string' && detail.includes('OpenRouter')) return detail
   if (status === 404) {
     const avail = (body as { available?: string[] } | null)?.available
     return avail?.length
@@ -172,6 +348,8 @@ function httpMessage(status: number, body: unknown): string {
  */
 export async function* streamChat(opts: {
   model: string
+  /** Omitted: a local model name, as before. */
+  provider?: AiProvider
   system: string
   history: ChatTurn[]
   prompt: string
@@ -192,18 +370,20 @@ export async function* streamChat(opts: {
     credentials: 'include',
     headers,
     body: JSON.stringify({
-      model: opts.model,
+      ...(opts.provider ? { provider: opts.provider } : {}),
+      ...(opts.model ? { model: opts.model } : {}),
       ...(conversationId ? { conversation_id: conversationId } : {}),
       messages: buildMessages(opts.system, opts.history, opts.prompt, !!conversationId),
     }),
     signal: opts.signal,
   })
   if (!res.ok || !res.body) {
+    const body = await res.json().catch(() => null)
     // A conversation deleted on the server: forget it and let the caller retry fresh.
-    if (res.status === 404 && conversationId && opts.chatKey) {
+    const gone = (body as { detail?: unknown } | null)?.detail === 'conversation not found'
+    if (res.status === 404 && gone && conversationId && opts.chatKey) {
       delete aureonAi.conversations[opts.chatKey]
     }
-    const body = await res.json().catch(() => null)
     throw new AureonChatError(httpMessage(res.status, body), res.status)
   }
   for await (const ev of readSse(res)) {
@@ -217,16 +397,23 @@ export async function* streamChat(opts: {
       if (opts.chatKey && typeof data.conversation_id === 'string') {
         aureonAi.conversations[opts.chatKey] = data.conversation_id
       }
-      yield { model: String(data.model ?? opts.model) }
+      yield { model: String(data.model ?? opts.model), route: routeOf(data, opts.model) }
+    } else if (ev.event === 'fallback') {
+      const route = routeOf(data, opts.model)
+      yield { model: route.model, route, reset: data.reset === true }
     } else if (ev.event === 'token') {
       if (typeof data.content === 'string' && data.content) yield { text: data.content }
     } else if (ev.event === 'done') {
       yield {
         usage: { in: Number(data.prompt_tokens ?? 0), out: Number(data.completion_tokens ?? 0) },
+        ...('provider' in data ? { route: routeOf(data, opts.model) } : {}),
       }
       return
     } else if (ev.event === 'error') {
-      yield { error: String(data.message ?? data.code ?? 'The local model stopped.') }
+      yield {
+        error: String(data.message ?? data.code ?? 'The model stopped.'),
+        ...('provider' in data ? { route: routeOf(data, opts.model) } : {}),
+      }
       return
     }
   }
@@ -239,8 +426,10 @@ export async function askOnce(
   opts: { model: string; signal?: AbortSignal; fetchImpl?: typeof fetch },
 ): Promise<string | null> {
   let answer = ''
+  // Prompt helpers stay on the local model.
   for await (const ev of streamChat({
     ...opts,
+    provider: 'ollama',
     system,
     history: [],
     prompt: text,

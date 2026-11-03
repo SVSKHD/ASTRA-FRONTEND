@@ -7,8 +7,12 @@ import {
   askOnce,
   aureonAi,
   buildMessages,
+  fallbackText,
   listModels,
+  setTarget,
   streamChat,
+  targetFor,
+  targetLabel,
 } from './aureonChat'
 
 function sse(events: [string, unknown][]): Response {
@@ -35,6 +39,10 @@ const STREAM: [string, unknown][] = [
 beforeEach(() => {
   aureonAi.conversations = {}
   aureonAi.model = ''
+  aureonAi.targets = {}
+  aureonAi.pending = null
+  aureonAi.catalog = null
+  aureonAi.usage = null
 })
 afterEach(() => {
   document.cookie = 'aureon_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT'
@@ -107,7 +115,16 @@ describe('streamChat', () => {
       ],
     })
     expect(out).toEqual([
-      { model: 'llama3.1:8b' },
+      {
+        model: 'llama3.1:8b',
+        route: {
+          provider: 'ollama',
+          model: 'llama3.1:8b',
+          fallbackReason: null,
+          localOnly: false,
+          costUsd: null,
+        },
+      },
       { text: 'Hel' },
       { text: 'lo' },
       { usage: { in: 12, out: 2 } },
@@ -174,9 +191,158 @@ describe('streamChat', () => {
 
 describe('askOnce', () => {
   it('collects the answer and starts no remembered conversation', async () => {
-    const fetchImpl = (async () => sse(STREAM)) as unknown as typeof fetch
+    let body: Record<string, unknown> = {}
+    const fetchImpl = (async (_u: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body))
+      return sse(STREAM)
+    }) as unknown as typeof fetch
     expect(await askOnce('S', 'Q', { model: 'm', fetchImpl })).toBe('Hello')
     expect(aureonAi.conversations).toEqual({})
+    // The prompt helpers never leave the local model.
+    expect(body.provider).toBe('ollama')
+  })
+})
+
+describe('providers (OpenRouter via the server)', () => {
+  const OR = 'google/gemini-2.5-flash-lite'
+
+  async function collect(events: [string, unknown][], extra: Record<string, unknown> = {}) {
+    const bodies: Record<string, unknown>[] = []
+    const fetchImpl = (async (_u: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)))
+      return sse(events)
+    }) as unknown as typeof fetch
+    const out = []
+    for await (const ev of streamChat({
+      model: OR,
+      provider: 'openrouter',
+      system: '',
+      history: [],
+      prompt: 'p',
+      chatKey: '5',
+      fetchImpl,
+      ...extra,
+    }))
+      out.push(ev)
+    return { out, bodies }
+  }
+
+  it('sends the provider and model and reads who answered', async () => {
+    const { out, bodies } = await collect([
+      ['meta', { conversation_id: 'c', provider: 'openrouter', model: OR, local_only: false }],
+      ['token', { content: 'hi' }],
+      [
+        'done',
+        {
+          prompt_tokens: 3,
+          completion_tokens: 1,
+          provider: 'openrouter',
+          model: OR,
+          cost_usd: '0.00001',
+        },
+      ],
+    ])
+    expect(bodies[0]).toMatchObject({ provider: 'openrouter', model: OR })
+    expect(out[0].route).toMatchObject({ provider: 'openrouter', model: OR, localOnly: false })
+    expect(out[2].route).toMatchObject({ provider: 'openrouter', costUsd: '0.00001' })
+    expect(out[2].usage).toEqual({ in: 3, out: 1 })
+  })
+
+  it('marks a turn the filter kept local', async () => {
+    const { out } = await collect([
+      [
+        'meta',
+        {
+          conversation_id: 'c',
+          provider: 'ollama',
+          model: 'qwen2.5:3b',
+          requested_provider: 'openrouter',
+          fallback_reason: 'filter',
+          local_only: true,
+          filter_categories: ['finance'],
+        },
+      ],
+      [
+        'done',
+        { provider: 'ollama', model: 'qwen2.5:3b', fallback_reason: 'filter', local_only: true },
+      ],
+    ])
+    expect(out[0]).toMatchObject({
+      model: 'qwen2.5:3b',
+      route: {
+        provider: 'ollama',
+        requestedProvider: 'openrouter',
+        fallbackReason: 'filter',
+        localOnly: true,
+      },
+    })
+  })
+
+  it('passes a mid-reply fallback on, with a reset', async () => {
+    const { out } = await collect([
+      ['meta', { conversation_id: 'c', provider: 'openrouter', model: OR }],
+      ['token', { content: 'half' }],
+      [
+        'fallback',
+        {
+          provider: 'ollama',
+          model: 'qwen2.5:3b',
+          reason: 'rate_limited',
+          local_only: false,
+          reset: true,
+        },
+      ],
+      ['token', { content: 'local' }],
+      ['done', { provider: 'ollama', model: 'qwen2.5:3b', fallback_reason: 'rate_limited' }],
+    ])
+    expect(out[2]).toMatchObject({
+      reset: true,
+      model: 'qwen2.5:3b',
+      route: { provider: 'ollama', fallbackReason: 'rate_limited', localOnly: false },
+    })
+    expect(out[4].route?.fallbackReason).toBe('rate_limited')
+  })
+
+  it('shows a disallowed OpenRouter model as the server says', async () => {
+    const fetchImpl = (async () =>
+      new Response(
+        JSON.stringify({
+          detail: "model 'x/y' is not an allowed OpenRouter model",
+          available: [OR],
+        }),
+        { status: 404, headers: { 'content-type': 'application/json' } },
+      )) as unknown as typeof fetch
+    aureonAi.conversations['5'] = 'keep'
+    await expect(collect([], { fetchImpl })).rejects.toThrow('not an allowed OpenRouter model')
+    expect(aureonAi.conversations['5']).toBe('keep') // not mistaken for a deleted conversation
+  })
+
+  it('picks per chat: its own, then legacy-local, then pending, then the server default', () => {
+    expect(targetFor(null)).toBeNull()
+    aureonAi.catalog = {
+      default: { provider: 'openrouter', model: OR },
+      localFallbackModel: 'qwen2.5:3b',
+      ollamaReachable: true,
+      models: [],
+      openrouterOff: null,
+    }
+    expect(targetFor('1')).toEqual({ provider: 'openrouter', model: OR })
+    setTarget(null, { provider: 'ollama', model: 'mistral:7b' })
+    expect(targetFor('1')).toEqual({ provider: 'ollama', model: 'mistral:7b' })
+    expect(aureonAi.model).toBe('mistral:7b')
+    setTarget('2', { provider: 'openrouter', model: OR })
+    expect(targetFor('2')).toEqual({ provider: 'openrouter', model: OR })
+    // A chat that already talked to the server before providers existed stays local.
+    aureonAi.conversations['3'] = 'old-conv'
+    expect(targetFor('3')).toEqual({ provider: 'ollama', model: 'mistral:7b' })
+  })
+
+  it('explains fallbacks in words', () => {
+    expect(fallbackText('filter')).toContain('stays on this server')
+    expect(fallbackText('daily_cap_reached')).toContain('budget')
+    expect(fallbackText('something_new')).toBe('something new')
+    expect(fallbackText(null)).toBe('')
+    expect(targetLabel({ provider: 'openrouter', model: OR })).toBe(`OpenRouter · ${OR}`)
   })
 })
 

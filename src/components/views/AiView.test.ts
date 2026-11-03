@@ -49,6 +49,40 @@ describe('<AiView />', () => {
     expect(wrapper.find('.ai-list').exists()).toBe(true)
   })
 
+  it('marks replies the server kept local, and fallbacks', () => {
+    const app = useAppStore()
+    const id = app.newAiChat()
+    app.addAiMessage(id, { role: 'user', content: 'How are my finances?' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'Local answer',
+      model: 'qwen2.5:3b',
+      route: { provider: 'ollama', fallbackReason: 'filter', localOnly: true },
+    })
+    app.addAiMessage(id, { role: 'user', content: 'And a poem?' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'Fallback answer',
+      model: 'qwen2.5:3b',
+      route: { provider: 'ollama', fallbackReason: 'rate_limited', localOnly: false },
+    })
+    app.addAiMessage(id, { role: 'user', content: 'Another?' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'External answer',
+      model: 'google/gemini-2.5-flash-lite',
+      route: { provider: 'openrouter', fallbackReason: null, localOnly: false },
+    })
+    const wrapper = mount(AiView, { global })
+    const local = wrapper.findAll('[data-testid="local-only-badge"]')
+    expect(local).toHaveLength(1)
+    expect(local[0].text()).toContain('Local only')
+    const fell = wrapper.findAll('[data-testid="fallback-note"]')
+    expect(fell).toHaveLength(1)
+    expect(fell[0].text()).toContain('Fell back to local · OpenRouter is rate-limiting')
+    expect(wrapper.text()).toContain('OpenRouter')
+  })
+
   it('the New chat button creates a conversation', async () => {
     const app = useAppStore()
     const wrapper = mount(AiView, { global })
