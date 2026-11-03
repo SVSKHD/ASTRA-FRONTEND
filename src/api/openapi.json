@@ -516,6 +516,72 @@
         "title": "AiAnalysisOut",
         "type": "object"
       },
+      "AiUsage": {
+        "description": "Today's (UTC) OpenRouter spend against OPENROUTER_DAILY_LIMIT_USD.",
+        "properties": {
+          "available": {
+            "default": true,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "cap_reached": {
+            "title": "Cap Reached",
+            "type": "boolean"
+          },
+          "completion_tokens": {
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "failures": {
+            "title": "Failures",
+            "type": "integer"
+          },
+          "limit_usd": {
+            "title": "Limit Usd",
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "provider": {
+            "const": "openrouter",
+            "default": "openrouter",
+            "title": "Provider",
+            "type": "string"
+          },
+          "remaining_usd": {
+            "title": "Remaining Usd",
+            "type": "string"
+          },
+          "spent_usd": {
+            "title": "Spent Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "spent_usd",
+          "limit_usd",
+          "remaining_usd",
+          "prompt_tokens",
+          "completion_tokens",
+          "calls",
+          "failures",
+          "cap_reached"
+        ],
+        "title": "AiUsage",
+        "type": "object"
+      },
       "AnalyzeIn": {
         "properties": {
           "paths": {
@@ -2137,6 +2203,62 @@
         "title": "CandleOut",
         "type": "object"
       },
+      "CatalogModel": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "ollama",
+              "openrouter"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "id",
+          "label"
+        ],
+        "title": "CatalogModel",
+        "type": "object"
+      },
+      "CatalogTarget": {
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "enum": [
+              "ollama",
+              "openrouter"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "CatalogTarget",
+        "type": "object"
+      },
       "ChainOut": {
         "properties": {
           "broken_at": {
@@ -2266,8 +2388,25 @@
         "type": "object"
       },
       "ChatRequest": {
-        "description": "`messages` are the NEW turns only; for an existing conversation the server prepends\nits stored history before calling Ollama.",
+        "description": "`messages` are the NEW turns only; for an existing conversation the server prepends\nits stored history before calling the model.\n\n`provider`/`model` pick who should answer (docs/25-openrouter.md). Both may be omitted:\nan existing conversation keeps its own, a new one gets the server default (OpenRouter's\ndefault model when it is usable, else the local default). A `model` without a\n`provider` means OpenRouter only when it is one of the allowed OpenRouter ids.\n`context` links a conversation to finance/trading/research (forces local inference);\na link only ever gets stricter.",
         "properties": {
+          "context": {
+            "anyOf": [
+              {
+                "enum": [
+                  "general",
+                  "finance",
+                  "trading",
+                  "research"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
           "conversation_id": {
             "anyOf": [
               {
@@ -2303,10 +2442,17 @@
             "type": "array"
           },
           "model": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Model",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
           },
           "num_ctx": {
             "anyOf": [
@@ -2319,6 +2465,21 @@
               }
             ],
             "title": "Num Ctx"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ollama",
+                  "openrouter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
           },
           "temperature": {
             "anyOf": [
@@ -2335,7 +2496,6 @@
           }
         },
         "required": [
-          "model",
           "messages"
         ],
         "title": "ChatRequest",
@@ -2979,6 +3139,11 @@
       },
       "ConversationDetail": {
         "properties": {
+          "context": {
+            "default": "general",
+            "title": "Context",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2998,6 +3163,11 @@
           },
           "model": {
             "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "default": "ollama",
+            "title": "Provider",
             "type": "string"
           },
           "title": {
@@ -3023,6 +3193,11 @@
       },
       "ConversationOut": {
         "properties": {
+          "context": {
+            "default": "general",
+            "title": "Context",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3035,6 +3210,11 @@
           },
           "model": {
             "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "default": "ollama",
+            "title": "Provider",
             "type": "string"
           },
           "title": {
@@ -5888,6 +6068,17 @@
             "title": "Content",
             "type": "string"
           },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -5915,6 +6106,17 @@
             ],
             "title": "Error"
           },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -5940,6 +6142,17 @@
               }
             ],
             "title": "Prompt Tokens"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
           },
           "role": {
             "title": "Role",
@@ -6022,6 +6235,48 @@
           "mode"
         ],
         "title": "ModeChange",
+        "type": "object"
+      },
+      "ModelCatalog": {
+        "description": "Everything the SPA's picker offers. OpenRouter ids come from the server's allowlist;\nthe browser never talks to OpenRouter.",
+        "properties": {
+          "default": {
+            "$ref": "#/components/schemas/CatalogTarget"
+          },
+          "local_fallback_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Fallback Model"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogModel"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "ollama_reachable": {
+            "title": "Ollama Reachable",
+            "type": "boolean"
+          },
+          "openrouter": {
+            "$ref": "#/components/schemas/OpenRouterStatus"
+          }
+        },
+        "required": [
+          "default",
+          "local_fallback_model",
+          "ollama_reachable",
+          "models",
+          "openrouter"
+        ],
+        "title": "ModelCatalog",
         "type": "object"
       },
       "ModelList": {
@@ -6406,6 +6661,611 @@
         "title": "MonitorOut",
         "type": "object"
       },
+      "Mt5BotStatusOut": {
+        "description": "Status card: heartbeat = the time of the last accepted push (server clock).",
+        "properties": {
+          "age_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age S"
+          },
+          "bot": {
+            "additionalProperties": true,
+            "title": "Bot",
+            "type": "object"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "halt": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Halt"
+          },
+          "health": {
+            "additionalProperties": true,
+            "title": "Health",
+            "type": "object"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat At"
+          },
+          "open_failures": {
+            "title": "Open Failures",
+            "type": "integer"
+          },
+          "push_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Id"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "stale_after_s": {
+            "title": "Stale After S",
+            "type": "number"
+          },
+          "state": {
+            "enum": [
+              "online",
+              "stale",
+              "error"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "reasons",
+          "last_heartbeat_at",
+          "age_s",
+          "stale_after_s",
+          "push_id",
+          "seq",
+          "generated_at",
+          "bot",
+          "health",
+          "halt",
+          "open_failures",
+          "server_time"
+        ],
+        "title": "Mt5BotStatusOut",
+        "type": "object"
+      },
+      "Mt5CandleOut": {
+        "properties": {
+          "c": {
+            "title": "C",
+            "type": "string"
+          },
+          "ema": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Ema",
+            "type": "object"
+          },
+          "h": {
+            "title": "H",
+            "type": "string"
+          },
+          "l": {
+            "title": "L",
+            "type": "string"
+          },
+          "o": {
+            "title": "O",
+            "type": "string"
+          },
+          "t": {
+            "format": "date-time",
+            "title": "T",
+            "type": "string"
+          },
+          "v": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "V"
+          }
+        },
+        "required": [
+          "t",
+          "o",
+          "h",
+          "l",
+          "c",
+          "v",
+          "ema"
+        ],
+        "title": "Mt5CandleOut",
+        "type": "object"
+      },
+      "Mt5DailyOut": {
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "exits": {
+            "title": "Exits",
+            "type": "integer"
+          },
+          "losses": {
+            "title": "Losses",
+            "type": "integer"
+          },
+          "net_points": {
+            "title": "Net Points",
+            "type": "string"
+          },
+          "wins": {
+            "title": "Wins",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "exits",
+          "wins",
+          "losses",
+          "net_points"
+        ],
+        "title": "Mt5DailyOut",
+        "type": "object"
+      },
+      "Mt5EventOut": {
+        "properties": {
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "t": {
+            "format": "date-time",
+            "title": "T",
+            "type": "string"
+          },
+          "ticket": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticket"
+          }
+        },
+        "required": [
+          "id",
+          "t",
+          "event",
+          "kind",
+          "symbol",
+          "ticket",
+          "payload"
+        ],
+        "title": "Mt5EventOut",
+        "type": "object"
+      },
+      "Mt5FailureOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "first_seen": {
+            "format": "date-time",
+            "title": "First Seen",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "kind": {
+            "enum": [
+              "mt5_disconnected",
+              "stale_ticks",
+              "guardian_error",
+              "discord_error",
+              "exception",
+              "stale_heartbeat"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_seen": {
+            "format": "date-time",
+            "title": "Last Seen",
+            "type": "string"
+          },
+          "open": {
+            "title": "Open",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "symbol",
+          "reason",
+          "first_seen",
+          "last_seen",
+          "count",
+          "resolved_at",
+          "open"
+        ],
+        "title": "Mt5FailureOut",
+        "type": "object"
+      },
+      "Mt5FailuresOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5FailureOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "open_count": {
+            "title": "Open Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open_count",
+          "items"
+        ],
+        "title": "Mt5FailuresOut",
+        "type": "object"
+      },
+      "Mt5GuardianOut": {
+        "description": "phase: the guardian's word (pre | protect | secured | ride); leg_phase: the A/B leg.",
+        "properties": {
+          "bars": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bars"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry"
+          },
+          "frozen": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frozen"
+          },
+          "leg_phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leg Phase"
+          },
+          "peak": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak"
+          },
+          "peak_pts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Pts"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          },
+          "secured_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secured Level"
+          },
+          "secured_pts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secured Pts"
+          },
+          "sl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sl"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "phase",
+          "leg_phase",
+          "profile",
+          "secured_pts",
+          "peak_pts",
+          "bars",
+          "frozen",
+          "sl",
+          "secured_level",
+          "peak",
+          "direction",
+          "entry",
+          "updated_at"
+        ],
+        "title": "Mt5GuardianOut",
+        "type": "object"
+      },
+      "Mt5IngestAccepted": {
+        "properties": {
+          "accepted": {
+            "const": true,
+            "default": true,
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "events_duplicate": {
+            "title": "Events Duplicate",
+            "type": "integer"
+          },
+          "events_new": {
+            "title": "Events New",
+            "type": "integer"
+          },
+          "push_id": {
+            "format": "uuid",
+            "title": "Push Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "push_id",
+          "events_new",
+          "events_duplicate"
+        ],
+        "title": "Mt5IngestAccepted",
+        "type": "object"
+      },
+      "Mt5IngestDuplicate": {
+        "properties": {
+          "duplicate": {
+            "const": true,
+            "default": true,
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "push_id": {
+            "format": "uuid",
+            "title": "Push Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "push_id"
+        ],
+        "title": "Mt5IngestDuplicate",
+        "type": "object"
+      },
       "Mt5InstrumentIn": {
         "description": "Contract spec typed in by an admin from MT5's symbol Specification window.\nThe bot's export does not carry it, so Aureon never guesses it.",
         "properties": {
@@ -6527,6 +7387,286 @@
         "title": "Mt5InstrumentIn",
         "type": "object"
       },
+      "Mt5MarketOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "session": {
+            "enum": [
+              "Asia",
+              "London",
+              "NY"
+            ],
+            "title": "Session",
+            "type": "string"
+          },
+          "symbols": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5SymbolMarketOut"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "server_time",
+          "session",
+          "as_of",
+          "symbols"
+        ],
+        "title": "Mt5MarketOut",
+        "type": "object"
+      },
+      "Mt5PositionOut": {
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "guardian": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Mt5GuardianOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "opened_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened At"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "price_open": {
+            "title": "Price Open",
+            "type": "string"
+          },
+          "sl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sl"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "ticket": {
+            "title": "Ticket",
+            "type": "integer"
+          },
+          "tp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tp"
+          },
+          "volume": {
+            "title": "Volume",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "ticket",
+          "direction",
+          "volume",
+          "price_open",
+          "current",
+          "sl",
+          "tp",
+          "points",
+          "opened_at",
+          "guardian"
+        ],
+        "title": "Mt5PositionOut",
+        "type": "object"
+      },
+      "Mt5PositionsOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "guardian_orphans": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/Mt5GuardianOut"
+              },
+              "type": "array"
+            },
+            "title": "Guardian Orphans",
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5PositionOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "as_of",
+          "stale",
+          "items",
+          "guardian_orphans"
+        ],
+        "title": "Mt5PositionsOut",
+        "type": "object"
+      },
+      "Mt5ReportOut": {
+        "properties": {
+          "backtests": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Backtests",
+            "type": "array"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5DailyOut"
+            },
+            "title": "Daily",
+            "type": "array"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "ema921e_trades": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Ema921E Trades",
+            "type": "array"
+          },
+          "performance": {
+            "additionalProperties": true,
+            "title": "Performance",
+            "type": "object"
+          }
+        },
+        "required": [
+          "days",
+          "performance",
+          "daily",
+          "ema921e_trades",
+          "backtests"
+        ],
+        "title": "Mt5ReportOut",
+        "type": "object"
+      },
+      "Mt5SignalsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5EventOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "latest": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Latest",
+            "type": "object"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "latest"
+        ],
+        "title": "Mt5SignalsOut",
+        "type": "object"
+      },
       "Mt5StatusOut": {
         "description": "The bot as Aureon sees it right now (live read of its export).",
         "properties": {
@@ -6622,6 +7762,226 @@
           "export_errors"
         ],
         "title": "Mt5StatusOut",
+        "type": "object"
+      },
+      "Mt5StrategyOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "bot_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Version"
+          },
+          "ema": {
+            "additionalProperties": true,
+            "title": "Ema",
+            "type": "object"
+          },
+          "exec_tf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exec Tf"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          },
+          "timeframes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Timeframes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "bot_version",
+          "mode",
+          "symbols",
+          "exec_tf",
+          "timeframes",
+          "ema",
+          "params"
+        ],
+        "title": "Mt5StrategyOut",
+        "type": "object"
+      },
+      "Mt5SymbolMarketOut": {
+        "properties": {
+          "bot_session": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Session"
+          },
+          "candles": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5CandleOut"
+            },
+            "title": "Candles",
+            "type": "array"
+          },
+          "ema_periods": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ema Periods",
+            "type": "array"
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price"
+          },
+          "last_price_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price At"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "session": {
+            "enum": [
+              "Asia",
+              "London",
+              "NY"
+            ],
+            "title": "Session",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "tick_age_s": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tick Age S"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "open",
+          "session",
+          "bot_session",
+          "tick_age_s",
+          "last_price",
+          "last_price_at",
+          "timeframe",
+          "ema_periods",
+          "candles"
+        ],
+        "title": "Mt5SymbolMarketOut",
+        "type": "object"
+      },
+      "OpenRouterStatus": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "research_external_allowed": {
+            "title": "Research External Allowed",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "required": [
+          "enabled",
+          "unavailable_reason",
+          "research_external_allowed"
+        ],
+        "title": "OpenRouterStatus",
         "type": "object"
       },
       "OptionChainOut": {
@@ -14832,6 +16192,28 @@
         ]
       }
     },
+    "/api/ai/usage": {
+      "get": {
+        "description": "Today's (UTC) OpenRouter spend, tokens and calls against the daily cap.",
+        "operationId": "ai_usage_api_ai_usage_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiUsage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ai Usage",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/auth/login": {
       "post": {
         "operationId": "login_api_auth_login_post",
@@ -17916,6 +19298,28 @@
         ]
       }
     },
+    "/api/models/catalog": {
+      "get": {
+        "description": "The picker's list: installed Ollama models plus the allowed OpenRouter ids.",
+        "operationId": "model_catalog_api_models_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Model Catalog",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/models/status": {
       "get": {
         "operationId": "models_status_api_models_status_get",
@@ -20122,6 +21526,196 @@
         ]
       }
     },
+    "/api/trading/mt5/bot-status": {
+      "get": {
+        "operationId": "bot_status_api_trading_mt5_bot_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5BotStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Bot Status",
+        "tags": [
+          "trading",
+          "mt5"
+        ]
+      }
+    },
+    "/api/trading/mt5/failures": {
+      "get": {
+        "operationId": "failures_api_trading_mt5_failures_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_resolved",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Resolved",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5FailuresOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Failures",
+        "tags": [
+          "trading",
+          "mt5"
+        ]
+      }
+    },
+    "/api/trading/mt5/ingest": {
+      "post": {
+        "description": "The MT5 bot pushes one aureon.mt5.push/v1 document per status poll. Idempotent by\npush_id (a repeat answers 200 {\"duplicate\": true}) and per event id. Never touches orders.",
+        "operationId": "ingest_api_trading_mt5_ingest_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "content-encoding",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Encoding"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-aureon-push-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Aureon-Push-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5IngestDuplicate"
+                }
+              }
+            },
+            "description": "push_id already ingested"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5IngestAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "bad or missing bearer token"
+          },
+          "413": {
+            "description": "body over 2 MiB, or over 8 MiB decompressed"
+          },
+          "415": {
+            "description": "Content-Encoding other than gzip"
+          },
+          "422": {
+            "description": "not aureon.mt5.push/v1"
+          },
+          "429": {
+            "description": "too many pushes"
+          },
+          "503": {
+            "description": "ingest disabled (MT5_INGEST_TOKEN unset) or storage unavailable"
+          }
+        },
+        "summary": "Ingest",
+        "tags": [
+          "trading",
+          "mt5"
+        ]
+      }
+    },
     "/api/trading/mt5/instruments/{symbol}": {
       "put": {
         "description": "Register an MT5 symbol's contract spec so the bot's signals and positions can be\nlinked to it. Admin-only, CSRF-protected, audited.",
@@ -20178,6 +21772,232 @@
         ]
       }
     },
+    "/api/trading/mt5/market": {
+      "get": {
+        "operationId": "market_api_trading_mt5_market_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9]{1,4}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Timeframe"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 120,
+              "maximum": 300,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5MarketOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Market",
+        "tags": [
+          "trading",
+          "mt5"
+        ]
+      }
+    },
+    "/api/trading/mt5/positions": {
+      "get": {
+        "operationId": "positions_api_trading_mt5_positions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5PositionsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Positions",
+        "tags": [
+          "trading",
+          "mt5"
+        ]
+      }
+    },
+    "/api/trading/mt5/report": {
+      "get": {
+        "operationId": "report_api_trading_mt5_report_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5ReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report",
+        "tags": [
+          "trading",
+          "mt5"
+        ]
+      }
+    },
+    "/api/trading/mt5/signals": {
+      "get": {
+        "description": "Journal timeline, newest first. `kind` (repeatable): P, cross, protected, secured, exit,\nclosed, error, or a raw event name (position_seen, process_start, ...).",
+        "operationId": "signals_api_trading_mt5_signals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5SignalsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Signals",
+        "tags": [
+          "trading",
+          "mt5"
+        ]
+      }
+    },
     "/api/trading/mt5/status": {
       "get": {
         "description": "Live read of the bot's export: health, agents, positions, backtests and performance\ncalculated from its journal (labelled `calculated`). Nothing is sent to the bot.",
@@ -20197,6 +22017,28 @@
         "summary": "Mt5 Status",
         "tags": [
           "trading"
+        ]
+      }
+    },
+    "/api/trading/mt5/strategy": {
+      "get": {
+        "operationId": "strategy_api_trading_mt5_strategy_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5StrategyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Strategy",
+        "tags": [
+          "trading",
+          "mt5"
         ]
       }
     },
