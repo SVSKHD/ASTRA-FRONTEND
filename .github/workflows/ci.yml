@@ -1,0 +1,30 @@
+# Format, stylelint, type-check, unit tests and a production build on GitHub-hosted runners
+# only. Deploys never run in Actions: the Spasta server pulls merged dev01 commits itself
+# (Aureon scripts/ops/deploy-poll.sh -> scripts/deploy.sh), so no self-hosted runner exists.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [dev01]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build   # runs `verify` (format, stylelint, type-check, vitest) first
