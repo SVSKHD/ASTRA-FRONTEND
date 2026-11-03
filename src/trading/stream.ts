@@ -42,6 +42,14 @@ export interface StreamQuote {
   received_at: string | null
   source: 'broker'
 }
+/** The MT5 bot pushed, or its open failures changed (backend docs/12 §3). */
+export interface StreamMt5 {
+  push_id: string
+  seq: number | null
+  received_at: string
+  generated_at: string
+  open_failures: number
+}
 export interface StreamBacktest {
   id: string
   status: string
@@ -57,6 +65,7 @@ export const live = reactive({
   agents: {} as Record<string, StreamAgent>,
   quotes: {} as Record<number, StreamQuote>,
   backtests: {} as Record<string, StreamBacktest>,
+  mt5: null as StreamMt5 | null,
   lastEventAt: null as string | null,
 })
 
@@ -100,10 +109,13 @@ export function applyEvent(event: string, raw: string): void {
       live.backtests[b.id] = b
       break
     }
+    case 'mt5':
+      live.mt5 = data as StreamMt5
+      break
   }
 }
 
-const EVENTS = ['hello', 'signal', 'risk', 'agent', 'quote', 'backtest', 'bye']
+const EVENTS = ['hello', 'signal', 'risk', 'agent', 'quote', 'backtest', 'mt5', 'bye']
 
 /** (Re)open the stream; `instrumentIds` are the quotes to follow. */
 export function connect(
