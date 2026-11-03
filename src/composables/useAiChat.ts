@@ -15,7 +15,15 @@ import { computed, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { supabase } from '@/supabase'
 import { chatTarget } from '@/utils/aiSettings'
-import { aiBackend, aureonAi, streamChat } from '@/ai/aureonChat'
+import {
+  aiBackend,
+  aureonAi,
+  fallbackText,
+  loadUsage,
+  streamChat,
+  targetFor,
+  setTarget,
+} from '@/ai/aureonChat'
 import type { AiItemRef, AiMessage, AiSource } from '@/types'
 import {
   AI_INSTRUCTIONS,
@@ -416,16 +424,24 @@ async function sendAureon(
   working: ReturnType<typeof focusInfo> | null,
   usedData: boolean,
 ): Promise<void> {
-  const model = aureonAi.model
-  if (!model) {
+  // The chat's provider + model (per conversation; new chats take the pick or
+  // the server default). null = let the server choose.
+  const key = String(chatId)
+  const target = targetFor(key)
+  if (!target && !aureonAi.catalog) {
     app.appendAiMessageContent(
       chatId,
       msgId,
-      '⚠️ Pick a local model in the header first (the list comes from the server). Your message is saved.',
+      '⚠️ Pick a model in the header first (the list comes from the server). Your message is saved.',
     )
     return
   }
-  app.setAiMessageModel(chatId, msgId, model)
+  if (target) {
+    setTarget(key, target)
+    aureonAi.pending = null
+    app.setAiMessageModel(chatId, msgId, target.model)
+  }
+  let usedOpenRouter = false
   run.value = { chatId, msgId, status: 'streaming', startedAt: Date.now() }
   abort = new AbortController()
   let failed = false
@@ -443,16 +459,33 @@ async function sendAureon(
       .filter(Boolean)
       .join('\n\n')
     for await (const evt of streamChat({
-      model,
+      model: target?.model ?? '',
+      provider: target?.provider,
       system,
       history: turns.slice(0, -1), // the last turn is this prompt
       prompt,
       chatKey: String(chatId),
       signal: abort.signal,
     })) {
+      if (evt.reset) app.clearAiMessageContent(chatId, msgId)
+      if (evt.route) {
+        const r = evt.route
+        if (r.provider === 'openrouter') usedOpenRouter = true
+        app.setAiMessageRoute(chatId, msgId, {
+          provider: r.provider,
+          fallbackReason: r.fallbackReason ?? null,
+          localOnly: r.localOnly ?? false,
+          costUsd: r.costUsd ?? null,
+        })
+      }
       if (evt.model) {
         app.setAiMessageModel(chatId, msgId, evt.model)
-        setAnswerer({ model: evt.model, provider: 'Aureon (local)' })
+        const r = evt.route
+        setAnswerer({
+          model: evt.model,
+          provider: r?.provider === 'openrouter' ? 'OpenRouter (via Aureon)' : 'Aureon (local)',
+          ...(r?.fallbackReason ? { fallback: fallbackText(r.fallbackReason) } : {}),
+        })
       }
       if (evt.text) app.appendAiMessageContent(chatId, msgId, evt.text)
       if (evt.usage) app.setAiMessageUsage(chatId, msgId, evt.usage.in, evt.usage.out)
@@ -471,6 +504,8 @@ async function sendAureon(
     const stopped = abort?.signal.aborted ?? false
     finish(failed ? 'error' : 'done')
     if (!failed && !stopped) autoApplyUpdates(chatId, msgId)
+    // The usage meter: OpenRouter spend moves only when OpenRouter was called.
+    if (usedOpenRouter) void loadUsage().catch(() => {})
   }
 }
 

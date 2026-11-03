@@ -516,6 +516,72 @@
         "title": "AiAnalysisOut",
         "type": "object"
       },
+      "AiUsage": {
+        "description": "Today's (UTC) OpenRouter spend against OPENROUTER_DAILY_LIMIT_USD.",
+        "properties": {
+          "available": {
+            "default": true,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "cap_reached": {
+            "title": "Cap Reached",
+            "type": "boolean"
+          },
+          "completion_tokens": {
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "failures": {
+            "title": "Failures",
+            "type": "integer"
+          },
+          "limit_usd": {
+            "title": "Limit Usd",
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "provider": {
+            "const": "openrouter",
+            "default": "openrouter",
+            "title": "Provider",
+            "type": "string"
+          },
+          "remaining_usd": {
+            "title": "Remaining Usd",
+            "type": "string"
+          },
+          "spent_usd": {
+            "title": "Spent Usd",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "spent_usd",
+          "limit_usd",
+          "remaining_usd",
+          "prompt_tokens",
+          "completion_tokens",
+          "calls",
+          "failures",
+          "cap_reached"
+        ],
+        "title": "AiUsage",
+        "type": "object"
+      },
       "AnalyzeIn": {
         "properties": {
           "paths": {
@@ -1960,6 +2026,62 @@
         "title": "CandleOut",
         "type": "object"
       },
+      "CatalogModel": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "ollama",
+              "openrouter"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "id",
+          "label"
+        ],
+        "title": "CatalogModel",
+        "type": "object"
+      },
+      "CatalogTarget": {
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "enum": [
+              "ollama",
+              "openrouter"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "CatalogTarget",
+        "type": "object"
+      },
       "ChainOut": {
         "properties": {
           "broken_at": {
@@ -2089,8 +2211,25 @@
         "type": "object"
       },
       "ChatRequest": {
-        "description": "`messages` are the NEW turns only; for an existing conversation the server prepends\nits stored history before calling Ollama.",
+        "description": "`messages` are the NEW turns only; for an existing conversation the server prepends\nits stored history before calling the model.\n\n`provider`/`model` pick who should answer (docs/25-openrouter.md). Both may be omitted:\nan existing conversation keeps its own, a new one gets the server default (OpenRouter's\ndefault model when it is usable, else the local default). A `model` without a\n`provider` means OpenRouter only when it is one of the allowed OpenRouter ids.\n`context` links a conversation to finance/trading/research (forces local inference);\na link only ever gets stricter.",
         "properties": {
+          "context": {
+            "anyOf": [
+              {
+                "enum": [
+                  "general",
+                  "finance",
+                  "trading",
+                  "research"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
           "conversation_id": {
             "anyOf": [
               {
@@ -2126,10 +2265,17 @@
             "type": "array"
           },
           "model": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Model",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
           },
           "num_ctx": {
             "anyOf": [
@@ -2142,6 +2288,21 @@
               }
             ],
             "title": "Num Ctx"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ollama",
+                  "openrouter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
           },
           "temperature": {
             "anyOf": [
@@ -2158,7 +2319,6 @@
           }
         },
         "required": [
-          "model",
           "messages"
         ],
         "title": "ChatRequest",
@@ -2802,6 +2962,11 @@
       },
       "ConversationDetail": {
         "properties": {
+          "context": {
+            "default": "general",
+            "title": "Context",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2821,6 +2986,11 @@
           },
           "model": {
             "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "default": "ollama",
+            "title": "Provider",
             "type": "string"
           },
           "title": {
@@ -2846,6 +3016,11 @@
       },
       "ConversationOut": {
         "properties": {
+          "context": {
+            "default": "general",
+            "title": "Context",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2858,6 +3033,11 @@
           },
           "model": {
             "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "default": "ollama",
+            "title": "Provider",
             "type": "string"
           },
           "title": {
@@ -5453,6 +5633,17 @@
             "title": "Content",
             "type": "string"
           },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -5480,6 +5671,17 @@
             ],
             "title": "Error"
           },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -5505,6 +5707,17 @@
               }
             ],
             "title": "Prompt Tokens"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
           },
           "role": {
             "title": "Role",
@@ -5589,8 +5802,61 @@
         "title": "ModeChange",
         "type": "object"
       },
+      "ModelCatalog": {
+        "description": "Everything the SPA's picker offers. OpenRouter ids come from the server's allowlist;\nthe browser never talks to OpenRouter.",
+        "properties": {
+          "default": {
+            "$ref": "#/components/schemas/CatalogTarget"
+          },
+          "local_fallback_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Fallback Model"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogModel"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "ollama_reachable": {
+            "title": "Ollama Reachable",
+            "type": "boolean"
+          },
+          "openrouter": {
+            "$ref": "#/components/schemas/OpenRouterStatus"
+          }
+        },
+        "required": [
+          "default",
+          "local_fallback_model",
+          "ollama_reachable",
+          "models",
+          "openrouter"
+        ],
+        "title": "ModelCatalog",
+        "type": "object"
+      },
       "ModelList": {
         "properties": {
+          "default_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Model"
+          },
           "models": {
             "items": {
               "$ref": "#/components/schemas/ModelOut"
@@ -5981,6 +6247,36 @@
           "export_errors"
         ],
         "title": "Mt5StatusOut",
+        "type": "object"
+      },
+      "OpenRouterStatus": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "research_external_allowed": {
+            "title": "Research External Allowed",
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "required": [
+          "enabled",
+          "unavailable_reason",
+          "research_external_allowed"
+        ],
+        "title": "OpenRouterStatus",
         "type": "object"
       },
       "OptionChainOut": {
@@ -14160,6 +14456,28 @@
         ]
       }
     },
+    "/api/ai/usage": {
+      "get": {
+        "description": "Today's (UTC) OpenRouter spend, tokens and calls against the daily cap.",
+        "operationId": "ai_usage_api_ai_usage_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiUsage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ai Usage",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/auth/login": {
       "post": {
         "operationId": "login_api_auth_login_post",
@@ -16972,6 +17290,28 @@
           }
         },
         "summary": "List Models",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/models/catalog": {
+      "get": {
+        "description": "The picker's list: installed Ollama models plus the allowed OpenRouter ids.",
+        "operationId": "model_catalog_api_models_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Model Catalog",
         "tags": [
           "ai"
         ]
@@ -25597,6 +25937,30 @@
         "summary": "Publish Review",
         "tags": [
           "reviews"
+        ]
+      }
+    },
+    "/api/v1/system/integrations": {
+      "get": {
+        "description": "The Spasta health card: MT5 feed freshness, Dhan, GitHub, webhook worker, Claude CLI,\nOllama models, Discord, the DB role and backups. Read-only; admin only.",
+        "operationId": "integrations_api_v1_system_integrations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Integrations Api V1 System Integrations Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Integrations",
+        "tags": [
+          "system"
         ]
       }
     },

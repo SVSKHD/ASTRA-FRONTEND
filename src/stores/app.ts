@@ -5066,6 +5066,25 @@ export const useAppStore = defineStore('app', () => {
         : ch,
     )
   }
+  // Aureon: who answered a reply and why it ran locally (AiMessage.route).
+  function setAiMessageRoute(chatId: number, msgId: number, route: AiMessage['route']) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? { ...ch, messages: ch.messages.map((m) => (m.id === msgId ? { ...m, route } : m)) }
+        : ch,
+    )
+  }
+  // A reply restarted on another model mid-stream: drop the text so far.
+  function clearAiMessageContent(chatId: number, msgId: number) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? {
+            ...ch,
+            messages: ch.messages.map((m) => (m.id === msgId ? { ...m, content: '' } : m)),
+          }
+        : ch,
+    )
+  }
   // What a reply made (card items, a plan's parent, "Add to"): `add` records
   // more, `remove` takes them off again after an Undo.
   function trackAiMade(
@@ -9735,6 +9754,8 @@ export const useAppStore = defineStore('app', () => {
     selectAiChat,
     setAiChatModel,
     setAiMessageModel,
+    setAiMessageRoute,
+    clearAiMessageContent,
     setAiMessageSources,
     trackAiMade,
     renameAiChat,

@@ -42,7 +42,7 @@ import { AI_PROVIDERS, aiModelLabel, type AiChat, type AiItemRef, type AiMessage
 import { chatTarget } from '@/utils/aiSettings'
 import AiModelPicker from '@/components/AiModelPicker.vue'
 import AureonModelPicker from '@/components/AureonModelPicker.vue'
-import { aiBackend } from '@/ai/aureonChat'
+import { aiBackend, fallbackText } from '@/ai/aureonChat'
 import {
   SUGGESTION_CHIPS,
   aiContextSections,
@@ -1090,6 +1090,26 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                     <span class="ai-meta__model" :title="m.model || activeAiChat.model">{{
                       aiModelLabel(m.model || activeAiChat.model)
                     }}</span>
+                    <span
+                      v-if="m.route?.provider === 'openrouter'"
+                      class="ai-meta__route"
+                      title="Answered by OpenRouter, through the Aureon server"
+                      >OpenRouter</span
+                    >
+                    <span
+                      v-else-if="m.route?.localOnly"
+                      class="ai-meta__route is-local"
+                      data-testid="local-only-badge"
+                      :title="`Kept on this server: ${fallbackText(m.route.fallbackReason)}`"
+                      ><Icon name="lock" size="xs" />Local only</span
+                    >
+                    <span
+                      v-else-if="m.route?.fallbackReason && m.route.fallbackReason !== 'disabled'"
+                      class="ai-meta__route is-fallback"
+                      data-testid="fallback-note"
+                      :title="fallbackText(m.route.fallbackReason)"
+                      >Fell back to local · {{ fallbackText(m.route.fallbackReason) }}</span
+                    >
                     <span v-if="msgTokens(m)" class="ai-meta__tok" :title="tokenTitle(m)"
                       >{{ msgTokens(m).toLocaleString() }} tok</span
                     >
@@ -1965,6 +1985,26 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
   color: var(--theme-accent);
   font-weight: var(--weight-semibold);
+}
+/* Who answered on Aureon: OpenRouter, "Local only" (the server's filter kept the
+   data here) or a fallback to the local model after an OpenRouter error. */
+.ai-meta__route {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--text-secondary) 14%, transparent);
+  color: var(--text-secondary);
+}
+.ai-meta__route.is-local {
+  background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
+  color: var(--theme-accent);
+  font-weight: var(--weight-semibold);
+}
+.ai-meta__route.is-fallback {
+  background: color-mix(in oklch, var(--theme-warning) 16%, transparent);
+  color: var(--theme-warning);
 }
 .ai-meta__tok {
   font-variant-numeric: tabular-nums;
