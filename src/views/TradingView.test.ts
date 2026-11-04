@@ -515,6 +515,7 @@ describe('TradingView', () => {
   const SECTIONS: [string, string][] = [
     ['dhan', 'Token valid'],
     ['mt5', 'not connected to Aureon'],
+    ['origins', 'No trades in this period.'],
     ['market', 'Your watchlist is empty'],
     ['signals', 'Explain with AI'],
     ['strategies', 'ema-9-21'],
