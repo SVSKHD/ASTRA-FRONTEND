@@ -5,8 +5,9 @@
 // is read back every few seconds until it is done, failed or cancelled, and an
 // image is shown only once the server says it is done and names the asset.
 //
-// The job being watched is remembered per browser, so leaving the page and
-// coming back picks it up again instead of losing it.
+// The job being watched lives in src/images/watch.ts, app-wide: leaving the
+// page does not stop it, and its end is announced wherever you are (in-app,
+// and as a browser notification when that is turned on here).
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -27,17 +28,27 @@ import {
   DEFAULT_STEPS,
   MAX_STEPS,
   SIZES,
+  eta,
+  etaText,
   isTerminal,
   jobLine,
   jobTone,
-  pollMs,
   type ImageAsset,
-  type ImageJob,
 } from '@/control/images'
+import { useNow } from '@/control/poll'
+import {
+  browserNotifyOn,
+  imageWatch,
+  notificationsSupported,
+  onImageFinished,
+  resumeImageJob,
+  setBrowserNotify,
+  watchImageJob,
+} from '@/images/watch'
+import { bytes } from '@/control/system'
 import { when } from '@/trading/format'
 
 const PAGE = 24
-const JOB_KEY = 'cc.images.job'
 
 // ---- the form --------------------------------------------------------------
 
@@ -69,7 +80,7 @@ async function generate() {
       formError.value = failure(r.response, r.error)
       return
     }
-    watchJob(r.data)
+    watchImageJob(r.data)
   } catch (e) {
     formError.value = (e as Error).message || 'Could not reach Aureon.'
   } finally {
@@ -92,59 +103,25 @@ function failure(res: Response, body: unknown): string {
 
 // ---- the job being watched -------------------------------------------------
 
-const job = shallowRef<ImageJob | null>(null)
-const jobError = ref('')
-let timer: ReturnType<typeof setTimeout> | undefined
-let stopped = false
+const job = computed(() => (imageWatch.job?.prompt !== undefined ? imageWatch.job : null))
+const jobError = computed(() => imageWatch.error)
+const now = useNow(5_000)
+const jobEta = computed(() => (job.value ? etaText(eta(job.value, now.value)) : ''))
 
-function remember(id: string | null) {
-  try {
-    if (id) localStorage.setItem(JOB_KEY, id)
-    else localStorage.removeItem(JOB_KEY)
-  } catch {
-    /* private window: the watch lasts for this visit */
+const stopFinished = onImageFinished((j) => {
+  if (j.status === 'done') void gallery.reload(true)
+})
+
+// Browser notification when a job ends: off until asked for, from a tap.
+const notifySupported = notificationsSupported()
+const notifyOn = ref(browserNotifyOn())
+const notifyNote = ref('')
+async function toggleNotify() {
+  notifyNote.value = ''
+  notifyOn.value = await setBrowserNotify(!notifyOn.value)
+  if (!notifyOn.value && Notification.permission === 'denied') {
+    notifyNote.value = 'Notifications are blocked for this site in the browser settings.'
   }
-}
-
-function watchJob(j: ImageJob) {
-  job.value = j
-  jobError.value = ''
-  remember(isTerminal(j) ? null : j.id)
-  schedule()
-}
-
-function schedule() {
-  clearTimeout(timer)
-  if (stopped || !job.value || isTerminal(job.value)) return
-  timer = setTimeout(readJob, pollMs(job.value))
-}
-
-async function readJob(id = job.value?.id) {
-  if (!id || stopped) return
-  // Hidden tab: do not read, just look again later.
-  if (globalThis.document?.visibilityState === 'hidden') return schedule()
-  try {
-    const r = await aureon.GET('/api/images/jobs/{job_id}', {
-      params: { path: { job_id: id } },
-    })
-    if (r.response.status === 404) {
-      job.value = null
-      remember(null)
-      return
-    }
-    const next = must(r)
-    job.value = next
-    jobError.value = ''
-    if (isTerminal(next)) {
-      remember(null)
-      if (next.status === 'done') void gallery.reload(true)
-      return
-    }
-  } catch (e) {
-    // Keep watching: a dropped read is not a failed job.
-    jobError.value = `Could not read the job: ${(e as Error).message}. Retrying…`
-  }
-  schedule()
 }
 
 const cancelling = ref(false)
@@ -155,37 +132,17 @@ async function cancel() {
     const r = await aureon.POST('/api/images/jobs/{job_id}/cancel', {
       params: { path: { job_id: job.value.id } },
     })
-    if (!r.response.ok || !r.data) jobError.value = failure(r.response, r.error)
-    else watchJob(r.data)
+    if (!r.response.ok || !r.data) imageWatch.error = failure(r.response, r.error)
+    else watchImageJob(r.data)
   } catch (e) {
-    jobError.value = (e as Error).message
+    imageWatch.error = (e as Error).message
   } finally {
     cancelling.value = false
   }
 }
 
-function onVisible() {
-  if (globalThis.document?.visibilityState !== 'hidden' && job.value && !isTerminal(job.value)) {
-    clearTimeout(timer)
-    void readJob()
-  }
-}
-
-onMounted(() => {
-  globalThis.document?.addEventListener('visibilitychange', onVisible)
-  let saved: string | null = null
-  try {
-    saved = localStorage.getItem(JOB_KEY)
-  } catch {
-    saved = null
-  }
-  if (saved) void readJob(saved)
-})
-onBeforeUnmount(() => {
-  stopped = true
-  clearTimeout(timer)
-  globalThis.document?.removeEventListener('visibilitychange', onVisible)
-})
+onMounted(resumeImageJob)
+onBeforeUnmount(stopFinished)
 
 const doneAsset = computed(() =>
   job.value?.status === 'done' && job.value.asset_id
@@ -323,7 +280,9 @@ function reuse(a: ImageAsset) {
             <span class="tp-note">{{ job.model }} · {{ job.width }} × {{ job.height }}</span>
           </div>
           <p class="tp-strong img-prompt">{{ job.prompt }}</p>
-          <p class="tp-note" role="status" aria-live="polite">{{ jobLine(job) }}</p>
+          <p class="tp-note" role="status" aria-live="polite">
+            {{ jobLine(job) }}<template v-if="jobEta"> · {{ jobEta }}</template>
+          </p>
           <ProgressBar
             v-if="job.status === 'running'"
             :value="job.progress"
@@ -358,7 +317,20 @@ function reuse(a: ImageAsset) {
               @click="cancel"
               >{{ job.cancel_requested ? 'Stopping…' : 'Cancel' }}</Button
             >
+            <Button
+              v-if="notifySupported"
+              size="sm"
+              variant="ghost"
+              :aria-pressed="notifyOn"
+              @click="toggleNotify"
+              >{{ notifyOn ? 'Browser notification on' : 'Notify me when done' }}</Button
+            >
           </div>
+          <p v-if="notifyNote" class="tp-note" role="alert">{{ notifyNote }}</p>
+          <p v-if="!isTerminal(job)" class="tp-note">
+            You can leave this page: the job keeps running on the server and Spasta tells you when
+            it ends.
+          </p>
         </template>
         <p v-else class="tp-note">
           No job running. A generated image appears here, and in the gallery, once the server
@@ -369,7 +341,7 @@ function reuse(a: ImageAsset) {
 
     <Card :title="`Gallery${gallery.total.value ? ` · ${gallery.total.value}` : ''}`">
       <ul v-if="gallery.items.value.length" class="img-grid">
-        <li v-for="a in gallery.items.value" :key="a.id">
+        <li v-for="a in gallery.items.value" :key="a.id" class="img-cell">
           <button
             type="button"
             class="img-tile"
@@ -385,6 +357,9 @@ function reuse(a: ImageAsset) {
               decoding="async"
             />
           </button>
+          <span class="img-meta"
+            >{{ a.width }}×{{ a.height }} · {{ a.steps }} steps · seed {{ a.seed }}</span
+          >
         </li>
       </ul>
       <div v-else-if="gallery.loading.value" class="img-grid" aria-hidden="true">
@@ -416,10 +391,14 @@ function reuse(a: ImageAsset) {
         />
         <p class="tp-note">
           {{ viewing.model }} · {{ viewing.width }} × {{ viewing.height }} · seed
-          {{ viewing.seed }} · {{ viewing.steps }} steps · {{ when(viewing.created_at) }}
+          {{ viewing.seed }} · {{ viewing.steps }} steps · {{ bytes(viewing.size_bytes) }} ·
+          {{ when(viewing.created_at) }}
         </p>
         <div class="tp-row">
           <Button size="sm" variant="ghost" @click="reuse(viewing)">Use these settings</Button>
+          <a class="img-link" :href="apiUrl(viewing.url)" :download="`aureon-${viewing.id}.png`"
+            >Download</a
+          >
           <a class="img-link" :href="apiUrl(viewing.url)" target="_blank" rel="noopener"
             >Open file</a
           >
@@ -502,6 +481,19 @@ function reuse(a: ImageAsset) {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.img-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.img-meta {
+  min-width: 0;
+  font-size: var(--text-2xs);
+  line-height: var(--lh-2xs);
+  color: var(--text-secondary, var(--theme-dim));
+  overflow-wrap: anywhere;
 }
 .img-link {
   font-size: var(--text-sm);

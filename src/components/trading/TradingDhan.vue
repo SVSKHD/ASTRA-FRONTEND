@@ -11,6 +11,7 @@ import Table from '@/components/ui/Table.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import AccountPicker from './AccountPicker.vue'
 import SourceTag from './SourceTag.vue'
+import NewsWidget from '@/components/news/NewsWidget.vue'
 import { aureon } from '@/api/client'
 import { dec, signed, toneOf, when } from '@/trading/format'
 import { must, useLoad } from '@/trading/useLoad'
@@ -124,6 +125,18 @@ watch(accountId, (id) => {
 })
 watch(tab, () => accountId.value && void rows.reload())
 
+// "News for my positions": the symbols last seen on the Positions or Holdings
+// tab, kept while another tab is open — no extra broker call for the widget.
+const heldSymbols = ref<string[]>([])
+watch(
+  () => rows.data.value,
+  (list) => {
+    if (list && (tab.value === 'positions' || tab.value === 'holdings')) {
+      heldSymbols.value = [...new Set(list.map((r) => String(r.symbol)).filter(Boolean))]
+    }
+  },
+)
+
 const fundStats = computed(() => {
   const f = funds.data.value
   if (!f) return []
@@ -205,6 +218,7 @@ const fundStats = computed(() => {
         />
         <EmptyState v-else :title="`No ${tab} today`" description="Dhan returned an empty list." />
       </Card>
+      <NewsWidget title="News for my positions" :symbols="heldSymbols" />
     </template>
   </div>
 </template>

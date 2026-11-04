@@ -14,8 +14,8 @@
 import { computed, onUnmounted, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import type { DocumentData, Unsubscribe } from 'firebase/firestore'
 import { loadFirestore, loadFunctions } from '@/firebase'
-import { aureon } from '@/api/client'
 import { authProvider } from '@/auth/provider'
+import { allNews, useNewsFeed } from '@/news/feed'
 import type { FeedHealth, NewsCategory, NewsItem } from '@/types'
 
 export const NEWS_COLLECTION = 'forex'
@@ -49,69 +49,24 @@ export function newsOnAureon(): boolean {
   return authProvider() === 'aureon'
 }
 
-/** How often the Aureon feed is re-read while a view shows it. The job runs every 30 min. */
-export const AUREON_NEWS_REFRESH_MS = 5 * 60_000
-
-/** One item of Aureon's public forex feed: `{title, link, published, source}`. */
-export function readAureonNews(id: string, data: Record<string, unknown>): NewsItem {
-  const published = Date.parse(String(data.published ?? ''))
-  return {
-    id,
-    title: String(data.title ?? ''),
-    link: String(data.link ?? ''),
-    source: String(data.source ?? ''),
-    // The Aureon job pulls forex feeds only; it does not tag.
-    category: 'forex',
-    tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
-    publishedAt: Number.isFinite(published) ? published : 0,
-    fetchedAt: 0,
-  }
-}
+// Kept importable from here, where it has always lived.
+export { readAureonNews } from '@/news/feed'
 
 export function useNews(categories: MaybeRefOrGetter<NewsCategory[]>) {
   if (newsOnAureon()) return useAureonNews(categories)
   return useFirestoreNews(categories)
 }
 
+/** Over the app-wide feed (src/news/feed.ts): one read and one timer for every view. */
 function useAureonNews(categories: MaybeRefOrGetter<NewsCategory[]>) {
-  const items = ref<NewsItem[]>([])
-  const loading = ref(true)
-  const error = ref('')
-  let all: NewsItem[] = []
-  let timer: ReturnType<typeof setInterval> | null = null
-
-  const pick = () => {
+  const feed = useNewsFeed()
+  const items = computed(() => {
     const list = toValue(categories)
-    items.value = list.length ? all.filter((i) => list.includes(i.category)) : all
-  }
-
-  async function load(): Promise<void> {
-    try {
-      const { data, response } = await aureon.GET('/api/public/forex', {
-        params: { query: { limit: 200 } },
-      })
-      if (!data) throw new Error(`HTTP ${response.status}`)
-      all = data.map((d) => readAureonNews(d.doc_id, d.data))
-      error.value = ''
-      pick()
-    } catch (err) {
-      console.error('[Astra] News feed failed:', err)
-      error.value = 'The news feed is unreachable. It is read again in a few minutes.'
-    } finally {
-      loading.value = false
-    }
-  }
-
-  watch(() => toValue(categories), pick)
-  void load()
-  timer = setInterval(() => {
-    if (globalThis.document?.visibilityState !== 'hidden') void load()
-  }, AUREON_NEWS_REFRESH_MS)
-  onUnmounted(() => {
-    if (timer) clearInterval(timer)
-    timer = null
+    const all = allNews()
+    return list.length ? all.filter((i) => list.includes(i.category)) : all
   })
-
+  const loading = computed(() => !feed.loaded && !feed.error)
+  const error = computed(() => feed.error)
   return { items, loading, error }
 }
 

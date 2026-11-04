@@ -20,6 +20,10 @@ import AutoCorrectBadge from '@/components/AutoCorrectBadge.vue'
 // two routes, and a panel mounted in each would be three of them. Loaded on
 // demand: most sessions never ask for it.
 const GoalHelpPanel = defineAsyncComponent(() => import('@/components/goals/GoalHelpPanel.vue'))
+// The global voice mic (read-only: it only opens screens). A chunk of its own.
+const VoiceAssistant = defineAsyncComponent(() => import('@/components/VoiceAssistant.vue'))
+import ImageDoneNotice from '@/components/ImageDoneNotice.vue'
+import { resumeImageJob } from '@/images/watch'
 import { useStyles } from '@/composables/useStyles'
 import GoalsImportDialog from '@/components/goals/GoalsImportDialog.vue'
 import { useAppStore } from '@/stores/app'
@@ -42,10 +46,21 @@ const showBrand = computed(
     route.name !== 'ui-showcase',
 )
 
+// The mic is on every page except public share pages (a visitor there has no
+// account for it to act for) and the screenshot stage.
+const showVoice = computed(() => {
+  const name = String(route.name ?? '')
+  return !!name && !name.startsWith('share-') && name !== 'dev-shot'
+})
+
 // One-time notice when offline persistence could not be enabled (private mode /
 // unsupported browser): the app still works, just without offline durability.
 // Firestore now loads after the first paint, so the answer arrives via the
 // subscription rather than being readable at mount.
+// An image job this browser was watching keeps being watched on every page,
+// so "your image is ready" arrives wherever you are.
+onMounted(resumeImageJob)
+
 onMounted(() => {
   // Only the Firestore fallback ever had an offline cache to lose. On Supabase
   // "memory" is the normal state, and this would announce it on every load.
@@ -73,6 +88,8 @@ onMounted(() => {
        each other: work in flight as progress cards (route changes, the sync,
        long jobs such as a bulk delete — replacing the two-pixel bar that used
        to run across the top), and under them the alert tray. -->
+  <VoiceAssistant v-if="showVoice" />
+  <ImageDoneNotice />
   <div class="corner-br">
     <ProgressStack />
     <WarningTray />

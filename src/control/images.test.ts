@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { isTerminal, jobLine, jobTone, pollMs, type ImageJob } from './images'
+import {
+  CPU_ESTIMATE_MS,
+  eta,
+  etaText,
+  isTerminal,
+  jobLine,
+  jobTone,
+  pollMs,
+  type ImageJob,
+} from './images'
 
 function job(over: Partial<ImageJob>): ImageJob {
   return {
@@ -49,5 +58,21 @@ describe('image jobs', () => {
 
   it('reads a running job back faster than a queued one', () => {
     expect(pollMs(job({ status: 'running' }))).toBeLessThan(pollMs(job({ status: 'queued' })))
+  })
+})
+
+describe('eta', () => {
+  const now = Date.parse('2026-11-04T06:10:00Z')
+  it('measures a running job from its own rate', () => {
+    // 40% in 4 minutes → 6 minutes left.
+    const e = eta(job({ status: 'running', progress: 40, started_at: '2026-11-04T06:06:00Z' }), now)
+    expect(e).toEqual({ ms: 6 * 60_000, measured: true })
+    expect(etaText(e)).toBe('about 6 min left')
+  })
+  it('falls back to the CPU estimate, labelled as one', () => {
+    const queued = eta(job({ status: 'queued', queue_position: 1 }), now)
+    expect(queued).toEqual({ ms: 2 * CPU_ESTIMATE_MS, measured: false })
+    expect(etaText(queued)).toMatch(/^~20 min \(estimate/)
+    expect(eta(job({ status: 'done' }), now)).toBeNull()
   })
 })
