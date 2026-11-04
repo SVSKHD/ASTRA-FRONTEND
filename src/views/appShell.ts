@@ -40,6 +40,8 @@ export const BAR_HEIGHT = 72
 export const BAR_LIFT = 16
 /** Phones give the bar a little more room; a thumb is not a cursor. */
 export const BAR_HEIGHT_PHONE = 56
+/** The phone's tab bar height, in px. It floats over the content, which reserves it. */
+export const RAIL_HEIGHT_PHONE = 64
 /** The rail's width on a desktop, and on a tablet where it is narrower. */
 export const RAIL_WIDTH = 76
 export const RAIL_WIDTH_TABLET = 60
@@ -140,7 +142,11 @@ export function contentGeometry({ isPhone }: { isPhone: boolean }) {
     // Momentum scrolling on iOS, and a scroll container that does not chain its
     // overscroll up to the document behind the starfield.
     overscrollBehaviorY: 'contain',
-    paddingBottom: barHeight(isPhone) + 'px',
+    // On a phone the tab bar floats over the content (it hides while you scroll
+    // down), so the last row also has to clear the bar when it comes back.
+    paddingBottom: isPhone
+      ? `calc(${BAR_HEIGHT_PHONE + RAIL_HEIGHT_PHONE}px + env(safe-area-inset-bottom, 0px))`
+      : barHeight(isPhone) + 'px',
   } as const
 }
 
@@ -189,14 +195,23 @@ export function barGeometry({ isPhone }: { isPhone: boolean }) {
 
 export function railGeometry({ isPhone, isTablet }: ShellInput) {
   if (isPhone) {
+    // Out of flow, so its grid row collapses to nothing and the content runs to
+    // the bottom edge: the bar slides away on scroll down (Instagram-style) and
+    // the page gets the room back instead of an empty strip.
     return {
       gridArea: 'rail',
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 5,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       minWidth: 0,
-      height: '64px',
+      height: RAIL_HEIGHT_PHONE + 'px',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      pointerEvents: 'none',
     } as const
   }
   return {

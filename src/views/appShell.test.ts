@@ -12,6 +12,7 @@ import { resolve } from 'node:path'
 import {
   BAR_HEIGHT,
   BAR_HEIGHT_PHONE,
+  RAIL_HEIGHT_PHONE,
   barGeometry,
   barHeight,
   contentGeometry,
@@ -57,11 +58,25 @@ describe('every persistent element has a region', () => {
         ['bar', barGeometry(bp)],
         ['rail', railGeometry(bp)],
       ] as const) {
+        // The one exception, below: the phone's tab bar.
+        if (bp.isPhone && name === 'rail') continue
         const position = (style as { position?: string }).position
         expect(position, `${bp.name}/${name}`).not.toBe('fixed')
         expect(position, `${bp.name}/${name}`).not.toBe('absolute')
       }
     }
+  })
+
+  it("floats the phone's tab bar, and reserves its height under the content", () => {
+    // It hides on scroll down and returns on scroll up, so it has to float —
+    // an in-flow row would leave an empty strip where it was. Floating is safe
+    // only because the content pads its own bottom by the bar's full height.
+    const phone = { isPhone: true, isTablet: false }
+    expect(railGeometry(phone).position).toBe('absolute')
+    expect(railGeometry(phone).height).toBe(`${RAIL_HEIGHT_PHONE}px`)
+    expect(contentGeometry(phone).paddingBottom).toContain(
+      `${BAR_HEIGHT_PHONE + RAIL_HEIGHT_PHONE}px`,
+    )
   })
 
   it('gives the strip a positioning context, so the page title centres on IT', () => {
@@ -101,9 +116,11 @@ describe('the content area is the one scrollport', () => {
     // merely uncovered. The bar already has a row of its own; this is what puts
     // air under the final row instead of leaving it flush against the chrome.
     expect(contentGeometry({ isPhone: false }).paddingBottom).toBe(`${BAR_HEIGHT}px`)
-    expect(contentGeometry({ isPhone: true }).paddingBottom).toBe(`${BAR_HEIGHT_PHONE}px`)
+    // A phone's tab bar floats over the content, so its height is reserved too.
+    expect(contentGeometry({ isPhone: true }).paddingBottom).toBe(
+      `calc(${BAR_HEIGHT_PHONE + RAIL_HEIGHT_PHONE}px + env(safe-area-inset-bottom, 0px))`,
+    )
     for (const isPhone of [true, false]) {
-      expect(contentGeometry({ isPhone }).paddingBottom).toBe(`${barHeight(isPhone)}px`)
       expect(barGeometry({ isPhone }).height).toBe(`${barHeight(isPhone)}px`)
     }
   })

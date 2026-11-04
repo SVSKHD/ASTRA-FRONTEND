@@ -54,8 +54,8 @@ onBeforeUnmount(() => unregisterShell())
 
 <template>
   <div :style="shell" class="app-shell">
-    <!-- Phones get a labelled tab bar of the five primary tabs (Todo v2, 3a);
-         wider screens keep the carousel rail. -->
+    <!-- Phones get an icon-only tab bar of the five primary tabs (Todo v2, 3a)
+         that hides on scroll down; wider screens keep the carousel rail. -->
     <nav :style="rail" class="app-shell__rail">
       <MobileTabBar v-if="isPhone" />
       <FloatingDock v-else />
