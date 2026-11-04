@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { routerKey } from 'vue-router'
 
 const OR = 'google/gemini-2.5-flash-lite'
 const get = vi.hoisted(() => vi.fn())
@@ -92,6 +93,27 @@ describe('<AureonModelPicker />', () => {
     expect(w.find('[data-testid="provider-badge"]').text()).toBe('Local')
     expect(w.find('[data-testid="usage-meter"]').exists()).toBe(false)
     expect(w.text()).toContain('OpenRouter is off: OpenRouter has no daily budget.')
+  })
+
+  it('still names OpenRouter when it is turned off, and leads to Settings', async () => {
+    serve(catalog('disabled'))
+    const push = vi.fn()
+    const w = mount(AureonModelPicker, {
+      global: { provide: { [routerKey as symbol]: { push } } },
+    })
+    await flushPromises()
+    const off = w.find('[data-testid="openrouter-off"]')
+    expect(off.text()).toContain('OpenRouter is off: OpenRouter is turned off on the server.')
+    const select = w.findComponent({ name: 'Select' })
+    expect(select.props('options')).toContainEqual(
+      expect.objectContaining({
+        group: 'OpenRouter (external, filtered)',
+        label: 'Off: OpenRouter is turned off on the server',
+        disabled: true,
+      }),
+    )
+    await off.find('button').trigger('click')
+    expect(push).toHaveBeenCalledWith('/settings')
   })
 
   it('says when the cap is reached', async () => {

@@ -9,7 +9,13 @@
 // falls back to it on any OpenRouter error; each reply says which one answered.
 //
 // The usage meter shows today's OpenRouter spend against the server's daily cap.
-import { computed, onMounted, ref } from 'vue'
+//
+// The server lists OpenRouter models only while OpenRouter is usable. When it
+// is not, the picker still names it — a greyed-out entry with the reason — and
+// offers the way to switch it on: the OpenRouter card in Settings (/settings,
+// admin only; the server's own Settings page decides who may change it).
+import { computed, inject, onMounted, ref } from 'vue'
+import { routerKey } from 'vue-router'
 import Button from '@/components/ui/Button.vue'
 import Select from '@/components/ui/Select.vue'
 import { useAppStore } from '@/stores/app'
@@ -26,6 +32,8 @@ import {
 defineProps<{ disabled?: boolean }>()
 
 const app = useAppStore()
+// Optional: the picker also mounts outside the router (tests, previews).
+const router = inject(routerKey, null)
 const loading = ref(false)
 const error = ref('')
 
@@ -49,13 +57,25 @@ const models = computed(() => aureonAi.catalog?.models ?? [])
 const openrouterOn = computed(() => !!aureonAi.catalog && !aureonAi.catalog.openrouterOff)
 
 const SEP = '|'
-const options = computed(() =>
-  models.value.map((m) => ({
+const OR_GROUP = 'OpenRouter (external, filtered)'
+const offReason = computed(() => aureonAi.catalog?.openrouterOff ?? null)
+const options = computed(() => {
+  const list = models.value.map((m) => ({
     value: `${m.provider}${SEP}${m.id}`,
     label: m.label,
-    group: m.provider === 'openrouter' ? 'OpenRouter (external, filtered)' : 'Local (this server)',
-  })),
-)
+    group: m.provider === 'openrouter' ? OR_GROUP : 'Local (this server)',
+    disabled: false,
+  }))
+  if (offReason.value) {
+    list.push({
+      value: `openrouter${SEP}`,
+      label: `Off: ${fallbackText(offReason.value)}`,
+      group: OR_GROUP,
+      disabled: true,
+    })
+  }
+  return list
+})
 const value = computed(() =>
   current.value ? `${current.value.provider}${SEP}${current.value.model}` : '',
 )
@@ -80,10 +100,12 @@ const summary = computed(() => {
   return ['Local Ollama on the Aureon server', 'text in → text out', 'offline'].join(' · ')
 })
 
-const offNote = computed(() => {
-  const off = aureonAi.catalog?.openrouterOff
-  return off && off !== 'disabled' ? `OpenRouter is off: ${fallbackText(off)}.` : ''
-})
+const offNote = computed(() =>
+  offReason.value ? `OpenRouter is off: ${fallbackText(offReason.value)}.` : '',
+)
+function openSettings() {
+  void router?.push('/settings')
+}
 
 const usage = computed(() => aureonAi.usage)
 const showMeter = computed(() => openrouterOn.value && !!usage.value && usage.value.limitUsd > 0)
@@ -133,7 +155,10 @@ const meterText = computed(() => {
       No models are installed in the server's Ollama yet. Pull one there, then refresh.
     </p>
     <p v-else class="aamp__summary">{{ summary }}</p>
-    <p v-if="offNote" class="aamp__summary">{{ offNote }}</p>
+    <div v-if="offNote" class="aamp__row" data-testid="openrouter-off">
+      <span class="aamp__summary">{{ offNote }}</span>
+      <Button variant="ghost" size="sm" @click="openSettings">Set up OpenRouter</Button>
+    </div>
     <div v-if="showMeter" class="aamp__meter" data-testid="usage-meter">
       <div
         class="aamp__bar"
