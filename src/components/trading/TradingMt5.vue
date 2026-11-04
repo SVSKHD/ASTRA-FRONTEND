@@ -18,6 +18,7 @@ import Table from '@/components/ui/Table.vue'
 import Mt5MarketPanel from './Mt5MarketPanel.vue'
 import Mt5Timeline from './Mt5Timeline.vue'
 import SourceTag from './SourceTag.vue'
+import NewsWidget from '@/components/news/NewsWidget.vue'
 import { aureon } from '@/api/client'
 import { ago, dec, pct, signed, toneOf, when } from '@/trading/format'
 import {
@@ -128,6 +129,11 @@ function guardText(g: Mt5Guardian | null | undefined): string {
   ]
   return bits.filter(Boolean).join(' · ')
 }
+
+// The bot trades gold: XAUUSD news always, plus whatever else it holds.
+const newsSymbols = computed(() => [
+  ...new Set(['XAUUSD', ...(positions.data.value?.items ?? []).map((p) => p.symbol)]),
+])
 
 const orphanList = computed(() =>
   Object.entries(positions.data.value?.guardian_orphans ?? {}).flatMap(([sym, gs]) =>
@@ -343,6 +349,8 @@ const backtestRows = computed(() =>
             Guardian still tracks a {{ o.sym }} ticket that is not open ({{ o.g.phase ?? '?' }}).
           </p>
         </Card>
+
+        <NewsWidget title="XAUUSD &amp; USD news" :symbols="newsSymbols" />
 
         <Mt5Timeline
           v-model:kind="kind"
