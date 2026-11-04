@@ -64,6 +64,8 @@ const routes: RouteRecordRaw[] = [
     name: 'control-center',
     component: () => import('@/views/ControlCenterView.vue'),
   },
+  // The image studio, phone-first, for any signed-in Aureon user (section 46).
+  { path: '/images', name: 'images', component: () => import('@/views/ImagesView.vue') },
   {
     path: '/astra',
     name: 'astra',
