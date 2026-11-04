@@ -1,0 +1,77 @@
+# Keeps the typed API client (src/api/openapi.json + schema.d.ts) in step with the backend.
+# Daily and on demand, on a GitHub-hosted runner: export the backend's OpenAPI schema from its
+# repository (scripts/sync-api.sh), regenerate the client, type-check and test, and — only if
+# the client changed — open (or update) one PR to dev01. Merging it deploys as usual: the
+# server's poller pulls merged dev01 commits. Nothing here touches the server.
+#
+# Repo settings this needs: Settings → Actions → General → "Allow GitHub Actions to create and
+# approve pull requests". PRs opened with the default token do not trigger other workflows, so
+# CI would not run on them; set a fine-grained token with contents + pull-requests write on
+# this repo as the SYNC_API_TOKEN secret to get CI on the PR. (The job already ran the same
+# type-check and tests before opening it.)
+name: Sync API client
+on:
+  schedule:
+    - cron: '30 2 * * *' # 08:00 IST
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Backend branch to export from
+        required: false
+        default: main
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: sync-api
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev01
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - name: Export, regenerate, type-check, test
+        id: sync
+        env:
+          BACKEND_REF: ${{ inputs.ref || 'main' }}
+        run: |
+          bash scripts/sync-api.sh --ref "$BACKEND_REF" | tee sync.log
+          if grep -q '^api: changed$' sync.log; then echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+          rm -f sync.log
+      - name: Open or update the PR
+        if: steps.sync.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.SYNC_API_TOKEN || github.token }}
+          base: dev01
+          branch: chore/sync-api-client
+          delete-branch: true
+          add-paths: |
+            src/api/openapi.json
+            src/api/schema.d.ts
+          commit-message: 'API client: regenerate from the backend OpenAPI schema'
+          title: 'API client: regenerate from the backend OpenAPI schema'
+          body: |
+            Opened by the **Sync API client** workflow (`scripts/sync-api.sh`): the backend's
+            OpenAPI schema (`${{ inputs.ref || 'main' }}`) changed, so the typed client was
+            regenerated. Type-check and the unit tests passed on the runner before this PR was
+            opened. Merging deploys through the server's poller as usual.
+
+            New backend modules with an `x-ui` block show up in Spasta's Modules nav from the
+            server's manifest on their own; this PR only keeps the typed client current for
+            hand-written pages.
