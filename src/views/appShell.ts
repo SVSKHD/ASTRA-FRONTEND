@@ -190,13 +190,11 @@ export function barGeometry({ isPhone }: { isPhone: boolean }) {
 export function railGeometry({ isPhone, isTablet }: ShellInput) {
   if (isPhone) {
     return {
+      // Edge to edge: the tab bar fills the row and carries the home-indicator
+      // inset itself, so its background runs under it instead of stopping short.
       gridArea: 'rail',
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
       minWidth: 0,
-      height: '64px',
-      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     } as const
   }
   return {

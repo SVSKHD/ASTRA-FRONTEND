@@ -12,6 +12,11 @@
 //
 // While a bottom sheet is open over the page the bar slides out of the way,
 // because two things anchored to the bottom edge is one too many.
+//
+// Instagram's bar, in behaviour: icons only (each button keeps its name for
+// screen readers), edge to edge with a hairline above it, the current tab's
+// glyph filled rather than boxed, a press that gives under the thumb, and a
+// second tap on the tab you are already on scrolling it back to the top.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
@@ -23,6 +28,7 @@ import TabGlyph from '@/components/TabGlyph.vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import Icon from '@/components/ui/Icon.vue'
 import ShellSync from '@/components/shell/ShellSync.vue'
+import { shellScroller } from '@/components/shell/shellKeys'
 import AppearancePanel from '@/components/shell/AppearancePanel.vue'
 import AccountMenu from '@/components/shell/AccountMenu.vue'
 import type { TabKey } from '@/types'
@@ -34,7 +40,6 @@ const { tab, moreSheetOpen, sheetTodoId, now } = storeToRefs(ui)
 const { avatarMenuOpen, avatarInitial, avatarColor } = storeToRefs(auth)
 const { c } = useStyles()
 
-const SHORT: Partial<Record<TabKey, string>> = { reminders: 'Remind', finances: 'Finance' }
 const moreActive = computed(() => SECONDARY_TABS.some((t) => t.key === tab.value))
 const hidden = computed(() => sheetTodoId.value != null)
 const badges = computed<Partial<Record<TabKey, number>>>(() => {
@@ -44,7 +49,16 @@ const badges = computed<Partial<Record<TabKey, number>>>(() => {
 
 function go(key: TabKey) {
   ui.setMoreSheet(false)
-  if (tab.value !== key) ui.setTab(key)
+  if (tab.value !== key) {
+    ui.setTab(key)
+    return
+  }
+  // Tapping the tab you are on takes you back to its top, as Instagram does.
+  const el = shellScroller.value
+  if (el && el.scrollTop > 0) {
+    const smooth = !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    el.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' })
+  }
 }
 
 // --- the utilities, from the More sheet ---------------------------------------
@@ -91,29 +105,31 @@ const avatarDisc = computed(() => ({
       class="mtb__item"
       :class="{ 'is-on': tab === t.key }"
       :aria-current="tab === t.key ? 'page' : undefined"
+      :aria-label="t.label"
+      :title="t.label"
       @click="go(t.key)"
     >
       <span class="mtb__cap">
         <TabGlyph
           :name="t.key"
           :filled="tab === t.key"
-          :size="21"
-          :col="tab === t.key ? c.accent : c.dim"
+          :size="25"
+          :col="tab === t.key ? c.text : c.dim"
           :ko="c.card"
         />
         <span v-if="badges[t.key]" class="mtb__dot"></span>
       </span>
-      <span class="mtb__label">{{ SHORT[t.key] ?? t.label }}</span>
     </button>
     <button
       type="button"
       class="mtb__item"
       :class="{ 'is-on': moreActive || moreSheetOpen }"
       :aria-expanded="moreSheetOpen"
+      aria-label="More"
+      title="More"
       @click="ui.setMoreSheet(!moreSheetOpen)"
     >
-      <span class="mtb__cap"><Icon name="more-horizontal" size="md" /></span>
-      <span class="mtb__label">More</span>
+      <span class="mtb__cap"><Icon name="more-horizontal" size="lg" /></span>
     </button>
   </nav>
 
@@ -181,60 +197,61 @@ const avatarDisc = computed(() => ({
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   align-items: center;
-  width: calc(100% - 24px);
-  height: 64px;
-  padding: 0 4px;
+  width: 100%;
+  min-width: 0;
+  /* Room around the icons, and the home indicator's inset below them. */
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  border-radius: 32px;
-  background: var(--glass-bg, var(--theme-card));
+  background: color-mix(in srgb, var(--theme-surface, #000) 82%, transparent);
   backdrop-filter: blur(24px) saturate(1.5);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
-  border: 1px solid var(--theme-border);
+  border-top: 1px solid var(--theme-border);
   transition: transform var(--dur-slide) var(--ease-sheet);
 }
 .mtb.is-hidden {
-  transform: translateY(120px);
+  transform: translateY(120%);
 }
 .mtb__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
+  display: grid;
+  place-items: center;
+  height: 48px;
+  min-width: 0;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--theme-dim);
   cursor: pointer;
-  min-width: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 .mtb__cap {
   position: relative;
-  width: 44px;
-  height: 32px;
-  border-radius: 16px;
   display: grid;
   place-items: center;
-  transition: background 0.2s ease;
+  width: 44px;
+  height: 44px;
+  transition: transform 0.12s ease;
+}
+/* The press gives under the thumb, then springs back. */
+.mtb__item:active .mtb__cap {
+  transform: scale(0.86);
 }
 .mtb__item.is-on {
-  color: var(--theme-accent);
+  color: var(--theme-text);
 }
-.mtb__item.is-on .mtb__cap {
-  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
-}
-.mtb__label {
-  font-size: var(--text-2xs);
-  line-height: 1;
-  white-space: nowrap;
+.mtb__item:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: -4px;
+  border-radius: 12px;
 }
 .mtb__dot {
   position: absolute;
-  top: 2px;
-  right: 8px;
-  width: 7px;
-  height: 7px;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--theme-accent);
+  background: var(--theme-danger, #ff3040);
+  box-shadow: 0 0 0 2px var(--theme-surface, #000);
 }
 .mtb-more {
   display: grid;
@@ -285,7 +302,8 @@ const avatarDisc = computed(() => ({
   justify-content: center;
 }
 @media (prefers-reduced-motion: reduce) {
-  .mtb {
+  .mtb,
+  .mtb__cap {
     transition: none;
   }
 }
