@@ -64,6 +64,9 @@ const routes: RouteRecordRaw[] = [
     name: 'control-center',
     component: () => import('@/views/ControlCenterView.vue'),
   },
+  // The server's modules (GET /api/v1/ui/manifest): generic views for any
+  // backend route that declares `x-ui`, or the app's own page when it has one.
+  { path: '/modules/:key?', name: 'modules', component: () => import('@/views/ModulesView.vue') },
   {
     path: '/astra',
     name: 'astra',
