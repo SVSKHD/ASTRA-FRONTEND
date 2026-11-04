@@ -12,7 +12,11 @@
 //
 // While a bottom sheet is open over the page the bar slides out of the way,
 // because two things anchored to the bottom edge is one too many.
-import { computed, ref } from 'vue'
+//
+// Icons only, and it behaves like Instagram's: scrolling the content down
+// slides the bar away, any scroll up brings it back, and it is always shown at
+// the top of the page and after switching tabs.
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
@@ -25,6 +29,7 @@ import Icon from '@/components/ui/Icon.vue'
 import ShellSync from '@/components/shell/ShellSync.vue'
 import AppearancePanel from '@/components/shell/AppearancePanel.vue'
 import AccountMenu from '@/components/shell/AccountMenu.vue'
+import { shellScroller } from '@/components/shell/shellKeys'
 import type { TabKey } from '@/types'
 
 const ui = useUiStore()
@@ -34,8 +39,37 @@ const { tab, moreSheetOpen, sheetTodoId, now } = storeToRefs(ui)
 const { avatarMenuOpen, avatarInitial, avatarColor } = storeToRefs(auth)
 const { c } = useStyles()
 
-const SHORT: Partial<Record<TabKey, string>> = { reminders: 'Remind', finances: 'Finance' }
 const moreActive = computed(() => SECONDARY_TABS.some((t) => t.key === tab.value))
+
+// --- hide on scroll down, show on scroll up ------------------------------------
+// A small dead zone so a finger resting on the glass does not flicker the bar,
+// and the top of the page always shows it (the iOS rubber band scrolls < 0).
+const SCROLL_SLOP = 6
+const SHOW_NEAR_TOP = 48
+const scrolledAway = ref(false)
+let lastTop = 0
+function onScroll(e: Event) {
+  const top = (e.target as HTMLElement).scrollTop
+  const delta = top - lastTop
+  if (top <= SHOW_NEAR_TOP) scrolledAway.value = false
+  else if (delta > SCROLL_SLOP) scrolledAway.value = true
+  else if (delta < -SCROLL_SLOP) scrolledAway.value = false
+  else return
+  lastTop = top
+}
+watch(
+  shellScroller,
+  (el, prev) => {
+    prev?.removeEventListener('scroll', onScroll)
+    el?.addEventListener('scroll', onScroll, { passive: true })
+    lastTop = el?.scrollTop ?? 0
+    scrolledAway.value = false
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => shellScroller.value?.removeEventListener('scroll', onScroll))
+watch([tab, moreSheetOpen], () => (scrolledAway.value = false))
+
 const hidden = computed(() => sheetTodoId.value != null)
 const badges = computed<Partial<Record<TabKey, number>>>(() => {
   void now.value
@@ -83,7 +117,11 @@ const avatarDisc = computed(() => ({
 </script>
 
 <template>
-  <nav class="mtb" :class="{ 'is-hidden': hidden }" aria-label="Sections">
+  <nav
+    class="mtb"
+    :class="{ 'is-hidden': hidden, 'is-away': scrolledAway && !hidden }"
+    aria-label="Sections"
+  >
     <button
       v-for="t in PRIMARY_TABS"
       :key="t.key"
@@ -91,29 +129,31 @@ const avatarDisc = computed(() => ({
       class="mtb__item"
       :class="{ 'is-on': tab === t.key }"
       :aria-current="tab === t.key ? 'page' : undefined"
+      :aria-label="t.label"
+      :title="t.label"
       @click="go(t.key)"
     >
       <span class="mtb__cap">
         <TabGlyph
           :name="t.key"
           :filled="tab === t.key"
-          :size="21"
+          :size="24"
           :col="tab === t.key ? c.accent : c.dim"
           :ko="c.card"
         />
         <span v-if="badges[t.key]" class="mtb__dot"></span>
       </span>
-      <span class="mtb__label">{{ SHORT[t.key] ?? t.label }}</span>
     </button>
     <button
       type="button"
       class="mtb__item"
       :class="{ 'is-on': moreActive || moreSheetOpen }"
       :aria-expanded="moreSheetOpen"
+      aria-label="More"
+      title="More"
       @click="ui.setMoreSheet(!moreSheetOpen)"
     >
-      <span class="mtb__cap"><Icon name="more-horizontal" size="md" /></span>
-      <span class="mtb__label">More</span>
+      <span class="mtb__cap"><Icon name="more-horizontal" size="lg" /></span>
     </button>
   </nav>
 
@@ -182,55 +222,56 @@ const avatarDisc = computed(() => ({
   grid-template-columns: repeat(6, 1fr);
   align-items: center;
   width: calc(100% - 24px);
-  height: 64px;
+  height: 52px;
   padding: 0 4px;
   box-sizing: border-box;
-  border-radius: 32px;
+  border-radius: 26px;
   background: var(--glass-bg, var(--theme-card));
   backdrop-filter: blur(24px) saturate(1.5);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
   border: 1px solid var(--theme-border);
-  transition: transform var(--dur-slide) var(--ease-sheet);
+  /* The rail around it lets taps through to the content; the bar takes them. */
+  pointer-events: auto;
+  transition:
+    transform var(--dur-slide) var(--ease-sheet),
+    opacity var(--dur-slide) var(--ease-sheet);
 }
-.mtb.is-hidden {
-  transform: translateY(120px);
+.mtb.is-hidden,
+.mtb.is-away {
+  transform: translateY(calc(100% + 24px + env(safe-area-inset-bottom, 0px)));
+  opacity: 0;
+  pointer-events: none;
 }
 .mtb__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
+  display: grid;
+  place-items: center;
+  height: 100%;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--theme-dim);
   cursor: pointer;
   min-width: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 .mtb__cap {
   position: relative;
   width: 44px;
-  height: 32px;
-  border-radius: 16px;
+  height: 44px;
   display: grid;
   place-items: center;
-  transition: background 0.2s ease;
+  transition: transform 0.15s ease;
+}
+.mtb__item:active .mtb__cap {
+  transform: scale(0.88);
 }
 .mtb__item.is-on {
   color: var(--theme-accent);
 }
-.mtb__item.is-on .mtb__cap {
-  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
-}
-.mtb__label {
-  font-size: var(--text-2xs);
-  line-height: 1;
-  white-space: nowrap;
-}
 .mtb__dot {
   position: absolute;
-  top: 2px;
-  right: 8px;
+  top: 7px;
+  right: 7px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -285,7 +326,8 @@ const avatarDisc = computed(() => ({
   justify-content: center;
 }
 @media (prefers-reduced-motion: reduce) {
-  .mtb {
+  .mtb,
+  .mtb__cap {
     transition: none;
   }
 }
