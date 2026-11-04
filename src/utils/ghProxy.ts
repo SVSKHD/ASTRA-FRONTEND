@@ -1,5 +1,9 @@
 // The client half of the GitHub integration's trust boundary (section 13a).
 //
+// On Aureon builds (VITE_AUTH_PROVIDER=aureon, the default) `ghCall` hands every
+// op to ghAureon.ts, which uses Aureon's /api/v1/github routes on the same
+// origin. The proxy path below remains for Supabase/Netlify builds.
+//
 // NO GITHUB TOKEN EVER REACHES THIS FILE. Every call is a POST to the proxy
 // (`VITE_GH_PROXY_URL`, the Netlify function at /api/github), authenticated
 // with the caller's Supabase session token. The function verifies that token
@@ -14,6 +18,7 @@
 
 import { supabase } from '@/supabase'
 import { authProvider } from '@/auth/provider'
+import { aureonGhCall } from './ghAureon'
 
 // The operations the Cloud Function exposes. Kept as a closed union so a typo is
 // a compile error rather than a 400 at runtime.
@@ -103,19 +108,20 @@ export function ghAppSlug(): string {
   return (import.meta.env.VITE_GH_APP_SLUG || '').trim()
 }
 
-/**
- * Whether GitHub is served by Aureon (the self-hosted backend) rather than the proxy.
- *
- * In an Aureon build every op below is answered by /api/v1/github/* on the same origin
- * (github/aureon.ts): the server holds the token and the session cookie authenticates.
- * Read per call, not once, so a test can switch provider with vi.stubEnv.
- */
-export function ghOnAureon(): boolean {
+/** On Aureon (the production default) GitHub goes through Aureon's own
+ *  /api/v1/github routes (ghAureon.ts); elsewhere through the Netlify proxy. */
+export function ghViaAureon(): boolean {
   return authProvider() === 'aureon'
 }
 
+/** Whether the editor may commit a file (`putFile`). Aureon has no direct commit —
+ *  repository writes there go through its approval workflow — so it is read-only. */
+export function ghCanCommitFiles(): boolean {
+  return !ghViaAureon()
+}
+
 export function isGhConfigured(): boolean {
-  return ghOnAureon() || ghProxyUrl().length > 0
+  return ghViaAureon() || ghProxyUrl().length > 0
 }
 
 // The install URL for the GitHub App. Installing is what grants per-repo,
@@ -213,10 +219,7 @@ export async function ghCall<T>(
   params: GhParams = {},
   opts: { etag?: string | null; signal?: AbortSignal } = {},
 ): Promise<GhResponse<T>> {
-  if (ghOnAureon()) {
-    const { aureonGhCall } = await import('@/github/aureon')
-    return aureonGhCall<T>(op, params, { signal: opts.signal })
-  }
+  if (ghViaAureon()) return aureonGhCall<T>(op, params, { signal: opts.signal })
   const url = ghProxyUrl()
   if (!url) throw new GhNotConfiguredError()
   const token = await idToken()

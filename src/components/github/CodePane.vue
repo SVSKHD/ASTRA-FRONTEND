@@ -12,7 +12,7 @@
 // the pane says so instead of retrying.
 import { computed, nextTick, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { ghCall } from '@/utils/ghProxy'
+import { ghCall, ghCanCommitFiles } from '@/utils/ghProxy'
 import { useGhRepos } from '@/composables/useGhRepos'
 import { loadHighlighter } from '@/utils/mdHighlight'
 import { renderMarkdown } from '@/utils/markdown'
@@ -220,8 +220,9 @@ const draft = ref('')
 const message = ref('')
 const saving = ref(false)
 const dirty = computed(() => editing.value && !!file.value && draft.value !== file.value.text)
+const canCommit = ghCanCommitFiles()
 const canEdit = computed(
-  () => !!file.value && !file.value.binary && file.value.size <= MAX_EDIT_BYTES,
+  () => canCommit && !!file.value && !file.value.binary && file.value.size <= MAX_EDIT_BYTES,
 )
 const editorBox = ref<HTMLElement | null>(null)
 
@@ -449,7 +450,13 @@ watch(
                   type="button"
                   class="gh-soft gh-soft--accent"
                   :disabled="!canEdit"
-                  :title="canEdit ? 'Edit and commit' : 'Binary or over 1 MB — read-only'"
+                  :title="
+                    canEdit
+                      ? 'Edit and commit'
+                      : !canCommit
+                        ? 'Read-only: commits go through Aureon approvals'
+                        : 'Binary or over 1 MB — read-only'
+                  "
                   @click="startEdit"
                 >
                   <Icon name="pencil" size="xs" /> Edit
