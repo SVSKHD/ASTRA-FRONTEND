@@ -7,6 +7,10 @@
 // app watches it. That is what makes a review comment appear while its author is
 // still on the page, and it is why nothing here calls GitHub.
 //
+// In an Aureon build (the default) there is no mirror: Aureon is the source, and this
+// reads it through github/live.ts — the allowlisted repositories and their open pull
+// requests, re-read every two minutes while the page is visible. Same refs, same rows.
+//
 // Two listeners, not three. Repos and pull requests are what the Code tab is,
 // so both are live from the moment the tab opens; the comment thread of one
 // expanded pull request is loaded on demand by `useGhThread`, because streaming
@@ -19,7 +23,9 @@ import type { DocumentData, Unsubscribe } from 'firebase/firestore'
 import { loadFirestore } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
 import type { GhPull, GhRepo, PullState } from '@/types'
-import { githubMirrorAvailable } from '@/utils/ghSetup'
+import { codeOnAureon, githubMirrorAvailable } from '@/utils/ghSetup'
+import { changedPulls, LIVE_POLL_MS, readLive, repoNames } from '@/github/live'
+import { GhNotConfiguredError } from '@/utils/ghProxy'
 
 const REPOS = 'gh-repos'
 const PULLS = 'gh-pulls'
@@ -79,10 +85,51 @@ export function useGithubLive() {
 
   let unsubs: Unsubscribe[] = []
   let token = 0
+  /** Repositories whose pull requests the last Aureon pass could not read. */
+  const failed = ref<string[]>([])
+  /** When Aureon last answered, epoch ms; 0 before the first answer. */
+  const syncedAt = ref(0)
+  let poll: ReturnType<typeof setInterval> | undefined
+  let inflight: AbortController | null = null
 
   function detach(): void {
     for (const u of unsubs) u()
     unsubs = []
+    clearInterval(poll)
+    poll = undefined
+    inflight?.abort()
+    inflight = null
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onShow)
+  }
+
+  function onShow(): void {
+    if (document.visibilityState === 'visible') void readAureon(token)
+  }
+
+  async function readAureon(mine: number): Promise<void> {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    inflight?.abort()
+    const ctl = (inflight = new AbortController())
+    try {
+      const snap = await readLive(uid.value, ctl.signal)
+      if (mine !== token) return
+      for (const r of snap.repos) repoNames.set(r.repoId, r.fullName)
+      touched.value = changedPulls(pulls.value, snap.pulls)
+      repos.value = snap.repos
+      pulls.value = snap.pulls
+      failed.value = snap.failed
+      syncedAt.value = Date.now()
+      error.value = ''
+    } catch (e) {
+      if (mine !== token || ctl.signal.aborted) return
+      error.value =
+        e instanceof GhNotConfiguredError
+          ? e.message
+          : `GitHub could not be read from Aureon: ${(e as Error).message}`
+    } finally {
+      if (mine === token) loading.value = false
+      if (inflight === ctl) inflight = null
+    }
   }
 
   async function attach(): Promise<void> {
@@ -91,6 +138,19 @@ export function useGithubLive() {
     const owner = uid.value
     repos.value = []
     pulls.value = []
+    if (codeOnAureon) {
+      error.value = ''
+      if (!owner) {
+        loading.value = false
+        return
+      }
+      loading.value = true
+      await readAureon(mine)
+      if (mine !== token) return
+      poll = setInterval(() => void readAureon(mine), LIVE_POLL_MS)
+      if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onShow)
+      return
+    }
     // Nothing to listen to in a build the mirror cannot reach (see
     // githubMirrorAvailable): no listeners started just to fail.
     if (!owner || !githubMirrorAvailable) {
@@ -166,5 +226,10 @@ export function useGithubLive() {
     return out
   })
 
-  return { repos, pulls, pullsByRepo, loading, error, touched }
+  /** Read Aureon again now (the Refresh button); a no-op on the Firestore mirror. */
+  function refresh(): Promise<void> {
+    return codeOnAureon ? readAureon(token) : Promise.resolve()
+  }
+
+  return { repos, pulls, pullsByRepo, loading, error, touched, failed, syncedAt, refresh }
 }

@@ -1,37 +1,22 @@
 <script setup lang="ts">
 // GitHub dashboard: connection health and rate limit, the allowlisted repos,
 // and for the selected repo its recent Actions runs and open PR / issue counts.
-import { computed, watch } from 'vue'
+import { watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import GithubConnectionCard from '@/components/github/GithubConnectionCard.vue'
 import { aureon } from '@/api/client'
 import { cc, must, repoParams, setRepo } from '@/control/api'
 import { usePoll } from '@/control/poll'
 import { loadRepos, repos } from '@/control/repos'
 import { runTone } from '@/control/status'
-import { ago, when } from '@/trading/format'
+import { ago } from '@/trading/format'
 import { useLoad } from '@/trading/useLoad'
 
 const router = useRouter()
-
-const conn = useLoad(async () => must(await aureon.GET('/api/v1/github/connection')))
-async function check() {
-  try {
-    conn.data.value = must(await aureon.POST('/api/v1/github/connection/check'))
-  } catch (e) {
-    conn.error.value = (e as Error).message
-  }
-}
-
-const rate = computed(() => conn.data.value?.rate_limit ?? null)
-const ratePct = computed(() =>
-  rate.value?.limit && rate.value.remaining != null
-    ? Math.round((rate.value.remaining / rate.value.limit) * 100)
-    : null,
-)
 
 const counts = useLoad(async () => {
   const p = repoParams()
@@ -66,67 +51,7 @@ usePoll(() => counts.reload(), 60_000)
 <template>
   <div class="tp-page">
     <div class="tp-grid">
-      <Card title="Connection">
-        <template v-if="conn.data.value">
-          <div
-            v-if="!conn.data.value.configured"
-            class="cc-notice cc-notice--warning"
-            role="status"
-          >
-            <p class="cc-notice__title">GitHub is not configured on the server</p>
-            <p class="tp-note">
-              Set GITHUB_TOKEN in Aureon's environment. The token never comes to the browser.
-            </p>
-          </div>
-          <template v-else>
-            <div class="tp-row">
-              <Badge
-                :tone="
-                  conn.data.value.ok
-                    ? 'success'
-                    : conn.data.value.ok === false
-                      ? 'danger'
-                      : 'neutral'
-                "
-                :label="
-                  conn.data.value.ok
-                    ? 'Healthy'
-                    : conn.data.value.ok === false
-                      ? 'Failing'
-                      : 'Not checked'
-                "
-              />
-              <span class="tp-strong">{{ conn.data.value.login ?? 'unknown login' }}</span>
-            </div>
-            <p class="tp-note">
-              {{ conn.data.value.token_kind ?? 'token' }} · fingerprint
-              {{ conn.data.value.fingerprint ?? '—' }} · checked
-              {{ ago(conn.data.value.last_checked_at) }}
-            </p>
-            <p v-if="conn.data.value.detail" class="tp-note">{{ conn.data.value.detail }}</p>
-            <p v-if="rate && rate.limit" class="tp-note tp-num">
-              Rate limit: {{ rate.remaining }} of {{ rate.limit }} left ({{ ratePct }}%) · resets
-              {{ when(rate.reset_at) }}
-            </p>
-            <p v-else class="tp-note">
-              No rate-limit reading yet. Check the connection to get one.
-            </p>
-            <p class="tp-note">
-              Allowlist:
-              {{
-                [...conn.data.value.allowed_repos, ...conn.data.value.allowed_owners].join(', ') ||
-                "the token user's own repositories"
-              }}
-            </p>
-          </template>
-        </template>
-        <p v-else-if="conn.error.value" class="tp-note" role="alert">{{ conn.error.value }}</p>
-        <template #footer>
-          <Button size="sm" variant="secondary" :loading="conn.loading.value" @click="check"
-            >Check now</Button
-          >
-        </template>
-      </Card>
+      <GithubConnectionCard @synced="loadRepos()" />
 
       <Card title="Open work">
         <template v-if="counts.data.value">

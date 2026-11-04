@@ -13,6 +13,7 @@
 // response parsing, secret stripping, backoff) is pure and lives here too.
 
 import { supabase } from '@/supabase'
+import { authProvider } from '@/auth/provider'
 
 // The operations the Cloud Function exposes. Kept as a closed union so a typo is
 // a compile error rather than a 400 at runtime.
@@ -102,8 +103,19 @@ export function ghAppSlug(): string {
   return (import.meta.env.VITE_GH_APP_SLUG || '').trim()
 }
 
+/**
+ * Whether GitHub is served by Aureon (the self-hosted backend) rather than the proxy.
+ *
+ * In an Aureon build every op below is answered by /api/v1/github/* on the same origin
+ * (github/aureon.ts): the server holds the token and the session cookie authenticates.
+ * Read per call, not once, so a test can switch provider with vi.stubEnv.
+ */
+export function ghOnAureon(): boolean {
+  return authProvider() === 'aureon'
+}
+
 export function isGhConfigured(): boolean {
-  return ghProxyUrl().length > 0
+  return ghOnAureon() || ghProxyUrl().length > 0
 }
 
 // The install URL for the GitHub App. Installing is what grants per-repo,
@@ -201,6 +213,10 @@ export async function ghCall<T>(
   params: GhParams = {},
   opts: { etag?: string | null; signal?: AbortSignal } = {},
 ): Promise<GhResponse<T>> {
+  if (ghOnAureon()) {
+    const { aureonGhCall } = await import('@/github/aureon')
+    return aureonGhCall<T>(op, params, { signal: opts.signal })
+  }
   const url = ghProxyUrl()
   if (!url) throw new GhNotConfiguredError()
   const token = await idToken()
