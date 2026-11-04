@@ -41,6 +41,9 @@ const routes: RouteRecordRaw[] = [
     name: 'code-aureon',
     component: () => import('@/views/CodeAureonView.vue'),
   },
+  // The server's modules (GET /api/v1/ui/manifest): generic views for any
+  // backend route that declares `x-ui`, or the app's own page when it has one.
+  { path: '/modules/:key?', name: 'modules', component: () => import('@/views/ModulesView.vue') },
   // The control center (Phase 21): GitHub, Actions, agents, repairs, reviews
   // and the approval inbox, admin-only, behind the same Aureon gate as
   // /trading. `/dev/<module>`. The DEV-only /dev/login and /dev/shot/* below
@@ -64,9 +67,6 @@ const routes: RouteRecordRaw[] = [
     name: 'control-center',
     component: () => import('@/views/ControlCenterView.vue'),
   },
-  // The server's modules (GET /api/v1/ui/manifest): generic views for any
-  // backend route that declares `x-ui`, or the app's own page when it has one.
-  { path: '/modules/:key?', name: 'modules', component: () => import('@/views/ModulesView.vue') },
   {
     path: '/astra',
     name: 'astra',
