@@ -183,6 +183,11 @@ describe('<GithubAiView />', () => {
     const answer = w.get('[data-testid="ai-answer"]')
     expect(answer.html()).toContain('<strong>exports</strong>')
     expect(answer.text()).toContain('Done in 900 ms')
+    // The pick stays with the repository's conversation after the first answer.
+    expect(aureonAi.targets['gh:svskhd/astra']).toEqual({
+      provider: 'openrouter',
+      model: 'anthropic/claude-sonnet',
+    })
   })
 
   it('requests a change on the server clone and approves its diff', async () => {

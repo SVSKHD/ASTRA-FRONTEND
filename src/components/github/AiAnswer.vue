@@ -70,6 +70,9 @@ async function run(a: { title: string; prompt: string }) {
   trace.value = startTrace(Date.now(), aureonAi.think)
   const t = trace.value
   const target = current.value
+  // Keep the pick with this repository's conversation, as the AI tab does: once the
+  // server has a conversation, an unsaved pick would fall back to the local model.
+  if (target) setTarget(chatKey.value, target)
   try {
     for await (const ev of streamChat({
       model: target?.model ?? '',
