@@ -7,6 +7,7 @@
 import { reactive } from 'vue'
 import { apiUrl } from '@/api/config'
 import { openStream, type StreamHandle, type StreamStatus } from '@/api/sse'
+import { onSchemaFingerprint } from '@/modules/manifest'
 
 export interface StreamSignal {
   id: string
@@ -112,10 +113,26 @@ export function applyEvent(event: string, raw: string): void {
     case 'mt5':
       live.mt5 = data as StreamMt5
       break
+    case 'schema_changed': {
+      // A deploy changed the API: the Modules nav re-reads its manifest.
+      const hash = (data as { schema_hash?: unknown })?.schema_hash
+      onSchemaFingerprint(typeof hash === 'string' ? hash : '')
+      break
+    }
   }
 }
 
-const EVENTS = ['hello', 'signal', 'risk', 'agent', 'quote', 'backtest', 'mt5', 'bye']
+const EVENTS = [
+  'hello',
+  'signal',
+  'risk',
+  'agent',
+  'quote',
+  'backtest',
+  'mt5',
+  'schema_changed',
+  'bye',
+]
 
 /** (Re)open the stream; `instrumentIds` are the quotes to follow. */
 export function connect(

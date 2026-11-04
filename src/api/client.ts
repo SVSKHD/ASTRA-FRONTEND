@@ -31,6 +31,19 @@ export function onUnauthorized(fn: Listener): () => void {
   return () => unauthorized.delete(fn)
 }
 
+type SchemaListener = (fingerprint: string) => void
+const schemaListeners = new Set<SchemaListener>()
+
+/**
+ * Called with the server's `X-API-Schema` fingerprint on every response that carries one.
+ * It changes when a deploy adds or changes a route, which is how the Modules nav knows to
+ * re-read the manifest (src/modules/manifest.ts). Returns an unsubscribe.
+ */
+export function onApiSchema(fn: SchemaListener): () => void {
+  schemaListeners.add(fn)
+  return () => schemaListeners.delete(fn)
+}
+
 export const authMiddleware: Middleware = {
   onRequest({ request }) {
     if (needsCsrf(request.method)) {
@@ -44,6 +57,8 @@ export const authMiddleware: Middleware = {
       const path = new URL(request.url, globalThis.location?.href ?? 'http://localhost').pathname
       for (const fn of unauthorized) fn(path)
     }
+    const schema = response.headers.get('x-api-schema')
+    if (schema) for (const fn of schemaListeners) fn(schema)
     return response
   },
 }

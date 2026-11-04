@@ -27,11 +27,17 @@ import { resumeImageJob } from '@/images/watch'
 import { useStyles } from '@/composables/useStyles'
 import GoalsImportDialog from '@/components/goals/GoalsImportDialog.vue'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { startModules } from '@/modules/manifest'
 import { firebaseEnabled, onPersistenceResolved, supabaseEnabled } from '@/firebase'
 
 const { s } = useStyles()
 const app = useAppStore()
 const route = useRoute()
+
+// The Modules nav: read from the server on sign-in, re-read when its API changes.
+const auth = useAuthStore()
+startModules(() => auth.user?.uid ?? null)
 
 // The workspace renders its own brand orb in the shell's top strip, so the
 // corner mark would be a duplicate there. Keep it on the other routes (the share
