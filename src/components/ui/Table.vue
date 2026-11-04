@@ -2,6 +2,9 @@
 // A data table with a real <table> underneath, so a screen reader reads rows and
 // columns rather than a wall of divs. Wide tables scroll inside their own box
 // rather than pushing the page sideways.
+//
+// A cell can be rendered by the caller with a `cell-<key>` slot (it gets the
+// row); without one the cell is the row's value as text.
 export interface Column {
   key: string
   label: string
@@ -29,7 +32,7 @@ defineProps<{ columns: Column[]; rows: Record<string, unknown>[]; caption?: stri
       <tbody>
         <tr v-for="(row, i) in rows" :key="String(row.id ?? i)">
           <td v-for="col in columns" :key="col.key" :style="{ textAlign: col.align || 'left' }">
-            {{ row[col.key] }}
+            <slot :name="`cell-${col.key}`" :row="row">{{ row[col.key] }}</slot>
           </td>
         </tr>
       </tbody>
