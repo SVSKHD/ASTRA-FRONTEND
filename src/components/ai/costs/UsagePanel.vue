@@ -298,6 +298,7 @@ const short = (day: string) => day.slice(5)
   color: var(--text-secondary);
 }
 .up__model {
+  min-width: 0;
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;

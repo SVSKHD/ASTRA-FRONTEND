@@ -242,6 +242,7 @@ const versionOptions = computed(() =>
   max-width: 280px;
 }
 .pe__model > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
