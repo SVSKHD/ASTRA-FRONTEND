@@ -24,6 +24,7 @@ import {
   targetFor,
   setTarget,
 } from '@/ai/aureonChat'
+import { aiTraces, applyEvent, endTrace, startTrace, traceKey } from '@/ai/steps'
 import type { AiItemRef, AiMessage, AiSource } from '@/types'
 import {
   AI_INSTRUCTIONS,
@@ -445,6 +446,10 @@ async function sendAureon(
   run.value = { chatId, msgId, status: 'streaming', startedAt: Date.now() }
   abort = new AbortController()
   let failed = false
+  // The reply's thinking steps (src/ai/steps.ts), for this visit.
+  const tkey = traceKey(chatId, msgId)
+  aiTraces[tkey] = startTrace(Date.now(), aureonAi.think)
+  const trace = aiTraces[tkey]
   try {
     const turns = app
       .aiChatById(chatId)!
@@ -466,7 +471,9 @@ async function sendAureon(
       prompt,
       chatKey: String(chatId),
       signal: abort.signal,
+      think: aureonAi.think,
     })) {
+      applyEvent(trace, evt)
       if (evt.reset) app.clearAiMessageContent(chatId, msgId)
       if (evt.route) {
         const r = evt.route
@@ -494,6 +501,7 @@ async function sendAureon(
   } catch (err) {
     if ((err as Error).name !== 'AbortError') {
       failed = true
+      endTrace(trace, 'error', (err as Error).message)
       app.appendAiMessageContent(
         chatId,
         msgId,
@@ -502,6 +510,7 @@ async function sendAureon(
     }
   } finally {
     const stopped = abort?.signal.aborted ?? false
+    if (stopped) endTrace(trace, 'stopped')
     finish(failed ? 'error' : 'done')
     if (!failed && !stopped) autoApplyUpdates(chatId, msgId)
     // The usage meter: OpenRouter spend moves only when OpenRouter was called.

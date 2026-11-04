@@ -54,7 +54,7 @@ describe('readLive', () => {
       ],
       total: 3,
     })
-    gh.pulls.mockImplementation((owner: string, name: string) =>
+    gh.pulls.mockImplementation((_owner: string, name: string) =>
       name === 'astra'
         ? Promise.resolve({ items: [pull(3), pull(4, { draft: true })], has_next: false })
         : Promise.reject(new Error('boom')),

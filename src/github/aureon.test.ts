@@ -190,6 +190,9 @@ describe('errors', () => {
       rateLimitOf({
         configured: true,
         api_url: '',
+        allowed_owners: [],
+        allowed_repos: [],
+        scopes: [],
         rate_limit: { limit: 5000, remaining: 4000, reset_at: '2026-11-04T12:00:00Z' },
       }),
     ).toEqual({ limit: 5000, remaining: 4000, resetAt: Date.parse('2026-11-04T12:00:00Z') })

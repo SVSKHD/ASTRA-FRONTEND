@@ -107,7 +107,7 @@ describe('<AureonModelPicker />', () => {
     const select = w.findComponent({ name: 'Select' })
     expect(select.props('options')).toContainEqual(
       expect.objectContaining({
-        group: 'OpenRouter (external, filtered)',
+        group: 'Other models · via OpenRouter',
         label: 'Off: OpenRouter is turned off on the server',
         disabled: true,
       }),
@@ -123,5 +123,42 @@ describe('<AureonModelPicker />', () => {
     expect(w.find('[data-testid="usage-meter"]').text()).toContain(
       'cap reached, replies stay local',
     )
+  })
+
+  it('groups models by vendor and lists the five providers with why each is off', async () => {
+    serve(catalog())
+    const w = mount(AureonModelPicker)
+    await flushPromises()
+    const select = w.findComponent({ name: 'Select' })
+    expect(select.props('options')).toContainEqual(
+      expect.objectContaining({
+        value: `openrouter|${OR}`,
+        group: 'Gemini (Google) · via OpenRouter',
+      }),
+    )
+    expect(w.find('[data-testid="providers"]').exists()).toBe(false)
+    await w.get('[data-testid="providers-toggle"]').trigger('click')
+    const rows = w.findAll('[data-testid="providers"] li')
+    expect(rows.map((r) => r.find('.aamp__pname').text())).toEqual([
+      'Ollama',
+      'OpenRouter',
+      'Claude',
+      'GPT',
+      'Gemini',
+    ])
+    expect(rows[2].text()).toContain("No Claude model is on the server's allowlist")
+    expect(rows[4].classes()).toContain('is-on')
+  })
+
+  it('turns Think on per device', async () => {
+    serve(catalog())
+    aureonAi.think = false
+    const w = mount(AureonModelPicker)
+    await flushPromises()
+    w.findComponent({ name: 'Switch' }).vm.$emit('update:modelValue', true)
+    await flushPromises()
+    expect(aureonAi.think).toBe(true)
+    expect(w.text()).toContain("Think is on: the model's reasoning streams above each reply")
+    aureonAi.think = false
   })
 })

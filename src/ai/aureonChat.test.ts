@@ -123,6 +123,7 @@ describe('streamChat', () => {
           fallbackReason: null,
           localOnly: false,
           costUsd: null,
+          filterCategories: [],
         },
       },
       { text: 'Hel' },

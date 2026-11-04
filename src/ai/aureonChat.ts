@@ -24,6 +24,11 @@
 // its key: the server routes, filters (finance, trading, broker, positions,
 // secrets and logs always stay local) and falls back to the local model on any
 // error. Every stream says who actually answered and why (`AiRoute`).
+//
+// Thinking (backend docs/26): with `think: true` the server asks the model for its
+// reasoning (OpenRouter `reasoning`, Ollama `think`) and streams it as separate
+// `thinking` events, never mixed into the answer. src/ai/steps.ts turns the whole
+// stream into the execution steps the chat shows.
 
 import { reactive, watch } from 'vue'
 import { aureon } from '@/api/client'
@@ -109,9 +114,12 @@ export interface AiRoute {
   /** The data had to stay local (the classification filter or a linked context). */
   localOnly?: boolean
   costUsd?: string | null
+  /** What the classification filter found (it is why a turn stayed local). */
+  filterCategories?: string[]
 }
 
 const TARGET_KEY = 'aureon.ai.targets'
+const THINK_KEY = 'aureon.ai.think'
 
 export const aureonAi = reactive({
   model: read<string>(MODEL_KEY, ''),
@@ -122,7 +130,13 @@ export const aureonAi = reactive({
   pending: null as AiTarget | null,
   catalog: null as ModelCatalog | null,
   usage: null as AiUsageInfo | null,
+  /** Ask the model for its reasoning and show it (a preference, per device). */
+  think: read<boolean>(THINK_KEY, false),
 })
+watch(
+  () => aureonAi.think,
+  (t) => write(THINK_KEY, t),
+)
 watch(
   () => aureonAi.targets,
   (t) => write(TARGET_KEY, t),
@@ -232,6 +246,7 @@ const REASONS: Record<string, string> = {
   not_configured: 'OpenRouter is not set up on the server',
   no_budget: 'OpenRouter has no daily budget',
   daily_cap_reached: "today's OpenRouter budget is used up",
+  monthly_cap_reached: "this month's AI budget is used up",
   usage_unavailable: "today's OpenRouter spend could not be checked",
   model_not_allowed: 'that OpenRouter model is not allowed',
   rate_limited: 'OpenRouter is rate-limiting',
@@ -269,6 +284,11 @@ export interface ChatEvent {
   route?: AiRoute
   /** OpenRouter failed mid-reply: drop the text so far, the local answer follows. */
   reset?: boolean
+  /** A piece of the model's reasoning (only when asked with `think`). */
+  thinking?: string
+  /** On done: how long the server took, and reasoning tokens when reported. */
+  durationMs?: number
+  reasoningTokens?: number | null
 }
 
 function routeOf(data: Record<string, unknown>, fallbackModel: string): AiRoute {
@@ -284,6 +304,9 @@ function routeOf(data: Record<string, unknown>, fallbackModel: string): AiRoute 
     fallbackReason: reason,
     localOnly: data.local_only === true,
     costUsd: typeof data.cost_usd === 'string' ? data.cost_usd : null,
+    filterCategories: Array.isArray(data.filter_categories)
+      ? data.filter_categories.filter((c): c is string => typeof c === 'string')
+      : [],
   }
 }
 
@@ -356,6 +379,8 @@ export async function* streamChat(opts: {
   chatKey: string | null
   signal?: AbortSignal
   fetchImpl?: typeof fetch
+  /** Ask for the model's reasoning; it arrives as `thinking` events. */
+  think?: boolean
 }): AsyncGenerator<ChatEvent> {
   const doFetch = opts.fetchImpl ?? fetch
   const conversationId = opts.chatKey ? aureonAi.conversations[opts.chatKey] : undefined
@@ -373,6 +398,7 @@ export async function* streamChat(opts: {
       ...(opts.provider ? { provider: opts.provider } : {}),
       ...(opts.model ? { model: opts.model } : {}),
       ...(conversationId ? { conversation_id: conversationId } : {}),
+      ...(opts.think ? { think: true } : {}),
       messages: buildMessages(opts.system, opts.history, opts.prompt, !!conversationId),
     }),
     signal: opts.signal,
@@ -403,9 +429,15 @@ export async function* streamChat(opts: {
       yield { model: route.model, route, reset: data.reset === true }
     } else if (ev.event === 'token') {
       if (typeof data.content === 'string' && data.content) yield { text: data.content }
+    } else if (ev.event === 'thinking') {
+      if (typeof data.content === 'string' && data.content) yield { thinking: data.content }
     } else if (ev.event === 'done') {
       yield {
         usage: { in: Number(data.prompt_tokens ?? 0), out: Number(data.completion_tokens ?? 0) },
+        ...(typeof data.duration_ms === 'number' ? { durationMs: data.duration_ms } : {}),
+        ...(typeof data.reasoning_tokens === 'number'
+          ? { reasoningTokens: data.reasoning_tokens }
+          : {}),
         ...('provider' in data ? { route: routeOf(data, opts.model) } : {}),
       }
       return
