@@ -41,6 +41,9 @@ const routes: RouteRecordRaw[] = [
     name: 'code-aureon',
     component: () => import('@/views/CodeAureonView.vue'),
   },
+  // The server's modules (GET /api/v1/ui/manifest): generic views for any
+  // backend route that declares `x-ui`, or the app's own page when it has one.
+  { path: '/modules/:key?', name: 'modules', component: () => import('@/views/ModulesView.vue') },
   // The control center (Phase 21): GitHub, Actions, agents, repairs, reviews
   // and the approval inbox, admin-only, behind the same Aureon gate as
   // /trading. `/dev/<module>`. The DEV-only /dev/login and /dev/shot/* below
@@ -64,6 +67,14 @@ const routes: RouteRecordRaw[] = [
     name: 'control-center',
     component: () => import('@/views/ControlCenterView.vue'),
   },
+  // The image studio, phone-first, for any signed-in Aureon user (section 46).
+  { path: '/images', name: 'images', component: () => import('@/views/ImagesView.vue') },
+  // The AI Cost Center: budget, billed usage, versioned prices and the estimator.
+  { path: '/ai/costs', name: 'ai-costs', component: () => import('@/views/AiCostsView.vue') },
+  // The GitHub AI workspace: browse, explain, review, and request approved changes.
+  { path: '/github-ai', name: 'github-ai', component: () => import('@/views/GithubAiView.vue') },
+  // Agents, tools (MCP), permissions, history, approvals and audit, from the server.
+  { path: '/agents-hub', name: 'agents-hub', component: () => import('@/views/AgentsHubView.vue') },
   {
     path: '/astra',
     name: 'astra',

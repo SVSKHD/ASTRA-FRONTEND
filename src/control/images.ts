@@ -45,6 +45,51 @@ export function pollMs(job: Pick<ImageJob, 'status'> | null | undefined): number
   return job?.status === 'running' ? 2_000 : 4_000
 }
 
+/**
+ * What one image takes on the server's CPU worker, for an ETA before there is
+ * anything to measure. A rough figure (the backend's own docs say "minutes"),
+ * so the page labels it an estimate.
+ */
+export const CPU_ESTIMATE_MS = 10 * 60_000
+
+export interface Eta {
+  ms: number
+  /** From this job's own progress rate, not the CPU estimate. */
+  measured: boolean
+}
+
+/**
+ * Time left. Running with some progress: from its own rate. Running without:
+ * the estimate minus what has passed. Queued: the estimate for each job ahead
+ * plus this one. null once it is over.
+ */
+export function eta(
+  job: Pick<ImageJob, 'status' | 'progress' | 'started_at' | 'queue_position'>,
+  now = Date.now(),
+): Eta | null {
+  if (job.status === 'running') {
+    const started = job.started_at ? Date.parse(job.started_at) : NaN
+    const elapsed = Number.isFinite(started) ? Math.max(0, now - started) : 0
+    if (job.progress >= 5 && elapsed > 0) {
+      const total = (elapsed * 100) / job.progress
+      return { ms: Math.max(0, total - elapsed), measured: true }
+    }
+    return { ms: Math.max(0, CPU_ESTIMATE_MS - elapsed), measured: false }
+  }
+  if (job.status === 'queued') {
+    return { ms: ((job.queue_position ?? 0) + 1) * CPU_ESTIMATE_MS, measured: false }
+  }
+  return null
+}
+
+/** "about 4 min left", "~20 min (estimate, CPU)", "less than a minute left". */
+export function etaText(e: Eta | null): string {
+  if (!e) return ''
+  const min = Math.round(e.ms / 60_000)
+  if (e.measured) return min < 1 ? 'less than a minute left' : `about ${min} min left`
+  return `~${Math.max(1, min)} min (estimate: about 10 min per image on CPU)`
+}
+
 /** "Queued · 2 ahead", "Running · 40%", "Done", "Failed: …". */
 export function jobLine(job: ImageJob): string {
   switch (job.status) {

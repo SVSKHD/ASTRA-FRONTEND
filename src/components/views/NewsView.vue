@@ -11,11 +11,22 @@
 // list, never a calendar, and the copy says so where somebody might otherwise
 // assume — because a trader planning a session around a timestamp that means
 // "when the publisher pressed send" is planning around nothing.
-import { computed, ref } from 'vue'
+//
+// On Aureon the list is cards, with filters for a symbol or words, a source and
+// an IST date range; headlines that arrive while the page is open wait behind a
+// "N new" pill instead of shifting what is being read; and an admin gets the
+// feed job, its sources and "Refresh now".
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import ListToolbar from '@/components/ListToolbar.vue'
 import Alert from '@/components/ui/Alert.vue'
 import Button from '@/components/ui/Button.vue'
-import NewsTable from '@/components/news/NewsTable.vue'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
+import SearchField from '@/components/ui/SearchField.vue'
+import Select from '@/components/ui/Select.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
+import NewsCards from '@/components/news/NewsCards.vue'
+import NewsAdmin from '@/components/news/NewsAdmin.vue'
 import FeedHealthPanel from '@/components/news/FeedHealthPanel.vue'
 import IconForex from '@/components/feedicons/IconForex.vue'
 import IconAi from '@/components/feedicons/IconAi.vue'
@@ -23,7 +34,11 @@ import IconCode from '@/components/feedicons/IconCode.vue'
 import { useStyles } from '@/composables/useStyles'
 import { newsOnAureon, useNews } from '@/composables/useNews'
 import { useSettings } from '@/composables/useSettings'
+import { loadNews, newsFeed, revealNews } from '@/news/feed'
+import { filterNews, sourcesOf, termsFor } from '@/news/match'
+import { checkSession, isAdmin, tradingSession } from '@/trading/session'
 import { countOf } from '@/utils/format'
+import type { DateRange } from '@/utils/datePicker'
 import type { NewsCategory } from '@/types'
 
 const { panelStyle } = useStyles()
@@ -40,6 +55,60 @@ const CATEGORIES: { key: NewsCategory; label: string; icon: unknown }[] = [
 // machine — it is a durable preference, not a view state (section 33).
 const chosen = computed(() => settings.value.newsCategories)
 const news = useNews(() => chosen.value)
+const onAureon = newsOnAureon()
+
+// ---- filters ---------------------------------------------------------------
+
+// `/news?q=XAUUSD` (the trading widgets' "open News") opens already filtered.
+const initialQ = useRoute()?.query.q
+const query = ref(typeof initialQ === 'string' ? initialQ : '')
+const source = ref('')
+const days = ref<DateRange | null>({ start: null, end: null })
+// On Aureon the shown list is the feed minus what waits behind the pill.
+const base = computed(() => {
+  if (!onAureon) return news.items.value
+  const waiting = new Set(newsFeed.pending.map((i) => i.id))
+  return news.items.value.filter((i) => !waiting.has(i.id))
+})
+const shown = computed(() =>
+  filterNews(base.value, {
+    q: query.value,
+    source: source.value,
+    from: days.value?.start ?? undefined,
+    to: days.value?.end ?? undefined,
+  }),
+)
+const sources = computed(() => sourcesOf(news.items.value))
+const sourceOptions = computed(() => [
+  { value: '', label: 'All sources' },
+  ...sources.value.map((s) => ({
+    value: s.source,
+    label: `${s.source || 'Unknown'} (${s.count})`,
+  })),
+])
+const filtering = computed(
+  () => !!query.value.trim() || !!source.value || !!days.value?.start || !!days.value?.end,
+)
+function clearFilters() {
+  query.value = ''
+  source.value = ''
+  days.value = { start: null, end: null }
+}
+/** The words a symbol search also matches, shown on the cards as "mentions". */
+const queryTerms = computed(() => {
+  const q = query.value.trim()
+  return /^[A-Za-z0-9:._-]{2,20}$/.test(q) ? termsFor(q) : []
+})
+
+const fresh = computed(() => (onAureon ? newsFeed.pending.length : 0))
+
+// ---- admin -----------------------------------------------------------------
+
+const showAdmin = ref(false)
+const admin = computed(() => onAureon && !!tradingSession.user && isAdmin())
+onMounted(() => {
+  if (onAureon && !tradingSession.checked) void checkSession()
+})
 
 function toggle(category: NewsCategory) {
   const next = chosen.value.includes(category)
@@ -52,8 +121,8 @@ function toggle(category: NewsCategory) {
 
 const showHealth = ref(false)
 // The feed-health panel reads the Firebase pipeline's own record. Aureon's news
-// job keeps its per-feed errors in the scheduler logs instead.
-const healthAvailable = !newsOnAureon()
+// job keeps its errors on the scheduler job instead (the admin strip shows them).
+const healthAvailable = !onAureon
 const counts = computed<Record<string, number>>(() => {
   const out: Record<string, number> = {}
   for (const item of news.items.value) out[item.category] = (out[item.category] ?? 0) + 1
@@ -98,6 +167,15 @@ defineExpose({ focus: () => {} })
         <Button v-if="healthAvailable" variant="ghost" size="sm" @click="showHealth = !showHealth">
           {{ showHealth ? 'Hide feeds' : 'Feeds' }}
         </Button>
+        <Button
+          v-if="admin"
+          variant="ghost"
+          size="sm"
+          :aria-pressed="showAdmin"
+          @click="showAdmin = !showAdmin"
+        >
+          {{ showAdmin ? 'Hide sources' : 'Sources & refresh' }}
+        </Button>
       </template>
     </ListToolbar>
 
@@ -107,9 +185,13 @@ defineExpose({ focus: () => {} })
       <!-- Said once, at the top, where somebody deciding what to do with this
            list will read it. -->
       <p class="nv__note">
-        {{ countOf(news.items.value.length, 'headline') }} from the feeds, newest first. Times are
-        when the publisher posted, not when anything is scheduled — this is a reading list, not an
-        economic calendar.
+        {{
+          filtering
+            ? `${countOf(shown.length, 'headline')} of ${base.length} match.`
+            : `${countOf(base.length, 'headline')} from the feeds, newest first.`
+        }}
+        Times are when the publisher posted, not when anything is scheduled — this is a reading
+        list, not an economic calendar.
       </p>
 
       <section class="nv__categories" aria-label="News categories">
@@ -141,11 +223,62 @@ defineExpose({ focus: () => {} })
       </section>
 
       <FeedHealthPanel v-if="healthAvailable && showHealth" />
+      <NewsAdmin v-if="admin && showAdmin" :sources="sources" />
 
-      <!-- Refreshing, not loading: the items on screen stay while the new
-           category query lands, so what is happening is a replacement of
-           something already readable (section 43, item 6). -->
-      <NewsTable :items="news.items.value" :refreshing="news.loading.value" />
+      <section class="nv__filters" aria-label="Filter headlines">
+        <SearchField
+          v-model="query"
+          size="sm"
+          label="Symbol or words"
+          placeholder="Symbol (XAUUSD) or words"
+        />
+        <Select v-model="source" :options="sourceOptions" size="sm" aria-label="Source" />
+        <GlassDatePicker
+          v-model="days"
+          mode="range"
+          size="sm"
+          clearable
+          timezone="Asia/Kolkata"
+          placeholder="Any day (IST)"
+          label="Days (IST)"
+        />
+        <Button
+          v-if="filtering"
+          size="sm"
+          variant="ghost"
+          data-testid="news-clear"
+          @click="clearFilters"
+          >Clear</Button
+        >
+      </section>
+
+      <div v-if="fresh" class="nv__fresh">
+        <Button size="sm" variant="primary" data-testid="news-fresh" @click="revealNews"
+          >{{ countOf(fresh, 'new headline') }} · show</Button
+        >
+      </div>
+
+      <div
+        v-if="news.loading.value && !news.items.value.length"
+        class="nv__skel"
+        aria-hidden="true"
+      >
+        <Skeleton v-for="n in 4" :key="n" height="72px" radius="var(--radius-card)" />
+      </div>
+      <NewsCards
+        v-else
+        :items="shown"
+        :terms="queryTerms"
+        :empty-title="filtering ? 'Nothing matches' : 'No headlines yet'"
+        :empty-text="
+          filtering
+            ? 'Try another symbol, source or day, or clear the filters.'
+            : 'The server pulls the feeds on a schedule; the first pull fills this in.'
+        "
+      />
+      <div v-if="onAureon && news.error.value" class="nv__retry">
+        <Button size="sm" variant="ghost" @click="loadNews()">Try again</Button>
+      </div>
     </div>
   </div>
 </template>
@@ -231,9 +364,36 @@ defineExpose({ focus: () => {} })
   font-size: var(--text-2xs);
   opacity: 0.75;
 }
+.nv__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: end;
+  min-width: 0;
+}
+/* Stays in view while the list scrolls under it: new headlines are one tap away. */
+.nv__fresh {
+  position: sticky;
+  top: var(--sp-2);
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+}
+.nv__skel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.nv__retry {
+  display: flex;
+  justify-content: center;
+}
 @media (max-width: 760px) {
   .nv__categories {
     grid-template-columns: 1fr;
+  }
+  .nv__filters {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

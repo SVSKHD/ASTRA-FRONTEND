@@ -7,10 +7,11 @@
 // narrowed twice — and it is why the comments are loaded only when a pull
 // request is actually opened.
 //
-// Nothing on this tab calls GitHub. Functions write what the webhook and the
-// sweep told them into Firestore and this watches it, which is what makes a
-// comment appear while its author is still on the page and why one PAT serves
-// however many tabs are open.
+// In an Aureon build (the default) the list comes from Aureon: the server's
+// allowlisted repositories and their open pull requests, re-read every two
+// minutes (useGithubLive → github/live.ts), with the connection card on top.
+// In a Firebase build it is the old mirror: functions write what the webhook
+// and the sweep told them into Firestore and this watches it.
 import { computed, ref } from 'vue'
 import ListToolbar from '@/components/ListToolbar.vue'
 import Alert from '@/components/ui/Alert.vue'
@@ -21,6 +22,7 @@ import PullRow from '@/components/code/PullRow.vue'
 import Caret from '@/components/ui/Caret.vue'
 import CommentThread from '@/components/code/CommentThread.vue'
 import GithubSetup from '@/components/code/GithubSetup.vue'
+import GithubConnectionCard from '@/components/github/GithubConnectionCard.vue'
 import { useStyles } from '@/composables/useStyles'
 import { useGhThread } from '@/composables/useGhThread'
 import { useGithubLive } from '@/composables/useGithubLive'
@@ -37,6 +39,8 @@ const router = useRouter()
 const store = useSettings()
 const { settings, ready } = store
 const live = useGithubLive()
+/** Either source can fill the list: the Firebase mirror or Aureon. */
+const liveAvailable = githubMirrorAvailable || codeOnAureon
 const { flashing } = useRowFlash(live.touched)
 
 const openRepo = ref<number | null>(null)
@@ -53,7 +57,9 @@ const thread = useGhThread(() => openPull.value)
  */
 const setupOpen = ref(false)
 const setupShown = computed(
-  () => setupOpen.value || (!settings.value.trackedRepos.length && !live.repos.value.length),
+  () =>
+    !codeOnAureon &&
+    (setupOpen.value || (!settings.value.trackedRepos.length && !live.repos.value.length)),
 )
 
 const adding = ref('')
@@ -92,7 +98,7 @@ function togglePull(repoId: number, number: number) {
 
 /** Tracked but nothing mirrored yet — a real state on the first day. */
 const silent = computed(() =>
-  settings.value.trackedRepos.filter(
+  (codeOnAureon ? [] : settings.value.trackedRepos).filter(
     (name) => !live.repos.value.some((r) => r.fullName.toLowerCase() === name),
   ),
 )
@@ -115,6 +121,16 @@ defineExpose({ focus: () => {} })
           Code (Aureon)
         </Button>
         <Button
+          v-if="codeOnAureon"
+          variant="ghost"
+          size="sm"
+          :loading="live.loading.value"
+          data-testid="code-refresh"
+          @click="live.refresh()"
+        >
+          Refresh
+        </Button>
+        <Button
           v-if="githubMirrorAvailable"
           variant="ghost"
           size="sm"
@@ -129,22 +145,23 @@ defineExpose({ focus: () => {} })
          setup that calls out and waits, and not an empty list that looks
          broken. -->
     <EmptyState
-      v-if="!githubMirrorAvailable && codeOnAureon"
-      title="GitHub moves to Aureon in Phase 21"
-      description="Issues, pull requests and their comments come back when Aureon's GitHub integration lands. Meanwhile, Code (Aureon) browses the repositories on the server and runs code tasks."
-    />
-    <EmptyState
-      v-else-if="!githubMirrorAvailable"
+      v-if="!liveAvailable"
       title="GitHub is moving"
       description="The Code tab reads from GitHub functions that still run on Firebase, which this build no longer connects to. It comes back when those functions move to Supabase — your tracked repositories are kept until then."
     />
 
     <Alert v-else-if="live.error.value" tone="danger">{{ live.error.value }}</Alert>
 
-    <div v-if="githubMirrorAvailable" class="cv__scroll">
-      <GithubSetup v-if="setupShown" />
+    <div v-if="liveAvailable" class="cv__scroll">
+      <GithubConnectionCard v-if="codeOnAureon" @synced="live.refresh()" />
+      <GithubSetup v-else-if="setupShown" />
 
-      <section class="cv__track">
+      <p v-if="codeOnAureon && live.failed.value.length" class="cv__note" role="status">
+        Pull requests could not be read for {{ live.failed.value.join(', ') }}. They are retried on
+        the next refresh.
+      </p>
+
+      <section v-if="!codeOnAureon" class="cv__track">
         <TextInput
           :model-value="adding"
           placeholder="owner/name"
@@ -164,7 +181,12 @@ defineExpose({ focus: () => {} })
       </section>
 
       <EmptyState
-        v-if="!live.repos.value.length && !settings.trackedRepos.length"
+        v-if="codeOnAureon && !live.loading.value && !live.repos.value.length && !live.error.value"
+        title="No repositories are visible"
+        description="Aureon lists only allowlisted repositories. Sync them from the card above, or widen GITHUB_ALLOWED_REPOS / GITHUB_ALLOWED_OWNERS on the server."
+      />
+      <EmptyState
+        v-else-if="!codeOnAureon && !live.repos.value.length && !settings.trackedRepos.length"
         title="No repositories tracked"
         description="Work through the four steps above: a fine-grained token, the repositories to track, and the webhook. The sweep fills in the rest within fifteen minutes."
       />
@@ -207,7 +229,11 @@ defineExpose({ focus: () => {} })
                 </CollapseTransition>
               </template>
               <p v-if="!(live.pullsByRepo.value[repo.repoId] ?? []).length" class="cv__note">
-                Nothing mirrored for this repository yet.
+                {{
+                  codeOnAureon
+                    ? 'No open pull requests.'
+                    : 'Nothing mirrored for this repository yet.'
+                }}
               </p>
             </div>
           </CollapseTransition>

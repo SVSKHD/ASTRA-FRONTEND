@@ -6,6 +6,8 @@
 // `done` fires after any action that navigates away, so the host can close
 // whatever it drew the menu in.
 import { computed } from 'vue'
+import { authProvider } from '@/auth/provider'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
@@ -13,6 +15,9 @@ import { useLockStore } from '@/stores/lock'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import Checkbox from '@/components/ui/Checkbox.vue'
+import { isNew, markSeen, moduleState, usable } from '@/modules/manifest'
+import { moduleTarget } from '@/modules/overrides'
+import { tradingSession } from '@/trading/session'
 
 const emit = defineEmits<{ done: [] }>()
 
@@ -36,6 +41,34 @@ function openGithub() {
   auth.openGithubPanel()
   emit('done')
 }
+// "Modules": what the Aureon server publishes (src/modules/manifest.ts). A
+// module new since this browser last looked carries a "New" badge.
+const router = useRouter()
+const modules = computed(() => usable(moduleState.manifest, tradingSession.role))
+const MAX_MODULES = 6
+function openModule(key: string) {
+  markSeen(key)
+  void router.push(moduleTarget(key, (p) => router.resolve(p).name !== 'not-found').to)
+  emit('done')
+}
+function allModules() {
+  void router.push('/modules')
+  emit('done')
+}
+
+// The Aureon pages that are not tabs: the GitHub AI workspace, the AI Cost Center, and
+// the agents/tools hub. Only in an Aureon build, where they have a server to read.
+const onAureon = authProvider() === 'aureon'
+const AUREON_PAGES = [
+  { to: '/github-ai', label: 'GitHub AI workspace' },
+  { to: '/ai/costs', label: 'AI Cost Center' },
+  { to: '/agents-hub', label: 'Agents & tools' },
+]
+function openPage(to: string) {
+  void router.push(to)
+  emit('done')
+}
+
 function signOut() {
   void auth.signOut()
   emit('done')
@@ -90,6 +123,34 @@ const menuToggle = computed(() =>
       <Checkbox :model-value="reminderSound" @update:model-value="app.setReminderSound($event)" />
       <span>Reminder sound</span>
     </label>
+    <template v-if="modules.length">
+      <div class="menu-heading">Modules</div>
+      <button
+        v-for="m in modules.slice(0, MAX_MODULES)"
+        :key="m.key"
+        type="button"
+        class="menu-item"
+        :data-testid="`menu-module-${m.key}`"
+        @click="openModule(m.key)"
+      >
+        {{ m.title }}
+        <span v-if="isNew(m.key)" class="menu-new">New: {{ m.title }}</span>
+      </button>
+      <button type="button" class="menu-item" @click="allModules">All modules…</button>
+    </template>
+    <template v-if="onAureon">
+      <div class="menu-heading">Aureon</div>
+      <button
+        v-for="p in AUREON_PAGES"
+        :key="p.to"
+        type="button"
+        class="menu-item"
+        :data-testid="`menu-page-${p.to.slice(1).replace('/', '-')}`"
+        @click="openPage(p.to)"
+      >
+        {{ p.label }}
+      </button>
+    </template>
     <button type="button" class="menu-item" @click="onLockNow">Lock now</button>
     <button type="button" class="menu-item" @click="openSecurity">Security &amp; devices</button>
     <button type="button" class="menu-item" @click="openGithub">{{ ghMenuLabel }}</button>
@@ -112,5 +173,22 @@ const menuToggle = computed(() =>
 }
 .menu-item:hover {
   background: var(--theme-card);
+}
+.menu-heading {
+  padding: 8px 10px 2px;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-dim);
+}
+.menu-new {
+  margin-left: var(--sp-2);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--theme-accent);
+  color: var(--theme-on-accent, #fff);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
 }
 </style>

@@ -8,6 +8,7 @@ import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import AgentTrio from './AgentTrio.vue'
 import { aureon } from '@/api/client'
 import { must } from '@/control/api'
 import { useNow, usePoll } from '@/control/poll'
@@ -96,6 +97,10 @@ async function jobAction(id: string, action: 'pause' | 'resume' | 'run') {
     busy.value = ''
   }
 }
+function retryAll() {
+  void agents.reload()
+  void jobs.reload()
+}
 function levelTone(l: string) {
   return l === 'error' || l === 'critical' ? 'danger' : l === 'warning' ? 'warning' : 'neutral'
 }
@@ -111,6 +116,13 @@ const STREAM: Record<string, string> = {
   <div class="tp-page">
     <p class="tp-note" role="status">{{ STREAM[live.status] }}</p>
     <p v-if="error" class="tp-note" role="alert">{{ error }}</p>
+    <AgentTrio
+      :agents="agents.data.value ?? null"
+      :agents-error="agents.error.value"
+      :jobs="jobs.data.value ?? null"
+      :jobs-error="jobs.error.value"
+      @retry="retryAll"
+    />
     <div class="tp-grid">
       <Card title="Agents">
         <ul v-if="rows.length" class="tp-list">

@@ -42,6 +42,8 @@ import { AI_PROVIDERS, aiModelLabel, type AiChat, type AiItemRef, type AiMessage
 import { chatTarget } from '@/utils/aiSettings'
 import AiModelPicker from '@/components/AiModelPicker.vue'
 import AureonModelPicker from '@/components/AureonModelPicker.vue'
+import ThinkingSteps from '@/components/ai/ThinkingSteps.vue'
+import { aiTraces, traceKey } from '@/ai/steps'
 import { aiBackend, fallbackText } from '@/ai/aureonChat'
 import {
   SUGGESTION_CHIPS,
@@ -870,6 +872,10 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
               <div v-else class="ai-reply" :class="{ 'is-new': isFresh(m) }">
                 <span v-if="!isMobile" class="ai-avatar"><Icon name="sparkles" /></span>
                 <div class="ai-reply__body">
+                  <ThinkingSteps
+                    v-if="onAureon && aiTraces[traceKey(activeAiChat.id, m.id)]"
+                    :trace="aiTraces[traceKey(activeAiChat.id, m.id)]"
+                  />
                   <template v-for="(part, pi) in parsed.get(m.id)?.parts ?? []" :key="pi">
                     <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown escapes everything first -->
                     <div

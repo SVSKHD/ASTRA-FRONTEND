@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createAureonClient, errorMessage, onUnauthorized } from './client'
+import { createAureonClient, errorMessage, onApiSchema, onUnauthorized } from './client'
 import { needsCsrf, readCsrfToken } from './csrf'
 
 function recorder(status = 200, body: unknown = {}) {
@@ -61,6 +61,24 @@ describe('aureon client', () => {
     off()
     expect(seen).toEqual(['/api/auth/me'])
     expect(errorMessage(error)).toBe('not authenticated')
+  })
+})
+
+describe('API schema fingerprint', () => {
+  it('hands X-API-Schema to listeners (the Modules nav re-reads its manifest on a change)', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response('{}', {
+          status: 200,
+          headers: { 'content-type': 'application/json', 'x-api-schema': 'abc123' },
+        }),
+    ) as unknown as typeof fetch
+    const seen: string[] = []
+    const off = onApiSchema((h) => seen.push(h))
+    await createAureonClient('http://api.test', fetchImpl).GET('/api/health')
+    off()
+    await createAureonClient('http://api.test', fetchImpl).GET('/api/health')
+    expect(seen).toEqual(['abc123'])
   })
 })
 

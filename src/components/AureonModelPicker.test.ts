@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { routerKey } from 'vue-router'
 
 const OR = 'google/gemini-2.5-flash-lite'
 const get = vi.hoisted(() => vi.fn())
@@ -94,6 +95,27 @@ describe('<AureonModelPicker />', () => {
     expect(w.text()).toContain('OpenRouter is off: OpenRouter has no daily budget.')
   })
 
+  it('still names OpenRouter when it is turned off, and leads to Settings', async () => {
+    serve(catalog('disabled'))
+    const push = vi.fn()
+    const w = mount(AureonModelPicker, {
+      global: { provide: { [routerKey as symbol]: { push } } },
+    })
+    await flushPromises()
+    const off = w.find('[data-testid="openrouter-off"]')
+    expect(off.text()).toContain('OpenRouter is off: OpenRouter is turned off on the server.')
+    const select = w.findComponent({ name: 'Select' })
+    expect(select.props('options')).toContainEqual(
+      expect.objectContaining({
+        group: 'Other models · via OpenRouter',
+        label: 'Off: OpenRouter is turned off on the server',
+        disabled: true,
+      }),
+    )
+    await off.find('button').trigger('click')
+    expect(push).toHaveBeenCalledWith('/settings')
+  })
+
   it('says when the cap is reached', async () => {
     serve(catalog(), { ...USAGE, spent_usd: '0.50', remaining_usd: '0', cap_reached: true })
     const w = mount(AureonModelPicker)
@@ -101,5 +123,42 @@ describe('<AureonModelPicker />', () => {
     expect(w.find('[data-testid="usage-meter"]').text()).toContain(
       'cap reached, replies stay local',
     )
+  })
+
+  it('groups models by vendor and lists the five providers with why each is off', async () => {
+    serve(catalog())
+    const w = mount(AureonModelPicker)
+    await flushPromises()
+    const select = w.findComponent({ name: 'Select' })
+    expect(select.props('options')).toContainEqual(
+      expect.objectContaining({
+        value: `openrouter|${OR}`,
+        group: 'Gemini (Google) · via OpenRouter',
+      }),
+    )
+    expect(w.find('[data-testid="providers"]').exists()).toBe(false)
+    await w.get('[data-testid="providers-toggle"]').trigger('click')
+    const rows = w.findAll('[data-testid="providers"] li')
+    expect(rows.map((r) => r.find('.aamp__pname').text())).toEqual([
+      'Ollama',
+      'OpenRouter',
+      'Claude',
+      'GPT',
+      'Gemini',
+    ])
+    expect(rows[2].text()).toContain("No Claude model is on the server's allowlist")
+    expect(rows[4].classes()).toContain('is-on')
+  })
+
+  it('turns Think on per device', async () => {
+    serve(catalog())
+    aureonAi.think = false
+    const w = mount(AureonModelPicker)
+    await flushPromises()
+    w.findComponent({ name: 'Switch' }).vm.$emit('update:modelValue', true)
+    await flushPromises()
+    expect(aureonAi.think).toBe(true)
+    expect(w.text()).toContain("Think is on: the model's reasoning streams above each reply")
+    aureonAi.think = false
   })
 })

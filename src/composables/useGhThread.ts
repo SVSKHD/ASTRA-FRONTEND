@@ -15,6 +15,8 @@ import type { DocumentData, Unsubscribe } from 'firebase/firestore'
 import { loadFirestore } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
 import type { GhComment, GhCommentKind } from '@/types'
+import { codeOnAureon } from '@/utils/ghSetup'
+import { readThread, repoNames } from '@/github/live'
 
 const COMMENTS = 'gh-comments'
 
@@ -53,10 +55,34 @@ export function useGhThread(pull: MaybeRefOrGetter<{ repoId: number; number: num
   const error = ref('')
   let unsub: Unsubscribe | null = null
   let token = 0
+  let ctl: AbortController | null = null
 
   function detach(): void {
     unsub?.()
     unsub = null
+    ctl?.abort()
+    ctl = null
+  }
+
+  // Aureon build: one read of the three comment kinds when the pull request opens.
+  async function readAureon(mine: number, want: { repoId: number; number: number }) {
+    const fullName = repoNames.get(want.repoId)
+    if (!fullName) {
+      error.value = 'That repository is no longer listed.'
+      loading.value = false
+      return
+    }
+    const c = (ctl = new AbortController())
+    try {
+      const list = await readThread(fullName, want.repoId, want.number, uid.value, c.signal)
+      if (mine === token) comments.value = list
+    } catch (e) {
+      if (mine === token && !c.signal.aborted) {
+        error.value = `The thread could not be read: ${(e as Error).message}`
+      }
+    } finally {
+      if (mine === token) loading.value = false
+    }
   }
 
   async function attach(): Promise<void> {
@@ -70,6 +96,8 @@ export function useGhThread(pull: MaybeRefOrGetter<{ repoId: number; number: num
       return
     }
     loading.value = true
+    error.value = ''
+    if (codeOnAureon) return readAureon(mine, want)
     const cloud = await loadFirestore()
     if (!cloud || mine !== token) {
       loading.value = false
