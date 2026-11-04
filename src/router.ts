@@ -71,6 +71,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/images', name: 'images', component: () => import('@/views/ImagesView.vue') },
   // The AI Cost Center: budget, billed usage, versioned prices and the estimator.
   { path: '/ai/costs', name: 'ai-costs', component: () => import('@/views/AiCostsView.vue') },
+  // The GitHub AI workspace: browse, explain, review, and request approved changes.
+  { path: '/github-ai', name: 'github-ai', component: () => import('@/views/GithubAiView.vue') },
   {
     path: '/astra',
     name: 'astra',

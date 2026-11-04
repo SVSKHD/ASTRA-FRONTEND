@@ -167,7 +167,7 @@ describe('CodeAureonView', () => {
 
     await w
       .findAll('button')
-      .find((b) => b.text() === 'Diff')!
+      .find((b) => b.text() === 'Review diff')!
       .trigger('click')
     await sees(w, '+export const b = 1')
     await w

@@ -13,6 +13,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { ghCall, ghCanCommitFiles } from '@/utils/ghProxy'
+import { useRouter } from 'vue-router'
 import { useGhRepos } from '@/composables/useGhRepos'
 import { loadHighlighter } from '@/utils/mdHighlight'
 import { renderMarkdown } from '@/utils/markdown'
@@ -38,6 +39,23 @@ import TextArea from '@/components/ui/TextArea.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 
 const app = useAppStore()
+const router = useRouter()
+
+/** Open this file in the GitHub AI workspace, to explain it or to request a change. */
+function toWorkspace(what: 'explain' | 'change') {
+  const r = repo.value
+  if (!r || !file.value) return
+  void router.push({
+    path: '/github-ai',
+    query: {
+      repo: r.fullName,
+      ref: branch.value,
+      path: file.value.path,
+      do: what,
+      tab: what === 'change' ? 'changes' : 'files',
+    },
+  })
+}
 const { options, repo, choose, ensureLoaded } = useGhRepos()
 ensureLoaded()
 
@@ -446,7 +464,28 @@ watch(
                 <a :href="file.htmlUrl" target="_blank" rel="noopener noreferrer" class="gh-soft">
                   <Icon name="external-link" size="xs" /> GitHub
                 </a>
+                <!-- On Aureon nothing commits from the browser: the AI workspace explains
+                     the file, and a change is a code task you approve. -->
+                <template v-if="!canCommit">
+                  <button
+                    type="button"
+                    class="gh-soft"
+                    data-testid="code-ask-ai"
+                    @click="toWorkspace('explain')"
+                  >
+                    <Icon name="bot" size="xs" /> Ask AI
+                  </button>
+                  <button
+                    type="button"
+                    class="gh-soft gh-soft--accent"
+                    data-testid="code-request-change"
+                    @click="toWorkspace('change')"
+                  >
+                    <Icon name="pencil" size="xs" /> Request a change
+                  </button>
+                </template>
                 <button
+                  v-else
                   type="button"
                   class="gh-soft gh-soft--accent"
                   :disabled="!canEdit"
