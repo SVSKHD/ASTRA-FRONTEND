@@ -64,6 +64,8 @@ export const DEFAULT_LOGGER_SETTINGS: LoggerSettings = {
   // against trading profit until the user says they should — "money spent" and
   // "money lost trading" are two questions, and adding them answers neither.
   monthlyBudget: 0,
+  monthlyIncome: 0,
+  categoryBudgets: {},
   netExpenses: false,
   lastSymbol: 'XAUUSD',
   contractSizes: { ...DEFAULT_CONTRACT_SIZES },

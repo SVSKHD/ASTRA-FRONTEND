@@ -53,6 +53,11 @@ const ALLOWED = new Set([
   //                       checkbox — the same case as ProgressRing
   'components/ui/RingCheck.vue',
   'components/views/BotsView.vue',
+  //   SpendPaceChart /    the expense plan's daily charts (section 35b) —
+  //   SaveWasteChart      geometry computed from the month's spending, the same
+  //                       case as the sparkline
+  'components/expenses/SpendPaceChart.vue',
+  'components/expenses/SaveWasteChart.vue',
   'components/AuthDialog.vue',
   //   SessionMap          a dot plot of sign-in coordinates on a graticule —
   //                       geometry projected from data, like the sparkline, and

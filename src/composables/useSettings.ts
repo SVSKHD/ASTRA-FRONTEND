@@ -40,6 +40,16 @@ function readSettings(data: DocumentData | undefined): AstraSettings {
     dayTarget: num(d.dayTarget, DEFAULT_LOGGER_SETTINGS.dayTarget),
     monthTarget: num(d.monthTarget, DEFAULT_LOGGER_SETTINGS.monthTarget),
     monthlyBudget: num(d.monthlyBudget, DEFAULT_LOGGER_SETTINGS.monthlyBudget),
+    monthlyIncome: num(d.monthlyIncome, DEFAULT_LOGGER_SETTINGS.monthlyIncome),
+    categoryBudgets:
+      typeof d.categoryBudgets === 'object' && d.categoryBudgets
+        ? Object.fromEntries(
+            Object.entries(d.categoryBudgets as Record<string, unknown>).filter(
+              (entry): entry is [string, number] =>
+                typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] > 0,
+            ),
+          )
+        : {},
     netExpenses: d.netExpenses === true,
     defaultLot: num(d.defaultLot, DEFAULT_LOGGER_SETTINGS.defaultLot),
     lastSymbol: String(d.lastSymbol || DEFAULT_LOGGER_SETTINGS.lastSymbol),

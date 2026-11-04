@@ -1545,6 +1545,11 @@ export interface LoggerSettings {
   /** The month's spending allowance, which is what the expense ramp is keyed
    *  to (section 35). Zero means no budget has been set. */
   monthlyBudget: number
+  /** The month's income the expense plan is measured against (section 35b).
+   *  Zero means none has been set. */
+  monthlyIncome: number
+  /** Capital per expense category, a standing plan (section 35b). */
+  categoryBudgets: Record<string, number>
   /**
    * Whether expenses come off trading profit in the account block.
    *
@@ -1637,6 +1642,12 @@ export interface DacoitSignal {
 
 export type ExpenseKind = 'one-off' | 'recurring'
 
+/** What paid for an expense (section 35b). A card is money still owed. */
+export type ExpenseMethod = 'card' | 'debit' | 'cash'
+
+/** Whether it had to be spent (section 35b); avoidable is the "wasted" half. */
+export type ExpenseNeed = 'essential' | 'lifestyle' | 'avoidable'
+
 /**
  * One expense (section 35).
  *
@@ -1656,6 +1667,26 @@ export interface Expense {
   kind: ExpenseKind
   /** Recurring only: the day of the month it repeats on, 1–31. */
   recurDay?: number
+  /**
+   * What paid for it and whether it was needed (section 35b), and the currency
+   * it was paid in (35c). `amount` is always INR; a foreign expense also keeps
+   * what was paid and the rate it was converted at.
+   *
+   * Not columns of the Aureon finance API yet (ExpenseIn/ExpenseOut carry
+   * none of them and forbid extra fields), so `tableRoutes` does not send
+   * them and a row read from it gets the defaults below: debit, essential,
+   * INR — the same defaults as supabase/migrations/20261031_expense_method_need.sql.
+   */
+  method: ExpenseMethod
+  need: ExpenseNeed
+  /** ISO 4217, upper case. 'INR' unless paid in something else. */
+  currency: string
+  /** Foreign only: the amount actually paid, in `currency`. */
+  originalAmount?: number
+  /** Foreign only: INR per one unit of `currency`, as converted. */
+  fxRate?: number
+  /** Set on a read-only row brought in from another ledger (section 35d). */
+  source?: 'personal'
   createdAt: number
 }
 
