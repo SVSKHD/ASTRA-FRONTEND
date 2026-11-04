@@ -73,6 +73,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/ai/costs', name: 'ai-costs', component: () => import('@/views/AiCostsView.vue') },
   // The GitHub AI workspace: browse, explain, review, and request approved changes.
   { path: '/github-ai', name: 'github-ai', component: () => import('@/views/GithubAiView.vue') },
+  // Agents, tools (MCP), permissions, history, approvals and audit, from the server.
+  { path: '/agents-hub', name: 'agents-hub', component: () => import('@/views/AgentsHubView.vue') },
   {
     path: '/astra',
     name: 'astra',
