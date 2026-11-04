@@ -2948,6 +2948,22 @@
         "title": "ConnectionOut",
         "type": "object"
       },
+      "ConsumeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "token_id": {
+            "maxLength": 256,
+            "minLength": 8,
+            "title": "Token Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token_id"
+        ],
+        "title": "ConsumeIn",
+        "type": "object"
+      },
       "ContentEntry": {
         "properties": {
           "name": {
@@ -13158,6 +13174,11 @@
             "title": "Kind",
             "type": "string"
           },
+          "managed": {
+            "default": false,
+            "title": "Managed",
+            "type": "boolean"
+          },
           "masked": {
             "anyOf": [
               {
@@ -13336,6 +13357,110 @@
         ],
         "title": "SignalSide",
         "type": "string"
+      },
+      "StartOut": {
+        "properties": {
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "login_url": {
+            "title": "Login Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "login_url",
+          "expires_in"
+        ],
+        "title": "StartOut",
+        "type": "object"
+      },
+      "StatusOut": {
+        "properties": {
+          "api_key_configured": {
+            "title": "Api Key Configured",
+            "type": "boolean"
+          },
+          "client_id_set": {
+            "title": "Client Id Set",
+            "type": "boolean"
+          },
+          "data_stale": {
+            "title": "Data Stale",
+            "type": "boolean"
+          },
+          "expires_soon": {
+            "title": "Expires Soon",
+            "type": "boolean"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
+          "session_active": {
+            "title": "Session Active",
+            "type": "boolean"
+          },
+          "session_expired": {
+            "title": "Session Expired",
+            "type": "boolean"
+          },
+          "session_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Expires At"
+          },
+          "source": {
+            "enum": [
+              "session",
+              "manual",
+              "none"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "client_id_set",
+          "api_key_configured",
+          "redirect_url",
+          "session_active",
+          "session_expires_at",
+          "session_expired",
+          "source",
+          "valid_until",
+          "expires_soon",
+          "data_stale"
+        ],
+        "title": "StatusOut",
+        "type": "object"
       },
       "StepOut": {
         "properties": {
@@ -23819,6 +23944,114 @@
         "summary": "List Audit Events",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/api/v1/dhan/auth/consume": {
+      "post": {
+        "description": "Exchange the tokenId for the session token and store it (encrypted).",
+        "operationId": "consume_api_v1_dhan_auth_consume_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsumeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consume",
+        "tags": [
+          "dhan"
+        ]
+      }
+    },
+    "/api/v1/dhan/auth/session": {
+      "delete": {
+        "description": "Forget the stored session (Dhan has no revoke call for API key tokens; it expires).",
+        "operationId": "logout_api_v1_dhan_auth_session_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "dhan"
+        ]
+      }
+    },
+    "/api/v1/dhan/auth/start": {
+      "post": {
+        "description": "Ask Dhan for a consent and return the login page the browser should open.",
+        "operationId": "start_api_v1_dhan_auth_start_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Start",
+        "tags": [
+          "dhan"
+        ]
+      }
+    },
+    "/api/v1/dhan/auth/status": {
+      "get": {
+        "description": "For /settings and /trading: is there a valid Dhan session, until when. No token.",
+        "operationId": "session_status_api_v1_dhan_auth_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Session Status",
+        "tags": [
+          "dhan"
         ]
       }
     },

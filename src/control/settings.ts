@@ -21,7 +21,7 @@ export const CATEGORY_LABEL: Record<string, string> = {
 
 export const CATEGORY_NOTE: Record<string, string> = {
   openrouter: 'External models. The key is used server-side only.',
-  dhan: 'Broker API. The access token expires and is re-issued from Dhan.',
+  dhan: 'Broker API, read-only. Log in with the API key (above); the manual access token is only a fallback.',
   github: 'Token for the GitHub modules and the coding agent.',
   discord: 'Where alerts and approval requests are posted.',
   mt5: 'The token the MT5 bot pushes with.',

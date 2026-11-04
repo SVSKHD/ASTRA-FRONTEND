@@ -16,6 +16,7 @@ import Card from '@/components/ui/Card.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import ModeBadge from '@/components/trading/ModeBadge.vue'
+import DhanSessionBar from '@/components/control/DhanSessionBar.vue'
 import { aureon } from '@/api/client'
 import { checkSession, isAdmin, signIn, tradingSession } from '@/trading/session'
 import { inbox, loadInbox, useLiveRefresh } from '@/trading/inbox'
@@ -146,6 +147,8 @@ onBeforeUnmount(disconnect)
     </Card>
 
     <template v-else>
+      <!-- Dhan session state for everyone; the login button only for admins. -->
+      <DhanSessionBar :admin="isAdmin()" class="tv__pad" />
       <Tabs
         :model-value="section"
         :tabs="tabs"
