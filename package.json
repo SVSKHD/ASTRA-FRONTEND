@@ -23,7 +23,8 @@
     "dev:fixture": "VITE_FIXTURE=1 vite",
     "seed:demo": "node scripts/seed.mjs",
     "api:gen": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts",
-    "e2e:smoke": "node scripts/e2e-smoke.mjs"
+    "e2e:smoke": "node scripts/e2e-smoke.mjs",
+    "e2e:agents": "node scripts/e2e-agents.mjs"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.21",
