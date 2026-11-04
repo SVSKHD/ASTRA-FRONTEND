@@ -4,7 +4,7 @@
 
 import type { DocumentData } from 'firebase/firestore'
 import { round2 } from '@/utils/tradeMath'
-import type { Expense, ExpenseKind } from '@/types'
+import type { Expense, ExpenseKind, ExpenseMethod, ExpenseNeed } from '@/types'
 
 export interface ExpenseDraft {
   date: string
@@ -13,6 +13,29 @@ export interface ExpenseDraft {
   note: string
   kind: ExpenseKind
   recurDay?: number
+  /** Defaults to 'debit' — invents no card debt. */
+  method?: ExpenseMethod
+  /** Defaults to 'essential' — calls nothing waste. */
+  need?: ExpenseNeed
+  /** Defaults to INR, the base currency `amount` is always in. */
+  currency?: string
+  /** Foreign only: what was paid, in `currency`. */
+  originalAmount?: number
+  /** Foreign only: INR per one unit of `currency`. */
+  fxRate?: number
+}
+
+const METHODS: readonly ExpenseMethod[] = ['card', 'debit', 'cash']
+const NEEDS: readonly ExpenseNeed[] = ['essential', 'lifestyle', 'avoidable']
+const BASE = 'INR'
+
+function currencyOf(value: unknown): string {
+  const code = typeof value === 'string' ? value.trim().toUpperCase() : ''
+  return /^[A-Z]{3}$/.test(code) ? code : BASE
+}
+
+function positive(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
 function num(value: unknown, fallback = 0): number {
@@ -27,6 +50,8 @@ function millis(value: unknown): number {
 }
 
 export function readExpense(id: string, data: DocumentData): Expense {
+  const currency = currencyOf(data.currency)
+  const foreign = currency !== BASE
   return {
     id,
     userId: String(data.userId ?? ''),
@@ -38,6 +63,13 @@ export function readExpense(id: string, data: DocumentData): Expense {
     note: String(data.note ?? ''),
     kind: data.kind === 'recurring' ? 'recurring' : 'one-off',
     recurDay: typeof data.recurDay === 'number' ? data.recurDay : undefined,
+    // A row that predates these fields (or came through a backend that does
+    // not store them) reads as paid from the bank, essential, in INR.
+    method: METHODS.includes(data.method) ? (data.method as ExpenseMethod) : 'debit',
+    need: NEEDS.includes(data.need) ? (data.need as ExpenseNeed) : 'essential',
+    currency,
+    originalAmount: foreign ? positive(data.originalAmount) : undefined,
+    fxRate: foreign ? positive(data.fxRate) : undefined,
     createdAt: millis(data.createdAt),
   }
 }
@@ -46,6 +78,8 @@ export function expenseDocument(
   draft: ExpenseDraft,
   fs: { serverTimestamp: () => unknown },
 ): Record<string, unknown> {
+  const currency = currencyOf(draft.currency)
+  const foreign = currency !== BASE
   return {
     date: draft.date,
     amount: round2(Math.abs(draft.amount)),
@@ -55,6 +89,13 @@ export function expenseDocument(
     // The day of the month it repeats on, taken from the date it was first
     // logged when nobody said otherwise.
     recurDay: draft.kind === 'recurring' ? (draft.recurDay ?? Number(draft.date.slice(8))) : null,
+    method: draft.method ?? 'debit',
+    need: draft.need ?? 'essential',
+    currency,
+    // Nulls, not absent keys: a merge must overwrite an old conversion when an
+    // expense is set back to INR.
+    originalAmount: foreign ? (positive(draft.originalAmount) ?? null) : null,
+    fxRate: foreign ? (positive(draft.fxRate) ?? null) : null,
     createdAt: fs.serverTimestamp(),
   }
 }

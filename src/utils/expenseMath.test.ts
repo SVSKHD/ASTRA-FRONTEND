@@ -23,6 +23,9 @@ function expense(over: Partial<Expense> = {}): Expense {
     category: 'Data feed',
     note: '',
     kind: 'one-off',
+    method: 'debit',
+    need: 'essential',
+    currency: 'INR',
     createdAt: 0,
     ...over,
   }
