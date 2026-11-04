@@ -47,6 +47,8 @@ const routes: RouteRecordRaw[] = [
   // are static segments, so they still win over `:module` in development.
   // The approval engine's Discord deep link (`/dev/approvals/{id}`) and the
   // voice-navigation routes (backend docs/23) land on the modules here.
+  // Settings and secrets (backend docs/settings.md) live in the admin-only control center.
+  { path: '/settings', redirect: '/dev/settings' },
   { path: '/dev/approvals', redirect: '/dev/inbox' },
   {
     path: '/dev/approvals/:id',
