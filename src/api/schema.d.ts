@@ -2254,6 +2254,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dhan/auth/consume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Consume
+         * @description Exchange the tokenId for the session token and store it (encrypted).
+         */
+        post: operations["consume_api_v1_dhan_auth_consume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dhan/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Logout
+         * @description Forget the stored session (Dhan has no revoke call for API key tokens; it expires).
+         */
+        delete: operations["logout_api_v1_dhan_auth_session_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dhan/auth/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start
+         * @description Ask Dhan for a consent and return the login page the browser should open.
+         */
+        post: operations["start_api_v1_dhan_auth_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dhan/auth/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Session Status
+         * @description For /settings and /trading: is there a valid Dhan session, until when. No token.
+         */
+        get: operations["session_status_api_v1_dhan_auth_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/github/actions/monitor": {
         parameters: {
             query?: never;
@@ -4453,6 +4533,11 @@ export interface components {
             scopes: string[];
             /** Token Kind */
             token_kind?: string | null;
+        };
+        /** ConsumeIn */
+        ConsumeIn: {
+            /** Token Id */
+            token_id: string;
         };
         /** ContentEntry */
         ContentEntry: {
@@ -7744,6 +7829,11 @@ export interface components {
             key: string;
             /** Kind */
             kind: string;
+            /**
+             * Managed
+             * @default false
+             */
+            managed: boolean;
             /** Masked */
             masked: string | null;
             /** Requires Reauth */
@@ -7813,6 +7903,39 @@ export interface components {
          * @enum {string}
          */
         SignalSide: "BUY" | "SELL" | "NO_TRADE";
+        /** StartOut */
+        StartOut: {
+            /** Expires In */
+            expires_in: number;
+            /** Login Url */
+            login_url: string;
+        };
+        /** StatusOut */
+        StatusOut: {
+            /** Api Key Configured */
+            api_key_configured: boolean;
+            /** Client Id Set */
+            client_id_set: boolean;
+            /** Data Stale */
+            data_stale: boolean;
+            /** Expires Soon */
+            expires_soon: boolean;
+            /** Redirect Url */
+            redirect_url: string | null;
+            /** Session Active */
+            session_active: boolean;
+            /** Session Expired */
+            session_expired: boolean;
+            /** Session Expires At */
+            session_expires_at: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "session" | "manual" | "none";
+            /** Valid Until */
+            valid_until: string | null;
+        };
         /** StepOut */
         StepOut: {
             /** Completed At */
@@ -13222,6 +13345,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    consume_api_v1_dhan_auth_consume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsumeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_api_v1_dhan_auth_session_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+        };
+    };
+    start_api_v1_dhan_auth_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartOut"];
+                };
+            };
+        };
+    };
+    session_status_api_v1_dhan_auth_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusOut"];
                 };
             };
         };

@@ -9,6 +9,7 @@
 // checks it, audits the change and applies it without a restart.
 import { computed, reactive, ref } from 'vue'
 import Badge from '@/components/ui/Badge.vue'
+import DhanSessionBar from '@/components/control/DhanSessionBar.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -166,6 +167,8 @@ function placeholder(row: SettingRow): string {
         The server has no SETTINGS_MASTER_KEY, so values cannot be stored yet. Everything below
         comes from .env.
       </p>
+      <!-- The control center is admin-only; finish a Dhan login that came back here. -->
+      <DhanSessionBar admin finish-callback @changed="list.reload()" />
       <Card v-for="g in groups" :key="g.category" :title="g.label" class="cc-set">
         <template #header>
           <div class="cc-set__title">
@@ -197,9 +200,12 @@ function placeholder(row: SettingRow): string {
             <p class="tp-note">
               {{ row.description }}
               <span v-if="row.updated_at"> · changed {{ when(row.updated_at) }}</span>
-              <span v-if="row.expires_at"> · token expires {{ when(row.expires_at) }}</span>
+              <span v-if="row.expires_at"> · expires {{ when(row.expires_at) }}</span>
             </p>
-            <form class="tp-row cc-set__form" @submit.prevent="save(row)">
+            <p v-if="row.managed" class="tp-note">
+              Set by <strong>Log in to Dhan</strong> above; it cannot be typed in.
+            </p>
+            <form v-else class="tp-row cc-set__form" @submit.prevent="save(row)">
               <TextInput
                 v-model="drafts[row.key]"
                 :type="inputType(row)"
