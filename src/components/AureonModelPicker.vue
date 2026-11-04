@@ -226,6 +226,9 @@ const meterText = computed(() => {
         <span class="aamp__fill" :style="{ width: pct + '%' }" />
       </div>
       <span class="aamp__summary">{{ meterText }}</span>
+      <Button variant="ghost" size="sm" data-testid="cost-center" @click="router?.push('/ai/costs')"
+        >Cost Center</Button
+      >
     </div>
   </div>
 </template>

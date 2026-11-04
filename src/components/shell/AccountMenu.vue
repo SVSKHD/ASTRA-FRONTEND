@@ -6,6 +6,7 @@
 // `done` fires after any action that navigates away, so the host can close
 // whatever it drew the menu in.
 import { computed } from 'vue'
+import { authProvider } from '@/auth/provider'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
@@ -52,6 +53,19 @@ function openModule(key: string) {
 }
 function allModules() {
   void router.push('/modules')
+  emit('done')
+}
+
+// The Aureon pages that are not tabs: the GitHub AI workspace, the AI Cost Center, and
+// the agents/tools hub. Only in an Aureon build, where they have a server to read.
+const onAureon = authProvider() === 'aureon'
+const AUREON_PAGES = [
+  { to: '/github-ai', label: 'GitHub AI workspace' },
+  { to: '/ai/costs', label: 'AI Cost Center' },
+  { to: '/agents-hub', label: 'Agents & tools' },
+]
+function openPage(to: string) {
+  void router.push(to)
   emit('done')
 }
 
@@ -123,6 +137,19 @@ const menuToggle = computed(() =>
         <span v-if="isNew(m.key)" class="menu-new">New: {{ m.title }}</span>
       </button>
       <button type="button" class="menu-item" @click="allModules">All modules…</button>
+    </template>
+    <template v-if="onAureon">
+      <div class="menu-heading">Aureon</div>
+      <button
+        v-for="p in AUREON_PAGES"
+        :key="p.to"
+        type="button"
+        class="menu-item"
+        :data-testid="`menu-page-${p.to.slice(1).replace('/', '-')}`"
+        @click="openPage(p.to)"
+      >
+        {{ p.label }}
+      </button>
     </template>
     <button type="button" class="menu-item" @click="onLockNow">Lock now</button>
     <button type="button" class="menu-item" @click="openSecurity">Security &amp; devices</button>

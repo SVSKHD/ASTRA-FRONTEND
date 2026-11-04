@@ -69,6 +69,8 @@ const routes: RouteRecordRaw[] = [
   },
   // The image studio, phone-first, for any signed-in Aureon user (section 46).
   { path: '/images', name: 'images', component: () => import('@/views/ImagesView.vue') },
+  // The AI Cost Center: budget, billed usage, versioned prices and the estimator.
+  { path: '/ai/costs', name: 'ai-costs', component: () => import('@/views/AiCostsView.vue') },
   {
     path: '/astra',
     name: 'astra',
