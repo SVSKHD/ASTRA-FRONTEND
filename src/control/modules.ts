@@ -16,6 +16,7 @@ export const MODULES = [
   { value: 'repairs', label: 'Repairs', short: 'Repairs', repo: false },
   { value: 'inbox', label: 'Approvals', short: 'Inbox', repo: false },
   { value: 'audit', label: 'Audit', short: 'Audit', repo: false },
+  { value: 'settings', label: 'Settings', short: 'Settings', repo: false },
 ] as const
 
 export type ModuleKey = (typeof MODULES)[number]['value']

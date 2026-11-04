@@ -12103,6 +12103,25 @@
         "title": "RepositoryOut",
         "type": "object"
       },
+      "RevertIn": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "title": "RevertIn",
+        "type": "object"
+      },
       "ReviewCommentCreate": {
         "additionalProperties": false,
         "properties": {
@@ -13063,6 +13082,182 @@
         "title": "SessionOut",
         "type": "object"
       },
+      "SettingIn": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "value": {
+            "maxLength": 8192,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "SettingIn",
+        "type": "object"
+      },
+      "SettingOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "expires_soon": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires Soon"
+          },
+          "is_secret": {
+            "title": "Is Secret",
+            "type": "boolean"
+          },
+          "is_set": {
+            "title": "Is Set",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Masked"
+          },
+          "requires_reauth": {
+            "title": "Requires Reauth",
+            "type": "boolean"
+          },
+          "source": {
+            "enum": [
+              "db",
+              "env",
+              "default",
+              "unset"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "key",
+          "category",
+          "description",
+          "kind",
+          "is_secret",
+          "requires_reauth",
+          "is_set",
+          "masked",
+          "source"
+        ],
+        "title": "SettingOut",
+        "type": "object"
+      },
+      "SettingsOut": {
+        "properties": {
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "encryption_ready": {
+            "title": "Encryption Ready",
+            "type": "boolean"
+          },
+          "settings": {
+            "items": {
+              "$ref": "#/components/schemas/SettingOut"
+            },
+            "title": "Settings",
+            "type": "array"
+          },
+          "tests": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TestResultOut"
+            },
+            "title": "Tests",
+            "type": "object"
+          }
+        },
+        "required": [
+          "categories",
+          "settings",
+          "tests",
+          "encryption_ready"
+        ],
+        "title": "SettingsOut",
+        "type": "object"
+      },
       "SignalOut": {
         "properties": {
           "candle_time": {
@@ -13554,6 +13749,35 @@
           "instruction"
         ],
         "title": "TaskIn",
+        "type": "object"
+      },
+      "TestResultOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "tested_at": {
+            "format": "date-time",
+            "title": "Tested At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "ok",
+          "detail",
+          "tested_at"
+        ],
+        "title": "TestResultOut",
         "type": "object"
       },
       "Timeframe": {
@@ -28461,6 +28685,182 @@
         "summary": "Publish Review",
         "tags": [
           "reviews"
+        ]
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "description": "Every editable key: is it set, where from, a mask, when it changed. Never a value.",
+        "operationId": "list_settings_api_v1_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Settings",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/{key}": {
+      "delete": {
+        "description": "Drop the DB value so .env (or the default) applies again. Secrets need `password`.",
+        "operationId": "revert_setting_api_v1_settings__key__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RevertIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revert Setting",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "description": "Set or replace the DB value (it overrides .env). Secrets need `password`.",
+        "operationId": "put_setting_api_v1_settings__key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Setting",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/{key}/test": {
+      "post": {
+        "description": "Try the key's group against its service with the values in effect now. The result\nis an outcome line, never a value or a response body.",
+        "operationId": "test_setting_api_v1_settings__key__test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Setting",
+        "tags": [
+          "settings"
         ]
       }
     },

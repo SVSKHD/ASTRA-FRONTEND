@@ -3290,6 +3290,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Settings
+         * @description Every editable key: is it set, where from, a mask, when it changed. Never a value.
+         */
+        get: operations["list_settings_api_v1_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Setting
+         * @description Set or replace the DB value (it overrides .env). Secrets need `password`.
+         */
+        put: operations["put_setting_api_v1_settings__key__put"];
+        post?: never;
+        /**
+         * Revert Setting
+         * @description Drop the DB value so .env (or the default) applies again. Secrets need `password`.
+         */
+        delete: operations["revert_setting_api_v1_settings__key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/{key}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Setting
+         * @description Try the key's group against its service with the values in effect now. The result
+         *     is an outcome line, never a value or a response body.
+         */
+        post: operations["test_setting_api_v1_settings__key__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/integrations": {
         parameters: {
             query?: never;
@@ -7350,6 +7415,11 @@ export interface components {
              */
             synced_at: string;
         };
+        /** RevertIn */
+        RevertIn: {
+            /** Password */
+            password?: string | null;
+        };
         /** ReviewCommentCreate */
         ReviewCommentCreate: {
             /** Body */
@@ -7649,6 +7719,58 @@ export interface components {
             /** User Agent */
             user_agent: string | null;
         };
+        /** SettingIn */
+        SettingIn: {
+            /** Password */
+            password?: string | null;
+            /** Value */
+            value: string;
+        };
+        /** SettingOut */
+        SettingOut: {
+            /** Category */
+            category: string;
+            /** Description */
+            description: string;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Expires Soon */
+            expires_soon?: boolean | null;
+            /** Is Secret */
+            is_secret: boolean;
+            /** Is Set */
+            is_set: boolean;
+            /** Key */
+            key: string;
+            /** Kind */
+            kind: string;
+            /** Masked */
+            masked: string | null;
+            /** Requires Reauth */
+            requires_reauth: boolean;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "db" | "env" | "default" | "unset";
+            /** Updated At */
+            updated_at?: string | null;
+            /** Version */
+            version?: number | null;
+        };
+        /** SettingsOut */
+        SettingsOut: {
+            /** Categories */
+            categories: string[];
+            /** Encryption Ready */
+            encryption_ready: boolean;
+            /** Settings */
+            settings: components["schemas"]["SettingOut"][];
+            /** Tests */
+            tests: {
+                [key: string]: components["schemas"]["TestResultOut"];
+            };
+        };
         /** SignalOut */
         SignalOut: {
             /**
@@ -7833,6 +7955,20 @@ export interface components {
             repo: string;
             /** Title */
             title: string;
+        };
+        /** TestResultOut */
+        TestResultOut: {
+            /** Category */
+            category: string;
+            /** Detail */
+            detail: string;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Tested At
+             * Format: date-time
+             */
+            tested_at: string;
         };
         /**
          * Timeframe
@@ -15496,6 +15632,127 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublishOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_settings_api_v1_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+        };
+    };
+    put_setting_api_v1_settings__key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revert_setting_api_v1_settings__key__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RevertIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_setting_api_v1_settings__key__test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestResultOut"];
                 };
             };
             /** @description Validation Error */
