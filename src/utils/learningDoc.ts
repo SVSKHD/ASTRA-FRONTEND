@@ -42,6 +42,12 @@ export interface DocTask {
   title: string
   completed: boolean
   subtasks: DocSubtask[]
+  /** The point's detail, shown when it is opened. '' = none. */
+  description: string
+  start: string
+  deadline: string
+  estimateMins: number | null
+  tags: string[]
 }
 export interface DocMilestone {
   id: string
@@ -54,6 +60,8 @@ export interface DocMilestone {
   error?: string
 }
 export interface DocGoal {
+  /** Milestones given without a goal: they import on their own, under no goal. */
+  standalone?: boolean
   id: string
   title: string
   description: string
@@ -133,6 +141,65 @@ function durationOf(v: unknown): number | null {
   return typeof inner === 'number' || typeof inner === 'string' ? durationOf(inner) : null
 }
 
+/** Minutes from 90, "90m", "1.5h", "2 hours"; null when there is none. */
+function minutesOf(v: unknown): number | null {
+  if (typeof v === 'number') return v >= 0 ? Math.round(v) : null
+  if (typeof v !== 'string') return null
+  const m = /^\s*(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)?\s*$/i.exec(v)
+  if (!m) return null
+  const n = Number(m[1])
+  return Math.round(/^h/i.test(m[2] ?? '') ? n * 60 : n)
+}
+
+/** The first list under any of the names documents use for it. */
+function listOf(raw: Record<string, unknown>, ...keys: string[]): unknown[] {
+  for (const k of keys) if (Array.isArray(raw[k])) return raw[k] as unknown[]
+  return []
+}
+
+const TASK_KEYS = ['tasks', 'points', 'steps', 'items', 'checklist']
+const SUBTASK_KEYS = ['subtasks', 'steps', 'items', 'checklist', 'children']
+
+function readTask(t: unknown, milestoneId: string): DocTask {
+  const tr = obj(typeof t === 'string' ? { title: t } : t)
+  const title = str(tr.title) || str(tr.name) || str(tr.text)
+  const tid = idOf(tr, milestoneId, title)
+  const tl = obj(tr.timeline)
+  const subtasks = dedupe(
+    listOf(tr, ...SUBTASK_KEYS).map((sIn) => {
+      const sr = obj(typeof sIn === 'string' ? { title: sIn } : sIn)
+      const stitle = str(sr.title) || str(sr.name) || str(sr.text)
+      return { id: idOf(sr, tid, stitle), title: stitle, completed: isDone(sr) }
+    }),
+  ).filter((x) => x.title)
+  const estimate =
+    minutesOf(tr.estimateMins) ??
+    minutesOf(tr.estimate_mins) ??
+    minutesOf(tr.estimate) ??
+    minutesOf(tr.minutes) ??
+    (typeof tr.hours === 'number' ? Math.round(tr.hours * 60) : null)
+  return {
+    id: tid,
+    title,
+    completed: isDone(tr),
+    subtasks,
+    description: str(tr.description) || str(tr.notes) || str(tr.details),
+    start: day(tr.start) || day(tl.start) || day(tr.startDate) || day(tr.start_date),
+    deadline:
+      day(tr.deadline) ||
+      day(tr.due) ||
+      day(tr.dueAt) ||
+      day(tr.due_date) ||
+      day(tl.target) ||
+      day(tl.end) ||
+      (typeof tr.timeline === 'string' ? day(tr.timeline) : ''),
+    estimateMins: estimate,
+    tags: list(tr.tags).flatMap((x) =>
+      typeof x === 'string' && x.trim() ? [x.trim().replace(/^#/, '')] : [],
+    ),
+  }
+}
+
 function nextDay(ymd: string): string {
   return deadlineFrom(ymd, 2)
 }
@@ -161,26 +228,12 @@ function readMilestone(rawIn: unknown, goalId: string, follow: string): DocMiles
   if (start && !deadline && days) deadline = deadlineFrom(start, days)
   if (!start && deadline && days) start = deadlineFrom(deadline, 2 - days)
 
-  const tasks = dedupe(
-    list(raw.tasks).map((t) => {
-      const tr = obj(typeof t === 'string' ? { title: t } : t)
-      const ttitle = str(tr.title) || str(tr.name)
-      const tid = idOf(tr, id, ttitle)
-      const subtasks = dedupe(
-        list(tr.subtasks).map((s) => {
-          const sr = obj(typeof s === 'string' ? { title: s } : s)
-          const stitle = str(sr.title) || str(sr.name)
-          return { id: idOf(sr, tid, stitle), title: stitle, completed: isDone(sr) }
-        }),
-      ).filter((s) => s.title)
-      return { id: tid, title: ttitle, completed: isDone(tr), subtasks }
-    }),
-  ).filter((t) => t.title)
+  const tasks = dedupe(listOf(raw, ...TASK_KEYS).map((t) => readTask(t, id))).filter((t) => t.title)
 
   const m: DocMilestone = {
     id,
     title,
-    description: str(raw.description),
+    description: str(raw.description) || str(raw.notes),
     start,
     deadline,
     conclusion: readConclusion(raw.conclusion),
@@ -215,6 +268,7 @@ function readGoal(rawIn: unknown): DocGoal {
     }),
   )
   const g: DocGoal = {
+    ...(raw.__standalone === true && { standalone: true }),
     id,
     title,
     description: str(raw.description),
@@ -234,17 +288,40 @@ function readGoal(rawIn: unknown): DocGoal {
  * be a title or an object, and `milestones` may stand in for `milestone`.
  * Lifted into the full shape so everything after reads one document.
  */
-function goalsOf(root: Record<string, unknown>): unknown[] {
+function goalsOf(input: unknown): unknown[] {
+  const looksLikeMilestone = (m: unknown) => {
+    const o = obj(m)
+    return (
+      !!(str(o.title) || str(o.name)) &&
+      (TASK_KEYS.some((k) => Array.isArray(o[k])) ||
+        'duration' in o ||
+        'deadline' in o ||
+        'timeline' in o)
+    )
+  }
+  // A bare array: of goals (each with milestones), or of milestones.
+  if (Array.isArray(input)) {
+    if (input.some((g) => Array.isArray(obj(g).milestones))) return input
+    return input.some(looksLikeMilestone) ? [standalone(input)] : []
+  }
+  const root = obj(input)
   if (Array.isArray(root.goals)) return root.goals
   const single = root.milestone ?? root.milestones
-  if (root.goal == null || single == null) return []
+  if (single == null) return []
+  const ms = Array.isArray(single) ? single : [single]
+  // Milestones with no goal named: they import on their own, under no goal.
+  if (root.goal == null) return [standalone(ms)]
   const goal = typeof root.goal === 'string' ? { title: root.goal } : obj(root.goal)
-  return [{ ...goal, milestones: Array.isArray(single) ? single : [single] }]
+  return [{ ...goal, milestones: ms }]
+}
+
+function standalone(milestones: unknown[]) {
+  return { __standalone: true, id: 'standalone', title: 'Milestones (no goal)', milestones }
 }
 
 /** True when the input has the goals → milestones shape this module reads. */
 export function isLearningDoc(input: unknown): boolean {
-  return goalsOf(obj(input)).some((g) => Array.isArray(obj(g).milestones))
+  return goalsOf(input).some((g) => Array.isArray(obj(g).milestones))
 }
 
 export function parseLearningDoc(input: string | unknown): LearningDoc & { parseError?: string } {
@@ -260,7 +337,7 @@ export function parseLearningDoc(input: string | unknown): LearningDoc & { parse
   const project = typeof root.project === 'string' ? root.project : str(obj(root.project).name)
   return {
     project,
-    goals: dedupe(goalsOf(root).map(readGoal)),
+    goals: dedupe(goalsOf(o).map(readGoal)),
     trackingRules: root.tracking_rules ?? root.trackingRules ?? null,
   }
 }
@@ -289,7 +366,7 @@ export function countDoc(doc: LearningDoc): DocCounts {
       out.errors.push(`Goal "${g.title || '(untitled)'}": ${g.error}`)
       continue
     }
-    out.goals++
+    if (!g.standalone) out.goals++
     for (const m of g.milestones) {
       if (m.error) {
         out.errors.push(`Milestone "${m.title || '(untitled)'}" in "${g.title}": ${m.error}`)
@@ -319,10 +396,16 @@ export interface ExportTask {
   subtasks: ExportSubtask[]
   /** Used when the task has no subtasks. */
   completed: boolean
+  description?: string
+  start?: string
+  deadline?: string
+  estimateMins?: number | null
+  tags?: string[]
 }
 export interface ExportMilestone {
   id: string
   title: string
+  description?: string
   start: string
   deadline: string
   conclusion: DocConclusion | null
@@ -372,9 +455,17 @@ export function writeLearningDoc(
           mDone += done
           mTotal += total
           const complete = done === total
+          const tl = {
+            ...(t.start && { start: t.start }),
+            ...(t.deadline && { target: t.deadline }),
+          }
           return {
             id: t.id,
             title: t.title,
+            ...(t.description && { description: t.description }),
+            ...(Object.keys(tl).length && { timeline: tl }),
+            ...(t.estimateMins != null && { estimateMins: t.estimateMins }),
+            ...(t.tags?.length && { tags: t.tags }),
             status: statusOf(done, complete),
             completed: complete,
             progress: pct(done, total),
@@ -388,6 +479,7 @@ export function writeLearningDoc(
         return {
           id: m.id,
           title: m.title,
+          ...(m.description && { description: m.description }),
           duration: {
             ...(m.start && { start: m.start }),
             ...(m.deadline && { deadline: m.deadline }),

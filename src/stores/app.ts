@@ -2675,31 +2675,37 @@ export const useAppStore = defineStore('app', () => {
 
     for (const dg of doc.goals) {
       if (dg.error) continue
-      out.goals++
-      // By stable id, else by title: a single milestone exported on its own
-      // names its goal only by title, and that goal may have been made by hand.
-      const sameTitle = (g: SkillGoal) =>
-        g.title.trim().toLowerCase() === dg.title.trim().toLowerCase()
-      const prevSg = nextSkill.find((g) => exportId.goal(g) === dg.id) ?? nextSkill.find(sameTitle)
-      // What the document leaves out is kept, not blanked.
-      const sgFields = {
-        title: dg.title,
-        description: dg.description || prevSg?.description || '',
-        startDate: dg.start || prevSg?.startDate || '',
-        targetDate: dg.target || prevSg?.targetDate || '',
-        project: doc.project || prevSg?.project || '',
-        sourceId: prevSg?.sourceId ?? dg.id,
-        ...(dg.conclusion && { conclusion: { ...emptyConclusion(), ...dg.conclusion } }),
-      }
-      let sgid: number
-      if (prevSg) {
-        sgid = prevSg.id
-        nextSkill = nextSkill.map((g) => (g.id === sgid ? touched({ ...g, ...sgFields }) : g))
-        out.updated++
-      } else {
-        sgid = id()
-        const order = nextSkill.length ? Math.max(...nextSkill.map((g) => g.order)) + 1 : 0
-        nextSkill = [...nextSkill, { id: sgid, order, ...sgFields, ...stamps() }]
+      // Milestones given without a goal: no SkillGoal is made for them.
+      let sgid: number | null = null
+      if (!dg.standalone) {
+        out.goals++
+        // By stable id, else by title: a single milestone exported on its own
+        // names its goal only by title, and that goal may have been made by hand.
+        const sameTitle = (g: SkillGoal) =>
+          g.title.trim().toLowerCase() === dg.title.trim().toLowerCase()
+        const prevSg =
+          nextSkill.find((g) => exportId.goal(g) === dg.id) ?? nextSkill.find(sameTitle)
+        // What the document leaves out is kept, not blanked.
+        const sgFields = {
+          title: dg.title,
+          description: dg.description || prevSg?.description || '',
+          startDate: dg.start || prevSg?.startDate || '',
+          targetDate: dg.target || prevSg?.targetDate || '',
+          project: doc.project || prevSg?.project || '',
+          sourceId: prevSg?.sourceId ?? dg.id,
+          ...(dg.conclusion && { conclusion: { ...emptyConclusion(), ...dg.conclusion } }),
+        }
+        if (prevSg) {
+          const sid = prevSg.id
+          sgid = sid
+          nextSkill = nextSkill.map((g) => (g.id === sid ? touched({ ...g, ...sgFields }) : g))
+          out.updated++
+        } else {
+          const sid = id()
+          sgid = sid
+          const order = nextSkill.length ? Math.max(...nextSkill.map((g) => g.order)) + 1 : 0
+          nextSkill = [...nextSkill, { id: sid, order, ...sgFields, ...stamps() }]
+        }
       }
 
       for (const dm of dg.milestones) {
@@ -2722,7 +2728,8 @@ export const useAppStore = defineStore('app', () => {
           ...(dm.description && { description: dm.description }),
           startDate: dm.start,
           targetDate: dm.deadline,
-          skillGoalId: sgid,
+          // A standalone milestone keeps the goal it already had, if any.
+          skillGoalId: sgid ?? prevM?.skillGoalId ?? null,
           sourceId: dm.id,
           status: closed
             ? ('done' as const)
@@ -2778,12 +2785,18 @@ export const useAppStore = defineStore('app', () => {
             })
           }
           const done = subtasks.length ? subtasks.every((st) => st.completed) : dt.completed
+          // The point's detail: what the document gives, else what is already here.
           const pFields = {
             text: dt.title,
             done,
             completedAt: done ? (prevP?.completedAt ?? now) : null,
             subtasks,
             sourceId: dt.id,
+            description: dt.description || prevP?.description || '',
+            startAt: dt.start || prevP?.startAt || '',
+            dueAt: dt.deadline || prevP?.dueAt || '',
+            estimateMins: dt.estimateMins ?? prevP?.estimateMins ?? null,
+            tags: dt.tags.length ? dt.tags : (prevP?.tags ?? []),
           }
           if (prevP) {
             nextPoints = nextPoints.map((c) =>
@@ -2796,11 +2809,7 @@ export const useAppStore = defineStore('app', () => {
                 id: id(),
                 goalId: gid,
                 order: (ti + 1) * CHECKLIST_GAP,
-                estimateMins: null,
                 spentMins: 0,
-                dueAt: '',
-                startAt: '',
-                tags: [],
                 startedAt: null,
                 timerStartedAt: null,
                 localRev: 0,
@@ -2845,6 +2854,7 @@ export const useAppStore = defineStore('app', () => {
           .map((m) => ({
             id: exportId.milestone(m),
             title: m.title,
+            description: m.description,
             start: m.startDate,
             deadline: m.targetDate,
             conclusion: m.conclusion
@@ -2861,6 +2871,11 @@ export const useAppStore = defineStore('app', () => {
               id: exportId.task(c),
               title: c.text,
               completed: c.done,
+              description: c.description ?? '',
+              start: c.startAt,
+              deadline: c.dueAt,
+              estimateMins: c.estimateMins,
+              tags: c.tags,
               subtasks: (c.subtasks ?? []).map((st) => ({
                 id: exportId.subtask(c, st),
                 title: st.title,

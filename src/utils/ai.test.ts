@@ -100,7 +100,7 @@ describe('parseAiReply — new items', () => {
           },
           { type: 'task', title: 'Book physio', due: '2026-11-05T10:00', tag: '#health' },
           { type: 'todo', title: 'Stretch daily', due: '2026-11-01' },
-          { type: 'idea', title: 'Not a creatable kind' },
+          { type: 'project', title: 'Not a creatable kind' },
           { type: 'task', title: '   ' },
         ],
       }) +
@@ -113,7 +113,7 @@ describe('parseAiReply — new items', () => {
         title: 'Run a half marathon',
         notes: 'Under 2h15.',
         due: '2027-03-01',
-        items: ['Buy shoes', 'Run 5 km'],
+        items: [{ title: 'Buy shoes' }, { title: 'Run 5 km' }],
       },
       // A time is trimmed to its day; the tag loses its "#".
       { kind: 'task', title: 'Book physio', due: '2026-11-05', tag: 'health' },
@@ -305,5 +305,67 @@ describe('AI item details', () => {
     expect(draft.notes).toContain('Invoice #88')
     expect(draft.notes).toContain('- Draft email (10m)')
     expect(draft.notes).toContain('cc finance')
+  })
+})
+
+describe('create blocks for every scope', () => {
+  const card = (create: unknown[]) => {
+    const p = parseAiReply('```aureon\n' + JSON.stringify({ create }) + '\n```')
+    const c = p.parts.find((x) => x.kind === 'create')
+    return c && c.kind === 'create' ? c.items : []
+  }
+
+  it('reads a parent ref and nested sub-items', () => {
+    const [it] = card([
+      {
+        type: 'todo',
+        parent: 'todo:12',
+        title: 'Compare quotes',
+        items: ['A', { title: 'B', items: [{ title: 'B1', items: ['B1a'] }] }],
+      },
+    ])
+    expect(it.parent).toEqual({ kind: 'todo', id: 12 })
+    expect(it.items?.[1]).toEqual({
+      title: 'B',
+      items: [{ title: 'B1', items: [{ title: 'B1a' }] }],
+    })
+  })
+
+  it('keeps a parent only where it means something', () => {
+    const [a, b, c] = card([
+      { type: 'task', parent: 'todo:1', title: 'Wrong tree' },
+      { type: 'todo', parent: 'goal:3', title: 'Step' },
+      { type: 'note', parent: 'todo:1', title: 'N', notes: 'x' },
+    ])
+    expect(a.parent).toBeUndefined()
+    expect(b.parent).toEqual({ kind: 'goal', id: 3 })
+    expect(c.parent).toBeUndefined()
+  })
+
+  it('drops an item missing what its scope needs, instead of guessing', () => {
+    const items = card([
+      { type: 'reminder', title: 'No time' },
+      { type: 'reminder', title: 'Day only', when: '2026-11-06' },
+      { type: 'deadline', title: 'No date' },
+      { type: 'expense', title: 'No amount' },
+      { type: 'stock', title: 'not a ticker!' },
+      { type: 'reminder', title: 'Ok', when: '2026-11-06T09:30' },
+      { type: 'expense', title: 'Tea', amount: '₹1,200' },
+    ])
+    expect(items.map((i) => i.title)).toEqual(['Ok', 'Tea'])
+    expect(items[1].amount).toBe(1200)
+  })
+
+  it('normalises kind synonyms and stock symbols', () => {
+    const items = card([
+      { type: 'subtask', title: 'S' },
+      { type: 'milestone', title: 'M' },
+      { type: 'stock', title: 'tcs' },
+    ])
+    expect(items.map((i) => [i.kind, i.title])).toEqual([
+      ['task', 'S'],
+      ['goal', 'M'],
+      ['stock', 'TCS'],
+    ])
   })
 })

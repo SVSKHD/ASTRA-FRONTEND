@@ -79,7 +79,7 @@ export function aiContextSections(input: AiContextInput): AiContextSection[] {
     },
     { key: 'trips', title: 'TRIPS — planned', lines: input.trips },
     { key: 'ideas', title: 'IDEAS — open', lines: input.ideas },
-    { key: 'goals', title: 'GOALS — active', lines: input.goals },
+    { key: 'goals', title: 'MILESTONES (goals) — active', lines: input.goals },
     { key: 'stocks', title: 'STOCKS — watchlist', lines: input.stocks },
     { key: 'notes', title: 'Recent notes', lines: input.noteTitles },
     {
@@ -142,9 +142,18 @@ When the reply is about something the user could schedule, track or keep, you ma
 \`\`\`aureon
 {"actions":[{"type":"event","title":"Aquakart CRM — focus block","when":"2026-10-15T10:00","mins":90,"notes":"Fix the filter, then wire the counts."}]}
 \`\`\`
-When the user talks about new things they want to do, track or achieve — new todos, new tasks, new goals, a project to set up — propose them as new items in a create block, so they can be created with one tap. Pick the kind that fits: "todo" for a quick personal to-do; "task" for a piece of work, with "due" as YYYY-MM-DD when there is a deadline; "goal" for a bigger outcome to work towards over time, with "due" as its target date. "items" are short sub-points: for a todo or task they become its sub-todos or subtasks, for a goal they become its checklist steps. Divide the work: any todo or task that takes more than one action gets 2 to 6 items, one concrete action each, in the order they are done; only a single-action item has none. "tag" is an optional one-word label. Propose only what the user discussed, never something already in their data, and ask before guessing a date:
+When the user wants something new in their app — a todo, sub-todos, a task, subtasks, a goal, an idea, a deadline, a reminder, a note, a trip, a stock to watch, or money spent or received — propose it in a create block, so it is created with one tap. Pick the kind that fits:
+- "todo": a quick personal to-do. "task": a piece of work; "due" YYYY-MM-DD when there is a deadline. "idea": something to explore later; optional "due".
+- "goal": what the app calls a Milestone — a bigger outcome over time; "due" is its target date; its "items" become its points (sub-milestones), each {"title","notes"} where "notes" is that point's full detail: what to do, why, how, and links.
+- "deadline": a dated cutoff; "due" YYYY-MM-DD is required. "reminder": a nudge at a time; "when" YYYY-MM-DDTHH:mm (local) is required.
+- "note": something to keep; the whole text goes in "notes". "trip": a journey; optional "due" as its date.
+- "stock": a symbol to watch; "title" is the ticker (e.g. "RELIANCE") and "notes" says why.
+- "expense" / "income": money out / in; "amount" in rupees (a number) is required, optional "category" and "due" as its date (else today).
+Sub-items: "items" holds a todo's sub-todos, a task's subtasks or an idea's sub-ideas. Each item is a string, or {"title","notes","items"} with its own sub-items, nested as deep as the work needs (up to 4 levels). Divide the work: any todo or task that takes more than one action gets 2 to 6 items, one concrete action each, in the order they are done; only a single-action item has none.
+Adding under an EXISTING item: set "parent" to its ref copied exactly from the data, e.g. "todo:12" — a todo under a todo becomes its sub-todo, a task under a task its subtask, an idea under an idea its sub-idea, and a todo or task under "goal:3" becomes a checklist step of that goal. Use this whenever the user asks to add sub-todos, subtasks or steps to something they already have.
+"tag" is an optional one-word label. Propose only what the user discussed, never something already in their data. Never guess a date, time or amount the user did not give: ask instead, and leave that item out until they answer.
 \`\`\`aureon
-{"create":[{"type":"goal","title":"Run a half marathon","due":"2027-03-01","notes":"Finish the city half marathon in March under 2h15, building up from 5 km runs three times a week.","items":["Buy running shoes","Run 5 km three times a week","Sign up for the race"]},{"type":"task","title":"Book a physio check-up","due":"2026-11-05","notes":"Check the left knee before training ramps up."}]}
+{"create":[{"type":"todo","parent":"todo:12","title":"Compare insurance quotes","items":["Get the renewal quote","Get two other quotes"]},{"type":"task","title":"Launch the CRM","due":"2026-11-20","notes":"Ship the Aquakart CRM to the sales team.","items":[{"title":"Fix the filters","items":["Status filter","Date filter"]},"Write the release note"]},{"type":"reminder","title":"Call the bank","when":"2026-11-06T10:00","notes":"Ask about the loan statement."},{"type":"expense","title":"Groceries","amount":1240,"category":"Food","due":"2026-11-05","notes":"Weekly groceries at More."},{"type":"goal","title":"Run a half marathon","due":"2027-03-01","notes":"Finish under 2h15.","items":["Buy running shoes","Run 5 km three times a week"]}]}
 \`\`\`
 Nothing is created until the user taps the card; in prose, say briefly what you suggest and that they can create it below.
 When the user shares a link, the page's text is given to you under WEB PAGES THE USER LINKED. Use it for the details — names, dates, times, places, prices, steps, requirements — and never invent what the page does not say. When they want to act on it (plan it, track it, add it), propose the items in a create block, put the details you used in each item's "notes", and end the notes with the link. If a page could not be read, say so plainly and work from what the user wrote.
@@ -191,19 +200,64 @@ export interface AiItemUpdate {
   id: number
   description: string
 }
-/** The kinds a create block may make. */
-export type AiNewKind = 'todo' | 'task' | 'goal'
-export const AI_NEW_KINDS: AiNewKind[] = ['todo', 'task', 'goal']
+/** The kinds a create block may make — one per scope of the app. */
+export type AiNewKind =
+  | 'todo'
+  | 'task'
+  | 'goal'
+  | 'idea'
+  | 'deadline'
+  | 'reminder'
+  | 'note'
+  | 'trip'
+  | 'stock'
+  | 'expense'
+  | 'income'
+export const AI_NEW_KINDS: AiNewKind[] = [
+  'todo',
+  'task',
+  'goal',
+  'idea',
+  'deadline',
+  'reminder',
+  'note',
+  'trip',
+  'stock',
+  'expense',
+  'income',
+]
+/** Kinds that are trees: their `items` become real sub-items, nested to any depth given. */
+export const AI_TREE_KINDS: AiNewKind[] = ['todo', 'task', 'idea']
+/** An existing item a new one goes under, from its ref in the data ("todo:12"). */
+export type AiParentKind = 'todo' | 'task' | 'idea' | 'goal'
+export interface AiParentRef {
+  kind: AiParentKind
+  id: number
+}
+/** A sub-item: its own title, details and (for todos, tasks and ideas) sub-items. */
+export interface AiSubItem {
+  title: string
+  notes?: string
+  items?: AiSubItem[]
+}
 /** One new item the model proposed — created only when the user taps the card. */
 export interface AiNewItem {
   kind: AiNewKind
   title: string
   notes?: string
-  /** YYYY-MM-DD: a task's deadline, a goal's target date. A todo has none. */
+  /** YYYY-MM-DD: a task's / idea's / deadline's due date, a goal's target, a trip's or a payment's date. */
   due?: string
+  /** YYYY-MM-DDTHH:mm, local: when a reminder fires. */
+  when?: string
+  /** Rupees, > 0: an expense's or income's amount. */
+  amount?: number
+  /** An expense's or income's category. */
+  category?: string
   tag?: string
-  /** Sub-todos / subtasks, or a goal's checklist steps. */
-  items?: string[]
+  /** Sub-todos / subtasks / sub-ideas (nested), or a goal's checklist steps. */
+  items?: AiSubItem[]
+  /** Create it under this existing item instead of at the top level. */
+  parent?: AiParentRef
 }
 export type AiReplyPart =
   | { kind: 'text'; text: string }
@@ -272,36 +326,118 @@ function readUpdates(raw: unknown): AiItemUpdate[] {
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
+const STOCK = /^[A-Z0-9][A-Z0-9.&_-]{0,19}$/
+/** How deep nested sub-items may go (an item, its sub-items, theirs, …). */
+export const AI_MAX_DEPTH = 4
+
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() ? v.trim() : undefined
+}
+
+function readSubs(raw: unknown, depth: number): AiSubItem[] {
+  if (!Array.isArray(raw) || depth > AI_MAX_DEPTH) return []
+  const out: AiSubItem[] = []
+  for (const i of raw as unknown[]) {
+    if (typeof i === 'string') {
+      if (i.trim()) out.push({ title: i.trim().replace(/\s+/g, ' ') })
+      continue
+    }
+    const o = (i ?? {}) as Record<string, unknown>
+    const title = str(o.title) ?? str(o.text)
+    if (!title) continue
+    const notes = str(o.notes) ?? str(o.description) ?? str(o.details)
+    const items = readSubs(
+      o.items ?? o.steps ?? o.subtasks ?? o.points ?? o.tasks ?? o.checklist ?? o.children,
+      depth + 1,
+    )
+    out.push({
+      title: title.replace(/\s+/g, ' '),
+      ...(notes ? { notes } : {}),
+      ...(items.length ? { items } : {}),
+    })
+  }
+  return out.slice(0, 30)
+}
+
+/** "todo:12", "[task:5]" or {"type":"goal","id":3}. */
+function readParent(raw: unknown): AiParentRef | undefined {
+  let kind = ''
+  let id = NaN
+  if (typeof raw === 'string') {
+    const m = /^\[?(\w+):(\d+)\]?$/.exec(raw.trim())
+    if (m) {
+      kind = m[1]
+      id = Number(m[2])
+    }
+  } else if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>
+    kind = String(o.type ?? o.kind ?? '')
+    id = Number(o.id)
+  }
+  return ['todo', 'task', 'idea', 'goal'].includes(kind) && Number.isInteger(id) && id > 0
+    ? { kind: kind as AiParentKind, id }
+    : undefined
+}
+
+/** Count every sub-item, at every depth. */
+export function countSubs(items: AiSubItem[] | undefined): number {
+  return (items ?? []).reduce((n, i) => n + 1 + countSubs(i.items), 0)
+}
 
 function readCreate(raw: unknown): AiNewItem[] {
   if (!Array.isArray(raw)) return []
-  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
   const out: AiNewItem[] = []
   for (const c of raw as Record<string, unknown>[]) {
-    const kind = String(c?.type ?? c?.kind ?? '').toLowerCase() as AiNewKind
-    const title = str(c?.title) ?? str(c?.text)
-    if (!AI_NEW_KINDS.includes(kind) || !title) continue
+    let kind = String(c?.type ?? c?.kind ?? '').toLowerCase()
+    if (kind === 'subtodo' || kind === 'sub-todo') kind = 'todo'
+    if (kind === 'subtask') kind = 'task'
+    if (kind === 'milestone') kind = 'goal'
+    if (kind === 'event') kind = 'reminder'
+    const title = str(c?.title) ?? str(c?.text) ?? str(c?.symbol)
+    if (!AI_NEW_KINDS.includes(kind as AiNewKind) || !title) continue
+    const k = kind as AiNewKind
     const notes = str(c.notes) ?? str(c.description) ?? str(c.details)
+    const whenRaw = str(c.when ?? c.at ?? c.start)
     // "2026-11-05T10:00" still names a day; keep just the day.
-    const due = str(c.due ?? c.deadline ?? c.targetDate ?? c.when)?.slice(0, 10)
+    const due = str(c.due ?? c.deadline ?? c.targetDate ?? c.target ?? c.date ?? c.when)?.slice(
+      0,
+      10,
+    )
     const tag = str(c.tag)?.replace(/^#/, '').split(/\s+/)[0]
-    const rawItems = Array.isArray(c.items) ? c.items : Array.isArray(c.steps) ? c.steps : []
-    const items = (rawItems as unknown[])
-      .map((i) =>
-        typeof i === 'string'
-          ? i.trim()
-          : (str((i as Record<string, unknown>)?.title ?? (i as Record<string, unknown>)?.text) ??
-            ''),
-      )
-      .filter(Boolean)
-      .slice(0, 30)
+    const amount = Number(String(c.amount ?? '').replace(/[,₹\s]/g, ''))
+    const category = str(c.category)
+    const items = readSubs(
+      c.items ?? c.steps ?? c.subtasks ?? c.points ?? c.tasks ?? c.checklist ?? c.children,
+      1,
+    )
+    const parent = readParent(c.parent ?? c.under)
+
+    // Each kind needs what its scope cannot exist without; anything short is dropped
+    // rather than guessed (the instructions tell the model to ask instead).
+    if (k === 'deadline' && !(due && DAY.test(due))) continue
+    if (k === 'reminder' && !(whenRaw && WHEN.test(whenRaw) && whenRaw.includes('T'))) continue
+    if ((k === 'expense' || k === 'income') && !(amount > 0 && Number.isFinite(amount))) continue
+    const symbol = title.toUpperCase().replace(/\s+/g, '')
+    if (k === 'stock' && !STOCK.test(symbol)) continue
+
+    const dated = ['task', 'goal', 'idea', 'deadline', 'trip', 'expense', 'income'].includes(k)
+    // A parent only means something for a sub-item of the same tree, or a goal's step.
+    const parentOk =
+      parent &&
+      ((AI_TREE_KINDS.includes(k) && parent.kind === k) ||
+        (parent.kind === 'goal' && (k === 'todo' || k === 'task')))
+    const withSubs = AI_TREE_KINDS.includes(k) || k === 'goal'
     out.push({
-      kind,
-      title: title.replace(/\s+/g, ' '),
+      kind: k,
+      title: k === 'stock' ? symbol : title.replace(/\s+/g, ' '),
       ...(notes ? { notes } : {}),
-      ...(due && DAY.test(due) && kind !== 'todo' ? { due } : {}),
+      ...(due && DAY.test(due) && dated ? { due } : {}),
+      ...(k === 'reminder' && whenRaw ? { when: whenRaw.slice(0, 16) } : {}),
+      ...(k === 'expense' || k === 'income' ? { amount: Math.round(amount * 100) / 100 } : {}),
+      ...(category && (k === 'expense' || k === 'income') ? { category } : {}),
       ...(tag ? { tag } : {}),
-      ...(items.length ? { items } : {}),
+      ...(withSubs && items.length ? { items } : {}),
+      ...(parentOk ? { parent } : {}),
     })
   }
   return out.slice(0, 20)
