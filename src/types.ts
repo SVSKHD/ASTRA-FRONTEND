@@ -285,6 +285,8 @@ export interface AiMessage {
     provider: 'ollama' | 'openrouter' | 'anthropic' | 'gemini'
     requestedProvider?: 'ollama' | 'openrouter' | 'anthropic' | 'gemini'
     requestedModel?: string
+    // Another external provider failed first and this one answered (backend docs/30).
+    fromProvider?: 'ollama' | 'openrouter' | 'anthropic' | 'gemini'
     fallbackReason?: string | null
     localOnly?: boolean
     costUsd?: string | null

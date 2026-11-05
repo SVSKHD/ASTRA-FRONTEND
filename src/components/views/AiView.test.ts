@@ -108,11 +108,39 @@ describe('<AiView />', () => {
     })
     const wrapper = mount(AiView, { global })
     const ext = wrapper.findAll('[data-testid="external-badge"]')
-    expect(ext.map((b) => b.text())).toEqual(['Claude'])
+    expect(ext.map((b) => b.text())).toEqual(['Claude · claude-test-model'])
     expect(ext[0].attributes('title')).toContain('(external)')
     expect(wrapper.get('[data-testid="fallback-note"]').text()).toContain(
       "Gemini → local · today's Gemini budget is used up",
     )
+  })
+
+  it('names the model on the badge, and a switch between external providers', () => {
+    const app = useAppStore()
+    const id = app.newAiChat()
+    app.addAiMessage(id, { role: 'user', content: 'Hi' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'From Gemini',
+      model: 'gemini-2.5-flash',
+      route: { provider: 'gemini', requestedProvider: 'gemini', fallbackReason: null },
+    })
+    app.addAiMessage(id, { role: 'user', content: 'Again' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'From OpenRouter',
+      model: 'openai/gpt-test',
+      route: {
+        provider: 'openrouter',
+        requestedProvider: 'gemini',
+        fallbackReason: 'upstream_error',
+      },
+    })
+    const wrapper = mount(AiView, { global })
+    const ext = wrapper.findAll('[data-testid="external-badge"]').map((b) => b.text())
+    expect(ext).toEqual(['Gemini · gemini-2.5-flash', 'Gemini → OpenRouter · gpt-test'])
+    // A badge already names the model: no second "Qwen" chip next to it.
+    expect(wrapper.findAll('[data-testid="reply-model"]')).toHaveLength(0)
   })
 
   it('labels a plain local reply, and never borrows the chat model for an unreported one', () => {

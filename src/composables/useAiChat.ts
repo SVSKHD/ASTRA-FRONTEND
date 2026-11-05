@@ -295,9 +295,14 @@ async function send(prompt: string): Promise<void> {
   if (chatId == null) chatId = app.newAiChat()
   const chat = app.aiChatById(chatId)
   if (!chat) return
-  // The provider and model picked in the header, for this turn.
-  const { provider, model } = chatTarget()
-  if (model !== chat.model) app.setAiChatModel(chatId, model)
+  // The provider and model picked in the header, for this turn. On Aureon the
+  // pick is the chat's Aureon target (or the server's choice): the proxy-era
+  // setting (Bytez "Qwen3 4B" by default) is never stamped on an Aureon reply,
+  // which used to label a Gemini answer as Qwen until the stream named it.
+  const onAureon = aiBackend() === 'aureon'
+  const { provider, model: proxyModel } = chatTarget()
+  const model = onAureon ? (targetFor(String(chatId))?.model ?? '') : proxyModel
+  if (!onAureon && model !== chat.model) app.setAiChatModel(chatId, model)
 
   app.addAiMessage(chatId, { role: 'user', content: body })
   const usedData = app.aiUseData
@@ -312,7 +317,7 @@ async function send(prompt: string): Promise<void> {
     ...(working ? { focus: { collection: working.collection, id: working.id } } : {}),
   })
 
-  if (aiBackend() === 'aureon') {
+  if (onAureon) {
     await sendAureon(app, chatId, msgId, body, working, usedData)
     return
   }
@@ -487,6 +492,7 @@ async function sendAureon(
           provider: r.provider,
           requestedProvider: r.requestedProvider ?? target?.provider,
           requestedModel: r.requestedModel ?? target?.model,
+          ...(r.fromProvider ? { fromProvider: r.fromProvider } : {}),
           fallbackReason: r.fallbackReason ?? null,
           localOnly: r.localOnly ?? false,
           costUsd: r.costUsd ?? null,
