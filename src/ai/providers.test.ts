@@ -1,51 +1,102 @@
-// The five providers come from the server's catalog: Claude, GPT and Gemini are
-// OpenRouter models grouped by vendor, available only when OpenRouter is on and the
-// server allows at least one of their models.
+// The four providers come from the server's catalog (backend docs/26): Local — Ollama,
+// OpenRouter, Claude (direct Anthropic API) and Gemini (direct Google API). Nothing here
+// decides that a model is usable; the server does.
 import { describe, expect, it } from 'vitest'
-import { groupOf, providerOf, providerRows } from './providers'
-import type { ModelCatalog } from './aureonChat'
+import { groupOf, modelReason, providerRows } from './providers'
+import type { CatalogModel, ModelCatalog, ProviderInfo } from './aureonChat'
+
+const model = (over: Partial<CatalogModel>): CatalogModel => ({
+  provider: 'ollama',
+  id: 'qwen2.5:3b',
+  label: 'qwen2.5:3b',
+  available: true,
+  unavailableReason: null,
+  capabilities: ['chat', 'streaming'],
+  privacy: 'local',
+  ...over,
+})
+
+const prov = (provider: ProviderInfo['provider'], over: Partial<ProviderInfo> = {}) =>
+  ({
+    provider,
+    label: provider,
+    enabled: true,
+    configured: true,
+    usable: true,
+    unavailableReason: null,
+    defaultModel: null,
+    allowedModels: [],
+    dailyLimitUsd: provider === 'ollama' ? null : '1.00',
+    costSource: provider === 'ollama' ? 'none' : 'configured_price',
+    privacy: provider === 'ollama' ? 'local' : 'external',
+    ...over,
+  }) as ProviderInfo
 
 const catalog = (over: Partial<ModelCatalog> = {}): ModelCatalog => ({
   default: { provider: 'ollama', model: 'qwen2.5:3b' },
   localFallbackModel: 'qwen2.5:3b',
   ollamaReachable: true,
-  openrouterOff: null,
+  openrouterOff: 'no_budget',
   models: [
-    { provider: 'ollama', id: 'qwen2.5:3b', label: 'qwen2.5:3b' },
-    { provider: 'openrouter', id: 'anthropic/claude-sonnet', label: 'Claude Sonnet' },
-    { provider: 'openrouter', id: 'google/gemini-flash', label: 'Gemini Flash' },
-    { provider: 'openrouter', id: 'meta-llama/llama-4', label: 'Llama 4' },
+    model({}),
+    model({ provider: 'anthropic', id: 'claude-a', label: 'claude-a', privacy: 'external' }),
+    model({
+      provider: 'gemini',
+      id: 'gemini-a',
+      label: 'gemini-a',
+      privacy: 'external',
+      available: false,
+      unavailableReason: 'no_pricing',
+    }),
   ],
+  // Deliberately out of order: rows are always local first.
+  providers: [
+    prov('gemini', { defaultModel: 'gemini-a' }),
+    prov('ollama'),
+    prov('anthropic', { defaultModel: 'claude-a' }),
+    prov('openrouter', { usable: false, unavailableReason: 'no_budget' }),
+  ],
+  defaultExternalProvider: 'anthropic',
+  globalDailyLimitUsd: null,
   ...over,
 })
 
 describe('providers', () => {
-  it('groups OpenRouter models by vendor from the id prefix', () => {
-    expect(providerOf({ provider: 'openrouter', id: 'Anthropic/claude-x' })).toBe('claude')
-    expect(providerOf({ provider: 'openrouter', id: 'openai/gpt-x' })).toBe('gpt')
-    expect(providerOf({ provider: 'openrouter', id: 'meta-llama/x' })).toBe('openrouter')
-    expect(providerOf({ provider: 'ollama', id: 'openai/looks-like-it' })).toBe('ollama')
-    expect(groupOf({ provider: 'openrouter', id: 'google/gemini-flash' })).toBe(
-      'Gemini (Google) · via OpenRouter',
-    )
+  it('groups models by provider, with OpenRouter vendors staying under OpenRouter', () => {
+    expect(groupOf({ provider: 'ollama' })).toBe('Local — Ollama')
+    expect(groupOf({ provider: 'openrouter' })).toBe('OpenRouter')
+    expect(groupOf({ provider: 'anthropic' })).toBe('Claude — Direct Anthropic API')
+    expect(groupOf({ provider: 'gemini' })).toBe('Gemini — Direct Google API')
   })
 
-  it('lists all five with availability and the reason when not', () => {
-    const rows = Object.fromEntries(providerRows(catalog()).map((r) => [r.key, r]))
-    expect(Object.keys(rows)).toEqual(['ollama', 'openrouter', 'claude', 'gpt', 'gemini'])
-    expect(rows.ollama).toMatchObject({ available: true, models: 1 })
-    expect(rows.openrouter).toMatchObject({ available: true, models: 3 })
-    expect(rows.claude).toMatchObject({ available: true, models: 1 })
-    expect(rows.gpt.available).toBe(false)
-    expect(rows.gpt.reason).toMatch(/No GPT model is on the server's allowlist.*openai\//)
+  it('lists the four, local first, with status, privacy and the reason when not usable', () => {
+    const rows = providerRows(catalog())
+    expect(rows.map((r) => r.key)).toEqual(['ollama', 'openrouter', 'anthropic', 'gemini'])
+    const by = Object.fromEntries(rows.map((r) => [r.key, r]))
+    expect(by.ollama).toMatchObject({ available: true, models: 1, privacy: 'local' })
+    expect(by.openrouter).toMatchObject({ available: false, privacy: 'external' })
+    expect(by.openrouter.reason).toBe('Off: OpenRouter has no daily budget.')
+    expect(by.anthropic).toMatchObject({ available: true, models: 1, defaultModel: 'claude-a' })
   })
 
-  it('makes every OpenRouter vendor unavailable when OpenRouter is off, saying why', () => {
-    const rows = providerRows(catalog({ openrouterOff: 'no_budget', ollamaReachable: false }))
-    expect(rows.every((r) => !r.available)).toBe(true)
-    expect(rows[0].reason).toBe('Ollama is not reachable from the server.')
-    expect(rows.find((r) => r.key === 'claude')?.reason).toBe(
-      'Needs OpenRouter, which is off: OpenRouter has no daily budget.',
+  it('does not count an unpriced model as usable, and says how to fix it', () => {
+    const gemini = providerRows(catalog()).find((r) => r.key === 'gemini')!
+    expect(gemini).toMatchObject({ available: false, models: 0, blocked: 1 })
+    expect(gemini.reason).toContain('GEMINI_MODEL_PRICES')
+    const m = catalog().models[2]
+    expect(modelReason(m)).toBe(
+      'No price set (GEMINI_MODEL_PRICES): an unpriced model is never used.',
     )
+    expect(modelReason(catalog().models[1])).toBe('')
+  })
+
+  it('says when the local server is unreachable', () => {
+    const rows = providerRows(
+      catalog({ providers: [prov('ollama', { usable: false, unavailableReason: 'unreachable' })] }),
+    )
+    expect(rows[0]).toMatchObject({
+      available: false,
+      reason: 'Ollama is not reachable from the server.',
+    })
   })
 })

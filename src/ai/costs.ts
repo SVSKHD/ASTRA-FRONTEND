@@ -10,6 +10,13 @@
 //                                         as billed for each reply
 //   GET  /api/v1/ai/budget               daily cap (enforced) and monthly budget
 //
+// Backend docs/26-ai-providers.md adds per-provider usage:
+//   GET  /api/ai/usage?provider=         today's spend of one external provider against its
+//                                         cap, and the total against the shared cap
+//   GET  /api/v1/ai/usage?days=          admin: calls per agent and provider (failures,
+//                                         fallbacks, local-only, tokens, cost, latency) and
+//                                         today's spend, reservations and cap per provider
+//
 // These are newer than the generated client, so they go through it untyped
 // (modules/request.ts: same cookies, CSRF and 401 handling). A server without them
 // answers 404, and the page says the Cost Center is not on that server yet rather than
@@ -18,7 +25,7 @@
 import { callView } from '@/modules/request'
 
 export interface PriceModel {
-  provider: 'openrouter' | 'ollama'
+  provider: 'openrouter' | 'ollama' | 'anthropic' | 'gemini'
   model: string
   label: string
   vendor: string
@@ -76,6 +83,56 @@ export interface AiBudget {
   available: boolean
 }
 
+/** One agent × provider row of GET /api/v1/ai/usage (money as decimal strings). */
+export interface AgentUsage {
+  agent: string
+  provider: string
+  calls: number
+  failures: number
+  fallbacks: number
+  local_only: number
+  prompt_tokens: number
+  completion_tokens: number
+  cost_usd: string
+  avg_latency_ms: number
+}
+/** Today's spend of one external provider; null = its counter could not be read. */
+export interface ProviderSpend {
+  provider: string
+  daily_limit_usd: string
+  spent_today_usd: string | null
+  reserved_usd: string | null
+  calls_today: number | null
+  failures_today: number | null
+}
+export interface ProviderUsage {
+  since: string
+  /** OpenRouter's cap and spend, as before docs/26. */
+  daily_limit_usd: string
+  spent_today_usd: string | null
+  items: AgentUsage[]
+  /** Absent on a server from before docs/26. */
+  providers?: ProviderSpend[]
+  global_limit_usd?: string | null
+  global_spent_today_usd?: string | null
+}
+/** GET /api/ai/usage?provider= (any signed-in user). */
+export interface TodayUsage {
+  day: string
+  provider: string
+  spent_usd: string
+  limit_usd: string
+  remaining_usd: string
+  prompt_tokens: number
+  completion_tokens: number
+  calls: number
+  failures: number
+  cap_reached: boolean
+  available: boolean
+  global_limit_usd?: string | null
+  global_spent_usd?: string | null
+}
+
 /** A read that may not exist on this server yet. */
 export type Maybe<T> =
   { ok: true; data: T } | { ok: false; missing: boolean; error: string; status: number }
@@ -92,6 +149,12 @@ export const costApi = {
   versions: () => read<PricingVersion[]>('/api/v1/ai/pricing/versions'),
   history: (days: number) => read<UsageHistory>('/api/v1/ai/usage/history', { days }),
   budget: () => read<AiBudget>('/api/v1/ai/budget'),
+  /** Admin: per agent and provider over the last `days` (1–90). */
+  providerUsage: (days: number) =>
+    read<ProviderUsage>('/api/v1/ai/usage', { days: Math.min(90, Math.max(1, days)) }),
+  /** Today's spend of one external provider. OpenRouter sends no query, as before. */
+  today: (provider: 'openrouter' | 'anthropic' | 'gemini') =>
+    read<TodayUsage>('/api/ai/usage', provider === 'openrouter' ? undefined : { provider }),
   async refreshPricing(): Promise<Maybe<PricingCatalog>> {
     const r = await callView({ method: 'POST', path: '/api/v1/ai/pricing/refresh' })
     return r.ok
@@ -196,4 +259,71 @@ export function usedPct(spent: string, limit: string): number | null {
   const l = num(limit)
   if (l <= 0) return null
   return Math.min(100, Math.round((num(spent) / l) * 100))
+}
+
+// ---- per provider (docs/26) -----------------------------------------------------------------
+
+export interface ProviderRollup {
+  provider: string
+  calls: number
+  succeeded: number
+  failed: number
+  fallbacks: number
+  localOnly: number
+  promptTokens: number
+  completionTokens: number
+  costUsd: number
+  /** Weighted by calls; null when there were none. */
+  avgLatencyMs: number | null
+}
+
+/**
+ * The agent rows summed per provider, local first. Only what the server counted: a
+ * provider with no calls in the window has no row.
+ */
+export function rollupByProvider(items: AgentUsage[]): ProviderRollup[] {
+  const by = new Map<string, ProviderRollup & { latencySum: number }>()
+  for (const i of items) {
+    const r = by.get(i.provider) ?? {
+      provider: i.provider,
+      calls: 0,
+      succeeded: 0,
+      failed: 0,
+      fallbacks: 0,
+      localOnly: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      costUsd: 0,
+      avgLatencyMs: null,
+      latencySum: 0,
+    }
+    r.calls += i.calls
+    r.failed += i.failures
+    r.succeeded = r.calls - r.failed
+    r.fallbacks += i.fallbacks
+    r.localOnly += i.local_only
+    r.promptTokens += i.prompt_tokens
+    r.completionTokens += i.completion_tokens
+    r.costUsd += num(i.cost_usd)
+    r.latencySum += i.avg_latency_ms * i.calls
+    r.avgLatencyMs = r.calls ? Math.round(r.latencySum / r.calls) : null
+    by.set(i.provider, r)
+  }
+  const order = ['ollama', 'openrouter', 'anthropic', 'gemini']
+  const rank = (p: string) => (order.includes(p) ? order.indexOf(p) : order.length)
+  return [...by.values()]
+    .map(({ latencySum: _, ...r }) => r)
+    .sort((a, b) => rank(a.provider) - rank(b.provider) || a.provider.localeCompare(b.provider))
+}
+
+/** "Local (Ollama)", "OpenRouter", "Claude (Anthropic)", "Gemini (Google)", else as sent. */
+export function providerName(p: string): string {
+  return (
+    {
+      ollama: 'Local (Ollama)',
+      openrouter: 'OpenRouter',
+      anthropic: 'Claude (Anthropic)',
+      gemini: 'Gemini (Google)',
+    }[p] ?? p
+  )
 }

@@ -10,7 +10,13 @@
 // what the chat store keeps.
 
 import { reactive } from 'vue'
-import { fallbackText, targetLabel, type AiRoute, type ChatEvent } from './aureonChat'
+import {
+  fallbackText,
+  PROVIDER_NAME,
+  targetLabel,
+  type AiRoute,
+  type ChatEvent,
+} from './aureonChat'
 
 export type StepState = 'running' | 'done' | 'warn' | 'error'
 export type StepKey =
@@ -81,14 +87,14 @@ function usd(cost: string | null | undefined): string {
 /** Fold one stream event into the trace (mutates it). */
 export function applyEvent(t: AiTrace, ev: ChatEvent, now = Date.now()): void {
   if (ev.route && ev.reset) {
-    // OpenRouter failed mid-reply; the text so far is dropped and the local model answers.
+    // The external provider failed mid-reply; the text so far is dropped and the local model answers.
     t.route = ev.route
     finish(t, 'think')
     finish(t, 'write')
     add(t, {
       key: 'fallback',
       label: `Fell back to ${targetLabel(ev.route)}`,
-      detail: fallbackText(ev.route.fallbackReason),
+      detail: fallbackText(ev.route.fallbackReason, ev.route.requestedProvider),
       state: 'warn',
       at: now,
     })
@@ -102,7 +108,7 @@ export function applyEvent(t: AiTrace, ev: ChatEvent, now = Date.now()): void {
       label: `Routed to ${targetLabel(ev.route)}`,
       detail:
         ev.route.requestedProvider && ev.route.requestedProvider !== ev.route.provider
-          ? `asked for ${ev.route.requestedProvider === 'openrouter' ? 'OpenRouter' : 'local'}`
+          ? `asked for ${ev.route.requestedProvider === 'ollama' ? 'local' : PROVIDER_NAME[ev.route.requestedProvider]}`
           : undefined,
       state: 'done',
       at: now,
@@ -114,7 +120,7 @@ export function applyEvent(t: AiTrace, ev: ChatEvent, now = Date.now()): void {
       add(t, {
         key: 'filter',
         label: 'Kept on this server',
-        detail: `${fallbackText(ev.route.fallbackReason)}${cats}`,
+        detail: `${fallbackText(ev.route.fallbackReason, ev.route.requestedProvider)}${cats}`,
         state: 'warn',
         at: now,
       })
@@ -122,7 +128,7 @@ export function applyEvent(t: AiTrace, ev: ChatEvent, now = Date.now()): void {
       add(t, {
         key: 'filter',
         label: 'Answered locally',
-        detail: fallbackText(ev.route.fallbackReason),
+        detail: fallbackText(ev.route.fallbackReason, ev.route.requestedProvider),
         state: 'warn',
         at: now,
       })

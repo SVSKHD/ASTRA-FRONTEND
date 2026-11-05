@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // One AI answer in the GitHub workspace: the provider and model to ask (from the server's
-// catalog, grouped by vendor), Think, the live thinking steps, and the answer streaming
+// catalog, grouped by provider; models the server marks unavailable are greyed out), Think, the live thinking steps, and the answer streaming
 // in. Each repository is one conversation on the server (`gh:<owner/name>`), so follow-up
 // questions keep the context and the history is kept with the other chats.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -11,13 +11,13 @@ import TextArea from '@/components/ui/TextArea.vue'
 import ThinkingSteps from '@/components/ai/ThinkingSteps.vue'
 import {
   aureonAi,
+  isProvider,
   loadCatalog,
   setTarget,
   streamChat,
   targetFor,
-  type AiProvider,
 } from '@/ai/aureonChat'
-import { groupOf } from '@/ai/providers'
+import { groupOf, modelReason } from '@/ai/providers'
 import { applyEvent, endTrace, startTrace, type AiTrace } from '@/ai/steps'
 import { renderMarkdown } from '@/utils/markdown'
 import { SYSTEM, type Ask } from '@/github/workspace'
@@ -29,8 +29,9 @@ const SEP = '|'
 const options = computed(() =>
   (aureonAi.catalog?.models ?? []).map((m) => ({
     value: `${m.provider}${SEP}${m.id}`,
-    label: m.label,
+    label: m.available ? m.label : `${m.label} — unavailable: ${modelReason(m)}`,
     group: groupOf(m),
+    disabled: !m.available,
   })),
 )
 const current = computed(() => targetFor(chatKey.value))
@@ -39,8 +40,8 @@ const value = computed(() =>
 )
 function pick(v: string) {
   const i = v.indexOf(SEP)
-  if (i > 0)
-    setTarget(chatKey.value, { provider: v.slice(0, i) as AiProvider, model: v.slice(i + 1) })
+  const provider = v.slice(0, i)
+  if (i > 0 && isProvider(provider)) setTarget(chatKey.value, { provider, model: v.slice(i + 1) })
 }
 const catalogError = ref('')
 onMounted(async () => {

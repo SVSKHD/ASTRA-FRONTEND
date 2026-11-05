@@ -44,7 +44,7 @@ import AiModelPicker from '@/components/AiModelPicker.vue'
 import AureonModelPicker from '@/components/AureonModelPicker.vue'
 import ThinkingSteps from '@/components/ai/ThinkingSteps.vue'
 import { aiTraces, traceKey } from '@/ai/steps'
-import { aiBackend, fallbackText } from '@/ai/aureonChat'
+import { aiBackend, fallbackText, PROVIDER_NAME } from '@/ai/aureonChat'
 import {
   SUGGESTION_CHIPS,
   aiContextSections,
@@ -1097,24 +1097,31 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                       aiModelLabel(m.model || activeAiChat.model)
                     }}</span>
                     <span
-                      v-if="m.route?.provider === 'openrouter'"
+                      v-if="m.route && m.route.provider !== 'ollama'"
                       class="ai-meta__route"
-                      title="Answered by OpenRouter, through the Aureon server"
-                      >OpenRouter</span
+                      data-testid="external-badge"
+                      :title="`Answered by ${PROVIDER_NAME[m.route.provider]} (external), through the Aureon server`"
+                      >{{ PROVIDER_NAME[m.route.provider] }}</span
                     >
                     <span
                       v-else-if="m.route?.localOnly"
                       class="ai-meta__route is-local"
                       data-testid="local-only-badge"
-                      :title="`Kept on this server: ${fallbackText(m.route.fallbackReason)}`"
+                      :title="`Kept on this server: ${fallbackText(m.route.fallbackReason, m.route.requestedProvider)}`"
                       ><Icon name="lock" size="xs" />Local only</span
                     >
                     <span
                       v-else-if="m.route?.fallbackReason && m.route.fallbackReason !== 'disabled'"
                       class="ai-meta__route is-fallback"
                       data-testid="fallback-note"
-                      :title="fallbackText(m.route.fallbackReason)"
-                      >Fell back to local · {{ fallbackText(m.route.fallbackReason) }}</span
+                      :title="fallbackText(m.route.fallbackReason, m.route.requestedProvider)"
+                      >{{
+                        m.route.requestedProvider && m.route.requestedProvider !== 'ollama'
+                          ? `${PROVIDER_NAME[m.route.requestedProvider]} → local`
+                          : 'Fell back to local'
+                      }}
+                      ·
+                      {{ fallbackText(m.route.fallbackReason, m.route.requestedProvider) }}</span
                     >
                     <span v-if="msgTokens(m)" class="ai-meta__tok" :title="tokenTitle(m)"
                       >{{ msgTokens(m).toLocaleString() }} tok</span

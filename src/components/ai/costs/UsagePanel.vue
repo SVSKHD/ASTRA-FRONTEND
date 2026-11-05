@@ -4,7 +4,7 @@
 // and says so.
 import { computed, ref } from 'vue'
 import Card from '@/components/ui/Card.vue'
-import { dailySeries, num, usd, type UsageHistory } from '@/ai/costs'
+import { dailySeries, num, providerName, usd, type UsageHistory } from '@/ai/costs'
 
 const props = defineProps<{ history: UsageHistory }>()
 
@@ -28,8 +28,6 @@ const byAgent = computed(() =>
   [...props.history.by_agent].sort((a, b) => num(b.cost_usd) - num(a.cost_usd)),
 )
 const agentName = (a: string) => (a.startsWith('chat:') ? `Chat (${a.slice(5)})` : a)
-const providerName = (p: string) =>
-  p === 'openrouter' ? 'OpenRouter' : p === 'ollama' ? 'Local (Ollama)' : p
 const short = (day: string) => day.slice(5)
 </script>
 

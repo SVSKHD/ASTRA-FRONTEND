@@ -20,9 +20,11 @@ import {
   aureonAi,
   fallbackText,
   loadUsage,
+  PROVIDER_NAME,
   streamChat,
   targetFor,
   setTarget,
+  type ExternalProvider,
 } from '@/ai/aureonChat'
 import { aiTraces, applyEvent, endTrace, startTrace, traceKey } from '@/ai/steps'
 import type { AiItemRef, AiMessage, AiSource } from '@/types'
@@ -442,7 +444,8 @@ async function sendAureon(
     aureonAi.pending = null
     app.setAiMessageModel(chatId, msgId, target.model)
   }
-  let usedOpenRouter = false
+  // The external provider that answered (its spend meter refreshes after the turn).
+  let usedExternal: ExternalProvider | null = null
   run.value = { chatId, msgId, status: 'streaming', startedAt: Date.now() }
   abort = new AbortController()
   let failed = false
@@ -477,9 +480,11 @@ async function sendAureon(
       if (evt.reset) app.clearAiMessageContent(chatId, msgId)
       if (evt.route) {
         const r = evt.route
-        if (r.provider === 'openrouter') usedOpenRouter = true
+        if (r.provider !== 'ollama') usedExternal = r.provider
         app.setAiMessageRoute(chatId, msgId, {
           provider: r.provider,
+          requestedProvider: r.requestedProvider ?? target?.provider,
+          requestedModel: r.requestedModel ?? target?.model,
           fallbackReason: r.fallbackReason ?? null,
           localOnly: r.localOnly ?? false,
           costUsd: r.costUsd ?? null,
@@ -490,8 +495,13 @@ async function sendAureon(
         const r = evt.route
         setAnswerer({
           model: evt.model,
-          provider: r?.provider === 'openrouter' ? 'OpenRouter (via Aureon)' : 'Aureon (local)',
-          ...(r?.fallbackReason ? { fallback: fallbackText(r.fallbackReason) } : {}),
+          provider:
+            r && r.provider !== 'ollama'
+              ? `${PROVIDER_NAME[r.provider]} (via Aureon)`
+              : 'Aureon (local)',
+          ...(r?.fallbackReason
+            ? { fallback: fallbackText(r.fallbackReason, r.requestedProvider) }
+            : {}),
         })
       }
       if (evt.text) app.appendAiMessageContent(chatId, msgId, evt.text)
@@ -514,7 +524,7 @@ async function sendAureon(
     finish(failed ? 'error' : 'done')
     if (!failed && !stopped) autoApplyUpdates(chatId, msgId)
     // The usage meter: OpenRouter spend moves only when OpenRouter was called.
-    if (usedOpenRouter) void loadUsage().catch(() => {})
+    if (usedExternal) void loadUsage(usedExternal).catch(() => {})
   }
 }
 

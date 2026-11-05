@@ -277,10 +277,14 @@ export interface AiMessage {
   content: string
   // The model that produced an assistant message (badge). Absent on user turns.
   model?: string
-  // Aureon: who answered (local Ollama or OpenRouter) and why it ran locally
-  // when OpenRouter was picked — drives the "Local only" / "Fell back" badges.
+  // Aureon: who answered (local Ollama, or OpenRouter / Anthropic / Gemini) and
+  // why it ran locally when an external provider was picked — drives the
+  // "Local only" / "Fell back" badges. `requested*` is what was asked for, kept
+  // apart from who answered. Saved chats from before have `provider` only.
   route?: {
-    provider: 'ollama' | 'openrouter'
+    provider: 'ollama' | 'openrouter' | 'anthropic' | 'gemini'
+    requestedProvider?: 'ollama' | 'openrouter' | 'anthropic' | 'gemini'
+    requestedModel?: string
     fallbackReason?: string | null
     localOnly?: boolean
     costUsd?: string | null

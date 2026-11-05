@@ -31,7 +31,7 @@
 // stream into the execution steps the chat shows.
 
 import { reactive, watch } from 'vue'
-import { aureon } from '@/api/client'
+import { aureon, type components } from '@/api/client'
 import { apiUrl } from '@/api/config'
 import { readCsrfToken } from '@/api/csrf'
 import { readSse } from '@/api/sse'
@@ -70,7 +70,25 @@ function write(key: string, value: unknown) {
   }
 }
 
-export type AiProvider = 'ollama' | 'openrouter'
+// Four providers (backend docs/26-ai-providers.md): the local Ollama, and three
+// external ones behind the same server-side gate. The browser only ever names
+// one; it never holds a key and never calls a provider itself.
+export const AI_PROVIDERS = ['ollama', 'openrouter', 'anthropic', 'gemini'] as const
+export type AiProvider = (typeof AI_PROVIDERS)[number]
+export type ExternalProvider = Exclude<AiProvider, 'ollama'>
+export const EXTERNAL_PROVIDERS: readonly ExternalProvider[] = ['openrouter', 'anthropic', 'gemini']
+
+export function isProvider(v: unknown): v is AiProvider {
+  return typeof v === 'string' && (AI_PROVIDERS as readonly string[]).includes(v)
+}
+
+/** The short name a person reads: "Local", "OpenRouter", "Claude", "Gemini". */
+export const PROVIDER_NAME: Record<AiProvider, string> = {
+  ollama: 'Local',
+  openrouter: 'OpenRouter',
+  anthropic: 'Claude',
+  gemini: 'Gemini',
+}
 
 /** A provider + model pick. */
 export interface AiTarget {
@@ -82,6 +100,29 @@ export interface CatalogModel {
   provider: AiProvider
   id: string
   label: string
+  /** False: listed so it can be seen, but not selectable (e.g. an unpriced model). */
+  available: boolean
+  unavailableReason: string | null
+  capabilities: string[]
+  /** local = never leaves the server; external = only after the server's privacy gate. */
+  privacy: 'local' | 'external'
+}
+
+/** One provider's state, from the catalog's `providers[]`. Never a key. */
+export interface ProviderInfo {
+  provider: AiProvider
+  label: string
+  enabled: boolean
+  /** A key is set on the server (not that the key works). */
+  configured: boolean
+  usable: boolean
+  /** null = usable. disabled | not_configured | no_budget | unreachable … */
+  unavailableReason: string | null
+  defaultModel: string | null
+  allowedModels: string[]
+  dailyLimitUsd: string | null
+  costSource: 'provider' | 'configured_price' | 'none'
+  privacy: 'local' | 'external'
 }
 
 export interface ModelCatalog {
@@ -91,9 +132,14 @@ export interface ModelCatalog {
   models: CatalogModel[]
   /** null = OpenRouter is usable; else why every turn stays local. */
   openrouterOff: string | null
+  /** Every provider, local first. Derived from `openrouter` on an older server. */
+  providers: ProviderInfo[]
+  defaultExternalProvider: string | null
+  globalDailyLimitUsd: string | null
 }
 
 export interface AiUsageInfo {
+  provider: ExternalProvider
   day: string
   spentUsd: number
   limitUsd: number
@@ -102,6 +148,9 @@ export interface AiUsageInfo {
   calls: number
   capReached: boolean
   available: boolean
+  /** AI_EXTERNAL_DAILY_LIMIT_USD (null = per-provider caps only) and today's total. */
+  globalLimitUsd: number | null
+  globalSpentUsd: number | null
 }
 
 /** Who answered a turn and why — from the stream's meta/fallback/done events. */
@@ -109,7 +158,8 @@ export interface AiRoute {
   provider: AiProvider
   model: string
   requestedProvider?: AiProvider
-  /** Why it is not OpenRouter although OpenRouter was picked (null = it is). */
+  requestedModel?: string
+  /** Why the requested external provider did not answer (null = it did). */
   fallbackReason?: string | null
   /** The data had to stay local (the classification filter or a linked context). */
   localOnly?: boolean
@@ -177,17 +227,98 @@ export async function listModels(): Promise<LocalModel[]> {
   return models
 }
 
-/** The picker's list (local models, then allowed OpenRouter ones) and the server default. */
-export async function loadCatalog(): Promise<ModelCatalog> {
-  const { data, error } = await aureon.GET('/api/models/catalog')
-  if (!data) throw new Error(error ? 'Could not list models.' : 'No answer from Aureon.')
-  const catalog: ModelCatalog = {
+type CatalogData = components['schemas']['ModelCatalog']
+
+/**
+ * The server's catalog in the app's shape. Pure, for the tests.
+ *
+ * Everything comes from the response: no model list is built in, and a model
+ * the server marks unavailable stays unavailable. An older server (no
+ * `providers[]`, no per-model `available`) still maps: its models are all
+ * selectable, as they were, and the providers are derived from `openrouter`.
+ */
+export function mapCatalog(data: CatalogData): ModelCatalog {
+  const models: CatalogModel[] = data.models
+    .filter((m) => isProvider(m.provider))
+    .map((m) => ({
+      provider: m.provider,
+      id: m.id,
+      label: m.label,
+      available: m.available ?? true,
+      unavailableReason: m.unavailable_reason ?? null,
+      capabilities: m.capabilities ?? ['chat', 'streaming'],
+      privacy: m.privacy ?? (m.provider === 'ollama' ? 'local' : 'external'),
+    }))
+  const providers: ProviderInfo[] = data.providers?.length
+    ? data.providers
+        .filter((p) => isProvider(p.provider))
+        .map((p) => ({
+          provider: p.provider,
+          label: p.label,
+          enabled: p.enabled,
+          configured: p.configured,
+          usable: p.usable,
+          unavailableReason: p.unavailable_reason ?? null,
+          defaultModel: p.default_model ?? null,
+          allowedModels: p.allowed_models ?? [],
+          dailyLimitUsd: p.daily_limit_usd ?? null,
+          costSource: p.cost_source,
+          privacy: p.privacy,
+        }))
+    : legacyProviders(data, models)
+  return {
     default: { provider: data.default.provider, model: data.default.model ?? null },
     localFallbackModel: data.local_fallback_model ?? null,
     ollamaReachable: data.ollama_reachable,
-    models: data.models.map((m) => ({ provider: m.provider, id: m.id, label: m.label })),
+    models,
     openrouterOff: data.openrouter.unavailable_reason ?? null,
+    providers,
+    defaultExternalProvider: data.default_external_provider ?? null,
+    globalDailyLimitUsd: data.global_daily_limit_usd ?? null,
   }
+}
+
+/** A server from before docs/26 knows two providers; say only what it said. */
+function legacyProviders(data: CatalogData, models: CatalogModel[]): ProviderInfo[] {
+  const ids = (p: AiProvider) => models.filter((m) => m.provider === p).map((m) => m.id)
+  const local = ids('ollama')
+  const orOff = data.openrouter.unavailable_reason ?? null
+  return [
+    {
+      provider: 'ollama',
+      label: 'Local (Ollama)',
+      enabled: true,
+      configured: true,
+      usable: data.ollama_reachable,
+      unavailableReason: data.ollama_reachable ? null : 'unreachable',
+      defaultModel: data.local_fallback_model ?? local[0] ?? null,
+      allowedModels: local,
+      dailyLimitUsd: null,
+      costSource: 'none',
+      privacy: 'local',
+    },
+    {
+      provider: 'openrouter',
+      label: 'OpenRouter',
+      enabled: data.openrouter.enabled,
+      // The old status never said whether a key is set; only that it is usable.
+      configured: orOff !== 'not_configured',
+      usable: orOff === null,
+      unavailableReason: orOff,
+      defaultModel: data.default.provider === 'openrouter' ? (data.default.model ?? null) : null,
+      allowedModels: ids('openrouter'),
+      dailyLimitUsd: null,
+      costSource: 'provider',
+      privacy: 'external',
+    },
+  ]
+}
+
+/** The picker's list and the server default. */
+export async function loadCatalog(): Promise<ModelCatalog> {
+  const { data, error } = await aureon.GET('/api/models/catalog')
+  if (!data) throw new Error(error ? 'Could not list models.' : 'No answer from Aureon.')
+  const catalog = mapCatalog(data)
   aureonAi.catalog = catalog
   const local = catalog.models.filter((m) => m.provider === 'ollama')
   // The prompt helpers and the typo sweep stay on the local model.
@@ -197,12 +328,25 @@ export async function loadCatalog(): Promise<ModelCatalog> {
   return catalog
 }
 
-/** Today's OpenRouter spend against the daily cap. */
-export async function loadUsage(): Promise<AiUsageInfo | null> {
-  const { data } = await aureon.GET('/api/ai/usage')
+/**
+ * Today's spend of one external provider (OpenRouter by default, as before)
+ * against its daily cap, and the total against the shared cap.
+ */
+export async function loadUsage(
+  provider: ExternalProvider = 'openrouter',
+): Promise<AiUsageInfo | null> {
+  // No query for OpenRouter: an older server has no `provider` parameter.
+  const { data } = await aureon.GET(
+    '/api/ai/usage',
+    provider === 'openrouter' ? {} : { params: { query: { provider } } },
+  )
   if (!data) return null
   const num = (v: string | number) => Number(v) || 0
+  const opt = (v: string | null | undefined) => (v == null ? null : num(v))
   aureonAi.usage = {
+    provider: data.provider ?? provider,
+    globalLimitUsd: opt(data.global_limit_usd),
+    globalSpentUsd: opt(data.global_spent_usd),
     day: data.day,
     spentUsd: num(data.spent_usd),
     limitUsd: num(data.limit_usd),
@@ -239,32 +383,50 @@ export function setTarget(chatKey: string | null, target: AiTarget) {
   if (target.provider === 'ollama') aureonAi.model = target.model
 }
 
+// The server's gate and error codes (docs/26 "The gate, in order"), in words.
+// `{p}` is the provider that was asked for. These are fixed strings: the
+// server's own messages are never shown, because an upstream body can echo the
+// prompt or internal detail.
 const REASONS: Record<string, string> = {
   filter: 'the message has data that stays on this server',
   context: 'this chat is linked to finance, trading or research',
-  disabled: 'OpenRouter is turned off on the server',
-  not_configured: 'OpenRouter is not set up on the server',
-  no_budget: 'OpenRouter has no daily budget',
-  daily_cap_reached: "today's OpenRouter budget is used up",
+  disabled: '{p} is turned off on the server',
+  not_configured: '{p} is not set up on the server',
+  no_budget: '{p} has no daily budget',
+  model_not_allowed: 'that {p} model is not allowed',
+  no_pricing: 'that {p} model has no price set, so it is never used',
+  daily_cap_reached: "today's {p} budget is used up",
+  global_cap_reached: "today's shared budget for external AI is used up",
   monthly_cap_reached: "this month's AI budget is used up",
-  usage_unavailable: "today's OpenRouter spend could not be checked",
-  model_not_allowed: 'that OpenRouter model is not allowed',
-  rate_limited: 'OpenRouter is rate-limiting',
-  upstream_error: 'OpenRouter had an error',
-  rejected: 'OpenRouter refused the request',
-  timeout: 'OpenRouter timed out',
-  unavailable: 'OpenRouter could not be reached',
+  usage_unavailable: "today's {p} spend could not be checked",
+  rate_limited_local: 'too many {p} requests from this server this minute',
+  rate_limited: '{p} is rate-limiting',
+  upstream_error: '{p} had an error',
+  rejected: '{p} refused the request (key, model or credit)',
+  refused: "{p}'s safety filter declined",
+  timeout: '{p} timed out',
+  unavailable: '{p} could not be reached',
+  unreachable: 'the local model server could not be reached',
 }
 
-/** Why a turn ran locally, in words. */
-export function fallbackText(reason: string | null | undefined): string {
+/**
+ * Why a turn ran locally, in words. `provider` is the one that was asked for
+ * (OpenRouter when not known, as on a server from before docs/26).
+ */
+export function fallbackText(
+  reason: string | null | undefined,
+  provider: AiProvider = 'openrouter',
+): string {
   if (!reason) return ''
-  return REASONS[reason] ?? reason.replace(/_/g, ' ')
+  const name = provider === 'ollama' ? 'the external provider' : PROVIDER_NAME[provider]
+  const text = REASONS[reason]
+  // An unknown code is shown as words, never as a server message.
+  return text ? text.replace('{p}', name) : reason.replace(/[^a-z0-9]+/gi, ' ').trim()
 }
 
-/** "OpenRouter · google/gemini-2.5-flash-lite" / "Local · qwen2.5:3b". */
+/** "OpenRouter · google/gemini-2.5-flash-lite" / "Claude · claude-…" / "Local · qwen2.5:3b". */
 export function targetLabel(t: { provider: AiProvider; model: string }): string {
-  return `${t.provider === 'openrouter' ? 'OpenRouter' : 'Local'} · ${t.model}`
+  return `${PROVIDER_NAME[t.provider] ?? 'Local'} · ${t.model}`
 }
 
 // --- the stream ------------------------------------------------------------------------------
@@ -282,7 +444,7 @@ export interface ChatEvent {
   error?: string
   /** Who answers (meta, fallback) / answered (done, error). */
   route?: AiRoute
-  /** OpenRouter failed mid-reply: drop the text so far, the local answer follows. */
+  /** The external provider failed mid-reply: drop the text so far, the local answer follows. */
   reset?: boolean
   /** A piece of the model's reasoning (only when asked with `think`). */
   thinking?: string
@@ -291,16 +453,22 @@ export interface ChatEvent {
   reasoningTokens?: number | null
 }
 
-function routeOf(data: Record<string, unknown>, fallbackModel: string): AiRoute {
-  const provider: AiProvider = data.provider === 'openrouter' ? 'openrouter' : 'ollama'
-  const reason = (data.fallback_reason ?? data.reason ?? null) as string | null
+/**
+ * Who answered, from a meta / fallback / done / error event. Exported for the tests.
+ *
+ * `provider` is who ACTUALLY answered; `requestedProvider` is who was asked. An
+ * unknown provider is read as local: the only automatic fallback the server
+ * has is the local model, never another external provider.
+ */
+export function routeOf(data: Record<string, unknown>, fallbackModel: string): AiRoute {
+  const provider: AiProvider = isProvider(data.provider) ? data.provider : 'ollama'
+  const raw = data.fallback_reason ?? data.reason ?? null
+  const reason = typeof raw === 'string' ? raw : null
   return {
     provider,
     model: String(data.model ?? fallbackModel),
-    requestedProvider:
-      data.requested_provider === 'openrouter' || data.requested_provider === 'ollama'
-        ? data.requested_provider
-        : undefined,
+    requestedProvider: isProvider(data.requested_provider) ? data.requested_provider : undefined,
+    requestedModel: typeof data.requested_model === 'string' ? data.requested_model : undefined,
     fallbackReason: reason,
     localOnly: data.local_only === true,
     costUsd: typeof data.cost_usd === 'string' ? data.cost_usd : null,
@@ -352,7 +520,10 @@ export class AureonChatError extends Error {
 function httpMessage(status: number, body: unknown): string {
   const detail = (body as { detail?: unknown } | null)?.detail
   if (status === 401) return 'Sign in to Aureon to use the local AI.'
-  if (status === 404 && typeof detail === 'string' && detail.includes('OpenRouter')) return detail
+  // "model 'x' is not an allowed Anthropic model": the server's fixed wording, no body echo.
+  if (status === 404 && typeof detail === 'string' && /not an allowed \w+ model/.test(detail)) {
+    return detail
+  }
   if (status === 404) {
     const avail = (body as { available?: string[] } | null)?.available
     return avail?.length

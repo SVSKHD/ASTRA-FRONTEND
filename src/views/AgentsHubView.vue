@@ -2,7 +2,8 @@
 // /agents-hub — agents, tools and the people in the loop, from what the server reports:
 // the tool registry and MCP status (GET /api/v1/capabilities), connected services, agent
 // permissions (approval policies), execution history, collaboration tasks, approval
-// requests waiting on you, and the audit trail. Each section is a reusable component
+// requests waiting on you, the audit trail, and which AI provider the News, Voice and
+// Research agents use (backend docs/26). Each section is a reusable component
 // (src/components/hub) that loads and fails on its own. Admins only: it is server-wide.
 import { ref, watch } from 'vue'
 import AureonPage from '@/components/AureonPage.vue'
@@ -11,6 +12,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import ToolRegistry from '@/components/hub/ToolRegistry.vue'
 import ConnectedServices from '@/components/hub/ConnectedServices.vue'
 import AgentPermissions from '@/components/hub/AgentPermissions.vue'
+import AgentProviders from '@/components/hub/AgentProviders.vue'
 import ExecutionHistory from '@/components/hub/ExecutionHistory.vue'
 import CollaborationTasks from '@/components/hub/CollaborationTasks.vue'
 import ApprovalRequests from '@/components/hub/ApprovalRequests.vue'
@@ -72,6 +74,7 @@ watch(
           <ConnectedServices :services="caps.services" />
         </template>
         <AgentPermissions />
+        <AgentProviders />
       </div>
       <div class="ah__col">
         <CollaborationTasks />

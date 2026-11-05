@@ -3670,6 +3670,10 @@ export interface components {
             day: string;
             /** Failures */
             failures: number;
+            /** Global Limit Usd */
+            global_limit_usd?: string | null;
+            /** Global Spent Usd */
+            global_spent_usd?: string | null;
             /** Limit Usd */
             limit_usd: string;
             /** Prompt Tokens */
@@ -3677,9 +3681,9 @@ export interface components {
             /**
              * Provider
              * @default openrouter
-             * @constant
+             * @enum {string}
              */
-            provider: "openrouter";
+            provider: "openrouter" | "anthropic" | "gemini";
             /** Remaining Usd */
             remaining_usd: string;
             /** Spent Usd */
@@ -4297,15 +4301,30 @@ export interface components {
         };
         /** CatalogModel */
         CatalogModel: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /** Capabilities */
+            capabilities?: string[];
             /** Id */
             id: string;
             /** Label */
             label: string;
             /**
+             * Privacy
+             * @default local
+             * @enum {string}
+             */
+            privacy: "local" | "external";
+            /**
              * Provider
              * @enum {string}
              */
-            provider: "ollama" | "openrouter";
+            provider: "ollama" | "openrouter" | "anthropic" | "gemini";
+            /** Unavailable Reason */
+            unavailable_reason?: string | null;
         };
         /** CatalogTarget */
         CatalogTarget: {
@@ -4315,7 +4334,7 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "ollama" | "openrouter";
+            provider: "ollama" | "openrouter" | "anthropic" | "gemini";
         };
         /** ChainOut */
         ChainOut: {
@@ -4389,7 +4408,7 @@ export interface components {
             /** Num Ctx */
             num_ctx?: number | null;
             /** Provider */
-            provider?: ("ollama" | "openrouter") | null;
+            provider?: ("ollama" | "openrouter" | "anthropic" | "gemini") | null;
             /** Temperature */
             temperature?: number | null;
         };
@@ -5659,6 +5678,10 @@ export interface components {
          */
         ModelCatalog: {
             default: components["schemas"]["CatalogTarget"];
+            /** Default External Provider */
+            default_external_provider?: string | null;
+            /** Global Daily Limit Usd */
+            global_daily_limit_usd?: string | null;
             /** Local Fallback Model */
             local_fallback_model: string | null;
             /** Models */
@@ -5666,6 +5689,8 @@ export interface components {
             /** Ollama Reachable */
             ollama_reachable: boolean;
             openrouter: components["schemas"]["OpenRouterStatus"];
+            /** Providers */
+            providers?: components["schemas"]["ProviderStatus"][];
         };
         /** ModelList */
         ModelList: {
@@ -6938,6 +6963,43 @@ export interface components {
             restrictions: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * ProviderStatus
+         * @description One provider's state for the picker and the settings page. Never a key.
+         */
+        ProviderStatus: {
+            /** Allowed Models */
+            allowed_models: string[];
+            /** Configured */
+            configured: boolean;
+            /**
+             * Cost Source
+             * @enum {string}
+             */
+            cost_source: "provider" | "configured_price" | "none";
+            /** Daily Limit Usd */
+            daily_limit_usd: string | null;
+            /** Default Model */
+            default_model: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Label */
+            label: string;
+            /**
+             * Privacy
+             * @enum {string}
+             */
+            privacy: "local" | "external";
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "ollama" | "openrouter" | "anthropic" | "gemini";
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            /** Usable */
+            usable: boolean;
         };
         /** PublicDocumentOut */
         PublicDocumentOut: {
@@ -8988,7 +9050,9 @@ export interface operations {
     };
     ai_usage_api_ai_usage_get: {
         parameters: {
-            query?: never;
+            query?: {
+                provider?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -9002,6 +9066,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiUsage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

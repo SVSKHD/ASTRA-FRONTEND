@@ -38,9 +38,28 @@ vi.mock('@/ai/aureonChat', async (orig) => {
         ollamaReachable: true,
         openrouterOff: null,
         models: [
-          { provider: 'ollama', id: 'qwen', label: 'qwen' },
-          { provider: 'openrouter', id: 'anthropic/claude-sonnet', label: 'Claude Sonnet' },
+          {
+            provider: 'ollama',
+            id: 'qwen',
+            label: 'qwen',
+            available: true,
+            unavailableReason: null,
+            capabilities: ['chat', 'streaming'],
+            privacy: 'local',
+          },
+          {
+            provider: 'openrouter',
+            id: 'anthropic/claude-sonnet',
+            label: 'Claude Sonnet',
+            available: true,
+            unavailableReason: null,
+            capabilities: ['chat', 'streaming'],
+            privacy: 'external',
+          },
         ],
+        providers: [],
+        defaultExternalProvider: 'openrouter',
+        globalDailyLimitUsd: null,
       }
       return real.aureonAi.catalog
     }),

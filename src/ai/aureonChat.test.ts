@@ -9,6 +9,8 @@ import {
   buildMessages,
   fallbackText,
   listModels,
+  mapCatalog,
+  routeOf,
   setTarget,
   streamChat,
   targetFor,
@@ -326,6 +328,9 @@ describe('providers (OpenRouter via the server)', () => {
       ollamaReachable: true,
       models: [],
       openrouterOff: null,
+      providers: [],
+      defaultExternalProvider: 'openrouter',
+      globalDailyLimitUsd: null,
     }
     expect(targetFor('1')).toEqual({ provider: 'openrouter', model: OR })
     setTarget(null, { provider: 'ollama', model: 'mistral:7b' })
@@ -344,6 +349,254 @@ describe('providers (OpenRouter via the server)', () => {
     expect(fallbackText('something_new')).toBe('something new')
     expect(fallbackText(null)).toBe('')
     expect(targetLabel({ provider: 'openrouter', model: OR })).toBe(`OpenRouter · ${OR}`)
+  })
+})
+
+// backend docs/26-ai-providers.md: Anthropic and Gemini as direct providers next to
+// OpenRouter and Ollama, with local Ollama the only fallback.
+describe('four providers', () => {
+  const CLAUDE = 'claude-test-model'
+  const GEMINI = 'gemini-test-model'
+
+  const provider = (p: string, over: Record<string, unknown> = {}) => ({
+    provider: p,
+    label: p,
+    enabled: true,
+    configured: true,
+    usable: true,
+    unavailable_reason: null,
+    default_model: null,
+    allowed_models: [],
+    daily_limit_usd: p === 'ollama' ? null : '1.00',
+    cost_source: p === 'ollama' ? 'none' : p === 'openrouter' ? 'provider' : 'configured_price',
+    privacy: p === 'ollama' ? 'local' : 'external',
+    ...over,
+  })
+
+  const CATALOG = {
+    default: { provider: 'anthropic', model: CLAUDE },
+    local_fallback_model: 'qwen2.5:3b',
+    ollama_reachable: true,
+    models: [
+      {
+        provider: 'ollama',
+        id: 'qwen2.5:3b',
+        label: 'qwen2.5:3b',
+        available: true,
+        unavailable_reason: null,
+        capabilities: ['chat', 'streaming'],
+        privacy: 'local',
+      },
+      {
+        provider: 'anthropic',
+        id: CLAUDE,
+        label: CLAUDE,
+        available: true,
+        unavailable_reason: null,
+        capabilities: ['chat', 'streaming'],
+        privacy: 'external',
+      },
+      {
+        provider: 'gemini',
+        id: GEMINI,
+        label: GEMINI,
+        available: false,
+        unavailable_reason: 'no_pricing',
+        capabilities: ['chat', 'streaming'],
+        privacy: 'external',
+      },
+    ],
+    openrouter: {
+      enabled: false,
+      unavailable_reason: 'disabled',
+      research_external_allowed: false,
+    },
+    providers: [
+      provider('ollama', { default_model: 'qwen2.5:3b', allowed_models: ['qwen2.5:3b'] }),
+      provider('openrouter', { enabled: false, usable: false, unavailable_reason: 'disabled' }),
+      provider('anthropic', { default_model: CLAUDE, allowed_models: [CLAUDE] }),
+      provider('gemini', { default_model: GEMINI, allowed_models: [GEMINI] }),
+    ],
+    default_external_provider: 'anthropic',
+    global_daily_limit_usd: '2.00',
+  } as unknown as Parameters<typeof mapCatalog>[0]
+
+  it('maps the catalog: models, availability, privacy and every provider', () => {
+    const c = mapCatalog(CATALOG)
+    expect(c.default).toEqual({ provider: 'anthropic', model: CLAUDE })
+    expect(c.providers.map((p) => p.provider)).toEqual([
+      'ollama',
+      'openrouter',
+      'anthropic',
+      'gemini',
+    ])
+    expect(c.providers[1]).toMatchObject({ usable: false, unavailableReason: 'disabled' })
+    expect(c.providers[2]).toMatchObject({
+      configured: true,
+      defaultModel: CLAUDE,
+      dailyLimitUsd: '1.00',
+      costSource: 'configured_price',
+      privacy: 'external',
+    })
+    expect(c.models.find((m) => m.provider === 'gemini')).toMatchObject({
+      available: false,
+      unavailableReason: 'no_pricing',
+      privacy: 'external',
+    })
+    expect(c.models[0]).toMatchObject({ privacy: 'local', capabilities: ['chat', 'streaming'] })
+    expect(c.defaultExternalProvider).toBe('anthropic')
+    expect(c.globalDailyLimitUsd).toBe('2.00')
+  })
+
+  it('reads an older server (no providers[], no availability) the way it read it before', () => {
+    const c = mapCatalog({
+      default: { provider: 'openrouter', model: 'google/x' },
+      local_fallback_model: 'qwen2.5:3b',
+      ollama_reachable: true,
+      models: [
+        { provider: 'ollama', id: 'qwen2.5:3b', label: 'qwen2.5:3b' },
+        { provider: 'openrouter', id: 'google/x', label: 'google/x' },
+      ],
+      openrouter: { enabled: true, unavailable_reason: null, research_external_allowed: false },
+    } as unknown as Parameters<typeof mapCatalog>[0])
+    expect(c.models.every((m) => m.available)).toBe(true)
+    expect(c.models.map((m) => m.privacy)).toEqual(['local', 'external'])
+    expect(c.providers.map((p) => [p.provider, p.usable])).toEqual([
+      ['ollama', true],
+      ['openrouter', true],
+    ])
+    expect(c.providers[1].allowedModels).toEqual(['google/x'])
+  })
+
+  it('ignores a provider this app does not know rather than guessing', () => {
+    const c = mapCatalog({
+      ...CATALOG,
+      models: [...CATALOG.models, { ...CATALOG.models[1], provider: 'mystery' }],
+    } as unknown as Parameters<typeof mapCatalog>[0])
+    expect(c.models.some((m) => (m.provider as string) === 'mystery')).toBe(false)
+  })
+
+  it('tracks the requested provider apart from the one that answered', () => {
+    const r = routeOf(
+      {
+        provider: 'ollama',
+        model: 'qwen2.5:3b',
+        requested_provider: 'anthropic',
+        requested_model: CLAUDE,
+        fallback_reason: 'no_pricing',
+        local_only: false,
+      },
+      CLAUDE,
+    )
+    expect(r).toMatchObject({
+      provider: 'ollama',
+      requestedProvider: 'anthropic',
+      requestedModel: CLAUDE,
+      fallbackReason: 'no_pricing',
+    })
+    // An unknown provider is never taken for an external one.
+    expect(routeOf({ provider: 'someone-else' }, 'm').provider).toBe('ollama')
+  })
+
+  it('sends anthropic and drops the partial Claude text on a fallback reset', async () => {
+    let body: Record<string, unknown> = {}
+    const fetchImpl = (async (_u: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body))
+      return sse([
+        [
+          'meta',
+          {
+            conversation_id: 'c',
+            provider: 'anthropic',
+            model: CLAUDE,
+            requested_provider: 'anthropic',
+          },
+        ],
+        ['token', { content: 'partial ' }],
+        [
+          'fallback',
+          { provider: 'ollama', model: 'qwen2.5:3b', reason: 'upstream_error', reset: true },
+        ],
+        ['token', { content: 'local answer' }],
+        [
+          'done',
+          {
+            provider: 'ollama',
+            model: 'qwen2.5:3b',
+            requested_provider: 'anthropic',
+            fallback_reason: 'upstream_error',
+          },
+        ],
+      ])
+    }) as unknown as typeof fetch
+    let text = ''
+    const routes = []
+    for await (const ev of streamChat({
+      model: CLAUDE,
+      provider: 'anthropic',
+      system: '',
+      history: [],
+      prompt: 'p',
+      chatKey: '9',
+      fetchImpl,
+    })) {
+      if (ev.reset) text = ''
+      if (ev.text) text += ev.text
+      if (ev.route) routes.push(ev.route)
+    }
+    expect(body).toMatchObject({ provider: 'anthropic', model: CLAUDE })
+    expect(text).toBe('local answer')
+    expect(routes[0].provider).toBe('anthropic')
+    // The fallback is local, never another external provider.
+    expect(routes.slice(1).every((r) => r.provider === 'ollama')).toBe(true)
+    expect(routes.at(-1)).toMatchObject({
+      requestedProvider: 'anthropic',
+      fallbackReason: 'upstream_error',
+    })
+  })
+
+  it('keeps a chat on the provider it picked, even when that provider is off', () => {
+    aureonAi.catalog = mapCatalog(CATALOG)
+    setTarget('7', { provider: 'gemini', model: GEMINI })
+    expect(targetFor('7')).toEqual({ provider: 'gemini', model: GEMINI })
+    // A new chat takes the server default, a direct provider.
+    expect(targetFor('8')).toEqual({ provider: 'anthropic', model: CLAUDE })
+  })
+
+  it('names the provider in fallback reasons, without server messages', () => {
+    expect(fallbackText('daily_cap_reached', 'anthropic')).toBe("today's Claude budget is used up")
+    expect(fallbackText('no_pricing', 'gemini')).toContain('Gemini model has no price')
+    expect(fallbackText('refused', 'anthropic')).toContain("Claude's safety filter")
+    expect(fallbackText('global_cap_reached', 'gemini')).toContain('shared budget')
+    // Old saved replies (no requested provider) read as they did.
+    expect(fallbackText('disabled')).toBe('OpenRouter is turned off on the server')
+    // Unknown codes are shown as plain words, with nothing but letters and digits.
+    expect(fallbackText('weird<b>code</b>')).toBe('weird b code b')
+    expect(targetLabel({ provider: 'gemini', model: GEMINI })).toBe(`Gemini · ${GEMINI}`)
+  })
+
+  it('shows a disallowed Anthropic model as the server says', async () => {
+    const fetchImpl = (async () =>
+      new Response(
+        JSON.stringify({
+          detail: "model 'claude-x' is not an allowed Anthropic model",
+          available: [CLAUDE],
+        }),
+        { status: 404, headers: { 'content-type': 'application/json' } },
+      )) as unknown as typeof fetch
+    const run = async () => {
+      for await (const _ of streamChat({
+        model: 'claude-x',
+        provider: 'anthropic',
+        system: '',
+        history: [],
+        prompt: 'p',
+        chatKey: null,
+        fetchImpl,
+      }))
+        void _
+    }
+    await expect(run()).rejects.toThrow('not an allowed Anthropic model')
   })
 })
 

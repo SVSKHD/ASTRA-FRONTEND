@@ -13,14 +13,28 @@ export type TestResult = Schemas['TestResultOut']
 
 export const CATEGORY_LABEL: Record<string, string> = {
   openrouter: 'OpenRouter',
+  anthropic: 'Claude — Anthropic API',
+  gemini: 'Gemini — Google API',
+  ai: 'AI — global controls',
+  agents: 'Agents',
   dhan: 'Dhan',
   github: 'GitHub',
   discord: 'Discord',
   mt5: 'MT5',
 }
 
+// The direct providers (backend docs/26): usable only when enabled, with a key, a
+// default model, a daily cap above 0 and a price for the model.
+const DIRECT =
+  'External models through the provider’s own API, behind the server’s privacy check. The key is used server-side only. Usable when enabled, with a key, a default model, a daily cap above 0 and a price for that model; an unpriced model is never used. Turn it on after Test passes.'
+
 export const CATEGORY_NOTE: Record<string, string> = {
   openrouter: 'External models. The key is used server-side only.',
+  anthropic: `${DIRECT} Needs an Anthropic Console API key, not a Claude subscription login.`,
+  gemini: `${DIRECT} Needs a Google AI Studio API key.`,
+  ai: 'Shared by every external provider: the provider for new chats and “auto” agents, a cap on total external spend, and limits per call. Local Ollama stays the default and the only fallback.',
+  agents:
+    'Which provider each agent uses. Voice speech recognition and synthesis always stay local; finance, broker and private data always stay local.',
   dhan: 'Broker API, read-only. Log in with the API key (above); the manual access token is only a fallback.',
   github: 'Token for the GitHub modules and the coding agent.',
   discord: 'Where alerts and approval requests are posted.',
