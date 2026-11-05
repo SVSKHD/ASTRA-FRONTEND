@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import GoalPointRow from '@/components/goals/GoalPointRow.vue'
+import { useAppStore } from '@/stores/app'
 import type { GoalChecklistItem } from '@/types'
 
 vi.mock('vue-router', () => ({
@@ -201,5 +202,52 @@ describe('the controls', () => {
 
   it('has no ⋯ on a pointer device — the row reveals them on hover', () => {
     expect(mountRow().find('.gpr__more').exists()).toBe(false)
+  })
+})
+
+describe('opening a point (sub-milestone) in full', () => {
+  it('shows its milestone, description, timeline, subtasks and learnings', async () => {
+    setActivePinia(createPinia())
+    const app = useAppStore()
+    const gid = app.addGoal({ title: 'Rust basics' })
+    const pid = app.addChecklistItem(gid, 'Ownership')
+    app.updateChecklistItem(pid, {
+      description: 'Moves, borrowing and lifetimes.',
+      dueAt: '2026-11-03',
+      estimateMins: 90,
+    })
+    app.addSubtask(pid, 'Read chapter 4')
+    const point = app.goalChecklist.find((c) => c.id === pid)!
+    const wrapper = mount(GoalPointRow, {
+      props: { point, spent: 30 },
+      attachTo: document.body,
+    })
+    const open = wrapper.get('[data-testid="open-point"]')
+    expect(open.classes()).toContain('has-detail')
+    await open.trigger('click')
+    const dialog = document.querySelector('[data-testid="point-detail"]')
+    expect(dialog).not.toBeNull()
+    const text = dialog!.textContent ?? ''
+    expect(text).toContain('Rust basics')
+    expect(text).toContain('Point 1 of 1')
+    expect(text).toContain('Read chapter 4')
+    const desc = dialog!.querySelector<HTMLTextAreaElement>(`textarea#pdd-desc-${pid}`)
+    expect(desc?.value).toBe('Moves, borrowing and lifetimes.')
+    wrapper.unmount()
+  })
+
+  it('writes an edited description back to the point', async () => {
+    setActivePinia(createPinia())
+    const app = useAppStore()
+    const gid = app.addGoal({ title: 'M' })
+    const pid = app.addChecklistItem(gid, 'P')
+    const point = app.goalChecklist.find((c) => c.id === pid)!
+    const wrapper = mount(GoalPointRow, { props: { point, spent: 0 }, attachTo: document.body })
+    await wrapper.get('[data-testid="open-point"]').trigger('click')
+    const desc = document.querySelector<HTMLTextAreaElement>(`textarea#pdd-desc-${pid}`)!
+    desc.value = 'Full detail'
+    desc.dispatchEvent(new Event('input'))
+    expect(app.goalChecklist.find((c) => c.id === pid)!.description).toBe('Full detail')
+    wrapper.unmount()
   })
 })

@@ -377,4 +377,54 @@ describe('Learning & Goals documents', () => {
       targetDate: '2026-11-06',
     })
   })
+
+  it('imports milestones with no goal, and gives each point its detail', async () => {
+    const { parseLearningDoc } = await import('@/utils/learningDoc')
+    const app = useAppStore()
+    const doc = {
+      milestones: [
+        {
+          title: 'Rust basics',
+          points: [
+            {
+              title: 'Ownership',
+              description: 'Moves and borrowing.',
+              timeline: { start: '2026-11-01', target: '2026-11-03' },
+              estimateMins: 90,
+              tags: ['core'],
+            },
+          ],
+        },
+      ],
+    }
+    const res = app.importLearningDoc(parseLearningDoc(doc))
+    expect(res).toMatchObject({ goals: 0, milestones: 1, tasks: 1 })
+    expect(app.skillGoals).toHaveLength(0)
+    expect(app.goals[0]).toMatchObject({ title: 'Rust basics', skillGoalId: null })
+    expect(app.goalChecklist[0]).toMatchObject({
+      text: 'Ownership',
+      description: 'Moves and borrowing.',
+      startAt: '2026-11-01',
+      dueAt: '2026-11-03',
+      estimateMins: 90,
+      tags: ['core'],
+    })
+
+    // Detail added by hand survives a re-import of a document that lacks it.
+    app.updateChecklistItem(app.goalChecklist[0].id, { description: 'My own notes' })
+    app.importLearningDoc(
+      parseLearningDoc({ milestones: [{ title: 'Rust basics', points: ['Ownership'] }] }),
+    )
+    expect(app.goalChecklist).toHaveLength(1)
+    expect(app.goalChecklist[0].description).toBe('My own notes')
+
+    // And the detail goes out in the export.
+    app.setMilestoneGoal(app.goals[0].id, app.addSkillGoal({ title: 'Rust' }))
+    const out = parseLearningDoc(app.exportLearningDoc())
+    expect(out.goals[0].milestones[0].tasks[0]).toMatchObject({
+      description: 'My own notes',
+      deadline: '2026-11-03',
+      estimateMins: 90,
+    })
+  })
 })

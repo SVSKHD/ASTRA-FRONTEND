@@ -9,14 +9,17 @@ import Button from '@/components/ui/Button.vue'
 import Icon from '@/components/ui/Icon.vue'
 import type { IconName } from '@/components/ui/icons'
 import { useAppStore } from '@/stores/app'
+import { useUiStore } from '@/stores/ui'
 import { buildIndex, childrenOf } from '@/utils/taskTree'
 import { richPlain } from '@/utils/richText'
 import { noteLabel } from '@/utils/notes'
+import { formatMinor } from '@/utils/money'
 import type { AiItemRef } from '@/types'
 
 const props = defineProps<{ open: boolean; items: AiItemRef[]; undoable?: boolean }>()
 const emit = defineEmits<{ close: []; undo: [] }>()
 const app = useAppStore()
+const ui = useUiStore()
 
 interface Look {
   key: string
@@ -37,6 +40,11 @@ const KIND: Record<AiItemRef['kind'], { label: string; icon: IconName; sub: stri
   goal: { label: 'Milestone', icon: 'target', sub: 'Steps' },
   reminder: { label: 'Reminder', icon: 'bell', sub: '' },
   note: { label: 'Note', icon: 'notebook', sub: '' },
+  idea: { label: 'Idea', icon: 'lightbulb', sub: 'Sub-ideas' },
+  deadline: { label: 'Deadline', icon: 'flag', sub: '' },
+  trip: { label: 'Trip', icon: 'plane', sub: '' },
+  stock: { label: 'Stock', icon: 'trending-up', sub: '' },
+  txn: { label: 'Money', icon: 'wallet', sub: '' },
 }
 
 function look(ref: AiItemRef): Look | null {
@@ -118,7 +126,74 @@ function look(ref: AiItemRef): Look | null {
         subs: [],
       }
     }
+    case 'idea': {
+      const i = app.ideas.find((x) => x.id === ref.id)
+      if (!i) return null
+      const subs = app.ideas.filter((x) => x.parentId === i.id).sort((a, b) => a.order - b.order)
+      return {
+        ...base,
+        title: i.title,
+        done: i.done,
+        when: i.deadline ? `Due ${i.deadline}` : '',
+        body: richPlain(i.description),
+        subLabel: KIND.idea.sub,
+        subs: subs.map((s) => ({ title: s.title, done: s.done })),
+      }
+    }
+    case 'deadline': {
+      const d = app.deadlines.find((x) => x.id === ref.id)
+      if (!d) return null
+      return {
+        ...base,
+        title: d.title,
+        done: false,
+        when: `Due ${d.due}`,
+        body: '',
+        subLabel: '',
+        subs: [],
+      }
+    }
+    case 'trip': {
+      const t = app.trips.find((x) => x.id === ref.id)
+      if (!t) return null
+      return {
+        ...base,
+        title: t.title,
+        done: t.status === 'done',
+        when: t.date ? `On ${t.date}` : '',
+        body: richPlain(t.description),
+        subLabel: '',
+        subs: [],
+      }
+    }
+    case 'stock': {
+      const st = app.stocks.find((x) => x.id === ref.id)
+      if (!st) return null
+      return {
+        ...base,
+        title: st.symbol,
+        done: false,
+        when: '',
+        body: st.why,
+        subLabel: '',
+        subs: [],
+      }
+    }
+    case 'txn': {
+      const t = app.transactions.find((x) => x.id === ref.id)
+      if (!t) return null
+      return {
+        ...base,
+        title: `${t.kind === 'income' ? 'Income' : 'Expense'} ${formatMinor(t.amountMinor)}`,
+        done: false,
+        when: `${t.date} · ${t.category}`,
+        body: t.note,
+        subLabel: '',
+        subs: [],
+      }
+    }
   }
+  return null
 }
 
 const looks = computed(() => props.items.map(look).filter((l): l is Look => !!l))
@@ -134,6 +209,9 @@ function openFull(r: AiItemRef) {
   else if (r.kind === 'goal') app.openGoalDialog(r.id)
   else if (r.kind === 'reminder') app.openReminderDialog(r.id)
   else if (r.kind === 'note') app.openNoteView(r.id)
+  else if (r.kind === 'idea' || r.kind === 'deadline' || r.kind === 'trip' || r.kind === 'stock')
+    app.openEdit(r.kind, r.id)
+  else if (r.kind === 'txn') ui.setTab('finances')
   else app.openEdit('todo', r.id)
 }
 </script>

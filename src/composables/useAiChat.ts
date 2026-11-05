@@ -38,7 +38,9 @@ import {
   type AiItemUpdate,
   type AiNewItem,
   type AiNewKind,
+  type AiParentRef,
   type AiPlan,
+  type AiSubItem,
   type AiUpdateKind,
 } from '@/utils/ai'
 import { richPlain } from '@/utils/richText'
@@ -668,21 +670,113 @@ export function resolvePlanTarget(
 }
 
 /** One item a create card made, for the "Created" pop-up and its Undo. */
+/** One thing Undo takes back, children before their parent. */
+export type AiRemove =
+  | { list: 'todos' | 'tasks' | 'ideas'; id: number }
+  | { list: 'deadlines' | 'reminders' | 'notes' | 'trips' | 'stocks'; id: number }
+  | { list: 'goals' | 'steps' | 'txns'; id: number }
+
 export interface AiCreated {
   kind: AiNewKind
   id: number
   title: string
   due?: string
-  /** Sub-todo / subtask ids, or (for a goal) checklist item ids. */
+  /** Every sub-item made with it, at every depth (or a goal's checklist step ids). */
   childIds: number[]
+  /** What the quick look opens: the item itself, or the goal a step went into. */
+  ref: AiItemRef
+  /** What Undo removes, in order. */
+  removes: AiRemove[]
+}
+
+type Tree = 'todo' | 'task' | 'idea'
+const TREE_LIST = { todo: 'todos', task: 'tasks', idea: 'ideas' } as const
+
+/** The live item a create entry's `parent` names, or null when it is gone. */
+export function resolveParent(
+  app: ReturnType<typeof useAppStore>,
+  p: AiParentRef | undefined,
+): { kind: AiParentRef['kind']; id: number; title: string } | null {
+  if (!p) return null
+  const hit = <T extends { id: number }>(list: T[]) => list.find((x) => x.id === p.id)
+  if (p.kind === 'todo') {
+    const t = hit(app.todos)
+    return t ? { ...p, title: t.text } : null
+  }
+  if (p.kind === 'task') {
+    const t = hit(app.tasks)
+    return t ? { ...p, title: t.title } : null
+  }
+  if (p.kind === 'idea') {
+    const t = hit(app.ideas)
+    return t ? { ...p, title: t.title } : null
+  }
+  const g = hit(app.goals)
+  return g ? { ...p, title: g.title } : null
+}
+
+function kidsOf(app: ReturnType<typeof useAppStore>, kind: Tree, id: number): number {
+  if (kind === 'idea') return app.ideas.filter((i) => i.parentId === id).length
+  return childIds(app, TREE_LIST[kind], id).length
 }
 
 /**
- * Create a card's ticked items: todos and tasks with their sub-items nested
- * under them, goals with their steps as checklist items. Marks the card done
- * and returns what was made.
+ * One todo / task / idea and all its sub-items, nested as the model gave them.
+ * Pushes every id made into `made` (parent first) and returns the top id.
  */
-function createItems(
+function addTree(
+  app: ReturnType<typeof useAppStore>,
+  kind: Tree,
+  parentId: number | null,
+  node: { title: string; notes?: string; due?: string; items?: AiSubItem[] },
+  tag: string,
+  made: number[],
+): number | null {
+  const notes = node.notes ?? ''
+  const id =
+    kind === 'todo'
+      ? app.addTodo(node.title, tag, notes)
+      : kind === 'task'
+        ? app.addTask(node.title, tag, { notes, deadline: node.due ?? '' })
+        : app.addIdea(node.title, tag, { description: notes, deadline: node.due ?? '' })
+  if (id == null) return null
+  made.push(id)
+  if (parentId != null) {
+    // Counted before the move, the new item is not yet a child: it lands last.
+    const at = kidsOf(app, kind, parentId)
+    if (kind === 'todo') app.moveTodo(id, parentId, at)
+    else if (kind === 'task') app.moveTask(id, parentId, at)
+    else app.moveIdea(id, parentId, at)
+  }
+  for (const sub of node.items ?? []) addTree(app, kind, id, sub, tag, made)
+  return id
+}
+
+/** A goal's checklist steps, flattening nested sub-items in order (a checklist is flat). */
+function addSteps(
+  app: ReturnType<typeof useAppStore>,
+  goalId: number,
+  items: AiSubItem[],
+  made: number[],
+) {
+  for (const it of items) {
+    const pid = app.addChecklistItem(goalId, it.title)
+    // The step's details open with the point (PointDetailDialog).
+    if (it.notes) app.updateChecklistItem(pid, { description: it.notes })
+    made.push(pid)
+    addSteps(app, goalId, it.items ?? [], made)
+  }
+}
+
+/**
+ * Create a card's ticked items in their own scope: todos, tasks and ideas as
+ * trees (with their sub-items nested), under an existing parent when the model
+ * named one; goals with their checklist; deadlines, reminders, notes, trips,
+ * stocks and money in/out as single items. Nothing is created that its scope
+ * cannot hold (the parser already dropped a reminder without a time, a
+ * deadline without a date, money without an amount).
+ */
+export function createItems(
   chatId: number,
   msgId: number,
   createIndex: number,
@@ -690,106 +784,202 @@ function createItems(
 ): AiCreated[] {
   const app = useAppStore()
   const made: AiCreated[] = []
-  // Asked about a picked item: its todos and tasks go under it, in its list.
+  // Asked about a picked item: its new todos and tasks go under it, in its list.
   const msg = app.aiChatById(chatId)?.messages.find((m) => m.id === msgId)
   const under = msg?.focus ? focusInfo(app, msg.focus) : null
   for (const it of items) {
-    const subs = it.items ?? []
-    if (under && it.kind !== 'goal') {
-      const inTodos = under.collection === 'todos'
-      const add = (title: string, notes = '', deadline = '') =>
-        inTodos
-          ? app.addTodo(title, it.tag ?? '', notes)
-          : app.addTask(title, it.tag ?? '', { notes, deadline })
-      const move = (cid: number, parent: number, at: number) =>
-        inTodos ? app.moveTodo(cid, parent, at) : app.moveTask(cid, parent, at)
-      const id = add(it.title, it.notes ?? '', it.due ?? '')
-      if (id == null) continue
-      move(id, under.id, childIds(app, under.collection, under.id).length)
-      const kids: number[] = []
-      subs.forEach((s, i) => {
-        const cid = add(s)
-        if (cid == null) return
-        move(cid, id, i)
-        kids.push(cid)
-      })
-      markFresh(under.collection, [id])
+    const tag = it.tag ?? ''
+    const parent = resolveParent(app, it.parent)
+
+    // A todo or task under a goal becomes one of its checklist steps.
+    if (parent?.kind === 'goal' && (it.kind === 'todo' || it.kind === 'task')) {
+      const ids: number[] = []
+      addSteps(app, parent.id, [{ title: it.title, notes: it.notes, items: it.items }], ids)
       made.push({
-        kind: inTodos ? 'todo' : 'task',
-        id,
+        kind: it.kind,
+        id: ids[0],
         title: it.title,
-        due: it.due,
-        childIds: kids,
+        childIds: ids.slice(1),
+        ref: { kind: 'goal', id: parent.id },
+        removes: [...ids].reverse().map((id) => ({ list: 'steps' as const, id })),
       })
       continue
     }
-    if (it.kind === 'todo') {
-      const id = app.addTodo(it.title, it.tag ?? '', it.notes ?? '')
+
+    if (it.kind === 'todo' || it.kind === 'task' || it.kind === 'idea') {
+      // An explicit parent wins; else a picked todo/task takes new todos and tasks.
+      let kind: Tree = it.kind
+      let parentId: number | null = null
+      if (parent && parent.kind === it.kind) parentId = parent.id
+      else if (!it.parent && under && it.kind !== 'idea') {
+        kind = under.collection === 'todos' ? 'todo' : 'task'
+        parentId = under.id
+      }
+      const ids: number[] = []
+      const id = addTree(app, kind, parentId, it, tag, ids)
       if (id == null) continue
-      const childIds: number[] = []
-      subs.forEach((s, i) => {
-        const cid = app.addTodo(s, it.tag ?? '')
-        if (cid == null) return
-        app.moveTodo(cid, id, i)
-        childIds.push(cid)
-      })
-      made.push({ kind: 'todo', id, title: it.title, childIds })
-    } else if (it.kind === 'task') {
-      const id = app.addTask(it.title, it.tag ?? '', {
-        notes: it.notes ?? '',
-        deadline: it.due ?? '',
-      })
-      if (id == null) continue
-      const childIds: number[] = []
-      subs.forEach((s, i) => {
-        const cid = app.addTask(s, it.tag ?? '')
-        if (cid == null) return
-        app.moveTask(cid, id, i)
-        childIds.push(cid)
-      })
-      made.push({ kind: 'task', id, title: it.title, due: it.due, childIds })
-    } else {
-      const id = app.addGoal({
+      if (parentId != null && kind !== 'idea') markFresh(kind === 'todo' ? 'todos' : 'tasks', [id])
+      made.push({
+        kind,
+        id,
         title: it.title,
-        description: it.notes ?? '',
-        targetDate: it.due ?? '',
-        ...(it.tag ? { tag: it.tag } : {}),
+        ...(it.due ? { due: it.due } : {}),
+        childIds: ids.slice(1),
+        ref: { kind, id },
+        removes: [...ids].reverse().map((x) => ({ list: TREE_LIST[kind], id: x })),
       })
-      const childIds = subs.map((s) => app.addChecklistItem(id, s))
-      made.push({ kind: 'goal', id, title: it.title, due: it.due, childIds })
+      continue
     }
+
+    let id: number | null | undefined
+    let ref: AiItemRef | null = null
+    let removes: AiRemove[] = []
+    const childIdsMade: number[] = []
+    switch (it.kind) {
+      case 'goal': {
+        const gid = app.addGoal({
+          title: it.title,
+          description: it.notes ?? '',
+          targetDate: it.due ?? '',
+          ...(it.tag ? { tag: it.tag } : {}),
+        })
+        id = gid
+        addSteps(app, gid, it.items ?? [], childIdsMade)
+        ref = { kind: 'goal', id: gid }
+        removes = [
+          ...[...childIdsMade].reverse().map((x) => ({ list: 'steps' as const, id: x })),
+          { list: 'goals', id: gid },
+        ]
+        break
+      }
+      case 'deadline': {
+        const did = app.addDeadline(it.title, it.due ?? '')
+        if (did != null) {
+          id = did
+          ref = { kind: 'deadline', id: did }
+          removes = [{ list: 'deadlines', id: did }]
+        }
+        break
+      }
+      case 'reminder': {
+        const rid = app.addReminder({
+          title: it.title,
+          note: it.notes ?? '',
+          start: it.when ?? '',
+          repeat: { type: 'none' },
+        })
+        if (rid != null) {
+          id = rid
+          ref = { kind: 'reminder', id: rid }
+          removes = [{ list: 'reminders', id: rid }]
+        }
+        break
+      }
+      case 'note': {
+        const nid = app.addNote(it.title, it.notes ?? '')
+        if (nid != null) {
+          id = nid
+          ref = { kind: 'note', id: nid }
+          removes = [{ list: 'notes', id: nid }]
+        }
+        break
+      }
+      case 'trip': {
+        const tid = app.addTrip({
+          title: it.title,
+          ...(it.due ? { date: it.due } : {}),
+          description: it.notes ?? '',
+          ...(it.tag ? { tag: it.tag } : {}),
+        })
+        if (tid != null) {
+          id = tid
+          ref = { kind: 'trip', id: tid }
+          removes = [{ list: 'trips', id: tid }]
+        }
+        break
+      }
+      case 'stock': {
+        const sid = app.addStock(it.title, tag, { why: it.notes ?? '' })
+        if (sid != null) {
+          id = sid
+          ref = { kind: 'stock', id: sid }
+          removes = [{ list: 'stocks', id: sid }]
+        }
+        break
+      }
+      case 'expense':
+      case 'income': {
+        if (!it.amount || it.amount <= 0) break
+        const xid = app.addTxn({
+          kind: it.kind,
+          amountMinor: Math.round(it.amount * 100),
+          ...(it.due ? { date: it.due } : {}),
+          note: [it.title, it.notes].filter(Boolean).join(' — '),
+          ...(it.category ? { category: it.category } : {}),
+          ...(it.tag ? { tags: [it.tag] } : {}),
+        })
+        id = xid
+        ref = { kind: 'txn', id: xid }
+        removes = [{ list: 'txns', id: xid }]
+        break
+      }
+    }
+    if (id == null || !ref) continue
+    made.push({
+      kind: it.kind,
+      id,
+      title: it.title,
+      ...(it.due ? { due: it.due } : {}),
+      childIds: childIdsMade,
+      ref,
+      removes,
+    })
   }
   if (made.length) {
     app.markAiCreatesApplied(chatId, msgId, createIndex)
-    app.trackAiMade(
-      chatId,
-      msgId,
-      made.map((c) => ({ kind: c.kind, id: c.id })),
-    )
+    app.trackAiMade(chatId, msgId, uniqueRefs(made))
   }
   return made
 }
+
+function uniqueRefs(made: AiCreated[]): AiItemRef[] {
+  const seen = new Set<string>()
+  return made
+    .map((c) => c.ref)
+    .filter((r) => {
+      const k = `${r.kind}:${r.id}`
+      if (seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+}
+
+const UNDO_TYPE = {
+  todos: 'todo',
+  tasks: 'task',
+  ideas: 'idea',
+  deadlines: 'deadline',
+  reminders: 'reminder',
+  notes: 'note',
+  trips: 'trip',
+  stocks: 'stock',
+} as const
 
 /** Take back what a create card made, and re-arm the card. */
 function undoCreated(chatId: number, msgId: number, createIndex: number, made: AiCreated[]) {
   const app = useAppStore()
   for (const c of made) {
-    if (c.kind === 'goal') {
-      app.deleteGoal(c.id)
-      continue
+    for (const r of c.removes) {
+      if (r.list === 'goals') app.deleteGoal(r.id)
+      else if (r.list === 'steps') app.deleteChecklistItem(r.id)
+      else if (r.list === 'txns') app.deleteTxn(r.id)
+      else app.deleteWithUndo(r.list, UNDO_TYPE[r.list], r.id, { toast: false })
     }
-    const list = c.kind === 'todo' ? 'todos' : 'tasks'
-    // Children first, so no sub-item is left pointing at a parent that is gone.
-    for (const cid of c.childIds) app.deleteWithUndo(list, c.kind, cid, { toast: false })
-    app.deleteWithUndo(list, c.kind, c.id, { toast: false })
   }
   app.markAiCreatesApplied(chatId, msgId, createIndex, false)
-  app.trackAiMade(
-    chatId,
-    msgId,
-    made.map((c) => ({ kind: c.kind, id: c.id })),
-    'remove',
-  )
+  // Steps that went into an existing goal leave that goal in place: keep it tracked.
+  const gone = made.filter((c) => !(c.ref.kind === 'goal' && c.ref.id !== c.id))
+  app.trackAiMade(chatId, msgId, uniqueRefs(gone), 'remove')
 }
 
 /** Add a plan's steps — under its target when there is one, else as todos. */

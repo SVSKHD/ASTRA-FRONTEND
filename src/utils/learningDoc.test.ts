@@ -152,8 +152,58 @@ describe('reading', () => {
     })
     expect(g.milestones[0].error).toBeUndefined()
     expect(countDoc(doc)).toMatchObject({ milestones: 1, subtasks: 2, completedSubtasks: 1 })
-    // A milestone without its goal is not this shape.
-    expect(isLearningDoc({ milestone: single.milestone })).toBe(false)
+    // A milestone without its goal still imports, on its own (it used to import nothing).
+    expect(isLearningDoc({ milestone: single.milestone })).toBe(true)
+    const alone = parseLearningDoc({ milestone: single.milestone })
+    expect(alone.goals[0].standalone).toBe(true)
+    expect(countDoc(alone)).toMatchObject({ goals: 0, milestones: 1 })
+  })
+
+  it('reads milestones with no goal, as a list or a bare array', () => {
+    const ms = [{ title: 'Week 1', duration: 7, points: ['Read the docs'] }, { title: 'Week 2' }]
+    for (const input of [{ milestones: ms }, ms]) {
+      const doc = parseLearningDoc(input)
+      expect(doc.goals).toHaveLength(1)
+      expect(doc.goals[0].standalone).toBe(true)
+      expect(doc.goals[0].milestones.map((m) => m.title)).toEqual(['Week 1', 'Week 2'])
+      expect(doc.goals[0].milestones[0].tasks.map((t) => t.title)).toEqual(['Read the docs'])
+    }
+    // A bare array of something else is not a milestone document.
+    expect(isLearningDoc([{ foo: 1 }])).toBe(false)
+  })
+
+  it('reads tasks under points / steps / items / checklist, with their detail', () => {
+    const doc = parseLearningDoc({
+      goal: 'Learn Rust',
+      milestones: [
+        {
+          title: 'Basics',
+          steps: [
+            {
+              title: 'Ownership',
+              notes: 'Borrowing, moves, lifetimes. https://doc.rust-lang.org/book/ch04-00.html',
+              timeline: { start: '2026-11-01', target: '2026-11-03' },
+              estimate: '1.5h',
+              tags: ['#core', 'memory'],
+              items: ['Read chapter 4', { title: 'Do the exercises', completed: true }],
+            },
+          ],
+        },
+      ],
+    })
+    const [t] = doc.goals[0].milestones[0].tasks
+    expect(t).toMatchObject({
+      title: 'Ownership',
+      description: 'Borrowing, moves, lifetimes. https://doc.rust-lang.org/book/ch04-00.html',
+      start: '2026-11-01',
+      deadline: '2026-11-03',
+      estimateMins: 90,
+      tags: ['core', 'memory'],
+    })
+    expect(t.subtasks.map((s) => [s.title, s.completed])).toEqual([
+      ['Read chapter 4', false],
+      ['Do the exercises', true],
+    ])
   })
 })
 

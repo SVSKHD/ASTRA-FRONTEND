@@ -103,7 +103,11 @@ describe('working on a picked todo', () => {
     const parent = app.addTodo('Goa trip')!
     const { chatId, msgId } = replyAbout(parent)
     useAiChat().createItems(chatId, msgId, 0, [
-      { kind: 'todo', title: 'Book hotel', items: ['Compare prices', 'Pay deposit'] },
+      {
+        kind: 'todo',
+        title: 'Book hotel',
+        items: [{ title: 'Compare prices' }, { title: 'Pay deposit' }],
+      },
     ])
     const hotel = app.todos.find((t) => t.text === 'Book hotel')!
     expect(hotel.parentId).toBe(parent)
@@ -145,7 +149,11 @@ describe('items made from an AI reply are divided into sub-items', () => {
     const { app, chatId, msgId } = chat()
     const ai = useAiChat()
     const made = ai.createItems(chatId, msgId, 0, [
-      { kind: 'todo', title: 'Renew passport', items: ['Fill the form', 'Book appointment'] },
+      {
+        kind: 'todo',
+        title: 'Renew passport',
+        items: [{ title: 'Fill the form' }, { title: 'Book appointment' }],
+      },
     ])
     const parent = app.todos.find((t) => t.text === 'Renew passport')!
     expect(app.todos.filter((t) => t.parentId === parent.id).map((t) => t.text)).toEqual([
@@ -154,5 +162,129 @@ describe('items made from an AI reply are divided into sub-items', () => {
     ])
     ai.undoCreated(chatId, msgId, 0, made)
     expect(app.todos).toHaveLength(0)
+  })
+})
+
+describe('the AI can create in every scope, and under existing items', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    useAiChat().setFocus(null)
+  })
+
+  it('adds sub-todos under an existing todo named by its ref, nested deeply', () => {
+    const { app, chatId, msgId } = chat()
+    const parent = app.addTodo('Renew car insurance')!
+    useAiChat().createItems(chatId, msgId, 0, [
+      {
+        kind: 'todo',
+        title: 'Compare quotes',
+        parent: { kind: 'todo', id: parent },
+        items: [{ title: 'Current insurer', items: [{ title: 'Ask for the no-claim bonus' }] }],
+      },
+    ])
+    const cmp = app.todos.find((t) => t.text === 'Compare quotes')!
+    expect(cmp.parentId).toBe(parent)
+    const cur = app.todos.find((t) => t.text === 'Current insurer')!
+    expect(cur.parentId).toBe(cmp.id)
+    expect(app.todos.find((t) => t.text === 'Ask for the no-claim bonus')!.parentId).toBe(cur.id)
+  })
+
+  it('adds subtasks under an existing task and sub-ideas under an existing idea', () => {
+    const { app, chatId, msgId } = chat()
+    const task = app.addTask('Launch CRM', '')!
+    const idea = app.addIdea('Podcast', '')!
+    useAiChat().createItems(chatId, msgId, 0, [
+      { kind: 'task', title: 'Fix filters', parent: { kind: 'task', id: task } },
+      { kind: 'idea', title: 'Guest list', parent: { kind: 'idea', id: idea } },
+    ])
+    expect(app.tasks.find((t) => t.title === 'Fix filters')!.parentId).toBe(task)
+    expect(app.ideas.find((i) => i.title === 'Guest list')!.parentId).toBe(idea)
+  })
+
+  it('turns a todo under a goal into a checklist step of that goal', () => {
+    const { app, chatId, msgId } = chat()
+    const goal = app.addGoal({ title: 'Half marathon' })
+    const ai = useAiChat()
+    const made = ai.createItems(chatId, msgId, 0, [
+      { kind: 'todo', title: 'Buy shoes', parent: { kind: 'goal', id: goal } },
+    ])
+    expect(app.goalChecklist.filter((c) => c.goalId === goal).map((c) => c.text)).toEqual([
+      'Buy shoes',
+    ])
+    expect(app.todos).toHaveLength(0)
+    expect(made[0].ref).toEqual({ kind: 'goal', id: goal })
+    ai.undoCreated(chatId, msgId, 0, made)
+    expect(app.goalChecklist.filter((c) => c.goalId === goal)).toHaveLength(0)
+    // The goal was there before; Undo leaves it.
+    expect(app.goals.some((g) => g.id === goal)).toBe(true)
+  })
+
+  it('falls back to the top level when the named parent no longer exists', () => {
+    const { app, chatId, msgId } = chat()
+    useAiChat().createItems(chatId, msgId, 0, [
+      { kind: 'todo', title: 'Orphan', parent: { kind: 'todo', id: 999_999 } },
+    ])
+    expect(app.todos.find((t) => t.text === 'Orphan')!.parentId).toBeNull()
+  })
+
+  it('creates every other scope, and Undo takes all of it back', () => {
+    const { app, chatId, msgId } = chat()
+    const ai = useAiChat()
+    const made = ai.createItems(chatId, msgId, 0, [
+      { kind: 'idea', title: 'Newsletter', notes: 'Monthly', items: [{ title: 'Pick a name' }] },
+      { kind: 'deadline', title: 'GST filing', due: '2026-11-20' },
+      { kind: 'reminder', title: 'Call the bank', when: '2026-11-06T10:00', notes: 'Loan' },
+      { kind: 'note', title: 'Hotel wifi', notes: 'Password on the card' },
+      { kind: 'trip', title: 'Goa', due: '2026-12-20', notes: 'With family' },
+      { kind: 'stock', title: 'RELIANCE', notes: 'Watch for 2,400' },
+      { kind: 'expense', title: 'Groceries', amount: 1240.5, category: 'Food', due: '2026-11-05' },
+      { kind: 'income', title: 'Salary', amount: 90000 },
+    ])
+    expect(made.map((m) => m.ref.kind)).toEqual([
+      'idea',
+      'deadline',
+      'reminder',
+      'note',
+      'trip',
+      'stock',
+      'txn',
+      'txn',
+    ])
+    expect(app.ideas.find((i) => i.title === 'Pick a name')!.parentId).toBe(made[0].id)
+    expect(app.deadlines.find((d) => d.title === 'GST filing')!.due).toBe('2026-11-20')
+    expect(app.reminders.find((r) => r.title === 'Call the bank')!.start).toBe('2026-11-06T10:00')
+    expect(app.notes.find((n) => n.title === 'Hotel wifi')!.text).toBe('Password on the card')
+    expect(app.trips.find((t) => t.title === 'Goa')!.date).toBe('2026-12-20')
+    expect(app.stocks.find((s) => s.symbol === 'RELIANCE')!.why).toBe('Watch for 2,400')
+    expect(app.transactions.find((t) => t.kind === 'expense')).toMatchObject({
+      amountMinor: 124050,
+      category: 'Food',
+      date: '2026-11-05',
+    })
+    expect(app.transactions.find((t) => t.kind === 'income')!.amountMinor).toBe(9_000_000)
+
+    ai.undoCreated(chatId, msgId, 0, made)
+    expect(app.ideas).toHaveLength(0)
+    expect(app.deadlines).toHaveLength(0)
+    expect(app.reminders).toHaveLength(0)
+    expect(app.notes).toHaveLength(0)
+    expect(app.trips).toHaveLength(0)
+    expect(app.stocks).toHaveLength(0)
+    expect(app.transactions).toHaveLength(0)
+  })
+
+  it('gives each milestone point its notes as the description it opens with', () => {
+    const { app, chatId, msgId } = chat()
+    useAiChat().createItems(chatId, msgId, 0, [
+      {
+        kind: 'goal',
+        title: 'Learn Rust',
+        items: [{ title: 'Ownership', notes: 'Read chapter 4, then do the exercises.' }],
+      },
+    ])
+    expect(app.goalChecklist[0]).toMatchObject({
+      text: 'Ownership',
+      description: 'Read chapter 4, then do the exercises.',
+    })
   })
 })

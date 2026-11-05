@@ -29,6 +29,7 @@ import {
   aiContextInput,
   focusInfo,
   planTargetFor,
+  resolveParent,
   resolveUpdateTarget,
   useAiChat,
   type AiCreated,
@@ -38,6 +39,7 @@ import AiFocusPicker from '@/components/AiFocusPicker.vue'
 import ScrollArrows from '@/components/ScrollArrows.vue'
 import AiQuickLook from '@/components/AiQuickLook.vue'
 import Checkbox from '@/components/ui/Checkbox.vue'
+import AiSubTree from '@/components/ai/AiSubTree.vue'
 import { AI_PROVIDERS, aiModelLabel, type AiChat, type AiItemRef, type AiMessage } from '@/types'
 import { chatTarget } from '@/utils/aiSettings'
 import AiModelPicker from '@/components/AiModelPicker.vue'
@@ -60,6 +62,7 @@ import {
   type AiNewItem,
   type AiNewKind,
   AI_NEW_KINDS,
+  countSubs,
   type AiPlan,
   type AiUpdateKind,
 } from '@/utils/ai'
@@ -441,12 +444,27 @@ function applyUpdates(m: AiMessage, idx: number, updates: AiItemUpdate[]) {
 // New-item cards: todos, tasks and goals the reply proposes from what was
 // discussed. Every row starts ticked; untick what you do not want, then Create.
 // Afterwards a pop-up lists what was made, with Open and Undo.
-const NEW_KIND_LABEL: Record<AiNewKind, string> = { todo: 'Todo', task: 'Task', goal: 'Milestone' }
-const NEW_SUB_LABEL: Record<AiNewKind, string> = {
+const NEW_KIND_LABEL: Record<AiNewKind, string> = {
+  todo: 'Todo',
+  task: 'Task',
+  goal: 'Milestone',
+  idea: 'Idea',
+  deadline: 'Deadline',
+  reminder: 'Reminder',
+  note: 'Note',
+  trip: 'Trip',
+  stock: 'Stock',
+  expense: 'Expense',
+  income: 'Income',
+}
+const NEW_SUB_LABEL: Partial<Record<AiNewKind, string>> = {
   todo: 'sub-todo',
   task: 'subtask',
+  idea: 'sub-idea',
   goal: 'step',
 }
+// Where a new item lands when the model put it under an existing one.
+const PARENT_LABEL = { todo: 'todo', task: 'task', idea: 'idea', goal: 'milestone' } as const
 function createIndex(m: AiMessage, partIndex: number): number {
   const parts = parsed.value.get(m.id)?.parts ?? []
   return parts.slice(0, partIndex).filter((p) => p.kind === 'create').length
@@ -477,10 +495,32 @@ function createLabel(items: AiNewItem[]): string {
 }
 function subLine(it: AiNewItem): string {
   const parts: string[] = []
-  if (it.due) parts.push(it.kind === 'goal' ? `target ${it.due}` : `due ${it.due}`)
+  if (it.parent) {
+    const p = resolveParent(app, it.parent)
+    const sub =
+      it.parent.kind === 'goal' ? 'as a step of' : `as a ${NEW_SUB_LABEL[it.kind] ?? 'sub-item'} of`
+    parts.push(
+      p
+        ? `${sub} ${PARENT_LABEL[p.kind]} “${p.title}”`
+        : `its ${PARENT_LABEL[it.parent.kind]} is gone — will be added at the top level`,
+    )
+  }
+  if (it.amount) parts.push(`₹${it.amount.toLocaleString('en-IN')}`)
+  if (it.category) parts.push(it.category)
+  if (it.when) parts.push(`at ${it.when.replace('T', ' ')}`)
+  if (it.due) {
+    const word =
+      it.kind === 'goal'
+        ? 'target'
+        : it.kind === 'trip' || it.kind === 'expense' || it.kind === 'income'
+          ? 'on'
+          : 'due'
+    parts.push(`${word} ${it.due}`)
+  }
   if (it.tag) parts.push(`#${it.tag}`)
-  const n = it.items?.length ?? 0
-  if (n) parts.push(`${n} ${NEW_SUB_LABEL[it.kind]}${n === 1 ? '' : 's'}`)
+  const n = countSubs(it.items)
+  const label = NEW_SUB_LABEL[it.kind]
+  if (n && label) parts.push(`${n} ${label}${n === 1 ? '' : 's'}`)
   return parts.join(' · ')
 }
 
@@ -508,7 +548,7 @@ function runCreate(m: AiMessage, idx: number, items: AiNewItem[]) {
   const made = ai.createItems(chat.id, m.id, idx, tickedItems(m, idx, items))
   if (!made.length) return
   openLook(
-    made.map((c) => ({ kind: c.kind, id: c.id })),
+    made.map((c) => c.ref),
     { chatId: chat.id, msgId: m.id, idx, made },
   )
 }
@@ -527,6 +567,11 @@ const MADE_LABEL: Record<AiItemRef['kind'], string> = {
   goal: 'Goal',
   reminder: 'Reminder',
   note: 'Note',
+  idea: 'Idea',
+  deadline: 'Deadline',
+  trip: 'Trip',
+  stock: 'Stock',
+  txn: 'Money',
 }
 function madeTitle(r: AiItemRef): string | null {
   const hit = <T extends { id: number }>(list: T[]) => list.find((x) => x.id === r.id)
@@ -542,6 +587,18 @@ function madeTitle(r: AiItemRef): string | null {
     case 'note': {
       const n = hit(app.notes)
       return n ? n.title || 'Note' : null
+    }
+    case 'idea':
+      return hit(app.ideas)?.title ?? null
+    case 'deadline':
+      return hit(app.deadlines)?.title ?? null
+    case 'trip':
+      return hit(app.trips)?.title ?? null
+    case 'stock':
+      return hit(app.stocks)?.symbol ?? null
+    case 'txn': {
+      const t = hit(app.transactions)
+      return t ? t.note || t.category : null
     }
   }
   return null
@@ -961,9 +1018,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                               subLine(it)
                             }}</span>
                             <span v-if="it.notes" class="ai-plan__notes">{{ it.notes }}</span>
-                            <ul v-if="it.items?.length" class="ai-create__subs">
-                              <li v-for="(s, si) in it.items" :key="si">{{ s }}</li>
-                            </ul>
+                            <AiSubTree v-if="it.items?.length" :items="it.items" />
                           </span>
                         </li>
                       </ul>

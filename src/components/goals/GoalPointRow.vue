@@ -21,6 +21,7 @@ import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
 import Icon from '@/components/ui/Icon.vue'
 import PointLearnings from '@/components/goals/PointLearnings.vue'
 import PointSubtasks from '@/components/goals/PointSubtasks.vue'
+import PointDetailDialog from '@/components/goals/PointDetailDialog.vue'
 import { pointProgress } from '@/utils/milestoneProgress'
 import { formatMinutes } from '@/utils/detailFields'
 import type { GoalChecklistItem } from '@/types'
@@ -101,6 +102,9 @@ async function toggleSubtasks() {
     subtaskList.value?.focusAdd()
   }
 }
+
+// The point opened in full (PointDetailDialog).
+const detailOpen = ref(false)
 </script>
 
 <template>
@@ -130,6 +134,18 @@ async function toggleSubtasks() {
     />
 
     <div class="gpr__controls">
+      <!-- The whole point, opened: description, timeline, subtasks, learnings. -->
+      <button
+        type="button"
+        class="gpr__open"
+        :class="{ 'has-detail': !!point.description }"
+        :aria-label="`Open point: ${point.text || 'Untitled point'}`"
+        :title="point.description ? 'Open — this point has a description' : 'Open the point'"
+        data-testid="open-point"
+        @click="detailOpen = true"
+      >
+        <Icon name="maximize" size="xs" />
+      </button>
       <button
         v-if="subCount || !locked"
         type="button"
@@ -231,6 +247,14 @@ async function toggleSubtasks() {
       :locked="locked"
     />
     <PointLearnings v-if="showLearnings" class="gpr__learnings" :point-id="point.id" />
+    <PointDetailDialog
+      v-if="detailOpen"
+      :open="detailOpen"
+      :point-id="point.id"
+      :spent="spent"
+      :locked="locked"
+      @close="detailOpen = false"
+    />
   </div>
 </template>
 
@@ -372,6 +396,22 @@ async function toggleSubtasks() {
 .gpr__mini--danger:hover {
   border-color: color-mix(in oklch, var(--theme-danger) 50%, transparent);
   color: var(--theme-danger);
+}
+.gpr__open {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--theme-dim);
+  cursor: pointer;
+}
+.gpr__open.has-detail {
+  border-color: color-mix(in oklch, var(--theme-accent) 35%, transparent);
+  color: var(--theme-accent);
 }
 .gpr__learnt {
   display: inline-flex;

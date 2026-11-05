@@ -314,7 +314,8 @@ export interface AiMessage {
 }
 /** An item the AI chat made, by kind and id (an event is a scheduled task). */
 export interface AiItemRef {
-  kind: 'todo' | 'task' | 'goal' | 'reminder' | 'note'
+  kind:
+    'todo' | 'task' | 'goal' | 'reminder' | 'note' | 'idea' | 'deadline' | 'trip' | 'stock' | 'txn'
   id: number
 }
 /** A web page the proxy fetched for a reply; `ok` false when it could not be read. */
@@ -825,6 +826,9 @@ export interface GoalChecklistItem extends Timestamped {
   id: number
   goalId: number
   text: string
+  // The point's full detail: what it is, why, how, links. Absent/'' = none.
+  // Optional, so points stored before it existed read as having none.
+  description?: string
   done: boolean
   order: number
   // Planned vs accumulated time, in minutes. estimateMins null = no estimate.
