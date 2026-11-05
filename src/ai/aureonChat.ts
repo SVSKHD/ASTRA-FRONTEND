@@ -521,13 +521,22 @@ export interface ChatEvent {
  * unknown provider is read as local: the only automatic fallback the server
  * has is the local model, never another external provider.
  */
-export function routeOf(data: Record<string, unknown>, fallbackModel: string): AiRoute {
+export function routeOf(
+  data: Record<string, unknown>,
+  fallbackModel: string,
+  askedProvider?: AiProvider,
+): AiRoute {
   const provider: AiProvider = isProvider(data.provider) ? data.provider : 'ollama'
+  // The requested model only stands in for a missing `model` when the provider that
+  // answered is the one that was asked. A fallback without a model is "not
+  // reported", never the requested (e.g. Gemini) model on a local (Qwen) reply.
+  const sent = typeof data.model === 'string' && data.model ? data.model : null
+  const model = sent ?? (!askedProvider || askedProvider === provider ? fallbackModel : '')
   const raw = data.fallback_reason ?? data.reason ?? null
   const reason = typeof raw === 'string' ? raw : null
   return {
     provider,
-    model: String(data.model ?? fallbackModel),
+    model,
     requestedProvider: isProvider(data.requested_provider) ? data.requested_provider : undefined,
     requestedModel: typeof data.requested_model === 'string' ? data.requested_model : undefined,
     fallbackReason: reason,
@@ -655,9 +664,10 @@ export async function* streamChat(opts: {
       if (opts.chatKey && typeof data.conversation_id === 'string') {
         aureonAi.conversations[opts.chatKey] = data.conversation_id
       }
-      yield { model: String(data.model ?? opts.model), route: routeOf(data, opts.model) }
+      const route = routeOf(data, opts.model, opts.provider)
+      yield { model: route.model, route }
     } else if (ev.event === 'fallback') {
-      const route = routeOf(data, opts.model)
+      const route = routeOf(data, opts.model, opts.provider)
       yield { model: route.model, route, reset: data.reset === true }
     } else if (ev.event === 'token') {
       if (typeof data.content === 'string' && data.content) yield { text: data.content }
@@ -670,17 +680,23 @@ export async function* streamChat(opts: {
         ...(typeof data.reasoning_tokens === 'number'
           ? { reasoningTokens: data.reasoning_tokens }
           : {}),
-        ...('provider' in data ? { route: routeOf(data, opts.model) } : {}),
+        ...('provider' in data ? doneRoute(data, opts.model, opts.provider) : {}),
       }
       return
     } else if (ev.event === 'error') {
       yield {
         error: String(data.message ?? data.code ?? 'The model stopped.'),
-        ...('provider' in data ? { route: routeOf(data, opts.model) } : {}),
+        ...('provider' in data ? doneRoute(data, opts.model, opts.provider) : {}),
       }
       return
     }
   }
+}
+
+/** The final word on who answered: the route, and its model when the server named one. */
+function doneRoute(data: Record<string, unknown>, model: string, provider?: AiProvider) {
+  const route = routeOf(data, model, provider)
+  return typeof data.model === 'string' && data.model ? { route, model: route.model } : { route }
 }
 
 /** The whole answer to one question (prompt helpers). */

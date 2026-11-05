@@ -490,6 +490,9 @@ async function sendAureon(
           costUsd: r.costUsd ?? null,
         })
       }
+      // '' with a route: the answering model is unknown. Clear it, so the chip never
+      // keeps the model of the provider that was asked (or answered before a fallback).
+      if (evt.route && evt.model === '') app.setAiMessageModel(chatId, msgId, '')
       if (evt.model) {
         app.setAiMessageModel(chatId, msgId, evt.model)
         const r = evt.route
