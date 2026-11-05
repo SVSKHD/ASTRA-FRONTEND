@@ -17,6 +17,7 @@
 // slides the bar away, any scroll up brings it back, and it is always shown at
 // the top of the page and after switching tabs.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
@@ -103,6 +104,12 @@ function openGithub() {
   ui.setMoreSheet(false)
   auth.openGithubPanel()
 }
+// Settings live in the control center (/settings → /dev/settings).
+const router = useRouter()
+function openSettings() {
+  ui.setMoreSheet(false)
+  void router.push('/settings')
+}
 const avatarDisc = computed(() => ({
   width: '22px',
   height: '22px',
@@ -184,6 +191,15 @@ const avatarDisc = computed(() => ({
       <button type="button" class="mtb-more__item" @click="openGithub">
         <Icon name="github" size="md" class="mtb-more__icon" />
         <span>GitHub</span>
+      </button>
+      <button
+        type="button"
+        class="mtb-more__item"
+        data-testid="more-settings"
+        @click="openSettings"
+      >
+        <Icon name="settings" size="md" class="mtb-more__icon" />
+        <span>Settings</span>
       </button>
     </div>
     <div class="mtb-more__sync"><ShellSync inline /></div>
