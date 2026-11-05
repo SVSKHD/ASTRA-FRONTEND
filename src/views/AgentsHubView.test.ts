@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
-const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }))
+const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), PUT: vi.fn(), DELETE: vi.fn() }))
 vi.mock('@/api/client', () => ({
   aureon: api,
   errorMessage: (_: unknown, f: string) => f,
@@ -200,5 +200,68 @@ describe('<AgentsHubView />', () => {
     const { w } = await mountHub()
     expect(w.text()).toContain('Admins only')
     expect(api.GET).not.toHaveBeenCalledWith('/api/v1/approvals/inbox', expect.anything())
+  })
+
+  it('sets the News, Voice and Research providers through the settings API', async () => {
+    const row = (key: string) => ({
+      key,
+      category: 'agents',
+      description: key,
+      kind: 'str',
+      is_secret: false,
+      requires_reauth: false,
+      managed: false,
+      is_set: false,
+      masked: null,
+      source: 'default',
+    })
+    serve({
+      '/api/v1/settings': {
+        categories: ['agents'],
+        encryption_ready: true,
+        tests: {},
+        settings: [
+          row('AGENT_NEWS_PROVIDER'),
+          row('AGENT_NEWS_MODEL'),
+          row('AGENT_VOICE_PROVIDER'),
+          row('AGENT_RESEARCH_PROVIDER'),
+          row('AGENT_IMAGE_ENABLED'),
+          row('OPENROUTER_IMAGE_MODEL'),
+        ],
+      },
+    })
+    api.PUT.mockResolvedValue(ok({ key: 'AGENT_NEWS_PROVIDER' }))
+    const { w } = await mountHub()
+    const card = w.get('[data-testid="agent-providers"]')
+    expect(card.findAll('[data-agent]').map((s) => s.attributes('data-agent'))).toEqual([
+      'NEWS',
+      'VOICE',
+      'RESEARCH',
+    ])
+    // The image worker stays OpenRouter-only: no provider choice is added for it.
+    expect(card.text()).not.toContain('OPENROUTER_IMAGE_MODEL')
+    expect(card.get('[data-agent="VOICE"]').text()).toContain('always run locally')
+    const select = card.get('[data-key="AGENT_NEWS_PROVIDER"]').findComponent({ name: 'Select' })
+    expect((select.props('options') as { value: string }[]).map((o) => o.value)).toEqual([
+      'auto',
+      'ollama',
+      'openrouter',
+      'anthropic',
+      'gemini',
+    ])
+    select.vm.$emit('update:modelValue', 'gemini')
+    await flushPromises()
+    await card.get('[data-key="AGENT_NEWS_PROVIDER"] form').trigger('submit')
+    await flushPromises()
+    expect(api.PUT).toHaveBeenCalledWith('/api/v1/settings/{key}', {
+      params: { path: { key: 'AGENT_NEWS_PROVIDER' } },
+      body: { value: 'gemini' },
+    })
+  })
+
+  it('keeps working on a server without the settings manager', async () => {
+    serve({})
+    const { w } = await mountHub()
+    expect(w.get('[data-testid="agent-providers"]').text()).toContain('no settings manager yet')
   })
 })

@@ -83,6 +83,38 @@ describe('<AiView />', () => {
     expect(wrapper.text()).toContain('OpenRouter')
   })
 
+  it('names the direct provider that answered, and the one that fell back', () => {
+    const app = useAppStore()
+    const id = app.newAiChat()
+    app.addAiMessage(id, { role: 'user', content: 'Hi' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'From Claude',
+      model: 'claude-test-model',
+      route: { provider: 'anthropic', requestedProvider: 'anthropic', fallbackReason: null },
+    })
+    app.addAiMessage(id, { role: 'user', content: 'Again' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'From local',
+      model: 'qwen2.5:3b',
+      route: {
+        provider: 'ollama',
+        requestedProvider: 'gemini',
+        requestedModel: 'gemini-test-model',
+        fallbackReason: 'daily_cap_reached',
+        localOnly: false,
+      },
+    })
+    const wrapper = mount(AiView, { global })
+    const ext = wrapper.findAll('[data-testid="external-badge"]')
+    expect(ext.map((b) => b.text())).toEqual(['Claude'])
+    expect(ext[0].attributes('title')).toContain('(external)')
+    expect(wrapper.get('[data-testid="fallback-note"]').text()).toContain(
+      "Gemini → local · today's Gemini budget is used up",
+    )
+  })
+
   it('the New chat button creates a conversation', async () => {
     const app = useAppStore()
     const wrapper = mount(AiView, { global })

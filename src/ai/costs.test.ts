@@ -15,6 +15,8 @@ import {
   dailySeries,
   estimateMonthly,
   observedWorkload,
+  providerName,
+  rollupByProvider,
   usedPct,
   usd,
   type PriceModel,
@@ -164,5 +166,49 @@ describe('costApi', () => {
     expect(ok.ok).toBe(true)
     api.PUT.mockResolvedValue(res({ detail: 'reauth required: enter your password' }, 403))
     expect((await costApi.setSetting('OPENROUTER_DAILY_LIMIT_USD', '5')).needsPassword).toBe(true)
+  })
+})
+
+describe('rollupByProvider', () => {
+  const item = (provider: string, over: Record<string, unknown> = {}) => ({
+    agent: 'chat:general',
+    provider,
+    calls: 2,
+    failures: 0,
+    fallbacks: 0,
+    local_only: 0,
+    prompt_tokens: 10,
+    completion_tokens: 5,
+    cost_usd: '0.001',
+    avg_latency_ms: 100,
+    ...over,
+  })
+  it('sums agent rows per provider, local first, latency weighted by calls', () => {
+    const r = rollupByProvider([
+      item('gemini', { calls: 1, avg_latency_ms: 400, failures: 1 }),
+      item('ollama', { local_only: 2, cost_usd: '0' }),
+      item('gemini', { calls: 3, avg_latency_ms: 200, fallbacks: 2 }),
+    ])
+    expect(r.map((x) => x.provider)).toEqual(['ollama', 'gemini'])
+    expect(r[1]).toMatchObject({
+      calls: 4,
+      succeeded: 3,
+      failed: 1,
+      fallbacks: 2,
+      promptTokens: 20,
+      avgLatencyMs: 250,
+    })
+    expect(r[1].costUsd).toBeCloseTo(0.002)
+    expect(r[0].localOnly).toBe(2)
+    expect(rollupByProvider([])).toEqual([])
+  })
+  it('names the four providers', () => {
+    expect(['ollama', 'openrouter', 'anthropic', 'gemini', 'x'].map(providerName)).toEqual([
+      'Local (Ollama)',
+      'OpenRouter',
+      'Claude (Anthropic)',
+      'Gemini (Google)',
+      'x',
+    ])
   })
 })

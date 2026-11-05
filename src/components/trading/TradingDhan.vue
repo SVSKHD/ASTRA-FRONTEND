@@ -1,6 +1,9 @@
 <script setup lang="ts">
 // Dhan: credentials health, funds, positions, orders, holdings and trades, as
-// the broker reports them (every value is broker-reported).
+// the broker reports them (every value is broker-reported). The status card on
+// top keeps credentials, session, account freshness, the feed worker, ticks and
+// reconciliation apart (backend docs/27), so a healthy API never reads as a
+// healthy feed. Read-only: no order is placed, changed or cancelled here.
 import { computed, ref, watch } from 'vue'
 import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -10,6 +13,7 @@ import StatRow from '@/components/ui/StatRow.vue'
 import Table from '@/components/ui/Table.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import AccountPicker from './AccountPicker.vue'
+import DhanStatusCard from './DhanStatusCard.vue'
 import SourceTag from './SourceTag.vue'
 import NewsWidget from '@/components/news/NewsWidget.vue'
 import { aureon } from '@/api/client'
@@ -150,6 +154,12 @@ const fundStats = computed(() => {
 
 <template>
   <div class="tp-page">
+    <DhanStatusCard
+      :has-account="!!accountId"
+      :health="health.data.value ?? null"
+      :funds-as-of="funds.data.value?.as_of ?? null"
+      :funds-error="funds.error.value"
+    />
     <EmptyState
       v-if="!dhan.length"
       title="No Dhan account is registered"

@@ -545,6 +545,28 @@
             "title": "Failures",
             "type": "integer"
           },
+          "global_limit_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Limit Usd"
+          },
+          "global_spent_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Spent Usd"
+          },
           "limit_usd": {
             "title": "Limit Usd",
             "type": "string"
@@ -554,8 +576,12 @@
             "type": "integer"
           },
           "provider": {
-            "const": "openrouter",
             "default": "openrouter",
+            "enum": [
+              "openrouter",
+              "anthropic",
+              "gemini"
+            ],
             "title": "Provider",
             "type": "string"
           },
@@ -2205,6 +2231,18 @@
       },
       "CatalogModel": {
         "properties": {
+          "available": {
+            "default": true,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -2213,13 +2251,35 @@
             "title": "Label",
             "type": "string"
           },
+          "privacy": {
+            "default": "local",
+            "enum": [
+              "local",
+              "external"
+            ],
+            "title": "Privacy",
+            "type": "string"
+          },
           "provider": {
             "enum": [
               "ollama",
-              "openrouter"
+              "openrouter",
+              "anthropic",
+              "gemini"
             ],
             "title": "Provider",
             "type": "string"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
           }
         },
         "required": [
@@ -2246,7 +2306,9 @@
           "provider": {
             "enum": [
               "ollama",
-              "openrouter"
+              "openrouter",
+              "anthropic",
+              "gemini"
             ],
             "title": "Provider",
             "type": "string"
@@ -2471,7 +2533,9 @@
               {
                 "enum": [
                   "ollama",
-                  "openrouter"
+                  "openrouter",
+                  "anthropic",
+                  "gemini"
                 ],
                 "type": "string"
               },
@@ -6259,6 +6323,28 @@
           "default": {
             "$ref": "#/components/schemas/CatalogTarget"
           },
+          "default_external_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default External Provider"
+          },
+          "global_daily_limit_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Daily Limit Usd"
+          },
           "local_fallback_model": {
             "anyOf": [
               {
@@ -6283,6 +6369,13 @@
           },
           "openrouter": {
             "$ref": "#/components/schemas/OpenRouterStatus"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderStatus"
+            },
+            "title": "Providers",
+            "type": "array"
           }
         },
         "required": [
@@ -10198,6 +10291,109 @@
           "restrictions"
         ],
         "title": "ProtectionUpdate",
+        "type": "object"
+      },
+      "ProviderStatus": {
+        "description": "One provider's state for the picker and the settings page. Never a key.",
+        "properties": {
+          "allowed_models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Models",
+            "type": "array"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "cost_source": {
+            "enum": [
+              "provider",
+              "configured_price",
+              "none"
+            ],
+            "title": "Cost Source",
+            "type": "string"
+          },
+          "daily_limit_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Limit Usd"
+          },
+          "default_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Model"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "privacy": {
+            "enum": [
+              "local",
+              "external"
+            ],
+            "title": "Privacy",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "ollama",
+              "openrouter",
+              "anthropic",
+              "gemini"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "usable": {
+            "title": "Usable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "provider",
+          "label",
+          "enabled",
+          "configured",
+          "usable",
+          "unavailable_reason",
+          "default_model",
+          "allowed_models",
+          "daily_limit_usd",
+          "cost_source",
+          "privacy"
+        ],
+        "title": "ProviderStatus",
         "type": "object"
       },
       "PublicDocumentOut": {
@@ -16545,6 +16741,19 @@
       "get": {
         "description": "Today's (UTC) OpenRouter spend, tokens and calls against the daily cap.",
         "operationId": "ai_usage_api_ai_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "default": "openrouter",
+              "pattern": "^(openrouter|anthropic|gemini)$",
+              "title": "Provider",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -16555,6 +16764,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Ai Usage",

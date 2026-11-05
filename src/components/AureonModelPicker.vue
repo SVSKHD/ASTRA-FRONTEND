@@ -1,39 +1,40 @@
 <script setup lang="ts">
 // The model picker when the AI runs on Aureon (VITE_AI_BACKEND=aureon).
 //
-// Per conversation: a provider and a model from GET /api/models/catalog — the
-// models installed in the server's local Ollama, plus the OpenRouter models the
-// server allows (backend docs/25-openrouter.md). The browser never calls
-// OpenRouter and never sees its key. The server keeps finance, trading, broker,
-// positions, secrets and logs on the local model whatever is picked here, and
-// falls back to it on any OpenRouter error; each reply says which one answered.
+// Per conversation: a provider and a model from GET /api/models/catalog, in four
+// groups (backend docs/26-ai-providers.md): Local — Ollama, OpenRouter, Claude
+// through the direct Anthropic API, and Gemini through the direct Google API.
+// The browser never calls a provider and never sees a key. The server keeps
+// finance, trading, broker, positions, secrets and logs on the local model
+// whatever is picked here, and on any external error it falls back to the local
+// model — never to another external provider. Each reply says who answered.
 //
-// The usage meter shows today's OpenRouter spend against the server's daily cap.
+// Everything listed comes from the catalog: a model the server marks
+// unavailable (an unpriced Claude or Gemini model, for example) is shown greyed
+// out with the reason, and a provider the server calls unusable is named with
+// why, plus the way to fix it (Settings, admin only).
 //
-// Claude, GPT and Gemini are OpenRouter models grouped by vendor (src/ai/providers.ts);
-// "Providers" lists all five with whether each is usable and why not. "Think" asks the
+// The usage meter shows today's spend of the picked external provider against
+// its daily cap, and the shared external cap when one is set. "Think" asks the
 // model for its reasoning, shown above the reply as thinking steps (src/ai/steps.ts).
-//
-// The server lists OpenRouter models only while OpenRouter is usable. When it
-// is not, the picker still names it — a greyed-out entry with the reason — and
-// offers the way to switch it on: the OpenRouter card in Settings (/settings,
-// admin only; the server's own Settings page decides who may change it).
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import { routerKey } from 'vue-router'
 import Button from '@/components/ui/Button.vue'
 import Select from '@/components/ui/Select.vue'
 import Switch from '@/components/ui/Switch.vue'
-import { groupOf, providerRows } from '@/ai/providers'
+import { groupOf, modelReason, PROVIDER_GROUP, providerRows } from '@/ai/providers'
 import { aiTraces, phaseText } from '@/ai/steps'
 import { useAppStore } from '@/stores/app'
 import {
   aureonAi,
   fallbackText,
+  isProvider,
   loadCatalog,
   loadUsage,
+  PROVIDER_NAME,
   setTarget,
   targetFor,
-  type AiProvider,
+  type ExternalProvider,
 } from '@/ai/aureonChat'
 
 defineProps<{ disabled?: boolean }>()
@@ -44,12 +45,32 @@ const router = inject(routerKey, null)
 const loading = ref(false)
 const error = ref('')
 
+const chatKey = computed(() => (app.aiActiveChatId == null ? null : String(app.aiActiveChatId)))
+const current = computed(() => targetFor(chatKey.value))
+const models = computed(() => aureonAi.catalog?.models ?? [])
+const providers = computed(() => aureonAi.catalog?.providers ?? [])
+
+/** The external provider whose spend the meter shows: the pick, else the server default. */
+const meterProvider = computed<ExternalProvider | null>(() => {
+  const t = current.value
+  if (t && t.provider !== 'ollama') return t.provider
+  const d = aureonAi.catalog?.defaultExternalProvider
+  const usable = providers.value.find((p) => p.provider === d)?.usable
+  return isProvider(d) && d !== 'ollama' && usable ? d : null
+})
+
+async function refreshUsage() {
+  const p = meterProvider.value
+  if (!p) return
+  await loadUsage(p).catch(() => null)
+}
+
 async function load() {
   loading.value = true
   error.value = ''
   try {
     await loadCatalog()
-    await loadUsage().catch(() => null)
+    await refreshUsage()
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -57,27 +78,50 @@ async function load() {
   }
 }
 onMounted(load)
-
-const chatKey = computed(() => (app.aiActiveChatId == null ? null : String(app.aiActiveChatId)))
-const current = computed(() => targetFor(chatKey.value))
-const models = computed(() => aureonAi.catalog?.models ?? [])
-const openrouterOn = computed(() => !!aureonAi.catalog && !aureonAi.catalog.openrouterOff)
+watch(meterProvider, (p, prev) => {
+  if (p && p !== prev && aureonAi.catalog) void refreshUsage()
+})
 
 const SEP = '|'
-const OR_GROUP = 'Other models · via OpenRouter'
-const offReason = computed(() => aureonAi.catalog?.openrouterOff ?? null)
+const local = computed(() => aureonAi.catalog?.localFallbackModel ?? null)
+const defaultTarget = computed(() => aureonAi.catalog?.default ?? null)
+
+/** "x (server default)", "y (local fallback)": the two models the server names. */
+function tagged(provider: string, id: string, label: string): string {
+  const tags: string[] = []
+  const d = defaultTarget.value
+  if (d && d.provider === provider && d.model === id) tags.push('server default')
+  if (provider === 'ollama' && id === local.value) tags.push('local fallback')
+  return tags.length ? `${label} (${tags.join(', ')})` : label
+}
+
 const options = computed(() => {
   const list = models.value.map((m) => ({
     value: `${m.provider}${SEP}${m.id}`,
-    label: m.label,
+    label: m.available
+      ? tagged(m.provider, m.id, m.label)
+      : `${m.label} — unavailable: ${modelReason(m)}`,
     group: groupOf(m),
-    disabled: false,
+    disabled: !m.available,
   }))
-  if (offReason.value) {
+  // An external provider the server calls unusable lists no models: name it anyway.
+  for (const p of providers.value) {
+    if (p.provider === 'ollama' || p.usable) continue
     list.push({
-      value: `openrouter${SEP}`,
-      label: `Off: ${fallbackText(offReason.value)}`,
-      group: OR_GROUP,
+      value: `${p.provider}${SEP}`,
+      label: `Off: ${fallbackText(p.unavailableReason ?? 'disabled', p.provider)}`,
+      group: PROVIDER_GROUP[p.provider],
+      disabled: true,
+    })
+  }
+  // A chat's earlier pick that is no longer offered stays visible, never swapped:
+  // the server answers it locally, and switching providers is the user's call.
+  const t = current.value
+  if (t && !list.some((o) => o.value === `${t.provider}${SEP}${t.model}`)) {
+    list.push({
+      value: `${t.provider}${SEP}${t.model}`,
+      label: `${t.model} — no longer offered; replies fall back to local`,
+      group: PROVIDER_GROUP[t.provider],
       disabled: true,
     })
   }
@@ -89,26 +133,55 @@ const value = computed(() =>
 
 function pick(v: string) {
   const i = v.indexOf(SEP)
-  if (i < 0) return
-  setTarget(chatKey.value, { provider: v.slice(0, i) as AiProvider, model: v.slice(i + 1) })
+  const provider = v.slice(0, i)
+  const model = v.slice(i + 1)
+  if (i < 0 || !model || !isProvider(provider)) return
+  setTarget(chatKey.value, { provider, model })
 }
+
+const currentModel = computed(() => {
+  const t = current.value
+  return t ? models.value.find((m) => m.provider === t.provider && m.id === t.model) : undefined
+})
+const isExternal = computed(() => !!current.value && current.value.provider !== 'ollama')
 
 const summary = computed(() => {
   const t = current.value
   if (!t) return ''
-  if (t.provider === 'openrouter') {
-    const local = aureonAi.catalog?.localFallbackModel
+  const caps = currentModel.value?.capabilities.join(', ')
+  if (t.provider !== 'ollama') {
+    const via =
+      t.provider === 'openrouter'
+        ? 'OpenRouter, via the Aureon server'
+        : `${PROVIDER_NAME[t.provider]}, direct API via the Aureon server`
     return [
-      'OpenRouter, via the Aureon server',
-      'private data stays local',
-      local ? `falls back to ${local}` : 'falls back to the local model',
+      via,
+      'external · private data stays local',
+      local.value ? `falls back to ${local.value}` : 'falls back to the local model',
+      ...(caps ? [caps] : []),
     ].join(' · ')
   }
-  return ['Local Ollama on the Aureon server', 'text in → text out', 'offline'].join(' · ')
+  return [
+    'Local Ollama on the Aureon server',
+    'nothing leaves the server',
+    ...(caps ? [caps] : []),
+  ].join(' · ')
 })
 
-const offNote = computed(() =>
-  offReason.value ? `OpenRouter is off: ${fallbackText(offReason.value)}.` : '',
+/** "Server default: Claude · claude-x" when the server names one. */
+const defaultNote = computed(() => {
+  const d = defaultTarget.value
+  return d?.model ? `Server default: ${PROVIDER_NAME[d.provider]} · ${d.model}` : ''
+})
+
+/** External providers that are off, each with why: "OpenRouter: no daily budget". */
+const offList = computed(() =>
+  providers.value
+    .filter((p) => p.provider !== 'ollama' && !p.usable)
+    .map((p) => ({
+      provider: p.provider,
+      text: `${PROVIDER_NAME[p.provider]} is off: ${fallbackText(p.unavailableReason ?? 'disabled', p.provider)}.`,
+    })),
 )
 function openSettings() {
   void router?.push('/settings')
@@ -130,8 +203,11 @@ const live = computed(() => {
   return running.length ? phaseText(running[running.length - 1]) : ''
 })
 
-const usage = computed(() => aureonAi.usage)
-const showMeter = computed(() => openrouterOn.value && !!usage.value && usage.value.limitUsd > 0)
+// Only the meter provider's own numbers: usage loaded for another provider is not shown.
+const usage = computed(() =>
+  aureonAi.usage && aureonAi.usage.provider === meterProvider.value ? aureonAi.usage : null,
+)
+const showMeter = computed(() => !!usage.value && usage.value.limitUsd > 0)
 const pct = computed(() => {
   const u = usage.value
   if (!u || u.limitUsd <= 0) return 0
@@ -140,12 +216,19 @@ const pct = computed(() => {
 function usd(n: number): string {
   return n < 1 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`
 }
+const meterName = computed(() => (usage.value ? PROVIDER_NAME[usage.value.provider] : ''))
 const meterText = computed(() => {
   const u = usage.value
   if (!u) return ''
-  if (!u.available) return 'OpenRouter spend unavailable — replies stay local'
-  const base = `OpenRouter today: ${usd(u.spentUsd)} of ${usd(u.limitUsd)}`
-  return u.capReached ? `${base} — cap reached, replies stay local` : `${base} · ${u.calls} calls`
+  if (!u.available) return `${meterName.value} spend unavailable — replies stay local`
+  const base = `${meterName.value} today: ${usd(u.spentUsd)} of ${usd(u.limitUsd)}`
+  const global =
+    u.globalLimitUsd != null && u.globalSpentUsd != null
+      ? ` · all external: ${usd(u.globalSpentUsd)} of ${usd(u.globalLimitUsd)}`
+      : ''
+  return u.capReached
+    ? `${base} — cap reached, replies stay local${global}`
+    : `${base} · ${u.calls} calls${global}`
 })
 </script>
 
@@ -165,9 +248,17 @@ const meterText = computed(() => {
       <span
         v-if="current"
         class="aamp__provider"
-        :class="{ 'is-external': current.provider === 'openrouter' }"
+        :class="{ 'is-external': isExternal }"
+        :title="isExternal ? 'External: sent only after the server’s privacy check' : 'Local'"
         data-testid="provider-badge"
-        >{{ current.provider === 'openrouter' ? 'OpenRouter' : 'Local' }}</span
+        >{{ PROVIDER_NAME[current.provider] }}</span
+      >
+      <span
+        v-if="current"
+        class="aamp__privacy"
+        :class="{ 'is-external': isExternal }"
+        data-testid="privacy-badge"
+        >{{ isExternal ? 'External' : 'Local only' }}</span
       >
       <span v-if="live" class="aamp__live" data-testid="run-status">{{ live }}</span>
       <Switch
@@ -191,14 +282,25 @@ const meterText = computed(() => {
       </Button>
     </div>
     <ul v-if="showProviders && rows.length" class="aamp__providers" data-testid="providers">
-      <li v-for="r in rows" :key="r.key" class="aamp__prow" :class="{ 'is-on': r.available }">
+      <li
+        v-for="r in rows"
+        :key="r.key"
+        class="aamp__prow"
+        :class="{ 'is-on': r.available }"
+        :data-provider="r.key"
+      >
         <span class="aamp__dot" aria-hidden="true" />
-        <span class="aamp__pname">{{ r.name }}</span>
+        <span class="aamp__pname">{{ r.group }}</span>
         <span class="aamp__summary">
-          {{ r.via }} ·
+          {{ r.privacy === 'local' ? 'local' : 'external' }} ·
+          {{ r.available ? 'available' : 'unavailable' }} ·
           {{ r.available ? `${r.models} model${r.models === 1 ? '' : 's'}` : r.reason }}
+          <template v-if="r.available && r.blocked"> · {{ r.blocked }} without a price</template>
+          <template v-if="r.defaultModel"> · default {{ r.defaultModel }}</template>
+          <template v-if="r.dailyLimitUsd != null"> · cap ${{ r.dailyLimitUsd }}/day</template>
         </span>
       </li>
+      <li v-if="local" class="aamp__summary">Local fallback: {{ local }}</li>
     </ul>
     <p v-if="aureonAi.think" class="aamp__summary">
       Think is on: the model's reasoning streams above each reply. Reasoning uses more tokens, and
@@ -209,15 +311,20 @@ const meterText = computed(() => {
       No models are installed in the server's Ollama yet. Pull one there, then refresh.
     </p>
     <p v-else class="aamp__summary">{{ summary }}</p>
-    <div v-if="offNote" class="aamp__row" data-testid="openrouter-off">
-      <span class="aamp__summary">{{ offNote }}</span>
-      <Button variant="ghost" size="sm" @click="openSettings">Set up OpenRouter</Button>
+    <p v-if="defaultNote" class="aamp__summary" data-testid="default-note">{{ defaultNote }}</p>
+    <div v-if="offList.length" class="aamp__row" data-testid="providers-off">
+      <span class="aamp__summary">
+        <span v-for="o in offList" :key="o.provider" :data-provider="o.provider">{{
+          o.text + ' '
+        }}</span>
+      </span>
+      <Button variant="ghost" size="sm" @click="openSettings">Set up providers</Button>
     </div>
     <div v-if="showMeter" class="aamp__meter" data-testid="usage-meter">
       <div
         class="aamp__bar"
         role="meter"
-        aria-label="OpenRouter spend today"
+        :aria-label="`${meterName} spend today`"
         :aria-valuenow="pct"
         aria-valuemin="0"
         aria-valuemax="100"
@@ -262,6 +369,13 @@ const meterText = computed(() => {
 }
 .aamp__provider.is-external {
   background: color-mix(in oklch, var(--text-secondary) 16%, transparent);
+  color: var(--text-secondary);
+}
+.aamp__privacy {
+  font-size: var(--text-2xs);
+  color: var(--theme-accent);
+}
+.aamp__privacy.is-external {
   color: var(--text-secondary);
 }
 .aamp__live {

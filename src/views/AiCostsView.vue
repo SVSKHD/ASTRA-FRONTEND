@@ -2,6 +2,10 @@
 // /ai/costs — the AI Cost Center: budget, actual billed usage (history, per provider,
 // model and agent) and the versioned pricing catalog with an estimator.
 //
+// Per provider (backend docs/26): today's spend of OpenRouter, Claude and Gemini against
+// their own caps and the shared cap, for everyone; and, for admins, calls, failures,
+// fallbacks, local-only turns, tokens and latency per provider over the range.
+//
 // Everything is read from Aureon (src/ai/costs.ts). A server without the Cost Center
 // endpoints answers 404 and the page says so; nothing is filled in with sample numbers.
 // Usage history is server-wide, so it is admin-only; the budget and prices are for
@@ -14,12 +18,15 @@ import Select from '@/components/ui/Select.vue'
 import BudgetCard from '@/components/ai/costs/BudgetCard.vue'
 import UsagePanel from '@/components/ai/costs/UsagePanel.vue'
 import PricingEstimator from '@/components/ai/costs/PricingEstimator.vue'
+import ProviderUsagePanel from '@/components/ai/costs/ProviderUsagePanel.vue'
 import {
   costApi,
   observedWorkload,
   type AiBudget,
   type PricingCatalog,
   type PricingVersion,
+  type ProviderUsage,
+  type TodayUsage,
   type UsageHistory,
 } from '@/ai/costs'
 import { isAdmin, tradingSession } from '@/trading/session'
@@ -40,6 +47,9 @@ const versions = ref<PricingVersion[]>([])
 const history = ref<UsageHistory | null>(null)
 const historyError = ref('')
 const refreshing = ref(false)
+const today = ref<TodayUsage[]>([])
+const providerUsage = ref<ProviderUsage | null>(null)
+const EXTERNAL = ['openrouter', 'anthropic', 'gemini'] as const
 const admin = computed(() => isAdmin())
 let token = 0
 
@@ -48,13 +58,18 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [b, p, v, h] = await Promise.all([
+    const [b, p, v, h, u, ...t] = await Promise.all([
       costApi.budget(),
       costApi.pricing(),
       costApi.versions(),
       admin.value ? costApi.history(Number(days.value)) : Promise.resolve(null),
+      admin.value ? costApi.providerUsage(Number(days.value)) : Promise.resolve(null),
+      ...EXTERNAL.map((x) => costApi.today(x)),
     ])
     if (mine !== token) return
+    // A server from before docs/26 answers OpenRouter only; the others are left out.
+    today.value = t.flatMap((r) => (r.ok ? [r.data] : []))
+    providerUsage.value = u?.ok ? u.data : null
     missing.value = !b.ok && b.missing && !p.ok && p.missing
     budget.value = b.ok ? b.data : null
     catalog.value = p.ok ? p.data : null
@@ -73,9 +88,13 @@ async function load() {
 }
 
 async function loadHistory() {
-  const h = await costApi.history(Number(days.value))
+  const [h, u] = await Promise.all([
+    costApi.history(Number(days.value)),
+    costApi.providerUsage(Number(days.value)),
+  ])
   history.value = h.ok ? h.data : null
   historyError.value = h.ok ? '' : h.error
+  providerUsage.value = u.ok ? u.data : null
 }
 
 async function pickVersion(v: string) {
@@ -146,6 +165,13 @@ const observed = computed(() =>
         <p v-else-if="historyError" class="tp-note" role="alert">{{ historyError }}</p>
         <UsagePanel v-else-if="history" :history="history" />
       </section>
+
+      <ProviderUsagePanel
+        v-if="today.length || providerUsage"
+        :today="today"
+        :usage="providerUsage"
+        :days="Number(days)"
+      />
 
       <PricingEstimator
         v-if="catalog"

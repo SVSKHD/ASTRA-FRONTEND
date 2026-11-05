@@ -4,6 +4,11 @@
 // figure is what the server returned; a section it could not read says so
 // instead of showing a number. Polled every 30 s while the page is visible,
 // each read on its own so one slow probe never blanks the rest.
+//
+// AI providers (GET /api/v1/system/integrations, `ai_providers`, backend docs/26):
+// enabled, key set, usable, default model, daily cap and why not. That section
+// is built from settings only — a set key is not a working key; Settings → Test
+// is the live check.
 import { computed } from 'vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -26,6 +31,13 @@ import {
   type Section,
   type SystemStatus,
 } from '@/control/system'
+import {
+  aiProviderRows,
+  loadIntegrations,
+  STATUS_TONE,
+  type AiProvidersSection,
+} from '@/control/integrations'
+import { fallbackText } from '@/ai/aureonChat'
 import { ago } from '@/trading/format'
 import { useLoad } from '@/trading/useLoad'
 
@@ -45,17 +57,35 @@ const ready = useLoad(async () => {
 const status = useLoad(
   async () => must(await aureon.GET('/api/system/status')) as unknown as SystemStatus,
 )
+// Optional: an older server has no integrations summary (404) and the card says so.
+const integrations = useLoad(async () => {
+  const r = await loadIntegrations((p) => aureon.GET(p))
+  if (r.status === 404) return { missing: true as const, section: undefined }
+  if (!r.data) throw new ApiFailure(`Aureon answered ${r.status}`, r.status)
+  const section = r.data.integrations?.ai_providers as AiProvidersSection | undefined
+  return { missing: false as const, section }
+})
+const ai = computed(() => integrations.data.value?.section)
+const aiRows = computed(() => aiProviderRows(ai.value))
+const AI_PROVIDER_ID: Record<string, 'openrouter' | 'anthropic' | 'gemini'> = {
+  openrouter: 'openrouter',
+  anthropic: 'anthropic',
+  gemini: 'gemini',
+}
+const usdDay = (v: string | null | undefined) => (v != null ? `$${v}/day` : 'not set')
 
 usePoll(() => {
   void live.reload()
   void ready.reload()
   void status.reload()
+  void integrations.reload()
 }, 30_000)
 
 function refresh() {
   void live.reload()
   void ready.reload()
   void status.reload()
+  void integrations.reload()
 }
 
 const s = computed(() => status.data.value)
@@ -247,6 +277,52 @@ const units = computed(() => Object.entries(s.value?.host_services?.units ?? {})
         </li>
       </ul>
       <Skeleton v-else-if="status.loading.value" :lines="4" />
+    </Card>
+
+    <Card title="AI providers" data-testid="ai-providers">
+      <p v-if="integrations.data.value?.missing" class="tp-note">
+        This server has no integrations summary yet.
+      </p>
+      <template v-else-if="ai">
+        <div class="tp-row">
+          <Badge
+            :tone="STATUS_TONE[ai.status ?? ''] ?? 'neutral'"
+            :label="ai.status ?? 'unknown'"
+          />
+          <span class="tp-note">
+            Local Ollama is the default and the only fallback · new chats use
+            {{ ai.default_external_provider ?? '—' }} when usable · shared cap
+            {{ usdDay(ai.global_daily_limit_usd) }}
+          </span>
+        </div>
+        <p v-if="ai.error" class="tp-note" role="alert">Could not read: {{ ai.error }}</p>
+        <ul v-if="aiRows.length" class="tp-list">
+          <li v-for="r in aiRows" :key="r.provider" class="tp-item" :data-provider="r.provider">
+            <div class="tp-main">
+              <span class="tp-strong">{{ r.name }}</span>
+              <span class="tp-note">
+                {{ r.enabled ? 'enabled' : 'disabled' }} ·
+                {{ r.configured ? 'key set (not a connection test)' : 'no key' }} · default
+                {{ r.defaultModel ?? 'none' }} · cap {{ usdDay(r.dailyLimitUsd) }}
+                <template v-if="!r.usable && r.reason">
+                  · {{ fallbackText(r.reason, AI_PROVIDER_ID[r.provider]) }}</template
+                >
+              </span>
+            </div>
+            <Badge :tone="r.tone" :label="r.state" />
+          </li>
+        </ul>
+        <p class="tp-note">
+          From the server’s settings; no provider is called. Settings → Test checks a key.
+        </p>
+      </template>
+      <p v-else-if="integrations.error.value" class="tp-note" role="alert">
+        {{ integrations.error.value }}
+      </p>
+      <p v-else-if="integrations.data.value" class="tp-note">
+        This server’s summary has no AI providers section yet.
+      </p>
+      <Skeleton v-else-if="integrations.loading.value" :lines="3" />
     </Card>
 
     <div class="tp-grid">
