@@ -13,32 +13,18 @@ import CandleChart from './CandleChart.vue'
 import SourceTag from './SourceTag.vue'
 import { aureon } from '@/api/client'
 import { ago, dec } from '@/trading/format'
+import { quoteFreshness } from '@/trading/dhanHealth'
+import { useNow } from '@/control/poll'
 import { connect, live } from '@/trading/stream'
+import { readWatchlist, writeWatchlist, type Watched } from '@/trading/watchlist'
 import { must, useLoad } from '@/trading/useLoad'
 import type { Instrument } from './types'
 
-const KEY = 'aureon.trading.watchlist'
-interface Watched {
-  id: number
-  symbol: string
-  broker: string
-}
-function readList(): Watched[] {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || '[]') as Watched[]
-  } catch {
-    return []
-  }
-}
-const watchlist = ref<Watched[]>(readList())
+const watchlist = ref<Watched[]>(readWatchlist())
 watch(
   watchlist,
   (w) => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(w))
-    } catch {
-      /* private window */
-    }
+    writeWatchlist(w)
     connect(w.map((x) => x.id))
   },
   { deep: true },
@@ -151,6 +137,10 @@ const latest = computed(() => {
   ]
 })
 const quote = computed(() => (selected.value ? live.quotes[selected.value] : undefined))
+// A price is only "live" when the stream, the market and the tick all say so.
+const now = useNow(5_000)
+const fresh = (q: { received_at: string | null; stale: boolean }) =>
+  quoteFreshness(q, live.status, now.value)
 const current = computed(() => watchlist.value.find((w) => w.id === selected.value))
 </script>
 
@@ -186,7 +176,9 @@ const current = computed(() => watchlist.value.find((w) => w.id === selected.val
                 {{ w.broker.toUpperCase() }}
                 <template v-if="live.quotes[w.id]">
                   · {{ dec(live.quotes[w.id].ltp) }}
-                  {{ live.quotes[w.id].stale ? '(stale)' : '' }}
+                  <span :title="fresh(live.quotes[w.id]).text"
+                    >({{ fresh(live.quotes[w.id]).label.toLowerCase() }})</span
+                  >
                 </template>
               </span>
             </div>
@@ -238,8 +230,8 @@ const current = computed(() => watchlist.value.find((w) => w.id === selected.val
         />
         <template v-else>
           <p v-if="quote" class="tp-note">
-            Live {{ dec(quote.ltp) }} · {{ ago(quote.received_at) }}
-            {{ quote.stale ? '· feed stale' : '' }} (broker-reported)
+            {{ fresh(quote).label }} {{ dec(quote.ltp) }} · {{ ago(quote.received_at) }} ·
+            {{ fresh(quote).text }} (broker-reported)
           </p>
           <p v-if="candles.error.value" class="tp-note" role="alert">{{ candles.error.value }}</p>
           <CandleChart v-else-if="realCandles.length" :candles="realCandles" :lines="lines" />

@@ -68,6 +68,10 @@ export const live = reactive({
   backtests: {} as Record<string, StreamBacktest>,
   mt5: null as StreamMt5 | null,
   lastEventAt: null as string | null,
+  /** The instrument ids this tab's stream follows (one EventSource per tab, never more). */
+  subscribed: [] as number[],
+  /** When the stream last reached `open` (browser clock; for "connected for …" only). */
+  openedAt: null as string | null,
 })
 
 let handle: StreamHandle | null = null
@@ -140,19 +144,38 @@ export function connect(
   impl?: { EventSourceImpl?: typeof EventSource },
 ): void {
   const ids = [...new Set(instrumentIds)].sort((a, b) => a - b)
+  // Same set and a live handle: nothing to do, so a re-render or a remount never
+  // opens a second stream or a duplicate subscription.
   if (handle && ids.join() === subscribed.join()) return
   handle?.close()
   subscribed = ids
+  live.subscribed = ids
+  // A quote for an instrument no longer followed would never update again: drop
+  // it rather than leave it on screen looking current.
+  for (const key of Object.keys(live.quotes)) {
+    if (!ids.includes(Number(key))) delete live.quotes[Number(key)]
+  }
   const q = ids.map((i) => `instrument_id=${i}`).join('&')
   handle = openStream(apiUrl(`/api/trading/stream${q ? `?${q}` : ''}`), {
     events: EVENTS,
     onEvent: (e) => applyEvent(e.event, e.data),
-    onStatus: (s) => (live.status = s),
+    onStatus: (s) => {
+      live.status = s
+      if (s === 'open') live.openedAt = new Date().toISOString()
+    },
     ...impl,
   })
+}
+
+/** Close and reopen the same subscription (the operator's "Reconnect stream"). */
+export function reconnect(impl?: { EventSourceImpl?: typeof EventSource }): void {
+  handle?.close()
+  handle = null
+  connect(subscribed, impl)
 }
 
 export function disconnect(): void {
   handle?.close()
   handle = null
+  live.status = 'closed'
 }

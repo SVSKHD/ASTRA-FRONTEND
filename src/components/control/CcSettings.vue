@@ -86,7 +86,7 @@ function stateLine(category: string) {
         comes from .env.
       </p>
       <!-- The control center is admin-only; finish a Dhan login that came back here. -->
-      <DhanSessionBar admin finish-callback @changed="list.reload()" />
+      <DhanSessionBar admin detailed finish-callback @changed="list.reload()" />
       <Card
         v-for="g in groups"
         :key="g.category"

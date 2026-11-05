@@ -105,3 +105,58 @@ describe('Dhan callback', () => {
     expect(isSafeLoginUrl('https://evil.example/phish')).toBe(false)
   })
 })
+
+describe('connectionState', () => {
+  it('is unavailable, never disconnected, when the status could not be read', async () => {
+    const { connectionState } = await import('@/control/dhanSession')
+    const c = connectionState(null)
+    expect(c.state).toBe('unavailable')
+    expect(c.canConnect || c.canReconnect || c.canDisconnect).toBe(false)
+  })
+
+  it('separates not set up, disconnected and expired', async () => {
+    const { connectionState } = await import('@/control/dhanSession')
+    expect(connectionState(status({ client_id_set: false })).state).toBe('not_configured')
+    const off = connectionState(status())
+    expect(off).toMatchObject({ state: 'disconnected', canConnect: true, canReconnect: false })
+    const gone = connectionState(status({ session_expired: true }))
+    expect(gone).toMatchObject({ state: 'expired', canReconnect: true, canConnect: false })
+    // No API key: the login cannot start, so neither button is offered.
+    expect(connectionState(status({ api_key_configured: false })).canConnect).toBe(false)
+  })
+
+  it('is invalid when Dhan refused the session, whatever the server stored', async () => {
+    const { connectionState } = await import('@/control/dhanSession')
+    const c = connectionState(
+      status({ source: 'session', session_active: true, valid_until: '2026-11-05T00:00:00Z' }),
+      { supported: true, ok: false, detail: 'DH-901 invalid token' },
+    )
+    expect(c).toMatchObject({ state: 'invalid', tone: 'danger', canReconnect: true })
+    expect(c.text).toContain('DH-901')
+  })
+
+  it('is connected and verified only when Dhan accepted it', async () => {
+    const { connectionState } = await import('@/control/dhanSession')
+    const s = status({
+      source: 'session',
+      session_active: true,
+      valid_until: '2026-11-05T00:00:00Z',
+    })
+    expect(connectionState(s).verified).toBe(false)
+    const ok = connectionState(s, { supported: true, ok: true })
+    expect(ok).toMatchObject({ state: 'connected', verified: true, canDisconnect: true })
+    expect(connectionState({ ...s, expires_soon: true }).state).toBe('expiring')
+  })
+
+  it('offers Disconnect for a login session only (a manual token is not forgotten by it)', async () => {
+    const { connectionState } = await import('@/control/dhanSession')
+    expect(connectionState(status({ source: 'manual' })).canDisconnect).toBe(false)
+  })
+
+  it('masks an account id to its last four characters', async () => {
+    const { maskId } = await import('@/control/dhanSession')
+    expect(maskId('1100123456')).toBe('••••3456')
+    expect(maskId('12')).toBe('••••')
+    expect(maskId(null)).toBe('')
+  })
+})

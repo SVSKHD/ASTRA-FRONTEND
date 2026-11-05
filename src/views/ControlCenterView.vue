@@ -35,6 +35,7 @@ const PAGES: Partial<Record<ModuleKey, ReturnType<typeof defineAsyncComponent>>>
   actions: defineAsyncComponent(() => import('@/components/control/CcActions.vue')),
   agents: defineAsyncComponent(() => import('@/components/control/CcAgents.vue')),
   system: defineAsyncComponent(() => import('@/components/control/CcSystem.vue')),
+  dhan: defineAsyncComponent(() => import('@/components/control/CcDhan.vue')),
   models: defineAsyncComponent(() => import('@/components/control/CcModels.vue')),
   images: defineAsyncComponent(() => import('@/components/control/CcImages.vue')),
   git: defineAsyncComponent(() => import('@/components/control/CcGit.vue')),

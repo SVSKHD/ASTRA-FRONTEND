@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { applyEvent, connect, disconnect, live } from './stream'
+import { applyEvent, connect, disconnect, live, reconnect } from './stream'
 
 class FakeES {
   static all: FakeES[] = []
@@ -60,5 +60,33 @@ describe('live state', () => {
     connect([3], impl)
     expect(FakeES.all).toHaveLength(2)
     expect(FakeES.all[0].readyState).toBe(2)
+  })
+})
+
+describe('subscriptions', () => {
+  const impl = { EventSourceImpl: FakeES as unknown as typeof EventSource }
+
+  it('drops quotes for instruments no longer followed, so they never look current', () => {
+    connect([1, 2], impl)
+    applyEvent('quote', JSON.stringify({ instrument_id: 1, ltp: '10' }))
+    applyEvent('quote', JSON.stringify({ instrument_id: 2, ltp: '20' }))
+    connect([2], impl)
+    expect(Object.keys(live.quotes)).toEqual(['2'])
+    expect(live.subscribed).toEqual([2])
+  })
+
+  it('reconnects with the same subscription and one stream at a time', () => {
+    connect([5], impl)
+    reconnect(impl)
+    expect(FakeES.all).toHaveLength(2)
+    expect(FakeES.all[0].readyState).toBe(2)
+    expect(FakeES.all[1].url).toBe('/api/trading/stream?instrument_id=5')
+  })
+
+  it('reads closed after disconnect', () => {
+    connect([5], impl)
+    FakeES.all[0].onopen?.()
+    disconnect()
+    expect(live.status).toBe('closed')
   })
 })

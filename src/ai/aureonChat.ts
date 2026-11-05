@@ -424,6 +424,67 @@ export function fallbackText(
   return text ? text.replace('{p}', name) : reason.replace(/[^a-z0-9]+/gi, ' ').trim()
 }
 
+/** A stored reply's route (src/types.ts AiMessage['route']). */
+export interface ReplyRoute {
+  provider: AiProvider
+  requestedProvider?: AiProvider
+  requestedModel?: string
+  fallbackReason?: string | null
+  localOnly?: boolean
+}
+
+export type ReplyBadge =
+  | { kind: 'external'; label: string; title: string }
+  | { kind: 'local-only'; label: string; title: string }
+  | { kind: 'fallback'; label: string; title: string }
+  | { kind: 'local'; label: string; title: string }
+
+/**
+ * The one badge that says who wrote a reply, so a local (Qwen) answer and an
+ * external (Gemini, Claude, OpenRouter) one never look alike. `provider` is who
+ * ACTUALLY answered (the stream's meta/fallback/done event), never the chat's
+ * selection. Null when the reply carries no route (an older message, or the
+ * non-Aureon backend): then nothing is claimed.
+ */
+export function replyBadge(route: ReplyRoute | undefined, model?: string): ReplyBadge | null {
+  if (!route) return null
+  const m = model ? ` (${model})` : ''
+  const asked = route.requestedProvider
+  const reason = route.fallbackReason ?? null
+  if (route.provider !== 'ollama') {
+    const name = PROVIDER_NAME[route.provider]
+    return {
+      kind: 'external',
+      label: name,
+      title: `Answered by ${name}${m} (external), through the Aureon server`,
+    }
+  }
+  if (route.localOnly) {
+    return {
+      kind: 'local-only',
+      label: 'Local only',
+      title: `Answered by the local model${m}. Kept on this server: ${fallbackText(reason, asked)}`,
+    }
+  }
+  // An external provider was asked for and the local model answered instead. A
+  // provider that is switched off counts too: the person picked it, so they are told.
+  const switched = !!asked && asked !== 'ollama'
+  if (switched || (reason && reason !== 'disabled')) {
+    const why = fallbackText(reason, asked)
+    const head = switched ? `${PROVIDER_NAME[asked!]} → local` : 'Fell back to local'
+    return {
+      kind: 'fallback',
+      label: why ? `${head} · ${why}` : head,
+      title: `Answered by the local model${m}${switched ? ` instead of ${PROVIDER_NAME[asked!]}${route.requestedModel ? ` (${route.requestedModel})` : ''}` : ''}${why ? `: ${why}` : ''}`,
+    }
+  }
+  return {
+    kind: 'local',
+    label: 'Local',
+    title: `Answered by the local model${m} on the Aureon server (Ollama)`,
+  }
+}
+
 /** "OpenRouter · google/gemini-2.5-flash-lite" / "Claude · claude-…" / "Local · qwen2.5:3b". */
 export function targetLabel(t: { provider: AiProvider; model: string }): string {
   return `${PROVIDER_NAME[t.provider] ?? 'Local'} · ${t.model}`
@@ -460,13 +521,22 @@ export interface ChatEvent {
  * unknown provider is read as local: the only automatic fallback the server
  * has is the local model, never another external provider.
  */
-export function routeOf(data: Record<string, unknown>, fallbackModel: string): AiRoute {
+export function routeOf(
+  data: Record<string, unknown>,
+  fallbackModel: string,
+  askedProvider?: AiProvider,
+): AiRoute {
   const provider: AiProvider = isProvider(data.provider) ? data.provider : 'ollama'
+  // The requested model only stands in for a missing `model` when the provider that
+  // answered is the one that was asked. A fallback without a model is "not
+  // reported", never the requested (e.g. Gemini) model on a local (Qwen) reply.
+  const sent = typeof data.model === 'string' && data.model ? data.model : null
+  const model = sent ?? (!askedProvider || askedProvider === provider ? fallbackModel : '')
   const raw = data.fallback_reason ?? data.reason ?? null
   const reason = typeof raw === 'string' ? raw : null
   return {
     provider,
-    model: String(data.model ?? fallbackModel),
+    model,
     requestedProvider: isProvider(data.requested_provider) ? data.requested_provider : undefined,
     requestedModel: typeof data.requested_model === 'string' ? data.requested_model : undefined,
     fallbackReason: reason,
@@ -594,9 +664,10 @@ export async function* streamChat(opts: {
       if (opts.chatKey && typeof data.conversation_id === 'string') {
         aureonAi.conversations[opts.chatKey] = data.conversation_id
       }
-      yield { model: String(data.model ?? opts.model), route: routeOf(data, opts.model) }
+      const route = routeOf(data, opts.model, opts.provider)
+      yield { model: route.model, route }
     } else if (ev.event === 'fallback') {
-      const route = routeOf(data, opts.model)
+      const route = routeOf(data, opts.model, opts.provider)
       yield { model: route.model, route, reset: data.reset === true }
     } else if (ev.event === 'token') {
       if (typeof data.content === 'string' && data.content) yield { text: data.content }
@@ -609,17 +680,23 @@ export async function* streamChat(opts: {
         ...(typeof data.reasoning_tokens === 'number'
           ? { reasoningTokens: data.reasoning_tokens }
           : {}),
-        ...('provider' in data ? { route: routeOf(data, opts.model) } : {}),
+        ...('provider' in data ? doneRoute(data, opts.model, opts.provider) : {}),
       }
       return
     } else if (ev.event === 'error') {
       yield {
         error: String(data.message ?? data.code ?? 'The model stopped.'),
-        ...('provider' in data ? { route: routeOf(data, opts.model) } : {}),
+        ...('provider' in data ? doneRoute(data, opts.model, opts.provider) : {}),
       }
       return
     }
   }
+}
+
+/** The final word on who answered: the route, and its model when the server named one. */
+function doneRoute(data: Record<string, unknown>, model: string, provider?: AiProvider) {
+  const route = routeOf(data, model, provider)
+  return typeof data.model === 'string' && data.model ? { route, model: route.model } : { route }
 }
 
 /** The whole answer to one question (prompt helpers). */

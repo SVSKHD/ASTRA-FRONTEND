@@ -35,7 +35,7 @@ export const CATEGORY_NOTE: Record<string, string> = {
   ai: 'Shared by every external provider: the provider for new chats and “auto” agents, a cap on total external spend, and limits per call. Local Ollama stays the default and the only fallback.',
   agents:
     'Which provider each agent uses. Voice speech recognition and synthesis always stay local; finance, broker and private data always stay local.',
-  dhan: 'Broker API, read-only. Log in with the API key (above); the manual access token is only a fallback.',
+  dhan: 'Broker API, read-only. Connect (above) logs in with the API key on Dhan’s own page; the manual access token is only a fallback.',
   github: 'Token for the GitHub modules and the coding agent.',
   discord: 'Where alerts and approval requests are posted.',
   mt5: 'The token the MT5 bot pushes with.',

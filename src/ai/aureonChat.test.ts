@@ -631,3 +631,77 @@ describe('listModels', () => {
 })
 
 void listModels
+
+describe('replyBadge: who wrote a reply', () => {
+  it('claims nothing without a route', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    expect(replyBadge(undefined, 'qwen2.5:3b')).toBeNull()
+  })
+
+  it('labels a plain local answer as Local, with the model', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    const b = replyBadge({ provider: 'ollama', fallbackReason: null }, 'qwen2.5:3b')
+    expect(b?.kind).toBe('local')
+    expect(b?.title).toContain('qwen2.5:3b')
+  })
+
+  it('names the external provider that answered', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    const b = replyBadge({ provider: 'gemini', requestedProvider: 'gemini' }, 'gemini-2.5-flash')
+    expect(b).toMatchObject({ kind: 'external', label: 'Gemini' })
+    expect(b?.title).toContain('gemini-2.5-flash')
+  })
+
+  it('says so when Gemini was picked but switched off and the local model answered', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    const b = replyBadge(
+      { provider: 'ollama', requestedProvider: 'gemini', fallbackReason: 'disabled' },
+      'qwen2.5:3b',
+    )
+    expect(b?.kind).toBe('fallback')
+    expect(b?.label).toBe('Gemini → local · Gemini is turned off on the server')
+    expect(b?.title).toContain('instead of Gemini')
+  })
+
+  it('keeps the plain local label when external AI is simply off and none was asked for', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    expect(replyBadge({ provider: 'ollama', fallbackReason: 'disabled' })?.kind).toBe('local')
+  })
+})
+
+describe('routeOf: never the requested model on another provider’s reply', () => {
+  it('keeps the requested model only when the asked provider answered', () => {
+    expect(routeOf({ provider: 'gemini' }, 'gemini-2.5-flash', 'gemini').model).toBe(
+      'gemini-2.5-flash',
+    )
+    // Gemini was asked, the local model answered, and the server named no model.
+    expect(routeOf({ provider: 'ollama' }, 'gemini-2.5-flash', 'gemini').model).toBe('')
+    expect(routeOf({ provider: 'ollama', model: 'qwen2.5:3b' }, 'gemini-x', 'gemini').model).toBe(
+      'qwen2.5:3b',
+    )
+  })
+
+  it('streams an empty model for a fallback that does not name one', async () => {
+    const fetchImpl = (async () =>
+      sse([
+        ['meta', { conversation_id: 'c', provider: 'gemini', model: 'gemini-x' }],
+        ['fallback', { provider: 'ollama', reason: 'upstream_error', reset: true }],
+        ['token', { content: 'hi' }],
+        ['done', { provider: 'ollama', model: 'qwen2.5:3b', fallback_reason: 'upstream_error' }],
+      ])) as unknown as typeof fetch
+    const models: string[] = []
+    for await (const ev of streamChat({
+      model: 'gemini-x',
+      provider: 'gemini',
+      system: '',
+      history: [],
+      prompt: 'p',
+      chatKey: null,
+      fetchImpl,
+    })) {
+      if (ev.model !== undefined) models.push(ev.model)
+    }
+    // Asked Gemini; unknown during the fallback; the done event names qwen.
+    expect(models).toEqual(['gemini-x', '', 'qwen2.5:3b'])
+  })
+})

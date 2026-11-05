@@ -44,7 +44,7 @@ import AiModelPicker from '@/components/AiModelPicker.vue'
 import AureonModelPicker from '@/components/AureonModelPicker.vue'
 import ThinkingSteps from '@/components/ai/ThinkingSteps.vue'
 import { aiTraces, traceKey } from '@/ai/steps'
-import { aiBackend, fallbackText, PROVIDER_NAME } from '@/ai/aureonChat'
+import { aiBackend, replyBadge } from '@/ai/aureonChat'
 import {
   SUGGESTION_CHIPS,
   aiContextSections,
@@ -1093,35 +1093,42 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                   </div>
 
                   <div v-if="!isStreamingMsg(m.id)" class="ai-meta">
-                    <span class="ai-meta__model" :title="m.model || activeAiChat.model">{{
-                      aiModelLabel(m.model || activeAiChat.model)
-                    }}</span>
+                    <!-- The model that wrote THIS reply, never the chat's current pick. -->
                     <span
-                      v-if="m.route && m.route.provider !== 'ollama'"
-                      class="ai-meta__route"
-                      data-testid="external-badge"
-                      :title="`Answered by ${PROVIDER_NAME[m.route.provider]} (external), through the Aureon server`"
-                      >{{ PROVIDER_NAME[m.route.provider] }}</span
+                      class="ai-meta__model"
+                      data-testid="reply-model"
+                      :title="m.model || 'The server did not report the model'"
+                      >{{ m.model ? aiModelLabel(m.model) : 'Model not reported' }}</span
                     >
                     <span
-                      v-else-if="m.route?.localOnly"
+                      v-if="replyBadge(m.route, m.model)?.kind === 'external'"
+                      class="ai-meta__route is-external"
+                      data-testid="external-badge"
+                      :title="replyBadge(m.route, m.model)!.title"
+                      ><Icon name="cloud" size="xs" />{{
+                        replyBadge(m.route, m.model)!.label
+                      }}</span
+                    >
+                    <span
+                      v-else-if="replyBadge(m.route, m.model)?.kind === 'local-only'"
                       class="ai-meta__route is-local"
                       data-testid="local-only-badge"
-                      :title="`Kept on this server: ${fallbackText(m.route.fallbackReason, m.route.requestedProvider)}`"
+                      :title="replyBadge(m.route, m.model)!.title"
                       ><Icon name="lock" size="xs" />Local only</span
                     >
                     <span
-                      v-else-if="m.route?.fallbackReason && m.route.fallbackReason !== 'disabled'"
+                      v-else-if="replyBadge(m.route, m.model)?.kind === 'fallback'"
                       class="ai-meta__route is-fallback"
                       data-testid="fallback-note"
-                      :title="fallbackText(m.route.fallbackReason, m.route.requestedProvider)"
-                      >{{
-                        m.route.requestedProvider && m.route.requestedProvider !== 'ollama'
-                          ? `${PROVIDER_NAME[m.route.requestedProvider]} → local`
-                          : 'Fell back to local'
-                      }}
-                      ·
-                      {{ fallbackText(m.route.fallbackReason, m.route.requestedProvider) }}</span
+                      :title="replyBadge(m.route, m.model)!.title"
+                      >{{ replyBadge(m.route, m.model)!.label }}</span
+                    >
+                    <span
+                      v-else-if="replyBadge(m.route, m.model)?.kind === 'local'"
+                      class="ai-meta__route is-local"
+                      data-testid="local-badge"
+                      :title="replyBadge(m.route, m.model)!.title"
+                      ><Icon name="monitor" size="xs" />Local</span
                     >
                     <span v-if="msgTokens(m)" class="ai-meta__tok" :title="tokenTitle(m)"
                       >{{ msgTokens(m).toLocaleString() }} tok</span
@@ -2013,6 +2020,13 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 .ai-meta__route.is-local {
   background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
   color: var(--theme-accent);
+  font-weight: var(--weight-semibold);
+}
+/* External answers are outlined, local ones filled, so the two never look alike. */
+.ai-meta__route.is-external {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--theme-accent);
+  color: var(--text-primary);
   font-weight: var(--weight-semibold);
 }
 .ai-meta__route.is-fallback {
