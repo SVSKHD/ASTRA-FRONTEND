@@ -248,3 +248,133 @@ export const LEVEL_LABEL: Record<Level, string> = {
   error: 'Failing',
   unknown: 'Not reported',
 }
+
+// --- per-quote freshness (the market-data monitor and the watchlist) ---------------------------
+
+export type Freshness = 'live' | 'stale' | 'last_known' | 'closed' | 'unknown'
+
+export interface FreshnessView {
+  level: Freshness
+  label: string
+  tone: 'success' | 'warning' | 'danger' | 'neutral' | 'info'
+  text: string
+}
+
+/**
+ * How much a quote can be trusted right now. Only "live" may be read as a current
+ * price: it needs the stream open, the market open, the feed's own stale flag
+ * clear, and a tick younger than TICK_STALE_MS. Times are the server's
+ * `received_at`. A stream that is not open turns every quote into "last known".
+ */
+export function quoteFreshness(
+  q: { received_at: string | null; stale: boolean },
+  streamStatus: string,
+  now: number,
+): FreshnessView {
+  const a = age(q.received_at, now)
+  const when = a != null ? `${span(Math.max(0, a))} ago` : 'at an unknown time'
+  if (streamStatus !== 'open') {
+    return {
+      level: 'last_known',
+      label: 'Last known',
+      tone: 'warning',
+      text: `Live feed ${streamStatus}; this tick arrived ${when} and is not updating.`,
+    }
+  }
+  if (a == null) {
+    return { level: 'unknown', label: 'No time', tone: 'neutral', text: 'The tick has no time.' }
+  }
+  if (q.stale) {
+    return {
+      level: 'stale',
+      label: 'Stale',
+      tone: 'warning',
+      text: `The feed marked it stale; ${when}.`,
+    }
+  }
+  if (!marketOpen(now)) {
+    return { level: 'closed', label: 'Market closed', tone: 'neutral', text: `Last tick ${when}.` }
+  }
+  if (a > TICK_STALE_MS) {
+    return { level: 'stale', label: 'Stale', tone: 'warning', text: `No tick for ${span(a)}.` }
+  }
+  return { level: 'live', label: 'Live', tone: 'success', text: `Tick ${when}.` }
+}
+
+/** The newest tick among the quotes, by the server's received_at. */
+export function newestTick<T extends { received_at: string | null }>(quotes: T[]): T | null {
+  let best: T | null = null
+  let bestAt = -Infinity
+  for (const q of quotes) {
+    const t = q.received_at ? Date.parse(q.received_at) : NaN
+    if (!Number.isNaN(t) && t > bestAt) {
+      best = q
+      bestAt = t
+    }
+  }
+  return best
+}
+
+export interface FeedSummary {
+  level: 'live' | 'stale' | 'interrupted' | 'idle' | 'closed' | 'unauthorized'
+  tone: 'success' | 'warning' | 'danger' | 'neutral' | 'info'
+  label: string
+  text: string
+}
+
+/**
+ * The market-data feed in one line, for the top of the monitor. Interruptions win
+ * over everything else so they are seen at once.
+ */
+export function feedSummary(i: {
+  streamStatus: string
+  sessionSource: 'session' | 'manual' | 'none' | null
+  subscribed: number
+  quotes: { received_at: string | null; stale: boolean }[]
+  now: number
+}): FeedSummary {
+  if (i.sessionSource === 'none') {
+    return {
+      level: 'unauthorized',
+      tone: 'danger',
+      label: 'Unauthorized',
+      text: 'No valid Dhan session: the feed cannot receive ticks. Reconnect Dhan.',
+    }
+  }
+  if (i.streamStatus === 'reconnecting' || i.streamStatus === 'closed') {
+    return {
+      level: 'interrupted',
+      tone: 'danger',
+      label: i.streamStatus === 'closed' ? 'Disconnected' : 'Reconnecting',
+      text:
+        i.streamStatus === 'closed'
+          ? 'The live stream to Aureon is off. Prices below are last known, not live.'
+          : 'The live stream to Aureon dropped and is reconnecting. Prices below are last known.',
+    }
+  }
+  if (i.streamStatus === 'connecting') {
+    return { level: 'idle', tone: 'info', label: 'Connecting', text: 'Opening the live stream…' }
+  }
+  if (!i.subscribed) {
+    return {
+      level: 'idle',
+      tone: 'neutral',
+      label: 'No subscriptions',
+      text: 'The stream is open, but this page follows no instruments. Add some to the watchlist.',
+    }
+  }
+  const n = newestTick(i.quotes)
+  if (!n) {
+    return {
+      level: marketOpen(i.now) ? 'stale' : 'closed',
+      tone: marketOpen(i.now) ? 'warning' : 'neutral',
+      label: marketOpen(i.now) ? 'No ticks' : 'Market closed',
+      text: 'No Dhan tick has reached this page since it opened.',
+    }
+  }
+  const f = quoteFreshness(n, i.streamStatus, i.now)
+  if (f.level === 'live') return { level: 'live', tone: 'success', label: 'Live', text: f.text }
+  if (f.level === 'closed')
+    return { level: 'closed', tone: 'neutral', label: 'Market closed', text: f.text }
+  return { level: 'stale', tone: 'warning', label: 'Stale', text: f.text }
+}

@@ -424,6 +424,67 @@ export function fallbackText(
   return text ? text.replace('{p}', name) : reason.replace(/[^a-z0-9]+/gi, ' ').trim()
 }
 
+/** A stored reply's route (src/types.ts AiMessage['route']). */
+export interface ReplyRoute {
+  provider: AiProvider
+  requestedProvider?: AiProvider
+  requestedModel?: string
+  fallbackReason?: string | null
+  localOnly?: boolean
+}
+
+export type ReplyBadge =
+  | { kind: 'external'; label: string; title: string }
+  | { kind: 'local-only'; label: string; title: string }
+  | { kind: 'fallback'; label: string; title: string }
+  | { kind: 'local'; label: string; title: string }
+
+/**
+ * The one badge that says who wrote a reply, so a local (Qwen) answer and an
+ * external (Gemini, Claude, OpenRouter) one never look alike. `provider` is who
+ * ACTUALLY answered (the stream's meta/fallback/done event), never the chat's
+ * selection. Null when the reply carries no route (an older message, or the
+ * non-Aureon backend): then nothing is claimed.
+ */
+export function replyBadge(route: ReplyRoute | undefined, model?: string): ReplyBadge | null {
+  if (!route) return null
+  const m = model ? ` (${model})` : ''
+  const asked = route.requestedProvider
+  const reason = route.fallbackReason ?? null
+  if (route.provider !== 'ollama') {
+    const name = PROVIDER_NAME[route.provider]
+    return {
+      kind: 'external',
+      label: name,
+      title: `Answered by ${name}${m} (external), through the Aureon server`,
+    }
+  }
+  if (route.localOnly) {
+    return {
+      kind: 'local-only',
+      label: 'Local only',
+      title: `Answered by the local model${m}. Kept on this server: ${fallbackText(reason, asked)}`,
+    }
+  }
+  // An external provider was asked for and the local model answered instead. A
+  // provider that is switched off counts too: the person picked it, so they are told.
+  const switched = !!asked && asked !== 'ollama'
+  if (switched || (reason && reason !== 'disabled')) {
+    const why = fallbackText(reason, asked)
+    const head = switched ? `${PROVIDER_NAME[asked!]} → local` : 'Fell back to local'
+    return {
+      kind: 'fallback',
+      label: why ? `${head} · ${why}` : head,
+      title: `Answered by the local model${m}${switched ? ` instead of ${PROVIDER_NAME[asked!]}${route.requestedModel ? ` (${route.requestedModel})` : ''}` : ''}${why ? `: ${why}` : ''}`,
+    }
+  }
+  return {
+    kind: 'local',
+    label: 'Local',
+    title: `Answered by the local model${m} on the Aureon server (Ollama)`,
+  }
+}
+
 /** "OpenRouter · google/gemini-2.5-flash-lite" / "Claude · claude-…" / "Local · qwen2.5:3b". */
 export function targetLabel(t: { provider: AiProvider; model: string }): string {
   return `${PROVIDER_NAME[t.provider] ?? 'Local'} · ${t.model}`

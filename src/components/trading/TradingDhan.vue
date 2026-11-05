@@ -13,6 +13,7 @@ import StatRow from '@/components/ui/StatRow.vue'
 import Table from '@/components/ui/Table.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import AccountPicker from './AccountPicker.vue'
+import DhanFeedMonitor from './DhanFeedMonitor.vue'
 import DhanStatusCard from './DhanStatusCard.vue'
 import SourceTag from './SourceTag.vue'
 import NewsWidget from '@/components/news/NewsWidget.vue'
@@ -160,6 +161,7 @@ const fundStats = computed(() => {
       :funds-as-of="funds.data.value?.as_of ?? null"
       :funds-error="funds.error.value"
     />
+    <DhanFeedMonitor />
     <EmptyState
       v-if="!dhan.length"
       title="No Dhan account is registered"

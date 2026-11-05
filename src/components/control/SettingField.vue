@@ -127,7 +127,7 @@ watch(
     <p v-if="note" class="tp-note" data-testid="key-note">{{ note }}</p>
 
     <p v-if="row.managed" class="tp-note">
-      Set by <strong>Log in to Dhan</strong> above; it cannot be typed in.
+      Set by <strong>Connect</strong> in the Dhan connection above; it cannot be typed in.
     </p>
 
     <div v-else-if="editor === 'switch'" class="tp-row cc-set__form">

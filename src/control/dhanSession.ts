@@ -67,6 +67,130 @@ function minutesLeft(ms: number): string {
   return `${h} h ${m % 60} min left`
 }
 
+// --- the connection's state, for the Settings connection card -------------------------------
+
+export type ConnectionState =
+  | 'unavailable' // the status could not be read (server down, 5xx, network)
+  | 'not_configured' // no DHAN_CLIENT_ID on the server
+  | 'disconnected' // configured, but no session and no manual token
+  | 'expired' // the login session lapsed
+  | 'invalid' // a session/token exists but Dhan refused it (account health)
+  | 'expiring' // valid, inside the server's expires_soon window
+  | 'connected' // valid; `verified` says whether Dhan itself confirmed it
+
+export interface AccountCheck {
+  supported: boolean
+  ok: boolean
+  detail?: string | null
+  checked_at?: string | null
+}
+
+export interface Connection {
+  state: ConnectionState
+  tone: Tone
+  label: string
+  text: string
+  /** Dhan answered an authenticated call with this session (GET /accounts/{id}/health). */
+  verified: boolean
+  /** Which actions the backend contract supports right now. */
+  canConnect: boolean
+  canReconnect: boolean
+  /** DELETE /dhan/auth/session forgets a login session only; a manual token stays in Settings. */
+  canDisconnect: boolean
+}
+
+export const CONNECTION_LABEL: Record<ConnectionState, string> = {
+  unavailable: 'Unavailable',
+  not_configured: 'Not set up',
+  disconnected: 'Disconnected',
+  expired: 'Expired',
+  invalid: 'Invalid',
+  expiring: 'Expires soon',
+  connected: 'Connected',
+}
+
+/**
+ * One state for the connection, from the server's own answers only:
+ * GET /dhan/auth/status (session) and, when an account is registered,
+ * GET /accounts/{id}/health (whether Dhan accepted it). Nothing is inferred
+ * from the browser; a status that could not be read is "unavailable", never
+ * "disconnected".
+ */
+export function connectionState(
+  s: DhanStatus | null,
+  check: AccountCheck | null = null,
+): Connection {
+  const base = { verified: false, canConnect: false, canReconnect: false, canDisconnect: false }
+  if (!s) {
+    return {
+      ...base,
+      state: 'unavailable',
+      tone: 'warning',
+      label: CONNECTION_LABEL.unavailable,
+      text: 'The Dhan connection status could not be read from Aureon. Nothing was changed; try Refresh.',
+    }
+  }
+  const login = s.api_key_configured
+  if (!s.client_id_set) {
+    return {
+      ...base,
+      state: 'not_configured',
+      tone: 'neutral',
+      label: CONNECTION_LABEL.not_configured,
+      text: 'Set DHAN_CLIENT_ID, DHAN_API_KEY and DHAN_API_SECRET in the Dhan settings below.',
+    }
+  }
+  if (s.source === 'none') {
+    const expired = s.session_expired
+    return {
+      ...base,
+      state: expired ? 'expired' : 'disconnected',
+      tone: expired ? 'danger' : 'neutral',
+      label: CONNECTION_LABEL[expired ? 'expired' : 'disconnected'],
+      text: expired
+        ? `The Dhan session expired ${formatTime(s.session_expires_at)}. Reconnect to refresh trading data.`
+        : login
+          ? 'No Dhan session. Connect to log in on Dhan’s own page.'
+          : 'No Dhan session. Set DHAN_API_KEY and DHAN_API_SECRET below to connect.',
+      canConnect: login && !expired,
+      canReconnect: login && expired,
+    }
+  }
+  const session = s.source === 'session'
+  const what = session ? 'Login session' : 'Manual access token'
+  if (check?.supported && !check.ok) {
+    return {
+      ...base,
+      state: 'invalid',
+      tone: 'danger',
+      label: CONNECTION_LABEL.invalid,
+      text: `${what} is set, but Dhan refused it${check.detail ? `: ${check.detail}` : ''}. Reconnect to replace it.`,
+      canReconnect: login,
+      canDisconnect: session,
+    }
+  }
+  const verified = !!check?.supported && check.ok
+  const until = s.valid_until ? ` until ${formatTime(s.valid_until)}` : ''
+  const proof = verified ? ' Dhan accepted it.' : check ? '' : ' Not yet checked against Dhan.'
+  return {
+    ...base,
+    state: s.expires_soon ? 'expiring' : 'connected',
+    tone: s.expires_soon ? 'warning' : 'success',
+    label: CONNECTION_LABEL[s.expires_soon ? 'expiring' : 'connected'],
+    text: `${what} valid${until}.${proof}${session ? '' : ' Log in to Dhan for a session.'}`,
+    verified,
+    canReconnect: login,
+    canDisconnect: session,
+  }
+}
+
+/** "••••1234": enough to recognise an account id, never the whole of it. */
+export function maskId(id: string | null | undefined): string {
+  if (!id) return ''
+  const tail = id.slice(-4)
+  return id.length > 4 ? `••••${tail}` : '••••'
+}
+
 export interface Callback {
   tokenId: string | null
   error: string | null

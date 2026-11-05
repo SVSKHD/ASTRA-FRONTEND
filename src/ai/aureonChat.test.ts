@@ -631,3 +631,40 @@ describe('listModels', () => {
 })
 
 void listModels
+
+describe('replyBadge: who wrote a reply', () => {
+  it('claims nothing without a route', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    expect(replyBadge(undefined, 'qwen2.5:3b')).toBeNull()
+  })
+
+  it('labels a plain local answer as Local, with the model', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    const b = replyBadge({ provider: 'ollama', fallbackReason: null }, 'qwen2.5:3b')
+    expect(b?.kind).toBe('local')
+    expect(b?.title).toContain('qwen2.5:3b')
+  })
+
+  it('names the external provider that answered', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    const b = replyBadge({ provider: 'gemini', requestedProvider: 'gemini' }, 'gemini-2.5-flash')
+    expect(b).toMatchObject({ kind: 'external', label: 'Gemini' })
+    expect(b?.title).toContain('gemini-2.5-flash')
+  })
+
+  it('says so when Gemini was picked but switched off and the local model answered', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    const b = replyBadge(
+      { provider: 'ollama', requestedProvider: 'gemini', fallbackReason: 'disabled' },
+      'qwen2.5:3b',
+    )
+    expect(b?.kind).toBe('fallback')
+    expect(b?.label).toBe('Gemini → local · Gemini is turned off on the server')
+    expect(b?.title).toContain('instead of Gemini')
+  })
+
+  it('keeps the plain local label when external AI is simply off and none was asked for', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    expect(replyBadge({ provider: 'ollama', fallbackReason: 'disabled' })?.kind).toBe('local')
+  })
+})

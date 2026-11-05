@@ -179,3 +179,53 @@ describe('marketOpen', () => {
     expect(marketOpen(WEEKEND)).toBe(false)
   })
 })
+
+describe('quote freshness', () => {
+  it('only calls a quote live with the stream open, the market open and a recent tick', async () => {
+    const { quoteFreshness } = await import('./dhanHealth')
+    expect(quoteFreshness({ received_at: iso(5_000), stale: false }, 'open', OPEN).level).toBe(
+      'live',
+    )
+    expect(quoteFreshness({ received_at: iso(5 * 60_000), stale: false }, 'open', OPEN).level).toBe(
+      'stale',
+    )
+    expect(quoteFreshness({ received_at: iso(5_000), stale: true }, 'open', OPEN).level).toBe(
+      'stale',
+    )
+  })
+
+  it('turns every quote into last known while the stream is down', async () => {
+    const { quoteFreshness } = await import('./dhanHealth')
+    for (const s of ['reconnecting', 'closed', 'connecting']) {
+      expect(quoteFreshness({ received_at: iso(1_000), stale: false }, s, OPEN).level).toBe(
+        'last_known',
+      )
+    }
+  })
+
+  it('says market closed rather than live outside market hours', async () => {
+    const { quoteFreshness } = await import('./dhanHealth')
+    const q = { received_at: iso(1_000, WEEKEND), stale: false }
+    expect(quoteFreshness(q, 'open', WEEKEND).level).toBe('closed')
+  })
+})
+
+describe('feed summary', () => {
+  const base = { streamStatus: 'open', sessionSource: 'session' as const, subscribed: 1, now: OPEN }
+
+  it('puts an unauthorized session and interruptions first', async () => {
+    const { feedSummary } = await import('./dhanHealth')
+    const q = [{ received_at: iso(1_000), stale: false }]
+    expect(feedSummary({ ...base, sessionSource: 'none', quotes: q }).level).toBe('unauthorized')
+    expect(feedSummary({ ...base, streamStatus: 'reconnecting', quotes: q }).level).toBe(
+      'interrupted',
+    )
+    expect(feedSummary({ ...base, quotes: q }).level).toBe('live')
+  })
+
+  it('reports no subscriptions and no ticks without inventing one', async () => {
+    const { feedSummary } = await import('./dhanHealth')
+    expect(feedSummary({ ...base, subscribed: 0, quotes: [] }).label).toBe('No subscriptions')
+    expect(feedSummary({ ...base, quotes: [] }).label).toBe('No ticks')
+  })
+})

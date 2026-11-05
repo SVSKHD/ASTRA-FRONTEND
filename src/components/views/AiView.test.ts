@@ -115,6 +115,27 @@ describe('<AiView />', () => {
     )
   })
 
+  it('labels a plain local reply, and never borrows the chat model for an unreported one', () => {
+    const app = useAppStore()
+    const id = app.newAiChat()
+    app.addAiMessage(id, { role: 'user', content: 'Hi' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'From qwen',
+      model: 'qwen2.5:3b',
+      route: { provider: 'ollama', fallbackReason: null, localOnly: false },
+    })
+    app.addAiMessage(id, { role: 'user', content: 'Again' })
+    app.addAiMessage(id, { role: 'assistant', content: 'Old reply' })
+    const wrapper = mount(AiView, { global })
+    const local = wrapper.findAll('[data-testid="local-badge"]')
+    expect(local).toHaveLength(1)
+    expect(local[0].attributes('title')).toContain('qwen2.5:3b')
+    expect(wrapper.findAll('[data-testid="external-badge"]')).toHaveLength(0)
+    const models = wrapper.findAll('[data-testid="reply-model"]').map((m) => m.text())
+    expect(models).toContain('Model not reported')
+  })
+
   it('the New chat button creates a conversation', async () => {
     const app = useAppStore()
     const wrapper = mount(AiView, { global })

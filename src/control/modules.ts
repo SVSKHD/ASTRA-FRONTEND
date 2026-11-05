@@ -10,6 +10,7 @@ export const MODULES = [
   { value: 'actions', label: 'Actions', short: 'Actions', repo: true },
   { value: 'agents', label: 'Agents', short: 'Agents', repo: false },
   { value: 'system', label: 'System', short: 'System', repo: false },
+  { value: 'dhan', label: 'Dhan ops', short: 'Dhan', repo: false },
   { value: 'models', label: 'Local AI', short: 'AI', repo: false },
   { value: 'images', label: 'Images', short: 'Images', repo: false },
   { value: 'git', label: 'Local git', short: 'Git', repo: false },

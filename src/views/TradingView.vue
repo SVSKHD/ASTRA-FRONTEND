@@ -22,6 +22,7 @@ import { checkSession, isAdmin, signIn, tradingSession } from '@/trading/session
 import { inbox, loadInbox, useLiveRefresh } from '@/trading/inbox'
 import { connect, disconnect, live } from '@/trading/stream'
 import { must, useLoad } from '@/trading/useLoad'
+import { readWatchlist } from '@/trading/watchlist'
 import '@/components/trading/trading.css'
 
 const SECTIONS = [
@@ -90,7 +91,8 @@ watch(
     if (u) {
       void accounts.reload()
       if (isAdmin()) void loadInbox()
-      connect()
+      // One stream per tab, following the watchlist whichever section opens first.
+      connect(readWatchlist().map((w) => w.id))
     } else {
       disconnect()
     }
