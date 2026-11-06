@@ -46,7 +46,7 @@ import AiModelPicker from '@/components/AiModelPicker.vue'
 import AureonModelPicker from '@/components/AureonModelPicker.vue'
 import ThinkingSteps from '@/components/ai/ThinkingSteps.vue'
 import { aiTraces, traceKey } from '@/ai/steps'
-import { aiBackend, replyBadge } from '@/ai/aureonChat'
+import { aiBackend, replyBadge, targetFor, targetLabel } from '@/ai/aureonChat'
 import {
   SUGGESTION_CHIPS,
   aiContextSections,
@@ -307,9 +307,28 @@ function onComposerKey(e: KeyboardEvent) {
 
 // --- thread -----------------------------------------------------------------
 // The provider and model are picked in the bar under the header
-// (AiModelPicker); the phone header repeats the model's name.
-const chosenLabel = computed(() => aiModelLabel(chatTarget().model))
+// (AiModelPicker); the phone header repeats the model's name. On Aureon it names
+// who wrote the chat's latest reply (the server may answer with another provider
+// than the one picked), else the chat's pick; never the proxy-era setting, which
+// showed "Qwen3 4B" over Gemini answers.
+const lastReply = computed(() =>
+  [...(activeAiChat.value?.messages ?? [])]
+    .reverse()
+    .find((m) => m.role === 'assistant' && m.route),
+)
+const chosenLabel = computed(() => {
+  if (!onAureon) return aiModelLabel(chatTarget().model)
+  const last = lastReply.value
+  const badge = last ? replyBadge(last.route, last.model) : null
+  if (badge) return badge.label
+  const t = targetFor(activeAiChat.value ? String(activeAiChat.value.id) : null)
+  return t ? targetLabel(t) : 'Server default'
+})
 const modelTitle = computed(() => {
+  if (onAureon) {
+    const last = lastReply.value
+    return (last && replyBadge(last.route, last.model)?.title) || 'The model the server picks'
+  }
   const { provider, model } = chatTarget()
   return `${model} through ${AI_PROVIDERS[provider].label}`
 })
@@ -1147,9 +1166,13 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                     </a>
                   </div>
 
-                  <div v-if="!isStreamingMsg(m.id)" class="ai-meta">
+                  <div v-if="!isStreamingMsg(m.id) || m.route" class="ai-meta">
                     <!-- The model that wrote THIS reply, never the chat's current pick. -->
                     <span
+                      v-if="
+                        !isStreamingMsg(m.id) &&
+                        (replyBadge(m.route, m.model)?.kind ?? 'fallback') === 'fallback'
+                      "
                       class="ai-meta__model"
                       data-testid="reply-model"
                       :title="m.model || 'The server did not report the model'"
@@ -1169,7 +1192,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                       class="ai-meta__route is-local"
                       data-testid="local-only-badge"
                       :title="replyBadge(m.route, m.model)!.title"
-                      ><Icon name="lock" size="xs" />Local only</span
+                      ><Icon name="lock" size="xs" />{{ replyBadge(m.route, m.model)!.label }}</span
                     >
                     <span
                       v-else-if="replyBadge(m.route, m.model)?.kind === 'fallback'"
@@ -1183,16 +1206,24 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                       class="ai-meta__route is-local"
                       data-testid="local-badge"
                       :title="replyBadge(m.route, m.model)!.title"
-                      ><Icon name="monitor" size="xs" />Local</span
+                      ><Icon name="monitor" size="xs" />{{
+                        replyBadge(m.route, m.model)!.label
+                      }}</span
                     >
-                    <span v-if="msgTokens(m)" class="ai-meta__tok" :title="tokenTitle(m)"
+                    <span
+                      v-if="!isStreamingMsg(m.id) && msgTokens(m)"
+                      class="ai-meta__tok"
+                      :title="tokenTitle(m)"
                       >{{ msgTokens(m).toLocaleString() }} tok</span
                     >
-                    <span v-if="m.usedData && !isMobile" class="ai-meta__data">
+                    <span
+                      v-if="!isStreamingMsg(m.id) && m.usedData && !isMobile"
+                      class="ai-meta__data"
+                    >
                       <Icon name="database" size="xs" />From your data
                     </span>
                     <IconButton
-                      v-if="!isMobile"
+                      v-if="!isStreamingMsg(m.id) && !isMobile"
                       class="ai-meta__copy"
                       :class="{ 'is-shown': copiedId === m.id }"
                       size="sm"

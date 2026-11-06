@@ -159,6 +159,8 @@ export interface AiRoute {
   model: string
   requestedProvider?: AiProvider
   requestedModel?: string
+  /** On a switch between external providers (backend docs/30): the one that failed. */
+  fromProvider?: AiProvider
   /** Why the requested external provider did not answer (null = it did). */
   fallbackReason?: string | null
   /** The data had to stay local (the classification filter or a linked context). */
@@ -361,15 +363,18 @@ export async function loadUsage(
 
 /**
  * The provider + model a chat sends with. Its own pick first; a chat that
- * already has a server conversation from before providers existed stays on the
- * local model; a new chat takes the pending pick, then the server default.
- * null = send neither and let the server decide.
+ * already has a server conversation and no pick sends neither, so the server
+ * keeps the conversation's own provider (a conversation from before providers
+ * existed is stored as local there, so it stays local); a new chat takes the
+ * pending pick, then the server default. null = send neither and let the
+ * server decide.
+ *
+ * Before, such a chat was always sent as local Ollama, which moved every older
+ * Gemini/OpenRouter chat to the local model.
  */
 export function targetFor(chatKey: string | null): AiTarget | null {
   if (chatKey && aureonAi.targets[chatKey]) return aureonAi.targets[chatKey]
-  if (chatKey && aureonAi.conversations[chatKey]) {
-    return aureonAi.model ? { provider: 'ollama', model: aureonAi.model } : null
-  }
+  if (chatKey && aureonAi.conversations[chatKey]) return null
   if (aureonAi.pending) return aureonAi.pending
   const d = aureonAi.catalog?.default
   if (d?.model) return { provider: d.provider, model: d.model }
@@ -429,8 +434,19 @@ export interface ReplyRoute {
   provider: AiProvider
   requestedProvider?: AiProvider
   requestedModel?: string
+  fromProvider?: AiProvider
   fallbackReason?: string | null
   localOnly?: boolean
+}
+
+/** A model id as the badge shows it: "gemini-2.5-flash", "qwen2.5:3b" (no vendor prefix). */
+export function shortModel(model: string | undefined): string {
+  return (
+    (model ?? '')
+      .replace(/^models\//, '')
+      .split('/')
+      .pop() ?? ''
+  )
 }
 
 export type ReplyBadge =
@@ -443,26 +459,44 @@ export type ReplyBadge =
  * The one badge that says who wrote a reply, so a local (Qwen) answer and an
  * external (Gemini, Claude, OpenRouter) one never look alike. `provider` is who
  * ACTUALLY answered (the stream's meta/fallback/done event), never the chat's
- * selection. Null when the reply carries no route (an older message, or the
- * non-Aureon backend): then nothing is claimed.
+ * selection, and the label names the model that wrote it ("Gemini ·
+ * gemini-2.5-flash", "Local · qwen2.5:3b"). Null when the reply carries no route
+ * (an older message, or the non-Aureon backend): then nothing is claimed.
  */
 export function replyBadge(route: ReplyRoute | undefined, model?: string): ReplyBadge | null {
   if (!route) return null
   const m = model ? ` (${model})` : ''
+  const short = shortModel(model)
+  const withModel = (head: string) => (short ? `${head} · ${short}` : head)
   const asked = route.requestedProvider
   const reason = route.fallbackReason ?? null
   if (route.provider !== 'ollama') {
     const name = PROVIDER_NAME[route.provider]
+    // Another external provider answered instead of the one asked (backend docs/30).
+    const from =
+      route.fromProvider && route.fromProvider !== route.provider
+        ? route.fromProvider
+        : asked && asked !== 'ollama' && asked !== route.provider
+          ? asked
+          : null
+    if (from) {
+      const why = fallbackText(reason, from)
+      return {
+        kind: 'external',
+        label: withModel(`${PROVIDER_NAME[from]} → ${name}`),
+        title: `Answered by ${name}${m} (external) instead of ${PROVIDER_NAME[from]}${why ? `: ${why}` : ''}`,
+      }
+    }
     return {
       kind: 'external',
-      label: name,
+      label: withModel(name),
       title: `Answered by ${name}${m} (external), through the Aureon server`,
     }
   }
   if (route.localOnly) {
     return {
       kind: 'local-only',
-      label: 'Local only',
+      label: withModel('Local only'),
       title: `Answered by the local model${m}. Kept on this server: ${fallbackText(reason, asked)}`,
     }
   }
@@ -480,7 +514,7 @@ export function replyBadge(route: ReplyRoute | undefined, model?: string): Reply
   }
   return {
     kind: 'local',
-    label: 'Local',
+    label: withModel('Local'),
     title: `Answered by the local model${m} on the Aureon server (Ollama)`,
   }
 }
@@ -517,9 +551,9 @@ export interface ChatEvent {
 /**
  * Who answered, from a meta / fallback / done / error event. Exported for the tests.
  *
- * `provider` is who ACTUALLY answered; `requestedProvider` is who was asked. An
- * unknown provider is read as local: the only automatic fallback the server
- * has is the local model, never another external provider.
+ * `provider` is who ACTUALLY answered; `requestedProvider` is who was asked;
+ * `fromProvider` is the external provider that failed when the server moved to
+ * the next one (backend docs/30). An unknown provider is read as local.
  */
 export function routeOf(
   data: Record<string, unknown>,
@@ -539,6 +573,7 @@ export function routeOf(
     model,
     requestedProvider: isProvider(data.requested_provider) ? data.requested_provider : undefined,
     requestedModel: typeof data.requested_model === 'string' ? data.requested_model : undefined,
+    ...(isProvider(data.from_provider) ? { fromProvider: data.from_provider } : {}),
     fallbackReason: reason,
     localOnly: data.local_only === true,
     costUsd: typeof data.cost_usd === 'string' ? data.cost_usd : null,
