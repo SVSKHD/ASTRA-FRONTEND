@@ -11,6 +11,8 @@ export function monitorTone(status: string): Tone {
       return 'success'
     case 'failure':
       return 'danger'
+    case 'unverified': // deployed, but its health check was not recorded
+      return 'warning'
     case 'running':
     case 'queued':
       return 'info'

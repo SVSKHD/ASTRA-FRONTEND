@@ -3638,6 +3638,383 @@
         "title": "DenyIn",
         "type": "object"
       },
+      "DeployLogOut": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "run_id",
+          "text",
+          "truncated",
+          "updated_at",
+          "running"
+        ],
+        "title": "DeployLogOut",
+        "type": "object"
+      },
+      "DeployProgressOut": {
+        "description": "One deploy as the host reported it, stage by stage. `outcome` is `completed` only after\nthe deploy script's health verification passed and the deploy was recorded as finished.",
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "commit_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True: the running release is the expected commit. null: not verified yet",
+            "title": "Commit Verified"
+          },
+          "current_stage": {
+            "anyOf": [
+              {
+                "enum": [
+                  "queued",
+                  "pulling",
+                  "validating",
+                  "building",
+                  "migrating",
+                  "restarting",
+                  "health_checking",
+                  "verifying",
+                  "rolling_back"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Stage"
+          },
+          "deployed_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deployed Sha"
+          },
+          "deployment_id": {
+            "title": "Deployment Id",
+            "type": "integer"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "expected_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Sha"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "health_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health Verified At"
+          },
+          "log_available": {
+            "title": "Log Available",
+            "type": "boolean"
+          },
+          "outcome": {
+            "enum": [
+              "running",
+              "completed",
+              "unverified",
+              "failed",
+              "rolled_back",
+              "unknown"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "pr_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Number"
+          },
+          "previous_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Sha"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          },
+          "rolled_back": {
+            "title": "Rolled Back",
+            "type": "boolean"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/DeployStageOut"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "stages_completed": {
+            "title": "Stages Completed",
+            "type": "integer"
+          },
+          "stages_total": {
+            "title": "Stages Total",
+            "type": "integer"
+          },
+          "stale": {
+            "description": "Running, but the host has not reported recently",
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The host's last progress report",
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "run_id",
+          "deployment_id",
+          "target",
+          "repo",
+          "branch",
+          "environment",
+          "expected_sha",
+          "deployed_sha",
+          "previous_sha",
+          "commit_verified",
+          "pr_number",
+          "outcome",
+          "health_verified_at",
+          "rolled_back",
+          "failure_reason",
+          "started_at",
+          "finished_at",
+          "updated_at",
+          "stale",
+          "current_stage",
+          "stages_completed",
+          "stages_total",
+          "stages",
+          "log_available"
+        ],
+        "title": "DeployProgressOut",
+        "type": "object"
+      },
+      "DeployStageOut": {
+        "properties": {
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "enum": [
+              "queued",
+              "pulling",
+              "validating",
+              "building",
+              "migrating",
+              "restarting",
+              "health_checking",
+              "verifying",
+              "rolling_back"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "status"
+        ],
+        "title": "DeployStageOut",
+        "type": "object"
+      },
       "DeploymentOut": {
         "properties": {
           "branch": {
@@ -7918,6 +8295,50 @@
               }
             ],
             "title": "Sha"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "stages_completed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stages Completed"
+          },
+          "stages_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stages Total"
+          },
+          "stale": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale"
           },
           "started_at": {
             "anyOf": [
@@ -31048,6 +31469,126 @@
             "admin"
           ],
           "title_field": "name"
+        }
+      }
+    },
+    "/api/v1/github/actions/monitor/deploys/{run_id}/logs": {
+      "get": {
+        "description": "This deploy's own log lines (newest kept, scrubbed of secrets before they were\nstored). Updated with every progress report while the deploy runs.",
+        "operationId": "deploy_logs_api_v1_github_actions_monitor_deploys__run_id__logs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployLogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deploy Logs",
+        "tags": [
+          "github"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "dev",
+          "icon": "github",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Deploy logs",
+          "module": "github",
+          "order": 52,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/v1/github/actions/monitor/deploys/{run_id}/progress": {
+      "get": {
+        "description": "One host deploy (the monitor's `deploy:<run_id>`) stage by stage, as the deploy script\nreported it: pending, running, succeeded, failed or skipped per stage, with timings, the\nexpected vs deployed commit and whether it was verified. Read-only, DB only.",
+        "operationId": "deploy_progress_api_v1_github_actions_monitor_deploys__run_id__progress_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployProgressOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deploy Progress",
+        "tags": [
+          "github"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "dev",
+          "icon": "github",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Deploy progress",
+          "module": "github",
+          "order": 52,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
         }
       }
     },
