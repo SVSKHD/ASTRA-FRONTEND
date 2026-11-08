@@ -9,8 +9,8 @@
 // each can be read. Finished cards leave one at a time; a failed one waits to
 // be closed.
 //
-// It also carries what the two-pixel top bar used to: a route change and a
-// background sync, now as named cards ("Opening page", "Syncing 3 changes").
+// It also carries what the two-pixel top bar used to: a route change, now as a
+// named card ("Opening page"). Sync status lives in the bottom pill only.
 import { computed, onBeforeUnmount, watch } from 'vue'
 import { useBackgroundWorkKinds } from '@/composables/useBackgroundWork'
 import {
@@ -23,45 +23,17 @@ import ProgressRing from '@/components/ui/ProgressRing.vue'
 import Icon from '@/components/ui/Icon.vue'
 
 // ---- the shell's own work ------------------------------------------------------
-const { navigating, isSyncing, pendingCount } = useBackgroundWorkKinds()
+// Sync is NOT a card here: the bottom pill's sync status (ShellSync) already
+// shows it, with a ring and the count while writes are in flight, and two sync
+// indicators on one screen is one too many.
+const { navigating } = useBackgroundWorkKinds()
 let routeJob: ProgressHandle | null = null
 watch(navigating, (on) => {
   if (on) routeJob = startProgress({ id: 'route', title: 'Opening page' })
   else routeJob?.finish('Ready')
 })
-const changes = (n: number) => `${n} change${n === 1 ? '' : 's'}`
-let syncJob: ProgressHandle | null = null
-// The most writes queued at once in this sync, so the bar fills as they drain.
-let syncPeak = 0
-watch(
-  [isSyncing, pendingCount],
-  ([on, count]) => {
-    if (on) {
-      if (!syncJob) {
-        syncPeak = count
-        syncJob = startProgress({
-          id: 'sync',
-          title: 'Syncing',
-          detail: changes(count) + ' to save',
-          total: count,
-        })
-      }
-      syncPeak = Math.max(syncPeak, count)
-      syncJob.update({
-        total: syncPeak,
-        done: syncPeak - count,
-        detail: changes(count) + ' to save',
-      })
-    } else if (syncJob) {
-      syncJob.finish('All changes saved')
-      syncJob = null
-    }
-  },
-  { immediate: true },
-)
 onBeforeUnmount(() => {
   routeJob?.finish()
-  syncJob?.finish()
 })
 
 // ---- the deck --------------------------------------------------------------------

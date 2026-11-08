@@ -25,6 +25,7 @@
 // wrapper. An overlay that opens on demand and closes on Escape is not
 // persistent chrome and does not need a region.
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
@@ -52,6 +53,13 @@ function open(name: 'notes' | 'trade-rules' | 'timeline' | 'appearance' | 'accou
 function openGithub() {
   ui.openShellPanel(null, avatarMenuOpen)
   auth.openGithubPanel()
+}
+// Settings live in the control center (/settings → /dev/settings): close any
+// open panel, then go there.
+const router = useRouter()
+function openSettings() {
+  ui.openShellPanel(null, avatarMenuOpen)
+  void router.push('/settings')
 }
 
 // --- styles -------------------------------------------------------------------
@@ -205,6 +213,18 @@ const groupLabel = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim
       <button type="button" class="pill-btn" aria-label="GitHub" @click="openGithub">
         <Icon name="github" size="sm" class="pill-icon" />
         <span class="pill-label">GitHub</span>
+      </button>
+
+      <button
+        type="button"
+        class="pill-btn"
+        aria-label="Settings"
+        title="Settings"
+        data-testid="pill-settings"
+        @click="openSettings"
+      >
+        <Icon name="settings" size="sm" class="pill-icon" />
+        <span class="pill-label">Settings</span>
       </button>
 
       <span :style="divider"></span>

@@ -723,3 +723,35 @@ describe('routeOf: never the requested model on another provider’s reply', () 
     expect(models).toEqual(['gemini-x', '', 'qwen2.5:3b'])
   })
 })
+
+describe('a fallback names the provider that actually failed', () => {
+  it('server default → Gemini → error: says Gemini, not OpenRouter', async () => {
+    const fetchImpl = (async () =>
+      sse([
+        ['meta', { conversation_id: 'c', provider: 'gemini', model: 'gemini-3.5-flash-lite' }],
+        ['fallback', { provider: 'ollama', model: 'qwen2.5:3b', reason: 'upstream_error' }],
+        ['token', { content: 'hi' }],
+        ['done', { provider: 'ollama', model: 'qwen2.5:3b', fallback_reason: 'upstream_error' }],
+      ])) as unknown as typeof fetch
+    const routes = []
+    // No provider sent: the chat is on the server default.
+    for await (const ev of streamChat({
+      model: '',
+      system: '',
+      history: [],
+      prompt: 'p',
+      chatKey: null,
+      fetchImpl,
+    })) {
+      if (ev.route) routes.push(ev.route)
+    }
+    const fell = routes[1]
+    expect(fell).toMatchObject({
+      provider: 'ollama',
+      requestedProvider: 'gemini',
+      requestedModel: 'gemini-3.5-flash-lite',
+    })
+    expect(fallbackText(fell.fallbackReason, fell.requestedProvider)).toBe('Gemini had an error')
+    expect(routes.at(-1)?.requestedProvider).toBe('gemini')
+  })
+})

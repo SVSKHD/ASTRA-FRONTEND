@@ -559,6 +559,7 @@ export function routeOf(
   data: Record<string, unknown>,
   fallbackModel: string,
   askedProvider?: AiProvider,
+  askedModel?: string,
 ): AiRoute {
   const provider: AiProvider = isProvider(data.provider) ? data.provider : 'ollama'
   // The requested model only stands in for a missing `model` when the provider that
@@ -571,8 +572,14 @@ export function routeOf(
   return {
     provider,
     model,
-    requestedProvider: isProvider(data.requested_provider) ? data.requested_provider : undefined,
-    requestedModel: typeof data.requested_model === 'string' ? data.requested_model : undefined,
+    // A fallback event often names only who answers now. Who was asked is then the
+    // provider this turn was routed to (`askedProvider`), never a guessed default:
+    // reading it as OpenRouter is how a Gemini error came out as "OpenRouter had an error".
+    requestedProvider: isProvider(data.requested_provider)
+      ? data.requested_provider
+      : askedProvider,
+    requestedModel:
+      typeof data.requested_model === 'string' ? data.requested_model : askedModel || undefined,
     ...(isProvider(data.from_provider) ? { fromProvider: data.from_provider } : {}),
     fallbackReason: reason,
     localOnly: data.local_only === true,
@@ -688,6 +695,9 @@ export async function* streamChat(opts: {
     }
     throw new AureonChatError(httpMessage(res.status, body), res.status)
   }
+  // Who this turn was sent to: the picked provider, then whatever the server routed to.
+  let asked: AiProvider | undefined = opts.provider
+  let askedModel: string | undefined = opts.provider ? opts.model : undefined
   for await (const ev of readSse(res)) {
     let data: Record<string, unknown> = {}
     try {
@@ -699,10 +709,14 @@ export async function* streamChat(opts: {
       if (opts.chatKey && typeof data.conversation_id === 'string') {
         aureonAi.conversations[opts.chatKey] = data.conversation_id
       }
-      const route = routeOf(data, opts.model, opts.provider)
+      const route = routeOf(data, opts.model, asked, askedModel)
+      // The server's routing decision (e.g. "server default" → Gemini) is who was
+      // asked from here on, for fallback / done events that do not repeat it.
+      asked = route.requestedProvider ?? route.provider
+      if (asked === route.provider && route.model) askedModel = route.model
       yield { model: route.model, route }
     } else if (ev.event === 'fallback') {
-      const route = routeOf(data, opts.model, opts.provider)
+      const route = routeOf(data, opts.model, asked, askedModel)
       yield { model: route.model, route, reset: data.reset === true }
     } else if (ev.event === 'token') {
       if (typeof data.content === 'string' && data.content) yield { text: data.content }
@@ -715,13 +729,13 @@ export async function* streamChat(opts: {
         ...(typeof data.reasoning_tokens === 'number'
           ? { reasoningTokens: data.reasoning_tokens }
           : {}),
-        ...('provider' in data ? doneRoute(data, opts.model, opts.provider) : {}),
+        ...('provider' in data ? doneRoute(data, opts.model, asked, askedModel) : {}),
       }
       return
     } else if (ev.event === 'error') {
       yield {
         error: String(data.message ?? data.code ?? 'The model stopped.'),
-        ...('provider' in data ? doneRoute(data, opts.model, opts.provider) : {}),
+        ...('provider' in data ? doneRoute(data, opts.model, asked, askedModel) : {}),
       }
       return
     }
@@ -729,8 +743,13 @@ export async function* streamChat(opts: {
 }
 
 /** The final word on who answered: the route, and its model when the server named one. */
-function doneRoute(data: Record<string, unknown>, model: string, provider?: AiProvider) {
-  const route = routeOf(data, model, provider)
+function doneRoute(
+  data: Record<string, unknown>,
+  model: string,
+  provider?: AiProvider,
+  askedModel?: string,
+) {
+  const route = routeOf(data, model, provider, askedModel)
   return typeof data.model === 'string' && data.model ? { route, model: route.model } : { route }
 }
 
