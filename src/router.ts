@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { rememberDhanReturn } from '@/control/dhanReturn'
 import { PLURAL } from '@/utils/share'
 import { useUiStore } from '@/stores/ui'
 import { LAST_ROUTE_KEY, sessionRead } from '@/composables/useTradeRoute'
@@ -202,6 +203,10 @@ export const router = createRouter({
  * redirect, and the workspace opens on whatever it opens on.
  */
 router.beforeEach((to) => {
+  // Dhan sent the browser back (?dhan_login=ready): remember it before any sign-in step can
+  // drop the query string, so /dev/settings finishes the login after the admin signs in.
+  // Only a marker; never redirects.
+  rememberDhanReturn(to.query)
   // Only a BARE `/` is resolved from memory. It used to be any `/` whose full
   // path differed from the stored route — so reloading on `/?tab=todo` could be
   // sent somewhere else entirely (a task page, a stale tab) when the stored

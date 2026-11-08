@@ -2305,6 +2305,207 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/devops/builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Builds */
+        get: operations["builds_api_v1_devops_builds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/deployments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Deployments */
+        get: operations["deployments_api_v1_devops_deployments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Events */
+        get: operations["events_api_v1_devops_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feed
+         * @description Polling fallback for /stream: every feed event after `after_id`, oldest first. Keep
+         *     `last_id` and pass it back as `after_id`; `has_more` means call again at once.
+         */
+        get: operations["feed_api_v1_devops_feed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Notifications */
+        get: operations["notifications_api_v1_devops_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/notifications/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Preferences */
+        get: operations["get_preferences_api_v1_devops_notifications_preferences_get"];
+        /** Put Preferences */
+        put: operations["put_preferences_api_v1_devops_notifications_preferences_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Read
+         * @description Mark `event_ids`, and/or everything up to `up_to_id`, as read for this user.
+         */
+        post: operations["mark_read_api_v1_devops_notifications_read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview */
+        get: operations["overview_api_v1_devops_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Repositories */
+        get: operations["repositories_api_v1_devops_repositories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Services */
+        get: operations["services_api_v1_devops_services_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/devops/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream
+         * @description Server-Sent Events. Each event's name is its type (build.failed, deployment.completed,
+         *     service.unhealthy, ...), its `id:` the feed id and its data an EventOut. Reconnecting with
+         *     `Last-Event-ID` (or ?last_event_id=) replays everything missed, in order; `hello` carries
+         *     the starting cursor, `bye` ends the stream (session ended / max duration).
+         */
+        get: operations["stream_api_v1_devops_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dhan/auth/connection": {
         parameters: {
             query?: never;
@@ -2336,7 +2537,9 @@ export interface paths {
         put?: never;
         /**
          * Consume
-         * @description Exchange the tokenId for the session token and store it (encrypted).
+         * @description Finish the login this admin started: claim the tokenId Dhan returned (once, for this
+         *     user only), exchange it for the session token and store it (encrypted). Works after the
+         *     admin signed in to Spasta again: the login is bound to the user, not the session.
          */
         post: operations["consume_api_v1_dhan_auth_consume_post"];
         delete?: never;
@@ -4449,6 +4652,46 @@ export interface components {
          * @enum {string}
          */
         Broker: "dhan" | "mt5";
+        /**
+         * BuildOut
+         * @description A GitHub Actions workflow run (github.workflow_runs).
+         */
+        BuildOut: {
+            /** Branch */
+            branch: string | null;
+            /**
+             * Conclusion
+             * @description GitHub's raw conclusion, when completed
+             */
+            conclusion: string | null;
+            /** Created At */
+            created_at: string | null;
+            /** Event */
+            event: string | null;
+            /** Failed Jobs */
+            failed_jobs?: components["schemas"]["JobSummary"][];
+            /** Id */
+            id: number;
+            /** Name */
+            name: string | null;
+            /** Repo */
+            repo: string;
+            /** Run Attempt */
+            run_attempt: number | null;
+            /** Sha */
+            sha: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN";
+            /** Updated At */
+            updated_at: string | null;
+            /** Url */
+            url: string | null;
+            /** Workflow Path */
+            workflow_path: string | null;
+        };
         /** CandleOut */
         CandleOut: {
             /** Close */
@@ -4671,6 +4914,13 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** CollectorStatusOut */
+        CollectorStatusOut: {
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /** Stale */
+            stale: boolean;
+        };
         /** CommentCreate */
         CommentCreate: {
             /** Body */
@@ -4733,7 +4983,7 @@ export interface components {
         /** ConsumeIn */
         ConsumeIn: {
             /** Token Id */
-            token_id: string;
+            token_id?: string | null;
         };
         /** ContentEntry */
         ContentEntry: {
@@ -4860,6 +5110,64 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** DeploymentOut */
+        DeploymentOut: {
+            /** Branch */
+            branch: string | null;
+            /** Build Finished At */
+            build_finished_at: string | null;
+            /** Build Started At */
+            build_started_at: string | null;
+            /** Deploy Finished At */
+            deploy_finished_at: string | null;
+            /** Deploy Started At */
+            deploy_started_at: string | null;
+            /** Environment */
+            environment: string;
+            /** Failure Reason */
+            failure_reason: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Health
+             * @description VERIFIED only when the release passed its health check after deploying
+             * @enum {string}
+             */
+            health: "VERIFIED" | "FAILED" | "NOT_VERIFIED" | "UNKNOWN";
+            /** Health Verified At */
+            health_verified_at: string | null;
+            /** Id */
+            id: number;
+            /** Previous Sha */
+            previous_sha: string | null;
+            /** Repo */
+            repo: string | null;
+            /** Rollback Status */
+            rollback_status: ("healthy" | "unhealthy") | null;
+            /** Rolled Back */
+            rolled_back: boolean;
+            /** Sha */
+            sha: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "server" | "github";
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "RUNNING" | "SUCCEEDED" | "UNVERIFIED" | "FAILED" | "ROLLED_BACK" | "UNKNOWN";
+            /** Target */
+            target: string | null;
+            /** Url */
+            url: string | null;
+        };
         /**
          * DhanConnectionOut
          * @description dhan.connections, safe fields only (docs/28-dhan-operations.md).
@@ -4957,6 +5265,49 @@ export interface components {
             drifted: string[];
             /** Status */
             status: string;
+        };
+        /** EventOut */
+        EventOut: {
+            /** Branch */
+            branch: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Environment */
+            environment: string | null;
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ref */
+            ref: {
+                [key: string]: unknown;
+            };
+            /** Repo */
+            repo: string | null;
+            /** Service */
+            service: string | null;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "success" | "warning" | "error";
+            /** Sha */
+            sha: string | null;
+            /** Title */
+            title: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "build.started" | "build.completed" | "build.failed" | "pr.merged" | "deployment.started" | "deployment.completed" | "deployment.failed" | "deployment.rolled_back" | "service.unhealthy" | "service.recovered";
+            /** Url */
+            url: string | null;
         };
         /**
          * ExecutionMode
@@ -5131,6 +5482,18 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** FeedOut */
+        FeedOut: {
+            /** Has More */
+            has_more: boolean;
+            /** Items */
+            items: components["schemas"]["EventOut"][];
+            /**
+             * Last Id
+             * @description Pass as after_id (or Last-Event-ID) to continue
+             */
+            last_id: number;
+        };
         /** FileOut */
         FileOut: {
             /** Binary */
@@ -5249,6 +5612,17 @@ export interface components {
             size: string;
             /** Steps */
             steps?: number | null;
+        };
+        /** GitHubStatusOut */
+        GitHubStatusOut: {
+            /** Configured */
+            configured: boolean;
+            /** Last Backfill At */
+            last_backfill_at: string | null;
+            /** Last Backfill Ok */
+            last_backfill_ok: boolean | null;
+            /** Webhook Configured */
+            webhook_configured: boolean;
         };
         /** GitOpOut */
         GitOpOut: {
@@ -5776,6 +6150,18 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** JobSummary */
+        JobSummary: {
+            /** Name */
+            name: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN";
+            /** Url */
+            url: string | null;
+        };
         /** LabelsAdd */
         LabelsAdd: {
             /** Labels */
@@ -5875,6 +6261,16 @@ export interface components {
              */
             expires_at: string;
             user: components["schemas"]["UserOut"];
+        };
+        /** MarkReadIn */
+        MarkReadIn: {
+            /** Event Ids */
+            event_ids?: number[];
+            /**
+             * Up To Id
+             * @description Mark everything up to this id
+             */
+            up_to_id?: number | null;
         };
         /** MergeRequest */
         MergeRequest: {
@@ -6492,6 +6888,63 @@ export interface components {
             /** Timeframe */
             timeframe: string;
         };
+        /** NotificationOut */
+        NotificationOut: {
+            /** Branch */
+            branch: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Environment */
+            environment: string | null;
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Read */
+            read: boolean;
+            /** Ref */
+            ref: {
+                [key: string]: unknown;
+            };
+            /** Repo */
+            repo: string | null;
+            /** Service */
+            service: string | null;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "success" | "warning" | "error";
+            /** Sha */
+            sha: string | null;
+            /** Title */
+            title: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "build.started" | "build.completed" | "build.failed" | "pr.merged" | "deployment.started" | "deployment.completed" | "deployment.failed" | "deployment.rolled_back" | "service.unhealthy" | "service.recovered";
+            /** Url */
+            url: string | null;
+        };
+        /** NotificationsOut */
+        NotificationsOut: {
+            /** Items */
+            items: components["schemas"]["NotificationOut"][];
+            /**
+             * Next Before Id
+             * @description Pass as before_id for the next (older) page
+             */
+            next_before_id: number | null;
+            /** Unread Count */
+            unread_count: number;
+        };
         /** OpenRouterStatus */
         OpenRouterStatus: {
             /** Enabled */
@@ -6764,6 +7217,35 @@ export interface components {
             /** Updated At */
             updated_at: string | null;
         };
+        /** OverviewOut */
+        OverviewOut: {
+            /** Building */
+            building: components["schemas"]["BuildOut"][];
+            collector: components["schemas"]["CollectorStatusOut"];
+            /**
+             * Deployments
+             * @description Latest deployment per (repo/target, environment)
+             */
+            deployments: components["schemas"]["DeploymentOut"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            github: components["schemas"]["GitHubStatusOut"];
+            /** Recent Failures */
+            recent_failures: components["schemas"]["BuildOut"][];
+            /** Recently Merged */
+            recently_merged: components["schemas"]["PullRequestOut"][];
+            /** Services */
+            services: components["schemas"]["ServiceOut"][];
+            /** Services By Status */
+            services_by_status: {
+                [key: string]: number;
+            };
+            /** Unread Notifications */
+            unread_notifications: number;
+        };
         /** Page[AccountOut] */
         Page_AccountOut_: {
             /** Items */
@@ -6797,10 +7279,32 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[BuildOut] */
+        Page_BuildOut_: {
+            /** Items */
+            items: components["schemas"]["BuildOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
         /** Page[CodeTaskOut] */
         Page_CodeTaskOut_: {
             /** Items */
             items: components["schemas"]["CodeTaskOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[DeploymentOut] */
+        Page_DeploymentOut_: {
+            /** Items */
+            items: components["schemas"]["DeploymentOut"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -6944,6 +7448,17 @@ export interface components {
         Page_RepairOut_: {
             /** Items */
             items: components["schemas"]["RepairOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** Page[RepoEventOut] */
+        Page_RepoEventOut_: {
+            /** Items */
+            items: components["schemas"]["RepoEventOut"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -7219,6 +7734,40 @@ export interface components {
             symbol: string;
             /** Unrealized Pnl */
             unrealized_pnl: string | null;
+        };
+        /** PreferencesIn */
+        PreferencesIn: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Failures Only
+             * @default false
+             */
+            failures_only: boolean;
+            /** Repos */
+            repos?: string[];
+            /** Types */
+            types?: ("build.started" | "build.completed" | "build.failed" | "pr.merged" | "deployment.started" | "deployment.completed" | "deployment.failed" | "deployment.rolled_back" | "service.unhealthy" | "service.recovered")[];
+        };
+        /** PreferencesOut */
+        PreferencesOut: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Failures Only
+             * @default false
+             */
+            failures_only: boolean;
+            /** Repos */
+            repos?: string[];
+            /** Types */
+            types?: ("build.started" | "build.completed" | "build.failed" | "pr.merged" | "deployment.started" | "deployment.completed" | "deployment.failed" | "deployment.rolled_back" | "service.unhealthy" | "service.recovered")[];
         };
         /**
          * ProtectionUpdate
@@ -7510,6 +8059,39 @@ export interface components {
             /** User */
             user?: string | null;
         };
+        /** PullRequestOut */
+        PullRequestOut: {
+            /** Actor */
+            actor: string | null;
+            /**
+             * Branch
+             * @description Base branch
+             */
+            branch: string | null;
+            /** Number */
+            number: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Repo */
+            repo: string;
+            /**
+             * Sha
+             * @description Merge commit for a merged PR, else the head commit
+             */
+            sha: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "OPEN" | "MERGED" | "CLOSED" | "UNKNOWN";
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string | null;
+        };
         /** PullUpdate */
         PullUpdate: {
             /** Base */
@@ -7751,6 +8333,44 @@ export interface components {
             /** Repo */
             repo: string | null;
         };
+        /** RepoEventOut */
+        RepoEventOut: {
+            /** Actor */
+            actor: string | null;
+            /** Branch */
+            branch: string | null;
+            /** Environment */
+            environment: string | null;
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pr.opened" | "pr.reopened" | "pr.closed" | "pr.merged" | "push" | "deployment" | "deployment_status";
+            /** Number */
+            number: number | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Repo */
+            repo: string;
+            /** Sha */
+            sha: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "webhook" | "backfill";
+            /** State */
+            state: string | null;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string | null;
+        };
         /** RepoOut */
         RepoOut: {
             /** Available */
@@ -7875,6 +8495,21 @@ export interface components {
              * Format: date-time
              */
             synced_at: string;
+        };
+        /** RepositoryStatusOut */
+        RepositoryStatusOut: {
+            /** @description Latest build on the default branch */
+            ci: components["schemas"]["BuildOut"] | null;
+            /** Default Branch */
+            default_branch: string | null;
+            /** @description Latest deployment that SUCCEEDED (health verified): what is running */
+            deployed: components["schemas"]["DeploymentOut"] | null;
+            /** @description Latest deployment of this repo */
+            deployment: components["schemas"]["DeploymentOut"] | null;
+            /** @description Most recent merged PR */
+            pr: components["schemas"]["PullRequestOut"] | null;
+            /** Repo */
+            repo: string;
         };
         /** RevertIn */
         RevertIn: {
@@ -8148,6 +8783,62 @@ export interface components {
             date?: string | null;
             /** Note */
             note?: string | null;
+        };
+        /** ServiceOut */
+        ServiceOut: {
+            /** Container Id */
+            container_id: string | null;
+            /** Container Name */
+            container_name: string | null;
+            /** Exit Code */
+            exit_code: number | null;
+            /** Failure Reason */
+            failure_reason: string | null;
+            /**
+             * Health
+             * @description Docker healthcheck as last observed
+             */
+            health: string | null;
+            /** Host */
+            host: string;
+            /** Id */
+            id: number;
+            /** Image */
+            image: string | null;
+            /** Last Healthy At */
+            last_healthy_at: string | null;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /**
+             * Revision
+             * @description Commit the image was built from, when labelled
+             */
+            revision: string | null;
+            /** Service */
+            service: string;
+            /** Stale */
+            stale: boolean;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * State
+             * @description Docker state as last observed
+             */
+            state: string | null;
+            /**
+             * Status
+             * @description UNKNOWN when the collector has not reported within the stale window
+             * @enum {string}
+             */
+            status: "HEALTHY" | "UNHEALTHY" | "STOPPED" | "STARTING" | "UNKNOWN";
+            /**
+             * Status Since
+             * Format: date-time
+             */
+            status_since: string;
         };
         /**
          * Session
@@ -8695,6 +9386,11 @@ export interface components {
             sha: string | null;
             /** Truncated */
             truncated: boolean;
+        };
+        /** UnreadOut */
+        UnreadOut: {
+            /** Unread Count */
+            unread_count: number;
         };
         /** UsageOut */
         UsageOut: {
@@ -13822,6 +14518,389 @@ export interface operations {
             };
         };
     };
+    builds_api_v1_devops_builds_get: {
+        parameters: {
+            query?: {
+                repo?: string | null;
+                branch?: string | null;
+                status?: ("QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN") | null;
+                /** @description Inclusive lower bound (ISO 8601) */
+                since?: string | null;
+                /** @description Exclusive upper bound (ISO 8601) */
+                until?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_BuildOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deployments_api_v1_devops_deployments_get: {
+        parameters: {
+            query?: {
+                repo?: string | null;
+                environment?: string | null;
+                status?: ("RUNNING" | "SUCCEEDED" | "UNVERIFIED" | "FAILED" | "ROLLED_BACK" | "UNKNOWN") | null;
+                source?: string | null;
+                target?: string | null;
+                /** @description Inclusive lower bound (ISO 8601) */
+                since?: string | null;
+                /** @description Exclusive upper bound (ISO 8601) */
+                until?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DeploymentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    events_api_v1_devops_events_get: {
+        parameters: {
+            query?: {
+                repo?: string | null;
+                branch?: string | null;
+                /** @description Event kind */
+                type?: ("pr.opened" | "pr.reopened" | "pr.closed" | "pr.merged" | "push" | "deployment" | "deployment_status") | null;
+                /** @description Provider state */
+                status?: string | null;
+                /** @description Inclusive lower bound (ISO 8601) */
+                since?: string | null;
+                /** @description Exclusive upper bound (ISO 8601) */
+                until?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RepoEventOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    feed_api_v1_devops_feed_get: {
+        parameters: {
+            query?: {
+                /** @description Return events with a larger id */
+                after_id?: number;
+                type?: ("build.started" | "build.completed" | "build.failed" | "pr.merged" | "deployment.started" | "deployment.completed" | "deployment.failed" | "deployment.rolled_back" | "service.unhealthy" | "service.recovered")[] | null;
+                repo?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notifications_api_v1_devops_notifications_get: {
+        parameters: {
+            query?: {
+                unread_only?: boolean;
+                before_id?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_preferences_api_v1_devops_notifications_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+        };
+    };
+    put_preferences_api_v1_devops_notifications_preferences_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_read_api_v1_devops_notifications_read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkReadIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overview_api_v1_devops_overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewOut"];
+                };
+            };
+        };
+    };
+    repositories_api_v1_devops_repositories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryStatusOut"][];
+                };
+            };
+        };
+    };
+    services_api_v1_devops_services_get: {
+        parameters: {
+            query?: {
+                status?: ("HEALTHY" | "UNHEALTHY" | "STOPPED" | "STARTING" | "UNKNOWN") | null;
+                host?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_api_v1_devops_stream_get: {
+        parameters: {
+            query?: {
+                type?: ("build.started" | "build.completed" | "build.failed" | "pr.merged" | "deployment.started" | "deployment.completed" | "deployment.failed" | "deployment.rolled_back" | "service.unhealthy" | "service.recovered")[] | null;
+                repo?: string | null;
+                last_event_id?: string | null;
+            };
+            header?: {
+                "last-event-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     connection_api_v1_dhan_auth_connection_get: {
         parameters: {
             query?: never;
@@ -13849,9 +14928,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["ConsumeIn"];
+                "application/json": components["schemas"]["ConsumeIn"] | null;
             };
         };
         responses: {

@@ -5,13 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), DELETE: vi.fn() }))
+const nav = vi.hoisted(() => ({ query: {} as Record<string, unknown>, replace: vi.fn() }))
 vi.mock('@/api/client', () => ({ aureon: api }))
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: {} }),
-  useRouter: () => ({ replace: vi.fn() }),
+  useRoute: () => ({ query: nav.query }),
+  useRouter: () => ({ replace: nav.replace }),
 }))
 
 import DhanSessionBar from './DhanSessionBar.vue'
+import { clearDhanReturn, pendingDhanReturn, rememberDhanReturn } from '@/control/dhanSession'
 
 const res = (data: unknown, status = 200) => ({
   data: status < 400 ? data : undefined,
@@ -55,7 +57,11 @@ const stubs = { teleport: true }
 describe('<DhanSessionBar />', () => {
   beforeEach(() => {
     api.GET.mockReset()
+    api.POST.mockReset()
     api.DELETE.mockReset()
+    nav.query = {}
+    nav.replace.mockReset()
+    clearDhanReturn()
   })
 
   it('says unavailable with Retry when the status cannot be read', async () => {
@@ -101,5 +107,104 @@ describe('<DhanSessionBar />', () => {
     expect(api.DELETE).toHaveBeenCalledWith('/api/v1/dhan/auth/session')
     expect(w.get('[data-testid="dhan-connection"]').attributes('data-state')).toBe('disconnected')
     expect(w.text()).toContain('the server forgot the Dhan session')
+  })
+
+  describe('finishing a Dhan login (Settings page)', () => {
+    const props = { admin: true, detailed: true, finishCallback: true }
+    const consumeCalls = () =>
+      api.POST.mock.calls.filter(([path]) => path === '/api/v1/dhan/auth/consume')
+
+    it('finishes the server-side handoff without ever seeing the tokenId', async () => {
+      serve({ supported: true, ok: true })
+      api.POST.mockResolvedValue(res(SESSION))
+      nav.query = { dhan_login: 'ready', tab: 'dhan' }
+      rememberDhanReturn(nav.query) // the router guard
+      const w = mount(DhanSessionBar, { props, global: { stubs } })
+      await flushPromises()
+      expect(consumeCalls()).toEqual([['/api/v1/dhan/auth/consume', {}]])
+      expect(w.text()).toContain('Logged in to Dhan.')
+      expect(nav.replace).toHaveBeenCalledWith({ query: { tab: 'dhan' } })
+      expect(pendingDhanReturn()).toBe(false)
+    })
+
+    it('resumes after the admin signed in to Aureon again (no query left)', async () => {
+      serve({ supported: true, ok: true })
+      rememberDhanReturn({ dhan_login: 'ready' })
+      // First attempt: the Aureon session had ended.
+      api.POST.mockResolvedValueOnce(res({ detail: 'not authenticated' }, 401))
+      const first = mount(DhanSessionBar, { props, global: { stubs } })
+      await flushPromises()
+      expect(first.text()).toContain('Sign in again to finish the Dhan login')
+      expect(pendingDhanReturn()).toBe(true) // kept for after the sign-in
+      first.unmount()
+      // Signed in again: the page mounts once more and finishes the same login.
+      api.POST.mockResolvedValueOnce(res(SESSION))
+      const second = mount(DhanSessionBar, { props, global: { stubs } })
+      await flushPromises()
+      expect(second.text()).toContain('Logged in to Dhan.')
+      expect(consumeCalls()).toHaveLength(2)
+      expect(pendingDhanReturn()).toBe(false)
+    })
+
+    it.each([
+      ['login_expired', 409, 'expired', false],
+      ['login_already_used', 409, 'already completed', false],
+      ['dhan_client_mismatch', 403, 'different client id', false],
+      ['dhan_login_other_user', 403, 'another Aureon account', true],
+    ])(
+      'explains %s and only keeps the login while it can still be finished',
+      async (code, st, text, kept) => {
+        serve({ supported: true, ok: true })
+        rememberDhanReturn({ dhan_login: 'ready' })
+        api.POST.mockResolvedValue(res({ detail: { code, detail: 'server words' } }, st))
+        const w = mount(DhanSessionBar, { props, global: { stubs } })
+        await flushPromises()
+        expect(w.text()).toContain(text)
+        expect(pendingDhanReturn()).toBe(kept)
+      },
+    )
+
+    it('keeps the login when Dhan was briefly unreachable, so it can be retried', async () => {
+      serve({ supported: true, ok: true })
+      rememberDhanReturn({ dhan_login: 'ready' })
+      api.POST.mockResolvedValue(
+        res({ detail: { code: 'dhan_unavailable', detail: 'x', retry: true } }, 502),
+      )
+      const w = mount(DhanSessionBar, { props, global: { stubs } })
+      await flushPromises()
+      expect(w.text()).toContain('could not be reached')
+      expect(pendingDhanReturn()).toBe(true)
+    })
+
+    it('shows the callback error and never calls consume for it', async () => {
+      serve({ supported: true, ok: true })
+      nav.query = { dhan_error: 'no_pending_login' }
+      const w = mount(DhanSessionBar, { props, global: { stubs } })
+      await flushPromises()
+      expect(w.text()).toContain('No Dhan login was started from this browser')
+      expect(consumeCalls()).toHaveLength(0)
+    })
+
+    it('still finishes a login from an older server that put the tokenId in the URL', async () => {
+      serve({ supported: true, ok: true })
+      api.POST.mockResolvedValue(res(SESSION))
+      nav.query = { dhan_token_id: '7f3c2a10-9e8b-4d2c-a111-0123456789ab' }
+      mount(DhanSessionBar, { props, global: { stubs } })
+      await flushPromises()
+      expect(consumeCalls()).toEqual([
+        [
+          '/api/v1/dhan/auth/consume',
+          { body: { token_id: '7f3c2a10-9e8b-4d2c-a111-0123456789ab' } },
+        ],
+      ])
+      expect(nav.replace).toHaveBeenCalledWith({ query: {} })
+    })
+
+    it('does nothing on a plain visit', async () => {
+      serve({ supported: true, ok: true })
+      mount(DhanSessionBar, { props, global: { stubs } })
+      await flushPromises()
+      expect(consumeCalls()).toHaveLength(0)
+    })
   })
 })
