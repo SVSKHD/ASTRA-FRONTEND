@@ -2236,6 +2236,168 @@
         "title": "Broker",
         "type": "string"
       },
+      "BuildOut": {
+        "description": "A GitHub Actions workflow run (github.workflow_runs).",
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "conclusion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "GitHub's raw conclusion, when completed",
+            "title": "Conclusion"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event"
+          },
+          "failed_jobs": {
+            "items": {
+              "$ref": "#/components/schemas/JobSummary"
+            },
+            "title": "Failed Jobs",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "repo": {
+            "title": "Repo",
+            "type": "string"
+          },
+          "run_attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Attempt"
+          },
+          "sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "CANCELLED",
+              "UNKNOWN"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "workflow_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Path"
+          }
+        },
+        "required": [
+          "id",
+          "repo",
+          "name",
+          "workflow_path",
+          "event",
+          "branch",
+          "sha",
+          "status",
+          "conclusion",
+          "run_attempt",
+          "url",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "BuildOut",
+        "type": "object"
+      },
       "CandleOut": {
         "properties": {
           "close": {
@@ -2875,6 +3037,32 @@
         "title": "CodeTaskOut",
         "type": "object"
       },
+      "CollectorStatusOut": {
+        "properties": {
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "last_seen_at",
+          "stale"
+        ],
+        "title": "CollectorStatusOut",
+        "type": "object"
+      },
       "CommentCreate": {
         "additionalProperties": false,
         "properties": {
@@ -3095,15 +3283,19 @@
         "additionalProperties": false,
         "properties": {
           "token_id": {
-            "maxLength": 256,
-            "minLength": 8,
-            "title": "Token Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Id"
           }
         },
-        "required": [
-          "token_id"
-        ],
         "title": "ConsumeIn",
         "type": "object"
       },
@@ -3446,6 +3638,247 @@
         "title": "DenyIn",
         "type": "object"
       },
+      "DeploymentOut": {
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "build_finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Finished At"
+          },
+          "build_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Started At"
+          },
+          "deploy_finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploy Finished At"
+          },
+          "deploy_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploy Started At"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "health": {
+            "description": "VERIFIED only when the release passed its health check after deploying",
+            "enum": [
+              "VERIFIED",
+              "FAILED",
+              "NOT_VERIFIED",
+              "UNKNOWN"
+            ],
+            "title": "Health",
+            "type": "string"
+          },
+          "health_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health Verified At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "previous_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Sha"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          },
+          "rollback_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "healthy",
+                  "unhealthy"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback Status"
+          },
+          "rolled_back": {
+            "title": "Rolled Back",
+            "type": "boolean"
+          },
+          "sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha"
+          },
+          "source": {
+            "enum": [
+              "server",
+              "github"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "RUNNING",
+              "SUCCEEDED",
+              "UNVERIFIED",
+              "FAILED",
+              "ROLLED_BACK",
+              "UNKNOWN"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "repo",
+          "target",
+          "environment",
+          "branch",
+          "sha",
+          "previous_sha",
+          "status",
+          "health",
+          "health_verified_at",
+          "rolled_back",
+          "rollback_status",
+          "failure_reason",
+          "started_at",
+          "finished_at",
+          "build_started_at",
+          "build_finished_at",
+          "deploy_started_at",
+          "deploy_finished_at",
+          "url"
+        ],
+        "title": "DeploymentOut",
+        "type": "object"
+      },
       "DhanConnectionOut": {
         "description": "dhan.connections, safe fields only (docs/28-dhan-operations.md).",
         "properties": {
@@ -3756,6 +4189,142 @@
           "status"
         ],
         "title": "DriftOut",
+        "type": "object"
+      },
+      "EventOut": {
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "ref": {
+            "additionalProperties": true,
+            "title": "Ref",
+            "type": "object"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          },
+          "service": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "error"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "build.started",
+              "build.completed",
+              "build.failed",
+              "pr.merged",
+              "deployment.started",
+              "deployment.completed",
+              "deployment.failed",
+              "deployment.rolled_back",
+              "service.unhealthy",
+              "service.recovered"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "severity",
+          "title",
+          "repo",
+          "branch",
+          "sha",
+          "environment",
+          "service",
+          "url",
+          "ref",
+          "occurred_at",
+          "created_at"
+        ],
+        "title": "EventOut",
         "type": "object"
       },
       "ExecutionMode": {
@@ -4216,6 +4785,33 @@
         "title": "FeedHealthOut",
         "type": "object"
       },
+      "FeedOut": {
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "last_id": {
+            "description": "Pass as after_id (or Last-Event-ID) to continue",
+            "title": "Last Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "last_id",
+          "has_more"
+        ],
+        "title": "FeedOut",
+        "type": "object"
+      },
       "FileOut": {
         "properties": {
           "binary": {
@@ -4538,6 +5134,49 @@
           "prompt"
         ],
         "title": "GenerateRequest",
+        "type": "object"
+      },
+      "GitHubStatusOut": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "last_backfill_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Backfill At"
+          },
+          "last_backfill_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Backfill Ok"
+          },
+          "webhook_configured": {
+            "title": "Webhook Configured",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured",
+          "webhook_configured",
+          "last_backfill_at",
+          "last_backfill_ok"
+        ],
+        "title": "GitHubStatusOut",
         "type": "object"
       },
       "GitOpOut": {
@@ -6205,6 +6844,51 @@
         "title": "IssueUpdate",
         "type": "object"
       },
+      "JobSummary": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "CANCELLED",
+              "UNKNOWN"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "url"
+        ],
+        "title": "JobSummary",
+        "type": "object"
+      },
       "LabelsAdd": {
         "additionalProperties": false,
         "properties": {
@@ -6480,6 +7164,34 @@
           "expires_at"
         ],
         "title": "LoginResponse",
+        "type": "object"
+      },
+      "MarkReadIn": {
+        "additionalProperties": false,
+        "properties": {
+          "event_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 500,
+            "title": "Event Ids",
+            "type": "array"
+          },
+          "up_to_id": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mark everything up to this id",
+            "title": "Up To Id"
+          }
+        },
+        "title": "MarkReadIn",
         "type": "object"
       },
       "MergeRequest": {
@@ -8592,6 +9304,181 @@
         "title": "Mt5SymbolMarketOut",
         "type": "object"
       },
+      "NotificationOut": {
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          },
+          "ref": {
+            "additionalProperties": true,
+            "title": "Ref",
+            "type": "object"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repo"
+          },
+          "service": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "error"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "build.started",
+              "build.completed",
+              "build.failed",
+              "pr.merged",
+              "deployment.started",
+              "deployment.completed",
+              "deployment.failed",
+              "deployment.rolled_back",
+              "service.unhealthy",
+              "service.recovered"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "severity",
+          "title",
+          "repo",
+          "branch",
+          "sha",
+          "environment",
+          "service",
+          "url",
+          "ref",
+          "occurred_at",
+          "created_at",
+          "read"
+        ],
+        "title": "NotificationOut",
+        "type": "object"
+      },
+      "NotificationsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_before_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pass as before_id for the next (older) page",
+            "title": "Next Before Id"
+          },
+          "unread_count": {
+            "title": "Unread Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "unread_count",
+          "next_before_id"
+        ],
+        "title": "NotificationsOut",
+        "type": "object"
+      },
       "OpenRouterStatus": {
         "properties": {
           "enabled": {
@@ -9442,6 +10329,82 @@
         "title": "OrderOut",
         "type": "object"
       },
+      "OverviewOut": {
+        "properties": {
+          "building": {
+            "items": {
+              "$ref": "#/components/schemas/BuildOut"
+            },
+            "title": "Building",
+            "type": "array"
+          },
+          "collector": {
+            "$ref": "#/components/schemas/CollectorStatusOut"
+          },
+          "deployments": {
+            "description": "Latest deployment per (repo/target, environment)",
+            "items": {
+              "$ref": "#/components/schemas/DeploymentOut"
+            },
+            "title": "Deployments",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "github": {
+            "$ref": "#/components/schemas/GitHubStatusOut"
+          },
+          "recent_failures": {
+            "items": {
+              "$ref": "#/components/schemas/BuildOut"
+            },
+            "title": "Recent Failures",
+            "type": "array"
+          },
+          "recently_merged": {
+            "items": {
+              "$ref": "#/components/schemas/PullRequestOut"
+            },
+            "title": "Recently Merged",
+            "type": "array"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceOut"
+            },
+            "title": "Services",
+            "type": "array"
+          },
+          "services_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Services By Status",
+            "type": "object"
+          },
+          "unread_notifications": {
+            "title": "Unread Notifications",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "generated_at",
+          "github",
+          "collector",
+          "recently_merged",
+          "building",
+          "recent_failures",
+          "deployments",
+          "services",
+          "services_by_status",
+          "unread_notifications"
+        ],
+        "title": "OverviewOut",
+        "type": "object"
+      },
       "Page_AccountOut_": {
         "properties": {
           "items": {
@@ -9535,6 +10498,37 @@
         "title": "Page[BacktestRunOut]",
         "type": "object"
       },
+      "Page_BuildOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BuildOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[BuildOut]",
+        "type": "object"
+      },
       "Page_CodeTaskOut_": {
         "properties": {
           "items": {
@@ -9564,6 +10558,37 @@
           "offset"
         ],
         "title": "Page[CodeTaskOut]",
+        "type": "object"
+      },
+      "Page_DeploymentOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeploymentOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[DeploymentOut]",
         "type": "object"
       },
       "Page_DocumentOut_": {
@@ -9967,6 +10992,37 @@
           "offset"
         ],
         "title": "Page[RepairOut]",
+        "type": "object"
+      },
+      "Page_RepoEventOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RepoEventOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[RepoEventOut]",
         "type": "object"
       },
       "Page_RepositoryOut_": {
@@ -10711,6 +11767,95 @@
           "product"
         ],
         "title": "PositionOut",
+        "type": "object"
+      },
+      "PreferencesIn": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "failures_only": {
+            "default": false,
+            "title": "Failures Only",
+            "type": "boolean"
+          },
+          "repos": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Repos",
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "enum": [
+                "build.started",
+                "build.completed",
+                "build.failed",
+                "pr.merged",
+                "deployment.started",
+                "deployment.completed",
+                "deployment.failed",
+                "deployment.rolled_back",
+                "service.unhealthy",
+                "service.recovered"
+              ],
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "title": "PreferencesIn",
+        "type": "object"
+      },
+      "PreferencesOut": {
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "failures_only": {
+            "default": false,
+            "title": "Failures Only",
+            "type": "boolean"
+          },
+          "repos": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Repos",
+            "type": "array"
+          },
+          "types": {
+            "items": {
+              "enum": [
+                "build.started",
+                "build.completed",
+                "build.failed",
+                "pr.merged",
+                "deployment.started",
+                "deployment.completed",
+                "deployment.failed",
+                "deployment.rolled_back",
+                "service.unhealthy",
+                "service.recovered"
+              ],
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "title": "PreferencesOut",
         "type": "object"
       },
       "ProtectionUpdate": {
@@ -11642,6 +12787,103 @@
         "title": "PullOut",
         "type": "object"
       },
+      "PullRequestOut": {
+        "properties": {
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Base branch",
+            "title": "Branch"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "repo": {
+            "title": "Repo",
+            "type": "string"
+          },
+          "sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Merge commit for a merged PR, else the head commit",
+            "title": "Sha"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "MERGED",
+              "CLOSED",
+              "UNKNOWN"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "repo",
+          "number",
+          "title",
+          "status",
+          "branch",
+          "sha",
+          "actor",
+          "url",
+          "occurred_at"
+        ],
+        "title": "PullRequestOut",
+        "type": "object"
+      },
       "PullUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -12520,6 +13762,149 @@
         "title": "RepairStatusOut",
         "type": "object"
       },
+      "RepoEventOut": {
+        "properties": {
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "environment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "pr.opened",
+              "pr.reopened",
+              "pr.closed",
+              "pr.merged",
+              "push",
+              "deployment",
+              "deployment_status"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "repo": {
+            "title": "Repo",
+            "type": "string"
+          },
+          "sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha"
+          },
+          "source": {
+            "enum": [
+              "webhook",
+              "backfill"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "repo",
+          "branch",
+          "sha",
+          "number",
+          "title",
+          "actor",
+          "url",
+          "environment",
+          "state",
+          "occurred_at",
+          "source"
+        ],
+        "title": "RepoEventOut",
+        "type": "object"
+      },
       "RepoOut": {
         "properties": {
           "available": {
@@ -12968,6 +14353,79 @@
           "synced_at"
         ],
         "title": "RepositoryOut",
+        "type": "object"
+      },
+      "RepositoryStatusOut": {
+        "properties": {
+          "ci": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuildOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latest build on the default branch"
+          },
+          "default_branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Branch"
+          },
+          "deployed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latest deployment that SUCCEEDED (health verified): what is running"
+          },
+          "deployment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latest deployment of this repo"
+          },
+          "pr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PullRequestOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent merged PR"
+          },
+          "repo": {
+            "title": "Repo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo",
+          "default_branch",
+          "pr",
+          "ci",
+          "deployment",
+          "deployed"
+        ],
+        "title": "RepositoryStatusOut",
         "type": "object"
       },
       "RevertIn": {
@@ -13911,6 +15369,184 @@
           }
         },
         "title": "SecuredPatch",
+        "type": "object"
+      },
+      "ServiceOut": {
+        "properties": {
+          "container_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Container Id"
+          },
+          "container_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Container Name"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "health": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Docker healthcheck as last observed",
+            "title": "Health"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "last_healthy_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Healthy At"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Commit the image was built from, when labelled",
+            "title": "Revision"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Docker state as last observed",
+            "title": "State"
+          },
+          "status": {
+            "description": "UNKNOWN when the collector has not reported within the stale window",
+            "enum": [
+              "HEALTHY",
+              "UNHEALTHY",
+              "STOPPED",
+              "STARTING",
+              "UNKNOWN"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "status_since": {
+            "format": "date-time",
+            "title": "Status Since",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "host",
+          "service",
+          "status",
+          "stale",
+          "state",
+          "health",
+          "exit_code",
+          "container_id",
+          "container_name",
+          "image",
+          "revision",
+          "started_at",
+          "status_since",
+          "last_seen_at",
+          "last_healthy_at",
+          "failure_reason"
+        ],
+        "title": "ServiceOut",
         "type": "object"
       },
       "Session": {
@@ -15555,6 +17191,19 @@
           "entries"
         ],
         "title": "TreeOut",
+        "type": "object"
+      },
+      "UnreadOut": {
+        "properties": {
+          "unread_count": {
+            "title": "Unread Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unread_count"
+        ],
+        "title": "UnreadOut",
         "type": "object"
       },
       "UsageOut": {
@@ -27709,6 +29358,1266 @@
         }
       }
     },
+    "/api/v1/devops/builds": {
+      "get": {
+        "operationId": "builds_api_v1_devops_builds_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 201,
+                  "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Repo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Branch"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "QUEUED",
+                    "RUNNING",
+                    "SUCCEEDED",
+                    "FAILED",
+                    "CANCELLED",
+                    "UNKNOWN"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Inclusive lower bound (ISO 8601)",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive lower bound (ISO 8601)",
+              "title": "Since"
+            }
+          },
+          {
+            "description": "Exclusive upper bound (ISO 8601)",
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exclusive upper bound (ISO 8601)",
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_BuildOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Builds",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": [
+            "id",
+            "repo",
+            "name",
+            "workflow_path",
+            "event",
+            "branch"
+          ],
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": "id",
+          "kind": "list",
+          "label": "Builds",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": "name"
+        }
+      }
+    },
+    "/api/v1/devops/deployments": {
+      "get": {
+        "operationId": "deployments_api_v1_devops_deployments_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 201,
+                  "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Repo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "RUNNING",
+                    "SUCCEEDED",
+                    "UNVERIFIED",
+                    "FAILED",
+                    "ROLLED_BACK",
+                    "UNKNOWN"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(server|github)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target"
+            }
+          },
+          {
+            "description": "Inclusive lower bound (ISO 8601)",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive lower bound (ISO 8601)",
+              "title": "Since"
+            }
+          },
+          {
+            "description": "Exclusive upper bound (ISO 8601)",
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exclusive upper bound (ISO 8601)",
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DeploymentOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deployments",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": [
+            "id",
+            "repo",
+            "target",
+            "environment",
+            "branch",
+            "sha"
+          ],
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": "id",
+          "kind": "list",
+          "label": "Deployments",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/v1/devops/events": {
+      "get": {
+        "operationId": "events_api_v1_devops_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 201,
+                  "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Repo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Branch"
+            }
+          },
+          {
+            "description": "Event kind",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pr.opened",
+                    "pr.reopened",
+                    "pr.closed",
+                    "pr.merged",
+                    "push",
+                    "deployment",
+                    "deployment_status"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Event kind",
+              "title": "Type"
+            }
+          },
+          {
+            "description": "Provider state",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Provider state",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Inclusive lower bound (ISO 8601)",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive lower bound (ISO 8601)",
+              "title": "Since"
+            }
+          },
+          {
+            "description": "Exclusive upper bound (ISO 8601)",
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exclusive upper bound (ISO 8601)",
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RepoEventOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Events",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": [
+            "id",
+            "repo",
+            "branch",
+            "sha",
+            "number",
+            "title"
+          ],
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": "id",
+          "kind": "stream",
+          "label": "Events",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": "title"
+        }
+      }
+    },
+    "/api/v1/devops/feed": {
+      "get": {
+        "description": "Polling fallback for /stream: every feed event after `after_id`, oldest first. Keep\n`last_id` and pass it back as `after_id`; `has_more` means call again at once.",
+        "operationId": "feed_api_v1_devops_feed_get",
+        "parameters": [
+          {
+            "description": "Return events with a larger id",
+            "in": "query",
+            "name": "after_id",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Return events with a larger id",
+              "minimum": 0,
+              "title": "After Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "build.started",
+                      "build.completed",
+                      "build.failed",
+                      "pr.merged",
+                      "deployment.started",
+                      "deployment.completed",
+                      "deployment.failed",
+                      "deployment.rolled_back",
+                      "service.unhealthy",
+                      "service.recovered"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 10,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 201,
+                  "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Repo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feed",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": [
+            "id",
+            "title",
+            "repo",
+            "branch",
+            "sha",
+            "environment"
+          ],
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": "id",
+          "kind": "list",
+          "label": "Feed",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": "title"
+        }
+      }
+    },
+    "/api/v1/devops/notifications": {
+      "get": {
+        "operationId": "notifications_api_v1_devops_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unread_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unread Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Notifications",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": [
+            "id",
+            "title",
+            "repo",
+            "branch",
+            "sha",
+            "environment"
+          ],
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": "id",
+          "kind": "list",
+          "label": "Notifications",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": "title"
+        }
+      }
+    },
+    "/api/v1/devops/notifications/preferences": {
+      "get": {
+        "operationId": "get_preferences_api_v1_devops_notifications_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Preferences",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Get preferences",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      },
+      "put": {
+        "operationId": "put_preferences_api_v1_devops_notifications_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Preferences",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "confirm",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "form",
+          "label": "Put preferences",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/v1/devops/notifications/read": {
+      "post": {
+        "description": "Mark `event_ids`, and/or everything up to `up_to_id`, as read for this user.",
+        "operationId": "mark_read_api_v1_devops_notifications_read_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkReadIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Read",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "confirm",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "form",
+          "label": "Mark read",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/v1/devops/overview": {
+      "get": {
+        "operationId": "overview_api_v1_devops_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Overview",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Overview",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/v1/devops/repositories": {
+      "get": {
+        "operationId": "repositories_api_v1_devops_repositories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RepositoryStatusOut"
+                  },
+                  "title": "Response Repositories Api V1 Devops Repositories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Repositories",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": [
+            "repo",
+            "default_branch"
+          ],
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "list",
+          "label": "Repositories",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/v1/devops/services": {
+      "get": {
+        "operationId": "services_api_v1_devops_services_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "HEALTHY",
+                    "UNHEALTHY",
+                    "STOPPED",
+                    "STARTING",
+                    "UNKNOWN"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Host"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceOut"
+                  },
+                  "title": "Response Services Api V1 Devops Services Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Services",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": [
+            "id",
+            "host",
+            "service",
+            "stale",
+            "state",
+            "health"
+          ],
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": "id",
+          "kind": "list",
+          "label": "Services",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/v1/devops/stream": {
+      "get": {
+        "description": "Server-Sent Events. Each event's name is its type (build.failed, deployment.completed,\nservice.unhealthy, ...), its `id:` the feed id and its data an EventOut. Reconnecting with\n`Last-Event-ID` (or ?last_event_id=) replays everything missed, in order; `hello` carries\nthe starting cursor, `bye` ends the stream (session ended / max duration).",
+        "operationId": "stream_api_v1_devops_stream_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "build.started",
+                      "build.completed",
+                      "build.failed",
+                      "pr.merged",
+                      "deployment.started",
+                      "deployment.completed",
+                      "deployment.failed",
+                      "deployment.rolled_back",
+                      "service.unhealthy",
+                      "service.recovered"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 10,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "repo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 201,
+                  "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Repo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "last_event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last Event Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream",
+        "tags": [
+          "devops"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "dev",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "stream",
+          "label": "Stream",
+          "module": "devops",
+          "order": 53,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
     "/api/v1/dhan/auth/connection": {
       "get": {
         "description": "The persisted connection state: verified when, by which source, what to do next.",
@@ -27749,17 +30658,24 @@
     },
     "/api/v1/dhan/auth/consume": {
       "post": {
-        "description": "Exchange the tokenId for the session token and store it (encrypted).",
+        "description": "Finish the login this admin started: claim the tokenId Dhan returned (once, for this\nuser only), exchange it for the session token and store it (encrypted). Works after the\nadmin signed in to Spasta again: the login is bound to the user, not the session.",
         "operationId": "consume_api_v1_dhan_auth_consume_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ConsumeIn"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ConsumeIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {

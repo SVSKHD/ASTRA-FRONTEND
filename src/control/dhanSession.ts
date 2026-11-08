@@ -4,9 +4,14 @@
 // the URL. No token ever reaches the browser: the server keeps the session and
 // only reports whether it is valid and until when.
 //
-// Flow: "Log in to Dhan" → POST /api/v1/dhan/auth/start → the browser goes to
-// Dhan's consent page → Dhan sends it back to /api/v1/dhan/auth/callback, which
-// redirects to /dev/settings?dhan_token_id=… → this page POSTs /consume.
+// Flow: "Log in to Dhan" → POST /api/v1/dhan/auth/start (the server sets a
+// one-time, HttpOnly login cookie) → the browser goes to Dhan's consent page →
+// Dhan sends it back to /api/v1/dhan/auth/callback, which keeps Dhan's tokenId on
+// the server and redirects to /dev/settings?dhan_login=ready → this page POSTs
+// /consume. If the Aureon session expired meanwhile, the page asks the admin to
+// sign in again and then finishes the login: the server binds it to the admin
+// (not the session), and `rememberDhanReturn` keeps a non-secret "resume" marker
+// in sessionStorage so the login is finished even if the query string is lost.
 import { aureon } from '@/api/client'
 import type { Schemas } from '@/control/api'
 
@@ -192,21 +197,34 @@ export function maskId(id: string | null | undefined): string {
 }
 
 export interface Callback {
+  /** The server kept Dhan's return for this login: POST /consume to finish it. */
+  ready: boolean
+  /** Older servers handed the tokenId to the page itself. */
   tokenId: string | null
   error: string | null
 }
 
 const ID_RE = /^[A-Za-z0-9._-]{8,256}$/
+const CODE_RE = /^[a-z_]{1,40}$/
 
 /** Dhan's return, as the backend callback hands it to /dev/settings. */
 export function readCallback(query: Record<string, unknown>): Callback {
   const raw = query.dhan_token_id
   const tokenId = typeof raw === 'string' && ID_RE.test(raw) ? raw : null
+  const ready = query.dhan_login === 'ready'
   const err = query.dhan_error
   const error =
-    typeof err === 'string' ? err : raw !== undefined && !tokenId ? 'bad_callback' : null
-  return { tokenId, error }
+    typeof err === 'string'
+      ? CODE_RE.test(err)
+        ? err
+        : 'bad_callback'
+      : raw !== undefined && !tokenId
+        ? 'bad_callback'
+        : null
+  return { ready, tokenId, error }
 }
+
+export { clearDhanReturn, pendingDhanReturn, rememberDhanReturn, RESUME_MS } from './dhanReturn'
 
 /** Plain-language refusals for the server's codes. */
 export function loginRefusal(code: string | undefined, fallback: string): string {
@@ -214,7 +232,23 @@ export function loginRefusal(code: string | undefined, fallback: string): string
     case 'dhan_api_key_missing':
       return 'Set DHAN_CLIENT_ID, DHAN_API_KEY and DHAN_API_SECRET below first.'
     case 'no_pending_login':
-      return 'That Dhan login was not started from this browser session, or it timed out. Start again.'
+      return 'No Dhan login was started from this browser (or it was already finished). Start again with “Connect”.'
+    case 'login_expired':
+      return 'The Dhan login took longer than 10 minutes and expired. Start again.'
+    case 'login_already_used':
+      return 'This Dhan login was already completed. Refresh to see the connection.'
+    case 'login_not_returned':
+      return 'Dhan has not sent this login back yet. Finish it on Dhan’s page, or start again.'
+    case 'dhan_login_other_user':
+      return 'This Dhan login was started by another Aureon account. Sign in as the admin who started it to finish it.'
+    case 'duplicate_callback':
+      return 'Dhan sent this login back twice with different results. Start again.'
+    case 'token_mismatch':
+      return 'That is not the login Dhan returned. Start again.'
+    case 'dhan_token_rejected':
+      return 'Dhan did not accept the new session. Nothing was saved; start again.'
+    case 'unavailable':
+      return 'The Dhan login service is unavailable right now. Try again in a minute.'
     case 'dhan_client_mismatch':
       return 'The Dhan login was for a different client id than DHAN_CLIENT_ID. Nothing was saved.'
     case 'dhan_refused':
@@ -251,10 +285,45 @@ export async function startLogin(): Promise<{ url: string } | { error: string }>
   return { error: loginRefusal(codeOf(r.error), 'The Dhan login could not start.') }
 }
 
-export async function finishLogin(tokenId: string): Promise<DhanStatus | { error: string }> {
-  const r = await aureon.POST('/api/v1/dhan/auth/consume', { body: { token_id: tokenId } })
+export interface FinishError {
+  error: string
+  code?: string
+  /** The login is still pending on the server: trying again (later, or after signing in) may work. */
+  retry: boolean
+}
+
+/** Codes after which the pending login is gone (or never existed): stop resuming. */
+const FINAL = new Set([
+  'no_pending_login',
+  'login_expired',
+  'login_already_used',
+  'duplicate_callback',
+  'token_mismatch',
+  'dhan_client_mismatch',
+  'dhan_token_rejected',
+  'dhan_refused',
+  'dhan_bad_response',
+  'settings_key_missing',
+])
+
+/** Finish the login the server holds for this admin (the tokenId never passes through here,
+ * except from an older server that put it in the URL). */
+export async function finishLogin(tokenId?: string | null): Promise<DhanStatus | FinishError> {
+  const r = await aureon.POST(
+    '/api/v1/dhan/auth/consume',
+    tokenId ? { body: { token_id: tokenId } } : {},
+  )
   if (r.data) return r.data
-  return { error: loginRefusal(codeOf(r.error), 'The Dhan login could not be completed.') }
+  const code = codeOf(r.error)
+  const detail = (r.error as { detail?: { retry?: unknown } } | undefined)?.detail
+  const retry =
+    r.response.status === 401 ||
+    (typeof detail?.retry === 'boolean' ? detail.retry : !code || !FINAL.has(code))
+  const error =
+    r.response.status === 401
+      ? 'Your Aureon session ended. Sign in again to finish the Dhan login.'
+      : loginRefusal(code, 'The Dhan login could not be completed.')
+  return { error, code, retry }
 }
 
 export async function logout(): Promise<DhanStatus | { error: string }> {

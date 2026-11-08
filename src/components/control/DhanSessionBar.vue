@@ -13,7 +13,8 @@
 // and a masked client id, never a credential.
 //
 // With `finish-callback` (the Settings page), it also completes a login when
-// Dhan sent the browser back here with ?dhan_token_id=…, then removes it from
+// Dhan sent the browser back here with ?dhan_login=ready (or, from an older server,
+// ?dhan_token_id=…), or a login is still waiting after an Aureon sign-in; then removes it from
 // the address bar.
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -23,6 +24,7 @@ import Modal from '@/components/ui/Modal.vue'
 import { aureon } from '@/api/client'
 import {
   connectionState,
+  clearDhanReturn,
   finishLogin,
   formatTime,
   isSafeLoginUrl,
@@ -30,6 +32,7 @@ import {
   loginRefusal,
   logout,
   maskId,
+  pendingDhanReturn,
   readCallback,
   startLogin,
   type AccountCheck,
@@ -48,7 +51,7 @@ const status = ref<DhanStatus | null>(null)
 const readFailed = ref(false)
 const loading = ref(false)
 const busy = ref<'' | 'start' | 'finish' | 'logout'>('')
-const message = ref<{ tone: 'success' | 'danger'; text: string } | null>(null)
+const message = ref<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null)
 const confirmOut = ref(false)
 
 interface Identity {
@@ -146,28 +149,38 @@ async function signOut() {
 
 async function completeFromUrl() {
   const cb = readCallback(route.query)
-  if (!cb.tokenId && !cb.error) return
-  // Drop the one-time id from the address bar (and history) whatever happens next.
-  const query = { ...route.query }
-  delete query.dhan_token_id
-  delete query.dhan_error
-  void router.replace({ query })
+  const resume = pendingDhanReturn()
+  if (!cb.ready && !cb.tokenId && !cb.error && !resume) return
+  // Drop Dhan's return from the address bar (and history) whatever happens next.
+  if (cb.ready || cb.tokenId || cb.error || route.query.dhan_token_id !== undefined) {
+    const query = { ...route.query }
+    delete query.dhan_token_id
+    delete query.dhan_error
+    delete query.dhan_login
+    void router.replace({ query })
+  }
   if (cb.error) {
+    clearDhanReturn()
     message.value = { tone: 'danger', text: loginRefusal(cb.error, 'The Dhan login failed.') }
     return
   }
   busy.value = 'finish'
   try {
-    const r = await finishLogin(cb.tokenId!)
-    if ('error' in r) message.value = { tone: 'danger', text: r.error }
-    else {
+    const r = await finishLogin(cb.tokenId)
+    if ('error' in r) {
+      // Keep the marker only while the server still holds the login (e.g. Dhan was briefly
+      // unreachable, or the Aureon session ended and the admin signs in again).
+      if (!r.retry) clearDhanReturn()
+      message.value = { tone: r.retry ? 'warning' : 'danger', text: r.error }
+    } else {
+      clearDhanReturn()
       status.value = r
       readFailed.value = false
       message.value = { tone: 'success', text: 'Logged in to Dhan.' }
       emit('changed')
     }
   } catch {
-    message.value = { tone: 'danger', text: 'The server could not be reached.' }
+    message.value = { tone: 'danger', text: 'The server could not be reached. Try again.' }
   } finally {
     busy.value = ''
   }

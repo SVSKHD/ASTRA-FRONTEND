@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
+  clearDhanReturn,
   isSafeLoginUrl,
+  pendingDhanReturn,
+  rememberDhanReturn,
+  RESUME_MS,
   loginRefusal,
   readCallback,
   summarize,
@@ -79,20 +83,37 @@ describe('Dhan session banner', () => {
 describe('Dhan callback', () => {
   it('reads a well-formed tokenId and refuses anything else', () => {
     expect(readCallback({ dhan_token_id: '7f3c2a10-9e8b-4d2c-a111-0123456789ab' })).toEqual({
+      ready: false,
       tokenId: '7f3c2a10-9e8b-4d2c-a111-0123456789ab',
       error: null,
     })
     expect(readCallback({ dhan_token_id: '<script>alert(1)</script>' })).toEqual({
+      ready: false,
       tokenId: null,
       error: 'bad_callback',
     })
     expect(readCallback({ dhan_error: 'bad_callback' }).error).toBe('bad_callback')
-    expect(readCallback({})).toEqual({ tokenId: null, error: null })
+    expect(readCallback({ dhan_error: '<img onerror=x>' }).error).toBe('bad_callback')
+    expect(readCallback({})).toEqual({ ready: false, tokenId: null, error: null })
+  })
+
+  it('reads the server-side handoff (no tokenId in the URL)', () => {
+    expect(readCallback({ dhan_login: 'ready' })).toEqual({
+      ready: true,
+      tokenId: null,
+      error: null,
+    })
+    expect(readCallback({ dhan_login: 'other' }).ready).toBe(false)
   })
 
   it('explains the server refusals', () => {
     expect(loginRefusal('dhan_client_mismatch', 'x')).toContain('different client id')
     expect(loginRefusal('no_pending_login', 'x')).toContain('Start again')
+    expect(loginRefusal('login_expired', 'x')).toContain('expired')
+    expect(loginRefusal('login_already_used', 'x')).toContain('already completed')
+    expect(loginRefusal('dhan_login_other_user', 'x')).toContain('another Aureon account')
+    expect(loginRefusal('duplicate_callback', 'x')).toContain('Start again')
+    expect(loginRefusal('dhan_unavailable', 'x')).toContain('Try again')
     expect(loginRefusal(undefined, 'fallback')).toBe('fallback')
   })
 
@@ -103,6 +124,29 @@ describe('Dhan callback', () => {
     expect(isSafeLoginUrl('http://auth.dhan.co/login/consentApp-login?consentAppId=x')).toBe(false)
     expect(isSafeLoginUrl('javascript:alert(1)')).toBe(false)
     expect(isSafeLoginUrl('https://evil.example/phish')).toBe(false)
+  })
+})
+
+describe('resuming a Dhan login after an Aureon sign-in', () => {
+  afterEach(() => clearDhanReturn())
+
+  it('remembers only that a login came back, for as long as the server keeps it', () => {
+    const t0 = Date.parse('2026-11-08T10:00:00Z')
+    expect(pendingDhanReturn(t0)).toBe(false)
+    rememberDhanReturn({ dhan_token_id: 'x'.repeat(20) }, t0) // legacy: not remembered
+    expect(pendingDhanReturn(t0)).toBe(false)
+    rememberDhanReturn({ dhan_login: 'ready' }, t0)
+    expect(pendingDhanReturn(t0 + 60_000)).toBe(true)
+    // Nothing secret is stored: just a timestamp.
+    expect(Object.values(sessionStorage)).toEqual([String(t0)])
+    expect(pendingDhanReturn(t0 + RESUME_MS + 1)).toBe(false) // expired with the login
+    expect(pendingDhanReturn(t0)).toBe(false) // and forgotten
+  })
+
+  it('can be cleared after the login finished', () => {
+    rememberDhanReturn({ dhan_login: 'ready' })
+    clearDhanReturn()
+    expect(pendingDhanReturn()).toBe(false)
   })
 })
 
