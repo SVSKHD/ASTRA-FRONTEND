@@ -3,6 +3,14 @@
 /** package.json's `version`, injected at build time (vite.config.ts). */
 declare const __APP_VERSION__: string
 
+/** This bundle's build stamp (vite.config.ts); /version.json carries the server's. */
+declare const __APP_BUILD__: {
+  version: string
+  commit: string
+  branch: string
+  builtAt: string
+}
+
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string
   readonly VITE_SUPABASE_PUBLISHABLE_KEY: string
