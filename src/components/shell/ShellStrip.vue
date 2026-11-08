@@ -24,6 +24,7 @@ import { pxify, typeStep } from '@/styles'
 import { stripGeometry } from '@/views/appShell'
 import { STRIP_ACTIONS_ID } from '@/components/shell/shellKeys'
 import ReminderPill from '@/components/shell/ReminderPill.vue'
+import BuildBadge from '@/components/shell/BuildBadge.vue'
 
 const { c, B } = useStyles()
 const { isPhone } = storeToRefs(useUiStore())
@@ -67,20 +68,6 @@ const brandName = computed(() =>
     whiteSpace: 'nowrap',
   }),
 )
-// Which build this is: package.json's version, bumped on each deploy.
-const version = 'v' + __APP_VERSION__
-const versionStyle = computed(() =>
-  pxify({
-    ...typeStep('2xs'),
-    fontFamily: 'var(--font-mono)',
-    fontVariantNumeric: 'tabular-nums',
-    color: c.value.dim,
-    padding: '2px 7px',
-    borderRadius: 'var(--radius-pill)',
-    border: '1px solid ' + c.value.border,
-    whiteSpace: 'nowrap',
-  }),
-)
 /**
  * Where the page's toolbar lands.
  *
@@ -101,9 +88,7 @@ const actions = pxify({
     <div :style="brand" class="shell-strip__brand">
       <div :style="brandOrb" aria-hidden="true"><span :style="brandDot"></span></div>
       <span :style="brandName">Aureon</span>
-      <span :style="versionStyle" class="shell-strip__version" title="App version">{{
-        version
-      }}</span>
+      <BuildBadge />
     </div>
     <div :id="STRIP_ACTIONS_ID" :style="actions"></div>
     <ReminderPill />

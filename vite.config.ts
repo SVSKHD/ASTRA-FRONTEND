@@ -6,6 +6,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 import { readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { THEMES } from './src/themes/index'
 
@@ -113,6 +114,11 @@ if (!process.env.VITEST) {
             handler: 'NetworkOnly',
           },
           {
+            // The deployed build's stamp: always the server's, never a cache's.
+            urlPattern: ({ url }: { url: URL }) => url.pathname === '/version.json',
+            handler: 'NetworkOnly',
+          },
+          {
             // HTML / navigations: prefer the network, fall back to cache offline.
             urlPattern: ({ request }: { request: Request }) => request.mode === 'navigate',
             handler: 'NetworkFirst',
@@ -194,6 +200,52 @@ function appVersionReload(): Plugin {
 }
 plugins.push(appVersionReload() as never)
 
+// WHICH BUILD, NOT JUST WHICH VERSION. package.json's version is bumped by hand
+// and often is not, so two different deploys both said "v2.6.0" and there was
+// no way to tell an open tab was running yesterday's code. Each build is
+// stamped with its commit and time: baked into the bundle (__APP_BUILD__) and
+// published beside it as /version.json, which the app polls (services/
+// buildStatus) to say when the server has a newer build than the one running.
+function gitOut(cmd: string): string {
+  try {
+    return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+  } catch {
+    return ''
+  }
+}
+const APP_BUILD = {
+  version: APP_VERSION,
+  // CI first (Netlify: COMMIT_REF / BRANCH; GitHub Actions: GITHUB_SHA / GITHUB_REF_NAME).
+  commit: (
+    process.env.COMMIT_REF ||
+    process.env.GITHUB_SHA ||
+    gitOut('git rev-parse HEAD') ||
+    'unknown'
+  ).slice(0, 12),
+  branch:
+    process.env.BRANCH ||
+    process.env.GITHUB_REF_NAME ||
+    gitOut('git rev-parse --abbrev-ref HEAD') ||
+    '',
+  builtAt: new Date().toISOString(),
+}
+function buildStamp(): Plugin {
+  return {
+    name: 'build-stamp',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify(APP_BUILD, null, 2) + '\n',
+      })
+    },
+  }
+}
+plugins.push(buildStamp() as never)
+
 // https://vite.dev/config/
 // LOCAL DEV AGAINST THE REAL API. With `AUREON_DEV_PROXY=https://spasta.online`
 // in `.env`, the dev server forwards `/api/*` there, so the browser still sees
@@ -219,6 +271,7 @@ export default defineConfig({
   ...(devProxy ? { server: { proxy: devProxy } } : {}),
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __APP_BUILD__: JSON.stringify(APP_BUILD),
   },
   resolve: {
     alias: {
