@@ -64,21 +64,30 @@ export async function checkServerBuild(): Promise<void> {
 }
 
 const POLL_MS = 5 * 60_000
-let started = false
+let timer = 0
+
+function onVisible() {
+  if (document.visibilityState === 'visible' && Date.now() - buildStatus.checkedAt > 60_000)
+    void checkServerBuild()
+}
 
 /** Check now, every five minutes, and whenever the tab comes back into view. */
 export function startBuildStatusPolling(): void {
   // Not under Vitest: a test mount should not start timers or hit the network.
-  if (started || typeof window === 'undefined' || import.meta.env.MODE === 'test') return
-  started = true
+  if (timer || typeof window === 'undefined' || import.meta.env.MODE === 'test') return
   void checkServerBuild()
-  window.setInterval(() => {
+  timer = window.setInterval(() => {
     if (document.visibilityState === 'visible') void checkServerBuild()
   }, POLL_MS)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && Date.now() - buildStatus.checkedAt > 60_000)
-      void checkServerBuild()
-  })
+  document.addEventListener('visibilitychange', onVisible)
+}
+
+/** Undo startBuildStatusPolling: the timer and the focus listener both go. */
+export function stopBuildStatusPolling(): void {
+  if (!timer) return
+  window.clearInterval(timer)
+  timer = 0
+  document.removeEventListener('visibilitychange', onVisible)
 }
 
 /** Load the server's build: let the service worker pick it up, then reload. */

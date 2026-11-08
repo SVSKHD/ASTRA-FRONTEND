@@ -10,6 +10,7 @@ import {
   reloadToLatest,
   runningBuild,
   startBuildStatusPolling,
+  stopBuildStatusPolling,
   updateAvailable,
 } from '@/services/buildStatus'
 
@@ -47,6 +48,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', onDocPointer)
   document.removeEventListener('keydown', onKey)
   window.clearInterval(tick)
+  stopBuildStatusPolling()
 })
 </script>
 
