@@ -115,7 +115,8 @@ export interface paths {
         };
         /**
          * Ai Usage
-         * @description Today's (UTC) OpenRouter spend, tokens and calls against the daily cap.
+         * @description Today's (UTC) spend, tokens and calls of one provider (default OpenRouter) against its
+         *     daily cap, plus today's total across providers against the shared cap.
          */
         get: operations["ai_usage_api_ai_usage_get"];
         put?: never;
@@ -896,6 +897,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/images/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Models
+         * @description The local models a job may use (IMAGE_MODELS); the default is IMAGE_MODEL_NAME.
+         */
+        get: operations["models_api_images_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/images/{asset_id}": {
         parameters: {
             query?: never;
@@ -1402,7 +1423,12 @@ export interface paths {
         };
         /** Get Risk Policy */
         get: operations["get_risk_policy_api_trading_accounts__account_id__risk_policy_get"];
-        /** Put Risk Policy */
+        /**
+         * Put Risk Policy
+         * @description Create or replace the account's risk policy. Atomic: the policy row is locked
+         *     (SELECT ... FOR UPDATE) for the read-check-write, so two admins' PUTs serialize. An engaged
+         *     kill switch is only released by a PUT that names the `expected_updated_at` it read.
+         */
         put: operations["put_risk_policy_api_trading_accounts__account_id__risk_policy_put"];
         post?: never;
         delete?: never;
@@ -1906,7 +1932,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel Order Intent */
+        /**
+         * Cancel Order Intent
+         * @description Cancel while still open (PENDING_RISK, APPROVED, SUBMITTED). The row is locked, so a
+         *     concurrent fill or expiry either happens first (409 not_open) or waits for this cancel.
+         */
         post: operations["cancel_order_intent_api_trading_order_intents__intent_id__cancel_post"];
         delete?: never;
         options?: never;
@@ -2041,6 +2071,27 @@ export interface paths {
          *     EventSource cannot set headers). See app/services/trading_stream.py.
          */
         get: operations["stream_api_trading_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Usage
+         * @description Per agent and provider over the last `days`: calls, failures, local fallbacks,
+         *     local-only (kept local by the data filter), tokens, cost, average latency.
+         */
+        get: operations["usage_api_v1_ai_usage_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2254,6 +2305,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dhan/auth/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Connection
+         * @description The persisted connection state: verified when, by which source, what to do next.
+         */
+        get: operations["connection_api_v1_dhan_auth_connection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dhan/auth/consume": {
         parameters: {
             query?: never;
@@ -2328,6 +2399,66 @@ export interface paths {
         get: operations["session_status_api_v1_dhan_auth_status_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dhan/auth/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify
+         * @description Verify the credential every Dhan call uses right now (one GET /profile) and store the
+         *     result. Dhan being unreachable is a 200 with `last_check_outcome: unavailable`: the
+         *     previous verdict is kept, never downgraded.
+         */
+        post: operations["verify_api_v1_dhan_auth_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dhan/feed/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health
+         * @description Never `healthy` without fresh data while the market is open; `market_closed` is its
+         *     own status, never `ok`.
+         */
+        get: operations["health_api_v1_dhan_feed_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dhan/feed/reconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reconnect */
+        post: operations["reconnect_api_v1_dhan_feed_reconnect_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3456,6 +3587,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ui/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ui Manifest
+         * @description What the frontend can auto-wire for this user, and the schema hash it was built from.
+         *     Hidden operations are absent; admin-only ones appear for admins only.
+         */
+        get: operations["ui_manifest_api_v1_ui_manifest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/voice/intent": {
         parameters: {
             query?: never;
@@ -3624,6 +3776,29 @@ export interface components {
             /** Version */
             version: string | null;
         };
+        /** AgentUsage */
+        AgentUsage: {
+            /** Agent */
+            agent: string;
+            /** Avg Latency Ms */
+            avg_latency_ms: number;
+            /** Calls */
+            calls: number;
+            /** Completion Tokens */
+            completion_tokens: number;
+            /** Cost Usd */
+            cost_usd: string;
+            /** Failures */
+            failures: number;
+            /** Fallbacks */
+            fallbacks: number;
+            /** Local Only */
+            local_only: number;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Provider */
+            provider: string;
+        };
         /** AiAnalysisOut */
         AiAnalysisOut: {
             /** Backtest Run Id */
@@ -3649,7 +3824,8 @@ export interface components {
         };
         /**
          * AiUsage
-         * @description Today's (UTC) OpenRouter spend against OPENROUTER_DAILY_LIMIT_USD.
+         * @description Today's (UTC) spend of one provider (OpenRouter unless ?provider=) against its cap,
+         *     plus the shared cap across providers.
          */
         AiUsage: {
             /**
@@ -4387,10 +4563,11 @@ export interface components {
          * @description `messages` are the NEW turns only; for an existing conversation the server prepends
          *     its stored history before calling the model.
          *
-         *     `provider`/`model` pick who should answer (docs/25-openrouter.md). Both may be omitted:
-         *     an existing conversation keeps its own, a new one gets the server default (OpenRouter's
-         *     default model when it is usable, else the local default). A `model` without a
-         *     `provider` means OpenRouter only when it is one of the allowed OpenRouter ids.
+         *     `provider`/`model` pick who should answer (docs/25-openrouter.md, docs/26). Both may be
+         *     omitted: an existing conversation keeps its own, a new one gets the server default
+         *     (AI_DEFAULT_EXTERNAL_PROVIDER's default model when it is usable, else the local default).
+         *     A `model` without a `provider` means an external provider only when it is one of that
+         *     provider's allowed ids (OpenRouter ids contain a "/").
          *     `context` links a conversation to finance/trading/research (forces local inference);
          *     a link only ever gets stricter.
          */
@@ -4683,6 +4860,55 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /**
+         * DhanConnectionOut
+         * @description dhan.connections, safe fields only (docs/28-dhan-operations.md).
+         */
+        DhanConnectionOut: {
+            /** Action */
+            action: string | null;
+            /** Active Segments */
+            active_segments: string[];
+            /** Client Id */
+            client_id: string | null;
+            /** Connected At */
+            connected_at: string | null;
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            /** Data Plan */
+            data_plan: string | null;
+            /** Data Valid Until */
+            data_valid_until: string | null;
+            /** Disconnected At */
+            disconnected_at: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /** Last Check At */
+            last_check_at: string | null;
+            /** Last Check Outcome */
+            last_check_outcome: string | null;
+            /** Last Error Code */
+            last_error_code: string | null;
+            /** Last Verified At */
+            last_verified_at: string | null;
+            /**
+             * Renewal
+             * @constant
+             */
+            renewal: "manual";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "connected" | "unverified" | "expired" | "rejected" | "mismatch" | "disconnected" | "not_configured";
+            /**
+             * Token Source
+             * @enum {string}
+             */
+            token_source: "session" | "manual" | "none";
+            /** Version */
+            version: number;
+        };
         /** DispatchRequest */
         DispatchRequest: {
             /** Inputs */
@@ -4868,6 +5094,43 @@ export interface components {
              */
             queued: boolean;
         };
+        /** FeedHealthOut */
+        FeedHealthOut: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Codes */
+            codes: string[];
+            /** Configured Instruments */
+            configured_instruments: number;
+            /** Feed */
+            feed: {
+                [key: string]: unknown;
+            } | null;
+            /** Healthy */
+            healthy: boolean;
+            /** Last Crash */
+            last_crash: {
+                [key: string]: unknown;
+            } | null;
+            /** Market */
+            market: {
+                [key: string]: unknown;
+            };
+            /** Problems */
+            problems: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "degraded" | "down" | "market_closed" | "not_running" | "unknown" | "not_configured";
+            /** Worker */
+            worker: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** FileOut */
         FileOut: {
             /** Binary */
@@ -4971,6 +5234,8 @@ export interface components {
         };
         /** GenerateRequest */
         GenerateRequest: {
+            /** Model */
+            model?: string | null;
             /** Negative Prompt */
             negative_prompt?: string | null;
             /** Prompt */
@@ -5100,6 +5365,24 @@ export interface components {
             source: "broker" | "simulated" | "calculated";
             /** Symbol */
             symbol: string;
+        };
+        /** ImageModelList */
+        ImageModelList: {
+            /** Enabled */
+            enabled: boolean;
+            /** Items */
+            items: components["schemas"]["ImageModelOut"][];
+        };
+        /** ImageModelOut */
+        ImageModelOut: {
+            /** Default */
+            default: boolean;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string;
+            /** Steps */
+            steps: number;
         };
         /** InboxItem */
         InboxItem: {
@@ -5301,8 +5584,15 @@ export interface components {
         };
         /** IntentApproveIn */
         IntentApproveIn: {
+            /** Expected Status */
+            expected_status?: ("PENDING_RISK" | "REJECTED" | "APPROVED" | "SUBMITTED" | "FILLED" | "CANCELLED" | "EXPIRED") | null;
             /** Password */
             password?: string | null;
+        };
+        /** IntentCancelIn */
+        IntentCancelIn: {
+            /** Expected Status */
+            expected_status?: ("PENDING_RISK" | "REJECTED" | "APPROVED" | "SUBMITTED" | "FILLED" | "CANCELLED" | "EXPIRED") | null;
         };
         /** IssueClose */
         IssueClose: {
@@ -5673,8 +5963,8 @@ export interface components {
         };
         /**
          * ModelCatalog
-         * @description Everything the SPA's picker offers. OpenRouter ids come from the server's allowlist;
-         *     the browser never talks to OpenRouter.
+         * @description Everything the SPA's picker offers. External ids come from the server's allowlists;
+         *     the browser never talks to a provider.
          */
         ModelCatalog: {
             default: components["schemas"]["CatalogTarget"];
@@ -6964,6 +7254,21 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** ProviderSpend */
+        ProviderSpend: {
+            /** Calls Today */
+            calls_today: number | null;
+            /** Daily Limit Usd */
+            daily_limit_usd: string;
+            /** Failures Today */
+            failures_today: number | null;
+            /** Provider */
+            provider: string;
+            /** Reserved Usd */
+            reserved_usd: string | null;
+            /** Spent Today Usd */
+            spent_today_usd: string | null;
+        };
         /**
          * ProviderStatus
          * @description One provider's state for the picker and the settings page. Never a key.
@@ -7299,6 +7604,15 @@ export interface components {
             summary: {
                 [key: string]: unknown;
             };
+        };
+        /** ReconnectOut */
+        ReconnectOut: {
+            /** Accepted */
+            accepted: boolean;
+            /** Detail */
+            detail: string;
+            /** Receivers */
+            receivers: number;
         };
         /** RepairCreate */
         RepairCreate: {
@@ -7706,11 +8020,10 @@ export interface components {
         RiskPolicyIn: {
             /** Allowed Sessions */
             allowed_sessions: components["schemas"]["Session"][];
-            /**
-             * Kill Switch
-             * @default false
-             */
-            kill_switch: boolean;
+            /** Expected Updated At */
+            expected_updated_at?: string | null;
+            /** Kill Switch */
+            kill_switch?: boolean | null;
             /** Max Daily Loss */
             max_daily_loss: number | string;
             /** Max Drawdown Pct */
@@ -7997,6 +8310,8 @@ export interface components {
             source: "session" | "manual" | "none";
             /** Valid Until */
             valid_until: string | null;
+            /** Verification */
+            verification?: ("ok" | "unavailable") | null;
         };
         /** StepOut */
         StepOut: {
@@ -8380,6 +8695,29 @@ export interface components {
             sha: string | null;
             /** Truncated */
             truncated: boolean;
+        };
+        /** UsageOut */
+        UsageOut: {
+            /** Daily Limit Usd */
+            daily_limit_usd: string;
+            /** Global Limit Usd */
+            global_limit_usd?: string | null;
+            /** Global Spent Today Usd */
+            global_spent_today_usd?: string | null;
+            /** Items */
+            items: components["schemas"]["AgentUsage"][];
+            /**
+             * Providers
+             * @default []
+             */
+            providers: components["schemas"]["ProviderSpend"][];
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /** Spent Today Usd */
+            spent_today_usd: string | null;
         };
         /** UserOut */
         UserOut: {
@@ -10899,6 +11237,26 @@ export interface operations {
             };
         };
     };
+    models_api_images_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageModelList"];
+                };
+            };
+        };
+    };
     delete_image_api_images__asset_id__delete: {
         parameters: {
             query?: never;
@@ -11845,6 +12203,13 @@ export interface operations {
                     "application/json": components["schemas"]["RiskPolicyOut"];
                 };
             };
+            /** @description stale_policy, kill_switch_release_needs_version */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -12367,7 +12732,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description ingest disabled (MT5_INGEST_TOKEN unset) or storage unavailable */
+            /** @description ingest disabled (MT5_INGEST_TOKEN unset, or misconfigured: reused or weak) or storage unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -12785,7 +13150,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["IntentCancelIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13048,6 +13417,37 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    usage_api_v1_ai_usage_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageOut"];
                 };
             };
             /** @description Validation Error */
@@ -13422,6 +13822,26 @@ export interface operations {
             };
         };
     };
+    connection_api_v1_dhan_auth_connection_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhanConnectionOut"];
+                };
+            };
+        };
+    };
     consume_api_v1_dhan_auth_consume_post: {
         parameters: {
             query?: never;
@@ -13511,6 +13931,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusOut"];
+                };
+            };
+        };
+    };
+    verify_api_v1_dhan_auth_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DhanConnectionOut"];
+                };
+            };
+        };
+    };
+    health_api_v1_dhan_feed_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedHealthOut"];
+                };
+            };
+        };
+    };
+    reconnect_api_v1_dhan_feed_reconnect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconnectOut"];
                 };
             };
         };
@@ -15602,7 +16082,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: ("open" | "recovering" | "repair_queued" | "resolved" | "ignored") | null;
-                source?: ("exception" | "heartbeat" | "docker" | "actions" | "db" | "api") | null;
+                source?: ("exception" | "heartbeat" | "docker" | "actions" | "db" | "api" | "dhan") | null;
                 limit?: number;
                 offset?: number;
             };
@@ -16056,6 +16536,28 @@ export interface operations {
         };
     };
     integrations_api_v1_system_integrations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    ui_manifest_api_v1_ui_manifest_get: {
         parameters: {
             query?: never;
             header?: never;

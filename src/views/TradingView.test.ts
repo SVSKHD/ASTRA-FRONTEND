@@ -170,6 +170,24 @@ const MT5: Record<string, unknown> = {
 }
 const calls: string[] = []
 const posts: { path: string; body: unknown }[] = []
+// The stored risk policy (null = none yet) and what the next PUT answers.
+let riskPolicy: Record<string, unknown> | null = null
+let riskPutConflict = false
+const puts: { path: string; body: Record<string, unknown> }[] = []
+function put(path: string, body: Record<string, unknown>): [number, unknown] {
+  puts.push({ path, body })
+  if (riskPutConflict) {
+    // Another admin saved meanwhile: the server refuses the stale form (Assembler V1.6.1).
+    riskPolicy = { ...riskPolicy!, kill_switch: true, updated_at: '2026-11-08T10:00:00.000002Z' }
+    return [
+      409,
+      { detail: { code: 'stale_policy', detail: 'the risk policy changed since it was read' } },
+    ]
+  }
+  const { expected_updated_at: _seen, ...values } = body
+  riskPolicy = { ...riskPolicy, ...values, updated_at: '2026-11-08T10:00:00.000001Z' }
+  return [200, riskPolicy]
+}
 
 const INTENT = (status: string, extra: Record<string, unknown> = {}) => ({
   id: '22222222-2222-4222-8222-222222222222',
@@ -337,7 +355,8 @@ function route(path: string): [number, unknown] {
         },
       ]),
     ]
-  if (path.endsWith('/risk-policy')) return [404, { detail: 'no risk policy' }]
+  if (path.endsWith('/risk-policy'))
+    return riskPolicy ? [200, riskPolicy] : [404, { detail: 'no risk policy' }]
   if (path === '/api/trading/strategies')
     return [
       200,
@@ -423,6 +442,9 @@ beforeEach(() => {
   mt5Pushed = false
   calls.length = 0
   posts.length = 0
+  puts.length = 0
+  riskPolicy = null
+  riskPutConflict = false
   ACCOUNT.mode = 'OBSERVE'
   vi.resetModules()
   vi.stubGlobal('EventSource', FakeES)
@@ -432,7 +454,9 @@ beforeEach(() => {
     const [status, body] =
       req.method === 'POST' && !url.pathname.startsWith('/api/auth')
         ? post(url.pathname, JSON.parse((await req.text()) || '{}'))
-        : route(url.pathname)
+        : req.method === 'PUT'
+          ? put(url.pathname, JSON.parse((await req.text()) || '{}'))
+          : route(url.pathname)
     return new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' },
@@ -687,6 +711,58 @@ describe('TradingView', () => {
       { path: `/api/trading/accounts/${ACCOUNT.id}/mode`, body: { mode: 'PAPER' } },
     ])
     await sees(w, 'DHAN Main: PAPER')
+  })
+
+  const POLICY = {
+    id: 'rp',
+    broker_account_id: ACCOUNT.id,
+    max_daily_loss: '5000',
+    max_exposure: '200000',
+    max_position_size: '1',
+    max_drawdown_pct: '10',
+    allowed_sessions: ['Asia', 'London', 'NY'],
+    kill_switch: true,
+    updated_at: '2026-11-08T09:00:00.123456Z',
+  }
+  it('saves the risk policy with the version it was loaded from', async () => {
+    riskPolicy = { ...POLICY }
+    const w = await mountAt('/trading/risk')
+    await sees(w, 'ON — all rejected')
+    await w.find('form.rk__form').trigger('submit')
+    await sees(w, 'Saved. The change is audited on the server.')
+    expect(puts).toHaveLength(1)
+    expect(puts[0].body).toMatchObject({
+      kill_switch: true,
+      expected_updated_at: '2026-11-08T09:00:00.123456Z',
+    })
+  })
+
+  it('sends no version for a first policy', async () => {
+    const w = await mountAt('/trading/risk')
+    await sees(w, 'No policy yet')
+    for (const [label, value] of [
+      ['5000', '5000'],
+      ['200000', '200000'],
+      ['1', '1'],
+      ['10', '10'],
+    ]) {
+      const input = w.find(`input[placeholder="${label}"]`)
+      await input.setValue(value)
+    }
+    await w.find('form.rk__form').trigger('submit')
+    await sees(w, 'Saved.')
+    expect(puts[0].body.expected_updated_at).toBeNull()
+  })
+
+  it('reloads instead of overwriting when the policy changed meanwhile (409)', async () => {
+    riskPolicy = { ...POLICY, kill_switch: false }
+    const w = await mountAt('/trading/risk')
+    await sees(w, 'Kill switch')
+    riskPutConflict = true
+    await w.find('form.rk__form').trigger('submit')
+    await sees(w, 'The risk policy changed since you opened it')
+    expect(puts).toHaveLength(1) // never retried with the stale values
+    await sees(w, 'ON — all rejected') // the other admin's kill switch is shown
   })
 
   it('sums positions exactly and labels the source', async () => {

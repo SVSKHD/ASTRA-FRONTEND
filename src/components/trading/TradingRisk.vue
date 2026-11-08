@@ -95,13 +95,25 @@ async function save() {
           max_drawdown_pct: form.max_drawdown_pct.trim(),
           allowed_sessions: SESSIONS.filter((s) => form.sessions[s]),
           kill_switch: form.kill_switch,
+          // The version this form was loaded from. The server refuses (409) a save based on
+          // a stale read, and needs it to release an engaged kill switch, so a form opened
+          // before another admin's change can never silently undo it.
+          expected_updated_at: policy.data.value?.updated_at ?? null,
         },
       }),
     )
     saveMsg.value = 'Saved. The change is audited on the server.'
     await policy.reload()
   } catch (e) {
-    saveMsg.value = (e as Error).message
+    if (e instanceof ApiFailure && e.status === 409) {
+      // Someone changed the policy since this form loaded: show the current values instead
+      // of retrying with the stale ones.
+      await policy.reload()
+      saveMsg.value =
+        'The risk policy changed since you opened it. The latest values are loaded; review them and save again.'
+    } else {
+      saveMsg.value = (e as Error).message
+    }
   } finally {
     saving.value = false
   }
