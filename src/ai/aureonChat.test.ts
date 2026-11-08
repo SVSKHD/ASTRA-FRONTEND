@@ -338,9 +338,10 @@ describe('providers (OpenRouter via the server)', () => {
     expect(aureonAi.model).toBe('mistral:7b')
     setTarget('2', { provider: 'openrouter', model: OR })
     expect(targetFor('2')).toEqual({ provider: 'openrouter', model: OR })
-    // A chat that already talked to the server before providers existed stays local.
+    // A chat that already has a server conversation and no pick sends neither: the
+    // server keeps that conversation's own provider (never forced to local).
     aureonAi.conversations['3'] = 'old-conv'
-    expect(targetFor('3')).toEqual({ provider: 'ollama', model: 'mistral:7b' })
+    expect(targetFor('3')).toBeNull()
   })
 
   it('explains fallbacks in words', () => {
@@ -648,7 +649,7 @@ describe('replyBadge: who wrote a reply', () => {
   it('names the external provider that answered', async () => {
     const { replyBadge } = await import('@/ai/aureonChat')
     const b = replyBadge({ provider: 'gemini', requestedProvider: 'gemini' }, 'gemini-2.5-flash')
-    expect(b).toMatchObject({ kind: 'external', label: 'Gemini' })
+    expect(b).toMatchObject({ kind: 'external', label: 'Gemini · gemini-2.5-flash' })
     expect(b?.title).toContain('gemini-2.5-flash')
   })
 
@@ -661,6 +662,23 @@ describe('replyBadge: who wrote a reply', () => {
     expect(b?.kind).toBe('fallback')
     expect(b?.label).toBe('Gemini → local · Gemini is turned off on the server')
     expect(b?.title).toContain('instead of Gemini')
+  })
+
+  it('names the model, and a switch from one external provider to another', async () => {
+    const { replyBadge } = await import('@/ai/aureonChat')
+    expect(
+      replyBadge({ provider: 'gemini', requestedProvider: 'gemini' }, 'models/gemini-2.5-flash')
+        ?.label,
+    ).toBe('Gemini · gemini-2.5-flash')
+    const sw = replyBadge(
+      { provider: 'openrouter', requestedProvider: 'gemini', fallbackReason: 'upstream_error' },
+      'google/gemini-2.5-flash',
+    )
+    expect(sw).toMatchObject({ kind: 'external', label: 'Gemini → OpenRouter · gemini-2.5-flash' })
+    expect(sw?.title).toContain('instead of Gemini: Gemini had an error')
+    const fromField = replyBadge({ provider: 'openrouter', fromProvider: 'gemini' }, 'x/y')
+    expect(fromField?.label).toBe('Gemini → OpenRouter · y')
+    expect(replyBadge({ provider: 'ollama' }, 'qwen2.5:3b')?.label).toBe('Local · qwen2.5:3b')
   })
 
   it('keeps the plain local label when external AI is simply off and none was asked for', async () => {
