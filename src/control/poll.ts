@@ -37,3 +37,37 @@ export function countdown(iso: string, now: number): string {
   if (m < 60) return `${m} min ${s % 60} s`
   return `${Math.floor(m / 60)} h ${m % 60} min`
 }
+
+/**
+ * Like usePoll, but the interval is re-read every second (fast while something is active, slow
+ * when idle), so a change of state takes effect at once instead of after a long idle wait.
+ * Runs never overlap. `fn` is not run on start: the caller loads once itself.
+ */
+export function useAdaptivePoll(fn: () => void | Promise<void>, every: () => number): void {
+  const visible = () => globalThis.document?.visibilityState !== 'hidden'
+  let last = Date.now()
+  let busy = false
+  async function run() {
+    if (busy) return
+    busy = true
+    last = Date.now()
+    try {
+      await fn()
+    } catch {
+      // the caller shows its own error state
+    } finally {
+      busy = false
+    }
+  }
+  const timer = setInterval(() => {
+    if (visible() && Date.now() - last >= every()) void run()
+  }, 1000)
+  const onVis = () => {
+    if (visible()) void run()
+  }
+  globalThis.document?.addEventListener('visibilitychange', onVis)
+  onScopeDispose(() => {
+    clearInterval(timer)
+    globalThis.document?.removeEventListener('visibilitychange', onVis)
+  })
+}

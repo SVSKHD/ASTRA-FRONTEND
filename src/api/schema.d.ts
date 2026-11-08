@@ -2689,6 +2689,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/github/actions/monitor/deploys/{run_id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Deploy Logs
+         * @description This deploy's own log lines (newest kept, scrubbed of secrets before they were
+         *     stored). Updated with every progress report while the deploy runs.
+         */
+        get: operations["deploy_logs_api_v1_github_actions_monitor_deploys__run_id__logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/github/actions/monitor/deploys/{run_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Deploy Progress
+         * @description One host deploy (the monitor's `deploy:<run_id>`) stage by stage, as the deploy script
+         *     reported it: pending, running, succeeded, failed or skipped per stage, with timings, the
+         *     expected vs deployed commit and whether it was verified. Read-only, DB only.
+         */
+        get: operations["deploy_progress_api_v1_github_actions_monitor_deploys__run_id__progress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/github/connection": {
         parameters: {
             query?: never;
@@ -5110,6 +5153,112 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** DeployLogOut */
+        DeployLogOut: {
+            /** Run Id */
+            run_id: number;
+            /** Running */
+            running: boolean;
+            /** Text */
+            text: string;
+            /** Truncated */
+            truncated: boolean;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /**
+         * DeployProgressOut
+         * @description One deploy as the host reported it, stage by stage. `outcome` is `completed` only after
+         *     the deploy script's health verification passed and the deploy was recorded as finished.
+         */
+        DeployProgressOut: {
+            /** Branch */
+            branch: string | null;
+            /**
+             * Commit Verified
+             * @description True: the running release is the expected commit. null: not verified yet
+             */
+            commit_verified: boolean | null;
+            /** Current Stage */
+            current_stage: ("queued" | "pulling" | "validating" | "building" | "migrating" | "restarting" | "health_checking" | "verifying" | "rolling_back") | null;
+            /** Deployed Sha */
+            deployed_sha: string | null;
+            /** Deployment Id */
+            deployment_id: number;
+            /** Environment */
+            environment: string;
+            /** Expected Sha */
+            expected_sha: string | null;
+            /** Failure Reason */
+            failure_reason: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Health Verified At */
+            health_verified_at: string | null;
+            /** Log Available */
+            log_available: boolean;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "running" | "completed" | "unverified" | "failed" | "rolled_back" | "unknown";
+            /** Pr Number */
+            pr_number: number | null;
+            /** Previous Sha */
+            previous_sha: string | null;
+            /** Repo */
+            repo: string | null;
+            /** Rolled Back */
+            rolled_back: boolean;
+            /** Run Id */
+            run_id: number;
+            /** Stages */
+            stages: components["schemas"]["DeployStageOut"][];
+            /** Stages Completed */
+            stages_completed: number;
+            /** Stages Total */
+            stages_total: number;
+            /**
+             * Stale
+             * @description Running, but the host has not reported recently
+             */
+            stale: boolean;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Target */
+            target: string | null;
+            /**
+             * Updated At
+             * @description The host's last progress report
+             */
+            updated_at: string | null;
+        };
+        /** DeployStageOut */
+        DeployStageOut: {
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** Error */
+            error?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "queued" | "pulling" | "validating" | "building" | "migrating" | "restarting" | "health_checking" | "verifying" | "rolling_back";
+            /** Started At */
+            started_at?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "running" | "succeeded" | "failed" | "skipped";
+        };
         /** DeploymentOut */
         DeploymentOut: {
             /** Branch */
@@ -6457,6 +6606,14 @@ export interface components {
             rolled_back?: boolean | null;
             /** Sha */
             sha?: string | null;
+            /** Stage */
+            stage?: string | null;
+            /** Stages Completed */
+            stages_completed?: number | null;
+            /** Stages Total */
+            stages_total?: number | null;
+            /** Stale */
+            stale?: boolean | null;
             /** Started At */
             started_at?: string | null;
             /** Status */
@@ -15094,6 +15251,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MonitorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deploy_logs_api_v1_github_actions_monitor_deploys__run_id__logs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeployLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deploy_progress_api_v1_github_actions_monitor_deploys__run_id__progress_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeployProgressOut"];
                 };
             };
             /** @description Validation Error */
