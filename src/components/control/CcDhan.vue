@@ -22,11 +22,13 @@ import Card from '@/components/ui/Card.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Modal from '@/components/ui/Modal.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import CcDhanAccount from '@/components/control/CcDhanAccount.vue'
 import DhanSessionBar from '@/components/control/DhanSessionBar.vue'
 import LogViewer from '@/components/control/LogViewer.vue'
 import { aureon } from '@/api/client'
 import { must } from '@/control/api'
 import { approvals } from '@/control/approvals'
+import { activeDhan } from '@/control/dhanAccount'
 import {
   actionable,
   approvalAccount,
@@ -58,9 +60,14 @@ const integration = useLoad(async () => {
   if (!r.data) throw new Error(`Aureon answered ${r.status}`)
   return (r.data.integrations?.dhan as DhanSection | undefined) ?? null
 })
+// The last successful read of the account list found no active Dhan account.
+const noAccount = ref(false)
 const account = useLoad(async () => {
-  const list = must(await aureon.GET('/api/trading/accounts'))
-  const a = list.items.find((x) => x.broker === 'dhan' && x.is_active) ?? null
+  const list = must(
+    await aureon.GET('/api/trading/accounts', { params: { query: { limit: 500 } } }),
+  )
+  const a = activeDhan(list.items)
+  noAccount.value = !a
   if (!a) return null
   const p = { params: { path: { account_id: a.id } } }
   const [h, f] = await Promise.all([
@@ -86,6 +93,7 @@ const decided = useLoad(async () =>
   ).filter((a) => a.status !== 'pending'),
 )
 
+const sessionBar = ref<InstanceType<typeof DhanSessionBar> | null>(null)
 function refresh() {
   void session.reload()
   void integration.reload()
@@ -99,6 +107,20 @@ usePoll(refresh, 15_000)
 // Ticks for the freshness check: this page holds the tab's one stream while open.
 onMounted(() => connect(readWatchlist().map((w) => w.id)))
 onBeforeUnmount(disconnect)
+
+// Registration (CcDhanAccount): offered only once the list was read and holds no
+// active Dhan account; kept on screen after a registration to show its mode.
+const justRegistered = ref(false)
+const showRegister = computed(() => justRegistered.value || noAccount.value)
+function onRegistered() {
+  justRegistered.value = true
+  refresh()
+  void sessionBar.value?.refresh()
+}
+function onExists() {
+  refresh()
+  void sessionBar.value?.refresh()
+}
 
 // --- derived ----------------------------------------------------------------------------------
 const checks = computed(() =>
@@ -228,7 +250,8 @@ function riskTone(r: string) {
       Dhan needs an operator: the session is missing, expired, expiring or refused. Reconnect below;
       Dhan's own page asks for the login, never this one.
     </Alert>
-    <DhanSessionBar admin detailed @changed="refresh" />
+    <DhanSessionBar ref="sessionBar" admin detailed @changed="refresh" />
+    <CcDhanAccount v-if="showRegister" @registered="onRegistered" @exists="onExists" />
     <p v-if="result" class="tp-note" :role="result.tone === 'danger' ? 'alert' : 'status'">
       {{ result.text }}
     </p>
