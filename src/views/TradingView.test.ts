@@ -548,10 +548,11 @@ describe('TradingView', () => {
     ['origins', 'No trades in this period.'],
     // The chart moved from /trading/market (now the Market Explorer) to /trading/charts.
     ['charts', 'Your watchlist is empty'],
-    ['market', 'Market Explorer'],
+    // The Explorer with the stub's empty instrument page: the honest empty state.
+    ['market', 'The instrument master may not be synced'],
     ['screener', 'Stock Screener'],
-    ['options', 'Futures & Options'],
-    ['watchlists', 'Watchlists'],
+    ['options', 'Pick an underlying'],
+    ['watchlists', 'Saved on this device only'],
     ['signals', 'Explain with AI'],
     ['strategies', 'ema-9-21'],
     ['orders', 'P&L on open positions'],
