@@ -138,6 +138,8 @@ POST /api/trading/screener/run
 GET /api/trading/screener/status → { "last_run_at", "universe_size", "candles_as_of": {tf: datetime}, "worker": "ok"|"stale"|"down" }
 ```
 
+Until the watchlist API (§5) exists, `universe.watchlist_id` is the id of a list saved on the device, which the server cannot resolve. Once §5 ships it becomes the server list's id.
+
 ## 7. Health: partial
 
 The available checks are Dhan session, credentials, account data, feed worker and ticks (`src/trading/dhanHealth.ts`), plus `GET /api/v1/dhan/feed/health`.
@@ -164,5 +166,7 @@ Change in OI is `oi − previous_oi`, shown only when both are present. A leg's 
 ## 9. Strategies & backtests: available
 
 `GET/POST /api/trading/strategies` (`StrategyCreate {name, code_ref, params, description}`), `POST /api/trading/strategies/backtest`, `GET /api/trading/backtests` and `/{id}`, and `GET /api/trading/signals`.
+
+There is no endpoint to enable or disable a strategy, so `is_active` is shown read-only. The contract requested is `PATCH /api/trading/strategies/{id} {is_active: bool}` (admin, CSRF, audited).
 
 The registered strategies are `ema_cross` and `ema_pullback` (backend `app/agents/research/strategies.py`), with `fast`/`slow` EMA periods. Creating a strategy never places a trade.
