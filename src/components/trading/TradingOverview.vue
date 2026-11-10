@@ -6,6 +6,7 @@ import Badge from '@/components/ui/Badge.vue'
 import Card from '@/components/ui/Card.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import StatRow from '@/components/ui/StatRow.vue'
+import MarketHealth from './MarketHealth.vue'
 import ModeBadge from './ModeBadge.vue'
 import SourceTag from './SourceTag.vue'
 import { aureon } from '@/api/client'
@@ -118,6 +119,9 @@ function stateTone(s: string) {
         />
       </Card>
     </div>
+
+    <!-- Market-data readiness, check by check: a Dhan login is not one of them. -->
+    <MarketHealth />
 
     <div class="tp-grid">
       <Card>
