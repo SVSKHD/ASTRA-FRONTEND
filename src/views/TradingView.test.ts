@@ -1,6 +1,12 @@
 // The trading panel: the Aureon sign-in gate, the always-visible mode badge,
 // and every section mounting against a stubbed API (no network, no backend).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// The first test pays for importing this whole view (and everything it pulls
+// in). Alone that is about a second; under the full suite, with every file
+// importing in parallel, it ran past the 5s default and failed the first test
+// at random. The tests themselves are fast; only the cold import needs room.
+vi.setConfig({ testTimeout: 20_000 })
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -540,7 +546,13 @@ describe('TradingView', () => {
     ['dhan', 'Token valid'],
     ['mt5', 'not connected to Aureon'],
     ['origins', 'No trades in this period.'],
-    ['market', 'Your watchlist is empty'],
+    // The chart moved from /trading/market (now the Market Explorer) to /trading/charts.
+    ['charts', 'Pick an instrument to chart'],
+    // The Explorer with the stub's empty instrument page: the honest empty state.
+    ['market', 'The instrument master may not be synced'],
+    ['screener', 'Stock Screener'],
+    ['options', 'Pick an underlying'],
+    ['watchlists', 'Saved on this device only'],
     ['signals', 'Explain with AI'],
     ['strategies', 'ema-9-21'],
     ['orders', 'P&L on open positions'],
@@ -656,7 +668,10 @@ describe('TradingView', () => {
     ACCOUNT.mode = 'PAPER'
     const w = await mountAt('/trading/paper')
     await sees(w, 'Approval inbox')
-    await sees(w, 'Paper (1)')
+    // The count is a badge on the Paper entry of the section nav.
+    const paper = w.findAll('.tnav__item').find((b) => b.text().startsWith('Paper'))
+    expect(paper?.find('.tnav__badge').text()).toBe('1')
+    expect(paper?.find('.tnav__badge').attributes('aria-label')).toBe('1 waiting')
     expect(w.text()).toContain('1 waiting')
     expect(w.text()).toContain('DHAN Main')
     expect(calls).toContain('GET /api/trading/order-intents')

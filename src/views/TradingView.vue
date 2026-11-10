@@ -13,9 +13,9 @@ import { useRoute, useRouter } from 'vue-router'
 import Alert from '@/components/ui/Alert.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
-import Tabs from '@/components/ui/Tabs.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import ModeBadge from '@/components/trading/ModeBadge.vue'
+import TradingNav from '@/components/trading/TradingNav.vue'
 import DhanSessionBar from '@/components/control/DhanSessionBar.vue'
 import { aureon } from '@/api/client'
 import { checkSession, isAdmin, signIn, tradingSession } from '@/trading/session'
@@ -23,29 +23,22 @@ import { inbox, loadInbox, useLiveRefresh } from '@/trading/inbox'
 import { connect, disconnect, live } from '@/trading/stream'
 import { must, useLoad } from '@/trading/useLoad'
 import { readWatchlist } from '@/trading/watchlist'
+import { pathFor, sectionFor, type SectionKey } from '@/trading/sections'
+import { storeToRefs } from 'pinia'
+import { useUiStore } from '@/stores/ui'
 import '@/components/trading/trading.css'
 
-const SECTIONS = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'dhan', label: 'Dhan' },
-  { value: 'mt5', label: 'MT5' },
-  { value: 'origins', label: 'My vs bot' },
-  { value: 'market', label: 'Watchlist & charts' },
-  { value: 'signals', label: 'Signals' },
-  { value: 'strategies', label: 'Strategies & backtests' },
-  { value: 'orders', label: 'Orders & positions' },
-  { value: 'paper', label: 'Paper' },
-  { value: 'risk', label: 'Risk' },
-  { value: 'agents', label: 'Agents' },
-] as const
-type Section = (typeof SECTIONS)[number]['value']
-
-const PAGES: Record<Section, ReturnType<typeof defineAsyncComponent>> = {
+// The sections, their groups and their URLs live in src/trading/sections.ts.
+const PAGES: Record<SectionKey, ReturnType<typeof defineAsyncComponent>> = {
   overview: defineAsyncComponent(() => import('@/components/trading/TradingOverview.vue')),
+  market: defineAsyncComponent(() => import('@/components/trading/TradingExplorer.vue')),
+  charts: defineAsyncComponent(() => import('@/components/trading/TradingCharts.vue')),
+  screener: defineAsyncComponent(() => import('@/components/trading/TradingScreener.vue')),
+  options: defineAsyncComponent(() => import('@/components/trading/TradingOptions.vue')),
+  watchlists: defineAsyncComponent(() => import('@/components/trading/TradingWatchlists.vue')),
   dhan: defineAsyncComponent(() => import('@/components/trading/TradingDhan.vue')),
   mt5: defineAsyncComponent(() => import('@/components/trading/TradingMt5.vue')),
   origins: defineAsyncComponent(() => import('@/components/trading/TradingOrigins.vue')),
-  market: defineAsyncComponent(() => import('@/components/trading/TradingMarket.vue')),
   signals: defineAsyncComponent(() => import('@/components/trading/TradingSignals.vue')),
   strategies: defineAsyncComponent(() => import('@/components/trading/TradingStrategies.vue')),
   orders: defineAsyncComponent(() => import('@/components/trading/TradingOrders.vue')),
@@ -54,24 +47,16 @@ const PAGES: Record<Section, ReturnType<typeof defineAsyncComponent>> = {
   agents: defineAsyncComponent(() => import('@/components/trading/TradingAgents.vue')),
 }
 
+const { isPhone } = storeToRefs(useUiStore())
 const route = useRoute()
 const router = useRouter()
-const section = computed<Section>(() => {
-  const s = String(route.params.section ?? '')
-  return (SECTIONS.some((x) => x.value === s) ? s : 'overview') as Section
-})
-function go(s: string) {
-  void router.push(s === 'overview' ? '/trading' : `/trading/${s}`)
+const section = computed<SectionKey>(() => sectionFor(route.params.section))
+function go(s: SectionKey) {
+  void router.push(pathFor(s))
 }
 
-// The Paper tab carries the admin's approval count.
-const tabs = computed(() =>
-  SECTIONS.map((s) =>
-    s.value === 'paper' && inbox.items.length
-      ? { value: s.value, label: `${s.label} (${inbox.items.length})` }
-      : { value: s.value, label: s.label },
-  ),
-)
+// The Paper section carries the admin's approval count.
+const badges = computed(() => (inbox.items.length ? { paper: inbox.items.length } : {}))
 
 const email = ref('')
 const passcode = ref('')
@@ -153,20 +138,17 @@ onBeforeUnmount(disconnect)
     <template v-else>
       <!-- Dhan session state for everyone; the login button only for admins. -->
       <DhanSessionBar :admin="isAdmin()" class="tv__pad" />
-      <Tabs
-        :model-value="section"
-        :tabs="tabs"
-        aria-label="Trading sections"
-        @update:model-value="go"
-      />
       <Alert v-if="tradingSession.error" tone="warning">{{ tradingSession.error }}</Alert>
-      <main class="tv__main">
-        <component
-          :is="PAGES[section]"
-          :accounts="accounts.data.value?.items ?? []"
-          @accounts-changed="accounts.reload()"
-        />
-      </main>
+      <div class="tv__body" :class="{ 'is-phone': isPhone }">
+        <TradingNav :section="section" :badges="badges" class="tv__nav" @go="go" />
+        <main class="tv__main">
+          <component
+            :is="PAGES[section]"
+            :accounts="accounts.data.value?.items ?? []"
+            @accounts-changed="accounts.reload()"
+          />
+        </main>
+      </div>
     </template>
   </div>
 </template>
@@ -210,6 +192,21 @@ onBeforeUnmount(disconnect)
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
+}
+/* Sidebar beside the section on tablet and desktop; on a phone the nav is one
+   button above it (TradingNav), so the grid collapses to one column. */
+.tv__body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.tv__body.is-phone {
+  grid-template-columns: minmax(0, 1fr);
+}
+.tv__nav {
+  min-width: 0;
 }
 .tv__main {
   min-width: 0;

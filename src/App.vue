@@ -7,7 +7,7 @@
 // utility bar (section 44, item 4): it was the element that covered the dock,
 // and a floating pill on a route with no writes to sync was reporting on
 // nothing anyway.
-import { computed, defineAsyncComponent, onMounted } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Starfield from '@/components/Starfield.vue'
 import CursorTail from '@/components/CursorTail.vue'
@@ -28,6 +28,7 @@ import { useStyles } from '@/composables/useStyles'
 import GoalsImportDialog from '@/components/goals/GoalsImportDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
 import { startModules } from '@/modules/manifest'
 import { firebaseEnabled, onPersistenceResolved, supabaseEnabled } from '@/firebase'
 
@@ -66,6 +67,19 @@ const showVoice = computed(() => {
 // An image job this browser was watching keeps being watched on every page,
 // so "your image is ready" arrives wherever you are.
 onMounted(resumeImageJob)
+
+// The phone / tablet / desktop switch follows the window on EVERY route. Only
+// the workspace used to track it, so on /trading and /dev an iPad turned from
+// portrait to landscape kept the layout it opened with.
+const ui = useUiStore()
+function trackWidth() {
+  ui.setVw(window.innerWidth)
+}
+onMounted(() => {
+  trackWidth()
+  window.addEventListener('resize', trackWidth)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', trackWidth))
 
 onMounted(() => {
   // Only the Firestore fallback ever had an offline cache to lose. On Supabase
