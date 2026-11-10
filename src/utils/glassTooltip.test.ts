@@ -64,4 +64,37 @@ describe('glass tooltips', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     expect(button.getAttribute('title')).toBe('Move to Deadlines')
   })
+
+  // A tap focuses the tapped button; that focus must not bring the tooltip up
+  // (on a phone it stuck over the More sheet). Keyboard focus still does.
+  function at<T extends Event>(e: T, t: number, extra: object = {}): T {
+    Object.defineProperty(e, 'timeStamp', { value: t })
+    for (const [k, v] of Object.entries(extra)) Object.defineProperty(e, k, { value: v })
+    return e
+  }
+  const focusIn = (t: number) =>
+    button.dispatchEvent(at(new FocusEvent('focusin', { bubbles: true }), t))
+  const press = (t: number, pointerType: string) =>
+    button.dispatchEvent(at(new MouseEvent('pointerdown', { bubbles: true }), t, { pointerType }))
+
+  it('shows on keyboard focus', () => {
+    focusIn(5000)
+    vi.advanceTimersByTime(400)
+    expect(document.querySelector('.glass-tip')?.textContent).toBe('Move to Deadlines')
+  })
+
+  it('does not show on the focus a finger or Pencil tap gives the button', () => {
+    for (const type of ['touch', 'pen']) {
+      press(1000, type)
+      focusIn(1020)
+      vi.advanceTimersByTime(400)
+      expect(document.querySelector('.glass-tip')).toBeNull()
+      expect(button.getAttribute('title')).toBe('Move to Deadlines')
+    }
+    // A mouse click's focus is not suppressed by an earlier tap long ago.
+    press(1000, 'touch')
+    focusIn(9000)
+    vi.advanceTimersByTime(400)
+    expect(document.querySelector('.glass-tip')?.textContent).toBe('Move to Deadlines')
+  })
 })

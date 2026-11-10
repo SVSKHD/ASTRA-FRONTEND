@@ -17,6 +17,8 @@
 // covers what the finger was reaching for.
 
 const SHOW_DELAY_MS = 350
+/** Focus this soon after a touch press came from the tap, not the keyboard. */
+const TAP_FOCUS_MS = 1000
 const GAP_PX = 8
 const EDGE_PX = 8
 const TIP_ID = 'glass-tip'
@@ -132,7 +134,19 @@ export function installGlassTooltips(): () => void {
     if (to && current.contains(to)) return
     hide()
   }
+  // A tap focuses the button it lands on, and focus is the KEYBOARD path to a
+  // tooltip — so on a phone every tapped button with a title grew a bubble that
+  // stayed until focus moved on (the "More" tip sat on top of the More sheet).
+  // Focus that arrives right after a touch or Pencil press is the tap's, not
+  // the keyboard's.
+  let touchedAt = -Infinity
+  const onDown = (e: Event) => {
+    const type = (e as PointerEvent).pointerType
+    if (type === 'touch' || type === 'pen') touchedAt = e.timeStamp
+    hide()
+  }
   const onFocusIn = (e: Event) => {
+    if (e.timeStamp - touchedAt < TAP_FOCUS_MS) return
     const el = targetOf(e.target)
     if (!el || el !== e.target) return
     if (current) hide()
@@ -146,7 +160,7 @@ export function installGlassTooltips(): () => void {
   document.addEventListener('pointerout', onOut, true)
   document.addEventListener('focusin', onFocusIn, true)
   document.addEventListener('focusout', hide, true)
-  document.addEventListener('pointerdown', hide, true)
+  document.addEventListener('pointerdown', onDown, true)
   document.addEventListener('keydown', onKey, true)
   window.addEventListener('scroll', hide, true)
   window.addEventListener('blur', hide)
@@ -157,7 +171,7 @@ export function installGlassTooltips(): () => void {
     document.removeEventListener('pointerout', onOut, true)
     document.removeEventListener('focusin', onFocusIn, true)
     document.removeEventListener('focusout', hide, true)
-    document.removeEventListener('pointerdown', hide, true)
+    document.removeEventListener('pointerdown', onDown, true)
     document.removeEventListener('keydown', onKey, true)
     window.removeEventListener('scroll', hide, true)
     window.removeEventListener('blur', hide)
