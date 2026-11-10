@@ -1,17 +1,39 @@
 <script setup lang="ts">
 // The mobile counterpart to Modal: same semantics, thumb-reachable.
-import { computed, ref } from 'vue'
+//
+// TELEPORTED TO <body>, like Modal and SlideOver, and that is the fix for the
+// phone's More menu being dead to the touch. The sheet used to render where it
+// was declared — for the More menu, inside the tab bar's <nav>, which is
+// `pointer-events: none` on a phone so the page under the floating bar stays
+// tappable. A fixed element still INHERITS pointer-events from its DOM parent,
+// so every button in the sheet, its scroll area, its × and its scrim let taps
+// fall through to the page underneath: the sheet could be neither used nor
+// closed, and the taps meant for it opened whatever lay beneath. It was also
+// stacked inside the shell, under the tab bar. Rendered at the root, it owns
+// its own pointer events and stacking, wherever it is declared.
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{ open: boolean; title: string }>()
 const emit = defineEmits<{ close: [] }>()
-void props
-const sheetHeight = ref(360)
-const resizeStart = ref<{ pointer: number; height: number } | null>(null)
-const sheetStyle = computed(() => ({ height: `${sheetHeight.value}px` }))
 
 function clampHeight(height: number): number {
   return Math.max(220, Math.min(Math.min(760, window.innerHeight * 0.86), height))
 }
+/** Open at about two thirds of the screen: enough to see most of a menu. */
+function openingHeight(): number {
+  return typeof window === 'undefined' ? 360 : clampHeight(Math.round(window.innerHeight * 0.66))
+}
+
+const sheetHeight = ref(openingHeight())
+const resizeStart = ref<{ pointer: number; height: number } | null>(null)
+const sheetStyle = computed(() => ({ height: `${sheetHeight.value}px` }))
+// Each opening starts from the default, not from a size left over from a drag.
+watch(
+  () => props.open,
+  (open) => {
+    if (open) sheetHeight.value = openingHeight()
+  },
+)
 
 function beginResize(event: PointerEvent): void {
   resizeStart.value = { pointer: event.clientY, height: sheetHeight.value }
@@ -38,37 +60,39 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
 </script>
 
 <template>
-  <template v-if="open">
-    <div class="ui-sheet__scrim" @click="emit('close')"></div>
-    <div
-      class="ui-sheet"
-      :style="sheetStyle"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="title"
-      @keydown.esc="emit('close')"
-    >
+  <Teleport to="body">
+    <template v-if="open">
+      <div class="ui-sheet__scrim" @click="emit('close')"></div>
       <div
-        class="ui-sheet__grip"
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize sheet"
-        tabindex="0"
-        @pointerdown="beginResize"
-        @pointermove="resize"
-        @pointerup="endResize"
-        @pointercancel="endResize"
-        @keydown="resizeWithKeyboard"
-      ></div>
-      <header class="ui-sheet__head">
-        <h2 class="ui-sheet__title">{{ title }}</h2>
-        <button class="ui-sheet__x" type="button" aria-label="Close" @click="emit('close')">
-          ×
-        </button>
-      </header>
-      <div class="ui-sheet__body"><slot /></div>
-    </div>
-  </template>
+        class="ui-sheet"
+        :style="sheetStyle"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
+        @keydown.esc="emit('close')"
+      >
+        <div
+          class="ui-sheet__grip"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize sheet"
+          tabindex="0"
+          @pointerdown="beginResize"
+          @pointermove="resize"
+          @pointerup="endResize"
+          @pointercancel="endResize"
+          @keydown="resizeWithKeyboard"
+        ></div>
+        <header class="ui-sheet__head">
+          <h2 class="ui-sheet__title">{{ title }}</h2>
+          <button class="ui-sheet__x" type="button" aria-label="Close" @click="emit('close')">
+            ×
+          </button>
+        </header>
+        <div class="ui-sheet__body"><slot /></div>
+      </div>
+    </template>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -76,6 +100,8 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   position: fixed;
   inset: 0;
   z-index: 50;
+  /* Stated, not inherited: see the note at the top of the script. */
+  pointer-events: auto;
   background: color-mix(in oklch, var(--glass-solid) 42%, transparent);
 }
 /* Docked to the bottom edge, full width, with the rounded top of a phone's
@@ -84,6 +110,7 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   position: fixed;
   inset: auto 0 0 0;
   z-index: 51;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
@@ -175,6 +202,13 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   line-height: 1;
   cursor: pointer;
   transition: background-color 120ms var(--ease-out);
+}
+/* A finger needs 44 × 44 to hit the close button reliably. */
+@media (pointer: coarse) {
+  .ui-sheet__x {
+    width: 44px;
+    height: 44px;
+  }
 }
 .ui-sheet__x:hover {
   background: color-mix(in oklch, var(--theme-dim) 22%, transparent);
