@@ -71,6 +71,11 @@ Missing:
 
 The chart uses server rows when the name matches. Every other study (EMA 8/32/20/50/200, custom EMA, SMA, RSI, ADX, Bollinger Bands, MACD with other periods) is calculated in the browser from the same candles the chart shows, and is labelled as calculated in the browser. The browser formulas follow the backend's: the EMA is seeded with an SMA (`_seeded_ema`), and ATR uses Wilder smoothing.
 
+The browser's formulas live in `src/trading/indicators.ts`, with tests against values the backend module produces. Two caveats:
+
+- **VWAP.** The browser anchors each day on IST and the server stores `vwap:UTC`. NSE's session (09:15–15:30 IST, 03:45–10:00 UTC) falls on the same calendar day in both zones, so the numbers agree for NSE candles.
+- **EMA seeding.** A seeded EMA depends on where the series starts. The worker computes on its latest 500 closed candles (`RESEARCH_LOOKBACK_BARS`), and the browser computes on the candles the chart loaded. The two can differ slightly near the start of the loaded range, which is one more reason the chart prefers stored rows.
+
 Missing:
 
 | Need                                 | Contract requested                                                                                                                                                                                                                                  |
