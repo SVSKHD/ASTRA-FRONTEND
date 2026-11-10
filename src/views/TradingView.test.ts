@@ -547,7 +547,7 @@ describe('TradingView', () => {
     ['mt5', 'not connected to Aureon'],
     ['origins', 'No trades in this period.'],
     // The chart moved from /trading/market (now the Market Explorer) to /trading/charts.
-    ['charts', 'Your watchlist is empty'],
+    ['charts', 'Pick an instrument to chart'],
     // The Explorer with the stub's empty instrument page: the honest empty state.
     ['market', 'The instrument master may not be synced'],
     ['screener', 'Stock Screener'],
