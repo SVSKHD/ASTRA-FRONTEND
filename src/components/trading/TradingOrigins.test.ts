@@ -1,6 +1,10 @@
 // /trading/origins against a stubbed API: badges per origin, the comparison
 // card, chips ↔ URL query ↔ request, and the loading / empty / error states.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// The first test pays for importing this view cold; under the full suite that
+// ran past the 5s default and failed at random. The tests themselves are fast.
+vi.setConfig({ testTimeout: 20_000 })
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 

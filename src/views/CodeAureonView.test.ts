@@ -1,5 +1,9 @@
 // Code (Aureon): the repository browser and code tasks against a stubbed API.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// The first test pays for importing this view cold; under the full suite that
+// ran past the 5s default and failed at random. The tests themselves are fast.
+vi.setConfig({ testTimeout: 20_000 })
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
