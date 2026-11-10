@@ -1,6 +1,12 @@
 // The control center (/dev): the admin gate and every module, against a fetch
 // stub that routes by path (the TradingView.test.ts pattern). No network.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// The first test pays for importing this whole view (and everything it pulls
+// in). Alone that is about a second; under the full suite, with every file
+// importing in parallel, it ran past the 5s default and failed the first test
+// at random. The tests themselves are fast; only the cold import needs room.
+vi.setConfig({ testTimeout: 20_000 })
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
