@@ -221,20 +221,29 @@ smoke() { # $1 = release dir; the live index.html must be this release's
   [[ "$body" == "$(cat "$1/index.html")" ]]
 }
 
+# Release directory names, newest first. `ls -t` rather than `find -printf`:
+# BusyBox find (Alpine, the node:22-alpine build image) has no -printf.
+# Release names are commit hashes, so word splitting is safe.
+releases_newest_first() {
+  local d
+  for d in $(ls -1t "$WEB/releases" 2>/dev/null); do
+    [[ -d "$WEB/releases/$d" ]] && printf '%s\n' "$d"
+  done
+  return 0
+}
+
 prune() { # keep the newest $KEEP releases, never the live one
   local live
   live="$(basename "$(readlink "$WEB/current")")"
-  find "$WEB/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\n' | sort -rn \
-    | awk -v k="$KEEP" 'NR > k { print $2 }' | while read -r d; do
-      [[ "$d" == "$live" ]] || rm -rf "${WEB:?}/releases/$d"
-    done
+  releases_newest_first | awk -v k="$KEEP" 'NR > k { print }' | while read -r d; do
+    [[ "$d" == "$live" ]] || rm -rf "${WEB:?}/releases/$d"
+  done
 }
 
 rollback() {
   local live prev
   live="$(basename "$(readlink "$WEB/current")")"
-  prev="$(find "$WEB/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\n' | sort -rn \
-    | awk '{ print $2 }' | grep -vx "$live" | head -n 1)"
+  prev="$(releases_newest_first | grep -vx "$live" | head -n 1)"
   [[ -n "$prev" ]] || { echo "no previous release to roll back to"; return 1; }
   swap "releases/$prev"
   echo "ROLLED BACK $live -> $prev (origin/$BRANCH is unchanged: revert the commit there too)"
