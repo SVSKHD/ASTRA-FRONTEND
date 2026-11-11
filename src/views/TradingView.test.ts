@@ -276,6 +276,12 @@ function post(path: string, body: unknown): [number, unknown] {
 }
 
 function route(path: string): [number, unknown] {
+  // The sign-in form: any email and passcode open the session (the gate is what is tested).
+  if (path === '/api/auth/login') {
+    signedIn = true
+    const user = { id: 'u', email: 'owner@spasta.online', role: 'admin', last_login_at: null }
+    return [200, { user }]
+  }
   if (path === '/api/auth/me')
     return signedIn
       ? [200, { id: 'u', email: 'owner@spasta.online', role: 'admin', last_login_at: null }]
@@ -784,5 +790,97 @@ describe('TradingView', () => {
     const w = await mountAt('/trading/orders')
     await sees(w, '+52.5')
     expect(w.text()).toContain('Broker-reported')
+  })
+})
+
+// The Stock Screener must be reachable everywhere: in the grouped sidebar on
+// tablet and desktop, in the section sheet on a phone, and by deep link once
+// the Aureon session is open (and not before).
+describe('TradingView — Stock Screener navigation', () => {
+  async function mountWithRouter(path: string, width: number) {
+    const { useUiStore } = await import('@/stores/ui')
+    useUiStore().setVw(width)
+    const TradingView = (await import('./TradingView.vue')).default
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/trading/:section?', component: TradingView },
+        { path: '/', component: { template: '<div />' } },
+      ],
+    })
+    await router.push(path)
+    const w = mount(TradingView, { global: { plugins: [router] }, attachTo: document.body })
+    mounted.push(w)
+    await settle()
+    return { w, router }
+  }
+
+  for (const [device, width] of [
+    ['desktop', 1280],
+    ['tablet', 800],
+  ] as const) {
+    it(`lists Stock Screener under Markets in the ${device} sidebar and opens it`, async () => {
+      const { w, router } = await mountWithRouter('/trading', width)
+      await sees(w, 'Latest signals')
+      const nav = w.find('nav[aria-label="Trading sections"]')
+      expect(nav.exists()).toBe(true)
+      const markets = nav.findAll('section').find((g) => g.find('h3').text() === 'Markets')!
+      expect(markets.findAll('button').map((b) => b.text())).toEqual([
+        'Overview',
+        'Market Explorer',
+        'Charts & Indicators',
+        'Stock Screener',
+        'Futures & Options',
+        'Watchlists',
+      ])
+      await markets
+        .findAll('button')
+        .find((b) => b.text() === 'Stock Screener')!
+        .trigger('click')
+      await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/trading/screener'))
+      await sees(w, 'Run screener')
+      const on = w.find('nav[aria-label="Trading sections"] [aria-current="page"]')
+      expect(on.text()).toBe('Stock Screener')
+    })
+  }
+
+  it('lists Stock Screener in the phone section sheet and opens it', async () => {
+    const { w, router } = await mountWithRouter('/trading', 375)
+    await sees(w, 'Latest signals')
+    // No sidebar on a phone: one button that opens every section.
+    expect(w.find('nav.tnav--side').exists()).toBe(false)
+    const open = w.find('[data-testid="trading-nav-phone"]')
+    expect(open.text()).toContain('Overview')
+    await open.trigger('click')
+    await settle()
+    const sheet = document.body.querySelector('nav[aria-label="Trading sections"]')!
+    const item = [...sheet.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Stock Screener',
+    )!
+    expect(item).toBeTruthy()
+    item.click()
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/trading/screener'))
+    await sees(w, 'Run screener')
+    expect(w.find('[data-testid="trading-nav-phone"]').text()).toContain('Stock Screener')
+    // The filter builder is open on a first visit, not hidden behind the Filters button.
+    expect(w.find('#sc-panel').classes()).toContain('is-open')
+  })
+
+  it('deep-links /trading/screener behind the Aureon sign-in, then renders the screener', async () => {
+    signedIn = false
+    const { w, router } = await mountWithRouter('/trading/screener', 1280)
+    await sees(w, 'Sign in to Aureon')
+    expect(w.text()).not.toContain('Run screener')
+    expect(calls.some((c) => c.includes('/screener'))).toBe(false)
+    await w.find('input[aria-label="Email"]').setValue('owner@spasta.online')
+    await w.find('input[aria-label="Passcode"]').setValue('pass')
+    await w.find('form').trigger('submit')
+    await settle()
+    await sees(w, 'Run screener')
+    expect(router.currentRoute.value.fullPath).toBe('/trading/screener')
+    expect(w.text()).toContain('Stock Screener')
+    // The real contract has no screener endpoint: the honest notice, and nothing POSTed to it.
+    expect(w.text()).toContain('Screening is not available yet')
+    expect(posts.some((p) => p.path === '/api/trading/screener/run')).toBe(false)
   })
 })

@@ -9,7 +9,14 @@
 // and lights up once the contract has the path (the gate in screener.ts).
 //
 // Layout: filters beside the results on a wide screen; on a phone the filters
-// are a collapsible panel above them, behind a "Filters" button.
+// are a collapsible panel above the results, open until the first result comes
+// back so the builder is never hidden behind a button on a first visit.
+//
+// Once the gate is open: sorting and page size are server-side (they re-run the
+// screen from page 1, so a sort never reorders only the visible page), every
+// failure the server can give has its own message and recovery (ScreenerFailure
+// in screener.ts), a 422 lands on the field it names, and a result that no
+// longer matches the filters says so instead of passing for current.
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Button from '@/components/ui/Button.vue'
@@ -43,11 +50,14 @@ import {
   describeFilter,
   requestText,
   runScreener,
+  ScreenerFailure,
   validateRequest,
   watchlistFromQuery,
   type FilterType,
   type ScreenerFilter,
+  type ScreenerRequest,
   type ScreenerResponse,
+  type ValidationIssue,
 } from '@/trading/screener'
 import { STORAGE_NOTE, watchlistStore } from '@/trading/watchlists'
 
@@ -172,8 +182,12 @@ function setField(f: ScreenerFilter, key: string, v: unknown) {
 // --- request, validation -----------------------------------------------------------------
 const request = computed(() => buildRequest(form))
 const issues = computed(() => validateRequest(request.value))
-const issuesFor = (path: string) =>
-  issues.value.filter((i) => i.path === path).map((i) => i.message)
+/** The server's 422 complaints about the last run, shown on the fields until they change. */
+const serverIssues = ref<ValidationIssue[]>([])
+const issuesFor = (path: string) => [
+  ...issues.value.filter((i) => i.path === path).map((i) => i.message),
+  ...serverIssues.value.filter((i) => i.path === path).map((i) => `Server: ${i.message}`),
+]
 const valid = computed(() => issues.value.length === 0)
 const showRequest = ref(false)
 const copyMsg = ref('')
@@ -192,19 +206,51 @@ async function copyRequest() {
 const available = SCREENER_AVAILABLE
 const result = ref<ScreenerResponse | null>(null)
 const loading = ref(false)
-const error = ref('')
-const filtersOpen = ref(false)
+const failure = ref<ScreenerFailure | null>(null)
+const filtersOpen = ref(true)
+
+/** The request minus its offset: two runs with the same key are the same screen. */
+const screenKey = (r: ScreenerRequest) => JSON.stringify({ ...r, offset: 0 })
+const ranKey = ref('')
+/** Results on screen were produced by different filters than the form now holds. */
+const stale = computed(() => !!result.value && ranKey.value !== screenKey(request.value))
+// Server complaints are about the request that was sent; editing it retires them.
+watch(
+  () => screenKey(request.value),
+  () => {
+    if (serverIssues.value.length) serverIssues.value = []
+  },
+)
+
+// Only the newest run may write its answer: a slow page-1 reply must not land
+// on top of the page-2 reply the user asked for after it.
+let seq = 0
 async function run() {
   if (!available || !valid.value) return
+  const mine = ++seq
+  const body = request.value
   loading.value = true
-  error.value = ''
+  failure.value = null
   try {
-    result.value = await runScreener(request.value)
+    const r = await runScreener(body)
+    if (mine !== seq) return
+    result.value = r
+    ranKey.value = screenKey(body)
+    serverIssues.value = []
     filtersOpen.value = false
   } catch (e) {
-    error.value = (e as Error).message || 'The screener did not answer.'
+    if (mine !== seq) return
+    const f =
+      e instanceof ScreenerFailure
+        ? e
+        : new ScreenerFailure('server', (e as Error).message || 'The screener did not answer.')
+    failure.value = f
+    if (f.kind === 'invalid') {
+      serverIssues.value = f.issues
+      filtersOpen.value = true
+    }
   } finally {
-    loading.value = false
+    if (mine === seq) loading.value = false
   }
 }
 function runFirstPage() {
@@ -216,6 +262,44 @@ function goPage(p: number) {
   form.page = p
   void run()
 }
+// Sorting and paging are the server's: with results on screen, a new sort or
+// page size re-runs from page 1 rather than reordering the rows already here.
+watch(
+  () => [form.sortField, form.sortDir, form.pageSize] as const,
+  () => {
+    if (result.value && !loading.value) runFirstPage()
+  },
+)
+/**
+ * Back to the default criteria (markets, candles, filters). Sort, page size and
+ * the chosen watchlist stay. Results on screen stay too, marked as not matching.
+ */
+function resetFilters() {
+  const d = defaultForm()
+  form.exchanges = d.exchanges
+  form.kinds = d.kinds
+  form.timeframe = d.timeframe
+  form.candle = d.candle
+  form.filters = d.filters
+  serverIssues.value = []
+  if (failure.value?.kind === 'invalid') failure.value = null
+}
+
+const FAILURE_TITLE: Record<ScreenerFailure['kind'], string> = {
+  auth: 'Signed out',
+  forbidden: 'Not allowed',
+  invalid: 'The server rejected these filters',
+  rate_limited: 'Too many runs',
+  not_deployed: 'The screener is not on this server',
+  unsupported: 'Not supported by the broker',
+  server: 'The screener failed',
+  network: 'Aureon is unreachable',
+}
+/** Retrying makes sense only where the same request can succeed later. */
+const canRetry = computed(
+  () => !!failure.value && ['rate_limited', 'server', 'network'].includes(failure.value.kind),
+)
+
 const sortDirOptions = [
   { value: 'desc', label: 'High → low' },
   { value: 'asc', label: 'Low → high' },
@@ -397,6 +481,7 @@ const tfOptions = TIMEFRAMES.map((t) => ({ value: t, label: t }))
             <Button variant="secondary" :disabled="!valid" @click="copyRequest"
               >Copy request</Button
             >
+            <Button variant="ghost" @click="resetFilters">Reset filters</Button>
             <Button variant="ghost" @click="showRequest = !showRequest">
               {{ showRequest ? 'Hide request' : 'Show request' }}
             </Button>
@@ -412,7 +497,11 @@ const tfOptions = TIMEFRAMES.map((t) => ({ value: t, label: t }))
         </form>
       </aside>
 
-      <section class="sc__results" aria-label="Screener results">
+      <section
+        class="sc__results"
+        aria-label="Screener results"
+        :aria-busy="loading ? 'true' : 'false'"
+      >
         <Card>
           <template #header>
             <div class="tp-head">
@@ -421,20 +510,54 @@ const tfOptions = TIMEFRAMES.map((t) => ({ value: t, label: t }))
                 {{ result.total }} of {{ result.universe_size }} instruments ·
                 {{ result.timeframe }} · {{ result.candle }} candle · as of {{ when(result.as_of) }}
               </span>
+              <Button
+                v-if="available && result"
+                size="sm"
+                variant="secondary"
+                :disabled="!valid || loading"
+                @click="run"
+                >Refresh</Button
+              >
             </div>
           </template>
-          <div v-if="error" class="sc__notice sc__notice--danger" role="alert">
-            <span class="tp-strong">The screener failed</span>
-            <p class="tp-note">{{ error }}</p>
-            <Button size="sm" variant="secondary" @click="run">Retry</Button>
+          <div
+            v-if="failure"
+            class="sc__notice sc__notice--danger"
+            role="alert"
+            data-testid="screener-failure"
+          >
+            <span class="tp-strong">{{ FAILURE_TITLE[failure.kind] }}</span>
+            <p class="tp-note">{{ failure.message }}</p>
+            <ul v-if="failure.kind === 'invalid' && failure.issues.length > 1" class="sc__issues">
+              <li v-for="(i, n) in failure.issues" :key="n" class="tp-note">{{ i.message }}</li>
+            </ul>
+            <p v-if="failure.kind === 'invalid'" class="tp-note">
+              The fields the server named are marked in the filters.
+            </p>
+            <Button v-if="canRetry" size="sm" variant="secondary" :disabled="loading" @click="run"
+              >Retry</Button
+            >
           </div>
           <p v-if="loading" class="tp-note" role="status">Screening…</p>
+          <p v-if="stale && !loading" class="sc__stale" role="status">
+            These results are from different filters than the ones set now. Run the screener to
+            update them.
+          </p>
           <template v-if="result && !loading">
             <ScreenerResults v-if="result.items.length" :response="result" />
             <EmptyState
+              v-else-if="result.total > 0 && form.page > 1"
+              title="This page is past the end"
+              :description="`The screen now has ${result.total} matches; this page holds none of them.`"
+            >
+              <template #action>
+                <Button size="sm" variant="secondary" @click="goPage(1)">First page</Button>
+              </template>
+            </EmptyState>
+            <EmptyState
               v-else
               title="Nothing matched"
-              description="No instrument met every filter. Loosen a filter or widen the markets."
+              :description="`No instrument out of ${result.universe_size} met every filter. Loosen a filter or widen the markets.`"
             />
             <Pagination
               v-if="pageCount > 1"
@@ -449,7 +572,7 @@ const tfOptions = TIMEFRAMES.map((t) => ({ value: t, label: t }))
             :description="`Screening needs the backend's screener endpoint (${SCREENER_DOC}). Until it exists this screen only builds the request.`"
           />
           <EmptyState
-            v-else-if="!loading && !error"
+            v-else-if="!loading && !failure"
             title="Run the screener"
             description="Set the filters and press Run."
           />
@@ -566,6 +689,17 @@ const tfOptions = TIMEFRAMES.map((t) => ({ value: t, label: t }))
 }
 .sc__notice--danger {
   border-color: var(--theme-danger);
+}
+.sc__issues {
+  margin: 0;
+  padding-left: var(--sp-4);
+}
+.sc__stale {
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2);
+  border-left: 3px solid var(--theme-warning);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
 }
 .sc__err {
   margin: 0;

@@ -1,6 +1,8 @@
 // The Stock Screener's request, its validation, and the gate on the backend contract.
 //
-// BACKEND GAP (docs/market-terminal.md §6): there is NO screener endpoint. The
+// BACKEND GAP (docs/market-terminal.md §6): there is NO screener endpoint
+// (re-verified 2026-11-11 against backend main @ 00ea4ee: migration 0028 adds the
+// screener tables, but no route serves them). The
 // screen builds exactly the `POST /api/trading/screener/run` body written down
 // there, validates it, and lets the user copy it for the backend. It never
 // screens in the browser and never shows sample results: scanning the market
@@ -22,7 +24,6 @@
 
 import { aureon, type components, type paths } from '@/api/client'
 import type { Instrument } from '@/trading/instruments'
-import { must } from '@/trading/useLoad'
 
 export const SCREENER_RUN_PATH = '/api/trading/screener/run' as const
 export const SCREENER_DOC = 'docs/market-terminal.md §6'
@@ -350,17 +351,189 @@ type UntypedPost = (
 ) => Promise<{ data?: unknown; error?: unknown; response: Response }>
 
 /**
+ * What went wrong with a run, in the terms the screen acts on:
+ *
+ * - `auth`          401: the Aureon session ended (the client's onUnauthorized hook also
+ *                   returns the panel to its sign-in gate).
+ * - `forbidden`     403: signed in, but this account may not run the screener.
+ * - `invalid`       422: the server rejected the request; `issues` maps its complaints onto
+ *                   the form's fields where the location says which one.
+ * - `rate_limited`  429: too many runs; `retryAfter` is the server's Retry-After in seconds.
+ * - `not_deployed`  404/405: the server answering does not have the endpoint, i.e. the
+ *                   frontend and the backend deployed here disagree about the contract.
+ * - `unsupported`   501: the broker cannot provide what the filters need.
+ * - `server`        any other answer, or a 200 whose body is not a screener response.
+ * - `network`       no answer at all.
+ */
+export type ScreenerFailureKind =
+  | 'auth'
+  | 'forbidden'
+  | 'invalid'
+  | 'rate_limited'
+  | 'not_deployed'
+  | 'unsupported'
+  | 'server'
+  | 'network'
+
+export class ScreenerFailure extends Error {
+  constructor(
+    readonly kind: ScreenerFailureKind,
+    message: string,
+    readonly status: number | null = null,
+    readonly issues: ValidationIssue[] = [],
+    readonly retryAfter: number | null = null,
+  ) {
+    super(message)
+    this.name = 'ScreenerFailure'
+  }
+}
+
+/** A FastAPI 422 `loc` (["body", "filters", 0, "fast"]) → the form path the screen shows it at. */
+function issuePath(loc: unknown[]): string {
+  const at = loc[0] === 'body' ? loc.slice(1) : loc
+  const [head, index] = at
+  if (head === 'filters' && typeof index === 'number') return `filters.${index}`
+  if (head === 'universe' || head === 'timeframe' || head === 'candle' || head === 'sort')
+    return head
+  if (head === 'filters') return 'filters'
+  if (head === 'limit' || head === 'offset') return 'page'
+  return 'request'
+}
+
+function detailText(body: unknown): string | null {
+  const d = (body as { detail?: unknown } | null | undefined)?.detail
+  if (typeof d === 'string') return d
+  if (d && typeof d === 'object' && !Array.isArray(d)) {
+    const o = d as { detail?: unknown; message?: unknown; code?: unknown }
+    if (typeof o.detail === 'string') return o.detail
+    if (typeof o.message === 'string') return o.message
+    if (typeof o.code === 'string') return o.code.replaceAll('_', ' ')
+  }
+  return null
+}
+
+/** The server's 422 complaints as form issues. A string detail is one request-level issue. */
+export function serverIssues(body: unknown): ValidationIssue[] {
+  const d = (body as { detail?: unknown } | null | undefined)?.detail
+  if (Array.isArray(d)) {
+    return d.flatMap((e) => {
+      if (!e || typeof e !== 'object') return []
+      const { loc, msg } = e as { loc?: unknown; msg?: unknown }
+      if (typeof msg !== 'string') return []
+      const path = Array.isArray(loc) ? issuePath(loc) : 'request'
+      const at = Array.isArray(loc) ? (loc[0] === 'body' ? loc.slice(1) : loc) : []
+      // Name the field inside a filter ("fast: …") so the message reads on its own.
+      const field = path.startsWith('filters.') && typeof at[2] === 'string' ? `${at[2]}: ` : ''
+      return [{ path, message: `${field}${msg}` }]
+    })
+  }
+  const text = detailText(body)
+  return text ? [{ path: 'request', message: text }] : []
+}
+
+function retryAfterSeconds(headers: Headers): number | null {
+  const v = headers.get('retry-after')
+  if (!v) return null
+  const n = Number(v)
+  if (Number.isFinite(n) && n >= 0) return Math.ceil(n)
+  const at = Date.parse(v)
+  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - Date.now()) / 1000))
+}
+
+/** Turn a non-2xx answer into a ScreenerFailure. Exported for the tests. */
+export function screenerFailure(status: number, body: unknown, headers: Headers): ScreenerFailure {
+  const said = detailText(body)
+  switch (status) {
+    case 401:
+      return new ScreenerFailure('auth', 'Your Aureon session ended. Sign in again.', status)
+    case 403:
+      return new ScreenerFailure(
+        'forbidden',
+        said || 'Your Aureon account is not allowed to run the screener.',
+        status,
+      )
+    case 404:
+    case 405:
+      return new ScreenerFailure(
+        'not_deployed',
+        `The Aureon server here does not have POST ${SCREENER_RUN_PATH}. This build expects it; the backend deployed on this host is older than the contract.`,
+        status,
+      )
+    case 422: {
+      const issues = serverIssues(body)
+      return new ScreenerFailure(
+        'invalid',
+        issues.length === 1 ? issues[0].message : 'The server rejected these filters.',
+        status,
+        issues,
+      )
+    }
+    case 429: {
+      const wait = retryAfterSeconds(headers)
+      return new ScreenerFailure(
+        'rate_limited',
+        said ||
+          (wait !== null
+            ? `Too many screener runs. Try again in ${wait}s.`
+            : 'Too many screener runs. Wait a moment and try again.'),
+        status,
+        [],
+        wait,
+      )
+    }
+    case 501:
+      return new ScreenerFailure(
+        'unsupported',
+        said || 'The broker cannot provide the data these filters need.',
+        status,
+      )
+    default:
+      return new ScreenerFailure('server', said || `Aureon answered ${status}.`, status)
+  }
+}
+
+/** Just enough of a shape check that a wrong 200 body is an error, not a blank table. */
+function isScreenerResponse(v: unknown): v is ScreenerResponse {
+  if (!v || typeof v !== 'object') return false
+  const r = v as Partial<ScreenerResponse>
+  return (
+    Array.isArray(r.items) &&
+    typeof r.total === 'number' &&
+    r.items.every((it) => !!it && typeof it === 'object' && !!it.instrument)
+  )
+}
+
+/**
  * POST the request. The path is not in the generated contract yet, so the typed
- * client cannot name it; this goes through the same client (auth cookie, CSRF,
- * retries) untyped. When the gate flips, replace it with
- * `aureon.POST(SCREENER_RUN_PATH, { body })`.
+ * client cannot name it; this goes through the same client untyped, which keeps
+ * the session cookie, the CSRF header and the client's policy for unsafe methods
+ * (a POST is sent once, never retried behind the user's back). When the gate
+ * flips, replace the cast with `aureon.POST(SCREENER_RUN_PATH, { body })`.
  *
  * Callers gate on `SCREENER_AVAILABLE` first; the screen never calls this while
  * the endpoint is absent (TradingScreener.vue disables Run).
+ *
+ * Throws a ScreenerFailure for every way a run can fail.
  */
 export async function runScreener(body: ScreenerRequest): Promise<ScreenerResponse> {
   const post = aureon.POST as unknown as UntypedPost
-  return must(await post(SCREENER_RUN_PATH, { body })) as ScreenerResponse
+  let r: Awaited<ReturnType<UntypedPost>>
+  try {
+    r = await post(SCREENER_RUN_PATH, { body })
+  } catch {
+    throw new ScreenerFailure(
+      'network',
+      'Aureon could not be reached. Check the connection and try again.',
+    )
+  }
+  if (!r.response.ok) throw screenerFailure(r.response.status, r.error, r.response.headers)
+  if (!isScreenerResponse(r.data))
+    throw new ScreenerFailure(
+      'server',
+      'The screener answered with something that is not a result page.',
+      r.response.status,
+    )
+  return r.data
 }
 
 // --- display helpers ---------------------------------------------------------------------

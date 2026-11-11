@@ -60,8 +60,10 @@ const FIXTURE = (): ScreenerResponse => ({
   ],
 })
 
-type R = [number, unknown]
+type R = [number, unknown, Record<string, string>?]
 let screenerReply: () => R
+/** When set, the screener POST never gets an answer (the network failed). */
+let screenerThrows = false
 const posts: { path: string; body: unknown }[] = []
 
 class FakeES {
@@ -74,6 +76,7 @@ class FakeES {
 beforeEach(() => {
   posts.length = 0
   screenerReply = () => [200, FIXTURE()]
+  screenerThrows = false
   localStorage.clear()
   vi.resetModules()
   vi.stubGlobal('EventSource', FakeES)
@@ -81,14 +84,17 @@ beforeEach(() => {
     const url = new URL(req.url)
     let status = 200
     let body: unknown = { items: [], total: 0, limit: 50, offset: 0 }
+    let headers: Record<string, string> = {}
     if (req.method === 'POST') {
       posts.push({ path: url.pathname, body: JSON.parse((await req.text()) || '{}') })
-      ;[status, body] =
+      if (url.pathname === '/api/trading/screener/run' && screenerThrows)
+        throw new TypeError('Failed to fetch')
+      ;[status, body, headers = {}] =
         url.pathname === '/api/trading/screener/run' ? screenerReply() : [404, { detail: 'no' }]
     }
     return new Response(JSON.stringify(body), {
       status,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...headers },
     })
   })
 })
@@ -340,5 +346,181 @@ describe('TradingScreener — gate open (mocked contract)', () => {
     await button(w, 'Retry').trigger('click')
     await sees(w, 'FIXTUREA')
     expect(posts).toHaveLength(2)
+  })
+
+  /** Submit, then wait until the run finished (the loading line is gone). */
+  async function submit(w: Awaited<ReturnType<typeof mountScreener>>['w']) {
+    await w.find('form').trigger('submit')
+    await vi.waitFor(() => expect(w.text()).not.toContain('Screening…'), { timeout: 8000 })
+    await flushPromises()
+  }
+  const failureText = (w: Awaited<ReturnType<typeof mountScreener>>['w']) =>
+    w.find('[data-testid="screener-failure"]').text()
+
+  it('401: says the session ended and offers no retry', async () => {
+    screenerReply = () => [401, { detail: 'not authenticated' }]
+    const { w } = await mountScreener()
+    await submit(w)
+    expect(failureText(w)).toContain('Signed out')
+    expect(failureText(w)).toContain('Your Aureon session ended. Sign in again.')
+    expect(button(w, 'Retry')).toBeUndefined()
+    expect(w.find('table').exists()).toBe(false)
+  })
+
+  it('403: says the account is not allowed, with the server reason', async () => {
+    screenerReply = () => [403, { detail: 'screener is admin-only' }]
+    const { w } = await mountScreener()
+    await submit(w)
+    expect(failureText(w)).toContain('Not allowed')
+    expect(failureText(w)).toContain('screener is admin-only')
+    expect(button(w, 'Retry')).toBeUndefined()
+  })
+
+  it('404: says this server does not have the endpoint (contract mismatch)', async () => {
+    screenerReply = () => [404, { detail: 'Not Found' }]
+    const { w } = await mountScreener()
+    await submit(w)
+    expect(failureText(w)).toContain('The screener is not on this server')
+    expect(failureText(w)).toContain('older than the contract')
+  })
+
+  it('422: puts the server complaint on the filter it names, until the filter changes', async () => {
+    screenerReply = () => [
+      422,
+      {
+        detail: [
+          {
+            loc: ['body', 'filters', 0, 'within_bars'],
+            msg: 'Input should be less than or equal to 50',
+            type: 'less_than_equal',
+          },
+        ],
+      },
+    ]
+    const { w } = await mountScreener()
+    await submit(w)
+    expect(failureText(w)).toContain('The server rejected these filters')
+    const first = () => w.findAll('.sc__filter')[0]
+    expect(first().text()).toContain(
+      'Server: within_bars: Input should be less than or equal to 50',
+    )
+    expect(button(w, 'Retry')).toBeUndefined()
+    const inputs = first().findAll('input')
+    await inputs[inputs.length - 1].setValue('2')
+    await flushPromises()
+    expect(first().text()).not.toContain('Server:')
+  })
+
+  it('429: says when to try again, and Retry runs it again', async () => {
+    screenerReply = () => [429, { detail: 'slow down' }, { 'retry-after': '30' }]
+    const { w } = await mountScreener()
+    await submit(w)
+    expect(failureText(w)).toContain('Too many runs')
+    expect(failureText(w)).toContain('slow down')
+    screenerReply = () => [200, FIXTURE()]
+    await button(w, 'Retry').trigger('click')
+    await sees(w, 'FIXTUREA')
+    expect(posts).toHaveLength(2)
+  })
+
+  it('network failure: says Aureon is unreachable and can retry', async () => {
+    screenerThrows = true
+    const { w } = await mountScreener()
+    await submit(w)
+    expect(failureText(w)).toContain('Aureon is unreachable')
+    screenerThrows = false
+    await button(w, 'Retry').trigger('click')
+    await sees(w, 'FIXTUREA')
+  })
+
+  it('a 200 that is not a result page is an error, not an empty table', async () => {
+    screenerReply = () => [200, { ok: true }]
+    const { w } = await mountScreener()
+    await submit(w)
+    expect(failureText(w)).toContain('not a result page')
+    expect(w.text()).not.toContain('Nothing matched')
+  })
+
+  it('shows an honest empty state when nothing matched', async () => {
+    screenerReply = () => [200, { ...FIXTURE(), total: 0, items: [] }]
+    const { w } = await mountScreener()
+    await submit(w)
+    expect(w.text()).toContain('Nothing matched')
+    expect(w.text()).toContain('No instrument out of 1800 met every filter')
+    expect(w.find('table').exists()).toBe(false)
+    expect(w.find('nav[aria-label="Pagination"]').exists()).toBe(false)
+  })
+
+  it('sorts on the server: a new direction re-runs from page 1', async () => {
+    const { w } = await mountScreener()
+    await submit(w)
+    await sees(w, 'FIXTUREA')
+    await w
+      .findAll('button')
+      .find((b) => b.text().includes('Low → high'))!
+      .trigger('click')
+    await vi.waitFor(() => expect(posts).toHaveLength(2))
+    expect(posts[1].body).toMatchObject({ sort: { field: 'change_pct', dir: 'asc' }, offset: 0 })
+  })
+
+  it('pages on the server: Next asks for the next offset', async () => {
+    screenerReply = () => [200, { ...FIXTURE(), total: 120 }]
+    const { w } = await mountScreener()
+    await submit(w)
+    expect(w.find('nav[aria-label="Pagination"]').text()).toContain('1 / 3')
+    await w.find('button[aria-label="Next page"]').trigger('click')
+    await vi.waitFor(() => expect(posts).toHaveLength(2))
+    expect(posts[1].body).toMatchObject({ limit: 50, offset: 50 })
+    await vi.waitFor(() => expect(w.find('nav[aria-label="Pagination"]').text()).toContain('2 / 3'))
+  })
+
+  it('Refresh re-runs the same page', async () => {
+    const { w } = await mountScreener()
+    await submit(w)
+    await sees(w, 'FIXTUREA')
+    await button(w, 'Refresh').trigger('click')
+    await vi.waitFor(() => expect(posts).toHaveLength(2))
+    expect(posts[1].body).toEqual(posts[0].body)
+  })
+
+  it('marks results stale when the filters change, and Reset filters restores the defaults', async () => {
+    const { w } = await mountScreener()
+    await submit(w)
+    await sees(w, 'FIXTUREA')
+    expect(w.text()).not.toContain('These results are from different filters')
+    await addFilter(w, 'RSI threshold')
+    await sees(w, 'These results are from different filters')
+    await button(w, 'Reset filters').trigger('click')
+    await flushPromises()
+    expect(w.findAll('.sc__filter')).toHaveLength(1)
+    expect(w.text()).not.toContain('These results are from different filters')
+    // Resetting the filters does not run anything by itself.
+    expect(posts).toHaveLength(1)
+  })
+
+  it('keeps the newest run when an older reply arrives late', async () => {
+    let release!: () => void
+    const late = new Promise<void>((r) => (release = r))
+    let n = 0
+    const fetchImpl = globalThis.fetch
+    vi.stubGlobal('fetch', async (req: Request) => {
+      if (req.method === 'POST' && n++ === 0) await late
+      return fetchImpl(req)
+    })
+    // Run 2 reaches the stub first (posts.length 1); held-back run 1 arrives second.
+    screenerReply = () => [
+      200,
+      posts.length === 2 ? { ...FIXTURE(), total: 99 } : { ...FIXTURE(), total: 2 },
+    ]
+    const { w } = await mountScreener()
+    void w.find('form').trigger('submit') // run 1: held back
+    await flushPromises()
+    await w.find('form').trigger('submit') // run 2: answers at once
+    await sees(w, '2 of 1800 instruments')
+    release()
+    await flushPromises()
+    await flushPromises()
+    expect(w.text()).toContain('2 of 1800 instruments')
+    expect(w.text()).not.toContain('99 of 1800')
   })
 })
