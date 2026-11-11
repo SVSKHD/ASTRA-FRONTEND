@@ -1,0 +1,24 @@
+# Build context for the Dockerfile: source in, local state out.
+.git
+node_modules
+dist
+coverage
+screenshots
+tmp
+*.log
+.DS_Store
+
+# Local environment files never go into an image. Build-time VITE_* values
+# belong in the build environment, not in a file copied from a laptop.
+.env
+.env.*
+!.env.example
+
+# Tooling and agent scratch space
+.claude
+.vscode
+.idea
+.netlify
+legacy-next
+functions/lib
+tsconfig.tsbuildinfo
