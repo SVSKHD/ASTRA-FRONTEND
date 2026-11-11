@@ -84,6 +84,8 @@ Missing:
 
 ## 5. Watchlists: not available
 
+Verified 2026-11-11 against backend `main` @ `00ea4ee`: the tables exist (migration 0028) but no route serves them. Device lists are kept; when the API ships, migrate them by POSTing each list and its items, keeping the local copy until the server confirms (409 on an item already present is success), never deleting a device list the server did not accept.
+
 There is no watchlist API. Lists are kept on the device (`src/trading/watchlists.ts`), and every screen that shows them says "Saved on this device only".
 
 Contract requested:
@@ -105,6 +107,24 @@ WatchlistItem { instrument_id: int, added_at, instrument: InstrumentOut | null }
 All writes require CSRF, like every other cookie-session write. The live stream should accept `?watchlist={id}` so a device subscribes to a list rather than to ids.
 
 ## 6. Screener: not available
+
+**Last verified 2026-11-11 against backend `main` @ `00ea4ee`** (PR #52, "dhan screener"). That change adds the `trading.screener_runs` / `trading.screener_results` and `trading.watchlists` / `trading.watchlist_items` tables (migration 0028) and `SCREENER_*` / `WATCHLIST_*` settings, but **no HTTP route**: `app/api/v1/*.py` declares no `/screener` or `/watchlists` path, and the backend CHANGELOG calls the tables "still unused". The trading routes in `src/api/openapi.json` match the backend's routers, so the gate (`SCREENER_AVAILABLE = false`) is correct and stays until a route ships and `pnpm api:gen` brings it into the contract.
+
+When it ships, the screen already handles every answer (`ScreenerFailure` in `src/trading/screener.ts`):
+
+| Answer             | What the screen does                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| 200, result page   | Renders the rows exactly as sent; sort and page size re-run on the server from page 1              |
+| 200, anything else | "The screener failed": never an empty table                                                        |
+| 401                | "Signed out"; the client's 401 hook returns the panel to its Aureon sign-in                        |
+| 403                | "Not allowed", with the server's reason; no retry                                                  |
+| 404 / 405          | "The screener is not on this server": the deployed backend is older than the frontend's contract   |
+| 422                | Each FastAPI `loc` (`body.filters.N.field`, `universe`, `limit`…) is shown on that field; no retry |
+| 429                | "Too many runs", with `Retry-After`; Retry                                                         |
+| 501                | "Not supported by the broker"                                                                      |
+| 5xx / no answer    | The server's detail, or "Aureon is unreachable"; Retry                                             |
+
+The POST goes through the shared client: session cookie, `X-CSRF-Token`, sent once (unsafe methods are never retried automatically). A reply to an older run never overwrites a newer one, and results produced by different filters than the form now holds are marked as such.
 
 There is no screener API, and screening the whole market in a browser is ruled out. The Screener screen builds the request below. Until the endpoint exists, it shows that screening is unavailable and points here. It never shows locally computed or sample results.
 

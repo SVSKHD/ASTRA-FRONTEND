@@ -11,6 +11,9 @@ import {
   indicatorLabel,
   requestText,
   runScreener,
+  ScreenerFailure,
+  screenerFailure,
+  serverIssues,
   validateRequest,
   watchlistFromQuery,
   type ScreenerFilter,
@@ -204,5 +207,157 @@ describe('runScreener', () => {
     const r = await runScreener(body)
     expect(r.total).toBe(0)
     expect(seen).toEqual([{ method: 'POST', path: SCREENER_RUN_PATH, body }])
+  })
+})
+
+describe('runScreener failures', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  const h = (o: Record<string, string> = {}) => new Headers(o)
+
+  it('classifies every status the screen handles', () => {
+    expect(screenerFailure(401, {}, h()).kind).toBe('auth')
+    expect(screenerFailure(403, { detail: 'admins only' }, h())).toMatchObject({
+      kind: 'forbidden',
+      message: 'admins only',
+    })
+    expect(screenerFailure(404, {}, h()).kind).toBe('not_deployed')
+    expect(screenerFailure(405, {}, h()).kind).toBe('not_deployed')
+    expect(screenerFailure(422, { detail: 'bad' }, h()).kind).toBe('invalid')
+    expect(screenerFailure(501, {}, h()).kind).toBe('unsupported')
+    expect(screenerFailure(500, {}, h())).toMatchObject({
+      kind: 'server',
+      message: 'Aureon answered 500.',
+    })
+    expect(screenerFailure(503, { detail: { code: 'worker_down' } }, h()).message).toBe(
+      'worker down',
+    )
+  })
+
+  it('reads Retry-After on a 429, in seconds or as a date', () => {
+    const s = screenerFailure(429, {}, h({ 'retry-after': '12' }))
+    expect(s).toMatchObject({ kind: 'rate_limited', retryAfter: 12 })
+    expect(s.message).toBe('Too many screener runs. Try again in 12s.')
+    const d = screenerFailure(
+      429,
+      {},
+      h({ 'retry-after': new Date(Date.now() + 5000).toUTCString() }),
+    )
+    expect(d.retryAfter).toBeGreaterThanOrEqual(3)
+    expect(d.retryAfter).toBeLessThanOrEqual(6)
+    expect(screenerFailure(429, {}, h()).retryAfter).toBeNull()
+  })
+
+  it('maps FastAPI 422 locations onto the form', () => {
+    const issues = serverIssues({
+      detail: [
+        { loc: ['body', 'filters', 1, 'slow'], msg: 'must exceed fast', type: 'x' },
+        { loc: ['body', 'universe', 'exchange', 0], msg: 'bad exchange', type: 'x' },
+        { loc: ['body', 'limit'], msg: 'too big', type: 'x' },
+        { loc: ['body', 'timeframe'], msg: 'unknown', type: 'x' },
+        { loc: ['body'], msg: 'whole body', type: 'x' },
+        { nonsense: true },
+      ],
+    })
+    expect(issues).toEqual([
+      { path: 'filters.1', message: 'slow: must exceed fast' },
+      { path: 'universe', message: 'bad exchange' },
+      { path: 'page', message: 'too big' },
+      { path: 'timeframe', message: 'unknown' },
+      { path: 'request', message: 'whole body' },
+    ])
+    expect(serverIssues({ detail: 'universe too large' })).toEqual([
+      { path: 'request', message: 'universe too large' },
+    ])
+    expect(serverIssues(null)).toEqual([])
+  })
+
+  it('turns a network error into a network failure, and a wrong 200 body into a server one', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    await expect(runScreener(buildRequest(defaultForm()))).rejects.toMatchObject({
+      kind: 'network',
+    })
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(JSON.stringify({ items: 'nope' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    )
+    const e = await runScreener(buildRequest(defaultForm())).catch((x) => x)
+    expect(e).toBeInstanceOf(ScreenerFailure)
+    expect(e.kind).toBe('server')
+  })
+
+  it('sends the POST once with the CSRF header, never retrying it', async () => {
+    document.cookie = 'aureon_csrf=tok123; path=/'
+    let n = 0
+    const headers: (string | null)[] = []
+    vi.stubGlobal('fetch', async (req: Request) => {
+      n++
+      headers.push(req.headers.get('x-csrf-token'))
+      return new Response(JSON.stringify({ detail: 'down' }), {
+        status: 503,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    await expect(runScreener(buildRequest(defaultForm()))).rejects.toMatchObject({
+      kind: 'server',
+    })
+    expect(n).toBe(1)
+    expect(headers).toEqual(['tok123'])
+    document.cookie = 'aureon_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
+  })
+})
+
+describe('EMA 8/32 and custom EMA filters', () => {
+  it('defaults to an EMA 8/32 bullish crossover on confirmed candles', () => {
+    const r = buildRequest(defaultForm())
+    expect(r.candle).toBe('confirmed')
+    expect(r.filters).toEqual([
+      { type: 'ema_cross', fast: 8, slow: 32, direction: 'bullish', within_bars: 3 },
+    ])
+    expect(describeFilter(r.filters[0])).toBe('EMA 8 crosses above EMA 32 within 3 bars')
+  })
+
+  it('keeps custom fast/slow EMA periods and the bearish direction as typed', () => {
+    const form = defaultForm()
+    form.filters = [
+      { type: 'ema_cross', fast: 13, slow: 55, direction: 'bearish', within_bars: 1 },
+      { type: 'ema_position', fast: 8, slow: 32, relation: 'below' },
+      { type: 'price_vs_ema', period: 32, relation: 'above' },
+    ]
+    const r = buildRequest(form)
+    expect(validateRequest(r)).toEqual([])
+    expect(r.filters).toEqual(form.filters)
+    expect(r.filters.map(describeFilter)).toEqual([
+      'EMA 13 crosses below EMA 55 within 1 bar',
+      'EMA 8 below EMA 32',
+      'Price above EMA 32',
+    ])
+  })
+
+  it('rejects an EMA pair whose fast period is not shorter, or a fractional period', () => {
+    const form = defaultForm()
+    form.filters = [
+      { type: 'ema_cross', fast: 32, slow: 8, direction: 'bullish', within_bars: 3 },
+      { type: 'ema_position', fast: 8, slow: 8, relation: 'above' },
+      { type: 'price_vs_ema', period: 8.5, relation: 'above' },
+    ]
+    const msgs = validateRequest(buildRequest(form))
+    expect(msgs.filter((m) => m.path === 'filters.0').map((m) => m.message)).toContain(
+      'The fast period must be shorter than the slow one.',
+    )
+    expect(msgs.some((m) => m.path === 'filters.1')).toBe(true)
+    expect(msgs.filter((m) => m.path === 'filters.2').map((m) => m.message)).toContain(
+      'EMA period must be a whole number above 0.',
+    )
+  })
+
+  it('labels the EMA 8 and EMA 32 readings the server returns', () => {
+    expect(indicatorLabel('ema:8')).toBe('EMA 8')
+    expect(indicatorLabel('ema:32')).toBe('EMA 32')
   })
 })
