@@ -1,18 +1,18 @@
 // The instrument universe, from the backend's instrument master only.
 //
-//   GET /api/trading/instruments ?broker&q&instrument_type&limit&offset  → Page<InstrumentOut>
+//   GET /api/trading/instruments ?broker&q&instrument_type&exchange&segment&limit&offset
+//   GET /api/trading/brokers     the brokers, how many instruments each has, per segment
 //
 // Nothing here is hardcoded market data: every instrument, symbol and lot size
-// comes from that endpoint. The vocabulary is Dhan's, kept as the backend
+// comes from those endpoints. The vocabulary is Dhan's, kept as the backend
 // normalises it (backend app/agents/trading/dhan/parse.py):
 //
 //   segment            NSE_EQ · NSE_FNO · BSE_EQ · BSE_FNO · NSE_CURRENCY · BSE_CURRENCY · IDX_I
 //   instrument_type    EQUITY · INDEX · FUTIDX · FUTSTK · OPTIDX · OPTSTK · FUTCOM · …
 //   broker_instrument_id "SEGMENT:SECURITY_ID" (security ids are unique only within a segment)
 //
-// BACKEND GAP (docs/market-terminal.md §2): the endpoint filters by `q` and
-// `instrument_type` only. NSE/BSE and segment filters therefore apply to the
-// page that came back, and say so; they must not pretend to filter the market.
+// Every filter (text, type, exchange, segment, broker) is applied by the server
+// before paging, so it covers the whole master, not just the loaded page.
 
 import { aureon, type components } from '@/api/client'
 import { must } from '@/trading/useLoad'
@@ -20,8 +20,9 @@ import { must } from '@/trading/useLoad'
 export type Instrument = components['schemas']['InstrumentOut']
 export type InstrumentPage = components['schemas']['Page_InstrumentOut_']
 export type Broker = components['schemas']['Broker']
+export type BrokerInfo = components['schemas']['BrokerOut']
 
-export type Exchange = 'NSE' | 'BSE'
+export type Exchange = 'NSE' | 'BSE' | 'MCX'
 export type Kind = 'equity' | 'index' | 'future' | 'option' | 'other'
 
 export const KIND_LABEL: Record<Kind, string> = {
@@ -63,6 +64,7 @@ export function exchangeOf(
   const raw = (i.exchange || segmentOf(i) || '').toUpperCase()
   if (raw.startsWith('NSE')) return 'NSE'
   if (raw.startsWith('BSE')) return 'BSE'
+  if (raw.startsWith('MCX')) return 'MCX'
   return null
 }
 
@@ -86,6 +88,8 @@ export interface InstrumentQuery {
   broker?: Broker
   q?: string
   instrumentType?: string
+  exchange?: Exchange
+  segment?: string
   limit?: number
   offset?: number
 }
@@ -101,10 +105,23 @@ export async function searchInstruments(query: InstrumentQuery): Promise<Instrum
           broker: query.broker ?? 'dhan',
           ...(q ? { q: q.slice(0, 64) } : {}),
           ...(query.instrumentType ? { instrument_type: [query.instrumentType] } : {}),
+          ...(query.exchange ? { exchange: [query.exchange] } : {}),
+          ...(query.segment ? { segment: [query.segment] } : {}),
           limit: query.limit ?? PAGE_SIZE,
           offset: query.offset ?? 0,
         },
       },
     }),
   )
+}
+
+/** The brokers the server knows, with their instrument counts per segment. */
+export async function fetchBrokers(): Promise<BrokerInfo[]> {
+  return must(await aureon.GET('/api/trading/brokers'))
+}
+
+/** "Dhan · 197,073 instruments", or "MT5 · not configured". */
+export function brokerLabel(b: BrokerInfo): string {
+  if (!b.configured) return `${b.label} · not configured`
+  return `${b.label} · ${b.instruments.toLocaleString()} instruments`
 }
