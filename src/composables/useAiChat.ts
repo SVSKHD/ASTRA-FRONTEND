@@ -286,9 +286,16 @@ function finish(status: 'done' | 'error') {
   abort = null
 }
 
-async function send(prompt: string): Promise<void> {
+/** A file already uploaded for this message (src/ai/attachments.ts). */
+export interface SentFile {
+  id: string
+  name: string
+  kind: 'image' | 'pdf' | 'table'
+}
+
+async function send(prompt: string, files: SentFile[] = []): Promise<void> {
   const app = useAppStore()
-  const body = prompt.trim()
+  const body = prompt.trim() || (files.length ? 'Please look at the attached file.' : '')
   if (!body || streaming.value) return
   let chatId = app.aiActiveChatId
   if (chatId == null) chatId = app.newAiChat()
@@ -299,11 +306,21 @@ async function send(prompt: string): Promise<void> {
   // setting (Bytez "Qwen3 4B" by default) is never stamped on an Aureon reply,
   // which used to label a Gemini answer as Qwen until the stream named it.
   const onAureon = aiBackend() === 'aureon'
-  app.addAiMessage(chatId, { role: 'user', content: body })
+  app.addAiMessage(chatId, {
+    role: 'user',
+    content: body,
+    ...(files.length ? { attachments: files.map((f) => ({ ...f })) } : {}),
+  })
   if (onAureon) {
     // Claude: the server owns the prompt, the data and the history; one message goes.
     const msgId = app.addAiMessage(chatId, { role: 'assistant', content: '' })
-    await sendAureon(app, chatId, msgId, body)
+    await sendAureon(
+      app,
+      chatId,
+      msgId,
+      body,
+      files.map((f) => f.id),
+    )
     return
   }
 
@@ -430,6 +447,7 @@ async function sendAureon(
   chatId: number,
   msgId: number,
   prompt: string,
+  attachments: string[] = [],
 ): Promise<void> {
   const key = String(chatId)
   const agent = agentFor(key)
@@ -450,6 +468,7 @@ async function sendAureon(
       agent,
       chatKey: key,
       signal: abort.signal,
+      attachments,
       // Read-only: what is open in the workspace, so Claude can answer about it.
       workspace: workspaceSummary({
         todos: app.todos,

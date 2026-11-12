@@ -19,6 +19,16 @@ import GlassPanel from '@/components/ui/GlassPanel.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import AiActionDialog from '@/components/AiActionDialog.vue'
+import {
+  ACCEPT,
+  KIND_ICON,
+  MAX_FILES,
+  kindOf,
+  refusal,
+  sizeText,
+  uploadAttachment,
+  type AttachmentKind,
+} from '@/ai/attachments'
 import { describeSuggestion, draftFromSuggestion, type Suggestion } from '@/ai/workspace'
 import AiTypoFixDialog from '@/components/AiTypoFixDialog.vue'
 import type { IconName } from '@/components/ui/icons'
@@ -292,10 +302,84 @@ const isStreamingMsg = (msgId: number) => streaming.value && run.value?.msgId ==
 
 function send(prompt?: string) {
   const body = (prompt ?? text.value).trim()
-  if (!body || streaming.value || !isOnline.value) return
-  if (prompt == null) text.value = ''
+  const files = prompt == null ? readyFiles.value : []
+  if ((!body && !files.length) || streaming.value || !isOnline.value) return
+  if (prompt == null && uploading.value) return
+  if (prompt == null) {
+    text.value = ''
+    pending.value = []
+  }
   mobilePane.value = 'thread'
-  void ai.send(body)
+  void ai.send(body, files)
+}
+
+// --- attachments: photos, PDFs, spreadsheets (Claude only) ---------------------
+interface PendingFile {
+  key: number
+  name: string
+  size: number
+  kind: AttachmentKind | null
+  status: 'uploading' | 'ready' | 'error'
+  id?: string
+  error?: string
+}
+const pending = ref<PendingFile[]>([])
+const fileInput = ref<HTMLInputElement | null>(null)
+const dragOver = ref(false)
+let fileSeq = 0
+const uploading = computed(() => pending.value.some((f) => f.status === 'uploading'))
+const readyFiles = computed(() =>
+  pending.value
+    .filter((f) => f.status === 'ready' && f.id && f.kind)
+    .map((f) => ({ id: f.id!, name: f.name, kind: f.kind! })),
+)
+// Photos and PDFs reach Claude as they are; only text can be redacted.
+const unredacted = computed(() =>
+  pending.value.some((f) => f.status !== 'error' && (f.kind === 'image' || f.kind === 'pdf')),
+)
+function patchFile(key: number, patch: Partial<PendingFile>) {
+  pending.value = pending.value.map((f) => (f.key === key ? { ...f, ...patch } : f))
+}
+async function addFiles(list: FileList | File[] | null | undefined) {
+  for (const file of Array.from(list ?? [])) {
+    if (pending.value.filter((f) => f.status !== 'error').length >= MAX_FILES) {
+      app.showToastMsg(`At most ${MAX_FILES} files per message.`)
+      break
+    }
+    const key = ++fileSeq
+    const why = refusal(file)
+    pending.value = [
+      ...pending.value,
+      {
+        key,
+        name: file.name,
+        size: file.size,
+        kind: kindOf(file.name),
+        status: why ? 'error' : 'uploading',
+        error: why ?? undefined,
+      },
+    ]
+    if (why) continue
+    try {
+      const out = await uploadAttachment(file)
+      patchFile(key, { status: 'ready', id: out.id, kind: out.kind, name: out.name })
+    } catch (e) {
+      patchFile(key, { status: 'error', error: (e as Error).message })
+    }
+  }
+}
+function removeFile(key: number) {
+  pending.value = pending.value.filter((f) => f.key !== key)
+}
+function onPick(e: Event) {
+  const input = e.target as HTMLInputElement
+  void addFiles(input.files)
+  input.value = '' // the same file can be picked again
+}
+function onDrop(e: DragEvent) {
+  dragOver.value = false
+  if (!onAureon) return
+  void addFiles(e.dataTransfer?.files)
 }
 // The whole composer card is the text field: a tap anywhere on it that is not
 // one of its buttons puts the caret in the box.
@@ -961,6 +1045,12 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             <template v-for="m in activeAiChat.messages" :key="m.id">
               <div v-if="m.role === 'user'" class="ai-user" :class="{ 'is-new': isFresh(m) }">
                 <div class="ai-user__bubble">{{ m.content }}</div>
+                <div v-if="m.attachments?.length" class="ai-files is-sent">
+                  <span v-for="f in m.attachments" :key="f.id" class="ai-file is-ready">
+                    <Icon :name="KIND_ICON[f.kind]" size="xs" />
+                    <span class="ai-file__name">{{ f.name }}</span>
+                  </span>
+                </div>
               </div>
 
               <div v-else class="ai-reply" :class="{ 'is-new': isFresh(m) }">
@@ -1416,7 +1506,39 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
         <!-- The whole card is the field: no border of its own or round the box.
              While a reply streams the next message can be typed but waits — the
              spinner holds its place, and a tap on it stops the reply. -->
-        <div class="ai-composer" :class="{ 'is-busy': streaming }" @click="focusComposer">
+        <div v-if="pending.length" class="ai-files" data-testid="pending-files">
+          <span
+            v-for="f in pending"
+            :key="f.key"
+            class="ai-file"
+            :class="`is-${f.status}`"
+            :title="f.error ?? `${f.name} · ${sizeText(f.size)}`"
+          >
+            <Icon :name="f.kind ? KIND_ICON[f.kind] : 'alert-circle'" size="xs" />
+            <span class="ai-file__name">{{ f.name }}</span>
+            <span v-if="f.status === 'uploading'" class="ai-file__state">uploading…</span>
+            <span v-else-if="f.status === 'error'" class="ai-file__state">{{ f.error }}</span>
+            <button
+              type="button"
+              class="ai-file__x"
+              :aria-label="`Remove ${f.name}`"
+              @click.stop="removeFile(f.key)"
+            >
+              <Icon name="x" size="xs" />
+            </button>
+          </span>
+          <span v-if="unredacted" class="ai-files__note" data-testid="unredacted-note">
+            Photos and PDFs are sent to Claude as they are (not redacted).
+          </span>
+        </div>
+        <div
+          class="ai-composer"
+          :class="{ 'is-busy': streaming, 'is-drop': dragOver }"
+          @click="focusComposer"
+          @dragover.prevent="dragOver = onAureon"
+          @dragleave="dragOver = false"
+          @drop.prevent="onDrop"
+        >
           <TextArea
             ref="composerRef"
             class="ai-composer__field"
@@ -1434,6 +1556,27 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             @update:model-value="text = $event"
             @keydown="onComposerKey"
           />
+          <template v-if="onAureon">
+            <input
+              ref="fileInput"
+              type="file"
+              class="ai-file-input"
+              multiple
+              :accept="ACCEPT"
+              aria-label="Attach files"
+              @change="onPick"
+            />
+            <button
+              type="button"
+              class="ai-mic"
+              aria-label="Attach photos, PDFs or spreadsheets"
+              title="Attach photos, PDFs, Excel or CSV"
+              :disabled="!isOnline"
+              @click.stop="fileInput?.click()"
+            >
+              <Icon name="paperclip" />
+            </button>
+          </template>
           <button
             v-if="mic.supported"
             type="button"
@@ -1461,7 +1604,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
               <Icon class="ai-send__stop" name="square" size="xs" />
             </button>
             <button
-              v-else-if="text.trim() && isOnline"
+              v-else-if="(text.trim() || readyFiles.length) && isOnline && !uploading"
               key="enter"
               type="button"
               class="ai-send"
@@ -2510,6 +2653,62 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   cursor: default;
 }
 /* The mic: a quiet round button beside Send; listening, it fills and pulses. */
+/* ---- attachments: chips above the composer, and under a sent message ---- */
+.ai-file-input {
+  display: none;
+}
+.ai-files {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.ai-files.is-sent {
+  justify-content: flex-end;
+  margin: var(--sp-1) 0 0;
+}
+.ai-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-input);
+  font-size: var(--text-xs, 12px);
+}
+.ai-file.is-error {
+  border-color: var(--theme-danger);
+  color: var(--theme-danger);
+}
+.ai-file__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.ai-file__state {
+  opacity: 0.8;
+}
+.ai-file__x {
+  display: inline-flex;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.ai-files__note {
+  flex-basis: 100%;
+  color: var(--theme-warning);
+  font-size: var(--text-xs, 12px);
+}
+.ai-composer.is-drop {
+  outline: 2px dashed var(--theme-accent);
+  outline-offset: 2px;
+}
 .ai-mic {
   flex-shrink: 0;
   display: grid;

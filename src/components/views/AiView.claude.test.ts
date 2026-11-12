@@ -103,4 +103,46 @@ describe('<AiView /> on Claude', () => {
     expect(aureonAi.agents[String(id)]).toBe('business')
     expect(w.get('[data-testid="agent-note"]').text()).toContain('Aquakart')
   })
+
+  it('attaches files, says photos are not redacted, and sends their ids', async () => {
+    const posts: { url: string; body: unknown }[] = []
+    vi.stubGlobal('fetch', async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url)
+      if (u.includes('/api/ai/attachments')) {
+        const file = (init?.body as FormData).get('file') as File
+        return new Response(
+          JSON.stringify({ id: `id-${file.name}`, name: file.name, kind: 'image',
+                           media_type: 'image/png', size: file.size }), // prettier-ignore
+          { status: 201, headers: { 'content-type': 'application/json' } },
+        )
+      }
+      posts.push({ url: u, body: JSON.parse(String(init?.body ?? '{}')) })
+      return new Response('event: done\ndata: {"conversation_id":"c1","text":"A chart."}\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    })
+    const app = useAppStore()
+    app.newAiChat()
+    const w = mount(AiView, { global, attachTo: document.body })
+    const input = w.get('input[type="file"]')
+    const png = new File([new Uint8Array([137, 80, 78, 71])], 'chart.png', { type: 'image/png' })
+    Object.defineProperty(input.element, 'files', { value: [png], configurable: true })
+    await input.trigger('change')
+    await vi.waitFor(() => expect(w.text()).toContain('chart.png'))
+    await vi.waitFor(() => expect(w.text()).not.toContain('uploading…'))
+    expect(w.get('[data-testid="unredacted-note"]').text()).toContain('not redacted')
+    // A refused file is shown with its reason and never uploaded.
+    const exe = new File(['MZ'], 'setup.exe')
+    Object.defineProperty(input.element, 'files', { value: [exe], configurable: true })
+    await input.trigger('change')
+    await vi.waitFor(() => expect(w.text()).toContain('setup.exe'))
+    // Send with no text: the files alone are enough.
+    await w.get('button[aria-label="Send (Enter)"]').trigger('click')
+    await vi.waitFor(() => expect(posts.length).toBe(1))
+    expect(posts[0].body).toMatchObject({ attachments: ['id-chart.png'] })
+    await vi.waitFor(() => expect(w.find('[data-testid="pending-files"]').exists()).toBe(false))
+    w.unmount()
+    vi.unstubAllGlobals()
+  })
 })

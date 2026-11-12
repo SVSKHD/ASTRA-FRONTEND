@@ -312,6 +312,8 @@ export async function* streamChat(opts: {
   fetchImpl?: typeof fetch
   /** The user's open items, read-only context for Claude (src/ai/workspace.ts). */
   workspace?: WorkspaceIn
+  /** Ids from POST /api/ai/attachments (src/ai/attachments.ts). */
+  attachments?: string[]
 }): AsyncGenerator<ChatEvent> {
   const doFetch = opts.fetchImpl ?? fetch
   const post = (conversationId: string | undefined) => {
@@ -326,6 +328,7 @@ export async function* streamChat(opts: {
       ...(conversationId ? { conversation_id: conversationId } : {}),
       ...(opts.agent && opts.agent !== 'auto' ? { agent: opts.agent } : {}),
       ...(opts.workspace ? { workspace: opts.workspace } : {}),
+      ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
     }
     return doFetch(apiUrl('/api/ai/chat'), {
       method: 'POST',
