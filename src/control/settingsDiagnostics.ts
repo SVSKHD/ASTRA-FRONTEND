@@ -3,14 +3,17 @@
 // every layer a value passes through, as masks only:
 //
 //   .env (or the default) → the encrypted DB row → what a reload would give → what the
-//   server is running with now
+//   server is running with now → what every worker process loaded
 //
-// and naming where they disagree. Nothing here ever holds a value.
+// and naming where they disagree. Non-secret values arrive in full; secrets as masks,
+// and in full only through the password-checked reveal (useSettingWriter.reveal).
 import type { Schemas } from '@/control/api'
 
 export type Diagnostics = Schemas['DiagnosticsOut']
 export type KeyDiagnosis = Schemas['KeyDiagnosisOut']
 export type IssueCode = KeyDiagnosis['issues'][number]
+export type ProcessReport = Diagnostics['processes'][number]
+export type LayerId = 'env' | 'db' | 'expected' | 'live'
 export type Tone = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 
 interface IssueInfo {
@@ -54,7 +57,7 @@ export function isProblem(code: IssueCode): boolean {
 }
 
 export function problemKeys(d: Diagnostics): KeyDiagnosis[] {
-  return d.keys.filter((k) => k.issues.some(isProblem))
+  return d.keys.filter((k) => k.issues.some(isProblem) || staleIn(d, k.key).length)
 }
 
 export interface Check {
@@ -137,6 +140,48 @@ export function checks(d: Diagnostics): Check[] {
         }
       : { id: 'live', label: 'Running', value: 'Up to date', tone: 'success' },
   )
+  out.push(
+    !d.redis.ok
+      ? {
+          id: 'redis',
+          label: 'Change signal',
+          value: 'Redis down',
+          tone: 'danger',
+          detail: d.redis.error ?? 'Workers only notice changes by polling',
+        }
+      : {
+          id: 'redis',
+          label: 'Change signal',
+          value: `${d.redis.listeners ?? 0} listening`,
+          tone: d.redis.listeners ? 'success' : 'warning',
+          detail: d.redis.listeners ? 'Redis' : 'No process listens for changes',
+        },
+  )
+  const staleProcs = d.processes.filter((p) => p.stale.length)
+  out.push(
+    !d.processes.length
+      ? {
+          id: 'processes',
+          label: 'Workers',
+          value: 'No reports',
+          tone: 'warning',
+          detail: 'Processes report after a restart with this version',
+        }
+      : staleProcs.length
+        ? {
+            id: 'processes',
+            label: 'Workers',
+            value: `${staleProcs.length} of ${d.processes.length} out of date`,
+            tone: 'warning',
+            detail: staleProcs.map((p) => p.process).join(', '),
+          }
+        : {
+            id: 'processes',
+            label: 'Workers',
+            value: `${d.processes.length} up to date`,
+            tone: 'success',
+          },
+  )
   const ai = d.ai
   out.push(
     !ai.configured
@@ -171,7 +216,7 @@ export function headline(d: Diagnostics): { tone: Tone; text: string } {
   const broken = checks(d).filter((c) => c.tone === 'danger').length
   const warn = checks(d).filter((c) => c.tone === 'warning').length
   if (broken) return { tone: 'danger', text: `${broken} problem${broken === 1 ? '' : 's'} found` }
-  if (warn) return { tone: 'warning', text: 'Saved changes are waiting to be applied' }
+  if (warn) return { tone: 'warning', text: `${warn} warning${warn === 1 ? '' : 's'}: see below` }
   return { tone: 'success', text: 'Every layer agrees' }
 }
 
@@ -193,4 +238,93 @@ export function filterKeys(d: Diagnostics, filter: Filter, category?: string): K
 /** The value at one layer, for a cell: the mask, or a dash. */
 export function cell(masked: string | null | undefined): string {
   return masked ?? '—'
+}
+
+/** A value as it should read in a code block: JSON pretty-printed, the rest as is. */
+export function pretty(value: string, kind = 'str'): string {
+  if (kind !== 'json_object' && kind !== 'json_list') return value
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2)
+  } catch {
+    return value
+  }
+}
+
+export interface Layer {
+  id: LayerId
+  label: string
+  /** The full value: always for a non-secret, for a secret only once revealed. */
+  value: string | null
+  masked: string | null
+  /** Under the block: where it comes from, its version… */
+  note: string
+  empty: string
+  tone: 'neutral' | 'warning' | 'danger'
+}
+
+/** The four layers of one key, filled from the report and, for a secret, a reveal. */
+export function layersOf(
+  k: KeyDiagnosis,
+  revealed?: {
+    env: string | null
+    db: string | null
+    db_present: boolean
+    expected: string | null
+    live: string | null
+  } | null,
+): Layer[] {
+  const full = (plain: string | null | undefined, shown: string | null | undefined) =>
+    k.is_secret ? (revealed ? (shown ?? null) : null) : (plain ?? null)
+  const undecryptable = k.issues.includes('db_undecryptable')
+  return [
+    {
+      id: 'env',
+      label: '.env',
+      value: full(k.env_value, revealed?.env),
+      masked: k.env_masked,
+      note: SOURCE_LABEL[k.env_source] ?? k.env_source,
+      empty: k.env_source === 'unset' ? 'Not set in .env' : '—',
+      tone: 'neutral',
+    },
+    {
+      id: 'db',
+      label: 'Database',
+      value: full(k.db_value, revealed?.db),
+      masked: k.db_masked,
+      note: k.db_present
+        ? `version ${k.db_version ?? '?'}${undecryptable ? ' · cannot be decrypted' : ''}`
+        : 'No saved value',
+      empty: undecryptable ? 'Unreadable (another SETTINGS_MASTER_KEY)' : 'Nothing saved',
+      tone: undecryptable || k.issues.includes('db_rejected') ? 'danger' : 'neutral',
+    },
+    {
+      id: 'expected',
+      label: 'After reload',
+      value: full(k.expected_value, revealed?.expected),
+      masked: k.expected_masked,
+      note: SOURCE_LABEL[k.expected_source] ?? k.expected_source,
+      empty: 'Not set',
+      tone: 'neutral',
+    },
+    {
+      id: 'live',
+      label: 'Running now',
+      value: full(k.live_value, revealed?.live),
+      masked: k.live_masked,
+      note: k.issues.includes('stale') ? 'Older value: reload to apply' : 'This API process',
+      empty: 'Not set',
+      tone: k.issues.includes('stale') ? 'warning' : 'neutral',
+    },
+  ]
+}
+
+/** Processes still running an older value of this key (the ones that use it live). */
+export function staleIn(d: Diagnostics, key: string): ProcessReport[] {
+  return d.processes.filter((p) => p.stale.includes(key))
+}
+
+/** What a process watches, in words. */
+export function watchesText(p: ProcessReport): string {
+  if (p.watches.includes('')) return 'every setting'
+  return p.watches.map((w) => `${w}*`).join(', ') || 'nothing'
 }

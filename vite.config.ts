@@ -251,12 +251,18 @@ plugins.push(buildStamp() as never)
 // in `.env`, the dev server forwards `/api/*` there, so the browser still sees
 // one origin (localhost) and the SameSite=Strict session + CSRF cookies work:
 // the backend sets them with no Domain, and browsers accept Secure cookies on
-// localhost. `/api/ai` and `/api/github` stay with the local Netlify functions.
+// localhost. `/api/github` stays with the local Netlify function. `/api/ai` goes to
+// Aureon too (POST /api/ai/chat: Claude behind the server), unless
+// VITE_AI_BACKEND=proxy keeps it on the legacy Netlify AI function.
 // Unset (the default), nothing is proxied and `/api/*` has no backend locally.
 const DEV_API = (process.env.AUREON_DEV_PROXY ?? '').trim().replace(/\/+$/, '')
+const AI_LOCAL = (process.env.VITE_AI_BACKEND ?? '').trim().toLowerCase() === 'proxy'
+const DEV_PROXY_PATTERN = AI_LOCAL
+  ? '^/api/(?!(?:ai|github)(?:[/?]|$))'
+  : '^/api/(?!github(?:[/?]|$))'
 const devProxy = DEV_API
   ? {
-      '^/api/(?!(?:ai|github)(?:[/?]|$))': {
+      [DEV_PROXY_PATTERN]: {
         target: DEV_API,
         changeOrigin: true,
         secure: true,

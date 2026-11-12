@@ -47,6 +47,7 @@ const SETTINGS = {
       source: 'db',
       is_set: true,
       masked: '••••100',
+      value: '100',
     }),
     row('AI_DAILY_REPORT_CRON', 'ai', 'str', { source: 'default' }),
     row('AI_FUTURE_KNOB', 'ai', 'int'),
@@ -236,7 +237,9 @@ describe('<CcSettings />', () => {
     const f = field(w, 'AI_MONTHLY_BUDGET_USD')
     expect(f.findAll('[data-testid="save"]').length).toBe(0)
     expect(f.text()).toContain('USD')
-    expect(f.get('input').attributes('placeholder')).toBe('Now ••••100')
+    // The editor starts from the value in use, which also shows as code under it.
+    expect((f.get('input').element as HTMLInputElement).value).toBe('100')
+    expect(f.get('[data-testid="value-in-use"] code').text()).toBe('100')
     await f.get('input').setValue('150.5')
     expect(f.find('[data-testid="unsaved-dot"]').exists()).toBe(true)
     await f.get('[data-testid="save"]').trigger('click')
@@ -265,7 +268,7 @@ describe('<CcSettings />', () => {
     const f = field(w, 'AI_MONTHLY_BUDGET_USD')
     await f.get('[data-testid="revert"]').trigger('click')
     expect(api.DELETE).not.toHaveBeenCalled()
-    expect(f.text()).toContain('cannot be brought back')
+    expect(f.text()).toContain('Copy the value above first')
     await f.get('[data-testid="revert"]').trigger('click')
     await flushPromises()
     expect(api.DELETE).toHaveBeenCalledWith('/api/v1/settings/{key}', {
@@ -341,5 +344,65 @@ describe('<CcSettings />', () => {
     await retry.trigger('click')
     await flushPromises()
     expect(tabLabels(w).length).toBe(3)
+  })
+
+  it('reveals a secret only after the password, as code, and hides it again', async () => {
+    const { w } = await mounted('/dev/settings?category=github')
+    const f = field(w, 'GITHUB_TOKEN')
+    expect(f.find('[data-testid="value-code"]').exists()).toBe(false)
+    expect(f.get('[data-testid="value-mask"]').text()).toBe('••••wxyz')
+    await f.get('[data-testid="reveal"]').trigger('click')
+    expect(api.POST).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Show GitHub token')
+    api.POST.mockResolvedValue(
+      res({
+        key: 'GITHUB_TOKEN',
+        env: null,
+        db: 'ghp_full',
+        db_present: true,
+        expected: 'ghp_full',
+        live: 'ghp_full',
+      }),
+    )
+    const pw = document.body.querySelector('input[type="password"]') as HTMLInputElement
+    pw.value = 'pw'
+    pw.dispatchEvent(new Event('input'))
+    await flushPromises()
+    const form = document.body.querySelector('form') as HTMLFormElement
+    form.dispatchEvent(new Event('submit'))
+    await flushPromises()
+    expect(api.POST).toHaveBeenCalledWith('/api/v1/settings/{key}/reveal', {
+      params: { path: { key: 'GITHUB_TOKEN' } },
+      body: { password: 'pw' },
+    })
+    expect(f.get('[data-testid="value-code"]').text()).toBe('ghp_full')
+    await f.get('[data-testid="hide"]').trigger('click')
+    expect(f.text()).not.toContain('ghp_full')
+  })
+
+  it('edits any non-secret as text, starting from the exact value in use', async () => {
+    const { w } = await mounted()
+    const f = field(w, 'AI_MONTHLY_BUDGET_USD')
+    await f.get('[data-testid="edit-as-text"]').trigger('click')
+    const raw = f.get('[data-testid="raw-editor"] textarea')
+    expect((raw.element as HTMLTextAreaElement).value).toBe('100')
+    await raw.setValue('100')
+    expect(f.find('[data-testid="save"]').exists()).toBe(false) // unchanged: nothing to save
+    await raw.setValue('125')
+    await f.get('[data-testid="save"]').trigger('click')
+    await flushPromises()
+    expect(api.PUT).toHaveBeenCalledWith('/api/v1/settings/{key}', {
+      params: { path: { key: 'AI_MONTHLY_BUDGET_USD' } },
+      body: { value: '125' },
+    })
+  })
+
+  it('opens Diagnose from the header and keeps it in the URL', async () => {
+    const { w, router } = await mounted()
+    await w.get('[data-testid="diagnose-toggle"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.diagnose).toBe('1')
+    expect(api.GET).toHaveBeenCalledWith('/api/v1/settings/diagnostics')
+    expect(w.find('[data-testid="settings-diagnostics"]').exists()).toBe(true)
   })
 })

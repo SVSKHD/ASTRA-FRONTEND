@@ -4430,6 +4430,16 @@
             "title": "Overlay Ok",
             "type": "boolean"
           },
+          "processes": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessOut"
+            },
+            "title": "Processes",
+            "type": "array"
+          },
+          "redis": {
+            "$ref": "#/components/schemas/RedisOut"
+          },
           "rejected": {
             "items": {
               "type": "string"
@@ -4450,6 +4460,13 @@
             },
             "title": "Stale",
             "type": "array"
+          },
+          "tests": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TestResultOut"
+            },
+            "title": "Tests",
+            "type": "object"
           },
           "undecryptable": {
             "items": {
@@ -4481,7 +4498,10 @@
           "overlay_ok",
           "overlay_fields",
           "stale",
+          "redis",
+          "processes",
           "ai",
+          "tests",
           "keys"
         ],
         "title": "DiagnosticsOut",
@@ -7673,6 +7693,17 @@
             ],
             "title": "Db Updated At"
           },
+          "db_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db Value"
+          },
           "db_version": {
             "anyOf": [
               {
@@ -7704,6 +7735,17 @@
             "title": "Env Source",
             "type": "string"
           },
+          "env_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Env Value"
+          },
           "expected_masked": {
             "anyOf": [
               {
@@ -7724,6 +7766,17 @@
             ],
             "title": "Expected Source",
             "type": "string"
+          },
+          "expected_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Value"
           },
           "is_secret": {
             "title": "Is Secret",
@@ -7747,6 +7800,10 @@
             "title": "Key",
             "type": "string"
           },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
           "live_masked": {
             "anyOf": [
               {
@@ -7757,21 +7814,42 @@
               }
             ],
             "title": "Live Masked"
+          },
+          "live_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Value"
+          },
+          "requires_reauth": {
+            "title": "Requires Reauth",
+            "type": "boolean"
           }
         },
         "required": [
           "key",
           "category",
           "is_secret",
+          "kind",
+          "requires_reauth",
           "env_masked",
+          "env_value",
           "env_source",
           "db_present",
           "db_masked",
+          "db_value",
           "db_version",
           "db_updated_at",
           "expected_masked",
+          "expected_value",
           "expected_source",
           "live_masked",
+          "live_value",
           "issues"
         ],
         "title": "KeyDiagnosisOut",
@@ -12534,6 +12612,84 @@
         "title": "PriceVsEmaFilter",
         "type": "object"
       },
+      "ProcessOut": {
+        "properties": {
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "pid": {
+            "title": "Pid",
+            "type": "integer"
+          },
+          "process": {
+            "title": "Process",
+            "type": "string"
+          },
+          "stale": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stale",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "this": {
+            "title": "This",
+            "type": "boolean"
+          },
+          "unwatched_stale": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unwatched Stale",
+            "type": "array"
+          },
+          "watches": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Watches",
+            "type": "array"
+          }
+        },
+        "required": [
+          "process",
+          "host",
+          "pid",
+          "started_at",
+          "applied_at",
+          "watches",
+          "stale",
+          "unwatched_stale",
+          "this"
+        ],
+        "title": "ProcessOut",
+        "type": "object"
+      },
       "ProtectionUpdate": {
         "additionalProperties": false,
         "description": "The body of GitHub's PUT /branches/{branch}/protection, passed through as given.",
@@ -13705,6 +13861,43 @@
           "detail"
         ],
         "title": "ReconnectOut",
+        "type": "object"
+      },
+      "RedisOut": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "listeners": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listeners"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "error",
+          "listeners"
+        ],
+        "title": "RedisOut",
         "type": "object"
       },
       "ReloadOut": {
@@ -14941,6 +15134,91 @@
           "deployed"
         ],
         "title": "RepositoryStatusOut",
+        "type": "object"
+      },
+      "RevealIn": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "title": "RevealIn",
+        "type": "object"
+      },
+      "RevealOut": {
+        "properties": {
+          "db": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db"
+          },
+          "db_present": {
+            "title": "Db Present",
+            "type": "boolean"
+          },
+          "env": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Env"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "live": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live"
+          }
+        },
+        "required": [
+          "key",
+          "env",
+          "db",
+          "db_present",
+          "expected",
+          "live"
+        ],
+        "title": "RevealOut",
         "type": "object"
       },
       "RevertIn": {
@@ -16716,12 +16994,31 @@
           "pid": {
             "title": "Pid",
             "type": "integer"
+          },
+          "settings_applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings Applied At"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
           }
         },
         "required": [
           "host",
           "pid",
-          "environment"
+          "environment",
+          "started_at",
+          "settings_applied_at"
         ],
         "title": "ServerOut",
         "type": "object"
@@ -17086,6 +17383,17 @@
               }
             ],
             "title": "Updated At"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
           },
           "version": {
             "anyOf": [
@@ -42503,7 +42811,7 @@
     },
     "/api/v1/settings/diagnostics": {
       "get": {
-        "description": "Where every value comes from, layer by layer (.env, the encrypted DB row, what a reload\nwould give, what this process runs with) and where they disagree. Masks only.",
+        "description": "Every setting at each layer (.env, the encrypted DB row, what a reload would give,\nwhat this process runs with), what every process loaded, and where they disagree.\nNon-secret values in full; secrets as masks (use /{key}/reveal for one).",
         "operationId": "diagnostics_api_v1_settings_diagnostics_get",
         "responses": {
           "200": {
@@ -42711,6 +43019,75 @@
           "id_field": "key",
           "kind": "form",
           "label": "Put setting",
+          "module": "settings",
+          "order": 90,
+          "roles": [
+            "admin"
+          ],
+          "title_field": "key"
+        }
+      }
+    },
+    "/api/v1/settings/{key}/reveal": {
+      "post": {
+        "description": "The full value at every layer. A secret needs the admin's password (failures count\ntowards the lock-out); every reveal is audited by key name and never cached.",
+        "operationId": "reveal_setting_api_v1_settings__key__reveal_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevealIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevealOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reveal Setting",
+        "tags": [
+          "settings"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "hidden",
+          "danger_reason": "secrets and settings",
+          "group": "admin",
+          "icon": "settings",
+          "id_field": "key",
+          "kind": "form",
+          "label": "Reveal setting",
           "module": "settings",
           "order": 90,
           "roles": [

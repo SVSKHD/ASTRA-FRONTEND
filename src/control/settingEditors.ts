@@ -139,7 +139,11 @@ export function modelName(id: string): string {
  * the source is "default"; otherwise the mask's last characters, matched against
  * the known ids when that is unambiguous. null = unknown (the mask is shown).
  */
-export function modelNow(row: Pick<SettingRow, 'key' | 'source' | 'masked'>): string | null {
+export function modelNow(
+  row: Pick<SettingRow, 'key' | 'source' | 'masked'> & { value?: string | null },
+): string | null {
+  // The full value when the server sent it (it does for every non-secret).
+  if (row.value != null) return row.value
   if (row.source === 'default') return MODEL_DEFAULT[row.key] ?? null
   const m = (row.masked ?? '').replace(/^•+/, '')
   if (!m) return null

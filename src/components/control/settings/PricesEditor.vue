@@ -10,15 +10,23 @@ import Icon from '@/components/ui/Icon.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import Table, { type Column } from '@/components/ui/Table.vue'
 import TextInput from '@/components/ui/TextInput.vue'
-import { pricesError, serializePrices, type PriceRow } from '@/control/settingEditors'
+import { parsePrices, pricesError, serializePrices, type PriceRow } from '@/control/settingEditors'
 
-defineProps<{ id: string; disabled?: boolean }>()
+const props = defineProps<{
+  id: string
+  disabled?: boolean
+  /** The saved AI_MODEL_PRICES JSON, to start the table from. */
+  seed?: string | null
+}>()
 const emit = defineEmits<{ change: [value: string | null] }>()
 
 type Row = PriceRow & { id: number }
 let nextId = 1
 const blank = (): Row => ({ id: nextId++, model: '', input: '', output: '', cacheRead: '' })
-const rows = reactive<Row[]>([blank()])
+const seeded = props.seed ? parsePrices(props.seed) : []
+const rows = reactive<Row[]>(
+  seeded.length ? seeded.map((r) => ({ ...r, id: nextId++ })) : [blank()],
+)
 let touched = false
 function changed() {
   touched = true
