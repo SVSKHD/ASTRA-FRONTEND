@@ -38,6 +38,7 @@ import BudgetCard from '@/components/ai/costs/BudgetCard.vue'
 import DhanSessionBar from '@/components/control/DhanSessionBar.vue'
 import SettingField from '@/components/control/SettingField.vue'
 import SettingReauth from '@/components/control/SettingReauth.vue'
+import SettingsDiagnostics from '@/components/control/settings/SettingsDiagnostics.vue'
 import { aureon } from '@/api/client'
 import { loadUsage, num, type AiUsage } from '@/ai/costs'
 import { must } from '@/control/api'
@@ -81,6 +82,15 @@ const selected = computed<Category | null>(() => {
 })
 function pick(category: string) {
   void router.replace({ query: { ...route.query, category } })
+}
+
+// --- the Diagnose panel, kept in the URL (?diagnose=1) so a link opens it ---------------------
+const diagnosing = computed(() => route.query.diagnose === '1')
+function toggleDiagnose() {
+  const query = { ...route.query }
+  if (diagnosing.value) delete query.diagnose
+  else query.diagnose = '1'
+  void router.replace({ query })
 }
 /** Tabs carry the count of credentials still missing, as the control center's Approvals tab does. */
 const tabs = computed(() =>
@@ -274,9 +284,23 @@ async function saveAndLeave() {
           <Icon name="search" size="sm" />
         </button>
       </template>
-      <template v-if="selected && canTest(selected)" #right>
-        <Badge v-if="testChip(selected.test)" v-bind="testChip(selected.test)!" />
+      <template #right>
         <button
+          type="button"
+          class="panel-action"
+          :class="{ 'is-on': diagnosing }"
+          :aria-pressed="diagnosing"
+          data-testid="diagnose-toggle"
+          @click="toggleDiagnose"
+        >
+          <Icon name="stethoscope" size="sm" />Diagnose
+        </button>
+        <Badge
+          v-if="selected && canTest(selected) && testChip(selected.test)"
+          v-bind="testChip(selected.test)!"
+        />
+        <button
+          v-if="selected && canTest(selected)"
           type="button"
           class="panel-action"
           :disabled="writer.busy.value === `test:${selected.category}`"
@@ -341,6 +365,13 @@ async function saveAndLeave() {
         Add an Anthropic API key under Settings → AI to turn on chat, agents, reports and voice
         fallback.
       </Alert>
+
+      <SettingsDiagnostics
+        v-if="diagnosing"
+        :category="selected?.category"
+        :category-label="selected?.label"
+        @reloaded="list.reload()"
+      />
 
       <Tabs
         :model-value="selected?.category ?? ''"

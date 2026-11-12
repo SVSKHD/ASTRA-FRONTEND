@@ -574,6 +574,46 @@
         "title": "AiAnalysisOut",
         "type": "object"
       },
+      "AiRuntimeOut": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "key_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Masked"
+          },
+          "matches_settings": {
+            "title": "Matches Settings",
+            "type": "boolean"
+          },
+          "model_main": {
+            "title": "Model Main",
+            "type": "string"
+          },
+          "model_router": {
+            "title": "Model Router",
+            "type": "string"
+          }
+        },
+        "required": [
+          "configured",
+          "key_masked",
+          "matches_settings",
+          "model_main",
+          "model_router"
+        ],
+        "title": "AiRuntimeOut",
+        "type": "object"
+      },
       "AlertIn": {
         "properties": {
           "alert_key": {
@@ -4328,6 +4368,125 @@
         "title": "DhanConnectionOut",
         "type": "object"
       },
+      "DiagnosticsOut": {
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/AiRuntimeOut"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "database_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Database Error"
+          },
+          "database_ok": {
+            "title": "Database Ok",
+            "type": "boolean"
+          },
+          "encryption_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encryption Problem"
+          },
+          "encryption_ready": {
+            "title": "Encryption Ready",
+            "type": "boolean"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/KeyDiagnosisOut"
+            },
+            "title": "Keys",
+            "type": "array"
+          },
+          "master_keys": {
+            "title": "Master Keys",
+            "type": "integer"
+          },
+          "overlay_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Overlay Fields",
+            "type": "array"
+          },
+          "overlay_ok": {
+            "title": "Overlay Ok",
+            "type": "boolean"
+          },
+          "rejected": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          },
+          "server": {
+            "$ref": "#/components/schemas/ServerOut"
+          },
+          "stale": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stale",
+            "type": "array"
+          },
+          "undecryptable": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Undecryptable",
+            "type": "array"
+          },
+          "unknown_rows": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknown Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "checked_at",
+          "server",
+          "encryption_ready",
+          "encryption_problem",
+          "master_keys",
+          "database_ok",
+          "database_error",
+          "rows",
+          "unknown_rows",
+          "undecryptable",
+          "rejected",
+          "overlay_ok",
+          "overlay_fields",
+          "stale",
+          "ai",
+          "keys"
+        ],
+        "title": "DiagnosticsOut",
+        "type": "object"
+      },
       "DispatchRequest": {
         "additionalProperties": false,
         "properties": {
@@ -7479,6 +7638,143 @@
           "url"
         ],
         "title": "JobSummary",
+        "type": "object"
+      },
+      "KeyDiagnosisOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "db_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db Masked"
+          },
+          "db_present": {
+            "title": "Db Present",
+            "type": "boolean"
+          },
+          "db_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db Updated At"
+          },
+          "db_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db Version"
+          },
+          "env_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Env Masked"
+          },
+          "env_source": {
+            "enum": [
+              "env",
+              "default",
+              "unset"
+            ],
+            "title": "Env Source",
+            "type": "string"
+          },
+          "expected_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Masked"
+          },
+          "expected_source": {
+            "enum": [
+              "db",
+              "env",
+              "default",
+              "unset"
+            ],
+            "title": "Expected Source",
+            "type": "string"
+          },
+          "is_secret": {
+            "title": "Is Secret",
+            "type": "boolean"
+          },
+          "issues": {
+            "items": {
+              "enum": [
+                "db_undecryptable",
+                "db_rejected",
+                "db_ignored",
+                "stale",
+                "shadows_env"
+              ],
+              "type": "string"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "live_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live Masked"
+          }
+        },
+        "required": [
+          "key",
+          "category",
+          "is_secret",
+          "env_masked",
+          "env_source",
+          "db_present",
+          "db_masked",
+          "db_version",
+          "db_updated_at",
+          "expected_masked",
+          "expected_source",
+          "live_masked",
+          "issues"
+        ],
+        "title": "KeyDiagnosisOut",
         "type": "object"
       },
       "LabelsAdd": {
@@ -13411,6 +13707,22 @@
         "title": "ReconnectOut",
         "type": "object"
       },
+      "ReloadOut": {
+        "properties": {
+          "changed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changed",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changed"
+        ],
+        "title": "ReloadOut",
+        "type": "object"
+      },
       "RepairCreate": {
         "additionalProperties": false,
         "properties": {
@@ -16389,6 +16701,29 @@
           }
         },
         "title": "SecuredPatch",
+        "type": "object"
+      },
+      "ServerOut": {
+        "properties": {
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "pid": {
+            "title": "Pid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "host",
+          "pid",
+          "environment"
+        ],
+        "title": "ServerOut",
         "type": "object"
       },
       "ServiceOut": {
@@ -42157,6 +42492,82 @@
           "id_field": null,
           "kind": "detail",
           "label": "List settings",
+          "module": "settings",
+          "order": 90,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/v1/settings/diagnostics": {
+      "get": {
+        "description": "Where every value comes from, layer by layer (.env, the encrypted DB row, what a reload\nwould give, what this process runs with) and where they disagree. Masks only.",
+        "operationId": "diagnostics_api_v1_settings_diagnostics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Diagnostics",
+        "tags": [
+          "settings"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "hidden",
+          "danger_reason": "secrets and settings",
+          "group": "admin",
+          "icon": "settings",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Diagnostics",
+          "module": "settings",
+          "order": 90,
+          "roles": [
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/v1/settings/reload": {
+      "post": {
+        "description": "Re-read .env + the DB now and rebuild the clients whose keys changed (the Claude\ngateway included), here and in the workers. For when diagnostics shows stale keys.",
+        "operationId": "reload_settings_api_v1_settings_reload_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReloadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Reload Settings",
+        "tags": [
+          "settings"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "hidden",
+          "danger_reason": "secrets and settings",
+          "group": "admin",
+          "icon": "settings",
+          "id_field": null,
+          "kind": "action",
+          "label": "Reload settings",
           "module": "settings",
           "order": 90,
           "roles": [

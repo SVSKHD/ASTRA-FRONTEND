@@ -4520,6 +4520,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Diagnostics
+         * @description Where every value comes from, layer by layer (.env, the encrypted DB row, what a reload
+         *     would give, what this process runs with) and where they disagree. Masks only.
+         */
+        get: operations["diagnostics_api_v1_settings_diagnostics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reload Settings
+         * @description Re-read .env + the DB now and rebuild the clients whose keys changed (the Claude
+         *     gateway included), here and in the workers. For when diagnostics shows stale keys.
+         */
+        post: operations["reload_settings_api_v1_settings_reload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/{key}": {
         parameters: {
             query?: never;
@@ -4889,6 +4931,19 @@ export interface components {
             signal_id: string | null;
             /** Summary */
             summary: string;
+        };
+        /** AiRuntimeOut */
+        AiRuntimeOut: {
+            /** Configured */
+            configured: boolean;
+            /** Key Masked */
+            key_masked: string | null;
+            /** Matches Settings */
+            matches_settings: boolean;
+            /** Model Main */
+            model_main: string;
+            /** Model Router */
+            model_router: string;
         };
         /** AlertIn */
         AlertIn: {
@@ -6124,6 +6179,42 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** DiagnosticsOut */
+        DiagnosticsOut: {
+            ai: components["schemas"]["AiRuntimeOut"];
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Database Error */
+            database_error: string | null;
+            /** Database Ok */
+            database_ok: boolean;
+            /** Encryption Problem */
+            encryption_problem: string | null;
+            /** Encryption Ready */
+            encryption_ready: boolean;
+            /** Keys */
+            keys: components["schemas"]["KeyDiagnosisOut"][];
+            /** Master Keys */
+            master_keys: number;
+            /** Overlay Fields */
+            overlay_fields: string[];
+            /** Overlay Ok */
+            overlay_ok: boolean;
+            /** Rejected */
+            rejected: string[];
+            /** Rows */
+            rows: number;
+            server: components["schemas"]["ServerOut"];
+            /** Stale */
+            stale: string[];
+            /** Undecryptable */
+            undecryptable: string[];
+            /** Unknown Rows */
+            unknown_rows: string[];
+        };
         /** DispatchRequest */
         DispatchRequest: {
             /** Inputs */
@@ -7201,6 +7292,41 @@ export interface components {
             status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN";
             /** Url */
             url: string | null;
+        };
+        /** KeyDiagnosisOut */
+        KeyDiagnosisOut: {
+            /** Category */
+            category: string;
+            /** Db Masked */
+            db_masked: string | null;
+            /** Db Present */
+            db_present: boolean;
+            /** Db Updated At */
+            db_updated_at: string | null;
+            /** Db Version */
+            db_version: number | null;
+            /** Env Masked */
+            env_masked: string | null;
+            /**
+             * Env Source
+             * @enum {string}
+             */
+            env_source: "env" | "default" | "unset";
+            /** Expected Masked */
+            expected_masked: string | null;
+            /**
+             * Expected Source
+             * @enum {string}
+             */
+            expected_source: "db" | "env" | "default" | "unset";
+            /** Is Secret */
+            is_secret: boolean;
+            /** Issues */
+            issues: ("db_undecryptable" | "db_rejected" | "db_ignored" | "stale" | "shadows_env")[];
+            /** Key */
+            key: string;
+            /** Live Masked */
+            live_masked: string | null;
         };
         /** LabelsAdd */
         LabelsAdd: {
@@ -9174,6 +9300,11 @@ export interface components {
             /** Receivers */
             receivers: number;
         };
+        /** ReloadOut */
+        ReloadOut: {
+            /** Changed */
+            changed: string[];
+        };
         /** RepairCreate */
         RepairCreate: {
             /**
@@ -10043,6 +10174,15 @@ export interface components {
             date?: string | null;
             /** Note */
             note?: string | null;
+        };
+        /** ServerOut */
+        ServerOut: {
+            /** Environment */
+            environment: string;
+            /** Host */
+            host: string;
+            /** Pid */
+            pid: number;
         };
         /** ServiceOut */
         ServiceOut: {
@@ -20600,6 +20740,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+        };
+    };
+    diagnostics_api_v1_settings_diagnostics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticsOut"];
+                };
+            };
+        };
+    };
+    reload_settings_api_v1_settings_reload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReloadOut"];
                 };
             };
         };
