@@ -370,6 +370,9 @@ async function saveAndLeave() {
         v-if="diagnosing"
         :category="selected?.category"
         :category-label="selected?.label"
+        :rows="list.data.value?.settings ?? []"
+        :writer="writer"
+        :encryption-ready="encryptionReady"
         @reloaded="list.reload()"
       />
 

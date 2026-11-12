@@ -14,7 +14,8 @@ const w = props.writer
 const what = computed(() => {
   const p = w.pending.value
   if (!p) return ''
-  return `${p.action === 'save' ? 'Save' : 'Revert'} ${labelOf(p.row.key)}`
+  const verb = p.action === 'save' ? 'Save' : p.action === 'revert' ? 'Revert' : 'Show'
+  return `${verb} ${labelOf(p.row.key)}`
 })
 </script>
 
@@ -29,8 +30,15 @@ const what = computed(() => {
         </span>
       </div>
       <p class="sr__note">
-        The server checks your password before it changes a credential. It is sent once with this
-        change and never stored.
+        <template v-if="w.pending.value.action === 'reveal'">
+          The server checks your password before it shows a credential. The value stays on screen
+          for a minute, is never stored in the browser, and the reveal is recorded in the audit log
+          (the key name, never the value).
+        </template>
+        <template v-else>
+          The server checks your password before it changes a credential. It is sent once with this
+          change and never stored.
+        </template>
       </p>
       <TextInput
         v-model="w.password.value"
@@ -44,7 +52,11 @@ const what = computed(() => {
       <div class="sr__actions">
         <Button variant="ghost" @click="w.closeReauth">Cancel</Button>
         <Button type="submit" :loading="!!w.busy.value" :disabled="!w.password.value">{{
-          w.pending.value.action === 'save' ? 'Save' : 'Revert'
+          w.pending.value.action === 'save'
+            ? 'Save'
+            : w.pending.value.action === 'revert'
+              ? 'Revert'
+              : 'Show value'
         }}</Button>
       </div>
     </form>

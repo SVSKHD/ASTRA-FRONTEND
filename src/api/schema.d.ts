@@ -4529,8 +4529,9 @@ export interface paths {
         };
         /**
          * Diagnostics
-         * @description Where every value comes from, layer by layer (.env, the encrypted DB row, what a reload
-         *     would give, what this process runs with) and where they disagree. Masks only.
+         * @description Every setting at each layer (.env, the encrypted DB row, what a reload would give,
+         *     what this process runs with), what every process loaded, and where they disagree.
+         *     Non-secret values in full; secrets as masks (use /{key}/reveal for one).
          */
         get: operations["diagnostics_api_v1_settings_diagnostics_get"];
         put?: never;
@@ -4581,6 +4582,27 @@ export interface paths {
          * @description Drop the DB value so .env (or the default) applies again. Secrets need `password`.
          */
         delete: operations["revert_setting_api_v1_settings__key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/{key}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reveal Setting
+         * @description The full value at every layer. A secret needs the admin's password (failures count
+         *     towards the lock-out); every reveal is audited by key name and never cached.
+         */
+        post: operations["reveal_setting_api_v1_settings__key__reveal_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6203,6 +6225,9 @@ export interface components {
             overlay_fields: string[];
             /** Overlay Ok */
             overlay_ok: boolean;
+            /** Processes */
+            processes: components["schemas"]["ProcessOut"][];
+            redis: components["schemas"]["RedisOut"];
             /** Rejected */
             rejected: string[];
             /** Rows */
@@ -6210,6 +6235,10 @@ export interface components {
             server: components["schemas"]["ServerOut"];
             /** Stale */
             stale: string[];
+            /** Tests */
+            tests: {
+                [key: string]: components["schemas"]["TestResultOut"];
+            };
             /** Undecryptable */
             undecryptable: string[];
             /** Unknown Rows */
@@ -7303,6 +7332,8 @@ export interface components {
             db_present: boolean;
             /** Db Updated At */
             db_updated_at: string | null;
+            /** Db Value */
+            db_value: string | null;
             /** Db Version */
             db_version: number | null;
             /** Env Masked */
@@ -7312,6 +7343,8 @@ export interface components {
              * @enum {string}
              */
             env_source: "env" | "default" | "unset";
+            /** Env Value */
+            env_value: string | null;
             /** Expected Masked */
             expected_masked: string | null;
             /**
@@ -7319,14 +7352,22 @@ export interface components {
              * @enum {string}
              */
             expected_source: "db" | "env" | "default" | "unset";
+            /** Expected Value */
+            expected_value: string | null;
             /** Is Secret */
             is_secret: boolean;
             /** Issues */
             issues: ("db_undecryptable" | "db_rejected" | "db_ignored" | "stale" | "shadows_env")[];
             /** Key */
             key: string;
+            /** Kind */
+            kind: string;
             /** Live Masked */
             live_masked: string | null;
+            /** Live Value */
+            live_value: string | null;
+            /** Requires Reauth */
+            requires_reauth: boolean;
         };
         /** LabelsAdd */
         LabelsAdd: {
@@ -8925,6 +8966,27 @@ export interface components {
              */
             type: "price_vs_ema";
         };
+        /** ProcessOut */
+        ProcessOut: {
+            /** Applied At */
+            applied_at: string | null;
+            /** Host */
+            host: string;
+            /** Pid */
+            pid: number;
+            /** Process */
+            process: string;
+            /** Stale */
+            stale: string[];
+            /** Started At */
+            started_at: string | null;
+            /** This */
+            this: boolean;
+            /** Unwatched Stale */
+            unwatched_stale: string[];
+            /** Watches */
+            watches: string[];
+        };
         /**
          * ProtectionUpdate
          * @description The body of GitHub's PUT /branches/{branch}/protection, passed through as given.
@@ -9300,6 +9362,15 @@ export interface components {
             /** Receivers */
             receivers: number;
         };
+        /** RedisOut */
+        RedisOut: {
+            /** Error */
+            error: string | null;
+            /** Listeners */
+            listeners: number | null;
+            /** Ok */
+            ok: boolean;
+        };
         /** ReloadOut */
         ReloadOut: {
             /** Changed */
@@ -9619,6 +9690,26 @@ export interface components {
             pr: components["schemas"]["PullRequestOut"] | null;
             /** Repo */
             repo: string;
+        };
+        /** RevealIn */
+        RevealIn: {
+            /** Password */
+            password?: string | null;
+        };
+        /** RevealOut */
+        RevealOut: {
+            /** Db */
+            db: string | null;
+            /** Db Present */
+            db_present: boolean;
+            /** Env */
+            env: string | null;
+            /** Expected */
+            expected: string | null;
+            /** Key */
+            key: string;
+            /** Live */
+            live: string | null;
         };
         /** RevertIn */
         RevertIn: {
@@ -10183,6 +10274,13 @@ export interface components {
             host: string;
             /** Pid */
             pid: number;
+            /** Settings Applied At */
+            settings_applied_at: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
         };
         /** ServiceOut */
         ServiceOut: {
@@ -10311,6 +10409,8 @@ export interface components {
             source: "db" | "env" | "default" | "unset";
             /** Updated At */
             updated_at?: string | null;
+            /** Value */
+            value?: string | null;
             /** Version */
             version?: number | null;
         };
@@ -20841,6 +20941,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reveal_setting_api_v1_settings__key__reveal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevealIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevealOut"];
                 };
             };
             /** @description Validation Error */
