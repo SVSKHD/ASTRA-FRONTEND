@@ -23,6 +23,7 @@ const base: Instrument = {
   lot_size: '75',
   tick_size: '0.05',
   currency: 'INR',
+  is_active: true,
 }
 
 describe('instruments', () => {

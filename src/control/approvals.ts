@@ -15,7 +15,8 @@ import { openStream, type StreamHandle, type StreamStatus } from '@/api/sse'
 import { must, type Schemas } from '@/control/api'
 
 /** An inbox item; `reauth` is absent when the list came from an older server. */
-export type Approval = Schemas['ApprovalOut'] & { reauth?: string }
+// Named with its module since the AI approvals (/api/ai/approvals) added a second ApprovalOut.
+export type Approval = Schemas['app__schemas__approvals__ApprovalOut'] & { reauth?: string }
 export const POLL_MS = 15_000
 export const STREAM_EVENTS = ['hello', 'approval', 'bye']
 

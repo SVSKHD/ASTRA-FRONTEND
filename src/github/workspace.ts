@@ -2,8 +2,8 @@
 // which server-side clone a GitHub repository's code tasks run in.
 //
 // The read-only actions (explain, architecture, bugs, commits, PR review) stream through
-// POST /api/chat with the provider picked in the workspace, so the server's routing,
-// filtering and fallback apply and the thinking steps show what happened. Everything
+// POST /api/ai/chat to Claude's General agent, so the server's redaction and budgets
+// apply and the steps show what happened. Everything
 // they quote — files, the tree, commits, a diff — was read from GitHub through Aureon a
 // moment before. A change is never made here: it is a code task on the server, tested on
 // its own branch, and kept only when an admin approves its diff.

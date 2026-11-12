@@ -1,12 +1,11 @@
 // GET /api/v1/system/integrations (admin): the server's own summary of each
 // integration. The OpenAPI schema types it as a free-form object, so the shapes
-// below are written from the backend (app/services/integrations.py at the
-// docs/26 change) and every field is optional: a section that failed carries
-// only `status` and `error`.
+// below are written from the backend (app/services/integrations.py) and every
+// field is optional: a section that failed carries only `status` and `error`.
 //
-// The `ai_providers` section is built from SETTINGS ONLY: it never calls a
-// provider. "Configured" means a key is set, not that it works; the live check
-// is Settings → <provider> → Test.
+// The `claude` section (backend docs/26) is built from settings and the usage
+// table only: it never calls Anthropic. "Configured" means ANTHROPIC_API_KEY is
+// set, not that it works; the live check is Settings → AI → Test connection.
 
 import type { Tone } from '@/control/status'
 
@@ -18,22 +17,17 @@ export interface AgentView {
   age_s?: number | null
 }
 
-export interface AiProviderEntry {
-  enabled?: boolean
-  configured?: boolean
-  usable?: boolean
-  reason?: string | null
-  default_model?: string | null
-  daily_limit_usd?: string | null
-}
-
-export interface AiProvidersSection {
+/** `integrations.claude`: Claude, the only AI provider. */
+export interface ClaudeSection {
+  /** ok | degraded (the month's cap is reached) | not_configured, or down on a failed read. */
   status?: string
   error?: string
-  providers?: Record<string, AiProviderEntry>
-  default_external_provider?: string | null
-  global_daily_limit_usd?: string | null
-  local_default?: boolean
+  configured?: boolean
+  model_main?: string | null
+  /** The model that picks an agent and reads voice; null = off. */
+  model_router?: string | null
+  month_spent_usd?: string | null
+  monthly_budget_usd?: string | null
 }
 
 export interface DhanSession {
@@ -77,24 +71,41 @@ export const STATUS_TONE: Record<string, Tone> = {
   not_configured: 'neutral',
 }
 
-const AI_NAME: Record<string, string> = {
-  openrouter: 'OpenRouter',
-  anthropic: 'Claude (Anthropic)',
-  gemini: 'Gemini (Google)',
+export interface ClaudeSummary {
+  tone: Tone
+  /** "Ready" / "Budget reached" / "Not set up" / "Unreadable". */
+  state: string
+  /** One line: the models and the month's spend against its cap. */
+  detail: string
 }
 
-export interface AiProviderRow {
-  provider: string
-  name: string
-  enabled: boolean
-  configured: boolean
-  usable: boolean
-  reason: string | null
-  defaultModel: string | null
-  dailyLimitUsd: string | null
-  tone: Tone
-  /** "usable" / "enabled, unusable: no_pricing" / "disabled". */
-  state: string
+function money(v: string | null | undefined): string {
+  const n = Number(v)
+  return v == null || v === '' || !Number.isFinite(n) ? '—' : `$${n.toFixed(2)}`
+}
+
+/** The Claude section in words, or null when the server sent none. */
+export function claudeSummary(section: ClaudeSection | undefined): ClaudeSummary | null {
+  if (!section) return null
+  if (section.error) return { tone: 'danger', state: 'Unreadable', detail: section.error }
+  if (section.configured === false || section.status === 'not_configured') {
+    return {
+      tone: 'neutral',
+      state: 'Not set up',
+      detail: 'No ANTHROPIC_API_KEY: every AI feature is off. Add it under Settings → AI.',
+    }
+  }
+  const parts = [
+    section.model_main ? `main ${section.model_main}` : '',
+    section.model_router ? `router ${section.model_router}` : 'router off',
+    `${money(section.month_spent_usd)} of ${money(section.monthly_budget_usd)} this month`,
+  ].filter(Boolean)
+  const over = section.status === 'degraded'
+  return {
+    tone: over ? 'warning' : section.status === 'ok' ? 'success' : 'neutral',
+    state: over ? 'Budget reached' : 'Ready',
+    detail: parts.join(' · '),
+  }
 }
 
 /**
@@ -112,33 +123,4 @@ export async function loadIntegrations(
     data: r.response.ok ? ((r.data ?? null) as Integrations | null) : null,
     status: r.response.status,
   }
-}
-
-/** One row per external provider the server listed, in a fixed order. */
-export function aiProviderRows(section: AiProvidersSection | undefined): AiProviderRow[] {
-  const providers = section?.providers ?? {}
-  const order = ['openrouter', 'anthropic', 'gemini']
-  return Object.keys(providers)
-    .sort((a, b) => {
-      const ia = order.indexOf(a)
-      const ib = order.indexOf(b)
-      return (ia < 0 ? order.length : ia) - (ib < 0 ? order.length : ib) || a.localeCompare(b)
-    })
-    .map((p) => {
-      const e = providers[p] ?? {}
-      const enabled = e.enabled === true
-      const usable = e.usable === true
-      return {
-        provider: p,
-        name: AI_NAME[p] ?? p,
-        enabled,
-        configured: e.configured === true,
-        usable,
-        reason: e.reason ?? null,
-        defaultModel: e.default_model ?? null,
-        dailyLimitUsd: e.daily_limit_usd ?? null,
-        tone: usable ? 'success' : enabled ? 'warning' : 'neutral',
-        state: usable ? 'usable' : enabled ? 'enabled, not usable' : 'disabled',
-      }
-    })
 }

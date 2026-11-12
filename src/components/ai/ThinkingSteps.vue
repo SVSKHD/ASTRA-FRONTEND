@@ -1,37 +1,23 @@
 <script setup lang="ts">
-// A reply's thinking steps (src/ai/steps.ts), folded into one line while it runs —
-// "Thinking… 3.2 s", "Writing…", "Done in 4.1 s" — and opening to every step the server
-// reported plus the model's own reasoning when it was asked to think.
+// A reply's steps (src/ai/steps.ts), folded into one quiet line while it runs —
+// "Reading positions…", "Writing…", "Done in 4.1 s" — and opening to every step the
+// server reported: the agent, each tool it used, approvals it asked for, the cost.
 //
-// Open by itself while the model is reasoning (that is the moment worth watching), then
-// folds away when the answer starts, unless it was opened by hand.
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+// Closed unless opened by hand: the one line is the activity worth watching.
+import { computed, ref } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
 import { phaseText, type AiTrace } from '@/ai/steps'
 
 const props = defineProps<{ trace: AiTrace }>()
 
 const opened = ref<boolean | null>(null)
-const open = computed(() => opened.value ?? props.trace.phase === 'thinking')
+const open = computed(() => opened.value ?? false)
 function toggle() {
   opened.value = !open.value
 }
 
-// A clock for the running timer, only while something runs.
-const now = ref(Date.now())
-let tick: ReturnType<typeof setInterval> | undefined
-const running = computed(() => ['sending', 'thinking', 'writing'].includes(props.trace.phase))
-watch(
-  running,
-  (r) => {
-    clearInterval(tick)
-    tick = r ? setInterval(() => (now.value = Date.now()), 250) : undefined
-  },
-  { immediate: true },
-)
-onBeforeUnmount(() => clearInterval(tick))
-
-const headline = computed(() => phaseText(props.trace, now.value))
+const running = computed(() => ['sending', 'working', 'writing'].includes(props.trace.phase))
+const headline = computed(() => phaseText(props.trace))
 const ICON = { running: 'refresh-cw', done: 'check', warn: 'alert-circle', error: 'x' } as const
 </script>
 
@@ -50,7 +36,7 @@ const ICON = { running: 'refresh-cw', done: 'check', warn: 'alert-circle', error
     </button>
     <div v-if="open" class="aits__body">
       <ol class="aits__steps">
-        <li v-for="s in trace.steps" :key="s.key" class="aits__step" :class="`is-${s.state}`">
+        <li v-for="(s, i) in trace.steps" :key="i" class="aits__step" :class="`is-${s.state}`">
           <Icon
             :name="ICON[s.state]"
             size="xs"
@@ -61,9 +47,6 @@ const ICON = { running: 'refresh-cw', done: 'check', warn: 'alert-circle', error
           <span v-if="s.detail" class="aits__detail">{{ s.detail }}</span>
         </li>
       </ol>
-      <pre v-if="trace.thinking" class="aits__thinking" data-testid="thinking-text">{{
-        trace.thinking
-      }}</pre>
     </div>
   </div>
 </template>
@@ -163,17 +146,6 @@ const ICON = { running: 'refresh-cw', done: 'check', warn: 'alert-circle', error
 .aits__detail {
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.aits__thinking {
-  max-height: 240px;
-  min-width: 0;
-  margin: 0;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-family: inherit;
-  font-style: italic;
-  line-height: 1.5;
 }
 @keyframes aits-pulse {
   50% {

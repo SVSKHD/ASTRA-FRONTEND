@@ -51,7 +51,6 @@ export interface SystemStatus {
   host?: HostSection
   postgres?: Section & { version?: string; database_bytes?: number; connections?: number }
   redis?: Section & { used_memory_bytes?: number }
-  ollama?: Section & { installed_models?: number; loaded_models?: string[] }
   imaging?: Section & { worker?: string; queued?: number; running?: number }
   docker?: Section & { containers?: Container[]; not_running_or_unhealthy?: string[] }
   host_services?: Section & {
@@ -140,6 +139,5 @@ export function uptime(seconds: number | null | undefined): string {
 export const READY_LABEL: Record<string, string> = {
   postgres: 'PostgreSQL',
   redis: 'Redis',
-  ollama: 'Ollama',
   data_root: 'Data disk (HDD)',
 }

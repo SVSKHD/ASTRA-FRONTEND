@@ -43,10 +43,11 @@ import AiSubTree from '@/components/ai/AiSubTree.vue'
 import { AI_PROVIDERS, aiModelLabel, type AiChat, type AiItemRef, type AiMessage } from '@/types'
 import { chatTarget } from '@/utils/aiSettings'
 import AiModelPicker from '@/components/AiModelPicker.vue'
-import AureonModelPicker from '@/components/AureonModelPicker.vue'
+import AgentPicker from '@/components/AgentPicker.vue'
 import ThinkingSteps from '@/components/ai/ThinkingSteps.vue'
 import { aiTraces, traceKey } from '@/ai/steps'
-import { aiBackend, replyBadge, targetFor, targetLabel } from '@/ai/aureonChat'
+import { agentFor, agentLabel, aiBackend, usd } from '@/ai/aureonChat'
+import { aiHelpersAvailable } from '@/utils/aiAsk'
 import {
   SUGGESTION_CHIPS,
   aiContextSections,
@@ -68,8 +69,10 @@ import {
 } from '@/utils/ai'
 import { renderMarkdown } from '@/utils/markdown'
 
-/** Migration stage 4: the AI tab talks to Aureon's local Ollama (VITE_AI_BACKEND=aureon). */
+/** The AI tab talks to Claude through Aureon (VITE_AI_BACKEND=aureon, the default). */
 const onAureon = aiBackend() === 'aureon'
+/** Typo fix and the other one-off helpers: only where a cheap model runs them (utils/aiAsk). */
+const helpers = aiHelpersAvailable()
 
 const app = useAppStore()
 const { panelStyle, isMobile } = useStyles()
@@ -306,29 +309,24 @@ function onComposerKey(e: KeyboardEvent) {
 }
 
 // --- thread -----------------------------------------------------------------
-// The provider and model are picked in the bar under the header
-// (AiModelPicker); the phone header repeats the model's name. On Aureon it names
-// who wrote the chat's latest reply (the server may answer with another provider
-// than the one picked), else the chat's pick; never the proxy-era setting, which
-// showed "Qwen3 4B" over Gemini answers.
+// The proxy's provider and model are picked in the bar under the header
+// (AiModelPicker); on Aureon that bar picks the agent (AgentPicker). The phone
+// header repeats the choice: on Aureon, the agent that wrote the chat's latest
+// reply, else the chat's pick.
 const lastReply = computed(() =>
   [...(activeAiChat.value?.messages ?? [])]
     .reverse()
-    .find((m) => m.role === 'assistant' && m.route),
+    .find((m) => m.role === 'assistant' && m.agent),
 )
 const chosenLabel = computed(() => {
   if (!onAureon) return aiModelLabel(chatTarget().model)
-  const last = lastReply.value
-  const badge = last ? replyBadge(last.route, last.model) : null
-  if (badge) return badge.label
-  const t = targetFor(activeAiChat.value ? String(activeAiChat.value.id) : null)
-  return t ? targetLabel(t) : 'Server default'
+  const answered = lastReply.value?.agent
+  if (answered) return `Claude · ${agentLabel(answered)}`
+  const pick = agentFor(activeAiChat.value ? String(activeAiChat.value.id) : null)
+  return pick === 'auto' ? 'Claude · Auto' : `Claude · ${agentLabel(pick)}`
 })
 const modelTitle = computed(() => {
-  if (onAureon) {
-    const last = lastReply.value
-    return (last && replyBadge(last.route, last.model)?.title) || 'The model the server picks'
-  }
+  if (onAureon) return 'Claude, through the Aureon server'
   const { provider, model } = chatTarget()
   return `${model} through ${AI_PROVIDERS[provider].label}`
 })
@@ -828,6 +826,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             }}</span>
           </div>
           <IconButton
+            v-if="helpers"
             size="lg"
             variant="outline"
             label="Fix typos in my items"
@@ -856,11 +855,13 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             </div>
           </Transition>
           <Switch
+            v-if="!onAureon"
             :model-value="aiUseData"
             label="Use my data"
             @update:model-value="app.setAiUseData($event)"
           />
           <IconButton
+            v-if="helpers"
             variant="outline"
             label="Fix typos in my items"
             :disabled="!isOnline"
@@ -869,6 +870,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             <Icon name="spell-check" />
           </IconButton>
           <IconButton
+            v-if="!onAureon"
             class="ai-head__ctx"
             variant="outline"
             :label="ctxOpen ? 'Hide what Aureon sees' : 'Show what Aureon sees'"
@@ -881,12 +883,12 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 
         <!-- Provider switch and model, under the header on every screen size. -->
         <div class="ai-modelbar">
-          <AureonModelPicker v-if="onAureon" :disabled="streaming" />
+          <AgentPicker v-if="onAureon" :disabled="streaming" />
           <AiModelPicker v-else :disabled="streaming" />
         </div>
 
         <button
-          v-if="isMobile"
+          v-if="isMobile && !onAureon"
           type="button"
           class="ai-datapill"
           :class="{ 'is-off': !aiUseData }"
@@ -922,6 +924,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                 {{ chip }}
               </button>
               <button
+                v-if="helpers"
                 type="button"
                 class="ai-chip"
                 :style="{ '--i': SUGGESTION_CHIPS.length }"
@@ -1166,49 +1169,48 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                     </a>
                   </div>
 
-                  <div v-if="!isStreamingMsg(m.id) || m.route" class="ai-meta">
-                    <!-- The model that wrote THIS reply, never the chat's current pick. -->
+                  <!-- Writes the agent asked for: nothing happens until approved. -->
+                  <div
+                    v-for="a in m.approvals ?? []"
+                    :key="a.id"
+                    class="ai-approval"
+                    data-testid="approval-card"
+                  >
+                    <Icon name="shield-alert" size="sm" class="ai-approval__icon" />
+                    <div class="ai-approval__body">
+                      <span class="ai-approval__head">Awaiting your approval</span>
+                      <span class="ai-approval__summary">{{ a.summary }}</span>
+                    </div>
+                    <RouterLink
+                      class="ai-approval__link"
+                      :to="{ path: '/dev/ai-approvals', query: { id: a.id } }"
+                      >Review</RouterLink
+                    >
+                  </div>
+
+                  <div v-if="!isStreamingMsg(m.id) || m.agent" class="ai-meta">
+                    <!-- Claude: the agent that answered THIS reply, and what it cost. -->
                     <span
-                      v-if="
-                        !isStreamingMsg(m.id) &&
-                        (replyBadge(m.route, m.model)?.kind ?? 'fallback') === 'fallback'
-                      "
+                      v-if="m.agent"
+                      class="ai-meta__route is-external"
+                      data-testid="agent-badge"
+                      :title="`Answered by Claude as the ${agentLabel(m.agent)} agent`"
+                      ><Icon name="sparkles" size="xs" />{{ agentLabel(m.agent) }}</span
+                    >
+                    <span
+                      v-if="!isStreamingMsg(m.id) && usd(m.costUsd)"
+                      class="ai-meta__tok"
+                      data-testid="reply-cost"
+                      title="What this turn cost (Claude, all steps)"
+                      >{{ usd(m.costUsd) }}</span
+                    >
+                    <!-- The proxy (and replies saved before Claude): the model that wrote it. -->
+                    <span
+                      v-else-if="!isStreamingMsg(m.id) && !m.agent && !onAureon"
                       class="ai-meta__model"
                       data-testid="reply-model"
                       :title="m.model || 'The server did not report the model'"
                       >{{ m.model ? aiModelLabel(m.model) : 'Model not reported' }}</span
-                    >
-                    <span
-                      v-if="replyBadge(m.route, m.model)?.kind === 'external'"
-                      class="ai-meta__route is-external"
-                      data-testid="external-badge"
-                      :title="replyBadge(m.route, m.model)!.title"
-                      ><Icon name="cloud" size="xs" />{{
-                        replyBadge(m.route, m.model)!.label
-                      }}</span
-                    >
-                    <span
-                      v-else-if="replyBadge(m.route, m.model)?.kind === 'local-only'"
-                      class="ai-meta__route is-local"
-                      data-testid="local-only-badge"
-                      :title="replyBadge(m.route, m.model)!.title"
-                      ><Icon name="lock" size="xs" />{{ replyBadge(m.route, m.model)!.label }}</span
-                    >
-                    <span
-                      v-else-if="replyBadge(m.route, m.model)?.kind === 'fallback'"
-                      class="ai-meta__route is-fallback"
-                      data-testid="fallback-note"
-                      :title="replyBadge(m.route, m.model)!.title"
-                      >{{ replyBadge(m.route, m.model)!.label }}</span
-                    >
-                    <span
-                      v-else-if="replyBadge(m.route, m.model)?.kind === 'local'"
-                      class="ai-meta__route is-local"
-                      data-testid="local-badge"
-                      :title="replyBadge(m.route, m.model)!.title"
-                      ><Icon name="monitor" size="xs" />{{
-                        replyBadge(m.route, m.model)!.label
-                      }}</span
                     >
                     <span
                       v-if="!isStreamingMsg(m.id) && msgTokens(m)"
@@ -1299,7 +1301,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 
         <!-- The item the chat works on: its sub-items, live, with what the
              chat just added marked new; what is discussed next lands under it. -->
-        <div v-if="working" class="ai-work" aria-label="Working on">
+        <div v-if="!onAureon && working" class="ai-work" aria-label="Working on">
           <div class="ai-work__head">
             <Icon
               :name="working.collection === 'tasks' ? 'list-checks' : 'check-square'"
@@ -1373,7 +1375,12 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             </button>
           </div>
         </div>
-        <button v-else type="button" class="ai-work-pick" @click="focusPickerOpen = true">
+        <button
+          v-else-if="!onAureon"
+          type="button"
+          class="ai-work-pick"
+          @click="focusPickerOpen = true"
+        >
           <Icon name="corner-down-right" size="xs" /> Work on an existing todo or task…
         </button>
 
@@ -1444,14 +1451,23 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
               ? 'Waiting for the reply — Enter sends once it lands'
               : 'Enter to send · Shift+Enter for a new line'
           }}</span>
-          <span v-if="aiUseData">Sends ≈{{ ctxTokens }} tokens of your data with each turn</span>
+          <span v-if="onAureon"
+            >Claude reads your data through Aureon’s tools, never your keys</span
+          >
+          <span v-else-if="aiUseData"
+            >Sends ≈{{ ctxTokens }} tokens of your data with each turn</span
+          >
           <span v-else>Your data is not sent</span>
         </div>
       </section>
 
       <!-- what Aureon sees -->
       <Transition name="ai-ctx">
-        <aside v-if="!isMobile && ctxOpen" class="ai-ctx" aria-label="What Aureon sees">
+        <aside
+          v-if="!onAureon && !isMobile && ctxOpen"
+          class="ai-ctx"
+          aria-label="What Aureon sees"
+        >
           <h2 class="ai-ctx__title">What Aureon sees</h2>
           <p class="ai-ctx__lead">
             Built fresh from your data each turn and capped at about 2k tokens.
@@ -2092,8 +2108,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   color: var(--theme-accent);
   font-weight: var(--weight-semibold);
 }
-/* Who answered on Aureon: OpenRouter, "Local only" (the server's filter kept the
-   data here) or a fallback to the local model after an OpenRouter error. */
+/* The agent that answered on Aureon (Claude): Investments, Business, General. */
 .ai-meta__route {
   display: inline-flex;
   align-items: center;
@@ -2103,21 +2118,58 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   background: color-mix(in oklch, var(--text-secondary) 14%, transparent);
   color: var(--text-secondary);
 }
-.ai-meta__route.is-local {
-  background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
-  color: var(--theme-accent);
-  font-weight: var(--weight-semibold);
-}
-/* External answers are outlined, local ones filled, so the two never look alike. */
 .ai-meta__route.is-external {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--theme-accent);
   color: var(--text-primary);
   font-weight: var(--weight-semibold);
 }
-.ai-meta__route.is-fallback {
-  background: color-mix(in oklch, var(--theme-warning) 16%, transparent);
+/* A write the agent asked for (POST /api/ai/approvals): inline, with a way to review it. */
+.ai-approval {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin: var(--sp-2) 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid color-mix(in oklch, var(--theme-warning) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--theme-warning) 8%, transparent);
+}
+.ai-approval__icon {
+  flex: none;
+  margin-top: 2px;
   color: var(--theme-warning);
+}
+.ai-approval__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ai-approval__head {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+.ai-approval__summary {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.ai-approval__link {
+  flex: none;
+  align-self: center;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--theme-accent);
+  text-decoration: none;
+}
+.ai-approval__link:hover,
+.ai-approval__link:focus-visible {
+  text-decoration: underline;
 }
 .ai-meta__tok {
   font-variant-numeric: tabular-nums;

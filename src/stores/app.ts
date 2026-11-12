@@ -5089,6 +5089,18 @@ export const useAppStore = defineStore('app', () => {
         : ch,
     )
   }
+  // Claude: the answering agent, cost and approvals of a reply (AiMessage.agent…).
+  function setAiMessageClaude(
+    chatId: number,
+    msgId: number,
+    patch: Pick<AiMessage, 'agent' | 'costUsd' | 'approvals'>,
+  ) {
+    aiChats.value = aiChats.value.map((ch) =>
+      ch.id === chatId
+        ? { ...ch, messages: ch.messages.map((m) => (m.id === msgId ? { ...m, ...patch } : m)) }
+        : ch,
+    )
+  }
   // A reply restarted on another model mid-stream: drop the text so far.
   function clearAiMessageContent(chatId: number, msgId: number) {
     aiChats.value = aiChats.value.map((ch) =>
@@ -9770,6 +9782,7 @@ export const useAppStore = defineStore('app', () => {
     setAiChatModel,
     setAiMessageModel,
     setAiMessageRoute,
+    setAiMessageClaude,
     clearAiMessageContent,
     setAiMessageSources,
     trackAiMade,

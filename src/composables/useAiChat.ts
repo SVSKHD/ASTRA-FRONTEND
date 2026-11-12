@@ -16,15 +16,13 @@ import { useAppStore } from '@/stores/app'
 import { supabase } from '@/supabase'
 import { chatTarget } from '@/utils/aiSettings'
 import {
+  agentFor,
   aiBackend,
-  aureonAi,
-  fallbackText,
-  loadUsage,
-  PROVIDER_NAME,
+  AureonChatError,
+  errorText,
+  setAgent,
   streamChat,
-  targetFor,
-  setTarget,
-  type ExternalProvider,
+  type ApprovalEvent,
 } from '@/ai/aureonChat'
 import { aiTraces, applyEvent, endTrace, startTrace, traceKey } from '@/ai/steps'
 import type { AiItemRef, AiMessage, AiSource } from '@/types'
@@ -300,11 +298,16 @@ async function send(prompt: string): Promise<void> {
   // setting (Bytez "Qwen3 4B" by default) is never stamped on an Aureon reply,
   // which used to label a Gemini answer as Qwen until the stream named it.
   const onAureon = aiBackend() === 'aureon'
-  const { provider, model: proxyModel } = chatTarget()
-  const model = onAureon ? (targetFor(String(chatId))?.model ?? '') : proxyModel
-  if (!onAureon && model !== chat.model) app.setAiChatModel(chatId, model)
-
   app.addAiMessage(chatId, { role: 'user', content: body })
+  if (onAureon) {
+    // Claude: the server owns the prompt, the data and the history; one message goes.
+    const msgId = app.addAiMessage(chatId, { role: 'assistant', content: '' })
+    await sendAureon(app, chatId, msgId, body)
+    return
+  }
+
+  const { provider, model } = chatTarget()
+  if (model !== chat.model) app.setAiChatModel(chatId, model)
   const usedData = app.aiUseData
   // The item picked to work on, as it stands right now.
   const working = focus.value ? focusInfo(app, focus.value) : null
@@ -316,11 +319,6 @@ async function send(prompt: string): Promise<void> {
     usedData,
     ...(working ? { focus: { collection: working.collection, id: working.id } } : {}),
   })
-
-  if (onAureon) {
-    await sendAureon(app, chatId, msgId, body, working, usedData)
-    return
-  }
 
   const url = proxyUrl()
   if (!url) {
@@ -422,120 +420,60 @@ async function send(prompt: string): Promise<void> {
 }
 
 /**
- * Migration stage 4: the same turn against Aureon's local Ollama (POST /api/chat).
- * Aureon keeps the conversation server-side, so only the new prompt is sent,
- * plus the instructions and live context as the system message (src/ai/aureonChat.ts).
+ * One turn against Claude (POST /api/ai/chat, src/ai/aureonChat.ts). Only the
+ * message and the chat's agent pick go: the server holds the system prompt,
+ * replays the conversation's history and reads the data through its own tools.
  */
 async function sendAureon(
   app: ReturnType<typeof useAppStore>,
   chatId: number,
   msgId: number,
   prompt: string,
-  working: ReturnType<typeof focusInfo> | null,
-  usedData: boolean,
 ): Promise<void> {
-  // The chat's provider + model (per conversation; new chats take the pick or
-  // the server default). null = let the server choose.
   const key = String(chatId)
-  const target = targetFor(key)
-  if (!target && !aureonAi.catalog) {
-    app.appendAiMessageContent(
-      chatId,
-      msgId,
-      '⚠️ Pick a model in the header first (the list comes from the server). Your message is saved.',
-    )
-    return
-  }
-  if (target) {
-    setTarget(key, target)
-    aureonAi.pending = null
-    app.setAiMessageModel(chatId, msgId, target.model)
-  }
-  // The external provider that answered (its spend meter refreshes after the turn).
-  let usedExternal: ExternalProvider | null = null
+  const agent = agentFor(key)
+  // A new chat keeps the pick it was started with.
+  if (agent !== 'auto') setAgent(key, agent)
   run.value = { chatId, msgId, status: 'streaming', startedAt: Date.now() }
   abort = new AbortController()
   let failed = false
-  // The reply's thinking steps (src/ai/steps.ts), for this visit.
+  const approvals: ApprovalEvent[] = []
+  // The reply's steps (src/ai/steps.ts), for this visit.
   const tkey = traceKey(chatId, msgId)
-  aiTraces[tkey] = startTrace(Date.now(), aureonAi.think)
+  aiTraces[tkey] = startTrace(Date.now())
   const trace = aiTraces[tkey]
   try {
-    const turns = app
-      .aiChatById(chatId)!
-      .messages.filter((m) => m.id !== msgId && m.content)
-      .map((m) => ({ role: m.role, content: m.content }))
-    const system = [
-      AI_INSTRUCTIONS,
-      todayLine(),
-      working ? focusBlock(working) : '',
-      usedData ? buildAiContext(aiContextInput(app)) : '',
-    ]
-      .filter(Boolean)
-      .join('\n\n')
     for await (const evt of streamChat({
-      model: target?.model ?? '',
-      provider: target?.provider,
-      system,
-      history: turns.slice(0, -1), // the last turn is this prompt
-      prompt,
-      chatKey: String(chatId),
+      message: prompt,
+      agent,
+      chatKey: key,
       signal: abort.signal,
-      think: aureonAi.think,
     })) {
       applyEvent(trace, evt)
-      if (evt.reset) app.clearAiMessageContent(chatId, msgId)
-      if (evt.route) {
-        const r = evt.route
-        if (r.provider !== 'ollama') usedExternal = r.provider
-        app.setAiMessageRoute(chatId, msgId, {
-          provider: r.provider,
-          requestedProvider: r.requestedProvider ?? target?.provider,
-          requestedModel: r.requestedModel ?? target?.model,
-          ...(r.fromProvider ? { fromProvider: r.fromProvider } : {}),
-          fallbackReason: r.fallbackReason ?? null,
-          localOnly: r.localOnly ?? false,
-          costUsd: r.costUsd ?? null,
-        })
-      }
-      // '' with a route: the answering model is unknown. Clear it, so the chip never
-      // keeps the model of the provider that was asked (or answered before a fallback).
-      if (evt.route && evt.model === '') app.setAiMessageModel(chatId, msgId, '')
-      if (evt.model) {
-        app.setAiMessageModel(chatId, msgId, evt.model)
-        const r = evt.route
-        setAnswerer({
-          model: evt.model,
-          provider:
-            r && r.provider !== 'ollama'
-              ? `${PROVIDER_NAME[r.provider]} (via Aureon)`
-              : 'Aureon (local)',
-          ...(r?.fallbackReason
-            ? { fallback: fallbackText(r.fallbackReason, r.requestedProvider) }
-            : {}),
-        })
-      }
+      if (evt.meta) app.setAiMessageClaude(chatId, msgId, { agent: evt.meta.agent })
       if (evt.text) app.appendAiMessageContent(chatId, msgId, evt.text)
-      if (evt.usage) app.setAiMessageUsage(chatId, msgId, evt.usage.in, evt.usage.out)
-      if (evt.error) throw new Error(evt.error)
+      if (evt.approval) {
+        approvals.push(evt.approval)
+        app.setAiMessageClaude(chatId, msgId, { approvals: [...approvals] })
+      }
+      if (evt.done) app.setAiMessageClaude(chatId, msgId, { costUsd: evt.done.costUsd })
+      if (evt.error) throw new AureonChatError(errorText(evt.error.code), 200, evt.error.code)
     }
   } catch (err) {
     if ((err as Error).name !== 'AbortError') {
       failed = true
       endTrace(trace, 'error', (err as Error).message)
+      const said = app.aiChatById(chatId)?.messages.find((m) => m.id === msgId)?.content
       app.appendAiMessageContent(
         chatId,
         msgId,
-        `\n\n⚠️ ${(err as Error).message || 'Stream failed.'}`,
+        `${said ? '\n\n' : ''}⚠️ ${(err as Error).message || 'Stream failed.'}`,
       )
     }
   } finally {
     const stopped = abort?.signal.aborted ?? false
     if (stopped) endTrace(trace, 'stopped')
     finish(failed ? 'error' : 'done')
-    if (!failed && !stopped) autoApplyUpdates(chatId, msgId)
-    // The usage meter: OpenRouter spend moves only when OpenRouter was called.
-    if (usedExternal) void loadUsage(usedExternal).catch(() => {})
   }
 }
 

@@ -11,11 +11,12 @@ export const MODULES = [
   { value: 'agents', label: 'Agents', short: 'Agents', repo: false },
   { value: 'system', label: 'System', short: 'System', repo: false },
   { value: 'dhan', label: 'Dhan ops', short: 'Dhan', repo: false },
-  { value: 'models', label: 'Local AI', short: 'AI', repo: false },
+  { value: 'models', label: 'AI chats', short: 'Chats', repo: false },
   { value: 'images', label: 'Images', short: 'Images', repo: false },
   { value: 'git', label: 'Local git', short: 'Git', repo: false },
   { value: 'repairs', label: 'Repairs', short: 'Repairs', repo: false },
   { value: 'inbox', label: 'Approvals', short: 'Inbox', repo: false },
+  { value: 'ai-approvals', label: 'AI approvals', short: 'AI asks', repo: false },
   { value: 'audit', label: 'Audit', short: 'Audit', repo: false },
   { value: 'settings', label: 'Settings', short: 'Settings', repo: false },
 ] as const

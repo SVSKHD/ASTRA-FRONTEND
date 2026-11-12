@@ -30,7 +30,7 @@ export const SCREENER_DOC = 'docs/market-terminal.md §6'
 
 type ScreenerInContract = typeof SCREENER_RUN_PATH extends keyof paths ? true : false
 /** True only when the generated OpenAPI contract has the screener endpoint. */
-export const SCREENER_AVAILABLE: ScreenerInContract = false
+export const SCREENER_AVAILABLE: ScreenerInContract = true
 
 // --- the request (docs §6, field for field) ----------------------------------------------
 

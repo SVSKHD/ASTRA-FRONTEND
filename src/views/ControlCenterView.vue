@@ -19,6 +19,7 @@ import RepoPicker from '@/components/control/RepoPicker.vue'
 import { checkSession, isAdmin, signIn, tradingSession } from '@/trading/session'
 import { inbox as paperInbox, loadInbox as loadPaperInbox } from '@/trading/inbox'
 import { approvals, startApprovals, stopApprovals } from '@/control/approvals'
+import { aiApprovals, startAiApprovals, stopAiApprovals } from '@/ai/approvals'
 import { loadRepos } from '@/control/repos'
 import { MODULES, PHONE_NAV, type ModuleKey } from '@/control/modules'
 import { useVoiceNav } from '@/control/voice'
@@ -41,6 +42,7 @@ const PAGES: Partial<Record<ModuleKey, ReturnType<typeof defineAsyncComponent>>>
   git: defineAsyncComponent(() => import('@/components/control/CcGit.vue')),
   repairs: defineAsyncComponent(() => import('@/components/control/CcRepairs.vue')),
   inbox: defineAsyncComponent(() => import('@/components/control/CcInbox.vue')),
+  'ai-approvals': defineAsyncComponent(() => import('@/components/control/CcAiApprovals.vue')),
   audit: defineAsyncComponent(() => import('@/components/control/CcAudit.vue')),
   settings: defineAsyncComponent(() => import('@/components/control/CcSettings.vue')),
 }
@@ -64,10 +66,18 @@ const paperInEngine = computed(() => approvals.items.some((a) => a.kind.startsWi
 const pending = computed(
   () => approvals.items.length + (paperInEngine.value ? 0 : paperInbox.items.length),
 )
+// What Claude asked to do and still waits for a decision (src/ai/approvals.ts).
+const aiPending = computed(() => aiApprovals.pending.length)
+/** The badge a module carries: its pending decisions, if it has any. */
+function countFor(m: ModuleKey): number | undefined {
+  if (m === 'inbox') return pending.value || undefined
+  if (m === 'ai-approvals') return aiPending.value || undefined
+  return undefined
+}
 const tabs = computed(() =>
   AVAILABLE.map((m) => ({
     value: m.value,
-    label: m.value === 'inbox' && pending.value ? `${m.label} (${pending.value})` : m.label,
+    label: countFor(m.value) ? `${m.label} (${countFor(m.value)})` : m.label,
   })),
 )
 const more = ref(false)
@@ -82,8 +92,12 @@ watch(
     if (yes) {
       void loadRepos()
       void startApprovals()
+      startAiApprovals()
       void loadPaperInbox()
-    } else stopApprovals()
+    } else {
+      stopApprovals()
+      stopAiApprovals()
+    }
   },
   { immediate: true },
 )
@@ -99,7 +113,10 @@ function toggleVoice() {
 }
 
 onMounted(() => void checkSession())
-onBeforeUnmount(stopApprovals)
+onBeforeUnmount(() => {
+  stopApprovals()
+  stopAiApprovals()
+})
 </script>
 
 <template>
@@ -174,11 +191,18 @@ onBeforeUnmount(stopApprovals)
           :key="m"
           size="sm"
           :variant="current === m ? 'tinted' : 'ghost'"
-          :count="m === 'inbox' ? pending : undefined"
+          :count="countFor(m)"
           @click="go(m)"
           >{{ MODULES.find((x) => x.value === m)!.short }}</Button
         >
-        <Button size="sm" variant="ghost" @click="more = true">More</Button>
+        <!-- AI approvals live under More on a phone; their count shows on it. -->
+        <Button
+          size="sm"
+          variant="ghost"
+          :count="PHONE_NAV.includes('ai-approvals') ? undefined : countFor('ai-approvals')"
+          @click="more = true"
+          >More</Button
+        >
       </nav>
       <BottomSheet :open="more" title="Modules" @close="more = false">
         <div class="cc__sheet">
@@ -187,7 +211,7 @@ onBeforeUnmount(stopApprovals)
             :key="m.value"
             block
             :variant="current === m.value ? 'tinted' : 'ghost'"
-            :count="m.value === 'inbox' ? pending : undefined"
+            :count="countFor(m.value)"
             @click="go(m.value)"
             >{{ m.label }}</Button
           >

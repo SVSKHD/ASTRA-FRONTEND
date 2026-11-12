@@ -3,8 +3,8 @@
 //
 // Pick a repository and branch from Aureon's allowlist, browse its files, and ask:
 //   - explain a file, find bugs and TODOs, map the architecture, summarize commits,
-//     review a pull request — streamed through /api/chat with the provider picked in the
-//     answer panel (AiAnswer), every bit of quoted material read from GitHub via Aureon;
+//     review a pull request — streamed from Claude through /api/ai/chat in the answer
+//     panel (AiAnswer), every bit of quoted material read from GitHub via Aureon;
 //   - a Claude review of a pull request, run by the server (POST …/claude-review);
 //   - a change: a code task on the server's clone, tested on its own branch, and kept
 //     only when an admin reads the diff and approves it (CodeTaskList). Nothing here
