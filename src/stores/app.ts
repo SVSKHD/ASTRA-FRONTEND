@@ -5093,7 +5093,7 @@ export const useAppStore = defineStore('app', () => {
   function setAiMessageClaude(
     chatId: number,
     msgId: number,
-    patch: Pick<AiMessage, 'agent' | 'costUsd' | 'approvals'>,
+    patch: Pick<AiMessage, 'agent' | 'costUsd' | 'approvals' | 'suggestions'>,
   ) {
     aiChats.value = aiChats.value.map((ch) =>
       ch.id === chatId

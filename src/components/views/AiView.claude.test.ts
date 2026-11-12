@@ -65,6 +65,34 @@ describe('<AiView /> on Claude', () => {
     expect(w.find('[data-testid="reply-model"]').exists()).toBe(false)
   })
 
+  it('shows a suggested reminder as a card that adds nothing until confirmed', async () => {
+    const app = useAppStore()
+    const id = app.newAiChat()
+    app.addAiMessage(id, { role: 'user', content: 'Remind me to call Ravi tomorrow at 10' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'I suggested a reminder.',
+      agent: 'general',
+      suggestions: [
+        { kind: 'reminder', fields: { title: 'Call Ravi', date: '2026-11-13', time: '10:00' } },
+      ],
+    })
+    const before = app.reminders.length
+    const w = mount(AiView, { global, attachTo: document.body })
+    const card = w.get('[data-testid="suggestion-card"]')
+    expect(card.text()).toContain('Suggested')
+    expect(card.text()).toContain('Reminder · Call Ravi · 2026-11-13, 10:00')
+    await card.get('button').trigger('click')
+    // The usual Add dialog, prefilled; still nothing created.
+    expect(document.body.textContent ?? '').toContain('Add from this reply')
+    const title = [...document.body.querySelectorAll('input')].find(
+      (i) => (i as HTMLInputElement).value === 'Call Ravi',
+    )
+    expect(title).toBeTruthy()
+    expect(app.reminders.length).toBe(before)
+    w.unmount()
+  })
+
   it('stores the agent picked for the open chat', async () => {
     const app = useAppStore()
     const id = app.newAiChat()
@@ -74,5 +102,47 @@ describe('<AiView /> on Claude', () => {
     await w.vm.$nextTick()
     expect(aureonAi.agents[String(id)]).toBe('business')
     expect(w.get('[data-testid="agent-note"]').text()).toContain('Aquakart')
+  })
+
+  it('attaches files, says photos are not redacted, and sends their ids', async () => {
+    const posts: { url: string; body: unknown }[] = []
+    vi.stubGlobal('fetch', async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url)
+      if (u.includes('/api/ai/attachments')) {
+        const file = (init?.body as FormData).get('file') as File
+        return new Response(
+          JSON.stringify({ id: `id-${file.name}`, name: file.name, kind: 'image',
+                           media_type: 'image/png', size: file.size }), // prettier-ignore
+          { status: 201, headers: { 'content-type': 'application/json' } },
+        )
+      }
+      posts.push({ url: u, body: JSON.parse(String(init?.body ?? '{}')) })
+      return new Response('event: done\ndata: {"conversation_id":"c1","text":"A chart."}\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    })
+    const app = useAppStore()
+    app.newAiChat()
+    const w = mount(AiView, { global, attachTo: document.body })
+    const input = w.get('input[type="file"]')
+    const png = new File([new Uint8Array([137, 80, 78, 71])], 'chart.png', { type: 'image/png' })
+    Object.defineProperty(input.element, 'files', { value: [png], configurable: true })
+    await input.trigger('change')
+    await vi.waitFor(() => expect(w.text()).toContain('chart.png'))
+    await vi.waitFor(() => expect(w.text()).not.toContain('uploading…'))
+    expect(w.get('[data-testid="unredacted-note"]').text()).toContain('not redacted')
+    // A refused file is shown with its reason and never uploaded.
+    const exe = new File(['MZ'], 'setup.exe')
+    Object.defineProperty(input.element, 'files', { value: [exe], configurable: true })
+    await input.trigger('change')
+    await vi.waitFor(() => expect(w.text()).toContain('setup.exe'))
+    // Send with no text: the files alone are enough.
+    await w.get('button[aria-label="Send (Enter)"]').trigger('click')
+    await vi.waitFor(() => expect(posts.length).toBe(1))
+    expect(posts[0].body).toMatchObject({ attachments: ['id-chart.png'] })
+    await vi.waitFor(() => expect(w.find('[data-testid="pending-files"]').exists()).toBe(false))
+    w.unmount()
+    vi.unstubAllGlobals()
   })
 })

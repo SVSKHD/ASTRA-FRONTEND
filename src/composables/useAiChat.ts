@@ -11,6 +11,7 @@
 // (VITE_AI_PROXY_URL), a Netlify function that verifies the Supabase session,
 // injects the key, and streams back `data: {"text": …}` lines.
 
+import { workspaceSummary, type Suggestion } from '@/ai/workspace'
 import { computed, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { supabase } from '@/supabase'
@@ -285,9 +286,16 @@ function finish(status: 'done' | 'error') {
   abort = null
 }
 
-async function send(prompt: string): Promise<void> {
+/** A file already uploaded for this message (src/ai/attachments.ts). */
+export interface SentFile {
+  id: string
+  name: string
+  kind: 'image' | 'pdf' | 'table'
+}
+
+async function send(prompt: string, files: SentFile[] = []): Promise<void> {
   const app = useAppStore()
-  const body = prompt.trim()
+  const body = prompt.trim() || (files.length ? 'Please look at the attached file.' : '')
   if (!body || streaming.value) return
   let chatId = app.aiActiveChatId
   if (chatId == null) chatId = app.newAiChat()
@@ -298,11 +306,21 @@ async function send(prompt: string): Promise<void> {
   // setting (Bytez "Qwen3 4B" by default) is never stamped on an Aureon reply,
   // which used to label a Gemini answer as Qwen until the stream named it.
   const onAureon = aiBackend() === 'aureon'
-  app.addAiMessage(chatId, { role: 'user', content: body })
+  app.addAiMessage(chatId, {
+    role: 'user',
+    content: body,
+    ...(files.length ? { attachments: files.map((f) => ({ ...f })) } : {}),
+  })
   if (onAureon) {
     // Claude: the server owns the prompt, the data and the history; one message goes.
     const msgId = app.addAiMessage(chatId, { role: 'assistant', content: '' })
-    await sendAureon(app, chatId, msgId, body)
+    await sendAureon(
+      app,
+      chatId,
+      msgId,
+      body,
+      files.map((f) => f.id),
+    )
     return
   }
 
@@ -429,6 +447,7 @@ async function sendAureon(
   chatId: number,
   msgId: number,
   prompt: string,
+  attachments: string[] = [],
 ): Promise<void> {
   const key = String(chatId)
   const agent = agentFor(key)
@@ -438,6 +457,7 @@ async function sendAureon(
   abort = new AbortController()
   let failed = false
   const approvals: ApprovalEvent[] = []
+  const suggestions: Suggestion[] = []
   // The reply's steps (src/ai/steps.ts), for this visit.
   const tkey = traceKey(chatId, msgId)
   aiTraces[tkey] = startTrace(Date.now())
@@ -448,6 +468,14 @@ async function sendAureon(
       agent,
       chatKey: key,
       signal: abort.signal,
+      attachments,
+      // Read-only: what is open in the workspace, so Claude can answer about it.
+      workspace: workspaceSummary({
+        todos: app.todos,
+        tasks: app.tasks,
+        reminders: app.reminders,
+        notes: app.notes,
+      }),
     })) {
       applyEvent(trace, evt)
       if (evt.meta) app.setAiMessageClaude(chatId, msgId, { agent: evt.meta.agent })
@@ -455,6 +483,10 @@ async function sendAureon(
       if (evt.approval) {
         approvals.push(evt.approval)
         app.setAiMessageClaude(chatId, msgId, { approvals: [...approvals] })
+      }
+      if (evt.suggestion) {
+        suggestions.push(evt.suggestion)
+        app.setAiMessageClaude(chatId, msgId, { suggestions: [...suggestions] })
       }
       if (evt.done) {
         // The answer arrives as text events; done repeats it whole. If no text event
