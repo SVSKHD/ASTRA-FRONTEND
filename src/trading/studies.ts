@@ -559,6 +559,16 @@ function write(key: string, value: string): void {
   }
 }
 
+/**
+ * The studio as two strings, the same text that is kept in localStorage, so it
+ * can also be kept in the account's settings and follow the user to another
+ * device (src/trading/studioSync.ts).
+ */
+export interface SyncedStudies {
+  studies: string
+  presets: string
+}
+
 /** A studio: the chart's studies, the marked crossover pair and the saved presets. */
 export function createStudio(opts: { persist?: boolean } = {}) {
   const persist = opts.persist !== false
@@ -569,13 +579,23 @@ export function createStudio(opts: { persist?: boolean } = {}) {
     presets: persist ? parsePresets(read(PRESETS_KEY)) : [],
   })
   if (saved) applyPreset(saved)
+  const listeners = new Set<(s: SyncedStudies) => void>()
 
+  function exportState(): SyncedStudies {
+    return { studies: JSON.stringify(snapshot('current')), presets: JSON.stringify(state.presets) }
+  }
+  function changed() {
+    if (!listeners.size) return
+    const out = exportState()
+    for (const fn of listeners) fn(out)
+  }
   function save() {
-    if (!persist) return
-    write(STUDIES_KEY, JSON.stringify(snapshot('current')))
+    if (persist) write(STUDIES_KEY, JSON.stringify(snapshot('current')))
+    changed()
   }
   function savePresets() {
     if (persist) write(PRESETS_KEY, JSON.stringify(state.presets))
+    changed()
   }
   function snapshot(name: string): StudyPreset {
     const ids = state.studies.map((s) => s.id)
@@ -617,6 +637,30 @@ export function createStudio(opts: { persist?: boolean } = {}) {
   return {
     state,
     add,
+    exportState,
+    /**
+     * Replace the studies and presets with ones saved elsewhere (the account's
+     * settings). Malformed input is ignored, field by field. Listeners are not
+     * told: this is the saved state arriving, not a change to save.
+     */
+    importState(from: Partial<SyncedStudies>) {
+      if (typeof from.studies === 'string' && from.studies) {
+        const p = parsePresets(`[${from.studies}]`)[0]
+        if (p) {
+          applyPreset(p)
+          if (persist) write(STUDIES_KEY, JSON.stringify(snapshot('current')))
+        }
+      }
+      if (typeof from.presets === 'string' && from.presets) {
+        state.presets = parsePresets(from.presets)
+        if (persist) write(PRESETS_KEY, JSON.stringify(state.presets))
+      }
+    },
+    /** Called with the new state after every change the user makes. */
+    subscribe(fn: (s: SyncedStudies) => void): () => void {
+      listeners.add(fn)
+      return () => listeners.delete(fn)
+    },
     remove(id: string) {
       state.studies = state.studies.filter((s) => s.id !== id)
       if (state.cross && (state.cross.fast === id || state.cross.slow === id)) state.cross = null

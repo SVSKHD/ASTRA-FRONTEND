@@ -1625,6 +1625,13 @@ export interface AstraSettings extends LoggerSettings {
   trackedRepos: string[]
   /** Which news categories the News tab shows by default. */
   newsCategories: NewsCategory[]
+  /**
+   * The chart's indicators and saved presets (src/trading/studies.ts), as the
+   * studio serialises them. Here so they follow the user to another device;
+   * empty means none saved to the account yet (the device's copy is used).
+   */
+  chartStudies?: string
+  chartPresets?: string
 }
 
 /** Dacoit's verdict on a setup, as delivered by the ingestion function. */
