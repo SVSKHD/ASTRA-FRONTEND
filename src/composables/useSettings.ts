@@ -91,7 +91,16 @@ function readSettings(data: DocumentData | undefined): AstraSettings {
           (['forex', 'ai', 'code'] as string[]).includes(c),
         )
       : [...DEFAULT_WATCH_SETTINGS.newsCategories],
+    chartStudies: text(d.chartStudies, MAX_STUDIO_CHARS),
+    chartPresets: text(d.chartPresets, MAX_STUDIO_CHARS),
   }
+}
+
+/** The studio's serialised state is small; anything longer is not ours. */
+export const MAX_STUDIO_CHARS = 64_000
+
+function text(value: unknown, max: number): string {
+  return typeof value === 'string' && value.length <= max ? value : ''
 }
 
 let shared: ReturnType<typeof create> | null = null
