@@ -1,0 +1,37 @@
+# Nightly build, every day at 20:00 IST (14:30 UTC), on GitHub-hosted runners only: the
+# same checks and production build as CI (format, stylelint, type-check, vitest, vite
+# build), on dev01 as it is tonight.
+#
+# Nothing is deployed and no secret is used: the server still pulls merged dev01 commits
+# itself (Aureon scripts/ops/deploy-poll.sh). A failed run shows in Aureon's DevOps feed as
+# build.failed (via its Actions sync). "Run workflow" starts one by hand.
+name: Nightly build
+on:
+  schedule:
+    - cron: "30 14 * * *" # 20:00 IST
+  workflow_dispatch:
+  # A change to this file runs it once on its PR, so it is proven before it runs at night.
+  pull_request:
+    paths: [".github/workflows/nightly.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build # runs `verify` (format, stylelint, type-check, vitest) first
