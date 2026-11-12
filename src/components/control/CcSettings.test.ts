@@ -1,6 +1,7 @@
-// The Settings page: a rail of categories, grouped cards, typed editors, the
-// password before a secret changes, a guard on unsaved changes, search, and the AI
-// category's spend strip. A secret's value is never rendered or kept.
+// The Settings page, built from the base kit like the Todos tab: Tabs for the
+// categories, an Accordion per group, a FormField per setting, Alerts for page
+// states. Typed values save with Save; picks (a model, the effort, a switch) apply
+// at once. A secret's value is never rendered or kept.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -15,6 +16,7 @@ const api = vi.hoisted(() => ({
 vi.mock('@/api/client', () => ({ aureon: api }))
 
 import CcSettings from '@/components/control/CcSettings.vue'
+import { warningEntries } from '@/services/warnings'
 
 const row = (key: string, category: string, kind: string, over: Record<string, unknown> = {}) => ({
   key,
@@ -38,8 +40,9 @@ const SETTINGS = {
   },
   settings: [
     row('ANTHROPIC_API_KEY', 'ai', 'secret'),
-    row('AI_MODEL_MAIN', 'ai', 'str', { source: 'default' }),
-    row('AI_EFFORT', 'ai', 'str', { source: 'default' }),
+    row('AI_MODEL_MAIN', 'ai', 'str', { source: 'default', is_set: true, masked: '••••-5-5' }),
+    row('AI_MODEL_ROUTER', 'ai', 'str', { source: 'default', is_set: true, masked: '••••-5-5' }),
+    row('AI_EFFORT', 'ai', 'str', { source: 'default', is_set: true, masked: '••••dium' }),
     row('AI_MONTHLY_BUDGET_USD', 'ai', 'decimal', {
       source: 'db',
       is_set: true,
@@ -111,6 +114,9 @@ async function mounted(path = '/dev/settings') {
 }
 
 const field = (w: ReturnType<typeof mount>, key: string) => w.get(`[data-key="${key}"]`)
+const tabLabels = (w: ReturnType<typeof mount>) =>
+  w.findAll('[role="tab"]').map((t) => t.text().trim())
+const warnings = () => warningEntries.map((x) => `${x.title ?? ''} ${x.message}`).join(' | ')
 
 describe('<CcSettings />', () => {
   beforeEach(() => {
@@ -126,23 +132,71 @@ describe('<CcSettings />', () => {
     document.body.innerHTML = ''
   })
 
-  it('lists categories in a rail with their last test and missing credentials', async () => {
+  it('uses the kit: a PanelHeader, Tabs with missing-credential counts, and an Accordion per group', async () => {
     const { w } = await mounted()
-    const cats = w.findAll('.cs__cat')
-    expect(cats.map((c) => c.attributes('data-category'))).toEqual(['ai', 'agents', 'github'])
-    expect(w.get('.cs__cat[data-category="ai"] .cs__cat-count').text()).toContain('1')
-    expect(w.get('.cs__cat[data-category="github"] .cs__cat-dot').classes()).toContain('is-failed')
-    // The first category opens, its cards in order, with "Other" for an unknown key.
-    const titles = w.findAll('.cs__group .ui-card__title').map((t) => t.text())
-    expect(titles).toEqual(['Credentials', 'Models', 'Budgets', 'Schedules', 'Other'])
+    expect(w.find('.panel-header__title').text()).toBe('Settings')
+    expect(tabLabels(w)).toEqual(['AI (1)', 'Agents', 'GitHub'])
+    const groups = w.findAll('.cs__group').map((g) => g.attributes('data-group'))
+    expect(groups).toEqual(['Credentials', 'Models', 'Budgets', 'Schedules', 'Other'])
     expect(w.findAll('[data-key="AI_FUTURE_KNOB"]').length).toBe(1)
+    // Each setting is a FormField: its label is tied to its control.
+    expect(field(w, 'AI_MONTHLY_BUDGET_USD').find('.ui-ff__label').text()).toContain(
+      'Monthly budget',
+    )
   })
 
-  it('shows the AI spend and says Claude is off without a key', async () => {
+  it('shows the AI spend, and says Claude is off through an Alert', async () => {
     const { w } = await mounted()
     expect(api.GET).toHaveBeenCalledWith('/api/ai/usage')
-    expect(w.get('[data-testid="key-callout"]').text()).toContain('Claude is off')
     expect(w.get('[data-testid="budget"]').text()).toContain('$12.00')
+    expect(warnings()).toContain('Claude is off')
+  })
+
+  it('offers only the valid models, says which is in use, and applies a pick at once', async () => {
+    const { w } = await mounted()
+    const f = field(w, 'AI_MODEL_MAIN')
+    expect(f.get('[data-testid="model-now"]').text()).toContain('In use: Opus 5.5 (server default)')
+    const select = f.findComponent({ name: 'Select' })
+    const values = (select.props('options') as { value: string }[]).map((o) => o.value)
+    expect(values).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'])
+    // The router can be switched off; the main model cannot.
+    const router = field(w, 'AI_MODEL_ROUTER').findComponent({ name: 'Select' })
+    expect((router.props('options') as { value: string }[]).map((o) => o.value)).toContain('')
+
+    select.vm.$emit('update:modelValue', 'claude-sonnet-5-5')
+    await flushPromises()
+    // One step: no Save button, the pick is sent.
+    expect(api.PUT).toHaveBeenCalledWith('/api/v1/settings/{key}', {
+      params: { path: { key: 'AI_MODEL_MAIN' } },
+      body: { value: 'claude-sonnet-5-5' },
+    })
+    // Picking what is already in use sends nothing.
+    api.PUT.mockClear()
+    select.vm.$emit('update:modelValue', 'claude-opus-5-5')
+    await flushPromises()
+    expect(api.PUT).not.toHaveBeenCalled()
+  })
+
+  it('applies the thinking effort and a switch at once', async () => {
+    const { w, router } = await mounted()
+    const effort = field(w, 'AI_EFFORT').findComponent({ name: 'SegmentedControl' })
+    expect(effort.props('modelValue')).toBe('medium')
+    effort.vm.$emit('update:modelValue', 'high')
+    await flushPromises()
+    expect(api.PUT).toHaveBeenCalledWith('/api/v1/settings/{key}', {
+      params: { path: { key: 'AI_EFFORT' } },
+      body: { value: 'high' },
+    })
+    await router.replace({ query: { category: 'agents' } })
+    await flushPromises()
+    const sw = field(w, 'AGENT_IMAGE_ENABLED').findComponent({ name: 'Switch' })
+    expect(sw.props('modelValue')).toBe(true)
+    sw.vm.$emit('update:modelValue', false)
+    await flushPromises()
+    expect(api.PUT).toHaveBeenCalledWith('/api/v1/settings/{key}', {
+      params: { path: { key: 'AGENT_IMAGE_ENABLED' } },
+      body: { value: 'false' },
+    })
   })
 
   it('never renders a secret: a mask, then an empty password field on Replace', async () => {
@@ -151,7 +205,7 @@ describe('<CcSettings />', () => {
     await flushPromises()
     const f = field(w, 'GITHUB_TOKEN')
     expect(f.get('[data-testid="mask"]').text()).toBe('••••wxyz')
-    expect(f.find('input').exists()).toBe(false)
+    expect(f.findAll('input').length).toBe(0)
     await f.get('[data-testid="replace"]').trigger('click')
     const input = f.get('input')
     expect(input.attributes('type')).toBe('password')
@@ -177,21 +231,19 @@ describe('<CcSettings />', () => {
     expect(stored).not.toContain('hunter2')
   })
 
-  it('saves a number only once it changed, and only when it is valid', async () => {
+  it('saves a typed number only once it changed, with its unit, from a NumberInput', async () => {
     const { w } = await mounted()
     const f = field(w, 'AI_MONTHLY_BUDGET_USD')
-    expect(f.find('[data-testid="save"]').exists()).toBe(false)
+    expect(f.findAll('[data-testid="save"]').length).toBe(0)
     expect(f.text()).toContain('USD')
-    await f.get('input').setValue('abc')
-    expect(f.get('[data-testid="save"]').attributes('disabled')).toBeDefined()
-    expect(f.text()).toContain('0 or more')
-    await f.get('input').setValue('150.50')
+    expect(f.get('input').attributes('placeholder')).toBe('Now ••••100')
+    await f.get('input').setValue('150.5')
     expect(f.find('[data-testid="unsaved-dot"]').exists()).toBe(true)
     await f.get('[data-testid="save"]').trigger('click')
     await flushPromises()
     expect(api.PUT).toHaveBeenCalledWith('/api/v1/settings/{key}', {
       params: { path: { key: 'AI_MONTHLY_BUDGET_USD' } },
-      body: { value: '150.50' },
+      body: { value: '150.5' },
     })
   })
 
@@ -221,9 +273,9 @@ describe('<CcSettings />', () => {
     })
   })
 
-  it('asks before leaving with unsaved changes, and stays or leaves as told', async () => {
+  it('asks before leaving with unsaved changes, and leaves when told to discard', async () => {
     const { w, router } = await mounted()
-    await field(w, 'AI_MODEL_MAIN').get('input').setValue('claude-sonnet-5-5')
+    await field(w, 'AI_DAILY_REPORT_CRON').get('input').setValue('0 9 * * *')
     // Another category of the same page: the draft comes along, no question.
     await router.replace({ query: { category: 'agents' } })
     await flushPromises()
@@ -233,7 +285,7 @@ describe('<CcSettings />', () => {
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/dev/settings')
     expect(document.body.textContent).toContain('Leave with unsaved settings?')
-    expect(document.body.textContent).toContain('Main model')
+    expect(document.body.textContent).toContain('Daily report')
 
     const discard = [...document.body.querySelectorAll('button')].find((b) =>
       /discard/i.test(b.textContent ?? ''),
@@ -244,8 +296,10 @@ describe('<CcSettings />', () => {
     expect(api.PUT).not.toHaveBeenCalled()
   })
 
-  it('finds a setting by search and opens its category', async () => {
+  it('opens search from the header and jumps to a setting', async () => {
     const { w, router } = await mounted()
+    expect(w.find('.cs__search').exists()).toBe(false)
+    await w.get('[data-testid="search-toggle"]').trigger('click')
     await w.get('.cs__search input').setValue('github token')
     const hit = w.findAll('.cs__hit').find((h) => h.text().includes('GITHUB_TOKEN'))!
     await hit.trigger('click')
@@ -274,17 +328,18 @@ describe('<CcSettings />', () => {
   it('disables writes and says why when encryption is not ready', async () => {
     serve({ ...SETTINGS, encryption_ready: false })
     const { w } = await mounted()
-    expect(w.get('.cs__banner').text()).toContain('SETTINGS_MASTER_KEY')
-    expect(field(w, 'AI_MODEL_MAIN').get('input').attributes('disabled')).toBeDefined()
+    expect(warnings()).toContain('SETTINGS_MASTER_KEY')
+    expect(field(w, 'AI_DAILY_REPORT_CRON').get('input').attributes('disabled')).toBeDefined()
   })
 
   it('offers a retry when the list cannot be loaded', async () => {
     api.GET.mockImplementation(async () => res({ detail: 'boom' }, 500))
     const { w } = await mounted()
-    expect(w.get('.cs__error').text()).toContain('could not be loaded')
+    expect(w.text()).toContain('Settings could not be loaded')
     serve()
-    await w.get('.cs__error button').trigger('click')
+    const retry = w.findAll('button').find((b) => b.text() === 'Retry')!
+    await retry.trigger('click')
     await flushPromises()
-    expect(w.findAll('.cs__cat').length).toBe(3)
+    expect(tabLabels(w).length).toBe(3)
   })
 })

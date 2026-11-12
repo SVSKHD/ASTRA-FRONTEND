@@ -14,6 +14,8 @@ import SearchField from '@/components/ui/SearchField.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import Switch from '@/components/ui/Switch.vue'
 import Icon from '@/components/ui/Icon.vue'
+import Badge from '@/components/ui/Badge.vue'
+import GlassPanel from '@/components/ui/GlassPanel.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import AiActionDialog from '@/components/AiActionDialog.vue'
@@ -1170,23 +1172,21 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                   </div>
 
                   <!-- Writes the agent asked for: nothing happens until approved. -->
-                  <div
+                  <GlassPanel
                     v-for="a in m.approvals ?? []"
                     :key="a.id"
+                    padding="sm"
                     class="ai-approval"
                     data-testid="approval-card"
                   >
-                    <Icon name="shield-alert" size="sm" class="ai-approval__icon" />
-                    <div class="ai-approval__body">
-                      <span class="ai-approval__head">Awaiting your approval</span>
-                      <span class="ai-approval__summary">{{ a.summary }}</span>
-                    </div>
+                    <Badge tone="warning" label="Awaiting your approval" />
+                    <span class="ai-approval__summary">{{ a.summary }}</span>
                     <RouterLink
                       class="ai-approval__link"
                       :to="{ path: '/dev/ai-approvals', query: { id: a.id } }"
                       >Review</RouterLink
                     >
-                  </div>
+                  </GlassPanel>
 
                   <div v-if="!isStreamingMsg(m.id) || m.agent" class="ai-meta">
                     <!-- Claude: the agent that answered THIS reply, and what it cost. -->
@@ -2124,44 +2124,25 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   color: var(--text-primary);
   font-weight: var(--weight-semibold);
 }
-/* A write the agent asked for (POST /api/ai/approvals): inline, with a way to review it. */
+/* A write the agent asked for (POST /api/ai/approvals): a kit GlassPanel with a
+   warning Badge, inline under the reply, and a way to review it. */
 .ai-approval {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--sp-2);
   min-width: 0;
   margin: var(--sp-2) 0;
-  padding: var(--sp-2) var(--sp-3);
-  border: 1px solid color-mix(in oklch, var(--theme-warning) 45%, transparent);
-  border-radius: var(--radius-md);
-  background: color-mix(in oklch, var(--theme-warning) 8%, transparent);
-}
-.ai-approval__icon {
-  flex: none;
-  margin-top: 2px;
-  color: var(--theme-warning);
-}
-.ai-approval__body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.ai-approval__head {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
 }
 .ai-approval__summary {
+  flex: 1 1 14rem;
   min-width: 0;
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   overflow-wrap: anywhere;
 }
 .ai-approval__link {
   flex: none;
-  align-self: center;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--theme-accent);

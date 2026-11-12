@@ -15,6 +15,7 @@ export type Editor =
   | 'switch'
   | 'secret'
   | 'effort'
+  | 'model'
   | 'budgets'
   | 'prices'
   | 'cron'
@@ -29,6 +30,7 @@ export function editorFor(row: Pick<SettingRow, 'key' | 'kind' | 'managed'>): Ed
   if (row.kind === 'bool') return 'switch'
   if (row.kind === 'secret') return 'secret'
   if (row.key === 'AI_EFFORT') return 'effort'
+  if (row.key in MODEL_DEFAULT) return 'model'
   if (row.key === 'AI_AGENT_BUDGETS_USD') return 'budgets'
   if (row.key === 'AI_MODEL_PRICES') return 'prices'
   if (row.key.endsWith('_CRON')) return 'cron'
@@ -88,6 +90,61 @@ export function parseCsv(value: string): string[] {
 /** The csv string the backend stores: items joined by commas, no spaces, no duplicates. */
 export function serializeCsv(items: string[]): string {
   return [...new Set(items.map((s) => s.trim()).filter(Boolean))].join(',')
+}
+
+// --- AI_MODEL_MAIN / AI_MODEL_ROUTER ------------------------------------------------------
+
+/**
+ * The models the server can call: its built-in priced models (backend config.py
+ * BUILTIN prices, docs/26). A model without a price is never called, so these are
+ * the only ids a dropdown offers. USD per million tokens, input / output.
+ */
+export const CLAUDE_MODELS = [
+  { id: 'claude-opus-5-5', name: 'Opus 5.5', note: 'Most capable · $4 in / $20 out per M' },
+  { id: 'claude-sonnet-5-5', name: 'Sonnet 5.5', note: 'Balanced · $2 in / $10 out per M' },
+  {
+    id: 'claude-haiku-5-5',
+    name: 'Haiku 5.5',
+    note: 'Fastest, cheapest · $0.10 in / $0.50 out per M',
+  },
+] as const
+
+/** The server's default for each model setting (backend config.py). */
+export const MODEL_DEFAULT: Record<string, string> = {
+  AI_MODEL_MAIN: 'claude-opus-5-5',
+  AI_MODEL_ROUTER: 'claude-haiku-5-5',
+}
+
+/** The router can be switched off (blank); the main model cannot. */
+export const MODEL_OFF = ''
+
+/** Options for a model dropdown; the router adds "Off". */
+export function modelOptions(key: string): { value: string; label: string }[] {
+  const models = CLAUDE_MODELS.map((m) => ({
+    value: m.id,
+    label: `${m.name} — ${m.note}${m.id === MODEL_DEFAULT[key] ? ' · default' : ''}`,
+  }))
+  return key === 'AI_MODEL_ROUTER'
+    ? [...models, { value: MODEL_OFF, label: 'Off — chats then need an agent picked' }]
+    : models
+}
+
+/** "Opus 5.5" for a known id; the id itself otherwise. */
+export function modelName(id: string): string {
+  return CLAUDE_MODELS.find((m) => m.id === id)?.name ?? id
+}
+
+/**
+ * The model in effect, as far as the client can know it: the server default when
+ * the source is "default"; otherwise the mask's last characters, matched against
+ * the known ids when that is unambiguous. null = unknown (the mask is shown).
+ */
+export function modelNow(row: Pick<SettingRow, 'key' | 'source' | 'masked'>): string | null {
+  if (row.source === 'default') return MODEL_DEFAULT[row.key] ?? null
+  const m = (row.masked ?? '').replace(/^•+/, '')
+  if (!m) return null
+  const hits = CLAUDE_MODELS.filter((x) => x.id.endsWith(m))
+  return hits.length === 1 ? hits[0].id : null
 }
 
 // --- AI_EFFORT -----------------------------------------------------------------------------
@@ -212,6 +269,11 @@ export function parsePrices(value: string): PriceRow[] {
 export function draftError(row: Pick<SettingRow, 'key' | 'kind'>, value: string): string | null {
   const editor = editorFor({ ...row, managed: false })
   if (editor === 'cron') return cronError(value)
+  if (editor === 'model') {
+    return value === MODEL_OFF || CLAUDE_MODELS.some((m) => m.id === value)
+      ? null
+      : 'Pick one of the listed models.'
+  }
   if (editor === 'effort') {
     return (EFFORTS as readonly string[]).includes(value) ? null : 'Pick an effort level.'
   }
@@ -234,7 +296,7 @@ export function keyNote(key: string): string {
     return 'Each budget’s monthly cap. A call that could cross its budget, or the monthly budget, is refused.'
   }
   if (key === 'AI_MODEL_ROUTER')
-    return 'Leave blank to turn the router off: chats then need an agent picked.'
+    return 'Pick Off to turn the router off: chats then need an agent picked.'
   if (key.startsWith('AI_TRADE_')) {
     return 'Hard limits on what Claude may propose. Every proposal still waits for your approval and is paper only.'
   }

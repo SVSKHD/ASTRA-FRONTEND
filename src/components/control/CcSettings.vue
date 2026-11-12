@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// Settings and secrets (backend docs/settings.md), as a "system preferences"
-// page: a rail of categories (AI, Agents, Dhan, GitHub, Discord, MT5), each with
-// the result of its last connection test and how many credentials it still
-// needs; on the right, the category's purpose, its Test connection, and its
-// settings in titled cards. On a phone the rail is a horizontal strip.
+// Settings and secrets (backend docs/settings.md), built the way the Todos tab is
+// and from the same parts the /ui page documents: a PanelHeader with its
+// panel-action buttons (search, Test connection), Tabs for the categories (AI,
+// Agents, Dhan, GitHub, Discord, MT5), one Accordion per group of settings, and
+// each setting in a FormField. Page-wide states (encryption off, Claude off, the
+// list failing to load) are Alerts, which the app shows in its warnings area.
 //
 // The server never sends a value back: each row shows a mask, where the value in
 // effect comes from, and when it changed. A typed value lives only in this page's
@@ -21,13 +22,17 @@ import {
   useRouter,
   type RouteLocationRaw,
 } from 'vue-router'
+import PanelHeader from '@/components/PanelHeader.vue'
+import Accordion from '@/components/ui/Accordion.vue'
+import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
-import Card from '@/components/ui/Card.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import GlassPanel from '@/components/ui/GlassPanel.vue'
 import Icon from '@/components/ui/Icon.vue'
 import SearchField from '@/components/ui/SearchField.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
+import Tabs from '@/components/ui/Tabs.vue'
 import UnsavedSheet from '@/components/ui/UnsavedSheet.vue'
 import BudgetCard from '@/components/ai/costs/BudgetCard.vue'
 import DhanSessionBar from '@/components/control/DhanSessionBar.vue'
@@ -44,7 +49,6 @@ import {
   missingCount,
   searchSettings,
   testChip,
-  testDot,
   testKey,
   type Category,
   type SearchHit,
@@ -78,9 +82,38 @@ const selected = computed<Category | null>(() => {
 function pick(category: string) {
   void router.replace({ query: { ...route.query, category } })
 }
+/** Tabs carry the count of credentials still missing, as the control center's Approvals tab does. */
+const tabs = computed(() =>
+  categories.value.map((c) => {
+    const n = missingCount(c.rows)
+    return { value: c.category, label: n ? `${c.label} (${n})` : c.label }
+  }),
+)
 const groups = computed(() =>
   selected.value ? groupRows(selected.value.category, selected.value.rows) : [],
 )
+
+// --- groups fold like the Todos tab's sections; folded ones are remembered per device ---------
+const FOLD_KEY = 'aureon.settings.folded'
+function readFolded(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(FOLD_KEY) || '[]') as unknown
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+const folded = ref<string[]>(readFolded())
+const foldKey = (title: string) => `${selected.value?.category}:${title}`
+function toggleGroup(title: string, open: boolean) {
+  const k = foldKey(title)
+  folded.value = open ? folded.value.filter((x) => x !== k) : [...folded.value, k]
+  try {
+    localStorage.setItem(FOLD_KEY, JSON.stringify(folded.value))
+  } catch {
+    /* private window: holds for this visit */
+  }
+}
 
 // --- AI: this month's spend at the top, and the caps the budget editor starts from ----------
 const usage = ref<AiUsage | null>(null)
@@ -142,14 +175,33 @@ watch(
   },
 )
 
-// --- search (and Ctrl/Cmd+K) ------------------------------------------------------------------
+// --- search: a toggle in the header, as on the Todos tab; Ctrl/Cmd+K opens it ----------------
+const searchOpen = ref(false)
 const query = ref('')
 const searchBox = ref<HTMLElement | null>(null)
 const hits = computed<SearchHit[]>(() => searchSettings(list.data.value, query.value))
+async function openSearch() {
+  searchOpen.value = true
+  await nextTick()
+  searchBox.value?.querySelector('input')?.focus()
+}
+function toggleSearch() {
+  if (searchOpen.value) {
+    searchOpen.value = false
+    query.value = ''
+  } else void openSearch()
+}
 async function jump(hit: SearchHit) {
   query.value = ''
+  searchOpen.value = false
   pick(hit.category)
   await nextTick()
+  // The group it is in may be folded: open it.
+  const group = groupRows(
+    hit.category,
+    categories.value.find((c) => c.category === hit.category)?.rows ?? [],
+  ).find((g) => g.rows.some((r) => r.key === hit.row.key))
+  if (group) folded.value = folded.value.filter((k) => k !== `${hit.category}:${group.title}`)
   await nextTick()
   const el = document.getElementById(`set-${hit.row.key}`)
   el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
@@ -160,7 +212,7 @@ async function jump(hit: SearchHit) {
 function onKey(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault()
-    searchBox.value?.querySelector('input')?.focus()
+    void openSearch()
   }
 }
 onMounted(() => window.addEventListener('keydown', onKey))
@@ -207,40 +259,44 @@ async function saveAndLeave() {
 
 <template>
   <div class="cs">
-    <EmptyState
-      v-if="missing"
-      title="Settings need the backend settings manager"
-      description="This server has no /api/v1/settings yet. Deploy it and this page fills in."
-    />
+    <PanelHeader title="Settings">
+      <template #left>
+        <button
+          type="button"
+          class="panel-action panel-action--icon"
+          :class="{ 'is-on': searchOpen }"
+          :aria-pressed="searchOpen"
+          aria-label="Search settings (Ctrl K)"
+          title="Search settings (Ctrl K)"
+          data-testid="search-toggle"
+          @click="toggleSearch"
+        >
+          <Icon name="search" size="sm" />
+        </button>
+      </template>
+      <template v-if="selected && canTest(selected)" #right>
+        <Badge v-if="testChip(selected.test)" v-bind="testChip(selected.test)!" />
+        <button
+          type="button"
+          class="panel-action"
+          :disabled="writer.busy.value === `test:${selected.category}`"
+          data-testid="test-connection"
+          @click="runTest(selected)"
+        >
+          <Icon name="refresh-cw" size="sm" />Test connection
+        </button>
+      </template>
+    </PanelHeader>
 
-    <div v-else-if="list.error.value && !list.data.value" class="cs__error" role="alert">
-      <Icon name="alert-triangle" size="sm" />
-      <span>Settings could not be loaded: {{ list.error.value }}</span>
-      <Button size="sm" variant="secondary" @click="list.reload()">Retry</Button>
-    </div>
-
-    <div v-else-if="!list.data.value" class="cs__layout" aria-busy="true">
-      <div class="cs__rail"><Skeleton :lines="6" /></div>
-      <div class="cs__pane"><Skeleton :lines="10" /></div>
-    </div>
-
-    <template v-else>
-      <div v-if="!encryptionReady" class="cs__banner" role="alert">
-        <Icon name="lock" size="sm" />
-        <span>
-          Encryption is not ready: the server has no SETTINGS_MASTER_KEY, so nothing can be saved
-          here yet. Every value below comes from .env.
-        </span>
-      </div>
-
-      <div ref="searchBox" class="cs__search">
-        <SearchField
-          v-model="query"
-          size="md"
-          label="Search settings"
-          placeholder="Search settings (Ctrl K)"
-        />
-        <ul v-if="query.trim()" class="cs__hits" role="listbox" aria-label="Matching settings">
+    <div v-if="searchOpen" ref="searchBox" class="cs__search">
+      <SearchField
+        v-model="query"
+        size="md"
+        label="Search settings"
+        placeholder="Search settings"
+      />
+      <GlassPanel v-if="query.trim()" padding="sm" class="cs__hits">
+        <ul role="listbox" aria-label="Matching settings">
           <li v-for="h in hits" :key="h.row.key" role="option" :aria-selected="false">
             <button type="button" class="cs__hit" @click="jump(h)">
               <span class="cs__hit-label">{{ h.label }}</span>
@@ -250,118 +306,98 @@ async function saveAndLeave() {
               >
             </button>
           </li>
-          <li v-if="!hits.length" class="cs__hit-none">No setting matches “{{ query }}”.</li>
+          <li v-if="!hits.length" class="cs__hit-meta">No setting matches “{{ query }}”.</li>
         </ul>
-      </div>
+      </GlassPanel>
+    </div>
 
-      <div class="cs__layout">
-        <nav class="cs__rail" aria-label="Settings categories">
-          <button
-            v-for="c in categories"
-            :key="c.category"
-            type="button"
-            class="cs__cat"
-            :class="{ 'is-active': selected?.category === c.category }"
-            :aria-current="selected?.category === c.category ? 'page' : undefined"
-            :data-category="c.category"
-            @click="pick(c.category)"
-          >
-            <Icon :name="c.icon" size="sm" class="cs__cat-icon" />
-            <span class="cs__cat-label">{{ c.label }}</span>
-            <span
-              class="cs__cat-dot"
-              :class="`is-${testDot(c.test)}`"
-              :title="
-                c.test
-                  ? `Last test ${c.test.ok ? 'passed' : 'failed'} ${ago(c.test.tested_at)}`
-                  : 'Not tested yet'
-              "
-              ><span class="sr-only">{{
-                c.test ? (c.test.ok ? 'Test passed' : 'Test failed') : 'Not tested'
-              }}</span></span
-            >
-            <span
-              v-if="missingCount(c.rows)"
-              class="cs__cat-count"
-              :title="`${missingCount(c.rows)} credential(s) not set`"
-              >{{ missingCount(c.rows) }}<span class="sr-only"> not set</span></span
-            >
-          </button>
-        </nav>
+    <EmptyState
+      v-if="missing"
+      title="Settings need the backend settings manager"
+      description="This server has no /api/v1/settings yet. Deploy it and this page fills in."
+    />
 
-        <section v-if="selected" class="cs__pane" :data-category="selected.category">
-          <header class="cs__head">
-            <div class="cs__head-text">
-              <h2 class="cs__title">
-                <Icon :name="selected.icon" size="md" />{{ selected.label }}
-              </h2>
-              <p class="cs__purpose">{{ selected.note }}</p>
-            </div>
-            <div v-if="canTest(selected)" class="cs__test">
-              <Button
-                size="sm"
-                variant="secondary"
-                :loading="writer.busy.value === `test:${selected.category}`"
-                data-testid="test-connection"
-                @click="runTest(selected)"
-                >Test connection</Button
-              >
-              <Badge v-if="testChip(selected.test)" v-bind="testChip(selected.test)!" />
-              <span v-if="selected.test" class="cs__test-when">{{
-                ago(selected.test.tested_at)
-              }}</span>
-            </div>
-          </header>
-          <p
-            v-if="testMessage"
-            class="cs__test-msg"
-            :class="`is-${testMessage.tone}`"
-            role="status"
-            aria-live="polite"
-            data-testid="test-result"
-          >
-            {{ testMessage.text }}
-          </p>
-          <p v-else-if="selected.test" class="cs__test-msg">{{ selected.test.detail }}</p>
+    <template v-else-if="list.error.value && !list.data.value">
+      <Alert tone="danger" title="Settings could not be loaded">{{ list.error.value }}</Alert>
+      <EmptyState
+        title="Settings could not be loaded"
+        :description="String(list.error.value)"
+        class="cs__error"
+      >
+        <template #action>
+          <Button size="sm" variant="secondary" @click="list.reload()">Retry</Button>
+        </template>
+      </EmptyState>
+    </template>
 
-          <div v-if="keyMissing" class="cs__callout" role="status" data-testid="key-callout">
-            <Icon name="key-round" size="sm" />
-            <span>
-              <strong>Claude is off.</strong> Add an Anthropic API key below to turn on chat,
-              agents, reports and voice fallback.
-            </span>
-          </div>
+    <Skeleton v-else-if="!list.data.value" :lines="10" aria-busy="true" />
 
-          <BudgetCard
-            v-if="selected.category === 'ai' && usage"
-            :usage="usage"
-            compact
-            class="cs__usage"
-          />
+    <template v-else>
+      <Alert v-if="!encryptionReady" tone="warning" title="Encryption is not ready">
+        The server has no SETTINGS_MASTER_KEY, so nothing can be saved here yet. Every value comes
+        from .env.
+      </Alert>
+      <Alert v-if="keyMissing" tone="info" title="Claude is off">
+        Add an Anthropic API key under Settings → AI to turn on chat, agents, reports and voice
+        fallback.
+      </Alert>
 
-          <DhanSessionBar
-            v-if="selected.category === 'dhan'"
-            admin
-            detailed
-            finish-callback
-            @changed="list.reload()"
-          />
+      <Tabs
+        :model-value="selected?.category ?? ''"
+        :tabs="tabs"
+        aria-label="Settings categories"
+        class="cs__tabs"
+        @update:model-value="pick"
+      />
 
-          <Card v-for="g in groups" :key="g.title" :title="g.title" class="cs__group">
-            <ul class="cs__rows">
-              <SettingField
-                v-for="row in g.rows"
-                :key="row.key"
-                :row="row"
-                :writer="writer"
-                :encryption-ready="encryptionReady"
-                :budget-seed="row.key === 'AI_AGENT_BUDGETS_USD' ? budgetSeed : null"
-                :monthly-budget="row.key === 'AI_AGENT_BUDGETS_USD' ? monthlyBudget : null"
-              />
-            </ul>
-          </Card>
-        </section>
-      </div>
+      <section v-if="selected" class="cs__pane" :data-category="selected.category">
+        <p class="cs__purpose">{{ selected.note }}</p>
+        <p
+          v-if="testMessage"
+          class="cs__test-msg"
+          :class="`is-${testMessage.tone}`"
+          role="status"
+          aria-live="polite"
+          data-testid="test-result"
+        >
+          {{ testMessage.text }}
+        </p>
+        <p v-else-if="selected.test" class="cs__test-msg">
+          Last test {{ ago(selected.test.tested_at) }}: {{ selected.test.detail }}
+        </p>
+
+        <BudgetCard v-if="selected.category === 'ai' && usage" :usage="usage" compact />
+
+        <DhanSessionBar
+          v-if="selected.category === 'dhan'"
+          admin
+          detailed
+          finish-callback
+          @changed="list.reload()"
+        />
+
+        <Accordion
+          v-for="g in groups"
+          :key="g.title"
+          :title="g.title"
+          :open="!folded.includes(foldKey(g.title))"
+          class="cs__group"
+          :data-group="g.title"
+          @toggle="toggleGroup(g.title, $event)"
+        >
+          <ul class="cs__rows">
+            <SettingField
+              v-for="row in g.rows"
+              :key="row.key"
+              :row="row"
+              :writer="writer"
+              :encryption-ready="encryptionReady"
+              :budget-seed="row.key === 'AI_AGENT_BUDGETS_USD' ? budgetSeed : null"
+              :monthly-budget="row.key === 'AI_AGENT_BUDGETS_USD' ? monthlyBudget : null"
+            />
+          </ul>
+        </Accordion>
+      </section>
     </template>
 
     <SettingReauth :writer="writer" />
@@ -383,134 +419,20 @@ async function saveAndLeave() {
   gap: var(--sp-4);
   min-width: 0;
 }
-.cs__layout {
-  display: grid;
-  grid-template-columns: 13rem minmax(0, 1fr);
-  gap: var(--sp-5, var(--sp-4));
-  align-items: start;
-  min-width: 0;
-}
-.cs__rail {
-  position: sticky;
-  top: var(--sp-4);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.cs__cat {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-width: 0;
-  padding: var(--sp-2) var(--sp-3);
-  border: 0;
-  border-radius: var(--radius-card);
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-.cs__cat:hover {
-  background: color-mix(in oklch, var(--text-secondary) 10%, transparent);
-  color: var(--text-primary);
-}
-.cs__cat:focus-visible {
-  outline: 2px solid var(--theme-accent);
-  outline-offset: 1px;
-}
-.cs__cat.is-active {
-  background: color-mix(in oklch, var(--theme-accent) 14%, transparent);
-  color: var(--text-primary);
-  font-weight: var(--weight-semibold);
-}
-.cs__cat-icon {
-  flex: none;
-}
-.cs__cat-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cs__cat-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: color-mix(in oklch, var(--text-secondary) 40%, transparent);
-}
-.cs__cat-dot.is-ok {
-  background: var(--theme-success, var(--theme-accent));
-}
-.cs__cat-dot.is-failed {
-  background: var(--theme-danger);
-}
-.cs__cat-count {
-  flex: none;
-  min-width: 1.25rem;
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in oklch, var(--theme-warning) 20%, transparent);
-  color: var(--theme-warning);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  text-align: center;
-  font-variant-numeric: tabular-nums;
+.cs__tabs {
+  max-width: 100%;
 }
 .cs__pane {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
-  min-width: 0;
-}
-.cs__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
   gap: var(--sp-3);
   min-width: 0;
 }
-.cs__head-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  flex: 1 1 18rem;
-}
-.cs__title {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin: 0;
-  font-size: var(--text-xl);
-  color: var(--text-primary);
-}
-.cs__purpose {
-  margin: 0;
-  max-width: 60ch;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-}
-.cs__test {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-}
-.cs__test-when {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-}
+.cs__purpose,
 .cs__test-msg {
-  min-width: 0;
   margin: 0;
+  min-width: 0;
+  max-width: 70ch;
   font-size: var(--text-sm);
   color: var(--text-secondary);
   overflow-wrap: anywhere;
@@ -521,60 +443,31 @@ async function saveAndLeave() {
 .cs__test-msg.is-error {
   color: var(--theme-danger);
 }
-.cs__callout,
-.cs__banner,
-.cs__error {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-2);
-  min-width: 0;
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--radius-card);
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-}
-.cs__callout {
-  border: 1px solid color-mix(in oklch, var(--theme-accent) 40%, transparent);
-  background: color-mix(in oklch, var(--theme-accent) 8%, transparent);
-}
-.cs__banner,
-.cs__error {
-  border: 1px solid color-mix(in oklch, var(--theme-warning) 45%, transparent);
-  background: color-mix(in oklch, var(--theme-warning) 10%, transparent);
-}
-.cs__error {
-  align-items: center;
-  flex-wrap: wrap;
-}
 .cs__rows {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .cs__search {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
   min-width: 0;
-  max-width: 32rem;
 }
-.cs__hits {
-  position: absolute;
-  z-index: 5;
-  inset: calc(100% + 4px) 0 auto;
-  max-height: 20rem;
+.cs__hits ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin: 0;
-  padding: var(--sp-1);
-  overflow-y: auto;
+  padding: 0;
   list-style: none;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-card);
-  background: var(--theme-surface, var(--glass-bg));
-  box-shadow: var(--shadow-lg, 0 8px 24px rgb(0 0 0 / 0.2));
 }
 .cs__hit {
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: 100%;
+  min-width: 0;
   padding: var(--sp-2) var(--sp-3);
   border: 0;
   border-radius: var(--radius-card);
@@ -589,58 +482,14 @@ async function saveAndLeave() {
   outline: none;
   background: color-mix(in oklch, var(--theme-accent) 12%, transparent);
 }
-.cs__hit-meta,
-.cs__hit-none {
+.cs__hit-label {
+  min-width: 0;
+  font-weight: var(--weight-medium);
+}
+.cs__hit-meta {
   min-width: 0;
   font-size: var(--text-xs);
   color: var(--text-secondary);
   overflow-wrap: anywhere;
-}
-.cs__hit-none {
-  padding: var(--sp-2) var(--sp-3);
-}
-/* A phone: the rail becomes a horizontal strip that scrolls inside itself. */
-@media (max-width: 767px) {
-  .cs__layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--sp-3);
-  }
-  .cs__rail {
-    /* Relative, not static: the screen-reader labels inside each category are
-       absolutely positioned, and with the strip as their containing block they are
-       clipped by its scroll like everything else — otherwise the ones for
-       categories scrolled out of view stretch the whole page sideways. */
-    position: relative;
-    max-width: 100%;
-    flex-direction: row;
-    gap: var(--sp-1);
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-  }
-  .cs__cat {
-    flex: none;
-    border-radius: var(--radius-pill);
-    padding: var(--sp-1) var(--sp-3);
-  }
-  .cs__cat-label {
-    overflow: visible;
-  }
-  .cs__search {
-    max-width: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cs__cat {
-    transition: none;
-  }
-}
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 </style>

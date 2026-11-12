@@ -1,10 +1,12 @@
 <script setup lang="ts">
-// AI_AGENT_BUDGETS_USD: the four budgets' monthly caps, with a live total
-// compared against the monthly budget. Starts from the caps the server reports
-// in use (GET /api/ai/usage) when they are known, since the setting itself is
-// never sent back; the value is written whole on save.
+// AI_AGENT_BUDGETS_USD: the four budgets' monthly caps, each a FormField +
+// NumberInput from the base kit, with a live total compared against the monthly
+// budget. Starts from the caps the server reports in use (GET /api/ai/usage)
+// when they are known, since the setting itself is never sent back; the value
+// is written whole on save.
 import { computed, reactive, watch } from 'vue'
-import TextInput from '@/components/ui/TextInput.vue'
+import FormField from '@/components/ui/FormField.vue'
+import NumberInput from '@/components/ui/NumberInput.vue'
 import {
   BUDGET_KEYS,
   budgetsError,
@@ -34,9 +36,10 @@ watch(
   { immediate: true },
 )
 
-function set(k: keyof BudgetDraft, v: string) {
+const asNumber = (v: string) => (v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
+function set(k: keyof BudgetDraft, v: number | null) {
   touched = true
-  d[k] = v
+  d[k] = v === null ? '' : String(v)
   emit('change', serializeBudgets(d))
 }
 
@@ -47,20 +50,29 @@ defineExpose({ error })
 </script>
 
 <template>
-  <div class="be" :id="id" role="group" aria-label="Budget per agent">
+  <div :id="id" class="be" role="group" aria-label="Budget per agent">
     <div class="be__grid">
-      <TextInput
+      <FormField
         v-for="k in BUDGET_KEYS"
         :key="k"
-        :model-value="d[k]"
+        v-slot="f"
         :label="BUDGET_LABEL[k] ?? k"
-        inputmode="decimal"
-        suffix="USD"
         size="sm"
         :disabled="disabled"
-        :data-budget="k"
-        @update:model-value="set(k, String($event ?? ''))"
-      />
+      >
+        <NumberInput
+          :id="f.id"
+          :described-by="f.describedBy"
+          :model-value="asNumber(d[k])"
+          :min="0"
+          :step="1"
+          suffix="USD"
+          size="sm"
+          :disabled="disabled"
+          :data-budget="k"
+          @update:model-value="set(k, $event)"
+        />
+      </FormField>
     </div>
     <p class="be__total" :class="{ 'is-over': over }" aria-live="polite" data-testid="budget-total">
       Total {{ `$${total.toFixed(2)}` }}

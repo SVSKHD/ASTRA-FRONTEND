@@ -1,8 +1,10 @@
 <script setup lang="ts">
-// This month's AI spend (GET /api/ai/usage, src/ai/costs.ts): one meter for the
-// month against AI_MONTHLY_BUDGET_USD and one per budget (investments, business,
-// chat, reserve) against its own cap. A meter turns to a warning at 80 % and to
-// danger at the cap — where the server refuses the next call (`budget_exceeded`).
+// This month's AI spend (GET /api/ai/usage, src/ai/costs.ts), from the base kit:
+// a StatRow for the month (spent, cap, left, calls) over a ProgressBar, and a
+// ProgressBar per budget (investments, business, chat, reserve). A bar turns to
+// the warning colour at 80 % and to danger at the cap — where the server refuses
+// the next call (`budget_exceeded`). The tone is the ProgressBar's own accent
+// tokens re-pointed, so the bar itself is the kit's, unchanged.
 //
 // The caps themselves are settings (AI_MONTHLY_BUDGET_USD, AI_AGENT_BUDGETS_USD),
 // changed under Settings → AI. `compact` drops the per-budget hints, for the strip
@@ -12,6 +14,8 @@ import { useRouter } from 'vue-router'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
+import StatRow, { type Stat } from '@/components/ui/StatRow.vue'
 import {
   BUDGET_HINT,
   BUDGET_LABEL,
@@ -20,62 +24,66 @@ import {
   orderedBudgets,
   resetsOn,
   usd,
-  usedPct,
   type AiUsage,
 } from '@/ai/costs'
 
 const props = defineProps<{ usage: AiUsage; compact?: boolean; settingsLink?: boolean }>()
 const router = useRouter()
 
-const monthPct = computed(() => usedPct(props.usage.spent_usd, props.usage.limit_usd))
 const monthLevel = computed(() => levelOf(props.usage.spent_usd, props.usage.limit_usd))
+const resets = computed(() => resetsOn(props.usage.resets_at))
+const stats = computed<Stat[]>(() => [
+  {
+    label: 'Spent',
+    value: usd(props.usage.spent_usd),
+    note: num(props.usage.limit_usd) > 0 ? `of ${usd(props.usage.limit_usd)}` : 'no cap',
+  },
+  {
+    label: 'Left',
+    value: usd(props.usage.remaining_usd),
+    tone: monthLevel.value === 'over' ? 'negative' : undefined,
+    note: resets.value ? `resets ${resets.value}` : undefined,
+  },
+  { label: 'Calls', value: props.usage.calls.toLocaleString() },
+])
 const budgets = computed(() =>
   orderedBudgets(props.usage).map((b) => ({
     ...b,
     label: BUDGET_LABEL[b.budget] ?? b.budget,
     hint: BUDGET_HINT[b.budget] ?? '',
-    pct: usedPct(b.spent_usd, b.limit_usd),
     level: levelOf(b.spent_usd, b.limit_usd),
   })),
 )
-const resets = computed(() => resetsOn(props.usage.resets_at))
+/** A ProgressBar's value and max; a zero cap with spend shows full. */
+const bar = (spent: string, limit: string) => {
+  const cap = num(limit)
+  return cap > 0
+    ? { value: Math.min(num(spent), cap), max: cap }
+    : { value: num(spent) > 0 ? 1 : 0, max: 1 }
+}
 </script>
 
 <template>
   <Card title="AI spend this month" data-testid="budget">
-    <p v-if="!usage.configured" class="cc-notice" role="status" data-testid="not-configured">
+    <p v-if="!usage.configured" class="tp-note" role="status" data-testid="not-configured">
       Claude is not set up yet (no ANTHROPIC_API_KEY), so nothing is being spent.
     </p>
 
     <div class="bc__month" :class="`is-${monthLevel}`">
       <div class="bc__head">
-        <span class="tp-strong">Month to date</span>
+        <span class="tp-strong" data-testid="month-spend"
+          >Month to date: {{ usd(usage.spent_usd) }} of
+          {{ num(usage.limit_usd) > 0 ? usd(usage.limit_usd) : 'no cap' }}</span
+        >
         <Badge v-if="monthLevel === 'over'" tone="danger" label="Budget reached" />
         <Badge v-else-if="monthLevel === 'warn'" tone="warning" label="Over 80 %" />
       </div>
-      <span class="bc__big tp-num" data-testid="month-spend"
-        >{{ usd(usage.spent_usd) }}
-        <span class="bc__of"
-          >of {{ num(usage.limit_usd) > 0 ? usd(usage.limit_usd) : 'no cap' }}</span
-        >
-      </span>
-      <div
-        v-if="monthPct !== null"
-        class="bc__bar bc__bar--lg"
-        role="meter"
-        aria-label="Spent this month"
-        :aria-valuenow="monthPct"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        :aria-valuetext="`${usd(usage.spent_usd)} of ${usd(usage.limit_usd)}`"
-      >
-        <span class="bc__fill" :style="{ width: `${monthPct}%` }" />
-      </div>
-      <span class="tp-note"
-        >{{ usd(usage.remaining_usd) }} left · {{ usage.calls.toLocaleString() }} call{{
-          usage.calls === 1 ? '' : 's'
-        }}{{ resets ? ` · resets ${resets}` : '' }}</span
-      >
+      <StatRow :stats="stats" />
+      <ProgressBar
+        v-bind="bar(usage.spent_usd, usage.limit_usd)"
+        size="lg"
+        label="Spent this month"
+      />
     </div>
 
     <ul class="bc__rows" aria-label="Spend by budget">
@@ -90,24 +98,14 @@ const resets = computed(() => resetsOn(props.usage.resets_at))
           <span class="tp-strong">{{ b.label }}</span>
           <span class="tp-num bc__amt">{{ usd(b.spent_usd) }} / {{ usd(b.limit_usd) }}</span>
         </div>
-        <div
-          class="bc__bar"
-          role="meter"
-          :aria-label="`${b.label} spent this month`"
-          :aria-valuenow="b.pct ?? 0"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          <span
-            class="bc__fill"
-            :style="{ width: `${b.pct ?? (num(b.spent_usd) > 0 ? 100 : 0)}%` }"
-          />
-        </div>
+        <ProgressBar
+          v-bind="bar(b.spent_usd, b.limit_usd)"
+          size="sm"
+          :label="`${b.label} spent this month`"
+        />
         <span v-if="!compact && b.hint" class="tp-note">{{ b.hint }}</span>
-        <span v-if="b.level === 'over'" class="bc__warn" role="status"
-          >Cap reached: calls stop</span
-        >
-        <span v-else-if="b.level === 'warn'" class="bc__warn" role="status">Over 80 % used</span>
+        <Badge v-if="b.level === 'over'" tone="danger" label="Cap reached: calls stop" />
+        <Badge v-else-if="b.level === 'warn'" tone="warning" label="Over 80 % used" />
       </li>
     </ul>
 
@@ -123,7 +121,7 @@ const resets = computed(() => resetsOn(props.usage.resets_at))
 .bc__month {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-2);
   min-width: 0;
 }
 .bc__head {
@@ -133,16 +131,6 @@ const resets = computed(() => resetsOn(props.usage.resets_at))
   flex-wrap: wrap;
   gap: var(--sp-2);
   min-width: 0;
-}
-.bc__big {
-  font-size: var(--text-2xl, var(--text-xl));
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-}
-.bc__of {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-normal);
-  color: var(--text-secondary);
 }
 .bc__amt {
   font-size: var(--text-sm);
@@ -160,45 +148,24 @@ const resets = computed(() => resetsOn(props.usage.resets_at))
 .bc__row {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
   min-width: 0;
 }
-.bc__bar {
-  position: relative;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  background: color-mix(in oklch, var(--text-secondary) 20%, transparent);
+.bc__row > * {
+  max-width: 100%;
 }
-.bc__bar--lg {
-  height: 10px;
+.bc__row .bc__head,
+.bc__row :deep(.ui-progress) {
+  align-self: stretch;
 }
-.bc__fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: var(--radius-pill);
-  background: var(--theme-accent);
-  transition: width 0.3s ease;
+/* The kit's ProgressBar draws its fill from the accent tokens: re-pointed here. */
+.is-warn {
+  --accent-grad-from: var(--theme-warning);
+  --accent-grad-to: var(--theme-warning);
 }
-.is-warn .bc__fill {
-  background: var(--theme-warning);
-}
-.is-over .bc__fill {
-  background: var(--theme-danger);
-}
-.bc__warn {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-}
-.is-warn .bc__warn {
-  color: var(--theme-warning);
-}
-.is-over .bc__warn {
-  color: var(--theme-danger);
-}
-@media (prefers-reduced-motion: reduce) {
-  .bc__fill {
-    transition: none;
-  }
+.is-over {
+  --accent-grad-from: var(--theme-danger);
+  --accent-grad-to: var(--theme-danger);
 }
 </style>

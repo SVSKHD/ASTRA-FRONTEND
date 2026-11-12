@@ -1,22 +1,34 @@
 <script setup lang="ts">
-// One runtime setting, as a calm row: its name, what it does, where its value
-// comes from, and the editor that fits it (src/control/settingEditors.ts):
+// One runtime setting, in the app's FormField shell (/ui → Forms): its name as
+// the label, what it does as the hint, an error in the field's own error line,
+// and the editor from the base kit that fits it (src/control/settingEditors.ts):
 //
-//   switch   bool                         number   decimal / int / float, with its unit
-//   secret   mask + Replace (never shown)  url      validated address
-//   effort   low … max (AI_EFFORT)         csv      chips
-//   budgets  four caps + live total        prices   model price table
-//   cron     schedule + plain-English      json     validated JSON
+//   switch   Switch                        number   NumberInput, with its unit
+//   secret   mask + Replace (TextInput)    url      TextInput, validated
+//   effort   SegmentedControl              csv      TagInput chips
+//   model    Select of the priced Claude models (AI_MODEL_MAIN / _ROUTER)
+//   budgets  NumberInputs + live total     prices   Table of NumberInputs
+//   cron     TextInput + plain English     json     TextArea, validated
+//
+// What is picked rather than typed (a model, the effort, a switch) applies at
+// once — one click, a toast, no separate Save — since the choice is the whole
+// change. Typed values keep Save (and Enter).
+//
+// Under it, one meta row: where the value comes from (Badge), an unsaved marker,
+// and the row's actions (Save only when changed, Discard, Revert to .env, Copy key).
 //
 // The server never sends a value, only a mask, so an editor starts empty and a
-// change is anything typed (blank included, where blank means "off"). Save shows
-// only then. Writes go through the shared writer, so a secret still asks for the
-// admin's password and nothing typed outlives the send.
-import { computed, ref, useId } from 'vue'
+// change is anything typed (blank included, where blank means "off"). Writes go
+// through the shared writer, so a secret still asks for the admin's password and
+// nothing typed outlives the send.
+import { computed, ref } from 'vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
+import FormField from '@/components/ui/FormField.vue'
 import Icon from '@/components/ui/Icon.vue'
+import NumberInput from '@/components/ui/NumberInput.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import Select from '@/components/ui/Select.vue'
 import Switch from '@/components/ui/Switch.vue'
 import TagInput from '@/components/ui/TagInput.vue'
 import TextArea from '@/components/ui/TextArea.vue'
@@ -29,6 +41,9 @@ import {
   editorFor,
   EFFORTS,
   keyNote,
+  modelName,
+  modelNow,
+  modelOptions,
   parseCsv,
   serializeCsv,
   type BudgetDraft,
@@ -47,10 +62,11 @@ const props = defineProps<{
 }>()
 
 const w = props.writer
-const inputId = `sf-${useId()}`
 const editor = computed(() => editorFor(props.row))
 const label = computed(() => labelOf(props.row.key))
-const note = computed(() => keyNote(props.row.key))
+// The written-out note where there is one (it says what the server's one-line
+// description says, and more); the server's description otherwise.
+const hint = computed(() => keyNote(props.row.key) || props.row.description)
 const unit = computed(() => unitOf(props.row.key, props.row.kind))
 const canWrite = computed(() => props.encryptionReady)
 const busy = computed(() => w.busy.value === props.row.key && !w.pending.value)
@@ -88,10 +104,49 @@ const boolNow = computed(() => {
   return m.endsWith('true') ? true : m.endsWith('alse') ? false : null
 })
 const boolValue = computed(() => (dirty.value ? draft.value === 'true' : (boolNow.value ?? false)))
+/** A pick applies at once: no draft, no Save button — the choice is the whole change. */
+function apply(value: string) {
+  if (!canWrite.value || busy.value) return
+  w.discard(props.row.key)
+  void w.save(props.row, value)
+}
 function toggle(on: boolean) {
-  // Back to what the server has: nothing to save.
-  if (boolNow.value !== null && on === boolNow.value) w.discard(props.row.key)
-  else edit(on ? 'true' : 'false')
+  // Back to what the server has: nothing to do.
+  if (boolNow.value !== null && on === boolNow.value) return
+  apply(on ? 'true' : 'false')
+}
+
+// --- model and effort: what is in effect, as far as the mask tells ------------------------
+const modelInUse = computed(() => modelNow(props.row))
+const modelChoices = computed(() => modelOptions(props.row.key))
+const modelNote = computed(() => {
+  const now = modelInUse.value
+  if (now === null) return props.row.masked ? `In use: ${props.row.masked}` : ''
+  const name = now === '' ? 'Off' : modelName(now)
+  return props.row.source === 'default' ? `In use: ${name} (server default)` : `In use: ${name}`
+})
+function pickModel(v: string) {
+  if (v === modelInUse.value) return
+  apply(v)
+}
+const effortNow = computed(() => {
+  if (props.row.source === 'default') return 'medium'
+  const tail = (props.row.masked ?? '').replace(/^•+/, '')
+  return EFFORTS.find((e) => tail && e.endsWith(tail)) ?? ''
+})
+function pickEffort(v: string) {
+  if (v === effortNow.value) return
+  apply(v)
+}
+
+// --- number: NumberInput speaks numbers; the setting is stored as their string -------------
+const numberValue = computed(() => {
+  if (!dirty.value || draft.value === '') return null
+  const n = Number(draft.value)
+  return Number.isFinite(n) ? n : null
+})
+function editNumber(v: number | null) {
+  edit(v === null ? null : String(v))
 }
 
 // --- secret: Replace opens an empty password field; nothing is ever prefilled ---------------
@@ -162,31 +217,23 @@ const shownMessage = computed(() =>
     :data-key="row.key"
     tabindex="-1"
   >
-    <div class="sf__text">
-      <div class="sf__head">
-        <label :for="inputId" class="sf__label">{{ label }}</label>
-        <span v-if="dirty" class="sf__dot" title="Unsaved change" data-testid="unsaved-dot"
-          ><span class="sr-only">Unsaved change</span></span
-        >
-        <Badge v-bind="sourceChip(row)" />
-        <Badge v-if="expiryChip(row)" v-bind="expiryChip(row)!" />
-      </div>
-      <p class="sf__desc">
-        {{ row.description }}
-        <span v-if="row.updated_at" class="sf__when"> · changed {{ when(row.updated_at) }}</span>
-        <span v-if="row.expires_at" class="sf__when"> · expires {{ when(row.expires_at) }}</span>
-      </p>
-      <p v-if="note" class="sf__note" data-testid="key-note">{{ note }}</p>
-    </div>
+    <p v-if="editor === 'managed'" class="sf__managed">
+      <strong>{{ label }}</strong> — set by <strong>Connect</strong> in the Dhan connection above;
+      it cannot be typed in.
+    </p>
 
-    <div class="sf__control">
-      <p v-if="editor === 'managed'" class="sf__note">
-        Set by <strong>Connect</strong> in the Dhan connection above; it cannot be typed in.
-      </p>
-
+    <FormField
+      v-else
+      v-slot="f"
+      :label="label"
+      :hint="hint"
+      :error="error ?? undefined"
+      :disabled="!canWrite"
+      size="sm"
+    >
       <Switch
-        v-else-if="editor === 'switch'"
-        :id="inputId"
+        v-if="editor === 'switch'"
+        :id="f.id"
         :model-value="boolValue"
         :label="boolValue ? 'On' : 'Off'"
         :disabled="!canWrite || busy"
@@ -197,6 +244,7 @@ const shownMessage = computed(() =>
         <div v-if="!replacing" class="sf__secret">
           <span class="sf__mask" data-testid="mask">{{ row.masked ?? 'Not set' }}</span>
           <Button
+            :id="f.id"
             size="sm"
             variant="secondary"
             :disabled="!canWrite"
@@ -207,9 +255,11 @@ const shownMessage = computed(() =>
         </div>
         <TextInput
           v-else
-          :id="inputId"
+          :id="f.id"
+          :described-by="f.describedBy"
           :model-value="draft ?? ''"
           type="password"
+          size="sm"
           placeholder="New value"
           autocomplete="new-password"
           :disabled="!canWrite"
@@ -218,19 +268,34 @@ const shownMessage = computed(() =>
         />
       </template>
 
+      <Select
+        v-else-if="editor === 'model'"
+        :id="f.id"
+        :described-by="f.describedBy"
+        :model-value="modelInUse ?? ''"
+        :options="modelChoices"
+        size="sm"
+        placeholder="Choose a model"
+        :aria-label="label"
+        :disabled="!canWrite || busy"
+        data-testid="model-select"
+        @update:model-value="pickModel"
+      />
+
       <SegmentedControl
         v-else-if="editor === 'effort'"
-        :model-value="draft ?? ''"
+        :id="f.id"
+        :model-value="effortNow"
         :options="effortOptions"
         size="sm"
         :aria-label="label"
-        :disabled="!canWrite"
-        @update:model-value="edit($event)"
+        :disabled="!canWrite || busy"
+        @update:model-value="pickEffort"
       />
 
       <BudgetsEditor
         v-else-if="editor === 'budgets'"
-        :id="inputId"
+        :id="f.id"
         ref="structured"
         :seed="budgetSeed ?? null"
         :monthly="monthlyBudget ?? null"
@@ -240,15 +305,32 @@ const shownMessage = computed(() =>
 
       <PricesEditor
         v-else-if="editor === 'prices'"
-        :id="inputId"
+        :id="f.id"
         ref="structured"
         :disabled="!canWrite"
         @change="edit"
       />
 
+      <NumberInput
+        v-else-if="editor === 'number'"
+        :id="f.id"
+        :described-by="f.describedBy"
+        :model-value="numberValue"
+        :min="0"
+        :step="row.kind === 'int' ? 1 : 0.01"
+        :suffix="unit || undefined"
+        :placeholder="placeholder"
+        :invalid="f.invalid"
+        size="sm"
+        :disabled="!canWrite"
+        @update:model-value="editNumber"
+        @keydown.enter.prevent="save"
+      />
+
       <TagInput
         v-else-if="editor === 'csv'"
-        :id="inputId"
+        :id="f.id"
+        :described-by="f.describedBy"
         :model-value="csvItems"
         placeholder="Type a value, then Enter"
         size="sm"
@@ -258,7 +340,7 @@ const shownMessage = computed(() =>
 
       <TextArea
         v-else-if="editor === 'json'"
-        :id="inputId"
+        :id="f.id"
         :model-value="draft ?? ''"
         :rows="4"
         :placeholder="row.kind === 'json_list' ? '[ … ]' : '{ … }'"
@@ -269,64 +351,73 @@ const shownMessage = computed(() =>
 
       <TextInput
         v-else
-        :id="inputId"
+        :id="f.id"
+        :described-by="f.describedBy"
         :model-value="draft ?? ''"
         :type="editor === 'url' ? 'url' : 'text'"
-        :inputmode="editor === 'number' ? (row.kind === 'int' ? 'numeric' : 'decimal') : undefined"
-        :suffix="unit || undefined"
         :placeholder="placeholder"
-        :invalid="!!error"
+        :invalid="f.invalid"
+        size="sm"
         :disabled="!canWrite"
         autocomplete="off"
         @update:model-value="edit(String($event ?? ''))"
         @keydown.enter.prevent="save"
       />
-      <p v-if="editor === 'cron' && dirty && !error" class="sf__preview" data-testid="cron-words">
-        <Icon name="calendar-clock" size="xs" /> {{ cronWords }}
-      </p>
-      <p v-if="error" class="sf__error" role="alert">{{ error }}</p>
-    </div>
+    </FormField>
 
-    <div v-if="editor !== 'managed'" class="sf__actions">
-      <Button
-        v-if="dirty"
-        size="sm"
-        :loading="busy"
-        :disabled="!canSave"
-        data-testid="save"
-        @click="save"
-        >Save</Button
-      >
-      <Button v-if="dirty" size="sm" variant="ghost" @click="discard">Discard</Button>
-      <Button
-        v-if="!dirty && row.source === 'db'"
-        size="sm"
-        :variant="confirmRevert ? 'danger' : 'ghost'"
-        :loading="busy"
-        data-testid="revert"
-        @click="revert"
-        >{{ confirmRevert ? 'Confirm: revert to .env' : 'Revert to .env' }}</Button
-      >
-      <Button
-        size="sm"
-        variant="ghost"
-        class="sf__copy"
-        :aria-label="copied ? 'Copied' : `Copy key name ${row.key}`"
-        :title="row.key"
-        @click="copyKey"
-        ><Icon :name="copied ? 'check' : 'copy'" size="xs" /><code class="sf__key">{{
-          row.key
-        }}</code></Button
-      >
+    <p v-if="editor === 'model' && modelNote" class="sf__preview" data-testid="model-now">
+      <Icon name="sparkles" size="xs" /> {{ modelNote }}
+    </p>
+    <p v-if="busy && !dirty" class="sf__preview" role="status">Saving…</p>
+    <p v-if="editor === 'cron' && dirty && !error" class="sf__preview" data-testid="cron-words">
+      <Icon name="calendar-clock" size="xs" /> {{ cronWords }}
+    </p>
+
+    <div v-if="editor !== 'managed'" class="sf__meta">
+      <Badge v-bind="sourceChip(row)" />
+      <Badge v-if="expiryChip(row)" v-bind="expiryChip(row)!" />
+      <Badge v-if="dirty" tone="info" label="Unsaved" data-testid="unsaved-dot" />
+      <span v-if="row.updated_at" class="sf__when">changed {{ when(row.updated_at) }}</span>
+      <span class="sf__actions">
+        <Button
+          v-if="dirty"
+          size="sm"
+          :loading="busy"
+          :disabled="!canSave"
+          data-testid="save"
+          @click="save"
+          >Save</Button
+        >
+        <Button v-if="dirty" size="sm" variant="ghost" @click="discard">Discard</Button>
+        <Button
+          v-if="!dirty && row.source === 'db'"
+          size="sm"
+          :variant="confirmRevert ? 'danger' : 'ghost'"
+          :loading="busy"
+          data-testid="revert"
+          @click="revert"
+          >{{ confirmRevert ? 'Confirm: revert to .env' : 'Revert to .env' }}</Button
+        >
+        <Button
+          size="sm"
+          variant="ghost"
+          :aria-label="copied ? 'Copied' : `Copy key name ${row.key}`"
+          :title="`Copy ${row.key}`"
+          @click="copyKey"
+          ><Icon :name="copied ? 'check' : 'copy'" size="xs" /><span class="sr-only">{{
+            row.key
+          }}</span></Button
+        >
+      </span>
     </div>
-    <p v-if="confirmRevert" class="sf__note sf__wide" role="status">
+    <p v-if="confirmRevert" class="sf__note" role="status">
       The saved value is removed and the .env value applies. It cannot be brought back from here:
       the server never sends a value back.
       <Button size="sm" variant="ghost" @click="confirmRevert = false">Keep it</Button>
     </p>
     <p
       v-if="shownMessage"
-      class="sf__msg sf__wide"
+      class="sf__msg"
       :class="`is-${shownMessage.tone}`"
       :role="shownMessage.tone === 'error' ? 'alert' : 'status'"
       aria-live="polite"
@@ -338,17 +429,14 @@ const shownMessage = computed(() =>
 
 <style scoped>
 .sf {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  grid-template-areas:
-    'text control'
-    'text actions';
-  gap: var(--sp-2) var(--sp-4);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
   min-width: 0;
-  padding: var(--sp-4) 0;
+  padding: var(--sp-3) 0;
   border-top: 1px solid var(--glass-border);
   scroll-margin-top: 4rem;
-  transition: background-color 0.2s ease;
 }
 .sf:first-child {
   border-top: none;
@@ -359,55 +447,20 @@ const shownMessage = computed(() =>
   border-radius: var(--radius-card);
   background: color-mix(in oklch, var(--theme-accent) 8%, transparent);
 }
-.sf__wide {
-  grid-column: 1 / -1;
-}
-.sf__text {
-  grid-area: text;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.sf__managed,
+.sf__note,
+.sf__preview,
+.sf__when {
   min-width: 0;
-}
-.sf__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  min-width: 0;
-}
-.sf__label {
-  min-width: 0;
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
-.sf__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--theme-accent);
-}
-.sf__desc,
-.sf__note {
   margin: 0;
-  min-width: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
-.sf__note {
-  font-size: var(--text-xs);
-}
-.sf__when {
-  white-space: nowrap;
-}
-.sf__control {
-  grid-area: control;
+.sf__preview {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--sp-1);
-  min-width: 0;
 }
 .sf__secret {
   display: flex;
@@ -421,37 +474,20 @@ const shownMessage = computed(() =>
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
-.sf__preview {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-}
-.sf__error {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--theme-danger);
-}
-.sf__actions {
-  grid-area: actions;
+.sf__meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.sf__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--sp-1);
+  margin-left: auto;
   min-width: 0;
-}
-.sf__copy {
-  max-width: 100%;
-}
-.sf__key {
-  min-width: 0;
-  max-width: 14rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-xs);
 }
 .sf__msg {
   margin: 0;
@@ -462,21 +498,6 @@ const shownMessage = computed(() =>
 }
 .sf__msg.is-error {
   color: var(--theme-danger);
-}
-/* One column on a phone: the name and description, then the control, then actions. */
-@media (max-width: 720px) {
-  .sf {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'text'
-      'control'
-      'actions';
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .sf {
-    transition: none;
-  }
 }
 .sr-only {
   position: absolute;

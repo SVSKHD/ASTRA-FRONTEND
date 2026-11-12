@@ -76,7 +76,8 @@ describe('<AiCostsView />', () => {
     expect(w.get('[data-budget="investments"]').text()).toContain('Cap reached')
     expect(w.get('[data-budget="business"]').classes()).toContain('is-warn')
     expect(w.get('[data-budget="reserve"]').classes()).toContain('is-ok')
-    expect(w.text()).toContain('412 calls')
+    expect(w.text()).toContain('Calls')
+    expect(w.text()).toContain('412')
   })
 
   it('says Claude is not set up when the key is missing', async () => {

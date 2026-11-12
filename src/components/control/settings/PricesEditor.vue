@@ -1,88 +1,106 @@
 <script setup lang="ts">
-// AI_MODEL_PRICES: a small table of model → input / output / cache-read price,
-// USD per million tokens. Overrides the server's built-in prices; the current
-// table is never sent back, so it is entered in full and saved whole.
+// AI_MODEL_PRICES: the base kit's Table, one row per model — a TextInput for the
+// model and NumberInputs for input / output / cache-read, USD per million
+// tokens. Overrides the server's built-in prices; the current table is never
+// sent back, so it is entered in full and saved whole.
 import { computed, reactive } from 'vue'
 import Button from '@/components/ui/Button.vue'
+import IconButton from '@/components/ui/IconButton.vue'
+import Icon from '@/components/ui/Icon.vue'
+import NumberInput from '@/components/ui/NumberInput.vue'
+import Table, { type Column } from '@/components/ui/Table.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import { pricesError, serializePrices, type PriceRow } from '@/control/settingEditors'
 
 defineProps<{ id: string; disabled?: boolean }>()
 const emit = defineEmits<{ change: [value: string | null] }>()
 
-const rows = reactive<PriceRow[]>([{ model: '', input: '', output: '', cacheRead: '' }])
+type Row = PriceRow & { id: number }
+let nextId = 1
+const blank = (): Row => ({ id: nextId++, model: '', input: '', output: '', cacheRead: '' })
+const rows = reactive<Row[]>([blank()])
 let touched = false
 function changed() {
   touched = true
   emit('change', serializePrices(rows))
 }
 function add() {
-  rows.push({ model: '', input: '', output: '', cacheRead: '' })
+  rows.push(blank())
 }
-function remove(i: number) {
-  rows.splice(i, 1)
-  if (!rows.length) add()
+function remove(id: number) {
+  const i = rows.findIndex((r) => r.id === id)
+  if (i >= 0) rows.splice(i, 1)
+  if (!rows.length) rows.push(blank())
   changed()
 }
+const rowOf = (r: Record<string, unknown>) => rows.find((x) => x.id === r.id)!
+function setModel(r: Record<string, unknown>, v: string) {
+  rowOf(r).model = v
+  changed()
+}
+function setPrice(
+  r: Record<string, unknown>,
+  f: 'input' | 'output' | 'cacheRead',
+  v: number | null,
+) {
+  rowOf(r)[f] = v === null ? '' : String(v)
+  changed()
+}
+const num = (v: string) => (v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
+
+const columns: Column[] = [
+  { key: 'model', label: 'Model' },
+  { key: 'input', label: 'Input $/M', align: 'right' },
+  { key: 'output', label: 'Output $/M', align: 'right' },
+  { key: 'cacheRead', label: 'Cache read $/M', align: 'right' },
+  { key: 'remove', label: '' },
+]
 const error = computed(() => (touched ? pricesError(rows) : null))
 defineExpose({ error })
-const fields = ['input', 'output', 'cacheRead'] as const
-const HEAD: Record<(typeof fields)[number], string> = {
-  input: 'Input',
-  output: 'Output',
-  cacheRead: 'Cache read',
-}
 </script>
 
 <template>
   <div :id="id" class="pe" role="group" aria-label="Model prices, USD per million tokens">
-    <div class="pe__scroll">
-      <table class="pe__table">
-        <thead>
-          <tr>
-            <th scope="col">Model</th>
-            <th v-for="f in fields" :key="f" scope="col">{{ HEAD[f] }} <span>$/M</span></th>
-            <th scope="col"><span class="sr-only">Remove</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(r, i) in rows" :key="i">
-            <td>
-              <TextInput
-                v-model="r.model"
-                size="sm"
-                placeholder="claude-opus-5-5"
-                :aria-label="`Model ${i + 1}`"
-                :disabled="disabled"
-                autocomplete="off"
-                @update:model-value="changed"
-              />
-            </td>
-            <td v-for="f in fields" :key="f">
-              <TextInput
-                v-model="r[f]"
-                size="sm"
-                inputmode="decimal"
-                :placeholder="f === 'cacheRead' ? 'built-in' : '0.00'"
-                :aria-label="`${HEAD[f]} price for model ${i + 1}`"
-                :disabled="disabled"
-                @update:model-value="changed"
-              />
-            </td>
-            <td>
-              <Button
-                size="sm"
-                variant="ghost"
-                :aria-label="`Remove model ${i + 1}`"
-                :disabled="disabled"
-                @click="remove(i)"
-                >×</Button
-              >
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <Table :columns="columns" :rows="rows" caption="Model prices, USD per million tokens">
+      <template #cell-model="{ row }">
+        <TextInput
+          :model-value="String(row.model)"
+          size="sm"
+          placeholder="claude-opus-5-5"
+          :aria-label="`Model ${rows.indexOf(rowOf(row)) + 1}`"
+          :disabled="disabled"
+          autocomplete="off"
+          @update:model-value="setModel(row, String($event ?? ''))"
+        />
+      </template>
+      <template
+        v-for="f in ['input', 'output', 'cacheRead'] as const"
+        :key="f"
+        #[`cell-${f}`]="{ row }"
+      >
+        <NumberInput
+          :model-value="num(String(row[f]))"
+          :min="0"
+          :step="0.01"
+          size="sm"
+          :placeholder="f === 'cacheRead' ? 'built-in' : '0.00'"
+          :aria-label="`${f === 'cacheRead' ? 'Cache read' : f === 'input' ? 'Input' : 'Output'} price for model ${rows.indexOf(rowOf(row)) + 1}`"
+          :disabled="disabled"
+          @update:model-value="setPrice(row, f, $event)"
+        />
+      </template>
+      <template #cell-remove="{ row }">
+        <IconButton
+          size="sm"
+          variant="ghost"
+          :label="`Remove model ${rows.indexOf(rowOf(row)) + 1}`"
+          :disabled="disabled"
+          @click="remove(Number(row.id))"
+        >
+          <Icon name="x" size="xs" />
+        </IconButton>
+      </template>
+    </Table>
     <div class="tp-row">
       <Button size="sm" variant="secondary" :disabled="disabled" @click="add">Add model</Button>
     </div>
@@ -97,44 +115,9 @@ const HEAD: Record<(typeof fields)[number], string> = {
   gap: var(--sp-2);
   min-width: 0;
 }
-/* The table scrolls inside its own box on a phone; the page never does. */
-.pe__scroll {
-  max-width: 100%;
-  overflow-x: auto;
-}
-.pe__table {
-  width: 100%;
-  min-width: 30rem;
-  border-collapse: collapse;
-}
-.pe__table th {
-  padding: 0 var(--sp-1) var(--sp-1);
-  text-align: left;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  color: var(--text-secondary);
-}
-.pe__table th span {
-  font-weight: var(--weight-normal);
-}
-.pe__table td {
-  padding: 2px var(--sp-1);
-  vertical-align: top;
-}
-.pe__table td:first-child {
-  min-width: 10rem;
-}
 .pe__error {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--theme-danger);
-}
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 </style>

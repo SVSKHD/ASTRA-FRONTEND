@@ -10,10 +10,13 @@ import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
-import Card from '@/components/ui/Card.vue'
+import Icon from '@/components/ui/Icon.vue'
+import GlassPanel from '@/components/ui/GlassPanel.vue'
+import PanelHeader from '@/components/PanelHeader.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Modal from '@/components/ui/Modal.vue'
-import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+import StatRow, { type Stat } from '@/components/ui/StatRow.vue'
+import Tabs from '@/components/ui/Tabs.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import {
@@ -39,7 +42,27 @@ const route = useRoute()
 const now = useNow(30_000)
 
 const status = ref<ApprovalStatus>('pending')
-const statusOptions = APPROVAL_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))
+// Tabs, not a segmented control: the strip switches what is on screen (/ui → Tabs).
+const statusTabs = APPROVAL_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))
+function pickStatus(v: string) {
+  if ((APPROVAL_STATUSES as readonly string[]).includes(v)) status.value = v as ApprovalStatus
+}
+
+/** A paper trade's figures as the kit's StatRow shows them. */
+function tradeStats(a: AiApproval): Stat[] {
+  const t = tradeOf(a)
+  if (!t) return []
+  const rr = rewardRisk(t)
+  return [
+    { label: 'Symbol', value: t.symbol, note: t.side },
+    { label: 'Quantity', value: t.qty },
+    { label: 'Entry', value: inr(t.entry) },
+    { label: 'Stop', value: inr(t.stop) },
+    { label: 'Target', value: inr(t.target) },
+    { label: 'Max loss', value: inr(t.riskInr), tone: 'negative' },
+    { label: 'Size', value: inr(t.notionalInr), note: rr ? `reward : risk ${rr}` : undefined },
+  ]
+}
 const items = shallowRef<AiApproval[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -138,24 +161,26 @@ function resultText(a: AiApproval): string {
 
 <template>
   <div class="tp-page">
-    <Card title="AI approvals">
-      <p class="tp-note">
-        What Claude asked to do. Nothing happens until you approve it here, and an approved trade is
-        only ever a <strong>PAPER</strong> order intent: the paper engine’s own risk check and
-        approval still apply. Live trading stays off.
-      </p>
-      <div class="tp-head">
-        <SegmentedControl
-          v-model="status"
-          :options="statusOptions"
-          size="sm"
-          aria-label="Status"
-          class="aiap__status"
-        />
-        <Button size="sm" variant="ghost" :loading="loading" @click="load">Refresh</Button>
-      </div>
-      <p v-if="notice" class="cc-notice" role="status">{{ notice }}</p>
-    </Card>
+    <PanelHeader title="AI approvals">
+      <template #right>
+        <button type="button" class="panel-action" :disabled="loading" @click="load">
+          <Icon name="refresh-cw" size="sm" />Refresh
+        </button>
+      </template>
+    </PanelHeader>
+    <p class="tp-note">
+      What Claude asked to do. Nothing happens until you approve it here, and an approved trade is
+      only ever a <strong>PAPER</strong> order intent: the paper engine’s own risk check and
+      approval still apply. Live trading stays off.
+    </p>
+    <Tabs
+      :model-value="status"
+      :tabs="statusTabs"
+      aria-label="Status"
+      class="aiap__status"
+      @update:model-value="pickStatus"
+    />
+    <p v-if="notice" class="tp-note" role="status">{{ notice }}</p>
 
     <p v-if="error" class="tp-note" role="alert">{{ error }}</p>
     <Skeleton v-else-if="loading && !items.length" :lines="5" />
@@ -169,10 +194,11 @@ function resultText(a: AiApproval): string {
       "
     />
 
-    <article
+    <GlassPanel
       v-for="a in items"
       :id="`aia-${a.id}`"
       :key="a.id"
+      padding="md"
       class="aiap"
       :class="{ 'is-focus': a.id === focusId }"
       data-testid="ai-approval"
@@ -193,44 +219,9 @@ function resultText(a: AiApproval): string {
       </header>
       <p class="aiap__summary">{{ a.summary }}</p>
 
-      <dl v-if="tradeOf(a)" class="aiap__trade" data-testid="trade-details">
-        <div>
-          <dt>Symbol</dt>
-          <dd class="cc-mono">{{ tradeOf(a)!.symbol }}</dd>
-        </div>
-        <div>
-          <dt>Side</dt>
-          <dd>{{ tradeOf(a)!.side }}</dd>
-        </div>
-        <div>
-          <dt>Quantity</dt>
-          <dd>{{ tradeOf(a)!.qty }}</dd>
-        </div>
-        <div>
-          <dt>Entry</dt>
-          <dd>{{ inr(tradeOf(a)!.entry) }}</dd>
-        </div>
-        <div>
-          <dt>Stop</dt>
-          <dd>{{ inr(tradeOf(a)!.stop) }}</dd>
-        </div>
-        <div>
-          <dt>Target</dt>
-          <dd>{{ inr(tradeOf(a)!.target) }}</dd>
-        </div>
-        <div>
-          <dt>Max loss</dt>
-          <dd class="aiap__risk">{{ inr(tradeOf(a)!.riskInr) }}</dd>
-        </div>
-        <div>
-          <dt>Size</dt>
-          <dd>{{ inr(tradeOf(a)!.notionalInr) }}</dd>
-        </div>
-        <div v-if="rewardRisk(tradeOf(a)!)">
-          <dt>Reward : risk</dt>
-          <dd>{{ rewardRisk(tradeOf(a)!) }}</dd>
-        </div>
-      </dl>
+      <div v-if="tradeOf(a)" class="aiap__trade" data-testid="trade-details">
+        <StatRow :stats="tradeStats(a)" />
+      </div>
       <p v-if="tradeOf(a)?.reason" class="aiap__reason">
         <span class="aiap__reason-label">Reason</span>{{ tradeOf(a)!.reason }}
       </p>
@@ -247,7 +238,7 @@ function resultText(a: AiApproval): string {
         <Button size="sm" @click="ask(a, 'approve')">Approve…</Button>
         <Button size="sm" variant="secondary" @click="ask(a, 'reject')">Reject…</Button>
       </div>
-    </article>
+    </GlassPanel>
 
     <Modal
       :open="!!deciding"
@@ -288,19 +279,11 @@ function resultText(a: AiApproval): string {
 </template>
 
 <style scoped>
-.aiap__status {
-  max-width: 100%;
-  overflow-x: auto;
-}
 .aiap {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
   min-width: 0;
-  padding: var(--sp-3) var(--sp-4);
-  border: 1px solid var(--theme-border);
-  border-radius: var(--radius-card);
-  background: var(--glass-bg, transparent);
 }
 .aiap.is-focus {
   border-color: var(--theme-accent);
@@ -333,28 +316,7 @@ function resultText(a: AiApproval): string {
   overflow-wrap: anywhere;
 }
 .aiap__trade {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
-  gap: var(--sp-2) var(--sp-3);
-  margin: 0;
-}
-.aiap__trade div {
   min-width: 0;
-}
-.aiap__trade dt {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-}
-.aiap__trade dd {
-  min-width: 0;
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-}
-.aiap__risk {
-  color: var(--theme-danger);
-  font-weight: var(--weight-semibold);
 }
 .aiap__reason {
   display: flex;
