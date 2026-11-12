@@ -92,7 +92,18 @@ const brokerOptions = computed(() =>
 const brokerInfo = computed(() => brokers.value.find((b) => b.broker === broker.value) ?? null)
 async function loadBrokers() {
   try {
-    brokers.value = await fetchBrokers()
+    const got: unknown = await fetchBrokers()
+    // Only well-formed rows: an older server (404) or a proxy page must not break the list.
+    brokers.value = Array.isArray(got)
+      ? got.filter(
+          (b): b is BrokerInfo =>
+            !!b &&
+            typeof b.broker === 'string' &&
+            typeof b.label === 'string' &&
+            typeof b.instruments === 'number' &&
+            Array.isArray(b.segments),
+        )
+      : []
   } catch {
     brokers.value = [] // the selector falls back to Dhan; the search still works
   }
