@@ -17,11 +17,14 @@
 // Under it, one meta row: where the value comes from (Badge), an unsaved marker,
 // and the row's actions (Save only when changed, Discard, Revert to .env, Copy key).
 //
-// The server never sends a value, only a mask, so an editor starts empty and a
-// change is anything typed (blank included, where blank means "off"). Writes go
-// through the shared writer, so a secret still asks for the admin's password and
-// nothing typed outlives the send.
-import { computed, ref } from 'vue'
+// The server sends the full value of a non-secret: each editor starts from it, and
+// the value in use is shown as a code block under the field. "Edit as text" edits
+// that exact value directly. A secret comes as a mask; Reveal shows it in full after
+// the admin's password, for a minute. A change is anything that differs from the
+// value in use (blank included, where blank means "off"). Writes go through the
+// shared writer, so a secret still asks for the password and nothing typed
+// outlives the send.
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import FormField from '@/components/ui/FormField.vue'
@@ -35,6 +38,7 @@ import TextArea from '@/components/ui/TextArea.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import BudgetsEditor from '@/components/control/settings/BudgetsEditor.vue'
 import PricesEditor from '@/components/control/settings/PricesEditor.vue'
+import ValueBlock from '@/components/control/settings/ValueBlock.vue'
 import { cronToWords } from '@/control/cron'
 import {
   draftError,
@@ -44,11 +48,13 @@ import {
   modelName,
   modelNow,
   modelOptions,
+  parseBudgets,
   parseCsv,
   serializeCsv,
   type BudgetDraft,
 } from '@/control/settingEditors'
 import { expiryChip, labelOf, sourceChip, unitOf, type SettingRow } from '@/control/settings'
+import { pretty } from '@/control/settingsDiagnostics'
 import { blankAllowed, type SettingWriter } from '@/control/useSettingWriter'
 import { when } from '@/trading/format'
 
@@ -62,6 +68,7 @@ const props = defineProps<{
 }>()
 
 const w = props.writer
+const TEXT_TOGGLE = ['switch', 'model', 'effort', 'budgets', 'prices', 'number', 'csv']
 const editor = computed(() => editorFor(props.row))
 const label = computed(() => labelOf(props.row.key))
 // The written-out note where there is one (it says what the server's one-line
@@ -73,6 +80,29 @@ const busy = computed(() => w.busy.value === props.row.key && !w.pending.value)
 
 const draft = computed(() => w.drafts[props.row.key])
 const dirty = computed(() => draft.value !== undefined)
+/** The full value in use (non-secrets; null for a secret or when unset). */
+const current = computed(() => props.row.value ?? null)
+/** What an editor shows: the draft while editing, else the value in use. */
+const shown = computed(() => (dirty.value ? draft.value! : (current.value ?? '')))
+const isJson = computed(() => props.row.kind === 'json_object' || props.row.kind === 'json_list')
+/** A secret's full values, while revealed. */
+const revealed = computed(() => w.revealed[props.row.key] ?? null)
+const revealSecondsLeft = ref(0)
+let tick: ReturnType<typeof setInterval> | undefined
+watch(
+  revealed,
+  (r) => {
+    clearInterval(tick)
+    if (!r) return
+    const update = () => {
+      revealSecondsLeft.value = Math.max(0, Math.round((r.until - Date.now()) / 1000))
+    }
+    update()
+    tick = setInterval(update, 1000)
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => clearInterval(tick))
 const error = computed(() =>
   dirty.value && draft.value !== '' ? draftError(props.row, draft.value!) : null,
 )
@@ -91,7 +121,11 @@ const canSave = computed(
 )
 
 function edit(value: string | null) {
-  if (value === null) w.discard(props.row.key)
+  // Back to the value in use (or its pretty-printed form): nothing to save.
+  const same =
+    current.value !== null &&
+    (value === current.value || (isJson.value && value === pretty(current.value, props.row.kind)))
+  if (value === null || same) w.discard(props.row.key)
   else w.edit(props.row.key, value)
 }
 function save() {
@@ -100,6 +134,7 @@ function save() {
 
 // --- switch: the mask ends with the value's last four characters ("••••true") ----------------
 const boolNow = computed(() => {
+  if (current.value !== null) return current.value === 'true'
   const m = props.row.masked ?? ''
   return m.endsWith('true') ? true : m.endsWith('alse') ? false : null
 })
@@ -130,6 +165,7 @@ function pickModel(v: string) {
   apply(v)
 }
 const effortNow = computed(() => {
+  if (current.value !== null) return current.value
   if (props.row.source === 'default') return 'medium'
   const tail = (props.row.masked ?? '').replace(/^•+/, '')
   return EFFORTS.find((e) => tail && e.endsWith(tail)) ?? ''
@@ -141,8 +177,8 @@ function pickEffort(v: string) {
 
 // --- number: NumberInput speaks numbers; the setting is stored as their string -------------
 const numberValue = computed(() => {
-  if (!dirty.value || draft.value === '') return null
-  const n = Number(draft.value)
+  if (shown.value === '') return null
+  const n = Number(shown.value)
   return Number.isFinite(n) ? n : null
 })
 function editNumber(v: number | null) {
@@ -161,15 +197,33 @@ function discard() {
 }
 
 // --- csv / cron -----------------------------------------------------------------------------
-const csvItems = computed(() => (dirty.value ? parseCsv(draft.value!) : []))
-const cronWords = computed(() => (dirty.value ? cronToWords(draft.value!) : ''))
+const csvItems = computed(() => parseCsv(shown.value))
+const cronWords = computed(() => (shown.value ? cronToWords(shown.value) : ''))
+/** The budgets editor starts from the saved split when the server sent it. */
+const budgetStart = computed(() =>
+  current.value !== null ? (parseBudgets(current.value) ?? props.budgetSeed) : props.budgetSeed,
+)
+
+// --- edit as text: the exact value in a code editor, for every non-secret --------------------
+const asText = ref(false)
+const textValue = computed(() =>
+  dirty.value ? draft.value! : current.value === null ? '' : pretty(current.value, props.row.kind),
+)
+function toggleText() {
+  asText.value = !asText.value
+}
+
+// --- reveal a secret --------------------------------------------------------------------------
+function reveal() {
+  void w.reveal(props.row)
+}
 const effortOptions = EFFORTS.map((e) => ({ value: e, label: e }))
 
 // The field is empty because the server never sends the value, so the placeholder
 // says what is in effect instead of showing a sample that reads like a value: the
 // mask when there is one ("Now ••••100"), else where the value comes from.
 const placeholder = computed(() => {
-  if (props.row.masked) return `Now ${props.row.masked}`
+  if (props.row.masked && props.row.is_secret) return `Now ${props.row.masked}`
   const from =
     props.row.source === 'default'
       ? 'Server default'
@@ -231,8 +285,20 @@ const shownMessage = computed(() =>
       :disabled="!canWrite"
       size="sm"
     >
+      <TextArea
+        v-if="asText"
+        :id="f.id"
+        :model-value="textValue"
+        :rows="isJson ? 6 : 2"
+        class="sf__raw"
+        :disabled="!canWrite"
+        spellcheck="false"
+        data-testid="raw-editor"
+        @update:model-value="edit(String($event ?? ''))"
+      />
+
       <Switch
-        v-if="editor === 'switch'"
+        v-else-if="editor === 'switch'"
         :id="f.id"
         :model-value="boolValue"
         :label="boolValue ? 'On' : 'Off'"
@@ -297,7 +363,7 @@ const shownMessage = computed(() =>
         v-else-if="editor === 'budgets'"
         :id="f.id"
         ref="structured"
-        :seed="budgetSeed ?? null"
+        :seed="budgetStart ?? null"
         :monthly="monthlyBudget ?? null"
         :disabled="!canWrite"
         @change="edit"
@@ -307,6 +373,7 @@ const shownMessage = computed(() =>
         v-else-if="editor === 'prices'"
         :id="f.id"
         ref="structured"
+        :seed="current"
         :disabled="!canWrite"
         @change="edit"
       />
@@ -341,7 +408,8 @@ const shownMessage = computed(() =>
       <TextArea
         v-else-if="editor === 'json'"
         :id="f.id"
-        :model-value="draft ?? ''"
+        :model-value="textValue"
+        class="sf__raw"
         :rows="4"
         :placeholder="row.kind === 'json_list' ? '[ … ]' : '{ … }'"
         :disabled="!canWrite"
@@ -353,7 +421,7 @@ const shownMessage = computed(() =>
         v-else
         :id="f.id"
         :described-by="f.describedBy"
-        :model-value="draft ?? ''"
+        :model-value="shown"
         :type="editor === 'url' ? 'url' : 'text'"
         :placeholder="placeholder"
         :invalid="f.invalid"
@@ -369,9 +437,47 @@ const shownMessage = computed(() =>
       <Icon name="sparkles" size="xs" /> {{ modelNote }}
     </p>
     <p v-if="busy && !dirty" class="sf__preview" role="status">Saving…</p>
-    <p v-if="editor === 'cron' && dirty && !error" class="sf__preview" data-testid="cron-words">
+    <p v-if="editor === 'cron' && cronWords && !error" class="sf__preview" data-testid="cron-words">
       <Icon name="calendar-clock" size="xs" /> {{ cronWords }}
     </p>
+
+    <div v-if="editor !== 'managed'" class="sf__value" data-testid="value-in-use">
+      <ValueBlock
+        :value="row.is_secret ? (revealed?.live ?? null) : current"
+        :masked="row.is_secret ? row.masked : null"
+        :kind="row.kind"
+        :label="row.is_secret && revealed ? `In use · hidden in ${revealSecondsLeft}s` : 'In use'"
+        :empty="row.source === 'unset' ? 'Not set' : 'Empty'"
+      />
+      <span class="sf__value-actions">
+        <Button
+          v-if="row.is_secret && row.is_set && !revealed"
+          size="sm"
+          variant="ghost"
+          :loading="w.busy.value === row.key && w.pending.value === null"
+          data-testid="reveal"
+          @click="reveal"
+          ><Icon name="eye" size="xs" />Reveal</Button
+        >
+        <Button
+          v-if="revealed"
+          size="sm"
+          variant="ghost"
+          data-testid="hide"
+          @click="w.hide(row.key)"
+          ><Icon name="eye-off" size="xs" />Hide</Button
+        >
+        <Button
+          v-if="!row.is_secret && TEXT_TOGGLE.includes(editor)"
+          size="sm"
+          variant="ghost"
+          :aria-pressed="asText"
+          data-testid="edit-as-text"
+          @click="toggleText"
+          ><Icon name="code" size="xs" />{{ asText ? 'Use the editor' : 'Edit as text' }}</Button
+        >
+      </span>
+    </div>
 
     <div v-if="editor !== 'managed'" class="sf__meta">
       <Badge v-bind="sourceChip(row)" />
@@ -411,8 +517,8 @@ const shownMessage = computed(() =>
       </span>
     </div>
     <p v-if="confirmRevert" class="sf__note" role="status">
-      The saved value is removed and the .env value applies. It cannot be brought back from here:
-      the server never sends a value back.
+      The saved value is removed and the .env value applies. Copy the value above first if you may
+      need it again.
       <Button size="sm" variant="ghost" @click="confirmRevert = false">Keep it</Button>
     </p>
     <p
@@ -473,6 +579,21 @@ const shownMessage = computed(() =>
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--text-secondary);
+}
+.sf__value {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.sf__value-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.sf__raw :deep(textarea) {
+  font-family: var(--font-mono);
 }
 .sf__meta {
   display: flex;

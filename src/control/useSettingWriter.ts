@@ -9,13 +9,30 @@
 //
 // A key is "unsaved" while it has a draft — even an empty one, because blank is a
 // real value for some settings (a schedule or the router model: blank = off).
+//
+// Reveal: a secret's full value (at every layer: .env, database, after reload, running)
+// after the admin's password, kept in memory for REVEAL_MS and then dropped. The server
+// audits each reveal by key name and never lets it be cached.
 import { computed, reactive, ref } from 'vue'
 import { aureon } from '@/api/client'
 import { codeOf } from '@/control/api'
 import { refusal, type SettingRow } from '@/control/settings'
 
 type Row = Pick<SettingRow, 'key' | 'kind' | 'requires_reauth'>
-export type Pending = { action: 'save' | 'revert'; row: Row; value?: string }
+export type Pending = { action: 'save' | 'revert' | 'reveal'; row: Row; value?: string }
+
+/** How long a revealed secret stays on screen. */
+export const REVEAL_MS = 60_000
+
+export interface Revealed {
+  env: string | null
+  db: string | null
+  db_present: boolean
+  expected: string | null
+  live: string | null
+  /** Epoch ms when it is hidden again. */
+  until: number
+}
 
 function detailOf(error: unknown): string | undefined {
   const d = (error as { detail?: unknown } | undefined)?.detail
@@ -43,6 +60,9 @@ export function useSettingWriter(onChanged: () => unknown) {
   })
   // The re-auth dialog: what is waiting for the password.
   const pending = ref<Pending | null>(null)
+  // Revealed values by key: memory only, dropped after REVEAL_MS.
+  const revealed = reactive<Record<string, Revealed>>({})
+  const hideTimers: Record<string, ReturnType<typeof setTimeout>> = {}
   const password = ref('')
   const reauthError = ref('')
 
@@ -84,6 +104,25 @@ export function useSettingWriter(onChanged: () => unknown) {
     return send(p)
   }
 
+  /** Show a key's full value at every layer. Keys that need it ask for the password. */
+  function reveal(row: Row): Promise<boolean> {
+    if (row.requires_reauth) {
+      pending.value = { action: 'reveal', row }
+      return Promise.resolve(false)
+    }
+    return send({ action: 'reveal', row })
+  }
+
+  function hide(key: string) {
+    clearTimeout(hideTimers[key])
+    delete hideTimers[key]
+    delete revealed[key]
+  }
+
+  function hideAll() {
+    for (const k of Object.keys(revealed)) hide(k)
+  }
+
   function revert(row: Row): Promise<boolean> {
     if (row.requires_reauth) {
       pending.value = { action: 'revert', row }
@@ -98,6 +137,30 @@ export function useSettingWriter(onChanged: () => unknown) {
     reauthError.value = ''
     try {
       const params = { path: { key } }
+      if (p.action === 'reveal') {
+        const r = await aureon.POST('/api/v1/settings/{key}/reveal', {
+          params,
+          body: pass ? { password: pass } : {},
+        })
+        if (r.data) {
+          const { env, db, db_present, expected, live } = r.data
+          hide(key)
+          revealed[key] = { env, db, db_present, expected, live, until: Date.now() + REVEAL_MS }
+          hideTimers[key] = setTimeout(() => hide(key), REVEAL_MS)
+          closeReauth()
+          return true
+        }
+        const code = codeOf(r.error)
+        const text = refusal(code, detailOf(r.error), 'The value could not be shown.')
+        if (pending.value && (code === 'reauth_failed' || code === 'too_many_reauth_failures')) {
+          reauthError.value = text
+          password.value = ''
+        } else {
+          closeReauth()
+          say(key, text, 'error')
+        }
+        return false
+      }
       const r =
         p.action === 'save'
           ? await aureon.PUT('/api/v1/settings/{key}', {
@@ -110,6 +173,7 @@ export function useSettingWriter(onChanged: () => unknown) {
             })
       if (r.data) {
         delete drafts[key]
+        hide(key) // a revealed value is out of date after a change
         closeReauth()
         say(key, p.action === 'save' ? 'Saved. Applied without a restart.' : 'Reverted to .env.')
         await onChanged()
@@ -175,6 +239,7 @@ export function useSettingWriter(onChanged: () => unknown) {
     busy,
     message,
     pending,
+    revealed,
     password,
     reauthError,
     say,
@@ -184,6 +249,9 @@ export function useSettingWriter(onChanged: () => unknown) {
     save,
     saveAll,
     revert,
+    reveal,
+    hide,
+    hideAll,
     send,
     closeReauth,
     confirmReauth,
