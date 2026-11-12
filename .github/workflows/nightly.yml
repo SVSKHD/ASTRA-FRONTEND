@@ -8,11 +8,11 @@
 name: Nightly build
 on:
   schedule:
-    - cron: "30 14 * * *" # 20:00 IST
+    - cron: '30 14 * * *' # 20:00 IST
   workflow_dispatch:
   # A change to this file runs it once on its PR, so it is proven before it runs at night.
   pull_request:
-    paths: [".github/workflows/nightly.yml"]
+    paths: ['.github/workflows/nightly.yml']
 permissions:
   contents: read
 concurrency:
