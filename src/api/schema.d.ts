@@ -5313,6 +5313,20 @@ export interface components {
             /** User Agent */
             user_agent: string | null;
         };
+        /** AutoLoginLast */
+        AutoLoginLast: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Code */
+            code?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Outcome */
+            outcome: string;
+        };
         /** BackfillIn */
         BackfillIn: {
             /** Days */
@@ -6185,9 +6199,9 @@ export interface components {
             last_verified_at: string | null;
             /**
              * Renewal
-             * @constant
+             * @enum {string}
              */
-            renewal: "manual";
+            renewal: "manual" | "auto";
             /**
              * Status
              * @enum {string}
@@ -10480,6 +10494,12 @@ export interface components {
         StatusOut: {
             /** Api Key Configured */
             api_key_configured: boolean;
+            /**
+             * Auto Login Configured
+             * @default false
+             */
+            auto_login_configured: boolean;
+            auto_login_last?: components["schemas"]["AutoLoginLast"] | null;
             /** Client Id Set */
             client_id_set: boolean;
             /** Data Stale */

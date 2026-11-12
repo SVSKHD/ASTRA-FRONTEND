@@ -1556,6 +1556,48 @@
         "title": "AuditEventOut",
         "type": "object"
       },
+      "AutoLoginLast": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "outcome"
+        ],
+        "title": "AutoLoginLast",
+        "type": "object"
+      },
       "BackfillIn": {
         "additionalProperties": false,
         "properties": {
@@ -4315,7 +4357,10 @@
             "title": "Last Verified At"
           },
           "renewal": {
-            "const": "manual",
+            "enum": [
+              "manual",
+              "auto"
+            ],
             "title": "Renewal",
             "type": "string"
           },
@@ -17561,6 +17606,21 @@
             "title": "Api Key Configured",
             "type": "boolean"
           },
+          "auto_login_configured": {
+            "default": false,
+            "title": "Auto Login Configured",
+            "type": "boolean"
+          },
+          "auto_login_last": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoLoginLast"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "client_id_set": {
             "title": "Client Id Set",
             "type": "boolean"
@@ -29053,7 +29113,7 @@
             }
           },
           {
-            "description": "repeatable: FUTIDX, FUTSTK, \u2026",
+            "description": "repeatable: FUTIDX, FUTSTK, …",
             "in": "query",
             "name": "instrument_type",
             "required": false,
@@ -29070,7 +29130,7 @@
                   "type": "null"
                 }
               ],
-              "description": "repeatable: FUTIDX, FUTSTK, \u2026",
+              "description": "repeatable: FUTIDX, FUTSTK, …",
               "title": "Instrument Type"
             }
           },
@@ -29100,7 +29160,7 @@
             }
           },
           {
-            "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I\u2026",
+            "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I…",
             "in": "query",
             "name": "segment",
             "required": false,
@@ -29117,7 +29177,7 @@
                   "type": "null"
                 }
               ],
-              "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I\u2026",
+              "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I…",
               "title": "Segment"
             }
           },
@@ -40441,7 +40501,7 @@
     },
     "/api/v1/ingest/health_summary": {
       "get": {
-        "description": "For the V1.6.4 Windows watchdog (aureon/watchdog.py, via ApiStore.health_summary()).\n\nThe response is V1.6.4's own contract (aureon_v1/assembler/app.py), field for field:\n`state`, `heartbeats` [{service, state, last_beat, note}], `bars` [{tf, t, n24}],\n`indicators_m30_latest`, `signals` {t, n24}, `risk` {state, ref_source} | null,\n`control_desired`. One difference, on purpose: where V1.6.4's server filled in defaults\nfor missing rows (scheduler \"PAUSED\", desired \"RUN\"), this answers null \u2014 nothing is\nreported that no record shows (the watchdog acts only on desired == \"PAUSE\").\n\n`?detail=true` (never sent by the watchdog) adds `diagnostics`: heartbeat ages, the last\naccepted upload per ingest endpoint, open/failed collector jobs and failed alerts.\nEvery query reads an index (latest row per key, last-24 h ranges), so a 5-second poll\nstays cheap. A database failure answers 503, never a guessed state.",
+        "description": "For the V1.6.4 Windows watchdog (aureon/watchdog.py, via ApiStore.health_summary()).\n\nThe response is V1.6.4's own contract (aureon_v1/assembler/app.py), field for field:\n`state`, `heartbeats` [{service, state, last_beat, note}], `bars` [{tf, t, n24}],\n`indicators_m30_latest`, `signals` {t, n24}, `risk` {state, ref_source} | null,\n`control_desired`. One difference, on purpose: where V1.6.4's server filled in defaults\nfor missing rows (scheduler \"PAUSED\", desired \"RUN\"), this answers null — nothing is\nreported that no record shows (the watchdog acts only on desired == \"PAUSE\").\n\n`?detail=true` (never sent by the watchdog) adds `diagnostics`: heartbeat ages, the last\naccepted upload per ingest endpoint, open/failed collector jobs and failed alerts.\nEvery query reads an index (latest row per key, last-24 h ranges), so a 5-second poll\nstays cheap. A database failure answers 503, never a guessed state.",
         "operationId": "ingest_health_summary_api_v1_ingest_health_summary_get",
         "parameters": [
           {

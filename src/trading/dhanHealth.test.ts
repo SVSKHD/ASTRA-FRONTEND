@@ -19,6 +19,8 @@ const SESSION = {
   valid_until: iso(-6 * 3_600_000),
   expires_soon: false,
   data_stale: false,
+  auto_login_configured: true,
+  auto_login_last: { at: iso(3_600_000), outcome: 'logged_in', code: null, expires_at: null },
 }
 
 const healthy = (over: Partial<DhanInputs> = {}): DhanInputs => ({
@@ -46,7 +48,8 @@ const by = (i: DhanInputs) => Object.fromEntries(dhanChecks(i).map((c) => [c.key
 describe('dhanChecks', () => {
   it('is all OK only when every part is', () => {
     const c = by(healthy())
-    expect(Object.values(c).map((x) => x.level)).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok'])
+    expect(Object.values(c).map((x) => x.level)).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok'])
+    expect(c.autologin.text).toBe('On. Last logged in 60 min ago.')
     expect(c.session.text).toContain('Login session valid for 6 h more')
     expect(c.ticks.text).toBe('Live; last tick 5 s ago.')
   })
@@ -227,5 +230,52 @@ describe('feed summary', () => {
     const { feedSummary } = await import('./dhanHealth')
     expect(feedSummary({ ...base, subscribed: 0, quotes: [] }).label).toBe('No subscriptions')
     expect(feedSummary({ ...base, quotes: [] }).label).toBe('No ticks')
+  })
+})
+
+describe('automatic login check', () => {
+  const auto = (over: Partial<NonNullable<DhanInputs['session']>>) =>
+    by(healthy({ session: { ...SESSION, ...over } })).autologin
+
+  it('is off (not a failure) without a PIN and TOTP secret, and says how to turn it on', () => {
+    const c = auto({ auto_login_configured: false, auto_login_last: null })
+    expect(c.level).toBe('disabled')
+    expect(c.text).toContain('DHAN_PIN and DHAN_TOTP_SECRET')
+  })
+
+  it('is on with no attempt yet', () => {
+    const c = auto({ auto_login_last: null })
+    expect(c.level).toBe('ok')
+    expect(c.text).toContain('about to expire')
+  })
+
+  it('a refused PIN or TOTP is an authentication failure that is not retried', () => {
+    for (const last of [
+      { at: iso(600_000), outcome: 'failed', code: 'dhan_refused' },
+      { at: iso(600_000), outcome: 'blocked', code: 'dhan_refused' },
+    ]) {
+      const c = auto({ auto_login_last: last })
+      expect(c.level).toBe('auth')
+      expect(c.text).toContain('will not retry until DHAN_PIN or DHAN_TOTP_SECRET changes')
+    }
+  })
+
+  it('other failures retry; a logout pauses it', () => {
+    const failed = auto({
+      auto_login_last: { at: iso(600_000), outcome: 'failed', code: 'dhan_unavailable' },
+    })
+    expect(failed.level).toBe('error')
+    expect(failed.text).toBe(
+      'Last attempt failed 10 min ago (dhan_unavailable). It retries on the next run.',
+    )
+    const paused = auto({ auto_login_last: { at: iso(0), outcome: 'paused', code: 'logged_out' } })
+    expect(paused.level).toBe('disabled')
+    expect(paused.text).toContain('Log in to Dhan once')
+  })
+
+  it('an expiring session says automatic login will replace it', () => {
+    const c = by(healthy({ session: { ...SESSION, expires_soon: true } })).session
+    expect(c.level).toBe('stale')
+    expect(c.text).toContain('Automatic login will replace it.')
   })
 })
