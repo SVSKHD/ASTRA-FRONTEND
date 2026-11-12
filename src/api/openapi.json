@@ -2160,6 +2160,20 @@
         "title": "Bars",
         "type": "object"
       },
+      "Body_upload_attachment_api_ai_attachments_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_attachment_api_ai_attachments_post",
+        "type": "object"
+      },
       "Body_upload_attachment_api_finance_attachments_post": {
         "properties": {
           "file": {
@@ -2699,6 +2713,67 @@
         "title": "ChangesOut",
         "type": "object"
       },
+      "ChatAttachmentOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "pdf",
+              "table"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages"
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rows"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "media_type",
+          "size"
+        ],
+        "title": "ChatAttachmentOut",
+        "type": "object"
+      },
       "ChatIn": {
         "additionalProperties": false,
         "properties": {
@@ -2717,6 +2792,15 @@
               }
             ],
             "title": "Agent"
+          },
+          "attachments": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Attachments",
+            "type": "array"
           },
           "conversation_id": {
             "anyOf": [
@@ -22125,6 +22209,69 @@
             "admin"
           ],
           "title_field": "summary"
+        }
+      }
+    },
+    "/api/ai/attachments": {
+      "post": {
+        "description": "Attach a photo (PNG, JPEG, WebP, GIF, 5 MB), a PDF or a spreadsheet (.xlsx, CSV,\nTSV) to the next chat message: send the returned id in `attachments`. The type is read\nfrom the file's bytes. A spreadsheet is converted to a text table here; images and PDFs\nreach Claude as they are (they cannot be redacted).",
+        "operationId": "upload_attachment_api_ai_attachments_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_attachment_api_ai_attachments_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatAttachmentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Content Too Large"
+          },
+          "415": {
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Upload Attachment",
+        "tags": [
+          "ai"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "confirm",
+          "group": "ai",
+          "icon": "message-square",
+          "id_field": "id",
+          "kind": "form",
+          "label": "Upload attachment",
+          "module": "chat",
+          "order": 40,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "name"
         }
       }
     },

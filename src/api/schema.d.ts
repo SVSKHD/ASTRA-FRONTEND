@@ -140,6 +140,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ai/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Attachment
+         * @description Attach a photo (PNG, JPEG, WebP, GIF, 5 MB), a PDF or a spreadsheet (.xlsx, CSV,
+         *     TSV) to the next chat message: send the returned id in `attachments`. The type is read
+         *     from the file's bytes. A spreadsheet is converted to a text table here; images and PDFs
+         *     reach Claude as they are (they cannot be redacted).
+         */
+        post: operations["upload_attachment_api_ai_attachments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ai/chat": {
         parameters: {
             query?: never;
@@ -5566,6 +5589,11 @@ export interface components {
             /** Tf */
             tf: string;
         };
+        /** Body_upload_attachment_api_ai_attachments_post */
+        Body_upload_attachment_api_ai_attachments_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_attachment_api_finance_attachments_post */
         Body_upload_attachment_api_finance_attachments_post: {
             /** File */
@@ -5744,10 +5772,35 @@ export interface components {
              */
             truncated: boolean;
         };
+        /** ChatAttachmentOut */
+        ChatAttachmentOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "pdf" | "table";
+            /** Media Type */
+            media_type: string;
+            /** Name */
+            name: string;
+            /** Pages */
+            pages?: number | null;
+            /** Rows */
+            rows?: number | null;
+            /** Size */
+            size: number;
+        };
         /** ChatIn */
         ChatIn: {
             /** Agent */
             agent?: ("investments" | "business" | "general") | null;
+            /** Attachments */
+            attachments?: string[];
             /** Conversation Id */
             conversation_id?: string | null;
             /** Message */
@@ -12015,6 +12068,65 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    upload_attachment_api_ai_attachments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_attachment_api_ai_attachments_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatAttachmentOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

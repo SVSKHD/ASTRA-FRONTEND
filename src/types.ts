@@ -298,6 +298,8 @@ export interface AiMessage {
   approvals?: { id: string; action: string; summary: string }[]
   // Items Claude suggested (suggest_* tools): cards the user can add. Nothing is
   // created until the user opens one and presses Add.
+  // Files sent with a user message (src/ai/attachments.ts): names and kinds only.
+  attachments?: { id: string; name: string; kind: 'image' | 'pdf' | 'table' }[]
   suggestions?: {
     kind: 'todo' | 'task' | 'reminder' | 'calendar' | 'note'
     fields: Record<string, unknown>
