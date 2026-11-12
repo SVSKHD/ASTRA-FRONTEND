@@ -19,6 +19,7 @@ import GlassPanel from '@/components/ui/GlassPanel.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import AiActionDialog from '@/components/AiActionDialog.vue'
+import { describeSuggestion, draftFromSuggestion, type Suggestion } from '@/ai/workspace'
 import AiTypoFixDialog from '@/components/AiTypoFixDialog.vue'
 import type { IconName } from '@/components/ui/icons'
 import { useAppStore } from '@/stores/app'
@@ -59,6 +60,7 @@ import {
   plainAiReply,
   AI_ACTION_KINDS,
   AI_ACTION_META,
+  type AiActionDraft,
   type AiActionKind,
   type AiContextKey,
   type AiItemUpdate,
@@ -638,9 +640,19 @@ function hostOf(url: string): string {
 }
 
 // --- add from a reply ---------------------------------------------------------
-const action = ref<{ kind: AiActionKind; reply: string; msgId: number } | null>(null)
+const action = ref<{
+  kind: AiActionKind
+  reply: string
+  msgId: number
+  preset?: AiActionDraft | null
+} | null>(null)
 function openAction(m: AiMessage, kind: AiActionKind) {
   action.value = { kind, reply: m.content, msgId: m.id }
+}
+// A card Claude suggested: the same dialog, prefilled with what it suggested.
+function openSuggestion(m: AiMessage, sg: Suggestion) {
+  const preset = draftFromSuggestion(sg)
+  action.value = { kind: preset.kind, reply: m.content, msgId: m.id, preset }
 }
 const suggestedKinds = (m: AiMessage) => (parsed.value.get(m.id)?.actions ?? []).map((a) => a.kind)
 
@@ -714,6 +726,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
       :reply="action?.reply ?? ''"
       :chat-title="activeAiChat?.title ?? ''"
       :from="action && activeAiChat ? { chatId: activeAiChat.id, msgId: action.msgId } : undefined"
+      :preset="action?.preset ?? null"
       @close="action = null"
       @created="openLook([$event])"
     />
@@ -1186,6 +1199,21 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
                       :to="{ path: '/dev/ai-approvals', query: { id: a.id } }"
                       >Review</RouterLink
                     >
+                  </GlassPanel>
+
+                  <!-- Items Claude suggested: nothing is created until you open one and Add. -->
+                  <GlassPanel
+                    v-for="(sg, si) in m.suggestions ?? []"
+                    :key="`sg-${si}`"
+                    padding="sm"
+                    class="ai-approval ai-suggestion"
+                    data-testid="suggestion-card"
+                  >
+                    <Badge tone="info" label="Suggested" />
+                    <span class="ai-approval__summary">{{ describeSuggestion(sg) }}</span>
+                    <button type="button" class="ai-action" @click="openSuggestion(m, sg)">
+                      <Icon name="plus" size="xs" />Review and add
+                    </button>
                   </GlassPanel>
 
                   <div v-if="!isStreamingMsg(m.id) || m.agent" class="ai-meta">
