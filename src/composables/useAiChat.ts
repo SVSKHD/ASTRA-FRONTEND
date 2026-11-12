@@ -456,7 +456,13 @@ async function sendAureon(
         approvals.push(evt.approval)
         app.setAiMessageClaude(chatId, msgId, { approvals: [...approvals] })
       }
-      if (evt.done) app.setAiMessageClaude(chatId, msgId, { costUsd: evt.done.costUsd })
+      if (evt.done) {
+        // The answer arrives as text events; done repeats it whole. If no text event
+        // got through (an older server, a proxy that dropped them), show it from done.
+        const said = app.aiChatById(chatId)?.messages.find((m) => m.id === msgId)?.content
+        if (!said && evt.done.text) app.appendAiMessageContent(chatId, msgId, evt.done.text)
+        app.setAiMessageClaude(chatId, msgId, { costUsd: evt.done.costUsd })
+      }
       if (evt.error) throw new AureonChatError(errorText(evt.error.code), 200, evt.error.code)
     }
   } catch (err) {

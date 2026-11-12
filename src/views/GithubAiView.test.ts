@@ -43,6 +43,7 @@ vi.mock('@/ai/aureonChat', async (orig) => {
           steps: 1,
           stopReason: 'end_turn',
           approvals: [],
+          text: 'It **exports** one constant.',
         },
       }
     },

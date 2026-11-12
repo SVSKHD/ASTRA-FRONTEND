@@ -54,6 +54,7 @@ const STREAM: [string, unknown][] = [
       steps: 2,
       stop_reason: 'end_turn',
       approvals: [],
+      text: 'You hold 3 positions.',
     },
   ],
 ]
@@ -123,6 +124,7 @@ describe('streamChat', () => {
           steps: 2,
           stopReason: 'end_turn',
           approvals: [],
+          text: 'You hold 3 positions.',
         },
       },
     ])
