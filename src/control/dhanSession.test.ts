@@ -25,6 +25,7 @@ function status(over: Partial<DhanStatus> = {}): DhanStatus {
     valid_until: null,
     expires_soon: false,
     data_stale: true,
+    auto_login_configured: false,
     ...over,
   }
 }

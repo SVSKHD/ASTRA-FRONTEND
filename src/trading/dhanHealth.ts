@@ -1,8 +1,9 @@
-// Dhan's health as six separate checks (backend docs/27-dhan-audit.md), so a
+// Dhan's health as seven separate checks (backend docs/27-dhan-audit.md), so a
 // healthy API never stands in for a healthy feed:
 //
 //   credentials   client id + API key/secret set          GET /api/v1/dhan/auth/status
 //   session       the login session (or manual token)     same, + /accounts/{id}/health
+//   auto login    PIN + TOTP login by the scheduler        GET /api/v1/dhan/auth/status
 //   account data  how old the funds snapshot is           GET /accounts/{id}/funds (as_of)
 //   feed worker   the dhan-feed agent's heartbeat          GET /api/v1/system/integrations (admin)
 //   ticks         the newest quote on the trading stream   GET /api/trading/stream (quote events)
@@ -19,7 +20,7 @@ import { DOWN_STATES } from '@/control/integrations'
 export type Level = 'ok' | 'stale' | 'missing' | 'disabled' | 'auth' | 'error' | 'unknown'
 
 export interface Check {
-  key: 'credentials' | 'session' | 'account' | 'feed' | 'ticks' | 'reconcile'
+  key: 'credentials' | 'session' | 'autologin' | 'account' | 'feed' | 'ticks' | 'reconcile'
   label: string
   level: Level
   text: string
@@ -36,6 +37,15 @@ export interface DhanInputs {
     valid_until?: string | null
     expires_soon: boolean
     data_stale: boolean
+    /** DHAN_PIN + DHAN_TOTP_SECRET set: the scheduler logs in before the session expires. */
+    auto_login_configured?: boolean
+    /** Its last attempt. Never the PIN, the secret or the token. */
+    auto_login_last?: {
+      at: string
+      outcome: string
+      code?: string | null
+      expires_at?: string | null
+    } | null
   } | null
   /** The `dhan` section of the integrations summary; null for non-admins or when unread. */
   integration: DhanSection | null
@@ -122,9 +132,54 @@ function session(i: DhanInputs, now: number): Check {
   const left = s.valid_until ? age(s.valid_until, now) : null
   const until = left != null ? ` for ${span(-left)} more` : ''
   const what = s.source === 'session' ? 'Login session' : 'Manual access token'
+  const renew = s.auto_login_configured ? ' Automatic login will replace it.' : ''
   return s.expires_soon
-    ? { ...base, level: 'stale', text: `${what} valid${until}; expires soon.` }
+    ? { ...base, level: 'stale', text: `${what} valid${until}; expires soon.${renew}` }
     : { ...base, level: 'ok', text: `${what} valid${until}.` }
+}
+
+function autologin(i: DhanInputs, now: number): Check {
+  const base = { key: 'autologin', label: 'Automatic login' } as const
+  const s = i.session
+  if (!s) return { ...base, level: 'unknown', text: 'The login status could not be read.' }
+  if (!s.auto_login_configured) {
+    return {
+      ...base,
+      level: 'disabled',
+      text: 'Off. Set DHAN_PIN and DHAN_TOTP_SECRET in Settings → Dhan to log in automatically before each session expires.',
+    }
+  }
+  const last = s.auto_login_last
+  const ago = last ? age(last.at, now) : null
+  const when = ago != null ? ` ${span(Math.max(ago, 0))} ago` : ''
+  if (!last) {
+    return { ...base, level: 'ok', text: 'On. It logs in when the session is about to expire.' }
+  }
+  if (last.outcome === 'logged_in') {
+    return { ...base, level: 'ok', text: `On. Last logged in${when}.` }
+  }
+  if (last.outcome === 'paused') {
+    return {
+      ...base,
+      level: 'disabled',
+      text: 'Paused after a logout. Log in to Dhan once to turn it back on.',
+    }
+  }
+  if (last.code === 'dhan_refused' || last.outcome === 'blocked') {
+    return {
+      ...base,
+      level: 'auth',
+      text: `Dhan refused the PIN or TOTP${when}. It will not retry until DHAN_PIN or DHAN_TOTP_SECRET changes (so the account is not locked).`,
+    }
+  }
+  if (last.outcome === 'failed') {
+    return {
+      ...base,
+      level: 'error',
+      text: `Last attempt failed${when} (${last.code ?? 'unknown error'}). It retries on the next run.`,
+    }
+  }
+  return { ...base, level: 'ok', text: 'On. It logs in when the session is about to expire.' }
 }
 
 function account(i: DhanInputs, now: number): Check {
@@ -222,11 +277,19 @@ function reconcile(i: DhanInputs, now: number): Check {
   return { ...base, level: 'ok', text: `Last run ${st}${when}.` }
 }
 
-/** The six checks, in reading order. */
+/** The seven checks, in reading order. */
 export function dhanChecks(i: DhanInputs): Check[] {
   const now = i.now ?? Date.now()
   const f = feed(i)
-  return [credentials(i), session(i, now), account(i, now), f, ticks(i, f, now), reconcile(i, now)]
+  return [
+    credentials(i),
+    session(i, now),
+    autologin(i, now),
+    account(i, now),
+    f,
+    ticks(i, f, now),
+    reconcile(i, now),
+  ]
 }
 
 export const LEVEL_TONE: Record<Level, 'success' | 'warning' | 'danger' | 'neutral' | 'info'> = {
