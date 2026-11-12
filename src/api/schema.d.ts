@@ -1548,6 +1548,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trading/brokers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Brokers
+         * @description Every broker Aureon knows, whether its read-only adapter is running, and how many
+         *     active instruments it has per segment: what the instrument browser can be scoped to.
+         */
+        get: operations["brokers_api_trading_brokers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trading/candles": {
         parameters: {
             query?: never;
@@ -5582,6 +5603,29 @@ export interface components {
          * @enum {string}
          */
         Broker: "dhan" | "mt5";
+        /**
+         * BrokerOut
+         * @description One broker the instrument browser can be scoped to. `configured` means its read-only
+         *     adapter is running here; a broker can still have stored instruments without it.
+         */
+        BrokerOut: {
+            broker: components["schemas"]["Broker"];
+            /** Configured */
+            configured: boolean;
+            /** Instruments */
+            instruments: number;
+            /** Label */
+            label: string;
+            /** Segments */
+            segments: components["schemas"]["BrokerSegmentOut"][];
+        };
+        /** BrokerSegmentOut */
+        BrokerSegmentOut: {
+            /** Instruments */
+            instruments: number;
+            /** Segment */
+            segment: string;
+        };
         /** BudgetOut */
         BudgetOut: {
             /** Budget */
@@ -14889,6 +14933,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    brokers_api_trading_brokers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrokerOut"][];
                 };
             };
         };

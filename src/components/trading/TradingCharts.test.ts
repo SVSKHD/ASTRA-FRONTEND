@@ -7,6 +7,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { STUDIES_KEY } from '@/trading/studies'
+import { forgetHistoryRequests } from '@/trading/history'
 import { WATCHLISTS_KEY, resetWatchlistStore } from '@/trading/watchlists'
 
 const FIVE_MIN = 5 * 60_000
@@ -44,7 +45,13 @@ class FakeES {
   close() {}
 }
 
+let backfillBody: unknown = { queued: 1, already_open: 0, rejected: [] }
+const backfillBodies: unknown[] = []
+
 beforeEach(() => {
+  forgetHistoryRequests()
+  backfillBody = { queued: 1, already_open: 0, rejected: [] }
+  backfillBodies.length = 0
   candleStatus = 200
   candleBody = CANDLES
   serverDate = LAST + 10 * FIVE_MIN
@@ -58,7 +65,10 @@ beforeEach(() => {
     urls.push(url)
     let status = 200
     let body: unknown = []
-    if (url.pathname === '/api/trading/candles') {
+    if (url.pathname === '/api/trading/candles/backfill') {
+      backfillBodies.push(JSON.parse(await req.text()))
+      body = backfillBody
+    } else if (url.pathname === '/api/trading/candles') {
       status = candleStatus
       body = candleBody
     } else if (url.pathname === '/api/trading/indicators') {
@@ -224,10 +234,31 @@ describe('TradingCharts', () => {
     await sees(w, 'Stale: the newest 5m candle')
   })
 
-  it('shows an empty state when no candles are stored', async () => {
+  it('asks the server for Dhan history when no candles are stored', async () => {
     candleBody = []
     const { w } = await mountAt('/trading/charts?instrument=7&tf=5m')
+    await sees(w, 'Loading history from Dhan')
+    expect(w.text()).toContain('refreshes by itself')
+    expect(backfillBodies).toEqual([{ instrument_ids: [7], timeframe: '5m', days: 90 }])
+    // A refresh that is still empty does not ask again.
+    await w
+      .findAll('button')
+      .find((b) => b.attributes('aria-label') === 'Refresh' || b.text() === 'Refresh')
+      ?.trigger('click')
+    for (let i = 0; i < 4; i++) await flushPromises()
+    expect(backfillBodies).toHaveLength(1)
+  })
+
+  it('says why when Dhan cannot serve the history', async () => {
+    candleBody = []
+    backfillBody = {
+      queued: 0,
+      already_open: 0,
+      rejected: [{ instrument_id: 7, reason: 'segment MCX_COMM has no Dhan chart history' }],
+    }
+    const { w } = await mountAt('/trading/charts?instrument=7&tf=5m')
     await sees(w, 'No candles stored for this timeframe')
+    await sees(w, 'Dhan cannot serve this history: segment MCX_COMM has no Dhan chart history')
   })
 
   it('shows the error, with a retry, when candles fail to load', async () => {
