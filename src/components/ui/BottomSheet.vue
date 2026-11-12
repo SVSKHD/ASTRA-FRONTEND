@@ -1,3 +1,8 @@
+<script lang="ts">
+/** How many sheets are open right now, across every instance. */
+export const BottomSheetState = { count: 0 }
+</script>
+
 <script setup lang="ts">
 // The mobile counterpart to Modal: same semantics, thumb-reachable.
 //
@@ -11,10 +16,40 @@
 // closed, and the taps meant for it opened whatever lay beneath. It was also
 // stacked inside the shell, under the tab bar. Rendered at the root, it owns
 // its own pointer events and stacking, wherever it is declared.
-import { computed, ref, watch } from 'vue'
+//
+// LIGHT ON A PHONE. The sheet used to blur everything behind it
+// (backdrop-filter) while it slid in, over a starfield whose 110 stars never stop
+// twinkling: the blur was recomputed every frame of the slide and every frame
+// after, which a desktop GPU absorbs and a phone's drops frames on. On a touch
+// screen the sheet is now the theme's solid surface (it covers most of the screen
+// behind a scrim, so the blur bought little), and while any sheet is open the
+// root carries `ui-sheet-open`, which pauses the starfield (style.css) — the
+// background is still, so nothing behind a blurred layer has to be re-blurred.
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps<{ open: boolean; title: string }>()
 const emit = defineEmits<{ close: [] }>()
+
+// --- the root class while any sheet is open (several can be: More, then Account) ----------
+const ROOT_CLASS = 'ui-sheet-open'
+function markRoot() {
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle(ROOT_CLASS, BottomSheetState.count > 0)
+  }
+}
+let counted = false
+function count(on: boolean) {
+  if (on === counted) return
+  counted = on
+  BottomSheetState.count += on ? 1 : -1
+  markRoot()
+}
+watch(
+  () => props.open,
+  (open) => count(open),
+  { immediate: true },
+)
+onBeforeUnmount(() => count(false))
 
 function clampHeight(height: number): number {
   return Math.max(220, Math.min(Math.min(760, window.innerHeight * 0.86), height))
@@ -103,6 +138,13 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   /* Stated, not inherited: see the note at the top of the script. */
   pointer-events: auto;
   background: color-mix(in oklch, var(--glass-solid) 42%, transparent);
+  /* Opacity only: the compositor fades it, nothing is repainted. */
+  animation: uiScrimIn var(--dur-med) var(--ease-out) both;
+}
+@keyframes uiScrimIn {
+  from {
+    opacity: 0;
+  }
 }
 /* Docked to the bottom edge, full width, with the rounded top of a phone's
    own sheet. The head stays put; only the body scrolls. */
@@ -131,6 +173,19 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.6);
   color: var(--theme-text);
   animation: uiSheetIn var(--dur-med) var(--ease-out) both;
+  /* Its own layer before the first frame, not promoted halfway through the slide. */
+  will-change: transform;
+}
+/* A touch screen: the theme's solid surface, no backdrop blur, a lighter shadow.
+   The slide is then a plain transform of one opaque layer — the cheapest thing a
+   phone's compositor can do. */
+@media (pointer: coarse) {
+  .ui-sheet {
+    background: var(--glass-solid);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: 0 -6px 18px color-mix(in oklch, black 22%, transparent);
+  }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .ui-sheet {
@@ -143,7 +198,8 @@ function resizeWithKeyboard(event: KeyboardEvent): void {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ui-sheet {
+  .ui-sheet,
+  .ui-sheet__scrim {
     animation: none;
   }
 }
