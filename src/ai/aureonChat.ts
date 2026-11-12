@@ -234,6 +234,8 @@ export interface DoneEvent {
   steps: number
   stopReason: string | null
   approvals: string[]
+  /** The whole answer, sent again with done: shown when no text event arrived. */
+  text?: string
 }
 
 /** One stream event, read into the app's shape. Exactly one field is set. */
@@ -278,6 +280,7 @@ export function readEvent(name: string, raw: string): ChatEvent | null {
           steps: Number(d.steps) || 0,
           stopReason: d.stop_reason == null ? null : str(d.stop_reason),
           approvals: Array.isArray(d.approvals) ? d.approvals.map(str) : [],
+          text: typeof d.text === 'string' ? d.text : '',
         },
       }
     case 'error':
