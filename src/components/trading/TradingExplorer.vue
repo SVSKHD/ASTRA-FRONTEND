@@ -1,15 +1,16 @@
 <script setup lang="ts">
-// Market Explorer (/trading/market): the backend's instrument master, searched
-// and paged on the server, with snapshot or live quotes beside each row.
+// Market Explorer (/trading/market, and "All instruments" in the Stocks tab):
+// the backend's instrument master, searched, filtered and paged on the server,
+// with snapshot or live quotes beside each row.
 //
-//   GET /api/trading/instruments ?broker&q&instrument_type&limit&offset
+//   GET /api/trading/brokers     which brokers have instruments, per segment
+//   GET /api/trading/instruments ?broker&q&instrument_type&exchange&segment&limit&offset
 //   GET /api/trading/quotes      ?broker&symbols=SEGMENT:ID,…   (≤ 50 per call)
 //   live `quote` events from the trading stream, when the instrument is subscribed
 //
 // Honesty rules (docs/market-terminal.md):
-// - The API filters by text and ONE instrument_type. NSE/BSE and segment
-//   filters therefore apply to the page that came back, and the screen says so
-//   (§2). The Futures and Options kinds pick one contract type at a time.
+// - Every filter is applied by the server before paging, so the count is the
+//   whole market's. The Futures and Options kinds pick one contract type at a time.
 // - % change needs a previous close the quote API does not send (§3): "—".
 // - No instruments may mean the master was never synced; its sync status is
 //   not reported (§2), so it is "unknown", not "ok".
@@ -32,12 +33,17 @@ import { useNow } from '@/control/poll'
 import { useUiStore } from '@/stores/ui'
 import { ago, dec, when } from '@/trading/format'
 import {
+  brokerLabel,
   exchangeOf,
+  fetchBrokers,
   KIND_LABEL,
   kindOf,
   searchInstruments,
   segmentOf,
   TYPES_BY_KIND,
+  type Broker,
+  type BrokerInfo,
+  type Exchange,
   type Instrument,
   type Kind,
 } from '@/trading/instruments'
@@ -70,6 +76,51 @@ const contractType = ref<Record<'future' | 'option', string>>({
 })
 const pageSize = ref('50')
 const page = ref(1)
+
+// --- broker scope ------------------------------------------------------------------------------
+const brokers = shallowRef<BrokerInfo[]>([])
+const broker = ref<Broker>('dhan')
+const brokerOptions = computed(() =>
+  (brokers.value.length
+    ? brokers.value
+    : [{ broker: 'dhan', label: 'Dhan', configured: true, instruments: 0, segments: [] }]
+  ).map((b) => ({
+    value: b.broker,
+    label: brokers.value.length ? brokerLabel(b as BrokerInfo) : b.label,
+  })),
+)
+const brokerInfo = computed(() => brokers.value.find((b) => b.broker === broker.value) ?? null)
+async function loadBrokers() {
+  try {
+    brokers.value = await fetchBrokers()
+  } catch {
+    brokers.value = [] // the selector falls back to Dhan; the search still works
+  }
+}
+void loadBrokers()
+
+// --- exchange and segment (server side) ----------------------------------------------------------
+type ExchangeFilter = 'all' | Exchange
+const EXCHANGES: { value: ExchangeFilter; label: string }[] = [
+  { value: 'all', label: 'All exchanges' },
+  { value: 'NSE', label: 'NSE' },
+  { value: 'BSE', label: 'BSE' },
+  { value: 'MCX', label: 'MCX' },
+]
+const exchange = ref<ExchangeFilter>('all')
+const segment = ref('')
+const segmentOptions = computed(() => [
+  { value: '', label: 'All segments' },
+  ...(brokerInfo.value?.segments ?? [])
+    .filter((s) => exchange.value === 'all' || s.segment.startsWith(exchange.value))
+    .map((s) => ({ value: s.segment, label: `${s.segment} · ${s.instruments.toLocaleString()}` })),
+])
+// A segment from another exchange or broker would match nothing.
+watch([exchange, broker], () => {
+  if (segment.value && !segmentOptions.value.some((o) => o.value === segment.value)) {
+    segment.value = ''
+  }
+})
 
 let debounce: ReturnType<typeof setTimeout> | undefined
 watch(text, (t) => {
@@ -115,8 +166,11 @@ async function load() {
   error.value = ''
   try {
     const res = await searchInstruments({
+      broker: broker.value,
       q: q.value,
       instrumentType: instrumentType.value,
+      exchange: exchange.value === 'all' ? undefined : exchange.value,
+      segment: segment.value || undefined,
       limit: limit.value,
       offset: offset.value,
     })
@@ -137,10 +191,19 @@ async function load() {
   }
 }
 
-// A filter change goes back to page 1; any change of the four reloads once.
-watch([q, instrumentType, pageSize], () => (page.value = 1))
+// A filter change goes back to page 1; any change reloads once.
+watch([q, instrumentType, pageSize, broker, exchange, segment], () => (page.value = 1))
 watch(
-  () => [q.value, instrumentType.value, pageSize.value, page.value].join('|'),
+  () =>
+    [
+      broker.value,
+      q.value,
+      instrumentType.value,
+      exchange.value,
+      segment.value,
+      pageSize.value,
+      page.value,
+    ].join('|'),
   () => void load(),
   { immediate: true },
 )
@@ -180,36 +243,16 @@ async function loadQuotes(items: Instrument[] = rows.value) {
   }
 }
 
-// --- page-only filters (client side, and labelled so) --------------------------------------------
-type ExchangeFilter = 'all' | 'NSE' | 'BSE'
-const EXCHANGES = [
-  { value: 'all', label: 'NSE + BSE' },
-  { value: 'NSE', label: 'NSE' },
-  { value: 'BSE', label: 'BSE' },
-]
-const exchange = ref<ExchangeFilter>('all')
-const segment = ref('')
-const segmentOptions = computed(() => [
-  { value: '', label: 'All segments' },
-  ...[...new Set(rows.value.map((r) => segmentOf(r)).filter((s): s is string => !!s))]
-    .sort()
-    .map((s) => ({ value: s, label: s })),
-])
-const pageFiltered = computed(() => exchange.value !== 'all' || !!segment.value)
-
 const visible = computed(() =>
-  rows.value
-    .filter((r) => exchange.value === 'all' || exchangeOf(r) === exchange.value)
-    .filter((r) => !segment.value || segmentOf(r) === segment.value)
-    .map((i) => ({
-      i,
-      quote: quoteView(
-        live.quotes[i.id],
-        snapshots.value.get(i.broker_instrument_id),
-        live.status,
-        now.value,
-      ),
-    })),
+  rows.value.map((i) => ({
+    i,
+    quote: quoteView(
+      live.quotes[i.id],
+      snapshots.value.get(i.broker_instrument_id),
+      live.status,
+      now.value,
+    ),
+  })),
 )
 type Row = (typeof visible.value)[number]
 
@@ -317,17 +360,19 @@ const range = computed(() =>
       </p>
 
       <div class="mx__filters">
-        <SegmentedControl
-          v-model="exchange"
-          :options="EXCHANGES"
+        <Select
+          v-model="broker"
+          :options="brokerOptions"
           size="sm"
-          aria-label="Exchange (this page only)"
+          aria-label="Broker"
+          class="mx__select"
         />
+        <SegmentedControl v-model="exchange" :options="EXCHANGES" size="sm" aria-label="Exchange" />
         <Select
           v-model="segment"
           :options="segmentOptions"
           size="sm"
-          aria-label="Segment (this page only)"
+          aria-label="Segment"
           class="mx__select"
         />
         <span class="mx__spacer"></span>
@@ -339,14 +384,6 @@ const range = computed(() =>
           class="mx__select"
         />
       </div>
-      <p class="tp-note mx__honest" :class="{ 'is-on': pageFiltered }" data-testid="page-only-note">
-        <template v-if="pageFiltered">
-          Filtered on this page only: showing {{ visible.length }} of the {{ rows.length }} rows
-          loaded (rows {{ range }} of {{ total.toLocaleString() }}).
-        </template>
-        Exchange and segment filters apply to the loaded page, not the whole market: the API cannot
-        filter them yet (docs/market-terminal.md §2).
-      </p>
 
       <!-- error -->
       <EmptyState v-if="error" title="The instruments could not be loaded" :description="error">
@@ -374,12 +411,6 @@ const range = computed(() =>
             ? 'Try a shorter symbol or another kind. If nothing ever matches, the instrument master may not be synced — its sync status is not reported yet (docs/market-terminal.md §2).'
             : 'The instrument master may not be synced: run the Dhan instrument refresh on the server. Its sync status is not reported yet, so it shows as unknown (docs/market-terminal.md §2).'
         "
-      />
-
-      <EmptyState
-        v-else-if="!visible.length"
-        title="Nothing on this page matches the exchange or segment filter"
-        description="These filters only see the loaded page. Try the next page, or clear them."
       />
 
       <template v-else>
@@ -518,9 +549,6 @@ const range = computed(() =>
 }
 .mx__spacer {
   flex: 1 1 0;
-}
-.mx__honest.is-on {
-  color: var(--theme-warning);
 }
 .mx__warn {
   color: var(--theme-warning);
