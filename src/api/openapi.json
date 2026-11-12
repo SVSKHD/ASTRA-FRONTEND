@@ -2280,6 +2280,60 @@
         "title": "Broker",
         "type": "string"
       },
+      "BrokerOut": {
+        "description": "One broker the instrument browser can be scoped to. `configured` means its read-only\nadapter is running here; a broker can still have stored instruments without it.",
+        "properties": {
+          "broker": {
+            "$ref": "#/components/schemas/Broker"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "instruments": {
+            "title": "Instruments",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/BrokerSegmentOut"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "broker",
+          "label",
+          "configured",
+          "instruments",
+          "segments"
+        ],
+        "title": "BrokerOut",
+        "type": "object"
+      },
+      "BrokerSegmentOut": {
+        "properties": {
+          "instruments": {
+            "title": "Instruments",
+            "type": "integer"
+          },
+          "segment": {
+            "title": "Segment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment",
+          "instruments"
+        ],
+        "title": "BrokerSegmentOut",
+        "type": "object"
+      },
       "BudgetOut": {
         "properties": {
           "budget": {
@@ -28620,6 +28674,53 @@
             "admin"
           ],
           "title_field": null
+        }
+      }
+    },
+    "/api/trading/brokers": {
+      "get": {
+        "description": "Every broker Aureon knows, whether its read-only adapter is running, and how many\nactive instruments it has per segment: what the instrument browser can be scoped to.",
+        "operationId": "brokers_api_trading_brokers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BrokerOut"
+                  },
+                  "title": "Response Brokers Api Trading Brokers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Brokers",
+        "tags": [
+          "trading"
+        ],
+        "x-ui": {
+          "columns": [
+            "broker",
+            "label",
+            "configured",
+            "instruments"
+          ],
+          "danger": "none",
+          "group": "markets",
+          "icon": "candlestick-chart",
+          "id_field": null,
+          "kind": "list",
+          "label": "Brokers",
+          "module": "trading",
+          "order": 20,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "label"
         }
       }
     },

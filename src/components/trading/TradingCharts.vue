@@ -34,6 +34,8 @@ import { ago, dec } from '@/trading/format'
 import { ema } from '@/trading/indicators'
 import type { Instrument } from '@/trading/instruments'
 import { chartPath } from '@/trading/sections'
+import { syncStudio } from '@/trading/studioSync'
+import { requestHistory, type HistoryState } from '@/trading/history'
 import { connect, live } from '@/trading/stream'
 import { ApiFailure, must } from '@/trading/useLoad'
 import { readWatchlist } from '@/trading/watchlist'
@@ -68,6 +70,7 @@ const CANDLE_LIMIT = 1500
 /** The indicators endpoint's maximum page. */
 const INDICATOR_LIMIT = 500
 const REFRESH_MS = 60_000
+const HISTORY_POLL_MS = 15_000
 
 const route = useRoute()
 const router = useRouter()
@@ -148,6 +151,7 @@ async function loadCandles() {
       serverNow: Number.isNaN(date) ? null : date,
       loadedAt: Date.now(),
     }
+    if (!loaded.value.candles.length) void askForHistory(id, t, k)
   } catch (e) {
     if (mine !== seq) return
     error.value =
@@ -158,6 +162,32 @@ async function loadCandles() {
     if (mine === seq) loading.value = false
   }
 }
+
+// --- History on demand: an empty chart asks the server to fetch it from Dhan -------
+
+const history = ref<{ key: string; state: HistoryState } | null>(null)
+async function askForHistory(id: number, t: Timeframe, k: string) {
+  const state = await requestHistory(id, t)
+  if (key.value === k) history.value = { key: k, state }
+}
+const historyState = computed(() =>
+  history.value && history.value.key === key.value ? history.value.state : null,
+)
+const emptyTitle = computed(() =>
+  historyState.value?.state === 'queued'
+    ? 'Loading history from Dhan…'
+    : 'No candles stored for this timeframe',
+)
+const emptyText = computed(() => {
+  const h = historyState.value
+  if (!h) return 'Asking the server for the history of this instrument…'
+  if (h.state === 'queued') {
+    return 'Queued for the research worker, which fetches it from Dhan. This chart refreshes by itself when the candles arrive. If nothing comes, check that the research worker is running.'
+  }
+  if (h.state === 'unsupported') return h.reason
+  if (h.state === 'rejected') return `Dhan cannot serve this history: ${h.reason}.`
+  return `History could not be requested: ${h.reason}. Try another timeframe or reload.`
+})
 
 const candles = computed(() => loaded.value?.candles ?? [])
 const now = useNow(5_000)
@@ -198,6 +228,8 @@ async function loadSignals() {
 // --- Studies ---------------------------------------------------------------------
 
 const studio = createStudio()
+// Your indicators follow you: saved to your account, not just this browser.
+onBeforeUnmount(syncStudio(studio))
 const studioOpen = ref(false)
 const numbers = computed(() => toNumbers(candles.value))
 
@@ -352,15 +384,24 @@ watch(instrumentId, (id) => connect([...readWatchlist().map((w) => w.id), ...(id
 })
 
 let timer: ReturnType<typeof setInterval> | undefined
+let historyTimer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   if (!instrumentId.value && quick.value.length) open(quick.value[0].id)
   timer = setInterval(() => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     if (instrumentId.value && !loading.value) void loadCandles()
   }, REFRESH_MS)
+  // While history is being fetched, look for it more often than the usual refresh.
+  historyTimer = setInterval(() => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    if (historyState.value?.state === 'queued' && !candles.value.length && !loading.value) {
+      void loadCandles()
+    }
+  }, HISTORY_POLL_MS)
 })
 onBeforeUnmount(() => {
   clearInterval(timer)
+  clearInterval(historyTimer)
   connect(readWatchlist().map((w) => w.id))
 })
 
@@ -494,8 +535,8 @@ const loadedAtText = computed(() =>
         </div>
         <EmptyState
           v-else-if="!candles.length && !error"
-          title="No candles stored for this timeframe"
-          description="The market-data agent fills them for instruments a strategy version watches, or the Dhan backfill job does. Try another timeframe."
+          :title="emptyTitle"
+          :description="emptyText"
         />
         <template v-else-if="candles.length">
           <p v-if="stale" class="tp-note" role="status">
