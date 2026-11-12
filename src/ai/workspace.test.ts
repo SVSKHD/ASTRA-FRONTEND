@@ -50,7 +50,7 @@ describe('workspaceSummary', () => {
         reminders: [
           reminder(1, 'Past', '2026-11-01T09:00'),
           reminder(2, 'Dentist', '2026-11-14T09:30'),
-          reminder(3, 'Weekly review', '2026-01-01T18:00', { repeat: { type: 'weekly' } }),
+          reminder(3, 'Weekly review', '2026-01-01T18:00', { repeat: { type: 'weeks', n: 1 } }),
           reminder(4, 'Cancelled', '2026-11-30T09:00', { cancelledAt: 1 }),
         ],
         notes: [note(1, 'old', 1, 'Old note'), note(2, 'First line\nmore', 2)],
