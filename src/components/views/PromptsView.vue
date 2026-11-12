@@ -26,6 +26,7 @@ import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import PromptGenerateDialog from '@/components/PromptGenerateDialog.vue'
 import type { IconName } from '@/components/ui/icons'
 import { useConnectivity } from '@/composables/useConnectivity'
+import { aiHelpersAvailable } from '@/utils/aiAsk'
 import {
   REPLY_STYLES,
   fillBlanks,
@@ -186,6 +187,9 @@ function clearFills() {
 
 // ---- AI ---------------------------------------------------------------------
 const { isOnline } = useConnectivity()
+
+// The AI helpers (Generate, Improve, Fill) run only where a cheap model can (utils/aiAsk).
+const helpers = aiHelpersAvailable()
 
 // Fill with AI: the situation in plain words, kept per template like the fills.
 const situations = reactive<Record<string, string>>({})
@@ -355,6 +359,7 @@ defineExpose({ focus: openNew })
             >{{ entries.length }} templates · {{ ownEntries.length }} yours</span
           >
           <button
+            v-if="helpers"
             type="button"
             class="pv__gen"
             title="Describe a use case — AI writes templates for it"
@@ -531,7 +536,7 @@ defineExpose({ focus: openNew })
                 </button>
               </div>
               <!-- Fill with AI: say what it is for, the AI fills the empty blanks. -->
-              <form class="pv__aifill" @submit.prevent="aiFill">
+              <form v-if="helpers" class="pv__aifill" @submit.prevent="aiFill">
                 <TextInput
                   v-model="situations[selectedKey]"
                   :placeholder="
@@ -730,6 +735,7 @@ defineExpose({ focus: openNew })
             <span v-for="b in editorBlanks" :key="b" class="pv__hole">{{ b }}</span>
           </span>
           <Button
+            v-if="helpers"
             variant="tinted"
             size="sm"
             :loading="improveBusy"

@@ -41,7 +41,9 @@ export function noteVoiceError(message: string): void {
   voiceActivity.lastErrorAt = Date.now()
 }
 
-export type VoiceSource = 'app' | 'grammar' | 'ollama' | 'none'
+// `model`: the server's grammar did not match and Claude's router model read it
+// (backend docs/26 "What changed"); it was `ollama` before.
+export type VoiceSource = 'app' | 'grammar' | 'model' | 'none'
 
 export interface VoiceResult {
   transcript: string
@@ -152,7 +154,7 @@ export function safeRoute(route: unknown): string | null {
 export interface ServerIntent {
   intent: string
   route: string | null
-  source: 'grammar' | 'ollama' | 'none'
+  source: 'grammar' | 'model' | 'none'
   note: string | null
 }
 

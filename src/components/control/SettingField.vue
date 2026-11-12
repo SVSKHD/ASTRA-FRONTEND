@@ -1,351 +1,504 @@
 <script setup lang="ts">
-// One runtime setting: its key, where its value comes from, the mask, and the
-// editor that fits it (src/control/aiSettings.ts):
+// One runtime setting, in the app's FormField shell (/ui → Forms): its name as
+// the label, what it does as the hint, an error in the field's own error line,
+// and the editor from the base kit that fits it (src/control/settingEditors.ts):
 //
-//   switch  bool keys (OPENROUTER_ENABLED, ANTHROPIC_ENABLED, …)
-//   select  the provider choices (AI_DEFAULT_EXTERNAL_PROVIDER, AGENT_*_PROVIDER)
-//   prices  ANTHROPIC_MODEL_PRICES / GEMINI_MODEL_PRICES as a table
-//   text    everything else, a password field for secrets
+//   switch   Switch                        number   NumberInput, with its unit
+//   secret   mask + Replace (TextInput)    url      TextInput, validated
+//   effort   SegmentedControl              csv      TagInput chips
+//   model    Select of the priced Claude models (AI_MODEL_MAIN / _ROUTER)
+//   budgets  NumberInputs + live total     prices   Table of NumberInputs
+//   cron     TextInput + plain English     json     TextArea, validated
 //
-// Writes go through the shared writer (useSettingWriter), so a secret still asks
-// for the admin's password and nothing typed outlives the send.
-import { computed, reactive, ref, watch } from 'vue'
+// What is picked rather than typed (a model, the effort, a switch) applies at
+// once — one click, a toast, no separate Save — since the choice is the whole
+// change. Typed values keep Save (and Enter).
+//
+// Under it, one meta row: where the value comes from (Badge), an unsaved marker,
+// and the row's actions (Save only when changed, Discard, Revert to .env, Copy key).
+//
+// The server never sends a value, only a mask, so an editor starts empty and a
+// change is anything typed (blank included, where blank means "off"). Writes go
+// through the shared writer, so a secret still asks for the admin's password and
+// nothing typed outlives the send.
+import { computed, ref } from 'vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
+import FormField from '@/components/ui/FormField.vue'
+import Icon from '@/components/ui/Icon.vue'
+import NumberInput from '@/components/ui/NumberInput.vue'
+import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Select from '@/components/ui/Select.vue'
 import Switch from '@/components/ui/Switch.vue'
+import TagInput from '@/components/ui/TagInput.vue'
+import TextArea from '@/components/ui/TextArea.vue'
 import TextInput from '@/components/ui/TextInput.vue'
-import type { AiProvider, ModelCatalog } from '@/ai/aureonChat'
+import BudgetsEditor from '@/components/control/settings/BudgetsEditor.vue'
+import PricesEditor from '@/components/control/settings/PricesEditor.vue'
+import { cronToWords } from '@/control/cron'
 import {
-  choicesFor,
+  draftError,
   editorFor,
-  enabledNow,
+  EFFORTS,
   keyNote,
-  priceError,
-  priceSeed,
-  serializePrices,
-  type PriceRow,
-} from '@/control/aiSettings'
-import { expiryChip, sourceChip, type SettingRow } from '@/control/settings'
-import type { SettingWriter } from '@/control/useSettingWriter'
+  modelName,
+  modelNow,
+  modelOptions,
+  parseCsv,
+  serializeCsv,
+  type BudgetDraft,
+} from '@/control/settingEditors'
+import { expiryChip, labelOf, sourceChip, unitOf, type SettingRow } from '@/control/settings'
+import { blankAllowed, type SettingWriter } from '@/control/useSettingWriter'
 import { when } from '@/trading/format'
 
 const props = defineProps<{
   row: SettingRow
   writer: SettingWriter
   encryptionReady: boolean
-  catalog?: ModelCatalog | null
+  /** For AI_AGENT_BUDGETS_USD: the caps in use, and the monthly budget to compare with. */
+  budgetSeed?: BudgetDraft | null
+  monthlyBudget?: number | null
 }>()
 
 const w = props.writer
 const editor = computed(() => editorFor(props.row))
-const note = computed(() => keyNote(props.row.key))
-const busy = computed(() => w.busy.value === props.row.key && !w.pending.value)
+const label = computed(() => labelOf(props.row.key))
+// The written-out note where there is one (it says what the server's one-line
+// description says, and more); the server's description otherwise.
+const hint = computed(() => keyNote(props.row.key) || props.row.description)
+const unit = computed(() => unitOf(props.row.key, props.row.kind))
 const canWrite = computed(() => props.encryptionReady)
+const busy = computed(() => w.busy.value === props.row.key && !w.pending.value)
 
-function inputType(row: SettingRow): 'password' | 'text' {
-  return row.is_secret ? 'password' : 'text'
-}
-
-function placeholder(row: SettingRow): string {
-  if (row.kind === 'json_list') return '["owner/name"]'
-  if (row.kind === 'csv') return 'a, b, c'
-  if (row.kind === 'decimal' || row.kind === 'float') return '0.00'
-  if (row.kind === 'int') return '0'
-  return row.is_set ? 'New value' : 'Value'
-}
-
-// --- switch ---------------------------------------------------------------------------------
-const nowOn = computed(() => enabledNow(props.catalog ?? null, props.row.key))
-function setBool(on: boolean) {
-  w.save(props.row, on ? 'true' : 'false')
-}
-
-// --- select ---------------------------------------------------------------------------------
-const choices = computed(() => choicesFor(props.row.key) ?? [])
-const choice = ref('')
-function saveChoice() {
-  if (choice.value) w.save(props.row, choice.value)
-}
-
-// --- prices ---------------------------------------------------------------------------------
-const priceProvider = computed<AiProvider | null>(() =>
-  props.row.key.startsWith('ANTHROPIC_')
-    ? 'anthropic'
-    : props.row.key.startsWith('GEMINI_')
-      ? 'gemini'
-      : null,
+const draft = computed(() => w.drafts[props.row.key])
+const dirty = computed(() => draft.value !== undefined)
+const error = computed(() =>
+  dirty.value && draft.value !== '' ? draftError(props.row, draft.value!) : null,
 )
-const seed = computed(() =>
-  priceProvider.value ? priceSeed(props.catalog ?? null, priceProvider.value) : null,
+
+// --- structured editors report their own errors --------------------------------------------
+const structured = ref<{ error: string | null } | null>(null)
+const structuredError = computed(() => structured.value?.error ?? null)
+
+const canSave = computed(
+  () =>
+    dirty.value &&
+    canWrite.value &&
+    !error.value &&
+    !structuredError.value &&
+    (draft.value !== '' || blankAllowed(props.row)),
 )
-// Memory only, like every draft.
-const prices = reactive<PriceRow[]>([])
-function resetPrices() {
-  prices.splice(0, prices.length, ...(seed.value?.rows ?? [{ model: '', input: '', output: '' }]))
+
+function edit(value: string | null) {
+  if (value === null) w.discard(props.row.key)
+  else w.edit(props.row.key, value)
 }
-watch(seed, resetPrices, { immediate: true })
-const touched = ref(false)
-const pricesInvalid = computed(() => priceError(prices))
-function addPrice() {
-  prices.push({ model: '', input: '', output: '' })
+function save() {
+  if (canSave.value) void w.save(props.row)
 }
-function removePrice(i: number) {
-  prices.splice(i, 1)
-  if (!prices.length) addPrice()
+
+// --- switch: the mask ends with the value's last four characters ("••••true") ----------------
+const boolNow = computed(() => {
+  const m = props.row.masked ?? ''
+  return m.endsWith('true') ? true : m.endsWith('alse') ? false : null
+})
+const boolValue = computed(() => (dirty.value ? draft.value === 'true' : (boolNow.value ?? false)))
+/** A pick applies at once: no draft, no Save button — the choice is the whole change. */
+function apply(value: string) {
+  if (!canWrite.value || busy.value) return
+  w.discard(props.row.key)
+  void w.save(props.row, value)
 }
-function savePrices() {
-  touched.value = true
-  if (pricesInvalid.value) return
-  w.save(props.row, serializePrices(prices))
+function toggle(on: boolean) {
+  // Back to what the server has: nothing to do.
+  if (boolNow.value !== null && on === boolNow.value) return
+  apply(on ? 'true' : 'false')
 }
-watch(
-  () => w.message.key === props.row.key && w.message.tone === 'ok',
-  (saved) => {
-    if (saved && editor.value === 'prices') {
-      touched.value = false
-      resetPrices()
-    }
-  },
+
+// --- model and effort: what is in effect, as far as the mask tells ------------------------
+const modelInUse = computed(() => modelNow(props.row))
+const modelChoices = computed(() => modelOptions(props.row.key))
+const modelNote = computed(() => {
+  const now = modelInUse.value
+  if (now === null) return props.row.masked ? `In use: ${props.row.masked}` : ''
+  const name = now === '' ? 'Off' : modelName(now)
+  return props.row.source === 'default' ? `In use: ${name} (server default)` : `In use: ${name}`
+})
+function pickModel(v: string) {
+  if (v === modelInUse.value) return
+  apply(v)
+}
+const effortNow = computed(() => {
+  if (props.row.source === 'default') return 'medium'
+  const tail = (props.row.masked ?? '').replace(/^•+/, '')
+  return EFFORTS.find((e) => tail && e.endsWith(tail)) ?? ''
+})
+function pickEffort(v: string) {
+  if (v === effortNow.value) return
+  apply(v)
+}
+
+// --- number: NumberInput speaks numbers; the setting is stored as their string -------------
+const numberValue = computed(() => {
+  if (!dirty.value || draft.value === '') return null
+  const n = Number(draft.value)
+  return Number.isFinite(n) ? n : null
+})
+function editNumber(v: number | null) {
+  edit(v === null ? null : String(v))
+}
+
+// --- secret: Replace opens an empty password field; nothing is ever prefilled ---------------
+const replacing = ref(false)
+function cancelReplace() {
+  replacing.value = false
+  w.discard(props.row.key)
+}
+function discard() {
+  if (editor.value === 'secret') cancelReplace()
+  else w.discard(props.row.key)
+}
+
+// --- csv / cron -----------------------------------------------------------------------------
+const csvItems = computed(() => (dirty.value ? parseCsv(draft.value!) : []))
+const cronWords = computed(() => (dirty.value ? cronToWords(draft.value!) : ''))
+const effortOptions = EFFORTS.map((e) => ({ value: e, label: e }))
+
+// The field is empty because the server never sends the value, so the placeholder
+// says what is in effect instead of showing a sample that reads like a value: the
+// mask when there is one ("Now ••••100"), else where the value comes from.
+const placeholder = computed(() => {
+  if (props.row.masked) return `Now ${props.row.masked}`
+  const from =
+    props.row.source === 'default'
+      ? 'Server default'
+      : props.row.source === 'env'
+        ? 'From .env'
+        : 'Not set'
+  if (editor.value === 'cron') return `${from} · minute hour day month weekday`
+  if (editor.value === 'url') return `${from} · https://…`
+  return from
+})
+
+// --- revert: two steps, since a saved value cannot be brought back from here --------------
+const confirmRevert = ref(false)
+async function revert() {
+  if (!confirmRevert.value) {
+    confirmRevert.value = true
+    return
+  }
+  confirmRevert.value = false
+  await w.revert(props.row)
+}
+
+// --- copy the key name -------------------------------------------------------------------
+const copied = ref(false)
+async function copyKey() {
+  try {
+    await navigator.clipboard?.writeText(props.row.key)
+    copied.value = true
+    setTimeout(() => (copied.value = false), 1500)
+  } catch {
+    /* no clipboard: the key is on screen to select */
+  }
+}
+
+const shownMessage = computed(() =>
+  w.message.key === props.row.key && w.message.text ? w.message : null,
 )
 </script>
 
 <template>
-  <li class="cc-set__row" :data-key="row.key">
-    <div class="cc-set__head">
-      <code class="cc-set__key">{{ row.key }}</code>
+  <li
+    :id="`set-${row.key}`"
+    class="sf"
+    :class="{ 'is-dirty': dirty }"
+    :data-key="row.key"
+    tabindex="-1"
+  >
+    <p v-if="editor === 'managed'" class="sf__managed">
+      <strong>{{ label }}</strong> — set by <strong>Connect</strong> in the Dhan connection above;
+      it cannot be typed in.
+    </p>
+
+    <FormField
+      v-else
+      v-slot="f"
+      :label="label"
+      :hint="hint"
+      :error="error ?? undefined"
+      :disabled="!canWrite"
+      size="sm"
+    >
+      <Switch
+        v-if="editor === 'switch'"
+        :id="f.id"
+        :model-value="boolValue"
+        :label="boolValue ? 'On' : 'Off'"
+        :disabled="!canWrite || busy"
+        @update:model-value="toggle($event)"
+      />
+
+      <template v-else-if="editor === 'secret'">
+        <div v-if="!replacing" class="sf__secret">
+          <span class="sf__mask" data-testid="mask">{{ row.masked ?? 'Not set' }}</span>
+          <Button
+            :id="f.id"
+            size="sm"
+            variant="secondary"
+            :disabled="!canWrite"
+            data-testid="replace"
+            @click="replacing = true"
+            >{{ row.is_set ? 'Replace' : 'Set' }}</Button
+          >
+        </div>
+        <TextInput
+          v-else
+          :id="f.id"
+          :described-by="f.describedBy"
+          :model-value="draft ?? ''"
+          type="password"
+          size="sm"
+          placeholder="New value"
+          autocomplete="new-password"
+          :disabled="!canWrite"
+          @update:model-value="edit(String($event ?? ''))"
+          @keydown.enter.prevent="save"
+        />
+      </template>
+
+      <Select
+        v-else-if="editor === 'model'"
+        :id="f.id"
+        :described-by="f.describedBy"
+        :model-value="modelInUse ?? ''"
+        :options="modelChoices"
+        size="sm"
+        placeholder="Choose a model"
+        :aria-label="label"
+        :disabled="!canWrite || busy"
+        data-testid="model-select"
+        @update:model-value="pickModel"
+      />
+
+      <SegmentedControl
+        v-else-if="editor === 'effort'"
+        :id="f.id"
+        :model-value="effortNow"
+        :options="effortOptions"
+        size="sm"
+        :aria-label="label"
+        :disabled="!canWrite || busy"
+        @update:model-value="pickEffort"
+      />
+
+      <BudgetsEditor
+        v-else-if="editor === 'budgets'"
+        :id="f.id"
+        ref="structured"
+        :seed="budgetSeed ?? null"
+        :monthly="monthlyBudget ?? null"
+        :disabled="!canWrite"
+        @change="edit"
+      />
+
+      <PricesEditor
+        v-else-if="editor === 'prices'"
+        :id="f.id"
+        ref="structured"
+        :disabled="!canWrite"
+        @change="edit"
+      />
+
+      <NumberInput
+        v-else-if="editor === 'number'"
+        :id="f.id"
+        :described-by="f.describedBy"
+        :model-value="numberValue"
+        :min="0"
+        :step="row.kind === 'int' ? 1 : 0.01"
+        :suffix="unit || undefined"
+        :placeholder="placeholder"
+        :invalid="f.invalid"
+        size="sm"
+        :disabled="!canWrite"
+        @update:model-value="editNumber"
+        @keydown.enter.prevent="save"
+      />
+
+      <TagInput
+        v-else-if="editor === 'csv'"
+        :id="f.id"
+        :described-by="f.describedBy"
+        :model-value="csvItems"
+        placeholder="Type a value, then Enter"
+        size="sm"
+        :disabled="!canWrite"
+        @update:model-value="edit(serializeCsv($event))"
+      />
+
+      <TextArea
+        v-else-if="editor === 'json'"
+        :id="f.id"
+        :model-value="draft ?? ''"
+        :rows="4"
+        :placeholder="row.kind === 'json_list' ? '[ … ]' : '{ … }'"
+        :disabled="!canWrite"
+        spellcheck="false"
+        @update:model-value="edit(String($event ?? ''))"
+      />
+
+      <TextInput
+        v-else
+        :id="f.id"
+        :described-by="f.describedBy"
+        :model-value="draft ?? ''"
+        :type="editor === 'url' ? 'url' : 'text'"
+        :placeholder="placeholder"
+        :invalid="f.invalid"
+        size="sm"
+        :disabled="!canWrite"
+        autocomplete="off"
+        @update:model-value="edit(String($event ?? ''))"
+        @keydown.enter.prevent="save"
+      />
+    </FormField>
+
+    <p v-if="editor === 'model' && modelNote" class="sf__preview" data-testid="model-now">
+      <Icon name="sparkles" size="xs" /> {{ modelNote }}
+    </p>
+    <p v-if="busy && !dirty" class="sf__preview" role="status">Saving…</p>
+    <p v-if="editor === 'cron' && dirty && !error" class="sf__preview" data-testid="cron-words">
+      <Icon name="calendar-clock" size="xs" /> {{ cronWords }}
+    </p>
+
+    <div v-if="editor !== 'managed'" class="sf__meta">
       <Badge v-bind="sourceChip(row)" />
       <Badge v-if="expiryChip(row)" v-bind="expiryChip(row)!" />
-      <!-- A mask only ("••••abcd"): the server never sends a value. -->
-      <span v-if="row.masked" class="cc-set__mask" aria-label="Masked value">{{ row.masked }}</span>
-    </div>
-    <p class="tp-note">
-      {{ row.description }}
-      <span v-if="row.updated_at"> · changed {{ when(row.updated_at) }}</span>
-      <span v-if="row.expires_at"> · expires {{ when(row.expires_at) }}</span>
-    </p>
-    <p v-if="note" class="tp-note" data-testid="key-note">{{ note }}</p>
-
-    <p v-if="row.managed" class="tp-note">
-      Set by <strong>Connect</strong> in the Dhan connection above; it cannot be typed in.
-    </p>
-
-    <div v-else-if="editor === 'switch'" class="tp-row cc-set__form">
-      <Switch
-        v-if="nowOn !== null"
-        :model-value="nowOn"
-        :label="nowOn ? 'On' : 'Off'"
-        :disabled="!canWrite || busy"
-        @update:model-value="setBool($event)"
-      />
-      <template v-else>
-        <Button size="sm" :disabled="!canWrite" :loading="busy" @click="setBool(true)"
-          >Turn on</Button
+      <Badge v-if="dirty" tone="info" label="Unsaved" data-testid="unsaved-dot" />
+      <span v-if="row.updated_at" class="sf__when">changed {{ when(row.updated_at) }}</span>
+      <span class="sf__actions">
+        <Button
+          v-if="dirty"
+          size="sm"
+          :loading="busy"
+          :disabled="!canSave"
+          data-testid="save"
+          @click="save"
+          >Save</Button
+        >
+        <Button v-if="dirty" size="sm" variant="ghost" @click="discard">Discard</Button>
+        <Button
+          v-if="!dirty && row.source === 'db'"
+          size="sm"
+          :variant="confirmRevert ? 'danger' : 'ghost'"
+          :loading="busy"
+          data-testid="revert"
+          @click="revert"
+          >{{ confirmRevert ? 'Confirm: revert to .env' : 'Revert to .env' }}</Button
         >
         <Button
           size="sm"
-          variant="secondary"
-          :disabled="!canWrite"
-          :loading="busy"
-          @click="setBool(false)"
-          >Turn off</Button
+          variant="ghost"
+          :aria-label="copied ? 'Copied' : `Copy key name ${row.key}`"
+          :title="`Copy ${row.key}`"
+          @click="copyKey"
+          ><Icon :name="copied ? 'check' : 'copy'" size="xs" /><span class="sr-only">{{
+            row.key
+          }}</span></Button
         >
-      </template>
+      </span>
     </div>
-
-    <form v-else-if="editor === 'select'" class="tp-row cc-set__form" @submit.prevent="saveChoice">
-      <Select
-        v-model="choice"
-        :options="choices"
-        size="sm"
-        placeholder="Choose…"
-        :aria-label="`New value for ${row.key}`"
-      />
-      <Button type="submit" size="sm" :loading="busy" :disabled="!canWrite || !choice">{{
-        row.source === 'db' ? 'Replace' : 'Set'
-      }}</Button>
-    </form>
-
-    <form
-      v-else-if="editor === 'prices'"
-      class="cc-prices"
-      data-testid="price-table"
-      @submit.prevent="savePrices"
-    >
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">Model</th>
-            <th scope="col">Input $/M</th>
-            <th scope="col">Output $/M</th>
-            <th scope="col"><span class="sr-only">Remove</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(p, i) in prices" :key="i">
-            <td>
-              <TextInput
-                v-model="p.model"
-                placeholder="model id"
-                :aria-label="`Model ${i + 1}`"
-                autocomplete="off"
-              />
-              <span
-                v-if="p.model && seed?.priced[p.model] !== undefined"
-                class="cc-prices__state"
-                :class="{ 'is-missing': !seed?.priced[p.model] }"
-                >{{ seed?.priced[p.model] ? 'priced now' : 'no price — never used' }}</span
-              >
-            </td>
-            <td>
-              <TextInput
-                v-model="p.input"
-                placeholder="0.00"
-                inputmode="decimal"
-                :aria-label="`Input price for model ${i + 1}`"
-              />
-            </td>
-            <td>
-              <TextInput
-                v-model="p.output"
-                placeholder="0.00"
-                inputmode="decimal"
-                :aria-label="`Output price for model ${i + 1}`"
-              />
-            </td>
-            <td>
-              <Button
-                size="sm"
-                variant="ghost"
-                :aria-label="`Remove model ${i + 1}`"
-                @click="removePrice(i)"
-                >×</Button
-              >
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <p v-if="touched && pricesInvalid" class="tp-note" role="alert">{{ pricesInvalid }}</p>
-      <div class="tp-row">
-        <Button size="sm" variant="secondary" @click="addPrice">Add model</Button>
-        <Button type="submit" size="sm" :loading="busy" :disabled="!canWrite">{{
-          row.source === 'db' ? 'Replace prices' : 'Set prices'
-        }}</Button>
-      </div>
-    </form>
-
-    <form v-else class="tp-row cc-set__form" @submit.prevent="w.save(row)">
-      <TextInput
-        v-model="w.drafts[row.key]"
-        :type="inputType(row)"
-        :placeholder="placeholder(row)"
-        :aria-label="`New value for ${row.key}`"
-        autocomplete="off"
-      />
-      <Button type="submit" size="sm" :loading="busy" :disabled="!canWrite">{{
-        row.source === 'db' ? 'Replace' : 'Set'
-      }}</Button>
-    </form>
-
-    <div v-if="!row.managed && row.source === 'db'" class="tp-row">
-      <Button size="sm" variant="secondary" :loading="busy" @click="w.revert(row)"
-        >Revert to .env</Button
-      >
-    </div>
+    <p v-if="confirmRevert" class="sf__note" role="status">
+      The saved value is removed and the .env value applies. It cannot be brought back from here:
+      the server never sends a value back.
+      <Button size="sm" variant="ghost" @click="confirmRevert = false">Keep it</Button>
+    </p>
     <p
-      v-if="w.message.key === row.key && w.message.text"
-      class="tp-note"
-      :role="w.message.tone === 'error' ? 'alert' : 'status'"
+      v-if="shownMessage"
+      class="sf__msg"
+      :class="`is-${shownMessage.tone}`"
+      :role="shownMessage.tone === 'error' ? 'alert' : 'status'"
+      aria-live="polite"
     >
-      {{ w.message.text }}
+      {{ shownMessage.text }}
     </p>
   </li>
 </template>
 
 <style scoped>
-.cc-set__row {
-  display: grid;
-  gap: var(--sp-2);
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--glass-border);
-  min-width: 0;
-}
-
-.cc-set__head {
+.sf {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  align-items: center;
-}
-
-.cc-set__key {
+  flex-direction: column;
+  gap: var(--sp-1);
   min-width: 0;
-  font-size: var(--text-sm);
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--glass-border);
+  scroll-margin-top: 4rem;
+}
+.sf:first-child {
+  border-top: none;
+}
+.sf:focus-visible,
+.sf.is-flash {
+  outline: none;
+  border-radius: var(--radius-card);
+  background: color-mix(in oklch, var(--theme-accent) 8%, transparent);
+}
+.sf__managed,
+.sf__note,
+.sf__preview,
+.sf__when {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
-
-.cc-set__mask {
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
+.sf__preview {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
 }
-
-.cc-set__form {
+.sf__secret {
+  display: flex;
   flex-wrap: wrap;
-}
-
-.cc-set__form > :first-child {
-  flex: 1 1 16rem;
-  min-width: 0;
-}
-
-.cc-prices {
-  display: grid;
+  align-items: center;
   gap: var(--sp-2);
   min-width: 0;
-  overflow-x: auto;
 }
-
-.cc-prices table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.cc-prices th {
-  text-align: left;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
+.sf__mask {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
-  padding: 0 var(--sp-1) var(--sp-1);
 }
-
-.cc-prices td {
-  padding: 2px var(--sp-1);
-  vertical-align: top;
+.sf__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
   min-width: 0;
 }
-
-.cc-prices td:first-child {
-  min-width: 10rem;
+.sf__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: auto;
+  min-width: 0;
 }
-
-.cc-prices td:nth-child(2),
-.cc-prices td:nth-child(3) {
-  width: 7rem;
-  min-width: 5rem;
+.sf__msg {
+  margin: 0;
+  font-size: var(--text-sm);
 }
-
-.cc-prices__state {
-  display: block;
-  margin-top: 2px;
-  font-size: var(--text-2xs);
-  color: var(--text-secondary);
+.sf__msg.is-ok {
+  color: var(--theme-success, var(--text-secondary));
 }
-
-.cc-prices__state.is-missing {
+.sf__msg.is-error {
   color: var(--theme-danger);
 }
-
 .sr-only {
   position: absolute;
   width: 1px;

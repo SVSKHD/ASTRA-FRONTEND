@@ -291,6 +291,11 @@ export interface AiMessage {
     localOnly?: boolean
     costUsd?: string | null
   }
+  // Claude (POST /api/ai/chat): the agent that answered, the turn's cost and the
+  // approvals it asked for. Saved chats from before have `route` instead.
+  agent?: string
+  costUsd?: string | null
+  approvals?: { id: string; action: string; summary: string }[]
   tokensIn?: number
   tokensOut?: number
   // An assistant turn sent with the "Use my data" context block attached.

@@ -1,34 +1,23 @@
-// The AI tab on Aureon_Agentic (migration stage 4): local Ollama behind
-// POST /api/chat, instead of the Netlify /api/ai proxy (Bytez / OpenRouter).
+// The AI tab on Aureon: Claude, through the server's gateway (backend
+// docs/26-ai-providers.md). The browser never holds a key and never calls
+// Anthropic; it talks only to /api/ai/* with its session cookie and CSRF header.
 //
-//   VITE_AI_BACKEND=aureon   (default) Aureon: offline, a model picked from GET /api/models
+//   VITE_AI_BACKEND=aureon   (default) POST /api/ai/chat, Claude behind the server
 //   VITE_AI_BACKEND=proxy    the Netlify function, as before (a Netlify-hosted build)
 //
-// Two differences from the proxy shape the code here absorbs:
+// The server owns everything about a turn: the agent's system prompt, the
+// conversation's history (replayed from `conversation_id`), the tools and the
+// budget. A request carries one message and, optionally, the agent to use.
 //
-// • Aureon keeps the conversation. A request carries only the NEW turns
-//   (`system` and `user` roles); the server prepends its stored history. So each
-//   chat in this app is mapped, per device, to an Aureon conversation id. A chat
-//   that already had turns before it was first sent to Aureon gets them once,
-//   as a transcript inside the system message.
-// • The stream's events are `meta` / `token` / `done` / `error` (named SSE
-//   events), not the proxy's `data: {"text": …}` lines. `streamChat` turns them
-//   into the same small event shape the proxy produced.
-//
-// Requires an Aureon session (stage 2, VITE_AUTH_PROVIDER=aureon): the request
-// is cookie-authenticated with the CSRF header.
-//
-// Providers (backend docs/25-openrouter.md): each conversation picks a provider
-// and model — the local Ollama or an allowed OpenRouter model — from
-// GET /api/models/catalog. The browser never talks to OpenRouter and never sees
-// its key: the server routes, filters (finance, trading, broker, positions,
-// secrets and logs always stay local) and falls back to the local model on any
-// error. Every stream says who actually answered and why (`AiRoute`).
-//
-// Thinking (backend docs/26): with `think: true` the server asks the model for its
-// reasoning (OpenRouter `reasoning`, Ollama `think`) and streams it as separate
-// `thinking` events, never mixed into the answer. src/ai/steps.ts turns the whole
-// stream into the execution steps the chat shows.
+// The stream's named events (src/api/sse.ts reads them):
+//   meta      {conversation_id, agent}          the agent that answers
+//   text      {delta}                           a piece of the answer
+//   tool      {name, status}                    a tool the agent used
+//   approval  {id, action, summary}             a write it asked to make
+//   done      {conversation_id, message_id, cost_usd, steps, stop_reason, approvals[]}
+//   error     {code, message}
+// plus `: ping` comments while the agent works. `streamChat` turns them into
+// the small event shape below; src/ai/steps.ts folds them into the visible steps.
 
 import { reactive, watch } from 'vue'
 import { aureon, type components } from '@/api/client'
@@ -46,13 +35,49 @@ export function aiBackend(env: string | undefined = import.meta.env.VITE_AI_BACK
     : 'aureon'
 }
 
-/** Per-field limit on the server (ChatMessageIn.content). */
-export const MAX_CONTENT = 32_000
+/** The server's limit on one message (ChatIn.message). */
+export const MAX_CONTENT = 20_000
 
-// --- the model choice and the chat → conversation map (per device) -----------------------
+// --- agents -----------------------------------------------------------------------------------
 
-const MODEL_KEY = 'aureon.ai.ollamaModel'
-const CONV_KEY = 'aureon.ai.conversations'
+/** The agents a chat can ask for. Omitted (Auto) = the server's router picks one. */
+export const AI_AGENTS = ['investments', 'business', 'general'] as const
+export type AiAgent = (typeof AI_AGENTS)[number]
+/** What the picker offers: an agent, or `auto`. */
+export type AgentPick = AiAgent | 'auto'
+
+export function isAgent(v: unknown): v is AiAgent {
+  return typeof v === 'string' && (AI_AGENTS as readonly string[]).includes(v)
+}
+
+export const AGENT_LABEL: Record<AgentPick, string> = {
+  auto: 'Auto',
+  investments: 'Investments',
+  business: 'Business',
+  general: 'General',
+}
+
+export const AGENT_HINT: Record<AgentPick, string> = {
+  auto: 'The server picks the agent from your message',
+  investments: 'Portfolio, positions, screener and the MT5 bot; can propose paper trades',
+  business: 'Aquakart and Pawsattva questions',
+  general: 'Everything else',
+}
+
+/** "Investments" for a known agent, the raw name otherwise (e.g. "report"). */
+export function agentLabel(agent: string | null | undefined): string {
+  if (!agent) return ''
+  return agent in AGENT_LABEL
+    ? AGENT_LABEL[agent as AgentPick]
+    : agent.charAt(0).toUpperCase() + agent.slice(1)
+}
+
+// --- per-device state: chat → conversation, chat → agent pick ---------------------------------
+
+// A new key: conversation ids from the old /api/chat are not conversations on
+// /api/ai, so an old mapping would only ever answer `not_found`.
+const CONV_KEY = 'aureon.ai.claudeConversations'
+const AGENT_KEY = 'aureon.ai.agents'
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -70,707 +95,290 @@ function write(key: string, value: unknown) {
   }
 }
 
-// Four providers (backend docs/26-ai-providers.md): the local Ollama, and three
-// external ones behind the same server-side gate. The browser only ever names
-// one; it never holds a key and never calls a provider itself.
-export const AI_PROVIDERS = ['ollama', 'openrouter', 'anthropic', 'gemini'] as const
-export type AiProvider = (typeof AI_PROVIDERS)[number]
-export type ExternalProvider = Exclude<AiProvider, 'ollama'>
-export const EXTERNAL_PROVIDERS: readonly ExternalProvider[] = ['openrouter', 'anthropic', 'gemini']
-
-export function isProvider(v: unknown): v is AiProvider {
-  return typeof v === 'string' && (AI_PROVIDERS as readonly string[]).includes(v)
-}
-
-/** The short name a person reads: "Local", "OpenRouter", "Claude", "Gemini". */
-export const PROVIDER_NAME: Record<AiProvider, string> = {
-  ollama: 'Local',
-  openrouter: 'OpenRouter',
-  anthropic: 'Claude',
-  gemini: 'Gemini',
-}
-
-/** A provider + model pick. */
-export interface AiTarget {
-  provider: AiProvider
-  model: string
-}
-
-export interface CatalogModel {
-  provider: AiProvider
-  id: string
-  label: string
-  /** False: listed so it can be seen, but not selectable (e.g. an unpriced model). */
-  available: boolean
-  unavailableReason: string | null
-  capabilities: string[]
-  /** local = never leaves the server; external = only after the server's privacy gate. */
-  privacy: 'local' | 'external'
-}
-
-/** One provider's state, from the catalog's `providers[]`. Never a key. */
-export interface ProviderInfo {
-  provider: AiProvider
-  label: string
-  enabled: boolean
-  /** A key is set on the server (not that the key works). */
-  configured: boolean
-  usable: boolean
-  /** null = usable. disabled | not_configured | no_budget | unreachable … */
-  unavailableReason: string | null
-  defaultModel: string | null
-  allowedModels: string[]
-  dailyLimitUsd: string | null
-  costSource: 'provider' | 'configured_price' | 'none'
-  privacy: 'local' | 'external'
-}
-
-export interface ModelCatalog {
-  default: { provider: AiProvider; model: string | null }
-  localFallbackModel: string | null
-  ollamaReachable: boolean
-  models: CatalogModel[]
-  /** null = OpenRouter is usable; else why every turn stays local. */
-  openrouterOff: string | null
-  /** Every provider, local first. Derived from `openrouter` on an older server. */
-  providers: ProviderInfo[]
-  defaultExternalProvider: string | null
-  globalDailyLimitUsd: string | null
-}
-
-export interface AiUsageInfo {
-  provider: ExternalProvider
-  day: string
-  spentUsd: number
-  limitUsd: number
-  remainingUsd: number
-  tokens: number
-  calls: number
-  capReached: boolean
-  available: boolean
-  /** AI_EXTERNAL_DAILY_LIMIT_USD (null = per-provider caps only) and today's total. */
-  globalLimitUsd: number | null
-  globalSpentUsd: number | null
-}
-
-/** Who answered a turn and why — from the stream's meta/fallback/done events. */
-export interface AiRoute {
-  provider: AiProvider
-  model: string
-  requestedProvider?: AiProvider
-  requestedModel?: string
-  /** On a switch between external providers (backend docs/30): the one that failed. */
-  fromProvider?: AiProvider
-  /** Why the requested external provider did not answer (null = it did). */
-  fallbackReason?: string | null
-  /** The data had to stay local (the classification filter or a linked context). */
-  localOnly?: boolean
-  costUsd?: string | null
-  /** What the classification filter found (it is why a turn stayed local). */
-  filterCategories?: string[]
-}
-
-const TARGET_KEY = 'aureon.ai.targets'
-const THINK_KEY = 'aureon.ai.think'
-
 export const aureonAi = reactive({
-  model: read<string>(MODEL_KEY, ''),
+  /** The server conversation each chat continues, by chat key. */
   conversations: read<Record<string, string>>(CONV_KEY, {}),
-  /** The provider + model each chat uses, by chat key (per device). */
-  targets: read<Record<string, AiTarget>>(TARGET_KEY, {}),
+  /** The agent each chat asks for, by chat key; absent = Auto. */
+  agents: read<Record<string, AiAgent>>(AGENT_KEY, {}),
   /** Picked while no chat is open: the next new chat takes it. */
-  pending: null as AiTarget | null,
-  catalog: null as ModelCatalog | null,
-  usage: null as AiUsageInfo | null,
-  /** Ask the model for its reasoning and show it (a preference, per device). */
-  think: read<boolean>(THINK_KEY, false),
+  pending: 'auto' as AgentPick,
 })
-watch(
-  () => aureonAi.think,
-  (t) => write(THINK_KEY, t),
-)
-watch(
-  () => aureonAi.targets,
-  (t) => write(TARGET_KEY, t),
-  { deep: true },
-)
-watch(
-  () => aureonAi.model,
-  (m) => write(MODEL_KEY, m),
-)
 watch(
   () => aureonAi.conversations,
   (c) => write(CONV_KEY, c),
   { deep: true },
 )
+watch(
+  () => aureonAi.agents,
+  (a) => write(AGENT_KEY, a),
+  { deep: true },
+)
 
-export interface LocalModel {
-  name: string
-  family: string | null
-  parameterSize: string | null
-  quantization: string | null
-  size: number | null
+/** The agent a chat asks for: its own pick, else the pending pick for a new chat. */
+export function agentFor(chatKey: string | null): AgentPick {
+  if (chatKey && aureonAi.agents[chatKey]) return aureonAi.agents[chatKey]
+  if (chatKey && aureonAi.conversations[chatKey]) return 'auto'
+  return aureonAi.pending
 }
 
-/** Models installed in the local Ollama; picks the first when none is chosen yet. */
-export async function listModels(): Promise<LocalModel[]> {
-  const { data, error } = await aureon.GET('/api/models')
-  if (!data) throw new Error(error ? 'Could not list local models.' : 'No answer from Aureon.')
-  const models = data.models.map((m) => ({
-    name: m.name,
-    family: m.family ?? null,
-    parameterSize: m.parameter_size ?? null,
-    quantization: m.quantization ?? null,
-    size: m.size ?? null,
-  }))
-  if (models.length && !models.some((m) => m.name === aureonAi.model)) {
-    aureonAi.model = models[0].name
+/** Pick the agent for a chat (or for the next new chat). */
+export function setAgent(chatKey: string | null, pick: AgentPick) {
+  if (!chatKey) {
+    aureonAi.pending = pick
+    return
   }
-  return models
+  if (pick === 'auto') delete aureonAi.agents[chatKey]
+  else aureonAi.agents[chatKey] = pick
 }
 
-type CatalogData = components['schemas']['ModelCatalog']
+// --- tools, in words ---------------------------------------------------------------------------
+
+/** [while working, once done] for the tools the server registers (docs/26 "Agents and tools"). */
+const TOOL_WORDS: Record<string, [string, string]> = {
+  get_portfolio_summary: ['Checking the portfolio summary', 'Checked the portfolio summary'],
+  get_positions: ['Reading positions', 'Read positions'],
+  get_dhan_screener_results: ['Reading screener results', 'Read screener results'],
+  get_mt5_bot_status: ['Checking the MT5 bot', 'Checked the MT5 bot'],
+  get_mt5_recent_signals: ['Reading MT5 signals', 'Read MT5 signals'],
+  propose_trade: ['Proposing a trade', 'Proposed a trade'],
+  get_aquakart_sales_summary: ['Reading Aquakart sales', 'Read Aquakart sales'],
+  get_aquakart_open_queries: ['Reading Aquakart queries', 'Read Aquakart queries'],
+  get_pawsattva_summary: ['Reading the Pawsattva summary', 'Read the Pawsattva summary'],
+  draft_aquakart_blog: ['Drafting a blog post', 'Drafted a blog post'],
+  get_todos: ['Reading todos', 'Read todos'],
+  add_todo: ['Adding a todo', 'Asked to add a todo'],
+}
+
+function humanTool(name: string): string {
+  const words = name.replace(/_/g, ' ').trim()
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'A tool'
+}
+
+/** "Reading positions…" — a tool's quiet activity line while the agent keeps working. */
+export function toolActivity(name: string): string {
+  return `${TOOL_WORDS[name]?.[0] ?? `Using ${humanTool(name).toLowerCase()}`}…`
+}
+
+/** "Read positions" / "Proposed a trade — awaiting your approval" / "… (refused)". */
+export function toolDone(name: string, status: string): string {
+  const base = TOOL_WORDS[name]?.[1] ?? `Used ${humanTool(name).toLowerCase()}`
+  if (status === 'awaiting_approval') return `${base} — awaiting your approval`
+  if (status === 'refused') return `${base} (refused)`
+  if (status === 'error') return `${base} (failed)`
+  return base
+}
+
+// --- errors, in words ---------------------------------------------------------------------------
 
 /**
- * The server's catalog in the app's shape. Pure, for the tests.
- *
- * Everything comes from the response: no model list is built in, and a model
- * the server marks unavailable stays unavailable. An older server (no
- * `providers[]`, no per-model `available`) still maps: its models are all
- * selectable, as they were, and the providers are derived from `openrouter`.
+ * The server's error codes (POST /api/ai/chat), in fixed words. The server's own
+ * message is never shown for a known code: an upstream message can echo input.
  */
-export function mapCatalog(data: CatalogData): ModelCatalog {
-  const models: CatalogModel[] = data.models
-    .filter((m) => isProvider(m.provider))
-    .map((m) => ({
-      provider: m.provider,
-      id: m.id,
-      label: m.label,
-      available: m.available ?? true,
-      unavailableReason: m.unavailable_reason ?? null,
-      capabilities: m.capabilities ?? ['chat', 'streaming'],
-      privacy: m.privacy ?? (m.provider === 'ollama' ? 'local' : 'external'),
-    }))
-  const providers: ProviderInfo[] = data.providers?.length
-    ? data.providers
-        .filter((p) => isProvider(p.provider))
-        .map((p) => ({
-          provider: p.provider,
-          label: p.label,
-          enabled: p.enabled,
-          configured: p.configured,
-          usable: p.usable,
-          unavailableReason: p.unavailable_reason ?? null,
-          defaultModel: p.default_model ?? null,
-          allowedModels: p.allowed_models ?? [],
-          dailyLimitUsd: p.daily_limit_usd ?? null,
-          costSource: p.cost_source,
-          privacy: p.privacy,
-        }))
-    : legacyProviders(data, models)
-  return {
-    default: { provider: data.default.provider, model: data.default.model ?? null },
-    localFallbackModel: data.local_fallback_model ?? null,
-    ollamaReachable: data.ollama_reachable,
-    models,
-    openrouterOff: data.openrouter.unavailable_reason ?? null,
-    providers,
-    defaultExternalProvider: data.default_external_provider ?? null,
-    globalDailyLimitUsd: data.global_daily_limit_usd ?? null,
-  }
+const ERROR_TEXT: Record<string, string> = {
+  ai_not_configured:
+    'Claude is not set up on the server yet: add ANTHROPIC_API_KEY in Settings → AI.',
+  ai_paused: 'The AI is paused on the server. Resume the Claude agent from the agents page.',
+  budget_exceeded: 'This month’s AI budget is used up, so nothing was sent to Claude.',
+  rate_limited: 'Too many AI requests right now. Wait a moment and try again.',
+  refused: 'Claude declined to answer that.',
+  timeout: 'Claude took too long to answer. Try again.',
+  upstream_error: 'Claude had an error. Try again in a moment.',
+  not_found: 'That conversation no longer exists on the server.',
+  ai_error: 'The AI request failed on the server.',
 }
 
-/** A server from before docs/26 knows two providers; say only what it said. */
-function legacyProviders(data: CatalogData, models: CatalogModel[]): ProviderInfo[] {
-  const ids = (p: AiProvider) => models.filter((m) => m.provider === p).map((m) => m.id)
-  const local = ids('ollama')
-  const orOff = data.openrouter.unavailable_reason ?? null
-  return [
-    {
-      provider: 'ollama',
-      label: 'Local (Ollama)',
-      enabled: true,
-      configured: true,
-      usable: data.ollama_reachable,
-      unavailableReason: data.ollama_reachable ? null : 'unreachable',
-      defaultModel: data.local_fallback_model ?? local[0] ?? null,
-      allowedModels: local,
-      dailyLimitUsd: null,
-      costSource: 'none',
-      privacy: 'local',
-    },
-    {
-      provider: 'openrouter',
-      label: 'OpenRouter',
-      enabled: data.openrouter.enabled,
-      // The old status never said whether a key is set; only that it is usable.
-      configured: orOff !== 'not_configured',
-      usable: orOff === null,
-      unavailableReason: orOff,
-      defaultModel: data.default.provider === 'openrouter' ? (data.default.model ?? null) : null,
-      allowedModels: ids('openrouter'),
-      dailyLimitUsd: null,
-      costSource: 'provider',
-      privacy: 'external',
-    },
-  ]
-}
-
-/** The picker's list and the server default. */
-export async function loadCatalog(): Promise<ModelCatalog> {
-  const { data, error } = await aureon.GET('/api/models/catalog')
-  if (!data) throw new Error(error ? 'Could not list models.' : 'No answer from Aureon.')
-  const catalog = mapCatalog(data)
-  aureonAi.catalog = catalog
-  const local = catalog.models.filter((m) => m.provider === 'ollama')
-  // The prompt helpers and the typo sweep stay on the local model.
-  if (local.length && !local.some((m) => m.id === aureonAi.model)) {
-    aureonAi.model = local.find((m) => m.id === catalog.localFallbackModel)?.id ?? local[0].id
-  }
-  return catalog
-}
-
-/**
- * Today's spend of one external provider (OpenRouter by default, as before)
- * against its daily cap, and the total against the shared cap.
- */
-export async function loadUsage(
-  provider: ExternalProvider = 'openrouter',
-): Promise<AiUsageInfo | null> {
-  // No query for OpenRouter: an older server has no `provider` parameter.
-  const { data } = await aureon.GET(
-    '/api/ai/usage',
-    provider === 'openrouter' ? {} : { params: { query: { provider } } },
-  )
-  if (!data) return null
-  const num = (v: string | number) => Number(v) || 0
-  const opt = (v: string | null | undefined) => (v == null ? null : num(v))
-  aureonAi.usage = {
-    provider: data.provider ?? provider,
-    globalLimitUsd: opt(data.global_limit_usd),
-    globalSpentUsd: opt(data.global_spent_usd),
-    day: data.day,
-    spentUsd: num(data.spent_usd),
-    limitUsd: num(data.limit_usd),
-    remainingUsd: num(data.remaining_usd),
-    tokens: data.prompt_tokens + data.completion_tokens,
-    calls: data.calls,
-    capReached: data.cap_reached,
-    available: data.available ?? true,
-  }
-  return aureonAi.usage
-}
-
-/**
- * The provider + model a chat sends with. Its own pick first; a chat that
- * already has a server conversation and no pick sends neither, so the server
- * keeps the conversation's own provider (a conversation from before providers
- * existed is stored as local there, so it stays local); a new chat takes the
- * pending pick, then the server default. null = send neither and let the
- * server decide.
- *
- * Before, such a chat was always sent as local Ollama, which moved every older
- * Gemini/OpenRouter chat to the local model.
- */
-export function targetFor(chatKey: string | null): AiTarget | null {
-  if (chatKey && aureonAi.targets[chatKey]) return aureonAi.targets[chatKey]
-  if (chatKey && aureonAi.conversations[chatKey]) return null
-  if (aureonAi.pending) return aureonAi.pending
-  const d = aureonAi.catalog?.default
-  if (d?.model) return { provider: d.provider, model: d.model }
-  return aureonAi.model ? { provider: 'ollama', model: aureonAi.model } : null
-}
-
-/** Pick a provider + model for a chat (or for the next new chat). */
-export function setTarget(chatKey: string | null, target: AiTarget) {
-  if (chatKey) aureonAi.targets[chatKey] = target
-  else aureonAi.pending = target
-  if (target.provider === 'ollama') aureonAi.model = target.model
-}
-
-// The server's gate and error codes (docs/26 "The gate, in order"), in words.
-// `{p}` is the provider that was asked for. These are fixed strings: the
-// server's own messages are never shown, because an upstream body can echo the
-// prompt or internal detail.
-const REASONS: Record<string, string> = {
-  filter: 'the message has data that stays on this server',
-  context: 'this chat is linked to finance, trading or research',
-  disabled: '{p} is turned off on the server',
-  not_configured: '{p} is not set up on the server',
-  no_budget: '{p} has no daily budget',
-  model_not_allowed: 'that {p} model is not allowed',
-  no_pricing: 'that {p} model has no price set, so it is never used',
-  daily_cap_reached: "today's {p} budget is used up",
-  global_cap_reached: "today's shared budget for external AI is used up",
-  monthly_cap_reached: "this month's AI budget is used up",
-  usage_unavailable: "today's {p} spend could not be checked",
-  rate_limited_local: 'too many {p} requests from this server this minute',
-  rate_limited: '{p} is rate-limiting',
-  upstream_error: '{p} had an error',
-  rejected: '{p} refused the request (key, model or credit)',
-  refused: "{p}'s safety filter declined",
-  timeout: '{p} timed out',
-  unavailable: '{p} could not be reached',
-  unreachable: 'the local model server could not be reached',
-}
-
-/**
- * Why a turn ran locally, in words. `provider` is the one that was asked for
- * (OpenRouter when not known, as on a server from before docs/26).
- */
-export function fallbackText(
-  reason: string | null | undefined,
-  provider: AiProvider = 'openrouter',
-): string {
-  if (!reason) return ''
-  const name = provider === 'ollama' ? 'the external provider' : PROVIDER_NAME[provider]
-  const text = REASONS[reason]
-  // An unknown code is shown as words, never as a server message.
-  return text ? text.replace('{p}', name) : reason.replace(/[^a-z0-9]+/gi, ' ').trim()
-}
-
-/** A stored reply's route (src/types.ts AiMessage['route']). */
-export interface ReplyRoute {
-  provider: AiProvider
-  requestedProvider?: AiProvider
-  requestedModel?: string
-  fromProvider?: AiProvider
-  fallbackReason?: string | null
-  localOnly?: boolean
-}
-
-/** A model id as the badge shows it: "gemini-2.5-flash", "qwen2.5:3b" (no vendor prefix). */
-export function shortModel(model: string | undefined): string {
-  return (
-    (model ?? '')
-      .replace(/^models\//, '')
-      .split('/')
-      .pop() ?? ''
-  )
-}
-
-export type ReplyBadge =
-  | { kind: 'external'; label: string; title: string }
-  | { kind: 'local-only'; label: string; title: string }
-  | { kind: 'fallback'; label: string; title: string }
-  | { kind: 'local'; label: string; title: string }
-
-/**
- * The one badge that says who wrote a reply, so a local (Qwen) answer and an
- * external (Gemini, Claude, OpenRouter) one never look alike. `provider` is who
- * ACTUALLY answered (the stream's meta/fallback/done event), never the chat's
- * selection, and the label names the model that wrote it ("Gemini ·
- * gemini-2.5-flash", "Local · qwen2.5:3b"). Null when the reply carries no route
- * (an older message, or the non-Aureon backend): then nothing is claimed.
- */
-export function replyBadge(route: ReplyRoute | undefined, model?: string): ReplyBadge | null {
-  if (!route) return null
-  const m = model ? ` (${model})` : ''
-  const short = shortModel(model)
-  const withModel = (head: string) => (short ? `${head} · ${short}` : head)
-  const asked = route.requestedProvider
-  const reason = route.fallbackReason ?? null
-  if (route.provider !== 'ollama') {
-    const name = PROVIDER_NAME[route.provider]
-    // Another external provider answered instead of the one asked (backend docs/30).
-    const from =
-      route.fromProvider && route.fromProvider !== route.provider
-        ? route.fromProvider
-        : asked && asked !== 'ollama' && asked !== route.provider
-          ? asked
-          : null
-    if (from) {
-      const why = fallbackText(reason, from)
-      return {
-        kind: 'external',
-        label: withModel(`${PROVIDER_NAME[from]} → ${name}`),
-        title: `Answered by ${name}${m} (external) instead of ${PROVIDER_NAME[from]}${why ? `: ${why}` : ''}`,
-      }
-    }
-    return {
-      kind: 'external',
-      label: withModel(name),
-      title: `Answered by ${name}${m} (external), through the Aureon server`,
-    }
-  }
-  if (route.localOnly) {
-    return {
-      kind: 'local-only',
-      label: withModel('Local only'),
-      title: `Answered by the local model${m}. Kept on this server: ${fallbackText(reason, asked)}`,
-    }
-  }
-  // An external provider was asked for and the local model answered instead. A
-  // provider that is switched off counts too: the person picked it, so they are told.
-  const switched = !!asked && asked !== 'ollama'
-  if (switched || (reason && reason !== 'disabled')) {
-    const why = fallbackText(reason, asked)
-    const head = switched ? `${PROVIDER_NAME[asked!]} → local` : 'Fell back to local'
-    return {
-      kind: 'fallback',
-      label: why ? `${head} · ${why}` : head,
-      title: `Answered by the local model${m}${switched ? ` instead of ${PROVIDER_NAME[asked!]}${route.requestedModel ? ` (${route.requestedModel})` : ''}` : ''}${why ? `: ${why}` : ''}`,
-    }
-  }
-  return {
-    kind: 'local',
-    label: withModel('Local'),
-    title: `Answered by the local model${m} on the Aureon server (Ollama)`,
-  }
-}
-
-/** "OpenRouter · google/gemini-2.5-flash-lite" / "Claude · claude-…" / "Local · qwen2.5:3b". */
-export function targetLabel(t: { provider: AiProvider; model: string }): string {
-  return `${PROVIDER_NAME[t.provider] ?? 'Local'} · ${t.model}`
-}
-
-// --- the stream ------------------------------------------------------------------------------
-
-export interface ChatTurn {
-  role: 'user' | 'assistant' | 'system'
-  content: string
-}
-
-/** Same shape the proxy's events were read into, plus who answered. */
-export interface ChatEvent {
-  model?: string
-  text?: string
-  usage?: { in: number; out: number }
-  error?: string
-  /** Who answers (meta, fallback) / answered (done, error). */
-  route?: AiRoute
-  /** The external provider failed mid-reply: drop the text so far, the local answer follows. */
-  reset?: boolean
-  /** A piece of the model's reasoning (only when asked with `think`). */
-  thinking?: string
-  /** On done: how long the server took, and reasoning tokens when reported. */
-  durationMs?: number
-  reasoningTokens?: number | null
-}
-
-/**
- * Who answered, from a meta / fallback / done / error event. Exported for the tests.
- *
- * `provider` is who ACTUALLY answered; `requestedProvider` is who was asked;
- * `fromProvider` is the external provider that failed when the server moved to
- * the next one (backend docs/30). An unknown provider is read as local.
- */
-export function routeOf(
-  data: Record<string, unknown>,
-  fallbackModel: string,
-  askedProvider?: AiProvider,
-  askedModel?: string,
-): AiRoute {
-  const provider: AiProvider = isProvider(data.provider) ? data.provider : 'ollama'
-  // The requested model only stands in for a missing `model` when the provider that
-  // answered is the one that was asked. A fallback without a model is "not
-  // reported", never the requested (e.g. Gemini) model on a local (Qwen) reply.
-  const sent = typeof data.model === 'string' && data.model ? data.model : null
-  const model = sent ?? (!askedProvider || askedProvider === provider ? fallbackModel : '')
-  const raw = data.fallback_reason ?? data.reason ?? null
-  const reason = typeof raw === 'string' ? raw : null
-  return {
-    provider,
-    model,
-    // A fallback event often names only who answers now. Who was asked is then the
-    // provider this turn was routed to (`askedProvider`), never a guessed default:
-    // reading it as OpenRouter is how a Gemini error came out as "OpenRouter had an error".
-    requestedProvider: isProvider(data.requested_provider)
-      ? data.requested_provider
-      : askedProvider,
-    requestedModel:
-      typeof data.requested_model === 'string' ? data.requested_model : askedModel || undefined,
-    ...(isProvider(data.from_provider) ? { fromProvider: data.from_provider } : {}),
-    fallbackReason: reason,
-    localOnly: data.local_only === true,
-    costUsd: typeof data.cost_usd === 'string' ? data.cost_usd : null,
-    filterCategories: Array.isArray(data.filter_categories)
-      ? data.filter_categories.filter((c): c is string => typeof c === 'string')
-      : [],
-  }
-}
-
-function clip(text: string): string {
-  return text.length > MAX_CONTENT ? text.slice(0, MAX_CONTENT - 20) + '\n…[truncated]' : text
-}
-
-function transcript(turns: ChatTurn[]): string {
-  return turns
-    .filter((t) => t.role !== 'system' && t.content.trim())
-    .map((t) => `${t.role === 'user' ? 'User' : 'Assistant'}: ${t.content.trim()}`)
-    .join('\n\n')
-}
-
-/** The request body for one turn. Exported for the tests. */
-export function buildMessages(
-  system: string,
-  history: ChatTurn[],
-  prompt: string,
-  hasConversation: boolean,
-): { role: 'system' | 'user'; content: string }[] {
-  const parts = [system.trim()]
-  // Only on the first Aureon turn of a chat that already had turns elsewhere.
-  if (!hasConversation && history.length) {
-    parts.push(`Conversation so far:\n\n${transcript(history)}`)
-  }
-  const sys = parts.filter(Boolean).join('\n\n')
-  return [
-    ...(sys ? [{ role: 'system' as const, content: clip(sys) }] : []),
-    { role: 'user', content: clip(prompt) },
-  ]
+export function errorText(code: string | null | undefined, status?: number): string {
+  if (code && ERROR_TEXT[code]) return ERROR_TEXT[code]
+  if (status === 401) return 'Sign in to Aureon to use the AI.'
+  if (status === 403) return 'Your account cannot use the AI.'
+  if (status === 422) return 'The server could not read that message.'
+  if (code) return code.replace(/[^a-z0-9]+/gi, ' ').trim()
+  return status ? `The server answered ${status}.` : 'The AI request failed.'
 }
 
 export class AureonChatError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code: string | null = null,
   ) {
     super(message)
   }
 }
 
-function httpMessage(status: number, body: unknown): string {
+/** `{detail: {code, message}}` (FastAPI) or `{detail: "…"}`: the code, when there is one. */
+function codeOf(body: unknown): string | null {
   const detail = (body as { detail?: unknown } | null)?.detail
-  if (status === 401) return 'Sign in to Aureon to use the local AI.'
-  // "model 'x' is not an allowed Anthropic model": the server's fixed wording, no body echo.
-  if (status === 404 && typeof detail === 'string' && /not an allowed \w+ model/.test(detail)) {
-    return detail
+  if (detail && typeof detail === 'object' && 'code' in detail) {
+    const c = (detail as { code?: unknown }).code
+    return typeof c === 'string' ? c : null
   }
-  if (status === 404) {
-    const avail = (body as { available?: string[] } | null)?.available
-    return avail?.length
-      ? `That model is not installed. Installed: ${avail.join(', ')}.`
-      : 'That model is not installed in the local Ollama.'
+  return null
+}
+
+// --- the stream --------------------------------------------------------------------------------
+
+export interface ToolEvent {
+  name: string
+  status: string
+}
+export interface ApprovalEvent {
+  id: string
+  action: string
+  summary: string
+}
+export interface DoneEvent {
+  conversationId: string
+  messageId: number | null
+  costUsd: string | null
+  steps: number
+  stopReason: string | null
+  approvals: string[]
+}
+
+/** One stream event, read into the app's shape. Exactly one field is set. */
+export interface ChatEvent {
+  meta?: { conversationId: string; agent: string }
+  text?: string
+  tool?: ToolEvent
+  approval?: ApprovalEvent
+  done?: DoneEvent
+  error?: { code: string; message: string }
+}
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : v == null ? '' : String(v)
+}
+
+/** One SSE frame → a ChatEvent (null for anything else). Exported for the tests. */
+export function readEvent(name: string, raw: string): ChatEvent | null {
+  let d: Record<string, unknown>
+  try {
+    d = JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    return null
   }
-  if (status === 429) return 'The local AI is busy with other replies. Try again in a moment.'
-  if (status === 503) return typeof detail === 'string' ? detail : 'The local AI is unavailable.'
-  return typeof detail === 'string' ? detail : `Aureon error ${status}`
+  switch (name) {
+    case 'meta':
+      return { meta: { conversationId: str(d.conversation_id), agent: str(d.agent) } }
+    case 'text':
+      return typeof d.delta === 'string' && d.delta ? { text: d.delta } : null
+    case 'tool':
+      return { tool: { name: str(d.name), status: str(d.status) } }
+    case 'approval':
+      return {
+        approval: { id: str(d.id), action: str(d.action), summary: str(d.summary) },
+      }
+    case 'done':
+      return {
+        done: {
+          conversationId: str(d.conversation_id),
+          messageId: typeof d.message_id === 'number' ? d.message_id : null,
+          costUsd: d.cost_usd == null ? null : str(d.cost_usd),
+          steps: Number(d.steps) || 0,
+          stopReason: d.stop_reason == null ? null : str(d.stop_reason),
+          approvals: Array.isArray(d.approvals) ? d.approvals.map(str) : [],
+        },
+      }
+    case 'error':
+      return { error: { code: str(d.code), message: str(d.message) } }
+    default:
+      return null
+  }
 }
 
 /**
- * One turn against POST /api/chat. Yields text as it streams. `chatKey` maps the
- * app's chat to its Aureon conversation (null for a one-off ask, which starts a
- * fresh conversation every time).
+ * One turn against POST /api/ai/chat. `chatKey` maps the app's chat to its
+ * server conversation: the first turn creates one (meta names it), later turns
+ * continue it. A conversation the server no longer has is forgotten, and the
+ * turn is sent once more as a new conversation.
  */
 export async function* streamChat(opts: {
-  model: string
-  /** Omitted: a local model name, as before. */
-  provider?: AiProvider
-  system: string
-  history: ChatTurn[]
-  prompt: string
+  message: string
+  agent?: AgentPick
   chatKey: string | null
   signal?: AbortSignal
   fetchImpl?: typeof fetch
-  /** Ask for the model's reasoning; it arrives as `thinking` events. */
-  think?: boolean
 }): AsyncGenerator<ChatEvent> {
   const doFetch = opts.fetchImpl ?? fetch
-  const conversationId = opts.chatKey ? aureonAi.conversations[opts.chatKey] : undefined
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'text/event-stream',
-  }
-  const csrf = readCsrfToken()
-  if (csrf) headers['X-CSRF-Token'] = csrf
-  const res = await doFetch(apiUrl('/api/chat'), {
-    method: 'POST',
-    credentials: 'include',
-    headers,
-    body: JSON.stringify({
-      ...(opts.provider ? { provider: opts.provider } : {}),
-      ...(opts.model ? { model: opts.model } : {}),
+  const post = (conversationId: string | undefined) => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    }
+    const csrf = readCsrfToken()
+    if (csrf) headers['X-CSRF-Token'] = csrf
+    const body: components['schemas']['ChatIn'] = {
+      message: opts.message.slice(0, MAX_CONTENT),
       ...(conversationId ? { conversation_id: conversationId } : {}),
-      ...(opts.think ? { think: true } : {}),
-      messages: buildMessages(opts.system, opts.history, opts.prompt, !!conversationId),
-    }),
-    signal: opts.signal,
-  })
+      ...(opts.agent && opts.agent !== 'auto' ? { agent: opts.agent } : {}),
+    }
+    return doFetch(apiUrl('/api/ai/chat'), {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify(body),
+      signal: opts.signal,
+    })
+  }
+
+  const known = opts.chatKey ? aureonAi.conversations[opts.chatKey] : undefined
+  let res = await post(known)
   if (!res.ok || !res.body) {
     const body = await res.json().catch(() => null)
-    // A conversation deleted on the server: forget it and let the caller retry fresh.
-    const gone = (body as { detail?: unknown } | null)?.detail === 'conversation not found'
-    if (res.status === 404 && gone && conversationId && opts.chatKey) {
+    const code = codeOf(body)
+    if (res.status === 404 && code === 'not_found' && known && opts.chatKey) {
       delete aureonAi.conversations[opts.chatKey]
+      res = await post(undefined)
+    } else {
+      throw new AureonChatError(errorText(code, res.status), res.status, code)
     }
-    throw new AureonChatError(httpMessage(res.status, body), res.status)
+    if (!res.ok || !res.body) {
+      const again = await res.json().catch(() => null)
+      const c = codeOf(again)
+      throw new AureonChatError(errorText(c, res.status), res.status, c)
+    }
   }
-  // Who this turn was sent to: the picked provider, then whatever the server routed to.
-  let asked: AiProvider | undefined = opts.provider
-  let askedModel: string | undefined = opts.provider ? opts.model : undefined
-  for await (const ev of readSse(res)) {
-    let data: Record<string, unknown> = {}
-    try {
-      data = JSON.parse(ev.data) as Record<string, unknown>
-    } catch {
-      continue
+
+  for await (const frame of readSse(res)) {
+    const ev = readEvent(frame.event, frame.data)
+    if (!ev) continue
+    if (ev.meta && opts.chatKey && ev.meta.conversationId) {
+      aureonAi.conversations[opts.chatKey] = ev.meta.conversationId
     }
-    if (ev.event === 'meta') {
-      if (opts.chatKey && typeof data.conversation_id === 'string') {
-        aureonAi.conversations[opts.chatKey] = data.conversation_id
-      }
-      const route = routeOf(data, opts.model, asked, askedModel)
-      // The server's routing decision (e.g. "server default" → Gemini) is who was
-      // asked from here on, for fallback / done events that do not repeat it.
-      asked = route.requestedProvider ?? route.provider
-      if (asked === route.provider && route.model) askedModel = route.model
-      yield { model: route.model, route }
-    } else if (ev.event === 'fallback') {
-      const route = routeOf(data, opts.model, asked, askedModel)
-      yield { model: route.model, route, reset: data.reset === true }
-    } else if (ev.event === 'token') {
-      if (typeof data.content === 'string' && data.content) yield { text: data.content }
-    } else if (ev.event === 'thinking') {
-      if (typeof data.content === 'string' && data.content) yield { thinking: data.content }
-    } else if (ev.event === 'done') {
-      yield {
-        usage: { in: Number(data.prompt_tokens ?? 0), out: Number(data.completion_tokens ?? 0) },
-        ...(typeof data.duration_ms === 'number' ? { durationMs: data.duration_ms } : {}),
-        ...(typeof data.reasoning_tokens === 'number'
-          ? { reasoningTokens: data.reasoning_tokens }
-          : {}),
-        ...('provider' in data ? doneRoute(data, opts.model, asked, askedModel) : {}),
-      }
-      return
-    } else if (ev.event === 'error') {
-      yield {
-        error: String(data.message ?? data.code ?? 'The model stopped.'),
-        ...('provider' in data ? doneRoute(data, opts.model, asked, askedModel) : {}),
-      }
-      return
-    }
+    yield ev
+    if (ev.done || ev.error) return
   }
 }
 
-/** The final word on who answered: the route, and its model when the server named one. */
-function doneRoute(
-  data: Record<string, unknown>,
-  model: string,
-  provider?: AiProvider,
-  askedModel?: string,
-) {
-  const route = routeOf(data, model, provider, askedModel)
-  return typeof data.model === 'string' && data.model ? { route, model: route.model } : { route }
+// --- conversations ------------------------------------------------------------------------------
+
+export type ConversationSummary = components['schemas']['ConversationOut']
+export type ConversationDetail = components['schemas']['ConversationDetail']
+export type ConversationPage = components['schemas']['Page_ConversationOut_']
+
+export async function listConversations(limit = 50, offset = 0): Promise<ConversationPage> {
+  const { data, response } = await aureon.GET('/api/ai/conversations', {
+    params: { query: { limit, offset } },
+  })
+  if (!data) throw new AureonChatError(errorText(null, response.status), response.status)
+  return data
 }
 
-/** The whole answer to one question (prompt helpers). */
-export async function askOnce(
-  system: string,
-  text: string,
-  opts: { model: string; signal?: AbortSignal; fetchImpl?: typeof fetch },
-): Promise<string | null> {
-  let answer = ''
-  // Prompt helpers stay on the local model.
-  for await (const ev of streamChat({
-    ...opts,
-    provider: 'ollama',
-    system,
-    history: [],
-    prompt: text,
-    chatKey: null,
-  })) {
-    if (ev.error) return null
-    if (ev.text) answer += ev.text
+export async function getConversation(id: string): Promise<ConversationDetail> {
+  const { data, error, response } = await aureon.GET('/api/ai/conversations/{conversation_id}', {
+    params: { path: { conversation_id: id } },
+  })
+  if (!data) {
+    const code = codeOf(error)
+    throw new AureonChatError(errorText(code, response.status), response.status, code)
   }
-  return answer
+  return data
+}
+
+/** "$0.0123" / "$1.20": a turn's cost — four places under a dollar, where turns live. */
+export function usd(cost: string | number | null | undefined): string {
+  const n = Number(cost)
+  if (cost == null || cost === '' || !Number.isFinite(n)) return ''
+  return n < 1 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`
 }

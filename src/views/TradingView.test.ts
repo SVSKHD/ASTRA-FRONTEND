@@ -879,8 +879,10 @@ describe('TradingView — Stock Screener navigation', () => {
     await sees(w, 'Run screener')
     expect(router.currentRoute.value.fullPath).toBe('/trading/screener')
     expect(w.text()).toContain('Stock Screener')
-    // The real contract has no screener endpoint: the honest notice, and nothing POSTed to it.
-    expect(w.text()).toContain('Screening is not available yet')
+    // The real contract has the screener endpoint now: the form is live, and nothing is
+    // POSTed until Run is pressed.
+    expect(w.text()).not.toContain('Screening is not available yet')
+    expect(w.text()).toContain('Set the filters and press Run.')
     expect(posts.some((p) => p.path === '/api/trading/screener/run')).toBe(false)
   })
 })

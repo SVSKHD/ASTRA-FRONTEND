@@ -1,26 +1,18 @@
 // What a reply did, step by step — the chat's "thinking steps".
 //
 // Built from the stream itself (src/ai/aureonChat.ts), so every step is something the
-// server actually reported, never an animation that pretends: the request went out, the
-// server routed it (and why it stayed local, if it did), the model thought (its own
-// reasoning, when asked for), wrote, and finished with tokens, cost and time — or fell
-// back, or stopped.
+// server actually reported, never an animation that pretends: the request went out, an
+// agent took it, it used tools (each one a step), asked for approvals, wrote, and
+// finished with its cost — or failed, or was stopped.
 //
-// Traces live for the visit only, by `${chatId}:${msgId}`; the reply's text and route are
-// what the chat store keeps.
+// Traces live for the visit only, by `${chatId}:${msgId}`; the reply's text, agent and
+// cost are what the chat store keeps.
 
 import { reactive } from 'vue'
-import {
-  fallbackText,
-  PROVIDER_NAME,
-  targetLabel,
-  type AiRoute,
-  type ChatEvent,
-} from './aureonChat'
+import { agentLabel, toolActivity, toolDone, usd, type ChatEvent } from './aureonChat'
 
 export type StepState = 'running' | 'done' | 'warn' | 'error'
-export type StepKey =
-  'send' | 'route' | 'filter' | 'fallback' | 'think' | 'write' | 'done' | 'error'
+export type StepKey = 'send' | 'agent' | 'tool' | 'approval' | 'write' | 'done' | 'error'
 
 export interface AiStep {
   key: StepKey
@@ -30,29 +22,22 @@ export interface AiStep {
   at: number
 }
 
-export type TracePhase = 'sending' | 'thinking' | 'writing' | 'done' | 'error' | 'stopped'
+export type TracePhase = 'sending' | 'working' | 'writing' | 'done' | 'error' | 'stopped'
 
 export interface AiTrace {
   steps: AiStep[]
-  /** The model's reasoning, as streamed. */
-  thinking: string
   phase: TracePhase
   startedAt: number
   endedAt?: number
-  route?: AiRoute
+  /** The agent that answers (meta). */
+  agent?: string
+  /** The latest tool, while the agent may still be working with it. */
+  activity?: string
 }
 
-export function startTrace(now = Date.now(), think = false): AiTrace {
+export function startTrace(now = Date.now()): AiTrace {
   return {
-    steps: [
-      {
-        key: 'send',
-        label: think ? 'Sent, asking the model to think' : 'Sent to Aureon',
-        state: 'running',
-        at: now,
-      },
-    ],
-    thinking: '',
+    steps: [{ key: 'send', label: 'Sent to Aureon', state: 'running', at: now }],
     phase: 'sending',
     startedAt: now,
   }
@@ -62,13 +47,15 @@ function step(t: AiTrace, key: StepKey): AiStep | undefined {
   return t.steps.find((s) => s.key === key)
 }
 function finish(t: AiTrace, key: StepKey, detail?: string) {
-  const s = step(t, key)
-  if (s && s.state === 'running') {
-    s.state = 'done'
-    if (detail) s.detail = detail
+  for (const s of t.steps) {
+    if (s.key === key && s.state === 'running') {
+      s.state = 'done'
+      if (detail) s.detail = detail
+    }
   }
 }
-function add(t: AiTrace, s: AiStep) {
+/** Replace the one step of this key (send, agent, write, done, error). */
+function put(t: AiTrace, s: AiStep) {
   const i = t.steps.findIndex((x) => x.key === s.key)
   if (i >= 0) t.steps.splice(i, 1, s)
   else t.steps.push(s)
@@ -78,123 +65,93 @@ export function seconds(ms: number): string {
   return ms < 1000 ? `${Math.max(0, Math.round(ms))} ms` : `${(ms / 1000).toFixed(1)} s`
 }
 
-function usd(cost: string | null | undefined): string {
-  const n = Number(cost)
-  if (!cost || !Number.isFinite(n)) return ''
-  return n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`
-}
-
 /** Fold one stream event into the trace (mutates it). */
 export function applyEvent(t: AiTrace, ev: ChatEvent, now = Date.now()): void {
-  if (ev.route && ev.reset) {
-    // The external provider failed mid-reply; the text so far is dropped and the local model answers.
-    t.route = ev.route
-    finish(t, 'think')
-    finish(t, 'write')
-    add(t, {
-      key: 'fallback',
-      label: `Fell back to ${targetLabel(ev.route)}`,
-      detail: fallbackText(ev.route.fallbackReason, ev.route.requestedProvider),
-      state: 'warn',
-      at: now,
-    })
-    t.steps = t.steps.filter((s) => s.key !== 'write')
-    t.phase = 'sending'
-  } else if (ev.route && !step(t, 'route')) {
-    t.route = ev.route
+  if (ev.meta) {
     finish(t, 'send')
-    add(t, {
-      key: 'route',
-      label: `Routed to ${targetLabel(ev.route)}`,
-      detail:
-        ev.route.requestedProvider && ev.route.requestedProvider !== ev.route.provider
-          ? `asked for ${ev.route.requestedProvider === 'ollama' ? 'local' : PROVIDER_NAME[ev.route.requestedProvider]}`
-          : undefined,
+    t.agent = ev.meta.agent
+    put(t, {
+      key: 'agent',
+      label: `${agentLabel(ev.meta.agent) || 'An'} agent`,
       state: 'done',
       at: now,
     })
-    if (ev.route.localOnly) {
-      const cats = ev.route.filterCategories?.length
-        ? ` (${ev.route.filterCategories.join(', ')})`
-        : ''
-      add(t, {
-        key: 'filter',
-        label: 'Kept on this server',
-        detail: `${fallbackText(ev.route.fallbackReason, ev.route.requestedProvider)}${cats}`,
-        state: 'warn',
-        at: now,
-      })
-    } else if (ev.route.fallbackReason && ev.route.fallbackReason !== 'disabled') {
-      add(t, {
-        key: 'filter',
-        label: 'Answered locally',
-        detail: fallbackText(ev.route.fallbackReason, ev.route.requestedProvider),
-        state: 'warn',
-        at: now,
-      })
-    }
-  } else if (ev.route) {
-    t.route = ev.route
+    t.phase = 'working'
   }
 
-  if (ev.thinking) {
-    if (!step(t, 'think')) {
-      finish(t, 'send')
-      add(t, { key: 'think', label: 'Thinking', state: 'running', at: now })
-    }
-    t.thinking += ev.thinking
-    t.phase = 'thinking'
+  if (ev.tool) {
+    finish(t, 'send')
+    // Tools come between pieces of text: the text so far was a preamble.
+    finish(t, 'write')
+    const bad = ev.tool.status === 'error' || ev.tool.status === 'refused'
+    t.steps.push({
+      key: 'tool',
+      label: toolDone(ev.tool.name, ev.tool.status),
+      state: bad ? 'warn' : 'done',
+      at: now,
+    })
+    t.activity = toolActivity(ev.tool.name)
+    t.phase = 'working'
+  }
+
+  if (ev.approval) {
+    t.steps.push({
+      key: 'approval',
+      label: 'Asked for your approval',
+      detail: ev.approval.summary,
+      state: 'warn',
+      at: now,
+    })
   }
 
   if (ev.text) {
-    const think = step(t, 'think')
-    if (think && think.state === 'running') {
-      finish(t, 'think', `for ${seconds(now - think.at)}`)
-      think.label = 'Thought'
-    }
-    if (!step(t, 'write')) {
-      finish(t, 'send')
-      add(t, {
+    finish(t, 'send')
+    const w = [...t.steps].reverse().find((s) => s.key === 'write')
+    if (!w || w.state !== 'running') {
+      t.steps.push({
         key: 'write',
         label: 'Writing the answer',
-        detail: `first words after ${seconds(now - t.startedAt)}`,
+        detail: w ? undefined : `first words after ${seconds(now - t.startedAt)}`,
         state: 'running',
         at: now,
       })
     }
+    t.activity = undefined
     t.phase = 'writing'
   }
 
-  if (ev.usage) {
+  if (ev.done) {
     finish(t, 'send')
-    finish(t, 'think')
     finish(t, 'write')
-    const took = ev.durationMs ?? now - t.startedAt
     const parts = [
-      `${ev.usage.in.toLocaleString()} in / ${ev.usage.out.toLocaleString()} out tokens`,
-      ev.reasoningTokens ? `${ev.reasoningTokens.toLocaleString()} reasoning` : '',
-      usd(ev.route?.costUsd ?? t.route?.costUsd),
+      ev.done.steps > 1 ? `${ev.done.steps} model calls` : '',
+      usd(ev.done.costUsd),
+      ev.done.stopReason && ev.done.stopReason !== 'end_turn'
+        ? `stopped: ${ev.done.stopReason.replace(/_/g, ' ')}`
+        : '',
     ].filter(Boolean)
-    add(t, {
+    put(t, {
       key: 'done',
-      label: `Done in ${seconds(took)}`,
-      detail: parts.join(' · '),
+      label: `Done in ${seconds(now - t.startedAt)}`,
+      detail: parts.join(' · ') || undefined,
       state: 'done',
       at: now,
     })
+    t.activity = undefined
     t.phase = 'done'
     t.endedAt = now
   }
 
   if (ev.error) {
     for (const s of t.steps) if (s.state === 'running') s.state = 'error'
-    add(t, {
+    put(t, {
       key: 'error',
       label: 'Stopped with an error',
-      detail: ev.error,
+      detail: ev.error.message || ev.error.code,
       state: 'error',
       at: now,
     })
+    t.activity = undefined
     t.phase = 'error'
     t.endedAt = now
   }
@@ -204,25 +161,26 @@ export function applyEvent(t: AiTrace, ev: ChatEvent, now = Date.now()): void {
 export function endTrace(t: AiTrace, how: 'stopped' | 'error', detail = '', now = Date.now()) {
   if (t.phase === 'done' || t.phase === 'error') return
   for (const s of t.steps) if (s.state === 'running') s.state = how === 'error' ? 'error' : 'warn'
-  add(t, {
+  put(t, {
     key: how === 'error' ? 'error' : 'done',
     label: how === 'error' ? 'Stopped with an error' : 'Stopped',
     detail: detail || undefined,
     state: how === 'error' ? 'error' : 'warn',
     at: now,
   })
+  t.activity = undefined
   t.phase = how
   t.endedAt = now
 }
 
-/** "Thinking…", "Writing…", "Done in 2.1 s" — the one-line status of a run. */
-export function phaseText(t: AiTrace | null | undefined, now = Date.now()): string {
+/** "Reading positions…", "Writing…", "Done in 2.1 s" — the one-line status of a run. */
+export function phaseText(t: AiTrace | null | undefined): string {
   if (!t) return ''
   switch (t.phase) {
     case 'sending':
-      return 'Waiting for the model…'
-    case 'thinking':
-      return `Thinking… ${seconds(now - (step(t, 'think')?.at ?? t.startedAt))}`
+      return 'Waiting for Claude…'
+    case 'working':
+      return t.activity ?? (t.agent ? `${agentLabel(t.agent)} agent is working…` : 'Working…')
     case 'writing':
       return 'Writing…'
     case 'done':

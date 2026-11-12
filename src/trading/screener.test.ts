@@ -22,12 +22,11 @@ import {
 const preset = (key: string) => PRESETS.find((p) => p.key === key)!.make()
 
 describe('availability gate', () => {
-  it('matches the OpenAPI contract: the run path is absent, so the screener is off', () => {
+  it('matches the OpenAPI contract: the run path is present, so the screener is on', () => {
     const inJson = SCREENER_RUN_PATH in (openapi as { paths: Record<string, unknown> }).paths
     expect(SCREENER_AVAILABLE).toBe(inJson)
-    // Today the backend has no screener endpoint (docs/market-terminal.md §6).
-    expect(inJson).toBe(false)
-    expect(SCREENER_AVAILABLE).toBe(false)
+    // The backend now serves the screener (docs/market-terminal.md §6).
+    expect(inJson).toBe(true)
   })
 })
 

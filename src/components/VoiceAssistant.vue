@@ -202,7 +202,7 @@ const label = computed(() =>
 const SOURCE: Record<string, string> = {
   app: 'this app',
   grammar: 'Aureon',
-  ollama: 'Aureon (local model)',
+  model: 'Aureon (Claude)',
   none: '—',
 }
 </script>

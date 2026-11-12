@@ -5,11 +5,22 @@
 
 import { supabase } from '@/supabase'
 import type { AiProvider } from '@/types'
-import { AureonChatError, aiBackend, askOnce, aureonAi } from '@/ai/aureonChat'
+import { aiBackend } from '@/ai/aureonChat'
 
 export interface AiTarget {
   provider: AiProvider
   model: string
+}
+
+/**
+ * Whether the one-off helpers (typo fix, the Prompts tab's Generate / Improve /
+ * Fill) can run. Only on the proxy backend: on Aureon the only model is Claude,
+ * and POST /api/ai/chat saves every call as a conversation and charges it to the
+ * chat budget, so a typo fix would cost an Opus turn and fill the history. The
+ * buttons are hidden there rather than offered and failing.
+ */
+export function aiHelpersAvailable(): boolean {
+  return aiBackend() === 'proxy'
 }
 
 /**
@@ -22,17 +33,8 @@ export async function askAi(
   text: string,
   opts: { target: AiTarget; signal?: AbortSignal; background?: boolean },
 ): Promise<string | null> {
-  if (aiBackend() === 'aureon') {
-    // Local Ollama on the server CPU: as-you-type proofreading (background) would
-    // queue behind every chat reply, so it is off there. Asked-for work runs.
-    if (opts.background || !aureonAi.model) return null
-    try {
-      return await askOnce(system, text, { model: aureonAi.model, signal: opts.signal })
-    } catch (err) {
-      if (err instanceof AureonChatError) return null
-      throw err
-    }
-  }
+  // Claude-only Aureon: no helpers (see aiHelpersAvailable).
+  if (!aiHelpersAvailable()) return null
   const url = import.meta.env.VITE_AI_PROXY_URL || ''
   if (!url) return null
   const session = supabase ? (await supabase.auth.getSession()).data.session : null

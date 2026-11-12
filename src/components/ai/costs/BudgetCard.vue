@@ -1,212 +1,171 @@
 <script setup lang="ts">
-// The AI budget: today's spend against the daily cap (enforced — at the cap, replies
-// stay local) and this month's against the monthly budget (enforced the same way when
-// set). Admins change both here; the server applies them without a restart.
-import { computed, ref, watch } from 'vue'
+// This month's AI spend (GET /api/ai/usage, src/ai/costs.ts), from the base kit:
+// a StatRow for the month (spent, cap, left, calls) over a ProgressBar, and a
+// ProgressBar per budget (investments, business, chat, reserve). A bar turns to
+// the warning colour at 80 % and to danger at the cap — where the server refuses
+// the next call (`budget_exceeded`). The tone is the ProgressBar's own accent
+// tokens re-pointed, so the bar itself is the kit's, unchanged.
+//
+// The caps themselves are settings (AI_MONTHLY_BUDGET_USD, AI_AGENT_BUDGETS_USD),
+// changed under Settings → AI. `compact` drops the per-budget hints, for the strip
+// at the top of that settings category.
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
-import TextInput from '@/components/ui/TextInput.vue'
-import { costApi, num, usd, usedPct, type AiBudget } from '@/ai/costs'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
+import StatRow, { type Stat } from '@/components/ui/StatRow.vue'
+import {
+  BUDGET_HINT,
+  BUDGET_LABEL,
+  levelOf,
+  num,
+  orderedBudgets,
+  resetsOn,
+  usd,
+  type AiUsage,
+} from '@/ai/costs'
 
-const props = defineProps<{ budget: AiBudget; admin: boolean }>()
-const emit = defineEmits<{ saved: [] }>()
+const props = defineProps<{ usage: AiUsage; compact?: boolean; settingsLink?: boolean }>()
 const router = useRouter()
 
-const daily = ref('')
-const monthly = ref('')
-watch(
-  () => props.budget,
-  (b) => {
-    daily.value = b.daily_limit_usd
-    monthly.value = b.monthly_limit_usd
+const monthLevel = computed(() => levelOf(props.usage.spent_usd, props.usage.limit_usd))
+const resets = computed(() => resetsOn(props.usage.resets_at))
+const stats = computed<Stat[]>(() => [
+  {
+    label: 'Spent',
+    value: usd(props.usage.spent_usd),
+    note: num(props.usage.limit_usd) > 0 ? `of ${usd(props.usage.limit_usd)}` : 'no cap',
   },
-  { immediate: true },
+  {
+    label: 'Left',
+    value: usd(props.usage.remaining_usd),
+    tone: monthLevel.value === 'over' ? 'negative' : undefined,
+    note: resets.value ? `resets ${resets.value}` : undefined,
+  },
+  { label: 'Calls', value: props.usage.calls.toLocaleString() },
+])
+const budgets = computed(() =>
+  orderedBudgets(props.usage).map((b) => ({
+    ...b,
+    label: BUDGET_LABEL[b.budget] ?? b.budget,
+    hint: BUDGET_HINT[b.budget] ?? '',
+    level: levelOf(b.spent_usd, b.limit_usd),
+  })),
 )
-
-const dayPct = computed(() => usedPct(props.budget.today_spent_usd, props.budget.daily_limit_usd))
-const monthPct = computed(() =>
-  usedPct(props.budget.month_spent_usd, props.budget.monthly_limit_usd),
-)
-
-const busy = ref(false)
-const message = ref('')
-const needsPassword = ref(false)
-const valid = (v: string) => /^\d+(\.\d{1,6})?$/.test(v.trim())
-const dirty = computed(
-  () =>
-    num(daily.value) !== num(props.budget.daily_limit_usd) ||
-    num(monthly.value) !== num(props.budget.monthly_limit_usd),
-)
-
-async function save() {
-  if (!valid(daily.value) || !valid(monthly.value)) {
-    message.value = 'Enter amounts in dollars, like 2 or 0.50.'
-    return
-  }
-  busy.value = true
-  message.value = ''
-  needsPassword.value = false
-  try {
-    for (const [key, value, was] of [
-      ['OPENROUTER_DAILY_LIMIT_USD', daily.value.trim(), props.budget.daily_limit_usd],
-      ['AI_MONTHLY_BUDGET_USD', monthly.value.trim(), props.budget.monthly_limit_usd],
-    ] as const) {
-      if (num(value) === num(was)) continue
-      const r = await costApi.setSetting(key, value)
-      if (!r.ok) {
-        needsPassword.value = r.needsPassword
-        message.value = r.needsPassword
-          ? 'This change needs your password: make it in Settings.'
-          : r.error || 'The change was refused.'
-        return
-      }
-    }
-    message.value = 'Saved. Applied without a restart.'
-    emit('saved')
-  } finally {
-    busy.value = false
-  }
+/** A ProgressBar's value and max; a zero cap with spend shows full. */
+const bar = (spent: string, limit: string) => {
+  const cap = num(limit)
+  return cap > 0
+    ? { value: Math.min(num(spent), cap), max: cap }
+    : { value: num(spent) > 0 ? 1 : 0, max: 1 }
 }
 </script>
 
 <template>
-  <Card title="Budget" data-testid="budget">
-    <p v-if="!budget.available" class="tp-note" role="status">
-      Spend could not be read from Redis, so every reply stays local until it can.
+  <Card title="AI spend this month" data-testid="budget">
+    <p v-if="!usage.configured" class="tp-note" role="status" data-testid="not-configured">
+      Claude is not set up yet (no ANTHROPIC_API_KEY), so nothing is being spent.
     </p>
-    <div class="bc__rows">
-      <div class="bc__row">
-        <div class="bc__head">
-          <span class="tp-strong">Today</span>
-          <Badge v-if="budget.daily_cap_reached" tone="danger" label="Cap reached" />
-        </div>
-        <span class="tp-num">
-          {{ usd(budget.today_spent_usd) }} of
-          {{ num(budget.daily_limit_usd) > 0 ? usd(budget.daily_limit_usd) : 'no daily budget' }}
-        </span>
-        <div
-          v-if="dayPct !== null"
-          class="bc__bar"
-          role="meter"
-          aria-label="Spent today"
-          :aria-valuenow="dayPct"
-          aria-valuemin="0"
-          aria-valuemax="100"
+
+    <div class="bc__month" :class="`is-${monthLevel}`">
+      <div class="bc__head">
+        <span class="tp-strong" data-testid="month-spend"
+          >Month to date: {{ usd(usage.spent_usd) }} of
+          {{ num(usage.limit_usd) > 0 ? usd(usage.limit_usd) : 'no cap' }}</span
         >
-          <span
-            class="bc__fill"
-            :class="{ 'is-full': budget.daily_cap_reached }"
-            :style="{ width: `${dayPct}%` }"
-          />
-        </div>
-        <span class="tp-note">
-          {{
-            num(budget.daily_limit_usd) > 0
-              ? `${usd(budget.daily_remaining_usd)} left today (UTC). At the cap, replies stay local.`
-              : 'With no daily budget, OpenRouter is not used: every reply is local.'
-          }}
-        </span>
+        <Badge v-if="monthLevel === 'over'" tone="danger" label="Budget reached" />
+        <Badge v-else-if="monthLevel === 'warn'" tone="warning" label="Over 80 %" />
       </div>
-      <div class="bc__row">
-        <div class="bc__head">
-          <span class="tp-strong">This month</span>
-          <Badge v-if="budget.monthly_cap_reached" tone="danger" label="Budget reached" />
-        </div>
-        <span class="tp-num">
-          {{ usd(budget.month_spent_usd) }} of
-          {{ num(budget.monthly_limit_usd) > 0 ? usd(budget.monthly_limit_usd) : 'no monthly cap' }}
-        </span>
-        <div
-          v-if="monthPct !== null"
-          class="bc__bar"
-          role="meter"
-          aria-label="Spent this month"
-          :aria-valuenow="monthPct"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          <span
-            class="bc__fill"
-            :class="{ 'is-full': budget.monthly_cap_reached }"
-            :style="{ width: `${monthPct}%` }"
-          />
-        </div>
-        <span v-if="budget.monthly_remaining_usd !== null" class="tp-note">
-          {{ usd(budget.monthly_remaining_usd) }} left this month.
-        </span>
-      </div>
+      <StatRow :stats="stats" />
+      <ProgressBar
+        v-bind="bar(usage.spent_usd, usage.limit_usd)"
+        size="lg"
+        label="Spent this month"
+      />
     </div>
 
-    <form v-if="admin" class="bc__form" @submit.prevent="save">
-      <TextInput
-        v-model="daily"
-        label="Daily cap (USD)"
-        inputmode="decimal"
-        size="sm"
-        data-testid="budget-daily"
-      />
-      <TextInput
-        v-model="monthly"
-        label="Monthly budget (USD, 0 = none)"
-        inputmode="decimal"
-        size="sm"
-        data-testid="budget-monthly"
-      />
-      <Button type="submit" size="sm" variant="secondary" :loading="busy" :disabled="!dirty">
-        Save limits
-      </Button>
-    </form>
-    <p v-if="message" class="tp-note" role="status" data-testid="budget-message">
-      {{ message }}
-      <Button v-if="needsPassword" size="sm" variant="ghost" @click="router.push('/settings')">
-        Open Settings
-      </Button>
-    </p>
+    <ul class="bc__rows" aria-label="Spend by budget">
+      <li
+        v-for="b in budgets"
+        :key="b.budget"
+        class="bc__row"
+        :class="`is-${b.level}`"
+        :data-budget="b.budget"
+      >
+        <div class="bc__head">
+          <span class="tp-strong">{{ b.label }}</span>
+          <span class="tp-num bc__amt">{{ usd(b.spent_usd) }} / {{ usd(b.limit_usd) }}</span>
+        </div>
+        <ProgressBar
+          v-bind="bar(b.spent_usd, b.limit_usd)"
+          size="sm"
+          :label="`${b.label} spent this month`"
+        />
+        <span v-if="!compact && b.hint" class="tp-note">{{ b.hint }}</span>
+        <Badge v-if="b.level === 'over'" tone="danger" label="Cap reached: calls stop" />
+        <Badge v-else-if="b.level === 'warn'" tone="warning" label="Over 80 % used" />
+      </li>
+    </ul>
+
+    <div v-if="settingsLink" class="tp-row">
+      <Button size="sm" variant="ghost" @click="router.push('/dev/settings?category=ai')"
+        >Change the caps in Settings → AI</Button
+      >
+    </div>
   </Card>
 </template>
 
 <style scoped>
-.bc__rows {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--sp-4);
-  min-width: 0;
-}
-.bc__row {
+.bc__month {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-2);
   min-width: 0;
 }
 .bc__head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--sp-2);
-}
-.bc__bar {
-  position: relative;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  background: color-mix(in oklch, var(--text-secondary) 20%, transparent);
-}
-.bc__fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: var(--radius-pill);
-  background: var(--theme-accent);
-}
-.bc__fill.is-full {
-  background: var(--theme-danger);
-}
-.bc__form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  align-items: end;
-  gap: var(--sp-2);
-  margin-top: var(--sp-3);
   min-width: 0;
+}
+.bc__amt {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.bc__rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-4);
+  min-width: 0;
+  margin: var(--sp-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.bc__row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.bc__row > * {
+  max-width: 100%;
+}
+.bc__row .bc__head,
+.bc__row :deep(.ui-progress) {
+  align-self: stretch;
+}
+/* The kit's ProgressBar draws its fill from the accent tokens: re-pointed here. */
+.is-warn {
+  --accent-grad-from: var(--theme-warning);
+  --accent-grad-to: var(--theme-warning);
+}
+.is-over {
+  --accent-grad-from: var(--theme-danger);
+  --accent-grad-to: var(--theme-danger);
 }
 </style>

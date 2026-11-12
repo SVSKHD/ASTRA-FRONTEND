@@ -1,23 +1,16 @@
 <script setup lang="ts">
-// One AI answer in the GitHub workspace: the provider and model to ask (from the server's
-// catalog, grouped by provider; models the server marks unavailable are greyed out), Think, the live thinking steps, and the answer streaming
-// in. Each repository is one conversation on the server (`gh:<owner/name>`), so follow-up
+// One AI answer in the GitHub workspace: Claude (the General agent, through the
+// Aureon server), its steps as it works, and the answer streaming in. Each
+// repository is one conversation on the server (`gh:<owner/name>`), so follow-up
 // questions keep the context and the history is kept with the other chats.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+//
+// The server owns the system prompt now, so the review instructions (SYSTEM)
+// travel at the top of the first message of a repository's conversation.
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Button from '@/components/ui/Button.vue'
-import Select from '@/components/ui/Select.vue'
-import Switch from '@/components/ui/Switch.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import ThinkingSteps from '@/components/ai/ThinkingSteps.vue'
-import {
-  aureonAi,
-  isProvider,
-  loadCatalog,
-  setTarget,
-  streamChat,
-  targetFor,
-} from '@/ai/aureonChat'
-import { groupOf, modelReason } from '@/ai/providers'
+import { aureonAi, errorText, MAX_CONTENT, streamChat } from '@/ai/aureonChat'
 import { applyEvent, endTrace, startTrace, type AiTrace } from '@/ai/steps'
 import { renderMarkdown } from '@/utils/markdown'
 import { SYSTEM, type Ask } from '@/github/workspace'
@@ -25,34 +18,12 @@ import { SYSTEM, type Ask } from '@/github/workspace'
 const props = defineProps<{ repo: string; ask: Ask | null }>()
 
 const chatKey = computed(() => `gh:${props.repo}`)
-const SEP = '|'
-const options = computed(() =>
-  (aureonAi.catalog?.models ?? []).map((m) => ({
-    value: `${m.provider}${SEP}${m.id}`,
-    label: m.available ? m.label : `${m.label} — unavailable: ${modelReason(m)}`,
-    group: groupOf(m),
-    disabled: !m.available,
-  })),
-)
-const current = computed(() => targetFor(chatKey.value))
-const value = computed(() =>
-  current.value ? `${current.value.provider}${SEP}${current.value.model}` : '',
-)
-function pick(v: string) {
-  const i = v.indexOf(SEP)
-  const provider = v.slice(0, i)
-  if (i > 0 && isProvider(provider)) setTarget(chatKey.value, { provider, model: v.slice(i + 1) })
+
+/** The message sent: the instructions first in a new conversation, then the ask. */
+function messageFor(prompt: string): string {
+  const fresh = !aureonAi.conversations[chatKey.value]
+  return (fresh ? `${SYSTEM}\n\n${prompt}` : prompt).slice(0, MAX_CONTENT)
 }
-const catalogError = ref('')
-onMounted(async () => {
-  if (!aureonAi.catalog) {
-    try {
-      await loadCatalog()
-    } catch (e) {
-      catalogError.value = (e as Error).message
-    }
-  }
-})
 
 const title = ref('')
 const answer = ref('')
@@ -68,28 +39,19 @@ async function run(a: { title: string; prompt: string }) {
   answer.value = ''
   error.value = ''
   running.value = true
-  trace.value = startTrace(Date.now(), aureonAi.think)
+  trace.value = startTrace(Date.now())
   const t = trace.value
-  const target = current.value
-  // Keep the pick with this repository's conversation, as the AI tab does: once the
-  // server has a conversation, an unsaved pick would fall back to the local model.
-  if (target) setTarget(chatKey.value, target)
   try {
     for await (const ev of streamChat({
-      model: target?.model ?? '',
-      provider: target?.provider,
-      system: SYSTEM,
-      history: [],
-      prompt: a.prompt,
+      message: messageFor(a.prompt),
+      agent: 'general',
       chatKey: chatKey.value,
       signal: ctl.signal,
-      think: aureonAi.think,
     })) {
       if (ctl !== abort) return
       applyEvent(t, ev)
-      if (ev.reset) answer.value = ''
       if (ev.text) answer.value += ev.text
-      if (ev.error) error.value = ev.error
+      if (ev.error) error.value = errorText(ev.error.code)
     }
   } catch (e) {
     if ((e as Error).name === 'AbortError') endTrace(t, 'stopped')
@@ -126,25 +88,7 @@ function send() {
 <template>
   <section class="aia" data-testid="ai-answer">
     <div class="aia__bar">
-      <div class="aia__model">
-        <Select
-          v-if="options.length"
-          :model-value="value"
-          :options="options"
-          size="sm"
-          aria-label="Model"
-          :disabled="running"
-          @update:model-value="pick(String($event))"
-        />
-        <span v-else class="tp-note">{{ catalogError || 'Loading models…' }}</span>
-      </div>
-      <Switch
-        :model-value="aureonAi.think"
-        label="Think"
-        size="sm"
-        :disabled="running"
-        @update:model-value="aureonAi.think = $event"
-      />
+      <span class="aia__model tp-note">Claude · General agent</span>
       <Button v-if="running" size="sm" variant="secondary" @click="stop">Stop</Button>
     </div>
 

@@ -156,7 +156,19 @@ async function addFilter(w: Awaited<ReturnType<typeof mountScreener>>['w'], labe
   await flushPromises()
 }
 
-describe('TradingScreener — endpoint absent (today)', () => {
+describe('TradingScreener — endpoint absent (gate mocked shut)', () => {
+  // The contract has the endpoint now; an older server would not, and the screen
+  // must still say so honestly.
+  beforeEach(() => {
+    vi.doMock('@/trading/screener', async (orig) => ({
+      ...(await orig<typeof import('@/trading/screener')>()),
+      SCREENER_AVAILABLE: false,
+    }))
+  })
+  afterEach(() => {
+    vi.doUnmock('@/trading/screener')
+  })
+
   it('disables Run with an honest message pointing at §6, and POSTs nothing', async () => {
     const { w } = await mountScreener()
     await sees(w, 'Screening is not available yet')

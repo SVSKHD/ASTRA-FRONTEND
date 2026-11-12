@@ -25,53 +25,26 @@ vi.mock('@/api/client', () => ({
 }))
 
 const chat = vi.hoisted(() => ({
-  calls: [] as { prompt: string; chatKey: string | null; think?: boolean }[],
+  calls: [] as { message: string; agent?: string; chatKey: string | null }[],
 }))
 vi.mock('@/ai/aureonChat', async (orig) => {
   const real = await orig<typeof import('@/ai/aureonChat')>()
   return {
     ...real,
-    loadCatalog: vi.fn(async () => {
-      real.aureonAi.catalog = {
-        default: { provider: 'openrouter', model: 'anthropic/claude-sonnet' },
-        localFallbackModel: 'qwen',
-        ollamaReachable: true,
-        openrouterOff: null,
-        models: [
-          {
-            provider: 'ollama',
-            id: 'qwen',
-            label: 'qwen',
-            available: true,
-            unavailableReason: null,
-            capabilities: ['chat', 'streaming'],
-            privacy: 'local',
-          },
-          {
-            provider: 'openrouter',
-            id: 'anthropic/claude-sonnet',
-            label: 'Claude Sonnet',
-            available: true,
-            unavailableReason: null,
-            capabilities: ['chat', 'streaming'],
-            privacy: 'external',
-          },
-        ],
-        providers: [],
-        defaultExternalProvider: 'openrouter',
-        globalDailyLimitUsd: null,
-      }
-      return real.aureonAi.catalog
-    }),
-    async *streamChat(opts: { prompt: string; chatKey: string | null; think?: boolean }) {
+    async *streamChat(opts: { message: string; agent?: string; chatKey: string | null }) {
       chat.calls.push(opts)
-      yield {
-        model: 'anthropic/claude-sonnet',
-        route: { provider: 'openrouter', model: 'anthropic/claude-sonnet' },
-      }
-      yield { thinking: 'Looking at the exports.' }
+      yield { meta: { conversationId: 'c-gh', agent: 'general' } }
       yield { text: 'It **exports** one constant.' }
-      yield { usage: { in: 50, out: 8 }, durationMs: 900 }
+      yield {
+        done: {
+          conversationId: 'c-gh',
+          messageId: 1,
+          costUsd: '0.0020',
+          steps: 1,
+          stopReason: 'end_turn',
+          approvals: [],
+        },
+      }
     },
   }
 })
@@ -79,6 +52,7 @@ vi.mock('@/ai/aureonChat', async (orig) => {
 import GithubAiView from './GithubAiView.vue'
 import { tradingSession } from '@/trading/session'
 import { aureonAi } from '@/ai/aureonChat'
+import { SYSTEM } from '@/github/workspace'
 
 const ok = (data: unknown, status = 200) => ({
   data,
@@ -119,8 +93,7 @@ describe('<GithubAiView />', () => {
     Object.values(gh).forEach((f) => f.mockReset())
     Object.values(api).forEach((f) => f.mockReset())
     chat.calls = []
-    aureonAi.think = false
-    aureonAi.targets = {}
+    aureonAi.conversations = {}
     Object.assign(tradingSession, {
       checked: true,
       user: { uid: 'u1', name: 'o', email: 'o@x', provider: 'aureon', initial: 'O', color: '#000' },
@@ -198,15 +171,13 @@ describe('<GithubAiView />', () => {
     await w.get('[data-testid="act-explain"]').trigger('click')
     await flushPromises()
     expect(chat.calls[0].chatKey).toBe('gh:svskhd/astra')
-    expect(chat.calls[0].prompt).toContain('`src/a.ts` in svskhd/astra@dev01')
+    expect(chat.calls[0].agent).toBe('general')
+    // A new repository conversation carries the review instructions, then the ask.
+    expect(chat.calls[0].message).toContain(SYSTEM.slice(0, 40))
+    expect(chat.calls[0].message).toContain('`src/a.ts` in svskhd/astra@dev01')
     const answer = w.get('[data-testid="ai-answer"]')
     expect(answer.html()).toContain('<strong>exports</strong>')
-    expect(answer.text()).toContain('Done in 900 ms')
-    // The pick stays with the repository's conversation after the first answer.
-    expect(aureonAi.targets['gh:svskhd/astra']).toEqual({
-      provider: 'openrouter',
-      model: 'anthropic/claude-sonnet',
-    })
+    expect(answer.text()).toContain('Claude · General agent')
   })
 
   it('requests a change on the server clone and approves its diff', async () => {

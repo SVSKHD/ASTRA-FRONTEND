@@ -12,7 +12,6 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import ToolRegistry from '@/components/hub/ToolRegistry.vue'
 import ConnectedServices from '@/components/hub/ConnectedServices.vue'
 import AgentPermissions from '@/components/hub/AgentPermissions.vue'
-import AgentProviders from '@/components/hub/AgentProviders.vue'
 import ExecutionHistory from '@/components/hub/ExecutionHistory.vue'
 import CollaborationTasks from '@/components/hub/CollaborationTasks.vue'
 import ApprovalRequests from '@/components/hub/ApprovalRequests.vue'
@@ -74,7 +73,6 @@ watch(
           <ConnectedServices :services="caps.services" />
         </template>
         <AgentPermissions />
-        <AgentProviders />
       </div>
       <div class="ah__col">
         <CollaborationTasks />

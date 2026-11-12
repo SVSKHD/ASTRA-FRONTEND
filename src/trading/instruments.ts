@@ -100,7 +100,7 @@ export async function searchInstruments(query: InstrumentQuery): Promise<Instrum
         query: {
           broker: query.broker ?? 'dhan',
           ...(q ? { q: q.slice(0, 64) } : {}),
-          ...(query.instrumentType ? { instrument_type: query.instrumentType } : {}),
+          ...(query.instrumentType ? { instrument_type: [query.instrumentType] } : {}),
           limit: query.limit ?? PAGE_SIZE,
           offset: query.offset ?? 0,
         },
