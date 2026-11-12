@@ -1,6 +1,6 @@
-// The Market Explorer against a stubbed API: server-side search and paging, the
-// page-only exchange/segment filters (and the note that says so), the detail
-// panel, add-to-watchlist, open-chart, and the empty and error states.
+// The Market Explorer against a stubbed API: server-side search, paging and
+// broker / exchange / segment filters, the detail panel, add-to-watchlist,
+// open-chart, and the empty and error states.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -49,9 +49,13 @@ function answer(url: URL): [number, unknown] {
     if (mode === 'empty') return [200, { items: [], total: 0, limit: 50, offset: 0 }]
     const q = (qp.get('q') ?? '').toUpperCase()
     const type = qp.get('instrument_type')
-    const rows = ALL.filter((i) => i.symbol.includes(q)).filter(
-      (i) => !type || i.instrument_type === type,
-    )
+    const exch = qp.get('exchange')
+    const seg = qp.get('segment')
+    const rows = ALL.filter((i) => i.symbol.includes(q))
+      .filter((i) => !type || i.instrument_type === type)
+      .filter((i) => !exch || i.exchange === exch)
+      .filter((i) => !seg || i.segment === seg)
+      .filter((i) => i.broker === (qp.get('broker') ?? 'dhan'))
     const limit = Number(qp.get('limit'))
     const offset = Number(qp.get('offset'))
     return [200, { items: rows.slice(offset, offset + limit), total: rows.length, limit, offset }]
@@ -72,6 +76,24 @@ function answer(url: URL): [number, unknown] {
           ts: new Date().toISOString(),
           source: 'broker',
         })),
+    ]
+  }
+  if (p === '/api/trading/brokers') {
+    return [
+      200,
+      [
+        {
+          broker: 'dhan',
+          label: 'Dhan',
+          configured: true,
+          instruments: 120,
+          segments: [
+            { segment: 'BSE_EQ', instruments: 24 },
+            { segment: 'NSE_EQ', instruments: 96 },
+          ],
+        },
+        { broker: 'mt5', label: 'MT5', configured: false, instruments: 0, segments: [] },
+      ],
     ]
   }
   if (p === '/api/trading/candles') return [200, []]
@@ -171,25 +193,30 @@ describe('Market Explorer', () => {
     await vi.waitFor(() => expect(lastSearch().get('instrument_type')).toBe('EQUITY'))
   })
 
-  it('filters exchange on the loaded page only, and says so', async () => {
+  it('filters exchange and segment on the server, across the whole master', async () => {
     const { w } = await mountExplorer()
     await sees(w, 'RELIANCE')
-    const before = instrumentCalls().length
-    expect(w.find('[data-testid="page-only-note"]').text()).toContain(
-      'apply to the loaded page, not the whole market',
-    )
     await w
       .findAll('[role="radio"]')
       .find((b) => b.text() === 'BSE')!
       .trigger('click')
-    await flushPromises()
-    // No new request: the API cannot filter by exchange.
-    expect(instrumentCalls().length).toBe(before)
-    const note = w.find('[data-testid="page-only-note"]').text()
-    expect(note).toContain('Filtered on this page only: showing 10 of the 50 rows loaded')
-    expect(note).toContain('§2')
+    await vi.waitFor(() => expect(lastSearch().get('exchange')).toBe('BSE'))
+    // The count is the server's, for the whole master: 24 BSE rows, not a page slice.
+    await sees(w, '24 instruments')
+    expect(lastSearch().get('offset')).toBe('0')
     expect(w.text()).toContain('TCS')
     expect(w.text()).not.toContain('RELIANCE')
+    expect(w.text()).not.toContain('this page only')
+  })
+
+  it('scopes the search to a broker, with counts from the server', async () => {
+    const { w } = await mountExplorer()
+    await sees(w, 'RELIANCE')
+    await vi.waitFor(() =>
+      expect(calls.some((u) => u.pathname === '/api/trading/brokers')).toBe(true),
+    )
+    expect(lastSearch().get('broker')).toBe('dhan')
+    await sees(w, 'Dhan · 120 instruments')
   })
 
   it('shows % change as — with the reason, and a freshness badge on quoted rows', async () => {

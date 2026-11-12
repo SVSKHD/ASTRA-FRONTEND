@@ -1,14 +1,44 @@
 <script setup lang="ts">
 import Select from '@/components/ui/Select.vue'
-// The stock watchlist: a flat, filterable list of symbols with a thesis, price
-// targets, tags and attached notes. Create/edit both live in ItemDialog.
-import { computed, ref } from 'vue'
+import SegmentedControl from '@/components/ui/SegmentedControl.vue'
+// Two views. "My stocks": the stock watchlist, a flat, filterable list of symbols
+// with a thesis, price targets, tags and attached notes (create/edit live in
+// ItemDialog). "All instruments": every instrument the server has from a broker
+// (Dhan's full master), searched and filtered on the server, with a chart a
+// click away. Both are read-only towards the broker: nothing here places orders.
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { SUCCESS, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import ListToolbar from '@/components/ListToolbar.vue'
 import type { Stock } from '@/types'
+
+const TradingExplorer = defineAsyncComponent(
+  () => import('@/components/trading/TradingExplorer.vue'),
+)
+
+type Mode = 'mine' | 'market'
+const MODES: { value: Mode; label: string }[] = [
+  { value: 'mine', label: 'My stocks' },
+  { value: 'market', label: 'All instruments' },
+]
+const MODE_KEY = 'aureon.stocks.mode.v1'
+function savedMode(): Mode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'market' ? 'market' : 'mine'
+  } catch {
+    return 'mine'
+  }
+}
+const mode = ref<Mode>(savedMode())
+watch(mode, (m) => {
+  try {
+    localStorage.setItem(MODE_KEY, m)
+  } catch {
+    // private window or blocked storage: the choice just is not remembered
+  }
+})
 
 const app = useAppStore()
 const { c, dark, s, panelStyle } = useStyles()
@@ -84,53 +114,61 @@ const filterBar = pxify({
   <div :style="panelStyle">
     <ListToolbar title="Stocks" new-label="Track stock" @new="app.openCreate('stock')" />
 
-    <div v-if="stocks.length" :style="filterBar">
-      <Select
-        :model-value="tagFilter"
-        @update:model-value="tagFilter = $event"
-        :options="[
-          { value: 'all', label: 'All tags' },
-          ...tags.map((t) => ({ value: String(t), label: t })),
-        ]"
-      />
-      <Select
-        :model-value="sortKey"
-        @update:model-value="sortKey = $event as typeof sortKey"
-        :options="[
-          { value: 'symbol', label: 'By symbol' },
-          { value: 'target', label: 'By target price' },
-          { value: 'updated', label: 'Recently updated' },
-        ]"
-      />
+    <div :style="filterBar">
+      <SegmentedControl v-model="mode" :options="MODES" size="sm" aria-label="Stocks view" />
     </div>
 
-    <div v-if="stocks.length === 0" :style="s.empty">Your watchlist is empty.</div>
-    <div v-else-if="view.length === 0" :style="s.empty">No stocks match this filter.</div>
-    <div :style="s.list">
-      <!-- Same as Ideas: the memo covers everything the row draws, plus the
-           theme the styles are derived from. -->
-      <div
-        v-for="t in view"
-        :key="t.id"
-        v-memo="[t.symbol, t.name, t.targetPrice, t.watchPrice, t.tag, t.noteIds.length, c]"
-        :style="row"
-        v-hover-style="s.rowHover"
-      >
-        <span :style="symBadge">{{ t.symbol }}</span>
-        <div :style="s.taskMain" @click="app.openEdit('stock', t.id)">
-          <span :style="s.dlTitle">{{ t.name || t.symbol }}</span>
-          <div :style="metaStyle">
-            <span v-if="t.targetPrice" :style="priceChip('target')">🎯 {{ t.targetPrice }}</span>
-            <span v-if="t.watchPrice" :style="priceChip('watch')">👁 {{ t.watchPrice }}</span>
-            <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
-            <span v-if="t.noteIds.length" :style="s.dlDate">
-              {{ t.noteIds.length }} note{{ t.noteIds.length === 1 ? '' : 's' }}
-            </span>
-          </div>
-        </div>
-        <button :style="s.shareBtn" @click="app.share('stock', t)">↗</button>
-        <button :style="s.del" @click="app.deleteWithUndo('stocks', 'stock', t.id)">×</button>
+    <TradingExplorer v-if="mode === 'market'" />
+
+    <template v-else>
+      <div v-if="stocks.length" :style="filterBar">
+        <Select
+          :model-value="tagFilter"
+          @update:model-value="tagFilter = $event"
+          :options="[
+            { value: 'all', label: 'All tags' },
+            ...tags.map((t) => ({ value: String(t), label: t })),
+          ]"
+        />
+        <Select
+          :model-value="sortKey"
+          @update:model-value="sortKey = $event as typeof sortKey"
+          :options="[
+            { value: 'symbol', label: 'By symbol' },
+            { value: 'target', label: 'By target price' },
+            { value: 'updated', label: 'Recently updated' },
+          ]"
+        />
       </div>
-    </div>
+
+      <div v-if="stocks.length === 0" :style="s.empty">Your watchlist is empty.</div>
+      <div v-else-if="view.length === 0" :style="s.empty">No stocks match this filter.</div>
+      <div :style="s.list">
+        <!-- Same as Ideas: the memo covers everything the row draws, plus the
+           theme the styles are derived from. -->
+        <div
+          v-for="t in view"
+          :key="t.id"
+          v-memo="[t.symbol, t.name, t.targetPrice, t.watchPrice, t.tag, t.noteIds.length, c]"
+          :style="row"
+          v-hover-style="s.rowHover"
+        >
+          <span :style="symBadge">{{ t.symbol }}</span>
+          <div :style="s.taskMain" @click="app.openEdit('stock', t.id)">
+            <span :style="s.dlTitle">{{ t.name || t.symbol }}</span>
+            <div :style="metaStyle">
+              <span v-if="t.targetPrice" :style="priceChip('target')">🎯 {{ t.targetPrice }}</span>
+              <span v-if="t.watchPrice" :style="priceChip('watch')">👁 {{ t.watchPrice }}</span>
+              <span v-if="t.tag" :style="chipStyle(t.tag)">{{ t.tag }}</span>
+              <span v-if="t.noteIds.length" :style="s.dlDate">
+                {{ t.noteIds.length }} note{{ t.noteIds.length === 1 ? '' : 's' }}
+              </span>
+            </div>
+          </div>
+          <button :style="s.shareBtn" @click="app.share('stock', t)">↗</button>
+          <button :style="s.del" @click="app.deleteWithUndo('stocks', 'stock', t.id)">×</button>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
