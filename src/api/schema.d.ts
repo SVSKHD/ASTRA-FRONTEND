@@ -5752,6 +5752,7 @@ export interface components {
             conversation_id?: string | null;
             /** Message */
             message: string;
+            workspace?: components["schemas"]["WorkspaceIn"] | null;
         };
         /** Claim */
         Claim: {
@@ -11037,6 +11038,70 @@ export interface components {
             production: boolean;
             /** State */
             state?: string | null;
+        };
+        /**
+         * WorkspaceIn
+         * @description Open items only, soonest first; the app decides what to send.
+         */
+        WorkspaceIn: {
+            /**
+             * Notes
+             * @default []
+             */
+            notes: components["schemas"]["WorkspaceNoteIn"][];
+            /**
+             * Reminders
+             * @default []
+             */
+            reminders: components["schemas"]["WorkspaceReminderIn"][];
+            /**
+             * Tasks
+             * @default []
+             */
+            tasks: components["schemas"]["WorkspaceTaskIn"][];
+            /**
+             * Todos
+             * @default []
+             */
+            todos: components["schemas"]["WorkspaceTodoIn"][];
+            /** Totals */
+            totals?: {
+                [key: string]: number;
+            };
+        };
+        /** WorkspaceNoteIn */
+        WorkspaceNoteIn: {
+            /** Title */
+            title: string;
+        };
+        /** WorkspaceReminderIn */
+        WorkspaceReminderIn: {
+            /** Repeat */
+            repeat?: string | null;
+            /** Start */
+            start?: string | null;
+            /** Title */
+            title: string;
+        };
+        /** WorkspaceTaskIn */
+        WorkspaceTaskIn: {
+            /** Deadline */
+            deadline?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Tag */
+            tag?: string | null;
+            /** Title */
+            title: string;
+        };
+        /** WorkspaceTodoIn */
+        WorkspaceTodoIn: {
+            /** Status */
+            status?: string | null;
+            /** Tag */
+            tag?: string | null;
+            /** Text */
+            text: string;
         };
         /** ApprovalOut */
         app__api__v1__ai__ApprovalOut: {

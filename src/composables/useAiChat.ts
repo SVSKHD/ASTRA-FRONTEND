@@ -11,6 +11,7 @@
 // (VITE_AI_PROXY_URL), a Netlify function that verifies the Supabase session,
 // injects the key, and streams back `data: {"text": …}` lines.
 
+import { workspaceSummary, type Suggestion } from '@/ai/workspace'
 import { computed, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { supabase } from '@/supabase'
@@ -438,6 +439,7 @@ async function sendAureon(
   abort = new AbortController()
   let failed = false
   const approvals: ApprovalEvent[] = []
+  const suggestions: Suggestion[] = []
   // The reply's steps (src/ai/steps.ts), for this visit.
   const tkey = traceKey(chatId, msgId)
   aiTraces[tkey] = startTrace(Date.now())
@@ -448,6 +450,13 @@ async function sendAureon(
       agent,
       chatKey: key,
       signal: abort.signal,
+      // Read-only: what is open in the workspace, so Claude can answer about it.
+      workspace: workspaceSummary({
+        todos: app.todos,
+        tasks: app.tasks,
+        reminders: app.reminders,
+        notes: app.notes,
+      }),
     })) {
       applyEvent(trace, evt)
       if (evt.meta) app.setAiMessageClaude(chatId, msgId, { agent: evt.meta.agent })
@@ -455,6 +464,10 @@ async function sendAureon(
       if (evt.approval) {
         approvals.push(evt.approval)
         app.setAiMessageClaude(chatId, msgId, { approvals: [...approvals] })
+      }
+      if (evt.suggestion) {
+        suggestions.push(evt.suggestion)
+        app.setAiMessageClaude(chatId, msgId, { suggestions: [...suggestions] })
       }
       if (evt.done) {
         // The answer arrives as text events; done repeats it whole. If no text event

@@ -31,6 +31,8 @@ const props = defineProps<{
   chatTitle: string
   /** The reply this is made from, so the reply records what it made. */
   from?: { chatId: number; msgId: number }
+  /** A prefill Claude suggested (src/ai/workspace.ts); still nothing is made until Add. */
+  preset?: AiActionDraft | null
 }>()
 // `created` carries what was made, for the quick look.
 const emit = defineEmits<{ close: []; created: [AiItemRef] }>()
@@ -38,7 +40,10 @@ const { createFromDraft } = useAiChat()
 
 const kinds = AI_ACTION_KINDS.map((k) => ({ value: k, label: AI_ACTION_META[k].label }))
 
-const draft = ref<AiActionDraft>(aiActionDraft(props.kind, src()))
+const draft = ref<AiActionDraft>(start())
+function start(): AiActionDraft {
+  return props.preset ? { ...props.preset } : aiActionDraft(props.kind, src())
+}
 function src() {
   return { reply: props.reply, chatTitle: props.chatTitle, now: Date.now() }
 }
@@ -47,7 +52,7 @@ function src() {
 watch(
   () => [props.open, props.kind] as const,
   ([open]) => {
-    if (open) draft.value = aiActionDraft(props.kind, src())
+    if (open) draft.value = start()
   },
 )
 

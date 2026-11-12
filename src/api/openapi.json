@@ -2735,6 +2735,16 @@
             "minLength": 1,
             "title": "Message",
             "type": "string"
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -19107,6 +19117,206 @@
           "production"
         ],
         "title": "WorkflowOut",
+        "type": "object"
+      },
+      "WorkspaceIn": {
+        "description": "Open items only, soonest first; the app decides what to send.",
+        "properties": {
+          "notes": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceNoteIn"
+            },
+            "maxItems": 20,
+            "title": "Notes",
+            "type": "array"
+          },
+          "reminders": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceReminderIn"
+            },
+            "maxItems": 50,
+            "title": "Reminders",
+            "type": "array"
+          },
+          "tasks": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceTaskIn"
+            },
+            "maxItems": 50,
+            "title": "Tasks",
+            "type": "array"
+          },
+          "todos": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceTodoIn"
+            },
+            "maxItems": 50,
+            "title": "Todos",
+            "type": "array"
+          },
+          "totals": {
+            "additionalProperties": {
+              "maximum": 100000.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "maxProperties": 8,
+            "propertyNames": {
+              "maxLength": 40
+            },
+            "title": "Totals",
+            "type": "object"
+          }
+        },
+        "title": "WorkspaceIn",
+        "type": "object"
+      },
+      "WorkspaceNoteIn": {
+        "properties": {
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "WorkspaceNoteIn",
+        "type": "object"
+      },
+      "WorkspaceReminderIn": {
+        "properties": {
+          "repeat": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "WorkspaceReminderIn",
+        "type": "object"
+      },
+      "WorkspaceTaskIn": {
+        "properties": {
+          "deadline": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "WorkspaceTaskIn",
+        "type": "object"
+      },
+      "WorkspaceTodoIn": {
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag"
+          },
+          "text": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "WorkspaceTodoIn",
         "type": "object"
       },
       "app__api__v1__ai__ApprovalOut": {

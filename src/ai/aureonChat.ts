@@ -14,11 +14,14 @@
 //   text      {delta}                           a piece of the answer
 //   tool      {name, status}                    a tool the agent used
 //   approval  {id, action, summary}             a write it asked to make
+//   suggestion {kind, fields}                  a todo/task/reminder/event/note card:
+//                                               saved only if the user confirms it
 //   done      {conversation_id, message_id, cost_usd, steps, stop_reason, approvals[]}
 //   error     {code, message}
 // plus `: ping` comments while the agent works. `streamChat` turns them into
 // the small event shape below; src/ai/steps.ts folds them into the visible steps.
 
+import { isSuggestion, type Suggestion, type WorkspaceIn } from '@/ai/workspace'
 import { reactive, watch } from 'vue'
 import { aureon, type components } from '@/api/client'
 import { apiUrl } from '@/api/config'
@@ -227,6 +230,8 @@ export interface ApprovalEvent {
   action: string
   summary: string
 }
+export type { Suggestion } from '@/ai/workspace'
+
 export interface DoneEvent {
   conversationId: string
   messageId: number | null
@@ -244,6 +249,7 @@ export interface ChatEvent {
   text?: string
   tool?: ToolEvent
   approval?: ApprovalEvent
+  suggestion?: Suggestion
   done?: DoneEvent
   error?: { code: string; message: string }
 }
@@ -271,6 +277,8 @@ export function readEvent(name: string, raw: string): ChatEvent | null {
       return {
         approval: { id: str(d.id), action: str(d.action), summary: str(d.summary) },
       }
+    case 'suggestion':
+      return isSuggestion(d) ? { suggestion: { kind: d.kind, fields: d.fields } } : null
     case 'done':
       return {
         done: {
@@ -302,6 +310,8 @@ export async function* streamChat(opts: {
   chatKey: string | null
   signal?: AbortSignal
   fetchImpl?: typeof fetch
+  /** The user's open items, read-only context for Claude (src/ai/workspace.ts). */
+  workspace?: WorkspaceIn
 }): AsyncGenerator<ChatEvent> {
   const doFetch = opts.fetchImpl ?? fetch
   const post = (conversationId: string | undefined) => {
@@ -315,6 +325,7 @@ export async function* streamChat(opts: {
       message: opts.message.slice(0, MAX_CONTENT),
       ...(conversationId ? { conversation_id: conversationId } : {}),
       ...(opts.agent && opts.agent !== 'auto' ? { agent: opts.agent } : {}),
+      ...(opts.workspace ? { workspace: opts.workspace } : {}),
     }
     return doFetch(apiUrl('/api/ai/chat'), {
       method: 'POST',

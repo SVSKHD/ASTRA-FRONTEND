@@ -65,6 +65,34 @@ describe('<AiView /> on Claude', () => {
     expect(w.find('[data-testid="reply-model"]').exists()).toBe(false)
   })
 
+  it('shows a suggested reminder as a card that adds nothing until confirmed', async () => {
+    const app = useAppStore()
+    const id = app.newAiChat()
+    app.addAiMessage(id, { role: 'user', content: 'Remind me to call Ravi tomorrow at 10' })
+    app.addAiMessage(id, {
+      role: 'assistant',
+      content: 'I suggested a reminder.',
+      agent: 'general',
+      suggestions: [
+        { kind: 'reminder', fields: { title: 'Call Ravi', date: '2026-11-13', time: '10:00' } },
+      ],
+    })
+    const before = app.reminders.length
+    const w = mount(AiView, { global, attachTo: document.body })
+    const card = w.get('[data-testid="suggestion-card"]')
+    expect(card.text()).toContain('Suggested')
+    expect(card.text()).toContain('Reminder · Call Ravi · 2026-11-13, 10:00')
+    await card.get('button').trigger('click')
+    // The usual Add dialog, prefilled; still nothing created.
+    expect(document.body.textContent ?? '').toContain('Add from this reply')
+    const title = [...document.body.querySelectorAll('input')].find(
+      (i) => (i as HTMLInputElement).value === 'Call Ravi',
+    )
+    expect(title).toBeTruthy()
+    expect(app.reminders.length).toBe(before)
+    w.unmount()
+  })
+
   it('stores the agent picked for the open chat', async () => {
     const app = useAppStore()
     const id = app.newAiChat()
