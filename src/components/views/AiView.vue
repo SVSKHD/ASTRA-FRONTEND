@@ -1560,7 +1560,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
             <input
               ref="fileInput"
               type="file"
-              class="ai-file-input"
+              hidden
               multiple
               :accept="ACCEPT"
               aria-label="Attach files"
@@ -2654,9 +2654,6 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
 }
 /* The mic: a quiet round button beside Send; listening, it fills and pulses. */
 /* ---- attachments: chips above the composer, and under a sent message ---- */
-.ai-file-input {
-  display: none;
-}
 .ai-files {
   display: flex;
   flex-wrap: wrap;
@@ -2684,6 +2681,7 @@ const CTX_ICONS: Record<AiContextKey, IconName> = {
   color: var(--theme-danger);
 }
 .ai-file__name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
