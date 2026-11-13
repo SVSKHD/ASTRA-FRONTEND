@@ -29,6 +29,7 @@ import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { TABS, TAB_ORDER } from '@/tabs.config'
 import TabGlyph from '@/components/TabGlyph.vue'
+import { tabUrl } from '@/utils/lastTab'
 import Icon from '@/components/ui/Icon.vue'
 import type { TabKey } from '@/types'
 
@@ -84,8 +85,8 @@ function settle() {
   clearTimeout(changeTimer)
   const commit = () => {
     if (tab.value !== centred.value) ui.setTab(centred.value)
-    // On /settings the tab may already be this one: picking it still means home.
-    else if (router && router.currentRoute.value.path !== '/') void router.push('/')
+    // On /settings the tab may already be this one: picking it goes to its address.
+    else if (onSettings.value) void router?.push(tabUrl(centred.value))
   }
   if (CHANGE_MS === 0) commit()
   else changeTimer = setTimeout(commit, CHANGE_MS)

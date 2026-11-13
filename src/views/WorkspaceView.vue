@@ -390,10 +390,8 @@ function onResume() {
 // /tasks/:id/view is a real route now, so the open task follows route params
 // rather than a hand-parsed popstate handler.
 const route = useRoute()
-// On /settings, choosing a tab (dock, tab bar, keyboard) means leaving Settings for it.
-watch(tab, () => {
-  if (onSettings.value) void router.push('/')
-})
+// On /settings, choosing a different tab leaves Settings by itself: useTabRoute
+// writes that tab's address. No push here: a second navigation cancels that one.
 const importedTransferRoutes = new Set<string>()
 watch(
   () => (route.name === 'task-view' ? String(route.params.id ?? '') : ''),

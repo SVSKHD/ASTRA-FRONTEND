@@ -25,6 +25,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
 import { PRIMARY_TABS, SECONDARY_TABS } from '@/tabs.config'
 import TabGlyph from '@/components/TabGlyph.vue'
+import { tabUrl } from '@/utils/lastTab'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import Icon from '@/components/ui/Icon.vue'
 import ShellSync from '@/components/shell/ShellSync.vue'
@@ -84,8 +85,8 @@ const badges = computed<Partial<Record<TabKey, number>>>(() => {
 function go(key: TabKey) {
   ui.setMoreSheet(false)
   if (tab.value !== key) ui.setTab(key)
-  // On /settings the tab may already be this one: going to it still means home.
-  else if (router.currentRoute.value.path !== '/') void router.push('/')
+  // On /settings the tab may already be this one: going to it means its address.
+  else if (onSettings.value) void router.push(tabUrl(key))
 }
 
 // --- the utilities, from the More sheet ---------------------------------------

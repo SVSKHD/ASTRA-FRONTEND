@@ -8,6 +8,8 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import FloatingDock from '@/components/FloatingDock.vue'
 import MobileTabBar from '@/components/shell/MobileTabBar.vue'
 import { useUiStore } from '@/stores/ui'
+import { PRIMARY_TABS } from '@/tabs.config'
+import { tabUrl } from '@/utils/lastTab'
 
 async function routerAt(path: string) {
   const router = createRouter({
@@ -69,5 +71,20 @@ describe('Settings as the current page', () => {
     expect(w.findAll('.mtb__item[aria-current="page"]').length).toBe(0)
     const more = w.findAll('.mtb__item').find((b) => b.attributes('aria-label') === 'More')!
     expect(more.classes()).toContain('is-on')
+  })
+  // Leaving Settings for the tab that was already current must still leave: it
+  // used to push a bare `/`, which the router sent back to the stored /settings.
+  it('on a phone: the current tab leaves /settings for its own address', async () => {
+    const key = PRIMARY_TABS[0]!.key
+    useUiStore().setTab(key)
+    const router = await routerAt('/settings')
+    w = mount(MobileTabBar, {
+      attachTo: document.body,
+      global: { plugins: [router], stubs: { ShellSync: true, AccountMenu: true } },
+    })
+    await flushPromises()
+    await w.findAll('.mtb__item')[0]!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe(tabUrl(key))
   })
 })

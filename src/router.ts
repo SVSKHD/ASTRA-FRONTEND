@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { START_LOCATION, createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { rememberDhanReturn } from '@/control/dhanReturn'
 import { PLURAL } from '@/utils/share'
 import { useUiStore } from '@/stores/ui'
@@ -214,7 +214,7 @@ export const router = createRouter({
  * was on. Silently: a stored path that no longer resolves simply does not
  * redirect, and the workspace opens on whatever it opens on.
  */
-router.beforeEach((to) => {
+router.beforeEach((to, from) => {
   // Dhan sent the browser back (?dhan_login=ready): remember it before any sign-in step can
   // drop the query string, so /dev/settings finishes the login after the admin signs in.
   // Only a marker; never redirects.
@@ -223,7 +223,10 @@ router.beforeEach((to) => {
   // path differed from the stored route — so reloading on `/?tab=todo` could be
   // sent somewhere else entirely (a task page, a stale tab) when the stored
   // route had fallen behind the address bar. A URL that says where it is wins.
-  if (to.path === '/' && Object.keys(to.query).length === 0) {
+  // And only on arrival (a load or reload), not when the app itself goes to `/`:
+  // the stored route is then the page being left, so leaving /settings for `/`
+  // was sent straight back to /settings.
+  if (from === START_LOCATION && to.path === '/' && Object.keys(to.query).length === 0) {
     const last = sessionRead(LAST_ROUTE_KEY)
     if (last && last !== to.fullPath && router.resolve(last).name !== 'not-found') {
       return last
