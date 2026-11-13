@@ -57,6 +57,21 @@ describe('routes', () => {
     expect(r.resolve('/').name).toBe('workspace')
   })
 
+  it('resolves /settings to its own record, not the control center', async () => {
+    const r = await makeRouter()
+    expect(r.resolve('/settings').name).toBe('settings')
+  })
+
+  // An alias of / was cancelled as a duplicate navigation: the dock's Settings did nothing.
+  it('navigates from / to /settings and back', async () => {
+    const r = await makeRouter()
+    await r.push('/')
+    await r.push('/settings')
+    expect(r.currentRoute.value.path).toBe('/settings')
+    await r.push('/')
+    expect(r.currentRoute.value.path).toBe('/')
+  })
+
   it('resolves the forgiving task transfer route', async () => {
     const r = await makeRouter()
     expect(r.resolve('/tab?=todo=read').name).toBe('tab-transfer')

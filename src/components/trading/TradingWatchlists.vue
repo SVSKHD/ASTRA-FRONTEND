@@ -26,6 +26,7 @@ import { describe, type Instrument } from '@/trading/instruments'
 import { changeOf, fetchQuotes, NO_CHANGE_REASON, quoteView, type QuoteOut } from '@/trading/quotes'
 import { remember, resolveItems, type Resolution } from '@/trading/resolve'
 import { chartPath, pathFor } from '@/trading/sections'
+import { useLiveQuotes } from '@/trading/liveQuotes'
 import { connect, live } from '@/trading/stream'
 import { ApiFailure } from '@/trading/useLoad'
 import {
@@ -175,19 +176,23 @@ watch(
   { immediate: true },
 )
 
+// Stream ticks reach the list at most once a second (see useLiveQuotes).
+const streamQuotes = useLiveQuotes(() => current.value?.items.map((i) => i.id) ?? [])
+
 interface Row {
   item: WatchlistItem
   res: Resolution | undefined
   instrument: Instrument | null
   quote: ReturnType<typeof quoteView>
   flag: { tone: 'danger' | 'warning' | 'neutral'; label: string; text: string } | null
+  change: { text: string; title: string }
 }
 const rows = computed<Row[]>(() =>
   (current.value?.items ?? []).map((item) => {
     const res = resolution.value.get(item.id)
     const instrument = res?.status === 'ok' ? res.instrument : null
     const quote = quoteView(
-      live.quotes[item.id],
+      streamQuotes.value.get(item.id),
       instrument ? snapshots.value.get(instrument.broker_instrument_id) : undefined,
       live.status,
       now.value,
@@ -208,7 +213,7 @@ const rows = computed<Row[]>(() =>
         text: `The broker returned no quote for ${res.instrument.broker_instrument_id}.`,
       }
     }
-    return { item, res, instrument, quote, flag }
+    return { item, res, instrument, quote, flag, change: changeCell(quote) }
   }),
 )
 const flagged = computed(() => rows.value.filter((r) => r.flag && r.flag.tone !== 'neutral').length)
@@ -237,8 +242,8 @@ function openChart(id: number) {
 const screenerLink = computed(() =>
   current.value ? pathFor('screener', { watchlist: current.value.id }) : '',
 )
-function changeCell(r: Row) {
-  const c = r.quote ? changeOf(r.quote.last, r.quote.previousClose) : null
+function changeCell(quote: Row['quote']): Row['change'] {
+  const c = quote ? changeOf(quote.last, quote.previousClose) : null
   return c ? { text: `${c.pct}%`, title: c.change } : { text: '—', title: NO_CHANGE_REASON }
 }
 </script>
@@ -383,7 +388,7 @@ function changeCell(r: Row) {
                 </div>
                 <div class="wl__item-quote tp-num">
                   <span class="wl__price">{{ dec(r.quote?.last) }}</span>
-                  <span class="tp-note" :title="changeCell(r).title">{{ changeCell(r).text }}</span>
+                  <span class="tp-note" :title="r.change.title">{{ r.change.text }}</span>
                   <span class="tp-note" :title="r.quote ? when(r.quote.at) : 'No quote'">{{
                     r.quote ? ago(r.quote.at, now) : '—'
                   }}</span>

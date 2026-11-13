@@ -14,8 +14,11 @@
 // once — one click, a toast, no separate Save — since the choice is the whole
 // change. Typed values keep Save (and Enter).
 //
-// Under it, one meta row: where the value comes from (Badge), an unsaved marker,
-// and the row's actions (Save only when changed, Discard, Revert to .env, Copy key).
+// Under it, ONE status line: where the value comes from (Badge), the value in use as
+// a small mono chip, when it changed, and the row's actions (Reveal, Edit as text,
+// Save only when changed, Discard, Revert to .env, Copy key). The full code block
+// appears only where it earns its height: a JSON or long value, and a secret while
+// it is revealed.
 //
 // The server sends the full value of a non-secret: each editor starts from it, and
 // the value in use is shown as a code block under the field. "Edit as text" edits
@@ -202,6 +205,27 @@ const cronWords = computed(() => (shown.value ? cronToWords(shown.value) : ''))
 /** The budgets editor starts from the saved split when the server sent it. */
 const budgetStart = computed(() =>
   current.value !== null ? (parseBudgets(current.value) ?? props.budgetSeed) : props.budgetSeed,
+)
+
+// --- the value in use: a chip on the status line when it is short, else a code block --------
+const INLINE_MAX = 80
+// The editors start from the value in use, so it is shown separately only while
+// there is an unsaved change: then it is what the change is compared against.
+const inlineValue = computed<string | null>(() => {
+  if (!dirty.value || props.row.is_secret || editor.value === 'model') return null
+  const v = current.value
+  if (v === null) return ''
+  if (props.row.kind === 'json_object' || props.row.kind === 'json_list') return null
+  return v.length <= INLINE_MAX && !v.includes('\n') ? v : null
+})
+const showBlock = computed(
+  () =>
+    editor.value !== 'managed' &&
+    ((props.row.is_secret && !!revealed.value) ||
+      (dirty.value &&
+        !props.row.is_secret &&
+        editor.value !== 'model' &&
+        inlineValue.value === null)),
 )
 
 // --- edit as text: the exact value in a code editor, for every non-secret --------------------
@@ -441,7 +465,7 @@ const shownMessage = computed(() =>
       <Icon name="calendar-clock" size="xs" /> {{ cronWords }}
     </p>
 
-    <div v-if="editor !== 'managed'" class="sf__value" data-testid="value-in-use">
+    <div v-if="showBlock" class="sf__value" data-testid="value-in-use">
       <ValueBlock
         :value="row.is_secret ? (revealed?.live ?? null) : current"
         :masked="row.is_secret ? row.masked : null"
@@ -449,7 +473,22 @@ const shownMessage = computed(() =>
         :label="row.is_secret && revealed ? `In use · hidden in ${revealSecondsLeft}s` : 'In use'"
         :empty="row.source === 'unset' ? 'Not set' : 'Empty'"
       />
-      <span class="sf__value-actions">
+    </div>
+
+    <div v-if="editor !== 'managed'" class="sf__meta">
+      <Badge v-bind="sourceChip(row)" />
+      <Badge v-if="expiryChip(row)" v-bind="expiryChip(row)!" />
+      <Badge v-if="dirty" tone="info" label="Unsaved" data-testid="unsaved-dot" />
+      <span
+        v-if="inlineValue !== null"
+        class="sf__chip ui-mono"
+        :class="{ 'is-empty': !inlineValue }"
+        :title="inlineValue ? `In use: ${inlineValue}` : 'Nothing in use'"
+        data-testid="value-in-use"
+        >{{ inlineValue || (row.source === 'unset' ? 'Not set' : 'Empty') }}</span
+      >
+      <span v-if="row.updated_at" class="sf__when">changed {{ when(row.updated_at) }}</span>
+      <span class="sf__actions">
         <Button
           v-if="row.is_secret && row.is_set && !revealed"
           size="sm"
@@ -476,15 +515,6 @@ const shownMessage = computed(() =>
           @click="toggleText"
           ><Icon name="code" size="xs" />{{ asText ? 'Use the editor' : 'Edit as text' }}</Button
         >
-      </span>
-    </div>
-
-    <div v-if="editor !== 'managed'" class="sf__meta">
-      <Badge v-bind="sourceChip(row)" />
-      <Badge v-if="expiryChip(row)" v-bind="expiryChip(row)!" />
-      <Badge v-if="dirty" tone="info" label="Unsaved" data-testid="unsaved-dot" />
-      <span v-if="row.updated_at" class="sf__when">changed {{ when(row.updated_at) }}</span>
-      <span class="sf__actions">
         <Button
           v-if="dirty"
           size="sm"
@@ -586,14 +616,28 @@ const shownMessage = computed(() =>
   gap: var(--sp-1);
   min-width: 0;
 }
-.sf__value-actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
-  min-width: 0;
-}
 .sf__raw :deep(textarea) {
   font-family: var(--font-mono);
+}
+/* The value in use, small and copyable by selection: home's mono for data. */
+.sf__chip {
+  max-width: min(100%, 26rem);
+  min-width: 0;
+  padding: 1px var(--sp-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--text-primary, var(--theme-text));
+  user-select: all;
+}
+.sf__chip.is-empty {
+  color: var(--text-secondary, var(--theme-dim));
+  font-style: italic;
+  user-select: none;
 }
 .sf__meta {
   display: flex;

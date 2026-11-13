@@ -18,10 +18,14 @@
 // The parse and the tag work the same; only the list it adds to differs. A
 // milestone takes the typed date as its target and has no reminder, so the
 // time, priority and repeat chips are not offered for it.
+//
+// A reminder (`reminders`) is the text itself: the typed time is when it rings,
+// or the next whole hour when none is typed, and the details hold its note.
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { parseQuickAdd, quickAddReminderStart } from '@/utils/quickAdd'
+import { defaultStart, whenLabel } from '@/utils/reminderView'
 import TextInput from '@/components/ui/TextInput.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import Icon from '@/components/ui/Icon.vue'
@@ -29,7 +33,7 @@ import Chip from '@/components/ui/Chip.vue'
 import TagPicker from '@/components/TagPicker.vue'
 import CollapseTransition from '@/components/ui/CollapseTransition.vue'
 
-type QuickCollection = 'todos' | 'tasks' | 'ideas' | 'goals'
+type QuickCollection = 'todos' | 'tasks' | 'ideas' | 'goals' | 'reminders'
 
 const props = withDefaults(
   defineProps<{
@@ -46,7 +50,11 @@ const props = withDefaults(
   { compact: false, collection: 'todos', parentId: null },
 )
 const isSub = computed(
-  () => props.parentId != null && props.collection !== 'ideas' && props.collection !== 'goals',
+  () =>
+    props.parentId != null &&
+    props.collection !== 'ideas' &&
+    props.collection !== 'goals' &&
+    props.collection !== 'reminders',
 )
 const emit = defineEmits<{ added: [id: number] }>()
 
@@ -57,12 +65,14 @@ const NOUN: Record<QuickCollection, string> = {
   tasks: 'task',
   ideas: 'idea',
   goals: 'milestone',
+  reminders: 'reminder',
 }
 const EXAMPLE: Record<QuickCollection, string> = {
   todos: 'Call vendor fri 5pm #CRM !high',
   tasks: 'Ship invoice export fri #Billing',
   ideas: 'Referral rewards #Growth',
   goals: 'Learn Rust by dec 31 #Learning',
+  reminders: 'Pay rent tomorrow 9am every month !high',
 }
 const noun = computed(() => (isSub.value ? 'subtask' : NOUN[props.collection]))
 // "an idea", "a todo", "a task".
@@ -82,8 +92,21 @@ const chips = computed(() =>
         .map((ch) =>
           ch.kind === 'date' ? { ...ch, icon: 'flag' as const, text: `Target ${ch.text}` } : ch,
         )
-    : parsed.value.chips,
+    : props.collection === 'reminders'
+      ? reminderChips()
+      : parsed.value.chips,
 )
+// A reminder has no tag, and always has a time: the typed one, or the default,
+// shown as a chip so it is never a surprise.
+function reminderChips() {
+  const kept = parsed.value.chips.filter((ch) => ch.kind !== 'tag')
+  if (!text.value.trim() || quickAddReminderStart(parsed.value)) return kept
+  const at = new Date(defaultStart(Date.now())).getTime()
+  return [
+    ...kept,
+    { kind: 'time' as const, icon: 'clock' as const, text: whenLabel(at, Date.now()) },
+  ]
+}
 const field = ref<InstanceType<typeof TextInput> | null>(null)
 
 const detailsOpen = ref(false)
@@ -108,6 +131,19 @@ function submit() {
     })
     reset()
     emit('added', gid)
+    return
+  }
+  if (props.collection === 'reminders') {
+    const rid = app.addReminder({
+      title: q.title,
+      note: description.value.trim(),
+      start: quickAddReminderStart(q) ?? defaultStart(Date.now()),
+      repeat: q.repeat ? { type: q.repeat, n: 1 } : { type: 'none' },
+      priority: q.priority ?? 'normal',
+    })
+    if (rid == null) return
+    reset()
+    emit('added', rid)
     return
   }
   // New items enter at the top of the list, where the reader is looking.
@@ -155,8 +191,8 @@ function submit() {
 // ready for the next one, and the id to whoever is listening.
 function finish(q: ReturnType<typeof parseQuickAdd>, id: number) {
   const start = quickAddReminderStart(q)
-  // Milestones return before reaching here; the guard narrows the type.
-  if (start && props.collection !== 'goals') {
+  // Milestones and reminders return before reaching here; the guard narrows the type.
+  if (start && props.collection !== 'goals' && props.collection !== 'reminders') {
     app.createReminderFromItem(props.collection, id, {
       start,
       repeat: q.repeat ? { type: q.repeat, n: 1 } : { type: 'none' },
@@ -198,7 +234,15 @@ defineExpose({
           class="qa__plus"
           :class="{ 'has-details': hasDetails }"
           :aria-expanded="detailsOpen"
-          :aria-label="detailsOpen ? 'Hide description and tag' : 'Add a description and a tag'"
+          :aria-label="
+            collection === 'reminders'
+              ? detailsOpen
+                ? 'Hide note'
+                : 'Add a note'
+              : detailsOpen
+                ? 'Hide description and tag'
+                : 'Add a description and a tag'
+          "
           :title="detailsOpen ? 'Hide details' : 'Description and tag'"
           @click="detailsOpen = !detailsOpen"
         >
@@ -234,13 +278,17 @@ defineExpose({
           <!-- Both fields draw their own labels, the same ones the dialog shows. -->
           <TextArea
             v-model="description"
-            label="Description"
+            :label="collection === 'reminders' ? 'Note' : 'Description'"
             size="sm"
             :rows="2"
-            placeholder="What this is about, for the details pane"
+            :placeholder="
+              collection === 'reminders'
+                ? 'Anything to know when it rings'
+                : 'What this is about, for the details pane'
+            "
             @keydown.esc="onEscape"
           />
-          <TagPicker v-model="tag" label="Tag" />
+          <TagPicker v-if="collection !== 'reminders'" v-model="tag" label="Tag" />
         </div>
       </CollapseTransition>
     </div>

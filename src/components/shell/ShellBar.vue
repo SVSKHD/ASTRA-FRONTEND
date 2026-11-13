@@ -54,9 +54,11 @@ function openGithub() {
   ui.openShellPanel(null, avatarMenuOpen)
   auth.openGithubPanel()
 }
-// Settings live in the control center (/settings → /dev/settings): close any
+// Settings are on /settings, the home stage (views/SettingsHome.vue): close any
 // open panel, then go there.
 const router = useRouter()
+// Its button is the current page there (`?.`: the bar also mounts without a router).
+const onSettings = computed(() => router?.currentRoute?.value?.path === '/settings')
 function openSettings() {
   ui.openShellPanel(null, avatarMenuOpen)
   void router.push('/settings')
@@ -218,6 +220,8 @@ const groupLabel = computed(() => pxify({ ...typeStep('2xs'), color: c.value.dim
       <button
         type="button"
         class="pill-btn"
+        :class="{ 'is-on': onSettings }"
+        :aria-current="onSettings ? 'page' : undefined"
         aria-label="Settings"
         title="Settings"
         data-testid="pill-settings"

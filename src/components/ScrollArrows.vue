@@ -4,7 +4,7 @@
 // follows replies with its own ref). Place it beside the scroller, inside an
 // ancestor with `position: relative` (the scroller's offsetParent): the arrows
 // line up with the scroller's own edges, an arrow shows only while there is
-// more that way, and a tap scrolls most of a page. Give the scroller the
+// more that way, as an indicator (taps pass through to the content). Give the scroller the
 // global `scroll-arrows-target` class (style.css) to hide its own bar.
 import { onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
@@ -68,35 +68,25 @@ onBeforeUnmount(() => {
   detach()
   if (frame != null) cancelAnimationFrame(frame)
 })
-
-function page(dir: 1 | -1) {
-  el?.scrollBy({ top: dir * el.clientHeight * 0.8, behavior: 'smooth' })
-}
 </script>
 
 <template>
-  <button
+  <span
     v-if="above"
-    type="button"
+    aria-hidden="true"
     class="scroll-arrows scroll-arrows--up"
     :style="{ top: box.top + 'px', left: box.center + 'px' }"
-    aria-label="Scroll up"
-    title="Scroll up"
-    @click="page(-1)"
   >
     <Icon name="chevron-down" size="sm" />
-  </button>
-  <button
+  </span>
+  <span
     v-if="below"
-    type="button"
+    aria-hidden="true"
     class="scroll-arrows scroll-arrows--down"
     :style="{ top: box.bottom + 'px', left: box.center + 'px' }"
-    aria-label="Scroll down"
-    title="Scroll down"
-    @click="page(1)"
   >
     <Icon name="chevron-down" size="sm" />
-  </button>
+  </span>
 </template>
 
 <style scoped>
@@ -107,20 +97,17 @@ function page(dir: 1 | -1) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border, var(--glass-border));
   background: var(--surface-overlay, var(--theme-card));
   color: var(--accent, var(--theme-accent));
   box-shadow: var(--layer-raised-shadow, none);
-  cursor: pointer;
-  opacity: 0.92;
+  pointer-events: none;
+  opacity: 0.75;
   transition: opacity 0.15s ease;
-}
-.scroll-arrows:hover {
-  opacity: 1;
 }
 .scroll-arrows--up {
   transform: translateX(-50%) rotate(180deg);

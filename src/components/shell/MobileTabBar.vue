@@ -25,6 +25,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useStyles } from '@/composables/useStyles'
 import { PRIMARY_TABS, SECONDARY_TABS } from '@/tabs.config'
 import TabGlyph from '@/components/TabGlyph.vue'
+import { tabUrl } from '@/utils/lastTab'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import Icon from '@/components/ui/Icon.vue'
 import ShellSync from '@/components/shell/ShellSync.vue'
@@ -41,6 +42,10 @@ const { avatarMenuOpen, avatarInitial, avatarColor } = storeToRefs(auth)
 const { c } = useStyles()
 
 const moreActive = computed(() => SECONDARY_TABS.some((t) => t.key === tab.value))
+// /settings shows Settings on the stage, not a tab (router is set up further down).
+const onSettings = computed(() => router?.currentRoute?.value?.path === '/settings')
+/** The tab that is the current page: none while Settings is on the stage. */
+const current = computed(() => (onSettings.value ? null : tab.value))
 
 // --- hide on scroll down, show on scroll up ------------------------------------
 // A small dead zone so a finger resting on the glass does not flicker the bar,
@@ -80,6 +85,8 @@ const badges = computed<Partial<Record<TabKey, number>>>(() => {
 function go(key: TabKey) {
   ui.setMoreSheet(false)
   if (tab.value !== key) ui.setTab(key)
+  // On /settings the tab may already be this one: going to it means its address.
+  else if (onSettings.value) void router.push(tabUrl(key))
 }
 
 // --- the utilities, from the More sheet ---------------------------------------
@@ -104,7 +111,7 @@ function openGithub() {
   ui.setMoreSheet(false)
   auth.openGithubPanel()
 }
-// Settings live in the control center (/settings → /dev/settings).
+// Settings are on /settings, the home stage (views/SettingsHome.vue).
 const router = useRouter()
 function openSettings() {
   ui.setMoreSheet(false)
@@ -134,8 +141,8 @@ const avatarDisc = computed(() => ({
       :key="t.key"
       type="button"
       class="mtb__item"
-      :class="{ 'is-on': tab === t.key }"
-      :aria-current="tab === t.key ? 'page' : undefined"
+      :class="{ 'is-on': current === t.key }"
+      :aria-current="current === t.key ? 'page' : undefined"
       :aria-label="t.label"
       :title="t.label"
       @click="go(t.key)"
@@ -143,9 +150,9 @@ const avatarDisc = computed(() => ({
       <span class="mtb__cap">
         <TabGlyph
           :name="t.key"
-          :filled="tab === t.key"
+          :filled="current === t.key"
           :size="24"
-          :col="tab === t.key ? c.accent : c.dim"
+          :col="current === t.key ? c.accent : c.dim"
           :ko="c.card"
         />
         <span v-if="badges[t.key]" class="mtb__dot"></span>
@@ -154,7 +161,7 @@ const avatarDisc = computed(() => ({
     <button
       type="button"
       class="mtb__item"
-      :class="{ 'is-on': moreActive || moreSheetOpen }"
+      :class="{ 'is-on': moreActive || moreSheetOpen || onSettings }"
       :aria-expanded="moreSheetOpen"
       aria-label="More"
       title="More"
@@ -195,6 +202,8 @@ const avatarDisc = computed(() => ({
       <button
         type="button"
         class="mtb-more__item"
+        :class="{ 'is-on': onSettings }"
+        :aria-current="onSettings ? 'page' : undefined"
         data-testid="more-settings"
         @click="openSettings"
       >
@@ -209,14 +218,14 @@ const avatarDisc = computed(() => ({
         :key="t.key"
         type="button"
         class="mtb-more__item"
-        :class="{ 'is-on': tab === t.key }"
+        :class="{ 'is-on': current === t.key }"
         @click="go(t.key)"
       >
         <TabGlyph
           :name="t.key"
-          :filled="tab === t.key"
+          :filled="current === t.key"
           :size="22"
-          :col="tab === t.key ? c.accent : c.dim"
+          :col="current === t.key ? c.accent : c.dim"
           :ko="c.card"
         />
         <span>{{ t.label }}</span>

@@ -8,7 +8,7 @@
 // to Dhan, and nothing places orders: history is read-only market data. The
 // chart's usual refresh picks the candles up once they are stored.
 
-import { aureon } from '@/api/client'
+import { aureon, type components } from '@/api/client'
 import type { Timeframe } from '@/trading/chartView'
 
 /** Dhan serves history for these timeframes only (backend market_data.check_request). */
@@ -69,4 +69,59 @@ export async function requestHistory(instrumentId: number, tf: Timeframe): Promi
   }
   asked.set(key, out)
   return out
+}
+
+export type BackfillOut = components['schemas']['BackfillOut']
+
+/**
+ * What became of the newest history request for this instrument and timeframe,
+ * as the server reports it (GET /api/trading/candles/backfill): queued, running,
+ * done (with how many bars) or failed (with the broker's error). Null when there
+ * is none, or the list could not be read.
+ */
+export async function historyStatus(
+  instrumentId: number,
+  tf: Timeframe,
+): Promise<BackfillOut | null> {
+  try {
+    const { data } = await aureon.GET('/api/trading/candles/backfill', {
+      params: { query: { instrument_id: instrumentId, limit: 20 } },
+    })
+    return data?.items.find((r) => r.timeframe === tf) ?? null
+  } catch {
+    return null
+  }
+}
+
+/** A request queued this long with nothing picking it up: no worker is working the queue. */
+export const STUCK_MS = 45_000
+
+/**
+ * The chart's sentence for a request's state. `waiting` keeps the chart looking
+ * again; otherwise it stops and says why.
+ */
+export function explainHistory(
+  r: Pick<BackfillOut, 'status' | 'error' | 'candles' | 'created_at' | 'started_at'>,
+  now: number = Date.now(),
+): { waiting: boolean; text: string } {
+  if (r.status === 'running') return { waiting: true, text: 'Fetching this range from the broker…' }
+  if (r.status === 'queued') {
+    const age = now - Date.parse(r.created_at)
+    if (!r.started_at && age > STUCK_MS)
+      return {
+        waiting: false,
+        text: 'The history request is queued, but nothing on the server has picked it up. Price history is fetched by the backend’s research worker, which looks stopped (it runs only when the server’s COMPOSE_PROFILES includes “research”).',
+      }
+    return { waiting: true, text: 'Queued with the broker; waiting for its turn…' }
+  }
+  if (r.status === 'failed')
+    return {
+      waiting: false,
+      text: `The broker could not send this history: ${r.error || 'no reason given'}.`,
+    }
+  if (r.status === 'done' && !r.candles)
+    return { waiting: false, text: 'The broker has no price history for this range.' }
+  if (r.status === 'cancelled')
+    return { waiting: false, text: 'The history request was cancelled.' }
+  return { waiting: false, text: '' }
 }
