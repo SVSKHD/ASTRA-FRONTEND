@@ -63,11 +63,52 @@ describe('market-data health', () => {
     ]) {
       expect(c[key].level, key).not.toBe('ok')
     }
-    // A populated master is still "unknown": its sync time is not reported (§2).
+    // Without its sync status, a populated master is "unknown", never OK.
     expect(c.instrument_master.level).toBe('unknown')
     expect(c.instrument_master.text).toContain('250,000')
-    expect(c.instrument_master.text).toContain('§2')
-    expect(c.screener.text).toContain('§6')
+    expect(c.screener.level).toBe('unknown')
+  })
+
+  it('reads the instrument sync status: ok, stale, never synced, failed', () => {
+    const at = '2026-11-13T02:41:00Z'
+    const ok = by(
+      inputs({
+        masterTotal: 250000,
+        masterStatus: { count: 250000, last_synced_at: at, stale: false },
+      }),
+    ).instrument_master
+    expect(ok.level).toBe('ok')
+    expect(ok.text).toContain('250,000 instruments, synced')
+    expect(
+      by(inputs({ masterTotal: 250000, masterStatus: { last_synced_at: at, stale: true } }))
+        .instrument_master.level,
+    ).toBe('stale')
+    const never = by(
+      inputs({ masterTotal: 250000, masterStatus: { last_synced_at: null } }),
+    ).instrument_master
+    expect(never.level).toBe('stale')
+    expect(never.text).toContain('no successful sync')
+    const failed = by(
+      inputs({
+        masterTotal: 250000,
+        masterStatus: {
+          last_synced_at: null,
+          last_run_status: 'failed',
+          last_error: 'the number of query arguments cannot exceed 32767',
+        },
+      }),
+    ).instrument_master
+    expect(failed.level).toBe('error')
+    expect(failed.text).toContain('32767')
+  })
+
+  it('reads the screener worker and queue', () => {
+    const down = by(inputs({ screener: { worker: 'down', queued_runs: 3 } })).screener
+    expect(down.level).toBe('error')
+    expect(down.text).toContain('3 queued')
+    expect(by(inputs({ screener: { worker: 'stale' } })).screener.level).toBe('stale')
+    expect(by(inputs({ screener: { worker: 'ok', queued_runs: 0 } })).screener.level).toBe('ok')
+    expect(by(inputs({ screenerError: 'boom' })).screener.level).toBe('error')
   })
 
   it('reads an empty master as missing', () => {

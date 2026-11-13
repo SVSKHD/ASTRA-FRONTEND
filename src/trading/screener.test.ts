@@ -11,6 +11,7 @@ import {
   indicatorLabel,
   requestText,
   runScreener,
+  screenerWatchlistId,
   ScreenerFailure,
   screenerFailure,
   serverIssues,
@@ -358,5 +359,129 @@ describe('EMA 8/32 and custom EMA filters', () => {
   it('labels the EMA 8 and EMA 32 readings the server returns', () => {
     expect(indicatorLabel('ema:8')).toBe('EMA 8')
     expect(indicatorLabel('ema:32')).toBe('EMA 32')
+  })
+})
+
+// --- large scans and watchlists ---------------------------------------------------------
+
+function json(status: number, body: unknown): Response {
+  return new Response(body === null ? null : JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+const page = (over: Record<string, unknown>) => ({
+  as_of: 'x',
+  candle: 'confirmed',
+  timeframe: '15m',
+  universe_size: 2400,
+  total: 0,
+  items: [],
+  run_id: 'run-1',
+  coverage: {},
+  ...over,
+})
+
+describe('a scan queued for the research worker', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('waits for it, saying so, and returns the finished page', async () => {
+    const asked: string[] = []
+    let polls = 0
+    vi.stubGlobal('fetch', async (req: Request) => {
+      const url = new URL(req.url)
+      asked.push(`${req.method} ${url.pathname}${url.search}`)
+      if (req.method === 'POST') return json(202, page({ status: 'queued' }))
+      polls += 1
+      return json(200, polls < 2 ? page({ status: 'running' }) : page({ status: 'done', total: 7 }))
+    })
+    const seen: string[] = []
+    const body = buildRequest(defaultForm())
+    const r = await runScreener(body, { pollMs: 1, onWaiting: (w) => seen.push(String(w.status)) })
+    expect(r.total).toBe(7)
+    expect(seen).toEqual(['queued', 'running'])
+    expect(asked[1]).toContain('GET /api/trading/screener/runs/run-1?')
+    expect(asked[1]).toContain(`limit=${body.limit}`)
+  })
+
+  it('a failed scan is an error with the server reason, not "nothing matched"', async () => {
+    vi.stubGlobal('fetch', async (req: Request) =>
+      req.method === 'POST'
+        ? json(202, page({ status: 'queued' }))
+        : json(200, page({ status: 'failed', detail: 'abandoned (worker stopped)' })),
+    )
+    await expect(runScreener(buildRequest(defaultForm()), { pollMs: 1 })).rejects.toMatchObject({
+      kind: 'server',
+      message: 'The scan failed: abandoned (worker stopped).',
+    })
+  })
+
+  it('stops waiting when asked to', async () => {
+    vi.stubGlobal('fetch', async () => json(202, page({ status: 'queued' })))
+    const ctl = new AbortController()
+    const p = runScreener(buildRequest(defaultForm()), { pollMs: 50, signal: ctl.signal })
+    ctl.abort()
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' })
+  })
+})
+
+describe('screening a watchlist', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('makes the server copy match the list on this device', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (req: Request) => {
+      const url = new URL(req.url)
+      const call = `${req.method} ${url.pathname}`
+      calls.push(call)
+      if (call === 'GET /api/trading/watchlists')
+        return json(200, [
+          {
+            id: 'srv-1',
+            name: 'Banks',
+            description: null,
+            created_at: 'x',
+            updated_at: 'x',
+            items: [
+              { instrument_id: 1, position: 0, added_at: 'x', instrument: {} },
+              { instrument_id: 9, position: 1, added_at: 'x', instrument: {} },
+            ],
+          },
+        ])
+      if (req.method === 'POST') return json(201, { instrument_id: 2 })
+      return json(204, null)
+    })
+    const id = await screenerWatchlistId({ name: 'Banks', items: [{ id: 1 }, { id: 2 }] })
+    expect(id).toBe('srv-1')
+    expect(calls).toEqual([
+      'GET /api/trading/watchlists',
+      'POST /api/trading/watchlists/srv-1/items',
+      'DELETE /api/trading/watchlists/srv-1/items/9',
+    ])
+  })
+
+  it('creates the server copy the first time', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', async (req: Request) => {
+      const url = new URL(req.url)
+      calls.push(`${req.method} ${url.pathname}`)
+      if (req.method === 'GET') return json(200, [])
+      if (url.pathname === '/api/trading/watchlists')
+        return json(201, {
+          id: 'srv-2',
+          name: 'IT',
+          description: null,
+          created_at: 'x',
+          updated_at: 'x',
+          items: [],
+        })
+      return json(201, { instrument_id: 5 })
+    })
+    expect(await screenerWatchlistId({ name: 'IT', items: [{ id: 5 }] })).toBe('srv-2')
+    expect(calls).toEqual([
+      'GET /api/trading/watchlists',
+      'POST /api/trading/watchlists',
+      'POST /api/trading/watchlists/srv-2/items',
+    ])
   })
 })
