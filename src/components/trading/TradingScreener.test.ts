@@ -536,3 +536,82 @@ describe('TradingScreener — gate open (mocked contract)', () => {
     expect(w.text()).not.toContain('99 of 1800')
   })
 })
+
+describe('TradingScreener — large scans, the worker and watchlists', () => {
+  /** A server with a queue: the run is queued, then done on the first poll. */
+  function stubServer(opts: { worker: string; watchlists?: unknown[] }) {
+    const calls: { method: string; path: string; body: unknown }[] = []
+    vi.stubGlobal('fetch', async (req: Request) => {
+      const url = new URL(req.url)
+      const text = req.method === 'GET' || req.method === 'DELETE' ? '' : await req.text()
+      calls.push({ method: req.method, path: url.pathname, body: text ? JSON.parse(text) : null })
+      const ok = (status: number, body: unknown) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'content-type': 'application/json' },
+        })
+      if (url.pathname === '/api/trading/screener/status')
+        return ok(200, {
+          worker: opts.worker,
+          queued_runs: 1,
+          queued_backfills: 0,
+          last_run_at: null,
+          universe_size: null,
+          candles_as_of: {},
+        })
+      if (url.pathname === '/api/trading/screener/run')
+        return ok(202, {
+          ...FIXTURE(),
+          total: 0,
+          items: [],
+          universe_size: 2400,
+          run_id: 'r1',
+          status: 'queued',
+        })
+      if (url.pathname === '/api/trading/screener/runs/r1')
+        return ok(200, { ...FIXTURE(), run_id: 'r1', status: 'done' })
+      if (url.pathname === '/api/trading/watchlists' && req.method === 'GET')
+        return ok(200, opts.watchlists ?? [])
+      if (url.pathname === '/api/trading/watchlists')
+        return ok(201, {
+          id: 'srv-9',
+          name: 'Banks',
+          description: null,
+          created_at: 'x',
+          updated_at: 'x',
+          items: [],
+        })
+      if (url.pathname.startsWith('/api/trading/watchlists/')) return ok(201, { instrument_id: 3 })
+      return ok(200, { items: [], total: 0, limit: 50, offset: 0 })
+    })
+    return calls
+  }
+
+  it('says when the research worker is down, and waits for a queued scan', async () => {
+    const calls = stubServer({ worker: 'down' })
+    const { w } = await mountScreener()
+    await sees(w, 'The research worker is not running')
+    await w.find('form').trigger('submit')
+    await sees(w, 'Queued: 2,400 instruments will be scanned by the research worker')
+    // The poll brings the finished page.
+    await sees(w, 'FIXTUREA')
+    expect(calls.some((c) => c.path === '/api/trading/screener/runs/r1')).toBe(true)
+  })
+
+  it('screens a watchlist through its server copy', async () => {
+    seedWatchlists()
+    const calls = stubServer({ worker: 'ok' })
+    const { w } = await mountScreener('/trading/screener?watchlist=wl_1')
+    expect(w.text()).not.toContain('The research worker is not running')
+    await w.find('form').trigger('submit')
+    await sees(w, 'FIXTUREA')
+    const order = calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)
+    expect(order).toEqual([
+      'POST /api/trading/watchlists',
+      'POST /api/trading/watchlists/srv-9/items',
+      'POST /api/trading/screener/run',
+    ])
+    const run = calls.find((c) => c.path === '/api/trading/screener/run')!
+    expect(run.body).toMatchObject({ universe: { watchlist_id: 'srv-9' } })
+  })
+})

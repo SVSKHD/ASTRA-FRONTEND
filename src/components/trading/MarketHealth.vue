@@ -34,6 +34,8 @@ const master = useLoad(async () =>
   ),
 )
 const agents = useLoad(async () => must(await aureon.GET('/api/trading/agents')))
+const masterStatus = useLoad(async () => must(await aureon.GET('/api/trading/instruments/status')))
+const screenerStatus = useLoad(async () => must(await aureon.GET('/api/trading/screener/status')))
 const candles = useLoad(async () => {
   const p = props.probe
   if (!p) return null
@@ -55,6 +57,8 @@ function refresh() {
   void session.reload()
   void feed.reload()
   void master.reload()
+  void masterStatus.reload()
+  void screenerStatus.reload()
   void agents.reload()
   void candles.reload()
 }
@@ -71,6 +75,9 @@ const checks = computed(() =>
     feedError: feed.error.value,
     masterTotal: typeof master.data.value?.total === 'number' ? master.data.value.total : null,
     masterError: master.error.value,
+    masterStatus: masterStatus.data.value ?? null,
+    screener: screenerStatus.data.value ?? null,
+    screenerError: screenerStatus.error.value,
     candles: candles.data.value ?? null,
     candlesError: candles.error.value,
     agents: Array.isArray(agents.data.value) ? agents.data.value : null,

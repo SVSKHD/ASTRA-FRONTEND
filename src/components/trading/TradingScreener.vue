@@ -17,7 +17,7 @@
 // failure the server can give has its own message and recovery (ScreenerFailure
 // in screener.ts), a 422 lands on the field it names, and a result that no
 // longer matches the filters says so instead of passing for current.
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -42,6 +42,9 @@ import {
   PRESETS,
   SCREENER_AVAILABLE,
   SCREENER_DOC,
+  fetchScreenerStatus,
+  screenerWatchlistId,
+  type ScreenerStatus,
   SCREENER_RUN_PATH,
   SORT_FIELDS,
   TIMEFRAMES,
@@ -195,7 +198,7 @@ async function copyRequest() {
   const text = requestText(request.value)
   try {
     await navigator.clipboard.writeText(text)
-    copyMsg.value = 'Request copied. Hand it to the backend with ' + SCREENER_DOC + '.'
+    copyMsg.value = 'Request copied.'
   } catch {
     showRequest.value = true
     copyMsg.value = 'Copying is blocked here; the request is shown below to copy by hand.'
@@ -225,21 +228,67 @@ watch(
 // Only the newest run may write its answer: a slow page-1 reply must not land
 // on top of the page-2 reply the user asked for after it.
 let seq = 0
+/** A large scan the research worker has queued or is running, while it is awaited. */
+const waiting = ref<ScreenerResponse | null>(null)
+let abort: AbortController | null = null
+onBeforeUnmount(() => abort?.abort())
+
+// The research worker and the queue: a large scan only finishes while the worker runs.
+const status = ref<ScreenerStatus | null>(null)
+async function loadStatus() {
+  try {
+    status.value = await fetchScreenerStatus()
+  } catch {
+    status.value = null // the line just stays hidden
+  }
+}
+onMounted(loadStatus)
+const workerNote = computed(() => {
+  const st = status.value
+  if (!st || st.worker === 'ok') return ''
+  return st.worker === 'down'
+    ? 'The research worker is not running: scans of more than 100 instruments will wait until it starts.'
+    : 'The research worker has not reported recently: large scans may be slow.'
+})
+const waitingText = computed(() => {
+  const w = waiting.value
+  if (!w) return 'Screening…'
+  const n = w.universe_size ? `${w.universe_size.toLocaleString()} instruments` : 'the market'
+  return w.status === 'running'
+    ? `Scanning ${n} on the research worker…`
+    : `Queued: ${n} will be scanned by the research worker…`
+})
+
 async function run() {
   if (!available || !valid.value) return
   const mine = ++seq
-  const body = request.value
+  abort?.abort()
+  abort = new AbortController()
+  const signal = abort.signal
+  let body = request.value
   loading.value = true
+  waiting.value = null
   failure.value = null
   try {
-    const r = await runScreener(body)
+    // A watchlist lives on this device; the server screens its server copy.
+    const local = form.watchlistId ? store.lists.find((l) => l.id === form.watchlistId) : null
+    if (local) {
+      const id = await screenerWatchlistId(local)
+      body = { ...body, universe: { ...body.universe, watchlist_id: id } }
+    }
+    const r = await runScreener(body, {
+      signal,
+      onWaiting: (w) => {
+        if (mine === seq) waiting.value = w
+      },
+    })
     if (mine !== seq) return
     result.value = r
     ranKey.value = screenKey(body)
     serverIssues.value = []
     filtersOpen.value = false
   } catch (e) {
-    if (mine !== seq) return
+    if (mine !== seq || (e as Error).name === 'AbortError') return
     const f =
       e instanceof ScreenerFailure
         ? e
@@ -250,7 +299,11 @@ async function run() {
       filtersOpen.value = true
     }
   } finally {
-    if (mine === seq) loading.value = false
+    if (mine === seq) {
+      loading.value = false
+      waiting.value = null
+      void loadStatus()
+    }
   }
 }
 function runFirstPage() {
@@ -538,7 +591,12 @@ const tfOptions = TIMEFRAMES.map((t) => ({ value: t, label: t }))
               >Retry</Button
             >
           </div>
-          <p v-if="loading" class="tp-note" role="status">Screening…</p>
+          <p v-if="workerNote" class="sc__stale" role="status" data-testid="worker-note">
+            {{ workerNote }}
+          </p>
+          <p v-if="loading" class="tp-note" role="status" data-testid="screening">
+            {{ waitingText }}
+          </p>
           <p v-if="stale && !loading" class="sc__stale" role="status">
             These results are from different filters than the ones set now. Run the screener to
             update them.
@@ -554,6 +612,11 @@ const tfOptions = TIMEFRAMES.map((t) => ({ value: t, label: t }))
                 <Button size="sm" variant="secondary" @click="goPage(1)">First page</Button>
               </template>
             </EmptyState>
+            <EmptyState
+              v-else-if="result.detail"
+              title="Nothing to screen yet"
+              :description="result.detail"
+            />
             <EmptyState
               v-else
               title="Nothing matched"

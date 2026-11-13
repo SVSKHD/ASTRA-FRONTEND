@@ -44,11 +44,37 @@ beforeEach(() => {
                   checked_at: new Date().toISOString(),
                 },
               ]
-          : p === '/api/trading/instruments'
-            ? [200, { items: [], total: 4200, limit: 1, offset: 0 }]
-            : p === '/api/trading/agents'
-              ? [200, []]
-              : [404, { detail: 'not found' }]
+          : p === '/api/trading/instruments/status'
+            ? [
+                200,
+                {
+                  broker: 'dhan',
+                  count: 4200,
+                  by_segment: {},
+                  last_synced_at: new Date().toISOString(),
+                  last_run_status: 'succeeded',
+                  last_error: null,
+                  max_age_hours: 30,
+                  stale: false,
+                },
+              ]
+            : p === '/api/trading/screener/status'
+              ? [
+                  200,
+                  {
+                    worker: 'down',
+                    queued_runs: 2,
+                    queued_backfills: 0,
+                    last_run_at: null,
+                    universe_size: null,
+                    candles_as_of: {},
+                  },
+                ]
+              : p === '/api/trading/instruments'
+                ? [200, { items: [], total: 4200, limit: 1, offset: 0 }]
+                : p === '/api/trading/agents'
+                  ? [200, []]
+                  : [404, { detail: 'not found' }]
     return new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' },
@@ -68,12 +94,13 @@ describe('MarketHealth', () => {
     await flushPromises()
     expect(level(w, 'session')).toContain('OK')
     expect(w.find('[data-check="session"]').text()).toContain('not market-data readiness')
-    for (const key of ['market_data_permission', 'live_feed', 'screener']) {
+    for (const key of ['market_data_permission', 'live_feed']) {
       expect(level(w, key), key).toContain('Not reported')
     }
-    // Instruments exist, but when they were synced is not reported: unknown, not OK.
-    expect(level(w, 'instrument_master')).toContain('Sync unknown')
-    expect(w.find('[data-check="instrument_master"]').text()).toContain('4,200 instruments')
+    // The instrument master and the screener now report their own state.
+    expect(w.find('[data-check="instrument_master"]').text()).toContain('4,200 instruments, synced')
+    expect(level(w, 'screener')).toContain('Worker down')
+    expect(w.find('[data-check="screener"]').text()).toContain('2 queued')
     expect(w.find('[data-check="live_feed"]').text()).toContain('feed health unavailable')
     expect(level(w, 'historical_candles')).toContain('Not reported')
     expect(level(w, 'research_worker')).toContain('No data')
