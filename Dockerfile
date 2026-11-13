@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Stage 1: Build Vue application
 FROM node:22-alpine AS builder
 
@@ -5,16 +6,19 @@ WORKDIR /app
 
 # The repository uses pnpm (pnpm-lock.yaml; there is no package-lock.json, so
 # `npm ci` cannot run). Same pnpm major as scripts/deploy.sh.
-# bash and git: `pnpm build` runs the full verification, and its deploy-script
-# tests (src/ops/deployScript.test.ts) drive scripts/deploy.sh with bash
-# against throwaway git repositories.
+# bash and git: only the full verification (VERIFY=1 below) needs them, for
+# the deploy-script tests (src/ops/deployScript.test.ts), which drive
+# scripts/deploy.sh with bash against throwaway git repositories.
 RUN apk add --no-cache bash git \
   && npm install -g pnpm@9
 ENV CI=true
 
-# Install locked dependencies
+# Install locked dependencies. The pnpm store is a BuildKit cache, so a rebuild
+# only downloads packages the lockfile added; this layer itself is reused until
+# package.json or pnpm-lock.yaml changes.
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=astra-pnpm-store,target=/pnpm/store \
+  pnpm install --frozen-lockfile --store-dir /pnpm/store
 
 # Copy frontend source (.dockerignore keeps node_modules, dist and local .env files out)
 COPY . .
@@ -27,8 +31,14 @@ ARG COMMIT_REF=""
 ARG BRANCH=""
 ENV COMMIT_REF=$COMMIT_REF BRANCH=$BRANCH
 
-# Run production build and verification (format, stylelint, type-check, tests, then vite build)
-RUN pnpm build
+# Build. By default: type-check (vue-tsc) and the production build only.
+# The full verification (format, stylelint, type-check and the ~4,200 vitest
+# tests) already runs on every pull request and every dev01 push in GitHub
+# Actions (.github/workflows/ci.yml), and takes about nine minutes here, so the
+# image does not repeat it. To run it anyway:
+#   docker build --build-arg VERIFY=1 .
+ARG VERIFY=0
+RUN if [ "$VERIFY" = "1" ]; then pnpm build; else pnpm build:only; fi
 
 # Stage 2: Serve the application
 FROM nginx:stable-alpine AS production
