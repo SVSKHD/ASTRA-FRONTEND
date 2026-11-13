@@ -14,7 +14,7 @@ import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Chip from '@/components/ui/Chip.vue'
 import CandleChart, { type ChartCandle } from '@/components/trading/CandleChart.vue'
 import { dec, ago } from '@/trading/format'
-import { requestHistory } from '@/trading/history'
+import { explainHistory, historyStatus, requestHistory } from '@/trading/history'
 import { chartPath } from '@/trading/sections'
 import { must } from '@/trading/useLoad'
 import type { Timeframe } from '@/trading/chartView'
@@ -55,6 +55,7 @@ const candles = ref<ChartCandle[]>([])
 // the chart looks again a few times rather than giving up after one read.
 const chartState = ref<'loading' | 'ready' | 'fetching' | 'empty' | 'error'>('loading')
 const chartNote = ref('')
+const fetchNote = ref('')
 const POLL_MS = 6_000
 const POLLS = 6
 let seq = 0
@@ -83,16 +84,25 @@ async function loadChart(attempt = 0) {
     // look again while it does.
     const asked = await requestHistory(id, tf.value)
     if (mine !== seq) return
-    if (asked.state === 'queued' && attempt < POLLS) {
+    if (asked.state !== 'queued') {
+      chartState.value = 'empty'
+      chartNote.value = `No history for this range: ${asked.reason}`
+      return
+    }
+    // Queued: what the server says became of it decides whether to keep looking.
+    const status = attempt > 0 ? await historyStatus(id, tf.value) : null
+    if (mine !== seq) return
+    const said = status ? explainHistory(status) : null
+    if ((said ? said.waiting : true) && attempt < POLLS) {
       chartState.value = 'fetching'
+      fetchNote.value = said?.text || 'Asking the broker for this range…'
       pollTimer = setTimeout(() => void loadChart(attempt + 1), POLL_MS)
       return
     }
     chartState.value = 'empty'
     chartNote.value =
-      asked.state === 'queued'
-        ? 'The broker has not sent this history yet. Try again in a minute.'
-        : `No history for this range: ${asked.reason}`
+      said?.text ||
+      'The broker has not sent this history yet, and the server did not say why. Try again in a minute.'
   } catch {
     if (mine === seq) chartState.value = 'error'
   }
@@ -192,7 +202,7 @@ const facts = computed(() => {
       />
       <div v-else-if="chartState === 'fetching'" class="sd__chartWait">
         <Skeleton height="200px" radius="var(--radius-md)" />
-        <span class="sd__muted">Getting this range from the broker…</span>
+        <span class="sd__muted">{{ fetchNote }}</span>
       </div>
       <div v-else class="sd__chartEmpty">
         <Icon name="chart-candlestick" size="lg" />
