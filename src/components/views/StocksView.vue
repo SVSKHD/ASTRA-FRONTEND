@@ -1,34 +1,51 @@
 <script setup lang="ts">
+import Button from '@/components/ui/Button.vue'
 import Select from '@/components/ui/Select.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
-// Two views. "My stocks": the stock watchlist, a flat, filterable list of symbols
-// with a thesis, price targets, tags and attached notes (create/edit live in
-// ItemDialog). "All instruments": every instrument the server has from a broker
-// (Dhan's full master), searched and filtered on the server, with a chart a
-// click away. Both are read-only towards the broker: nothing here places orders.
+// Three views.
+// - "Watchlists": the named instrument watchlists (src/trading/watchlists.ts) with
+//   quotes. This is what "Add to watchlist" in an instrument's detail writes to,
+//   so it is the default: before it was here, an instrument added from "All
+//   instruments" went to a list this tab never showed.
+// - "My stocks": tracked stocks, a flat, filterable list of symbols with a thesis,
+//   price targets, tags and attached notes (create/edit live in ItemDialog).
+// - "All instruments": every instrument the server has from a broker (Dhan's full
+//   master), searched and filtered on the server, with a chart a click away.
+// All are read-only towards the broker: nothing here places orders.
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
+import { useLongList } from '@/composables/useLongList'
 import { SUCCESS, pxify, rowBase, tagChip, typeStep } from '@/styles'
 import ListToolbar from '@/components/ListToolbar.vue'
+import { allInstruments, watchlistStore } from '@/trading/watchlists'
 import type { Stock } from '@/types'
+// The explorer and the watchlists are laid out with the trading panel's shared
+// classes (tp-page, tp-head, tp-note…); without this the Stocks tab rendered
+// them unstyled unless the trading page had been opened first.
+import '@/components/trading/trading.css'
 
 const TradingExplorer = defineAsyncComponent(
   () => import('@/components/trading/TradingExplorer.vue'),
 )
+const TradingWatchlists = defineAsyncComponent(
+  () => import('@/components/trading/TradingWatchlists.vue'),
+)
 
-type Mode = 'mine' | 'market'
+type Mode = 'watchlists' | 'mine' | 'market'
 const MODES: { value: Mode; label: string }[] = [
+  { value: 'watchlists', label: 'Watchlists' },
   { value: 'mine', label: 'My stocks' },
   { value: 'market', label: 'All instruments' },
 ]
 const MODE_KEY = 'aureon.stocks.mode.v1'
 function savedMode(): Mode {
   try {
-    return localStorage.getItem(MODE_KEY) === 'market' ? 'market' : 'mine'
+    const m = localStorage.getItem(MODE_KEY)
+    return MODES.some((o) => o.value === m) ? (m as Mode) : 'watchlists'
   } catch {
-    return 'mine'
+    return 'watchlists'
   }
 }
 const mode = ref<Mode>(savedMode())
@@ -43,6 +60,8 @@ watch(mode, (m) => {
 const app = useAppStore()
 const { c, dark, s, panelStyle } = useStyles()
 const { stocks, tags } = storeToRefs(app)
+const watchlists = watchlistStore()
+const watchedCount = computed(() => allInstruments(watchlists.lists).length)
 
 defineExpose({ focus: () => app.openCreate('stock') })
 
@@ -59,6 +78,8 @@ const view = computed<Stock[]>(() => {
   })
   return list
 })
+// A long list renders in windows (section 16e) instead of every row in one tick.
+const stockWindow = useLongList(view)
 
 const row = computed(() => pxify(rowBase(c.value)))
 function chipStyle(tag: string) {
@@ -118,7 +139,8 @@ const filterBar = pxify({
       <SegmentedControl v-model="mode" :options="MODES" size="sm" aria-label="Stocks view" />
     </div>
 
-    <TradingExplorer v-if="mode === 'market'" />
+    <TradingWatchlists v-if="mode === 'watchlists'" />
+    <TradingExplorer v-else-if="mode === 'market'" />
 
     <template v-else>
       <div v-if="stocks.length" :style="filterBar">
@@ -141,13 +163,20 @@ const filterBar = pxify({
         />
       </div>
 
-      <div v-if="stocks.length === 0" :style="s.empty">Your watchlist is empty.</div>
+      <div v-if="stocks.length === 0" :style="s.empty">
+        <div>No tracked stocks yet. Use “Track stock” to add one with a thesis and targets.</div>
+        <div v-if="watchedCount">
+          {{ watchedCount }} instrument{{ watchedCount === 1 ? ' is' : 's are' }} on your
+          watchlists.
+          <Button size="sm" variant="ghost" @click="mode = 'watchlists'">Open watchlists</Button>
+        </div>
+      </div>
       <div v-else-if="view.length === 0" :style="s.empty">No stocks match this filter.</div>
       <div :style="s.list">
         <!-- Same as Ideas: the memo covers everything the row draws, plus the
            theme the styles are derived from. -->
         <div
-          v-for="t in view"
+          v-for="t in stockWindow.visible.value"
           :key="t.id"
           v-memo="[t.symbol, t.name, t.targetPrice, t.watchPrice, t.tag, t.noteIds.length, c]"
           :style="row"
@@ -168,6 +197,17 @@ const filterBar = pxify({
           <button :style="s.shareBtn" @click="app.share('stock', t)">↗</button>
           <button :style="s.del" @click="app.deleteWithUndo('stocks', 'stock', t.id)">×</button>
         </div>
+        <Button
+          v-if="stockWindow.remaining.value > 0"
+          size="sm"
+          variant="ghost"
+          @click="stockWindow.more()"
+        >
+          Show {{ Math.min(100, stockWindow.remaining.value) }} more ({{
+            stockWindow.remaining.value
+          }}
+          left)
+        </Button>
       </div>
     </template>
   </div>
