@@ -6,7 +6,8 @@
 //   it moved today (against the last session's close, from the daily candles).
 //   Pick one and its page opens beside the list (a sheet on a phone): price,
 //   chart, YOUR thesis and targets, and the facts worth knowing.
-// - Explore: every instrument the server has, searched on the server.
+// - Explore: every instrument the server has, searched on the server, drawn as
+//   the same rows with a "+" to put one on the open list, and the same page.
 //
 // A tracked stock (a thesis with a target and a price to act at) belongs to the
 // stock, so it shows on that stock's row and page wherever it is listed. The
@@ -14,7 +15,7 @@
 //
 // Lists are kept on this device until the backend has a watchlist API
 // (src/trading/watchlists.ts); a line at the foot says so.
-import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -35,19 +36,14 @@ import InstrumentPicker from '@/components/trading/InstrumentPicker.vue'
 import MarketPanel from '@/components/trading/MarketPanel.vue'
 import StockRow from '@/components/stocks/StockRow.vue'
 import StockDetail from '@/components/stocks/StockDetail.vue'
+import StocksExplore from '@/components/stocks/StocksExplore.vue'
 import { remember } from '@/trading/resolve'
 import { connect } from '@/trading/stream'
 import { allInstruments, watchlistStore } from '@/trading/watchlists'
-import { useWatchlistRows } from '@/trading/useWatchlistRows'
+import { useWatchlistRows, type StockRowData } from '@/trading/useWatchlistRows'
 import { vScrollFade } from '@/directives/scrollFade'
 import type { Instrument } from '@/trading/instruments'
 import type { Stock } from '@/types'
-// The explorer is laid out with the trading panel's shared classes.
-import '@/components/trading/trading.css'
-
-const TradingExplorer = defineAsyncComponent(
-  () => import('@/components/trading/TradingExplorer.vue'),
-)
 
 const app = useAppStore()
 const { stocks } = storeToRefs(app)
@@ -145,7 +141,7 @@ function deleteList() {
 // --- adding -------------------------------------------------------------------------
 const searchBox = ref<HTMLElement | null>(null)
 const addError = ref('')
-function add(i: Instrument) {
+function add(i: Instrument, select = true) {
   addError.value = ''
   try {
     // The first stock starts the first list.
@@ -153,7 +149,7 @@ function add(i: Instrument) {
     listId.value = list.id
     remember([i])
     store.add(list.id, { id: i.id, symbol: i.symbol, broker: i.broker })
-    selectedId.value = i.id
+    if (select) selectedId.value = i.id
   } catch (e) {
     addError.value = (e as Error).message
   }
@@ -215,7 +211,26 @@ function removeRow(id: number) {
 
 // --- the stock's page ---------------------------------------------------------------------
 const selectedId = ref<number | null>(null)
-const selectedRow = computed(() => rows.value.find((r) => r.item.id === selectedId.value) ?? null)
+const listRow = computed(() => rows.value.find((r) => r.item.id === selectedId.value) ?? null)
+// Explore keeps its own pick, so switching views does not lose either.
+const exploreId = ref<number | null>(null)
+const exploreRow = shallowRef<StockRowData | null>(null)
+const selectedRow = computed(() => (mode.value === 'explore' ? exploreRow.value : listRow.value))
+const listedIds = computed(() => new Set(current.value?.items.map((i) => i.id) ?? []))
+const selectedListed = computed(
+  () => !!selectedRow.value && listedIds.value.has(selectedRow.value.item.id),
+)
+function closeDetail() {
+  if (mode.value === 'explore') exploreId.value = null
+  else selectedId.value = null
+}
+function addSelected() {
+  const i = selectedRow.value?.instrument
+  if (i) add(i, false)
+}
+function pickExplore(id: number | null) {
+  exploreId.value = !isMobile.value && exploreId.value === id ? null : id
+}
 const splitView = computed(() => !isMobile.value && app.paneMode === 'inline')
 const paneOpen = computed(() => !isMobile.value && !splitView.value && !!selectedRow.value)
 const paneWidth = ref(0)
@@ -250,10 +265,20 @@ const splitLayout = pxify({
       aria-label="Stocks view"
     />
 
-    <TradingExplorer v-if="mode === 'explore'" />
-
-    <div v-else :style="splitView ? splitLayout : undefined" class="sv" data-own-keys>
-      <div class="sv__col">
+    <div :style="splitView ? splitLayout : undefined" class="sv" data-own-keys>
+      <StocksExplore
+        v-if="mode === 'explore'"
+        :now="now"
+        :list-name="current?.name ?? 'My watchlist'"
+        :listed-ids="listedIds"
+        :selected-id="exploreId"
+        :compact="isMobile"
+        :tracked-of="trackedOf"
+        @add="add($event, false)"
+        @select="pickExplore"
+        @row="exploreRow = $event"
+      />
+      <div v-else class="sv__col">
         <!-- The lists, as tabs. -->
         <div class="sv__lists" role="tablist" aria-label="Watchlists">
           <template v-if="naming">
@@ -393,7 +418,7 @@ const splitLayout = pxify({
         title="Stock"
         :subtitle="selectedRow ? '' : 'Pick a stock to see its chart and your thesis'"
         @width="paneWidth = $event"
-        @close="selectedId = null"
+        @close="closeDetail()"
       >
         <StockDetail
           v-if="selectedRow"
@@ -401,7 +426,10 @@ const splitLayout = pxify({
           :row="selectedRow"
           :tracked="trackedOf(selectedRow.item.symbol)"
           :now="now"
+          :listed="selectedListed"
+          :list-name="current?.name ?? 'My watchlist'"
           @remove="removeRow(selectedRow.item.id)"
+          @add="addSelected"
         />
         <EmptyState
           v-else
@@ -413,13 +441,16 @@ const splitLayout = pxify({
     </div>
 
     <!-- A phone: the stock's page as a sheet. -->
-    <MarketPanel v-if="isMobile" :open="!!selectedRow" title="Stock" @close="selectedId = null">
+    <MarketPanel v-if="isMobile" :open="!!selectedRow" title="Stock" @close="closeDetail()">
       <StockDetail
         v-if="selectedRow"
         :row="selectedRow"
         :tracked="trackedOf(selectedRow.item.symbol)"
         :now="now"
+        :listed="selectedListed"
+        :list-name="current?.name ?? 'My watchlist'"
         @remove="removeRow(selectedRow.item.id)"
+        @add="addSelected"
       />
     </MarketPanel>
   </div>

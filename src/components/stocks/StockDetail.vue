@@ -21,8 +21,18 @@ import type { Timeframe } from '@/trading/chartView'
 import type { StockRowData } from '@/trading/useWatchlistRows'
 import type { Stock } from '@/types'
 
-const props = defineProps<{ row: StockRowData; tracked: Stock | null; now: number }>()
-const emit = defineEmits<{ remove: [] }>()
+const props = withDefaults(
+  defineProps<{
+    row: StockRowData
+    tracked: Stock | null
+    now: number
+    /** On the open list: Remove. Not (Explore): Add to it. */
+    listed?: boolean
+    listName?: string
+  }>(),
+  { listed: true, listName: '' },
+)
+const emit = defineEmits<{ remove: []; add: [] }>()
 const app = useAppStore()
 const router = useRouter()
 
@@ -201,8 +211,11 @@ const facts = computed(() => {
       <Button size="sm" variant="secondary" @click="router.push(chartPath(row.item.id))">
         <Icon name="chart-candlestick" size="sm" />Full chart
       </Button>
-      <Button size="sm" variant="ghost" class="sd__remove" @click="emit('remove')">
+      <Button v-if="listed" size="sm" variant="ghost" class="sd__remove" @click="emit('remove')">
         <Icon name="trash" size="sm" />Remove from list
+      </Button>
+      <Button v-else size="sm" @click="emit('add')">
+        <Icon name="plus" size="sm" />Add to {{ listName || 'a watchlist' }}
       </Button>
     </div>
   </div>

@@ -15,8 +15,11 @@ const props = defineProps<{
   tracked: Stock | null
   selected?: boolean
   compact?: boolean
+  /** Explore: the row offers Add (or says it is on the list) instead of Remove. */
+  explore?: boolean
+  listed?: boolean
 }>()
-const emit = defineEmits<{ open: []; remove: [] }>()
+const emit = defineEmits<{ open: []; remove: []; add: [] }>()
 
 const name = computed(() => props.row.instrument?.display_name || props.row.instrument?.name || '')
 const sub = computed(
@@ -65,7 +68,20 @@ const last = computed(() => props.row.quote?.last ?? null)
       <span v-else class="sr__chg is-flat">—</span>
     </div>
     <IconButton
-      v-if="!compact"
+      v-if="explore"
+      class="sr__add"
+      :class="{ 'is-listed': listed }"
+      :label="listed ? `${row.item.symbol} is on your list` : `Add ${row.item.symbol} to your list`"
+      :active="listed"
+      :disabled="listed"
+      size="sm"
+      :variant="listed ? 'ghost' : 'outline'"
+      @click.stop="emit('add')"
+    >
+      <Icon :name="listed ? 'check' : 'plus'" size="sm" />
+    </IconButton>
+    <IconButton
+      v-else-if="!compact"
       class="sr__remove"
       :label="`Remove ${row.item.symbol}`"
       size="sm"
@@ -176,6 +192,13 @@ const last = computed(() => props.row.quote?.last ?? null)
 }
 .sr__chg.is-flat {
   color: var(--theme-dim);
+}
+.sr__add {
+  flex-shrink: 0;
+}
+.sr__add.is-listed {
+  color: var(--theme-success);
+  opacity: 1;
 }
 .sr__remove {
   opacity: 0;

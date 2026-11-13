@@ -22,7 +22,12 @@ export interface StockRowData {
   flag: { tone: 'danger' | 'warning' | 'neutral'; label: string; text: string } | null
 }
 
-export function useWatchlistRows(items: () => WatchlistItem[], now: Ref<number>) {
+export function useWatchlistRows(
+  items: () => WatchlistItem[],
+  now: Ref<number>,
+  /** Read daily history for only the first N (a long search result). */
+  opts: { historyFor?: number } = {},
+) {
   const resolution = shallowRef(new Map<number, Resolution>())
   const snapshots = shallowRef(new Map<string, QuoteOut>())
   const loading = ref(false)
@@ -79,7 +84,9 @@ export function useWatchlistRows(items: () => WatchlistItem[], now: Ref<number>)
 
   const ids = () => items().map((i) => i.id)
   const streamQuotes = useLiveQuotes(ids)
-  const histories = useDayHistory(ids)
+  const histories = useDayHistory(() =>
+    opts.historyFor == null ? ids() : ids().slice(0, opts.historyFor),
+  )
 
   const rows = computed<StockRowData[]>(() =>
     items().map((item) => {

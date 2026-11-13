@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import { defineComponent, h } from 'vue'
 import StocksView from '@/components/views/StocksView.vue'
 import AddToWatchlist from '@/components/trading/AddToWatchlist.vue'
 import { vHoverStyle } from '@/directives/hoverStyle'
@@ -17,12 +16,6 @@ import { resetWatchlistStore } from '@/trading/watchlists'
 import type { Instrument } from '@/trading/instruments'
 
 vi.setConfig({ testTimeout: 20_000 })
-
-// The explorer has its own tests; here it only has to appear.
-vi.mock('@/components/trading/TradingExplorer.vue', () => ({
-  __esModule: true,
-  default: defineComponent({ render: () => h('div', { 'data-testid': 'explorer' }, 'EXPLORER') }),
-}))
 
 const RELIANCE: Instrument = {
   id: 1,
@@ -199,15 +192,35 @@ describe('<StocksView />', () => {
   it('switches to Explore on request and back, remembered on this device', async () => {
     const w = await mountStocks()
     await choose(w, 'Explore')
-    await vi.waitFor(() => expect(w.find('[data-testid="explorer"]').exists()).toBe(true))
+    await vi.waitFor(() =>
+      expect(w.find('input[aria-label="Search instruments"]').exists()).toBe(true),
+    )
     expect(localStorage.getItem('aureon.stocks.mode.v2')).toBe('explore')
     await choose(w, 'Watchlist')
-    expect(w.find('[data-testid="explorer"]').exists()).toBe(false)
+    expect(w.find('input[aria-label="Search instruments"]').exists()).toBe(false)
   })
 
   it('opens on the last view', async () => {
     localStorage.setItem('aureon.stocks.mode.v2', 'explore')
     const w = await mountStocks()
-    await vi.waitFor(() => expect(w.find('[data-testid="explorer"]').exists()).toBe(true))
+    await vi.waitFor(() =>
+      expect(w.find('input[aria-label="Search instruments"]').exists()).toBe(true),
+    )
+  })
+
+  it('explores with the same rows, and + puts one on the open list', async () => {
+    localStorage.setItem('aureon.stocks.mode.v2', 'explore')
+    const w = await mountStocks()
+    await sees(w, 'RELIANCE')
+    await sees(w, '+10.00%')
+    const add = () => w.find('[aria-label="Add RELIANCE to your list"]')
+    await vi.waitFor(() => expect(add().exists()).toBe(true))
+    await add().trigger('click')
+    await flushPromises()
+    // The first add starts a list, and the row now says it is on it.
+    expect(w.find('[aria-label="RELIANCE is on your list"]').exists()).toBe(true)
+    await choose(w, 'Watchlist')
+    await sees(w, 'My watchlist')
+    expect(w.findAll('[data-stock-row]')).toHaveLength(1)
   })
 })
