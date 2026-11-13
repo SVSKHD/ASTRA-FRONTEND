@@ -85,10 +85,17 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'workspace',
-    // An alias, not a second record: going to /settings keeps the workspace
-    // mounted (no remount of every tab), and WorkspaceView puts Settings on the
-    // stage when the path is /settings.
-    alias: '/settings',
+    component: () => import('@/views/WorkspaceView.vue'),
+  },
+  // Settings on the home stage: the workspace itself, with Settings where a tab
+  // would be (WorkspaceView checks the path). Its own record, NOT an alias of `/`:
+  // an alias is the same record, so `/` → `/settings` counted as a duplicate
+  // navigation and was silently cancelled. Both records resolve to the same
+  // component, so moving between them keeps the workspace mounted, as the task
+  // and transfer routes below do.
+  {
+    path: '/settings',
+    name: 'settings',
     component: () => import('@/views/WorkspaceView.vue'),
   },
   // Forgiving task/todo transfer links. The canonical shape is

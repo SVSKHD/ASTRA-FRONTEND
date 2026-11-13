@@ -4,8 +4,9 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const push = vi.hoisted(() => vi.fn())
+const path = vi.hoisted(() => ({ value: '/' }))
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, currentRoute: { value: { path: path.value } } }),
   useRoute: () => ({ query: {}, params: {} }),
 }))
 
@@ -24,5 +25,14 @@ describe('<ShellBar /> settings', () => {
     expect(btn.text()).toContain('Settings')
     await btn.trigger('click')
     expect(push).toHaveBeenCalledWith('/settings')
+  })
+
+  it('marks its Settings button as the current page on /settings', () => {
+    path.value = '/settings'
+    const w = mount(ShellBar, { global: { stubs: { ShellSync: true, AccountMenu: true } } })
+    const btn = w.get('[data-testid="pill-settings"]')
+    expect(btn.classes()).toContain('is-on')
+    expect(btn.attributes('aria-current')).toBe('page')
+    path.value = '/'
   })
 })

@@ -9,18 +9,12 @@ async function makeRouter() {
   const { router } = await import('@/router')
   const test = createRouter({
     history: createMemoryHistory(),
-    // getRoutes() lists an alias (/settings) as its own record under the same
-    // name; re-adding it would replace the original. The alias is checked on the
-    // real router below.
-    routes: router
-      .getRoutes()
-      .filter((r) => !r.aliasOf)
-      .map((r) => ({
-        path: r.path,
-        name: r.name,
-        component: { template: '<div />' },
-        props: r.props?.default,
-      })) as never,
+    routes: router.getRoutes().map((r) => ({
+      path: r.path,
+      name: r.name,
+      component: { template: '<div />' },
+      props: r.props?.default,
+    })) as never,
   })
   return test
 }
@@ -63,12 +57,19 @@ describe('routes', () => {
     expect(r.resolve('/').name).toBe('workspace')
   })
 
-  it('resolves /settings to the workspace itself (an alias), not the control center', async () => {
-    const { router } = await import('@/router')
-    const r = router.resolve('/settings')
-    expect(r.name).toBe('workspace')
-    expect(r.path).toBe('/settings')
-    expect(r.matched[0].aliasOf?.path).toBe('/')
+  it('resolves /settings to its own record, not the control center', async () => {
+    const r = await makeRouter()
+    expect(r.resolve('/settings').name).toBe('settings')
+  })
+
+  // An alias of / was cancelled as a duplicate navigation: the dock's Settings did nothing.
+  it('navigates from / to /settings and back', async () => {
+    const r = await makeRouter()
+    await r.push('/')
+    await r.push('/settings')
+    expect(r.currentRoute.value.path).toBe('/settings')
+    await r.push('/')
+    expect(r.currentRoute.value.path).toBe('/')
   })
 
   it('resolves the forgiving task transfer route', async () => {

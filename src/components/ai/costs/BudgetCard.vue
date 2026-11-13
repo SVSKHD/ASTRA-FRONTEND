@@ -111,7 +111,7 @@ const bar = (spent: string, limit: string) => {
     </ul>
 
     <div v-if="settingsLink" class="bc__actions">
-      <Button size="sm" variant="ghost" @click="router.push('/dev/settings?category=ai')"
+      <Button size="sm" variant="ghost" @click="router.push('/settings?category=ai')"
         >Change the caps in Settings → AI</Button
       >
     </div>
