@@ -33,6 +33,7 @@ import OverviewView from '@/components/views/OverviewView.vue'
 import AppShell from '@/components/shell/AppShell.vue'
 import TimelineDrawer from '@/components/TimelineDrawer.vue'
 import TimelineEditor from '@/components/TimelineEditor.vue'
+import ReminderDialog from '@/components/ReminderDialog.vue'
 import LoadingStates from '@/dev/LoadingStates.vue'
 import SettingsHome from '@/views/SettingsHome.vue'
 import { useAppStore } from '@/stores/app'
@@ -376,6 +377,8 @@ const stage = ref<HTMLElement | null>(null)
   >
     <component :is="view" :show="which === 'states' ? show : undefined" />
   </div>
+  <!-- The reminder dialog (create and edit), so a shot can open it. -->
+  <ReminderDialog />
 </template>
 
 <style scoped>

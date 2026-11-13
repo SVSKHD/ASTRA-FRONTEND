@@ -7938,11 +7938,11 @@ export const useAppStore = defineStore('app', () => {
       const i = wd.indexOf(day)
       if (i === -1) wd.push(day)
       else wd.splice(i, 1)
-      return { ...r, repeat: { ...r.repeat, weekdays: wd } }
+      return touched({ ...r, repeat: { ...r.repeat, weekdays: wd } })
     })
   }
   function patchReminder(rid: number, patch: Partial<Reminder>) {
-    reminders.value = reminders.value.map((r) => (r.id === rid ? { ...r, ...patch } : r))
+    reminders.value = reminders.value.map((r) => (r.id === rid ? touched({ ...r, ...patch }) : r))
   }
 
   // ---- Todo/Task ↔ Reminder bridge ----------------------------------------
@@ -8041,7 +8041,9 @@ export const useAppStore = defineStore('app', () => {
   // Acknowledge a specific reminder (the Up next band's Acknowledge, distinct
   // from dismissing the active banner). Does NOT complete the source item.
   function acknowledgeReminder(rid: number, at: number = Date.now()) {
-    reminders.value = reminders.value.map((r) => (r.id === rid ? { ...r, acknowledgedAt: at } : r))
+    reminders.value = reminders.value.map((r) =>
+      r.id === rid ? touched({ ...r, acknowledgedAt: at }) : r,
+    )
     if (activeNotif.value?.id === rid) activeNotif.value = null
   }
 
@@ -9695,6 +9697,7 @@ export const useAppStore = defineStore('app', () => {
     cancelRemindersFor,
     acknowledgeReminder,
     snoozeReminder,
+    patchReminder,
     skipReminder,
     completeReminderSource,
     createTodoFromReminder,
