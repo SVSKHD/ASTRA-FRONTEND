@@ -20,6 +20,7 @@ import CodeView from '@/components/views/CodeView.vue'
 import TodoView from '@/components/views/TodoView.vue'
 import TasksView from '@/components/views/TasksView.vue'
 import RemindersView from '@/components/views/RemindersView.vue'
+import StocksView from '@/components/views/StocksView.vue'
 import DeadlinesView from '@/components/views/DeadlinesView.vue'
 import FinancesView from '@/components/views/FinancesView.vue'
 import GoalsView from '@/components/views/GoalsView.vue'
@@ -109,6 +110,7 @@ const VIEWS = {
   // moved. They are not in the screenshot set.
   tasks: TasksView,
   reminders: RemindersView,
+  stocks: StocksView,
   deadlines: DeadlinesView,
   finances: FinancesView,
   goals: GoalsView,

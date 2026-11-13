@@ -66,6 +66,8 @@ const ALLOWED = new Set([
   //   KpiSparkline        a milestone KPI's logged values as a line — the
   //                       same case as BotsView's sparkline
   'components/goals/KpiSparkline.vue',
+  //   stocks/Sparkline    a stock's daily closes as a line — the same case
+  'components/stocks/Sparkline.vue',
   // A data chart (candles + EMA lines), not an icon — like the sparkline above.
   'components/trading/CandleChart.vue',
 ])

@@ -1,7 +1,7 @@
-// The Stocks tab: "Watchlists" (the named instrument lists that "Add to
-// watchlist" writes to) by default, "My stocks" (tracked stocks with a thesis)
-// and "All instruments" (the server's instrument master) one click away, with
-// the choice remembered on this device.
+// The Stocks tab: your watchlists (the lists "Add to watchlist" writes to) as
+// tabs, each stock with its price, today's change (from the last daily close)
+// and your thesis's target; Explore (the server's instrument master) one click
+// away, with the choice remembered on this device.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -11,6 +11,8 @@ import StocksView from '@/components/views/StocksView.vue'
 import AddToWatchlist from '@/components/trading/AddToWatchlist.vue'
 import { vHoverStyle } from '@/directives/hoverStyle'
 import { forgetInstruments } from '@/trading/resolve'
+import { forgetDayHistory } from '@/trading/dayHistory'
+import { useAppStore } from '@/stores/app'
 import { resetWatchlistStore } from '@/trading/watchlists'
 import type { Instrument } from '@/trading/instruments'
 
@@ -54,6 +56,7 @@ beforeEach(() => {
   localStorage.clear()
   resetWatchlistStore()
   forgetInstruments()
+  forgetDayHistory()
   vi.stubGlobal('EventSource', FakeES)
   vi.stubGlobal('fetch', async (req: Request) => {
     const url = new URL(req.url)
@@ -64,7 +67,35 @@ beforeEach(() => {
       const items = [RELIANCE].filter((i) => i.symbol.includes(q))
       ;[status, body] = [200, { items, total: items.length, limit: 500, offset: 0 }]
     } else if (url.pathname === '/api/trading/quotes') {
-      ;[status, body] = [200, []]
+      const ts = new Date().toISOString()
+      ;[status, body] = [
+        200,
+        [
+          {
+            symbol: 'NSE_EQ:2885',
+            last: '110',
+            bid: null,
+            ask: null,
+            volume: '1',
+            ts,
+            source: 'broker',
+          },
+        ],
+      ]
+    } else if (url.pathname === '/api/trading/candles') {
+      // Yesterday closed at 100; today's bar is still open.
+      const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
+      const bar = (n: number, close: string, closed: boolean) => ({
+        ts: day(n),
+        open: close,
+        high: close,
+        low: close,
+        close,
+        volume: '1',
+        is_closed: closed,
+        is_gap: false,
+      })
+      ;[status, body] = [200, [bar(2, '95', true), bar(1, '100', true), bar(0, '110', false)]]
     }
     return new Response(JSON.stringify(body), {
       status,
@@ -123,45 +154,59 @@ describe('<StocksView />', () => {
     const w = await mountStocks()
     await sees(w, 'Core')
     await sees(w, 'RELIANCE')
-    expect(w.findAll('.wl__item')).toHaveLength(1)
-    expect(w.text()).not.toContain('No watchlists yet')
+    expect(w.findAll('[data-stock-row]')).toHaveLength(1)
   })
 
   it('shows the add at once, while the tab is open (no reload)', async () => {
     const w = await mountStocks()
-    await sees(w, 'No watchlists yet')
+    await sees(w, 'Start a watchlist')
     await addFromExplorer('Banks')
     await sees(w, 'RELIANCE')
-    expect(w.findAll('.wl__item')).toHaveLength(1)
+    expect(w.findAll('[data-stock-row]')).toHaveLength(1)
   })
 
-  it('points from an empty "My stocks" to the watchlists that have instruments', async () => {
+  it("shows the price and today's change against the last daily close", async () => {
     await addFromExplorer('Core')
     const w = await mountStocks()
-    await choose(w, 'My stocks')
-    expect(w.text()).toContain('No tracked stocks yet.')
-    expect(w.text()).toContain('1 instrument is on your watchlists.')
-    await w
-      .findAll('button')
-      .find((b) => b.text() === 'Open watchlists')!
-      .trigger('click')
-    await sees(w, 'RELIANCE')
-    expect(localStorage.getItem('aureon.stocks.mode.v1')).toBe('watchlists')
+    await sees(w, '110')
+    // 110 against yesterday's close of 100: +10.00%.
+    await sees(w, '+10.00%')
+    await sees(w, '1 up')
   })
 
-  it('switches to every instrument on request and back', async () => {
+  it("puts your thesis's target on the stock's row, and lists theses on no list", async () => {
+    await addFromExplorer('Core')
+    const app = useAppStore()
+    const base = {
+      name: '',
+      why: '',
+      watchPrice: 0,
+      tag: '',
+      noteIds: [],
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    app.stocks = [
+      { ...base, id: 1, symbol: 'RELIANCE', targetPrice: 3200 },
+      { ...base, id: 2, symbol: 'TCS', targetPrice: 4600, why: 'Margins recover' },
+    ]
     const w = await mountStocks()
-    await choose(w, 'All instruments')
-    await vi.waitFor(() => expect(w.find('[data-testid="explorer"]').exists()).toBe(true))
-    expect(localStorage.getItem('aureon.stocks.mode.v1')).toBe('market')
-
-    await choose(w, 'My stocks')
-    expect(w.find('[data-testid="explorer"]').exists()).toBe(false)
-    expect(w.text()).toContain('No tracked stocks yet.')
+    await sees(w, 'Target ₹3,200')
+    expect(w.text()).toContain('Tracked, not on a list')
+    expect(w.text()).toContain('Margins recover')
   })
 
-  it('remembers the last view on this device', async () => {
-    localStorage.setItem('aureon.stocks.mode.v1', 'market')
+  it('switches to Explore on request and back, remembered on this device', async () => {
+    const w = await mountStocks()
+    await choose(w, 'Explore')
+    await vi.waitFor(() => expect(w.find('[data-testid="explorer"]').exists()).toBe(true))
+    expect(localStorage.getItem('aureon.stocks.mode.v2')).toBe('explore')
+    await choose(w, 'Watchlist')
+    expect(w.find('[data-testid="explorer"]').exists()).toBe(false)
+  })
+
+  it('opens on the last view', async () => {
+    localStorage.setItem('aureon.stocks.mode.v2', 'explore')
     const w = await mountStocks()
     await vi.waitFor(() => expect(w.find('[data-testid="explorer"]').exists()).toBe(true))
   })
