@@ -1438,3 +1438,12 @@ textarea:focus,
     transition: none;
   }
 }
+
+/* A bottom sheet is open (BottomSheet.vue sets this on <html>): the starfield
+   behind its scrim stops twinkling and drifting. Nothing is visible to miss, and a
+   still background means no blurred layer above it (the tab bar) is re-blurred
+   every frame — which is what made the phone's More menu lag. */
+.ui-sheet-open .starfield,
+.ui-sheet-open .starfield * {
+  animation-play-state: paused !important;
+}
