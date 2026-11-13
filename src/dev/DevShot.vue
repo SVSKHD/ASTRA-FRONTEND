@@ -34,6 +34,7 @@ import AppShell from '@/components/shell/AppShell.vue'
 import TimelineDrawer from '@/components/TimelineDrawer.vue'
 import TimelineEditor from '@/components/TimelineEditor.vue'
 import LoadingStates from '@/dev/LoadingStates.vue'
+import SettingsHome from '@/views/SettingsHome.vue'
 import { useAppStore } from '@/stores/app'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -118,6 +119,8 @@ const VIEWS = {
   calendar: CalendarView,
   // The five loading and glass states on one page (section 43, item 10).
   states: LoadingStates,
+  // /settings on the home stage (views/SettingsHome.vue), for the Settings screenshots.
+  settings: SettingsHome,
   trades: TradesView,
 } as const
 

@@ -51,8 +51,9 @@ const routes: RouteRecordRaw[] = [
   // are static segments, so they still win over `:module` in development.
   // The approval engine's Discord deep link (`/dev/approvals/{id}`) and the
   // voice-navigation routes (backend docs/23) land on the modules here.
-  // Settings and secrets (backend docs/settings.md) live in the admin-only control center.
-  { path: '/settings', redirect: '/dev/settings' },
+  // Settings and secrets (backend docs/settings.md) are on /settings, an alias of
+  // the workspace below: the home shell with Settings on the stage. The control
+  // center's Settings module renders the same page.
   { path: '/dev/approvals', redirect: '/dev/inbox' },
   {
     path: '/dev/approvals/:id',
@@ -84,6 +85,10 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'workspace',
+    // An alias, not a second record: going to /settings keeps the workspace
+    // mounted (no remount of every tab), and WorkspaceView puts Settings on the
+    // stage when the path is /settings.
+    alias: '/settings',
     component: () => import('@/views/WorkspaceView.vue'),
   },
   // Forgiving task/todo transfer links. The canonical shape is

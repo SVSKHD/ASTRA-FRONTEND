@@ -133,10 +133,22 @@ describe('<CcSettings />', () => {
     document.body.innerHTML = ''
   })
 
-  it('uses the kit: a PanelHeader, Tabs with missing-credential counts, and an Accordion per group', async () => {
+  it('opens on an overview of Dashboard-style blocks, which are the navigation', async () => {
     const { w } = await mounted()
     expect(w.find('.panel-header__title').text()).toBe('Settings')
-    expect(tabLabels(w)).toEqual(['AI (1)', 'Agents', 'GitHub'])
+    // One block per category, as tabs: the first is selected and controls the panel.
+    const blocks = w.findAll('[data-testid="settings-overview"] [role="tab"]')
+    expect(blocks.map((b) => b.attributes('data-category'))).toEqual(['ai', 'agents', 'github'])
+    expect(blocks[0].attributes('aria-selected')).toBe('true')
+    expect(w.get('[role="tabpanel"]').attributes('aria-labelledby')).toBe(
+      blocks[0].attributes('id'),
+    )
+    // AI has no key: the block says so, and counts what is missing.
+    expect(blocks[0].get('[data-testid="block-figure"]').text()).toBe('Off')
+    expect(blocks[0].get('[data-testid="block-hint"]').text()).toBe('1 missing')
+    // GitHub's token is set and its last test failed.
+    expect(blocks[2].get('[data-testid="block-hint"]').text()).toBe('Test failed')
+    expect(blocks[2].classes()).toContain('is-bad')
     const groups = w.findAll('.cs__group').map((g) => g.attributes('data-group'))
     expect(groups).toEqual(['Credentials', 'Models', 'Budgets', 'Schedules', 'Other'])
     expect(w.findAll('[data-key="AI_FUTURE_KNOB"]').length).toBe(1)
@@ -146,11 +158,34 @@ describe('<CcSettings />', () => {
     )
   })
 
-  it('shows the AI spend, and says Claude is off through an Alert', async () => {
+  it('shows the spend by budget, and says Claude is off through an Alert', async () => {
     const { w } = await mounted()
     expect(api.GET).toHaveBeenCalledWith('/api/ai/usage')
-    expect(w.get('[data-testid="budget"]').text()).toContain('$12.00')
+    const card = w.get('[data-testid="budget"]')
+    expect(card.text()).toContain('Spend by budget')
+    expect(card.text()).toContain('$5.00 / $40.00')
     expect(warnings()).toContain('Claude is off')
+  })
+
+  it('puts the month’s spend on the AI block once the key is set, and moves with the arrows', async () => {
+    serve({
+      ...SETTINGS,
+      settings: SETTINGS.settings.map((r) =>
+        r.key === 'ANTHROPIC_API_KEY'
+          ? { ...r, is_set: true, masked: '••••x9Qa', source: 'db' }
+          : r,
+      ),
+    })
+    const { w, router } = await mounted()
+    const ai = w.get('[data-category="ai"][role="tab"]')
+    expect(ai.get('[data-testid="block-figure"]').text()).toBe('$12.00')
+    expect(ai.get('[data-testid="block-figure"]').classes()).toContain('ui-mono')
+    expect(ai.text()).toContain('of $100.00 this month')
+    expect(ai.get('[data-testid="block-hint"]').text()).toBe('12%')
+    // Arrow keys move along the blocks, like any tablist.
+    await w.get('[data-testid="settings-overview"]').trigger('keydown', { key: 'ArrowRight' })
+    await flushPromises()
+    expect(router.currentRoute.value.query.category).toBe('agents')
   })
 
   it('offers only the valid models, says which is in use, and applies a pick at once', async () => {
@@ -237,11 +272,13 @@ describe('<CcSettings />', () => {
     const f = field(w, 'AI_MONTHLY_BUDGET_USD')
     expect(f.findAll('[data-testid="save"]').length).toBe(0)
     expect(f.text()).toContain('USD')
-    // The editor starts from the value in use, which also shows as code under it.
+    // The editor starts from the value in use; it is not repeated under it.
     expect((f.get('input').element as HTMLInputElement).value).toBe('100')
-    expect(f.get('[data-testid="value-in-use"] code').text()).toBe('100')
+    expect(f.findAll('[data-testid="value-in-use"]').length).toBe(0)
     await f.get('input').setValue('150.5')
     expect(f.find('[data-testid="unsaved-dot"]').exists()).toBe(true)
+    // While a change is unsaved, the value in use shows beside it to compare.
+    expect(f.get('[data-testid="value-in-use"]').text()).toBe('100')
     await f.get('[data-testid="save"]').trigger('click')
     await flushPromises()
     expect(api.PUT).toHaveBeenCalledWith('/api/v1/settings/{key}', {
@@ -349,8 +386,9 @@ describe('<CcSettings />', () => {
   it('reveals a secret only after the password, as code, and hides it again', async () => {
     const { w } = await mounted('/dev/settings?category=github')
     const f = field(w, 'GITHUB_TOKEN')
+    // Before Reveal: only the mask, in the secret's own field; no code block.
     expect(f.find('[data-testid="value-code"]').exists()).toBe(false)
-    expect(f.get('[data-testid="value-mask"]').text()).toBe('••••wxyz')
+    expect(f.get('[data-testid="mask"]').text()).toBe('••••wxyz')
     await f.get('[data-testid="reveal"]').trigger('click')
     expect(api.POST).not.toHaveBeenCalled()
     expect(document.body.textContent).toContain('Show GitHub token')

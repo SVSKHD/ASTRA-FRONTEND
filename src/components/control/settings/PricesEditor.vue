@@ -109,7 +109,7 @@ defineExpose({ error })
         </IconButton>
       </template>
     </Table>
-    <div class="tp-row">
+    <div class="pe__actions">
       <Button size="sm" variant="secondary" :disabled="disabled" @click="add">Add model</Button>
     </div>
     <p v-if="error" class="pe__error" role="alert">{{ error }}</p>
@@ -122,6 +122,10 @@ defineExpose({ error })
   flex-direction: column;
   gap: var(--sp-2);
   min-width: 0;
+}
+.pe__actions {
+  display: flex;
+  gap: var(--sp-2);
 }
 .pe__error {
   margin: 0;

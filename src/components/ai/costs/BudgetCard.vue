@@ -7,7 +7,8 @@
 // tokens re-pointed, so the bar itself is the kit's, unchanged.
 //
 // The caps themselves are settings (AI_MONTHLY_BUDGET_USD, AI_AGENT_BUDGETS_USD),
-// changed under Settings → AI. `compact` drops the per-budget hints, for the strip
+// changed under Settings → AI. `compact` is the Settings page's: the month is
+// already the AI block's figure there, so only the budgets show, without hints. For the strip
 // at the top of that settings category.
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -64,14 +65,14 @@ const bar = (spent: string, limit: string) => {
 </script>
 
 <template>
-  <Card title="AI spend this month" data-testid="budget">
-    <p v-if="!usage.configured" class="tp-note" role="status" data-testid="not-configured">
+  <Card :title="compact ? 'Spend by budget' : 'AI spend this month'" data-testid="budget">
+    <p v-if="!usage.configured" class="bc__note" role="status" data-testid="not-configured">
       Claude is not set up yet (no ANTHROPIC_API_KEY), so nothing is being spent.
     </p>
 
-    <div class="bc__month" :class="`is-${monthLevel}`">
+    <div v-if="!compact" class="bc__month" :class="`is-${monthLevel}`">
       <div class="bc__head">
-        <span class="tp-strong" data-testid="month-spend"
+        <span class="bc__label" data-testid="month-spend"
           >Month to date: {{ usd(usage.spent_usd) }} of
           {{ num(usage.limit_usd) > 0 ? usd(usage.limit_usd) : 'no cap' }}</span
         >
@@ -86,7 +87,7 @@ const bar = (spent: string, limit: string) => {
       />
     </div>
 
-    <ul class="bc__rows" aria-label="Spend by budget">
+    <ul class="bc__rows" :class="{ 'is-compact': compact }" aria-label="Spend by budget">
       <li
         v-for="b in budgets"
         :key="b.budget"
@@ -95,21 +96,21 @@ const bar = (spent: string, limit: string) => {
         :data-budget="b.budget"
       >
         <div class="bc__head">
-          <span class="tp-strong">{{ b.label }}</span>
-          <span class="tp-num bc__amt">{{ usd(b.spent_usd) }} / {{ usd(b.limit_usd) }}</span>
+          <span class="bc__label">{{ b.label }}</span>
+          <span class="bc__amt ui-mono">{{ usd(b.spent_usd) }} / {{ usd(b.limit_usd) }}</span>
         </div>
         <ProgressBar
           v-bind="bar(b.spent_usd, b.limit_usd)"
           size="sm"
           :label="`${b.label} spent this month`"
         />
-        <span v-if="!compact && b.hint" class="tp-note">{{ b.hint }}</span>
+        <span v-if="!compact && b.hint" class="bc__note">{{ b.hint }}</span>
         <Badge v-if="b.level === 'over'" tone="danger" label="Cap reached: calls stop" />
         <Badge v-else-if="b.level === 'warn'" tone="warning" label="Over 80 % used" />
       </li>
     </ul>
 
-    <div v-if="settingsLink" class="tp-row">
+    <div v-if="settingsLink" class="bc__actions">
       <Button size="sm" variant="ghost" @click="router.push('/dev/settings?category=ai')"
         >Change the caps in Settings → AI</Button
       >
@@ -132,9 +133,33 @@ const bar = (spent: string, limit: string) => {
   gap: var(--sp-2);
   min-width: 0;
 }
-.bc__amt {
+.bc__label {
+  min-width: 0;
   font-size: var(--text-sm);
+  line-height: var(--lh-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary, var(--theme-text));
+}
+.bc__amt {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
+}
+.bc__note {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: var(--lh-xs);
+  color: var(--text-secondary, var(--theme-dim));
+}
+.bc__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.bc__rows.is-compact {
+  margin-top: 0;
 }
 .bc__rows {
   display: grid;

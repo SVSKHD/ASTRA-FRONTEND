@@ -80,6 +80,8 @@ const badges = computed<Partial<Record<TabKey, number>>>(() => {
 function go(key: TabKey) {
   ui.setMoreSheet(false)
   if (tab.value !== key) ui.setTab(key)
+  // On /settings the tab may already be this one: going to it still means home.
+  else if (router.currentRoute.value.path !== '/') void router.push('/')
 }
 
 // --- the utilities, from the More sheet ---------------------------------------

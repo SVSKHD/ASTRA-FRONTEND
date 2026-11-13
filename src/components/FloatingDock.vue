@@ -20,8 +20,9 @@
 //
 // IT IS NOT FIXED (section 44, item 2): it fills the shell's `rail` region —
 // the grid gives it a column of its own — so nothing else lands on top of it.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { routerKey } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
@@ -70,10 +71,14 @@ const reduced =
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
 const CHANGE_MS = reduced ? 0 : 380
 let changeTimer: ReturnType<typeof setTimeout> | undefined
+// Optional: the dock also mounts outside the router (tests, previews).
+const router = inject(routerKey, null)
 function settle() {
   clearTimeout(changeTimer)
   const commit = () => {
     if (tab.value !== centred.value) ui.setTab(centred.value)
+    // On /settings the tab may already be this one: picking it still means home.
+    else if (router && router.currentRoute.value.path !== '/') void router.push('/')
   }
   if (CHANGE_MS === 0) commit()
   else changeTimer = setTimeout(commit, CHANGE_MS)
