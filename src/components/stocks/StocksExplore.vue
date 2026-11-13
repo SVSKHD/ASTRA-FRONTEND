@@ -23,6 +23,7 @@ import {
   type Kind,
 } from '@/trading/instruments'
 import { remember } from '@/trading/resolve'
+import { isTestInstrument } from '@/trading/instruments'
 import { ApiFailure } from '@/trading/useLoad'
 import type { WatchlistItem } from '@/trading/watchlists'
 import type { Stock } from '@/types'
@@ -66,7 +67,7 @@ const CONTRACT_LABEL: Record<string, string> = {
 }
 type ExchangeFilter = 'all' | Exchange
 const EXCHANGES: { value: ExchangeFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
+  { value: 'all', label: 'All exchanges' },
   { value: 'NSE', label: 'NSE' },
   { value: 'BSE', label: 'BSE' },
 ]
@@ -108,6 +109,10 @@ watch(text, (t) => {
 
 // --- the results ---------------------------------------------------------------------------
 const found = ref<Instrument[]>([])
+/** How far into the server's results this has read (test instruments included). */
+const read = ref(0)
+/** Test instruments skipped so far. */
+const hidden = ref(0)
 const total = ref(0)
 const loading = ref(false)
 const error = ref('')
@@ -117,17 +122,38 @@ async function load(append = false) {
   loading.value = true
   error.value = ''
   try {
-    const page = await searchInstruments({
-      q: q.value || undefined,
-      instrumentType: instrumentType.value,
-      exchange: exchange.value === 'all' ? undefined : exchange.value,
-      limit: PAGE,
-      offset: append ? found.value.length : 0,
-    })
-    if (mine !== seq) return
-    remember(page.items)
-    found.value = append ? [...found.value, ...page.items] : page.items
-    total.value = page.total
+    // The broker's master carries its own test instruments (011NSETEST, ISIN
+    // DUMMY…): they are skipped, and more is read until half a screenful is
+    // real or a few pages have been tried.
+    const before = append ? found.value.length : 0
+    const keep: Instrument[] = append ? [...found.value] : []
+    let offset = append ? read.value : 0
+    let skipped = append ? hidden.value : 0
+    let all = total.value
+    let tries = 0
+    for (;;) {
+      const page = await searchInstruments({
+        q: q.value || undefined,
+        instrumentType: instrumentType.value,
+        exchange: exchange.value === 'all' ? undefined : exchange.value,
+        limit: PAGE,
+        offset,
+      })
+      if (mine !== seq) return
+      remember(page.items)
+      offset += page.items.length
+      all = page.total
+      const real = page.items.filter((i) => !isTestInstrument(i))
+      skipped += page.items.length - real.length
+      keep.push(...real)
+      tries++
+      const enough = keep.length - before >= PAGE / 2
+      if (!page.items.length || enough || offset >= all || tries >= 5) break
+    }
+    found.value = keep
+    read.value = offset
+    hidden.value = skipped
+    total.value = all
   } catch (e) {
     if (mine !== seq) return
     error.value =
@@ -172,8 +198,20 @@ const byId = computed(() => new Map(found.value.map((i) => [i.id, i])))
         clearable
       />
       <div class="sx__filters">
-        <SegmentedControl v-model="kind" :options="KINDS" size="sm" aria-label="What to show" />
-        <SegmentedControl v-model="exchange" :options="EXCHANGES" size="sm" aria-label="Exchange" />
+        <SegmentedControl
+          v-model="kind"
+          class="sx__kinds"
+          :options="KINDS"
+          size="sm"
+          aria-label="What to show"
+        />
+        <Select
+          v-model="exchange"
+          class="sx__exchange"
+          :options="EXCHANGES"
+          size="sm"
+          aria-label="Exchange"
+        />
         <Select
           v-if="contractOptions.length"
           v-model="contractModel"
@@ -187,8 +225,11 @@ const byId = computed(() => new Map(found.value.map((i) => [i.id, i])))
 
     <div class="sx__scroll">
       <p v-if="!error && found.length" class="sx__count" role="status">
-        {{ total.toLocaleString() }} {{ total === 1 ? 'result' : 'results'
-        }}<template v-if="q"> for “{{ q }}”</template>
+        Showing {{ found.length.toLocaleString() }}<template v-if="q"> for “{{ q }}”</template
+        ><template v-if="hidden">
+          · {{ hidden.toLocaleString() }} broker test
+          {{ hidden === 1 ? 'entry' : 'entries' }} hidden</template
+        >
       </p>
 
       <EmptyState v-if="error" glyph="⚠️" title="The search could not be run" :description="error">
@@ -222,14 +263,14 @@ const byId = computed(() => new Map(found.value.map((i) => [i.id, i])))
           @add="byId.get(r.item.id) && emit('add', byId.get(r.item.id)!)"
         />
         <Button
-          v-if="found.length < total"
+          v-if="read < total"
           class="sx__more"
           size="sm"
           variant="secondary"
           :loading="loading"
           @click="load(true)"
         >
-          Show more ({{ (total - found.length).toLocaleString() }} left)
+          Show more
         </Button>
       </div>
       <p class="sx__note">
@@ -260,6 +301,18 @@ const byId = computed(() => new Map(found.value.map((i) => [i.id, i])))
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
+}
+.sx__kinds {
+  flex: 1 1 320px;
+  max-width: 420px;
+}
+.sx__kinds :deep(.ui-seg__opt) {
+  flex: 1 1 auto;
+  padding: 0 6px;
+}
+.sx__exchange {
+  flex: 0 1 170px;
+  min-width: 0;
 }
 .sx__contract {
   flex: 0 1 200px;

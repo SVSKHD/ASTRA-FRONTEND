@@ -57,7 +57,8 @@ const last = computed(() => props.row.quote?.last ?? null)
       :label="`${row.item.symbol}, last 30 days`"
     />
     <div class="sr__quote">
-      <span class="sr__price">{{ last ? dec(last, 2) : '—' }}</span>
+      <span v-if="last" class="sr__price">{{ dec(last, 2) }}</span>
+      <span v-else class="sr__noprice">No price</span>
       <span
         v-if="row.change"
         class="sr__chg"
@@ -65,7 +66,7 @@ const last = computed(() => props.row.quote?.last ?? null)
         :title="`${row.change.up ? '+' : ''}${dec(row.change.change, 2)} since the last close`"
         >{{ row.change.up ? '+' : '' }}{{ row.change.pct }}%</span
       >
-      <span v-else class="sr__chg is-flat">—</span>
+      <span v-else-if="last" class="sr__chg is-flat">—</span>
     </div>
     <IconButton
       v-if="explore"
@@ -174,6 +175,10 @@ const last = computed(() => props.row.quote?.last ?? null)
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
   color: var(--theme-text);
+}
+.sr__noprice {
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
 }
 .sr__chg {
   padding: 1px 8px;

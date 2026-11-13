@@ -125,3 +125,12 @@ export function brokerLabel(b: BrokerInfo): string {
   if (!b.configured) return `${b.label} · not configured`
   return `${b.label} · ${b.instruments.toLocaleString()} instruments`
 }
+
+/**
+ * The broker's own test instruments, listed in its master alongside real ones:
+ * symbols like 011NSETEST and ISINs starting DUMMY. Never something to trade or
+ * watch, so the Stocks tab leaves them out.
+ */
+export function isTestInstrument(i: Pick<Instrument, 'symbol' | 'isin'>): boolean {
+  return /^DUMMY/i.test(i.isin ?? '') || /(NSE|BSE|MCX)TEST$/i.test(i.symbol)
+}

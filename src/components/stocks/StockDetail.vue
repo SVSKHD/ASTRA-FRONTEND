@@ -3,7 +3,7 @@
 // a chart with a choice of range, YOUR thesis and targets for it, and the few
 // facts worth knowing. Broker plumbing (security ids, references) stays on the
 // trading page's instrument view, one click away.
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { aureon } from '@/api/client'
 import { useAppStore } from '@/stores/app'
@@ -51,12 +51,20 @@ const RANGES: { value: Timeframe; label: string }[] = [
 const LIMIT: Record<string, number> = { '5m': 80, '1h': 50, '1d': 130 }
 const tf = ref<Timeframe>('1d')
 const candles = ref<ChartCandle[]>([])
-const chartState = ref<'loading' | 'ready' | 'empty' | 'error'>('loading')
+// 'fetching': nothing stored yet and the server is getting it from the broker;
+// the chart looks again a few times rather than giving up after one read.
+const chartState = ref<'loading' | 'ready' | 'fetching' | 'empty' | 'error'>('loading')
+const chartNote = ref('')
+const POLL_MS = 6_000
+const POLLS = 6
 let seq = 0
-async function loadChart() {
+let pollTimer: ReturnType<typeof setTimeout> | undefined
+onBeforeUnmount(() => clearTimeout(pollTimer))
+async function loadChart(attempt = 0) {
   const id = props.row.item.id
   const mine = ++seq
-  chartState.value = 'loading'
+  clearTimeout(pollTimer)
+  if (attempt === 0) chartState.value = 'loading'
   try {
     const rows = must(
       await aureon.GET('/api/trading/candles', {
@@ -67,9 +75,24 @@ async function loadChart() {
     candles.value = rows
       .filter((c) => !c.is_gap)
       .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))
-    chartState.value = candles.value.length ? 'ready' : 'empty'
-    // Nothing stored yet: ask the server to fetch it, once.
-    if (!candles.value.length) void requestHistory(id, tf.value)
+    if (candles.value.length) {
+      chartState.value = 'ready'
+      return
+    }
+    // Nothing stored yet: ask the server to fetch it (once per page load), then
+    // look again while it does.
+    const asked = await requestHistory(id, tf.value)
+    if (mine !== seq) return
+    if (asked.state === 'queued' && attempt < POLLS) {
+      chartState.value = 'fetching'
+      pollTimer = setTimeout(() => void loadChart(attempt + 1), POLL_MS)
+      return
+    }
+    chartState.value = 'empty'
+    chartNote.value =
+      asked.state === 'queued'
+        ? 'The broker has not sent this history yet. Try again in a minute.'
+        : `No history for this range: ${asked.reason}`
   } catch {
     if (mine === seq) chartState.value = 'error'
   }
@@ -121,8 +144,8 @@ const facts = computed(() => {
         </div>
       </div>
 
-      <div class="sd__price">
-        <span class="sd__last">{{ last ? '₹' + dec(last, 2) : '—' }}</span>
+      <div v-if="last" class="sd__price">
+        <span class="sd__last">₹{{ dec(last, 2) }}</span>
         <span v-if="row.change" class="sd__change" :class="row.change.up ? 'is-up' : 'is-down'">
           <Icon :name="row.change.up ? 'trending-up' : 'trending-down'" size="sm" />
           {{ row.change.up ? '+' : '' }}{{ dec(row.change.change, 2) }} ({{
@@ -130,13 +153,25 @@ const facts = computed(() => {
           }}{{ row.change.pct }}%) today
         </span>
       </div>
-      <span class="sd__fresh" :class="row.quote?.source === 'stream' ? 'is-live' : ''">
+      <div v-else class="sd__noprice">
+        <Icon name="circle-slash" size="md" />
+        <div>
+          <strong>No price right now</strong>
+          <span>{{
+            row.flag?.text ?? 'The broker has not sent a price for it yet. It may not be trading.'
+          }}</span>
+        </div>
+      </div>
+      <span
+        v-if="row.quote && last"
+        class="sd__fresh"
+        :class="row.quote.source === 'stream' ? 'is-live' : ''"
+      >
         <span class="sd__dot" />
-        <template v-if="!row.quote">No price yet</template>
-        <template v-else-if="row.quote.source === 'stream'">Live</template>
+        <template v-if="row.quote.source === 'stream'">Live</template>
         <template v-else>Price from {{ ago(row.quote.at, now) }}</template>
       </span>
-      <p v-if="row.flag" class="sd__flag">{{ row.flag.text }}</p>
+      <p v-if="row.flag && row.flag.tone !== 'neutral'" class="sd__flag">{{ row.flag.text }}</p>
     </section>
 
     <section class="sd__card" aria-label="Chart">
@@ -155,13 +190,24 @@ const facts = computed(() => {
         :height="240"
         :label="`${row.item.symbol} price chart`"
       />
-      <p v-else class="sd__muted">
-        {{
-          chartState === 'error'
-            ? 'The chart could not be loaded.'
-            : 'No price history for this range yet. It has been requested; check back shortly.'
-        }}
-      </p>
+      <div v-else-if="chartState === 'fetching'" class="sd__chartWait">
+        <Skeleton height="200px" radius="var(--radius-md)" />
+        <span class="sd__muted">Getting this range from the broker…</span>
+      </div>
+      <div v-else class="sd__chartEmpty">
+        <Icon name="chart-candlestick" size="lg" />
+        <span class="sd__muted">{{
+          chartState === 'error' ? 'The chart could not be loaded.' : chartNote
+        }}</span>
+        <div class="sd__chartActions">
+          <Button size="sm" variant="secondary" @click="loadChart()">
+            <Icon name="refresh-cw" size="sm" />Try again
+          </Button>
+          <Button size="sm" variant="ghost" @click="router.push(chartPath(row.item.id, tf))">
+            Open in Charts
+          </Button>
+        </div>
+      </div>
     </section>
 
     <section class="sd__card" aria-label="Your thesis">
@@ -227,6 +273,55 @@ const facts = computed(() => {
   flex-direction: column;
   gap: var(--sp-4);
   min-width: 0;
+  /* The page scrolls inside its pane (as the todo pane does), never past it. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 4px 12px 2px;
+}
+.sd__noprice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--theme-dim) 10%, transparent);
+  color: var(--theme-dim);
+}
+.sd__noprice div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sd__noprice strong {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--theme-text);
+}
+.sd__noprice span {
+  font-size: var(--text-sm);
+}
+.sd__chartWait {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.sd__chartEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-6) var(--sp-4);
+  text-align: center;
+  color: var(--theme-dim);
+}
+.sd__chartActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
 }
 .sd__hero {
   display: flex;
