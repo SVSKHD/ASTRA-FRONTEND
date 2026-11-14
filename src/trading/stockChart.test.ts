@@ -5,6 +5,8 @@ import {
   cachedCandles,
   mergeTick,
   parseIndicators,
+  sameCandles,
+  stableCandles,
   sessionStart,
   type Candle,
 } from './stockChart'
@@ -52,8 +54,23 @@ describe('mergeTick', () => {
     expect(mergeTick(base, '0', '2026-11-13T04:29:10Z', '1m', NOW)).toBe(base)
     expect(mergeTick([], '100', '2026-11-13T03:00:00Z', '1m', NOW)).toEqual([])
   })
-  it('leaves daily candles alone', () => {
-    expect(mergeTick(base, '150', '2026-11-13T04:29:40Z', '1d', NOW)).toBe(base)
+  it('moves the daily candle of today, but never invents one', () => {
+    const day = [c('2026-11-12T18:30:00Z', '100')] // 13 Nov 00:00 IST
+    expect(mergeTick(day, '104', '2026-11-13T04:29:40Z', '1d', NOW)[0]).toMatchObject({
+      close: '104',
+      high: '104',
+    })
+    const yesterday = [c('2026-11-11T18:30:00Z', '100')]
+    expect(mergeTick(yesterday, '104', '2026-11-13T04:29:40Z', '1d', NOW)).toBe(yesterday)
+  })
+  it('opens hourly bars on the 09:15 grid', () => {
+    const h = [c('2026-11-13T03:45:00Z', '100')] // 09:15 IST
+    const out = mergeTick(h, '101', '2026-11-13T04:50:00Z', '1h', NOW) // 10:20 IST
+    expect(out.at(-1)?.ts).toBe('2026-11-13T04:45:00.000Z') // 10:15 IST
+  })
+  it('ignores ticks after the close', () => {
+    const late = Date.parse('2026-11-13T10:30:00Z') // 16:00 IST
+    expect(mergeTick(base, '120', '2026-11-13T10:29:00Z', '1m', late)).toBe(base)
   })
   it('starts from nothing when the server has no candles yet', () => {
     expect(mergeTick([], '100', '2026-11-13T04:29:40Z', '1m', NOW)).toHaveLength(1)
@@ -77,5 +94,21 @@ describe('candle cache', () => {
     cacheCandles('7:1d', list, 5)
     expect(cachedCandles('7:1d')).toEqual({ candles: list, at: 5 })
     expect(cachedCandles('8:1d')).toBeNull()
+  })
+})
+
+describe('sameCandles / stableCandles', () => {
+  const a = [c('2026-11-13T04:28:00Z', '100')]
+  it('compares value for value', () => {
+    expect(sameCandles(a, [c('2026-11-13T04:28:00Z', '100')])).toBe(true)
+    expect(sameCandles(a, [c('2026-11-13T04:28:00Z', '101')])).toBe(false)
+    expect(sameCandles(a, [])).toBe(false)
+  })
+  it('hands back the previous array while nothing changed', () => {
+    const keep = stableCandles()
+    const first = keep(a)
+    expect(keep([c('2026-11-13T04:28:00Z', '100')])).toBe(first)
+    const moved = [c('2026-11-13T04:28:00Z', '102')]
+    expect(keep(moved)).toBe(moved)
   })
 })

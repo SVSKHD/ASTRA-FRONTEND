@@ -106,6 +106,41 @@ export function atLatest(v: View, total: number): boolean {
   return v.end >= total
 }
 
+/** Index of `t` in ascending `times`, or -1. */
+function indexOf(times: readonly number[], t: number): number {
+  let lo = 0
+  let hi = times.length - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (times[mid] === t) return mid
+    if (times[mid] < t) lo = mid + 1
+    else hi = mid - 1
+  }
+  return -1
+}
+
+/**
+ * The same series, re-read: keep the candles the person was looking at on screen.
+ * A refresh of a fixed-size window drops the oldest candle as a new one arrives,
+ * so indices shift; this moves the view with them, and keeps following the newest
+ * candle when it was. Null when the two reads share no candle (start over).
+ */
+export function carryView(v: View, prev: readonly number[], next: readonly number[]): View | null {
+  if (!prev.length || !next.length) return null
+  // A candle at old index i sits at i + shift now.
+  let shift = indexOf(next, prev[0])
+  if (shift < 0) {
+    // The old first candle fell off the front: find the new first in the old read.
+    const back = indexOf(prev, next[0])
+    if (back < 0) return null
+    shift = -back
+  }
+  const moved = { start: v.start + shift, end: v.end + shift }
+  const appended = next.length - (prev.length + shift)
+  const follow = atLatest(v, prev.length) && appended > 0
+  return follow ? panView(moved, appended, next.length) : clampView(moved, next.length)
+}
+
 /** A keyboard key → the next view, or null when the key is not the chart's. */
 export function keyView(v: View, key: string, total: number): View | null {
   const span = v.end - v.start

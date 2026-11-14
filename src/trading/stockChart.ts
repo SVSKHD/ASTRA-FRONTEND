@@ -3,7 +3,7 @@
 // streamed tick into the newest candle, and the indicator toggles it offers.
 // No Vue here, so the tests can read it.
 
-import type { Timeframe } from '@/trading/chartView'
+import { TF_SECONDS, type Timeframe } from '@/trading/chartView'
 import type { Study, StudyKind, ColorKey } from '@/trading/studies'
 
 export interface Candle {
@@ -45,13 +45,27 @@ export function sessionStart(now: number): number {
   return Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate(), 9, 15) - IST_MS
 }
 
-const STEP_MS: Partial<Record<Timeframe, number>> = { '1m': 60_000, '5m': 300_000 }
+/** 15:30 IST, the close, on the IST day of `now`. */
+export function sessionEnd(now: number): number {
+  return sessionStart(now) + (6 * 60 + 15) * 60_000
+}
+
+/** Bars that open a new candle from a tick: session-aligned (NSE bars start at 09:15). */
+const NEW_BAR_MS: Partial<Record<Timeframe, number>> = {
+  '1m': 60_000,
+  '5m': 300_000,
+  '15m': 900_000,
+  '30m': 1_800_000,
+  '1h': 3_600_000,
+}
 
 /**
- * Fold one streamed price into the candles: it moves the newest candle's close
- * (and high / low) when it falls in that candle's minute, or opens a new candle
- * when it is the next one. Older ticks and ticks from before today's open are
- * ignored. Returns the same array when nothing changes, so nothing re-renders.
+ * Fold one streamed price into the candles, on any timeframe: a tick inside the
+ * newest candle's period moves its close (and high / low); on minute and hour
+ * bars a tick past it opens the next candle, aligned to the 09:15 open. Daily and
+ * 4h candles are only moved, never invented. Older ticks, ticks outside today's
+ * session and bad prices are ignored. Returns the SAME array when nothing changes,
+ * so nothing re-renders.
  */
 export function mergeTick(
   candles: readonly Candle[],
@@ -60,25 +74,70 @@ export function mergeTick(
   tf: Timeframe,
   now: number,
 ): readonly Candle[] {
-  const step = STEP_MS[tf]
   const p = Number(ltp)
   const t = Date.parse(at ?? '')
-  if (!step || !ltp || !Number.isFinite(p) || p <= 0 || !Number.isFinite(t)) return candles
-  if (t < sessionStart(now)) return candles
-  const bucket = Math.floor(t / step) * step
+  if (!ltp || !Number.isFinite(p) || p <= 0 || !Number.isFinite(t)) return candles
+  const open = sessionStart(now)
+  if (t < open || t > sessionEnd(now) + 60_000) return candles
   const last = candles[candles.length - 1]
   const lastT = last ? Date.parse(last.ts) : -Infinity
-  if (bucket < lastT) return candles
-  if (bucket === lastT) {
+  if (t < lastT) return candles
+  if (last && t < lastT + TF_SECONDS[tf] * 1000) {
     const high = p > Number(last.high) ? ltp : last.high
     const low = p < Number(last.low) ? ltp : last.low
     if (last.close === ltp && high === last.high && low === last.low) return candles
     return [...candles.slice(0, -1), { ...last, close: ltp, high, low }]
   }
+  const step = NEW_BAR_MS[tf]
+  if (!step) return candles
+  const bucket = open + Math.floor((t - open) / step) * step
+  if (bucket <= lastT) return candles
   return [
     ...candles,
-    { ts: new Date(bucket).toISOString(), open: ltp, high: ltp, low: ltp, close: ltp, volume: null },
+    {
+      ts: new Date(bucket).toISOString(),
+      open: ltp,
+      high: ltp,
+      low: ltp,
+      close: ltp,
+      volume: null,
+    },
   ]
+}
+
+/**
+ * A filter that hands back the previous array while the candles are the same,
+ * value for value: a computed that rebuilds them (a clock tick, an unchanged
+ * quote) then changes nothing downstream, so the chart and its indicators do not
+ * redraw.
+ */
+export function stableCandles<T extends Candle>(): (next: readonly T[]) => readonly T[] {
+  let last: readonly T[] = []
+  return (next) => {
+    if (sameCandles(last, next)) return last
+    last = next
+    return next
+  }
+}
+
+/** Two reads with the same candles, value for value (a refresh that brought nothing new). */
+export function sameCandles(a: readonly Candle[], b: readonly Candle[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (
+      x.ts !== y.ts ||
+      x.close !== y.close ||
+      x.high !== y.high ||
+      x.low !== y.low ||
+      x.open !== y.open ||
+      (x.volume ?? null) !== (y.volume ?? null)
+    )
+      return false
+  }
+  return true
 }
 
 // --- what was read, per instrument and range --------------------------------------

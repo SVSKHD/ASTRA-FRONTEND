@@ -11,15 +11,11 @@ import { useRouter } from 'vue-router'
 import { aureon } from '@/api/client'
 import Button from '@/components/ui/Button.vue'
 import Icon from '@/components/ui/Icon.vue'
+import IconButton from '@/components/ui/IconButton.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import CandleChart, { type ChartGroup } from '@/components/trading/CandleChart.vue'
-import {
-  explainHistory,
-  forgetHistory,
-  historyStatus,
-  requestHistory,
-} from '@/trading/history'
+import { explainHistory, forgetHistory, historyStatus, requestHistory } from '@/trading/history'
 import { isUnconfirmed } from '@/trading/chartView'
 import { marketOpen } from '@/trading/dhanHealth'
 import { chartPath } from '@/trading/sections'
@@ -39,6 +35,8 @@ import {
   studyOf,
   type Candle,
   type RangeKey,
+  sameCandles,
+  stableCandles,
 } from '@/trading/stockChart'
 
 const props = defineProps<{
@@ -148,7 +146,9 @@ async function load(attempt = 0, quiet = false) {
       .filter((c) => !c.is_gap)
       .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))
     if (got.length) {
-      candles.value = got
+      // A refresh that brought nothing new keeps the same array: no redraw.
+      const same = shownRange.value === r && shownId.value === id && sameCandles(candles.value, got)
+      if (!same) candles.value = got
       shownRange.value = r
       shownId.value = id
       loadedAt.value = Date.now()
@@ -219,11 +219,18 @@ watch(
 
 const isLive = computed(() => shownRange.value === 'live' && range.value === 'live')
 const shownTf = computed(() => RANGES[shownRange.value].tf)
-/** What is drawn: on Live, the stored candles with the newest tick folded in. */
+/**
+ * What is drawn: the stored candles with the live price folded into the newest
+ * one, on every range, while the market is open and the feed is live. When the
+ * price has not changed, the same array comes back and nothing redraws.
+ */
+const keep = stableCandles()
 const drawn = computed(() =>
-  isLive.value && props.streaming
-    ? mergeTick(candles.value, props.ltp, props.ltpAt, shownTf.value, props.now)
-    : candles.value,
+  keep(
+    isOpen.value && props.streaming
+      ? mergeTick(candles.value, props.ltp, props.ltpAt, shownTf.value, props.now)
+      : candles.value,
+  ),
 )
 const unconfirmedLast = computed(() => {
   const last = drawn.value[drawn.value.length - 1]
@@ -296,7 +303,17 @@ const footer = computed(() => {
         :options="options"
         :class="{ 'is-liveOn': range === 'live' }"
       />
-      <span v-if="isLive && streaming" class="sc__live" aria-hidden="true">LIVE</span>
+      <span class="sc__barEnd">
+        <span v-if="isOpen && streaming" class="sc__live" aria-hidden="true">LIVE</span>
+        <IconButton
+          label="Open the full chart: every indicator, drawing room, full screen"
+          size="sm"
+          tone="default"
+          @click="router.push(chartPath(instrumentId, RANGES[shownRange].tf))"
+        >
+          <Icon name="maximize" size="sm" />
+        </IconButton>
+      </span>
     </div>
 
     <div class="sc__ind" role="group" aria-label="Indicators">
@@ -322,6 +339,7 @@ const footer = computed(() => {
         :overlays="overlays"
         :panes="panes"
         :unconfirmed-last="unconfirmedLast"
+        :series-key="`${shownId}:${shownRange}`"
         :label="`${symbol} price chart`"
       />
       <div v-else-if="state === 'loading' || state === 'fetching'" class="sc__wait">
@@ -335,11 +353,7 @@ const footer = computed(() => {
           <Button size="sm" variant="secondary" @click="retry()">
             <Icon name="refresh-cw" size="sm" />Try again
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            @click="router.push(chartPath(instrumentId, spec.tf))"
-          >
+          <Button size="sm" variant="ghost" @click="router.push(chartPath(instrumentId, spec.tf))">
             Open in Charts
           </Button>
         </div>
@@ -368,6 +382,12 @@ const footer = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
+}
+.sc__barEnd {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
 }
 .sc__live {
   display: inline-flex;
