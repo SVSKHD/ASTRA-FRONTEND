@@ -20,8 +20,8 @@ import IconButton from '@/components/ui/IconButton.vue'
 import { dec } from '@/trading/format'
 import type { SeriesLine } from '@/trading/studies'
 import {
-  atLatest,
   axisLabel,
+  carryView,
   clampView,
   fullTime,
   initialView,
@@ -76,6 +76,8 @@ const props = withDefaults(
     markers?: ChartMarker[]
     /** The newest candle's period has not ended: drawn dashed and labelled. */
     unconfirmedLast?: boolean
+    /** Names the series (instrument + timeframe): a change starts the view over. */
+    seriesKey?: string
     timeframe?: Timeframe
     height?: number
     label?: string
@@ -86,6 +88,7 @@ const props = withDefaults(
     panes: () => [],
     markers: () => [],
     unconfirmedLast: false,
+    seriesKey: '',
     timeframe: '15m',
     height: 320,
     label: 'Candle chart',
@@ -109,16 +112,16 @@ const total = computed(() => props.candles.length)
 const view = ref<View>(initialView(props.candles.length))
 const times = computed(() => props.candles.map((c) => Date.parse(c.ts)))
 
-// Keep the view sensible when the data changes: a different series starts over at the
-// newest candles; more candles on the same series keep following if it was following.
-watch(
-  () => [props.candles[0]?.ts, props.candles.length] as const,
-  ([first, n], [prevFirst, prevN]) => {
-    if (first !== prevFirst) view.value = initialView(n)
-    else if (atLatest(view.value, prevN ?? 0)) view.value = panView(view.value, n - (prevN ?? 0), n)
-    else view.value = clampView(view.value, n)
-  },
-)
+// Keep the view when the data changes: a different series (another stock or
+// timeframe, `seriesKey`) starts over at the newest candles; a re-read of the same
+// series keeps the candles you were looking at on screen, even when the window slid
+// (the oldest candle dropped as a new one came), and keeps following the newest
+// candle if it was. Without a seriesKey, reads that share no candle start over.
+watch([() => props.seriesKey, times], ([k, next], [prevK, prev]) => {
+  const n = next.length
+  if (k !== prevK || !prev?.length) view.value = initialView(n)
+  else view.value = carryView(view.value, prev, next) ?? initialView(n)
+})
 
 const range = computed(() => visibleRange(view.value, total.value))
 const span = computed(() => view.value.end - view.value.start)
