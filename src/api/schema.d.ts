@@ -1735,6 +1735,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trading/mt5/bars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Bars
+         * @description Stored closed bars, ascending by ts (the first `limit` from `from`).
+         */
+        get: operations["get_bars_api_trading_mt5_bars_get"];
+        put?: never;
+        /**
+         * Post Bars
+         * @description Closed candles, upserted on (symbol, timeframe, ts): a resend with other values
+         *     corrects the stored bar. A bar with high < low or a non-positive price is rejected.
+         */
+        post: operations["post_bars_api_trading_mt5_bars_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trading/mt5/bot-status": {
         parameters: {
             query?: never;
@@ -1744,6 +1769,29 @@ export interface paths {
         };
         /** Bot Status */
         get: operations["bot_status_api_trading_mt5_bot_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/dataset/crosses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Crosses Dataset
+         * @description The training set: one row per completed EMA 8/32 cross in [from, to], computed from
+         *     mt5.bars with the bot's labels.py definitions. Features first; outcomes are prefixed
+         *     `y_`. The last, still-open cross is excluded. csv / jsonl carry the row count, the range
+         *     and the definitions version in X-Aureon-* headers.
+         */
+        get: operations["get_crosses_dataset_api_trading_mt5_dataset_crosses_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1837,6 +1885,49 @@ export interface paths {
         };
         /** Positions */
         get: operations["positions_api_trading_mt5_positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Records
+         * @description Newest first. `kind` is repeatable; `label` matches payload.label; pass `next_cursor`
+         *     back as `cursor` for the next page.
+         */
+        get: operations["get_records_api_trading_mt5_records_get"];
+        put?: never;
+        /**
+         * Post Records
+         * @description The bot sends its records (store.py rows) in batches. Idempotent per record_id; a bad
+         *     row is listed in `rejected` and never fails the batch. Never touches orders.
+         */
+        post: operations["post_records_api_trading_mt5_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/records/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Record Stats */
+        get: operations["get_record_stats_api_trading_mt5_records_stats_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7741,6 +7832,78 @@ export interface components {
             /** Latest At */
             latest_at?: string | null;
         };
+        /** Mt5BarOut */
+        Mt5BarOut: {
+            /** Atr14 */
+            atr14: string | null;
+            /** Close */
+            close: string;
+            /** Ema200 */
+            ema200: string | null;
+            /** Ema32 */
+            ema32: string | null;
+            /** Ema8 */
+            ema8: string | null;
+            /** High */
+            high: string;
+            /** Low */
+            low: string;
+            /** Open */
+            open: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Server Ts */
+            server_ts: string | null;
+            /** Source */
+            source: string;
+            /** Spread */
+            spread: number | null;
+            /** Symbol */
+            symbol: string;
+            /** Tick Volume */
+            tick_volume: number | null;
+            /** Timeframe */
+            timeframe: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+        };
+        /** Mt5BarRejected */
+        Mt5BarRejected: {
+            /** Index */
+            index: number;
+            /** Reason */
+            reason: string;
+            /** Ts */
+            ts?: string | null;
+        };
+        /** Mt5BarsAck */
+        Mt5BarsAck: {
+            /** Inserted */
+            inserted: number;
+            /** Rejected */
+            rejected: components["schemas"]["Mt5BarRejected"][];
+            /** Unchanged */
+            unchanged: number;
+            /** Updated */
+            updated: number;
+        };
+        /** Mt5BarsOut */
+        Mt5BarsOut: {
+            /** Count */
+            count: number;
+            /** Rows */
+            rows: components["schemas"]["Mt5BarOut"][];
+            /** Symbol */
+            symbol: string;
+            /** Timeframe */
+            timeframe: string;
+        };
         /**
          * Mt5BotStatusOut
          * @description Status card: heartbeat = the time of the last accepted push (server clock).
@@ -7806,6 +7969,37 @@ export interface components {
             t: string;
             /** V */
             v: string | null;
+        };
+        /**
+         * Mt5CrossesOut
+         * @description The EMA 8/32 cross training set (one row per completed cross). Outcome columns carry the
+         *     `y_` prefix: they are known only after the cross and must never be used as features.
+         */
+        Mt5CrossesOut: {
+            /** Bars From */
+            bars_from: string | null;
+            /** Bars Used */
+            bars_used: number;
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            /** Definitions Version */
+            definitions_version: string;
+            /** Feature Columns */
+            feature_columns: string[];
+            /** Outcome Columns */
+            outcome_columns: string[];
+            /** Row Count */
+            row_count: number;
+            /** Rows */
+            rows: {
+                [key: string]: unknown;
+            }[];
+            /** Symbol */
+            symbol: string;
+            /** Timeframe */
+            timeframe: string;
         };
         /** Mt5DailyOut */
         Mt5DailyOut: {
@@ -7971,6 +8165,21 @@ export interface components {
             /** Volume Step */
             volume_step?: number | string | null;
         };
+        /** Mt5KindStats */
+        Mt5KindStats: {
+            /** Days 7 */
+            days_7: number;
+            /** Kind */
+            kind: string;
+            /** Newest Received At */
+            newest_received_at: string | null;
+            /** Newest Utc Time */
+            newest_utc_time: string | null;
+            /** Today */
+            today: number;
+            /** Total */
+            total: number;
+        };
         /** Mt5MarketOut */
         Mt5MarketOut: {
             /** As Of */
@@ -8024,6 +8233,93 @@ export interface components {
             items: components["schemas"]["Mt5PositionOut"][];
             /** Stale */
             stale: boolean;
+        };
+        /** Mt5RecordOut */
+        Mt5RecordOut: {
+            /** Account Login */
+            account_login: number | null;
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Bot Id */
+            bot_id: string;
+            /** Bot Version */
+            bot_version: string;
+            /** Kind */
+            kind: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Record Id
+             * Format: uuid
+             */
+            record_id: string;
+            /** Server Time */
+            server_time: string | null;
+            /** Symbol */
+            symbol: string | null;
+            /**
+             * Utc Time
+             * Format: date-time
+             */
+            utc_time: string;
+        };
+        /** Mt5RecordStatsOut */
+        Mt5RecordStatsOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Bot Versions 24H */
+            bot_versions_24h: string[];
+            /** Kinds */
+            kinds: components["schemas"]["Mt5KindStats"][];
+            /** Lag Seconds */
+            lag_seconds: number | null;
+            /** Newest Received At */
+            newest_received_at: string | null;
+            /** Newest Utc Time */
+            newest_utc_time: string | null;
+            /** Total */
+            total: number;
+        };
+        /** Mt5RecordsAck */
+        Mt5RecordsAck: {
+            /** Accepted */
+            accepted: number;
+            /** Duplicate */
+            duplicate: number;
+            /** Rejected */
+            rejected: components["schemas"]["Mt5Rejected"][];
+        };
+        /** Mt5RecordsOut */
+        Mt5RecordsOut: {
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Rows */
+            rows: components["schemas"]["Mt5RecordOut"][];
+        };
+        /**
+         * Mt5Rejected
+         * @description One row the server did not store, and why (the batch itself still succeeds).
+         */
+        Mt5Rejected: {
+            /** Index */
+            index: number;
+            /** Reason */
+            reason: string;
+            /** Record Id */
+            record_id?: string | null;
         };
         /** Mt5ReportOut */
         Mt5ReportOut: {
@@ -12100,7 +12396,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Content Too Large */
+            /** @description Request Entity Too Large */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -12114,7 +12410,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15409,6 +15705,112 @@ export interface operations {
             };
         };
     };
+    get_bars_api_trading_mt5_bars_get: {
+        parameters: {
+            query: {
+                symbol: string;
+                timeframe?: string;
+                from?: string | null;
+                to?: string | null;
+                limit?: number;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5BarsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_bars_api_trading_mt5_bars_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "content-type"?: string | null;
+                "content-encoding"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5BarsAck"];
+                };
+            };
+            /** @description bad or missing bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description body over MT5_INGEST_MAX_BYTES, or over the decompressed cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Content-Type other than application/json, or encoding not gzip */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description wrong schema id, bad envelope, or too many rows */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description too many requests for this token (Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MT5_RECORDS_TOKEN unset or misconfigured, or storage unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     bot_status_api_trading_mt5_bot_status_get: {
         parameters: {
             query?: never;
@@ -15425,6 +15827,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Mt5BotStatusOut"];
+                };
+            };
+        };
+    };
+    get_crosses_dataset_api_trading_mt5_dataset_crosses_get: {
+        parameters: {
+            query: {
+                symbol: string;
+                timeframe?: string;
+                from?: string | null;
+                to?: string | null;
+                format?: "json" | "csv" | "jsonl";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5CrossesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -15623,6 +16060,134 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Mt5PositionsOut"];
+                };
+            };
+        };
+    };
+    get_records_api_trading_mt5_records_get: {
+        parameters: {
+            query?: {
+                kind?: string[] | null;
+                symbol?: string | null;
+                account_login?: number | null;
+                from?: string | null;
+                to?: string | null;
+                label?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5RecordsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_records_api_trading_mt5_records_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "content-type"?: string | null;
+                "content-encoding"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5RecordsAck"];
+                };
+            };
+            /** @description bad or missing bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description body over MT5_INGEST_MAX_BYTES, or over the decompressed cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Content-Type other than application/json, or encoding not gzip */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description wrong schema id, bad envelope, or too many rows */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description too many requests for this token (Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MT5_RECORDS_TOKEN unset or misconfigured, or storage unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_record_stats_api_trading_mt5_records_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5RecordStatsOut"];
                 };
             };
         };

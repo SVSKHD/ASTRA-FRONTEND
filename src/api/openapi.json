@@ -8893,6 +8893,237 @@
         "title": "MonitorOut",
         "type": "object"
       },
+      "Mt5BarOut": {
+        "properties": {
+          "atr14": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Atr14"
+          },
+          "close": {
+            "title": "Close",
+            "type": "string"
+          },
+          "ema200": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema200"
+          },
+          "ema32": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema32"
+          },
+          "ema8": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema8"
+          },
+          "high": {
+            "title": "High",
+            "type": "string"
+          },
+          "low": {
+            "title": "Low",
+            "type": "string"
+          },
+          "open": {
+            "title": "Open",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "server_ts": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Ts"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "spread": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "tick_volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tick Volume"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "timeframe",
+          "ts",
+          "server_ts",
+          "open",
+          "high",
+          "low",
+          "close",
+          "tick_volume",
+          "spread",
+          "ema8",
+          "ema32",
+          "ema200",
+          "atr14",
+          "source",
+          "received_at"
+        ],
+        "title": "Mt5BarOut",
+        "type": "object"
+      },
+      "Mt5BarRejected": {
+        "properties": {
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts"
+          }
+        },
+        "required": [
+          "index",
+          "reason"
+        ],
+        "title": "Mt5BarRejected",
+        "type": "object"
+      },
+      "Mt5BarsAck": {
+        "properties": {
+          "inserted": {
+            "title": "Inserted",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5BarRejected"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "inserted",
+          "updated",
+          "unchanged",
+          "rejected"
+        ],
+        "title": "Mt5BarsAck",
+        "type": "object"
+      },
+      "Mt5BarsOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5BarOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "timeframe",
+          "count",
+          "rows"
+        ],
+        "title": "Mt5BarsOut",
+        "type": "object"
+      },
       "Mt5BotStatusOut": {
         "description": "Status card: heartbeat = the time of the last accepted push (server clock).",
         "properties": {
@@ -9083,6 +9314,104 @@
           "ema"
         ],
         "title": "Mt5CandleOut",
+        "type": "object"
+      },
+      "Mt5CrossesOut": {
+        "description": "The EMA 8/32 cross training set (one row per completed cross). Outcome columns carry the\n`y_` prefix: they are known only after the cross and must never be used as features.",
+        "properties": {
+          "bars_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bars From"
+          },
+          "bars_used": {
+            "title": "Bars Used",
+            "type": "integer"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "definitions_version": {
+            "title": "Definitions Version",
+            "type": "string"
+          },
+          "feature_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Feature Columns",
+            "type": "array"
+          },
+          "outcome_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Outcome Columns",
+            "type": "array"
+          },
+          "row_count": {
+            "title": "Row Count",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          }
+        },
+        "required": [
+          "definitions_version",
+          "symbol",
+          "timeframe",
+          "date_from",
+          "date_to",
+          "bars_from",
+          "bars_used",
+          "row_count",
+          "feature_columns",
+          "outcome_columns",
+          "rows"
+        ],
+        "title": "Mt5CrossesOut",
         "type": "object"
       },
       "Mt5DailyOut": {
@@ -9619,6 +9948,60 @@
         "title": "Mt5InstrumentIn",
         "type": "object"
       },
+      "Mt5KindStats": {
+        "properties": {
+          "days_7": {
+            "title": "Days 7",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "newest_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Received At"
+          },
+          "newest_utc_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Utc Time"
+          },
+          "today": {
+            "title": "Today",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "today",
+          "days_7",
+          "total",
+          "newest_utc_time",
+          "newest_received_at"
+        ],
+        "title": "Mt5KindStats",
+        "type": "object"
+      },
       "Mt5MarketOut": {
         "properties": {
           "as_of": {
@@ -9812,6 +10195,253 @@
           "guardian_orphans"
         ],
         "title": "Mt5PositionsOut",
+        "type": "object"
+      },
+      "Mt5RecordOut": {
+        "properties": {
+          "account_login": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Login"
+          },
+          "batch_id": {
+            "format": "uuid",
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "bot_id": {
+            "title": "Bot Id",
+            "type": "string"
+          },
+          "bot_version": {
+            "title": "Bot Version",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "record_id": {
+            "format": "uuid",
+            "title": "Record Id",
+            "type": "string"
+          },
+          "server_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Time"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "utc_time": {
+            "format": "date-time",
+            "title": "Utc Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "record_id",
+          "kind",
+          "symbol",
+          "account_login",
+          "utc_time",
+          "server_time",
+          "bot_version",
+          "bot_id",
+          "payload",
+          "batch_id",
+          "received_at"
+        ],
+        "title": "Mt5RecordOut",
+        "type": "object"
+      },
+      "Mt5RecordStatsOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "bot_versions_24h": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bot Versions 24H",
+            "type": "array"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5KindStats"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "lag_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lag Seconds"
+          },
+          "newest_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Received At"
+          },
+          "newest_utc_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Utc Time"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "as_of",
+          "kinds",
+          "total",
+          "newest_utc_time",
+          "newest_received_at",
+          "lag_seconds",
+          "bot_versions_24h"
+        ],
+        "title": "Mt5RecordStatsOut",
+        "type": "object"
+      },
+      "Mt5RecordsAck": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5Rejected"
+            },
+            "title": "Rejected",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "Mt5RecordsAck",
+        "type": "object"
+      },
+      "Mt5RecordsOut": {
+        "properties": {
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5RecordOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows",
+          "next_cursor"
+        ],
+        "title": "Mt5RecordsOut",
+        "type": "object"
+      },
+      "Mt5Rejected": {
+        "description": "One row the server did not store, and why (the batch itself still succeeds).",
+        "properties": {
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Id"
+          }
+        },
+        "required": [
+          "index",
+          "reason"
+        ],
+        "title": "Mt5Rejected",
         "type": "object"
       },
       "Mt5ReportOut": {
@@ -22241,13 +22871,13 @@
             "description": "Conflict"
           },
           "413": {
-            "description": "Content Too Large"
+            "description": "Request Entity Too Large"
           },
           "415": {
             "description": "Unsupported Media Type"
           },
           "422": {
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           },
           "503": {
             "description": "Service Unavailable"
@@ -29571,7 +30201,7 @@
             }
           },
           {
-            "description": "repeatable: FUTIDX, FUTSTK, …",
+            "description": "repeatable: FUTIDX, FUTSTK, \u2026",
             "in": "query",
             "name": "instrument_type",
             "required": false,
@@ -29588,7 +30218,7 @@
                   "type": "null"
                 }
               ],
-              "description": "repeatable: FUTIDX, FUTSTK, …",
+              "description": "repeatable: FUTIDX, FUTSTK, \u2026",
               "title": "Instrument Type"
             }
           },
@@ -29618,7 +30248,7 @@
             }
           },
           {
-            "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I…",
+            "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I\u2026",
             "in": "query",
             "name": "segment",
             "required": false,
@@ -29635,7 +30265,7 @@
                   "type": "null"
                 }
               ],
-              "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I…",
+              "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I\u2026",
               "title": "Segment"
             }
           },
@@ -29890,6 +30520,255 @@
         }
       }
     },
+    "/api/trading/mt5/bars": {
+      "get": {
+        "description": "Stored closed bars, ascending by ts (the first `limit` from `from`).",
+        "operationId": "get_bars_api_trading_mt5_bars_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9._#+-]{1,64}$",
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "M30",
+              "pattern": "^[A-Za-z0-9]{1,4}$",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5000,
+              "maximum": 20000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5BarsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Bars",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "database",
+          "id_field": "symbol",
+          "kind": "detail",
+          "label": "Get bars",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "symbol"
+        }
+      },
+      "post": {
+        "description": "Closed candles, upserted on (symbol, timeframe, ts): a resend with other values\ncorrects the stored bar. A bar with high < low or a non-positive price is rejected.",
+        "operationId": "post_bars_api_trading_mt5_bars_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "content-type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "content-encoding",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Encoding"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5BarsAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "bad or missing bearer token"
+          },
+          "413": {
+            "description": "body over MT5_INGEST_MAX_BYTES, or over the decompressed cap"
+          },
+          "415": {
+            "description": "Content-Type other than application/json, or encoding not gzip"
+          },
+          "422": {
+            "description": "wrong schema id, bad envelope, or too many rows"
+          },
+          "429": {
+            "description": "too many requests for this token (Retry-After)"
+          },
+          "503": {
+            "description": "MT5_RECORDS_TOKEN unset or misconfigured, or storage unavailable"
+          }
+        },
+        "summary": "Post Bars",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "hidden",
+          "danger_reason": "machine endpoint (bearer)",
+          "group": "markets",
+          "icon": "database",
+          "id_field": null,
+          "kind": "action",
+          "label": "Post bars",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "public",
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
     "/api/trading/mt5/bot-status": {
       "get": {
         "operationId": "bot_status_api_trading_mt5_bot_status_get",
@@ -29925,6 +30804,127 @@
             "admin"
           ],
           "title_field": null
+        }
+      }
+    },
+    "/api/trading/mt5/dataset/crosses": {
+      "get": {
+        "description": "The training set: one row per completed EMA 8/32 cross in [from, to], computed from\nmt5.bars with the bot's labels.py definitions. Features first; outcomes are prefixed\n`y_`. The last, still-open cross is excluded. csv / jsonl carry the row count, the range\nand the definitions version in X-Aureon-* headers.",
+        "operationId": "get_crosses_dataset_api_trading_mt5_dataset_crosses_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9._#+-]{1,64}$",
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "M30",
+              "pattern": "^[A-Za-z0-9]{1,4}$",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv",
+                "jsonl"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5CrossesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Crosses Dataset",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "database",
+          "id_field": "symbol",
+          "kind": "detail",
+          "label": "Get crosses dataset",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "symbol"
         }
       }
     },
@@ -30329,6 +31329,347 @@
             "admin"
           ],
           "title_field": "symbol"
+        }
+      }
+    },
+    "/api/trading/mt5/records": {
+      "get": {
+        "description": "Newest first. `kind` is repeatable; `label` matches payload.label; pass `next_cursor`\nback as `cursor` for the next page.",
+        "operationId": "get_records_api_trading_mt5_records_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._#+-]{1,64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account_login",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Login"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "label",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Label"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5RecordsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Records",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "database",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Get records",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      },
+      "post": {
+        "description": "The bot sends its records (store.py rows) in batches. Idempotent per record_id; a bad\nrow is listed in `rejected` and never fails the batch. Never touches orders.",
+        "operationId": "post_records_api_trading_mt5_records_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "content-type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "content-encoding",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Encoding"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5RecordsAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "bad or missing bearer token"
+          },
+          "413": {
+            "description": "body over MT5_INGEST_MAX_BYTES, or over the decompressed cap"
+          },
+          "415": {
+            "description": "Content-Type other than application/json, or encoding not gzip"
+          },
+          "422": {
+            "description": "wrong schema id, bad envelope, or too many rows"
+          },
+          "429": {
+            "description": "too many requests for this token (Retry-After)"
+          },
+          "503": {
+            "description": "MT5_RECORDS_TOKEN unset or misconfigured, or storage unavailable"
+          }
+        },
+        "summary": "Post Records",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "hidden",
+          "danger_reason": "machine endpoint (bearer)",
+          "group": "markets",
+          "icon": "database",
+          "id_field": null,
+          "kind": "action",
+          "label": "Post records",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "public",
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/mt5/records/stats": {
+      "get": {
+        "operationId": "get_record_stats_api_trading_mt5_records_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5RecordStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Record Stats",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "database",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Get record stats",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
         }
       }
     },
@@ -40959,7 +42300,7 @@
     },
     "/api/v1/ingest/health_summary": {
       "get": {
-        "description": "For the V1.6.4 Windows watchdog (aureon/watchdog.py, via ApiStore.health_summary()).\n\nThe response is V1.6.4's own contract (aureon_v1/assembler/app.py), field for field:\n`state`, `heartbeats` [{service, state, last_beat, note}], `bars` [{tf, t, n24}],\n`indicators_m30_latest`, `signals` {t, n24}, `risk` {state, ref_source} | null,\n`control_desired`. One difference, on purpose: where V1.6.4's server filled in defaults\nfor missing rows (scheduler \"PAUSED\", desired \"RUN\"), this answers null — nothing is\nreported that no record shows (the watchdog acts only on desired == \"PAUSE\").\n\n`?detail=true` (never sent by the watchdog) adds `diagnostics`: heartbeat ages, the last\naccepted upload per ingest endpoint, open/failed collector jobs and failed alerts.\nEvery query reads an index (latest row per key, last-24 h ranges), so a 5-second poll\nstays cheap. A database failure answers 503, never a guessed state.",
+        "description": "For the V1.6.4 Windows watchdog (aureon/watchdog.py, via ApiStore.health_summary()).\n\nThe response is V1.6.4's own contract (aureon_v1/assembler/app.py), field for field:\n`state`, `heartbeats` [{service, state, last_beat, note}], `bars` [{tf, t, n24}],\n`indicators_m30_latest`, `signals` {t, n24}, `risk` {state, ref_source} | null,\n`control_desired`. One difference, on purpose: where V1.6.4's server filled in defaults\nfor missing rows (scheduler \"PAUSED\", desired \"RUN\"), this answers null \u2014 nothing is\nreported that no record shows (the watchdog acts only on desired == \"PAUSE\").\n\n`?detail=true` (never sent by the watchdog) adds `diagnostics`: heartbeat ages, the last\naccepted upload per ingest endpoint, open/failed collector jobs and failed alerts.\nEvery query reads an index (latest row per key, last-24 h ranges), so a 5-second poll\nstays cheap. A database failure answers 503, never a guessed state.",
         "operationId": "ingest_health_summary_api_v1_ingest_health_summary_get",
         "parameters": [
           {
