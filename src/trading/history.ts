@@ -37,6 +37,11 @@ export function forgetHistoryRequests(): void {
   asked.clear()
 }
 
+/** Forget one request, so a manual "Try again" asks the server afresh. */
+export function forgetHistory(instrumentId: number, tf: Timeframe): void {
+  asked.delete(`${instrumentId}:${tf}`)
+}
+
 export async function requestHistory(instrumentId: number, tf: Timeframe): Promise<HistoryState> {
   const key = `${instrumentId}:${tf}`
   const seen = asked.get(key)

@@ -3,21 +3,15 @@
 // a chart with a choice of range, YOUR thesis and targets for it, and the few
 // facts worth knowing. Broker plumbing (security ids, references) stays on the
 // trading page's instrument view, one click away.
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { aureon } from '@/api/client'
 import { useAppStore } from '@/stores/app'
 import Button from '@/components/ui/Button.vue'
 import Icon from '@/components/ui/Icon.vue'
-import Skeleton from '@/components/ui/Skeleton.vue'
-import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import Chip from '@/components/ui/Chip.vue'
-import CandleChart, { type ChartCandle } from '@/components/trading/CandleChart.vue'
+import StockChart from '@/components/stocks/StockChart.vue'
 import { dec, ago } from '@/trading/format'
-import { explainHistory, historyStatus, requestHistory } from '@/trading/history'
 import { chartPath } from '@/trading/sections'
-import { must } from '@/trading/useLoad'
-import type { Timeframe } from '@/trading/chartView'
 import type { StockRowData } from '@/trading/useWatchlistRows'
 import type { Stock } from '@/types'
 
@@ -41,77 +35,6 @@ const name = computed(
 )
 const exchange = computed(() => props.row.instrument?.exchange || '')
 const last = computed(() => props.row.quote?.last ?? null)
-
-// --- the chart -----------------------------------------------------------------
-const RANGES: { value: Timeframe; label: string }[] = [
-  { value: '5m', label: 'Today' },
-  { value: '1h', label: 'Week' },
-  { value: '1d', label: '6 months' },
-]
-const LIMIT: Record<string, number> = { '5m': 80, '1h': 50, '1d': 130 }
-const tf = ref<Timeframe>('1d')
-const candles = ref<ChartCandle[]>([])
-// 'fetching': nothing stored yet and the server is getting it from the broker;
-// the chart looks again a few times rather than giving up after one read.
-const chartState = ref<'loading' | 'ready' | 'fetching' | 'empty' | 'error'>('loading')
-const chartNote = ref('')
-const fetchNote = ref('')
-const POLL_MS = 6_000
-const POLLS = 6
-let seq = 0
-let pollTimer: ReturnType<typeof setTimeout> | undefined
-onBeforeUnmount(() => clearTimeout(pollTimer))
-async function loadChart(attempt = 0) {
-  const id = props.row.item.id
-  const mine = ++seq
-  clearTimeout(pollTimer)
-  if (attempt === 0) chartState.value = 'loading'
-  try {
-    const rows = must(
-      await aureon.GET('/api/trading/candles', {
-        params: { query: { instrument_id: id, timeframe: tf.value, limit: LIMIT[tf.value] } },
-      }),
-    )
-    if (mine !== seq) return
-    candles.value = rows
-      .filter((c) => !c.is_gap)
-      .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))
-    if (candles.value.length) {
-      chartState.value = 'ready'
-      return
-    }
-    // Nothing stored yet: ask the server to fetch it (once per page load), then
-    // look again while it does.
-    const asked = await requestHistory(id, tf.value)
-    if (mine !== seq) return
-    if (asked.state !== 'queued') {
-      chartState.value = 'empty'
-      chartNote.value = `No history for this range: ${asked.reason}`
-      return
-    }
-    // Queued: what the server says became of it decides whether to keep looking.
-    const status = attempt > 0 ? await historyStatus(id, tf.value) : null
-    if (mine !== seq) return
-    const said = status ? explainHistory(status) : null
-    if ((said ? said.waiting : true) && attempt < POLLS) {
-      chartState.value = 'fetching'
-      fetchNote.value = said?.text || 'Asking the broker for this range…'
-      pollTimer = setTimeout(() => void loadChart(attempt + 1), POLL_MS)
-      return
-    }
-    chartState.value = 'empty'
-    chartNote.value =
-      said?.text ||
-      'The broker has not sent this history yet, and the server did not say why. Try again in a minute.'
-  } catch {
-    if (mine === seq) chartState.value = 'error'
-  }
-}
-watch(
-  () => [props.row.item.id, tf.value],
-  () => void loadChart(),
-  { immediate: true },
-)
 
 // --- your thesis -----------------------------------------------------------------
 // Distance from the price to a level, as a signed percent of the price.
@@ -184,41 +107,14 @@ const facts = computed(() => {
       <p v-if="row.flag && row.flag.tone !== 'neutral'" class="sd__flag">{{ row.flag.text }}</p>
     </section>
 
-    <section class="sd__card" aria-label="Chart">
-      <SegmentedControl
-        v-model="tf"
-        class="sd__ranges"
-        size="sm"
-        aria-label="Chart range"
-        :options="RANGES"
-      />
-      <Skeleton v-if="chartState === 'loading'" height="240px" radius="var(--radius-md)" />
-      <CandleChart
-        v-else-if="chartState === 'ready'"
-        :candles="candles"
-        :timeframe="tf"
-        :height="240"
-        :label="`${row.item.symbol} price chart`"
-      />
-      <div v-else-if="chartState === 'fetching'" class="sd__chartWait">
-        <Skeleton height="200px" radius="var(--radius-md)" />
-        <span class="sd__muted">{{ fetchNote }}</span>
-      </div>
-      <div v-else class="sd__chartEmpty">
-        <Icon name="chart-candlestick" size="lg" />
-        <span class="sd__muted">{{
-          chartState === 'error' ? 'The chart could not be loaded.' : chartNote
-        }}</span>
-        <div class="sd__chartActions">
-          <Button size="sm" variant="secondary" @click="loadChart()">
-            <Icon name="refresh-cw" size="sm" />Try again
-          </Button>
-          <Button size="sm" variant="ghost" @click="router.push(chartPath(row.item.id, tf))">
-            Open in Charts
-          </Button>
-        </div>
-      </div>
-    </section>
+    <StockChart
+      :instrument-id="row.item.id"
+      :symbol="row.item.symbol"
+      :ltp="row.quote?.last ?? null"
+      :ltp-at="row.quote?.at ?? null"
+      :streaming="row.quote?.source === 'stream'"
+      :now="now"
+    />
 
     <section class="sd__card" aria-label="Your thesis">
       <div class="sd__cardHead">
@@ -312,26 +208,6 @@ const facts = computed(() => {
 }
 .sd__noprice span {
   font-size: var(--text-sm);
-}
-.sd__chartWait {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-.sd__chartEmpty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-6) var(--sp-4);
-  text-align: center;
-  color: var(--theme-dim);
-}
-.sd__chartActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--sp-2);
 }
 .sd__hero {
   display: flex;
@@ -432,9 +308,6 @@ const facts = computed(() => {
   border: 1px solid var(--theme-border);
   background: var(--theme-card);
   min-width: 0;
-}
-.sd__ranges {
-  align-self: flex-start;
 }
 .sd__cardHead {
   display: flex;
