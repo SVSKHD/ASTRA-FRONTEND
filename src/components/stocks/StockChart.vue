@@ -10,12 +10,13 @@
 // Indicators run on every candle on screen: older candles are read behind the
 // range (the warm-up) so an EMA 50 is already running at the first one, instead
 // of starting part-way across. Scrolling back shows them too.
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { aureon } from '@/api/client'
 import Button from '@/components/ui/Button.vue'
 import Icon from '@/components/ui/Icon.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import NumberInput from '@/components/ui/NumberInput.vue'
 import Select from '@/components/ui/Select.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
@@ -170,7 +171,33 @@ function setParam(id: string, i: number, raw: string) {
     return { ...d, params: cleanParams(d.kind, next) }
   })
 }
+// A period is held as a draft while it is typed ("2" on its way to "200") and
+// applied, clamped, when the field is left or Enter is pressed.
+const drafts = ref<Record<string, number | null>>({})
+const draftKey = (id: string, i: number) => `${id}:${i}`
+function draftOf(d: IndicatorDef, i: number): number | null {
+  const k = draftKey(d.id, i)
+  return k in drafts.value ? drafts.value[k] : d.params[i]
+}
+function setDraft(id: string, i: number, v: number | null) {
+  drafts.value = { ...drafts.value, [draftKey(id, i)]: v }
+}
+function clearDrafts(id: string) {
+  drafts.value = Object.fromEntries(
+    Object.entries(drafts.value).filter(([k]) => !k.startsWith(`${id}:`)),
+  )
+}
+function commitDraft(id: string, i: number) {
+  const k = draftKey(id, i)
+  if (!(k in drafts.value)) return
+  const v = drafts.value[k]
+  clearDrafts(id)
+  if (v !== null) setParam(id, i, String(v))
+  // The field clamps its own value just after it blurs; that echo is not a new draft.
+  void nextTick(() => clearDrafts(id))
+}
 function setPreset(id: string, period: number) {
+  clearDrafts(id)
   setParam(id, 0, String(period))
 }
 function setColor(id: string, color: ColorKey) {
@@ -473,15 +500,16 @@ const footer = computed(() => {
     <div v-else-if="edited" class="sc__edit" :aria-label="`${indicatorLabel(edited)} settings`">
       <label v-for="(p, i) in kindInfo(edited.kind).params" :key="p.label" class="sc__field">
         <span>{{ p.label }}</span>
-        <input
-          type="number"
-          inputmode="decimal"
+        <NumberInput
+          class="sc__num"
+          size="sm"
           :min="p.min"
           :max="p.max"
           :step="p.step ?? 1"
-          :value="edited.params[i]"
-          @change="setParam(edited.id, i, ($event.target as HTMLInputElement).value)"
-          @keydown.enter="setParam(edited.id, i, ($event.target as HTMLInputElement).value)"
+          :model-value="draftOf(edited, i)"
+          @update:model-value="setDraft(edited.id, i, $event)"
+          @blur="commitDraft(edited.id, i)"
+          @keydown.enter="commitDraft(edited.id, i)"
         />
       </label>
       <span v-if="edited.kind === 'ema' || edited.kind === 'sma'" class="sc__presets">
@@ -687,16 +715,8 @@ const footer = computed(() => {
   font-size: var(--text-xs);
   color: var(--theme-dim);
 }
-.sc__field input {
-  width: 68px;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: var(--radius-sm, 6px);
-  border: 1px solid var(--theme-border);
-  background: var(--theme-bg, transparent);
-  color: var(--theme-text);
-  font: inherit;
-  font-variant-numeric: tabular-nums;
+.sc__num {
+  width: 96px;
 }
 .sc__presets,
 .sc__colors {
