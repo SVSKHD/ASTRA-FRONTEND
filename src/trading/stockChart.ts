@@ -1,10 +1,21 @@
 // The stock page's chart, as plain data: its ranges (Live while NSE is open,
-// then the historic ones), the moment today's session opened, folding a
-// streamed tick into the newest candle, and the indicator toggles it offers.
+// then the historic ones) and timeframes, how many candles each needs (plus the
+// older ones indicators warm up on), the moment today's session opened, folding
+// a streamed tick into the newest candle, and the indicators the person set up.
 // No Vue here, so the tests can read it.
 
 import { TF_SECONDS, type Timeframe } from '@/trading/chartView'
-import type { Study, StudyKind, ColorKey } from '@/trading/studies'
+import {
+  EMA_PRESETS,
+  KINDS,
+  PALETTE,
+  cleanParams,
+  kindInfo,
+  studyLabel,
+  type ColorKey,
+  type Study,
+  type StudyKind,
+} from '@/trading/studies'
 
 export interface Candle {
   ts: string
@@ -15,27 +26,99 @@ export interface Candle {
   volume?: string | null
 }
 
-export type RangeKey = 'live' | '1d' | '1w' | '6m' | '1y'
+export type RangeKey = 'live' | '1d' | '1w' | '1m' | '6m' | '1y'
 
 export interface RangeSpec {
   label: string
+  /** The timeframe the range opens on ("Auto"). */
   tf: Timeframe
-  limit: number
-  /** Minute or hour bars: VWAP means something here. */
-  intraday: boolean
-  /** Live: read from today's open and keep the newest candle moving. */
+  /** Trading days the range covers. */
+  days: number
+  /** Live: keep the newest candle moving with each tick. */
   live?: boolean
 }
 
 export const RANGES: Record<RangeKey, RangeSpec> = {
-  // A full NSE session is 375 one-minute bars.
-  live: { label: 'Live', tf: '1m', limit: 400, intraday: true, live: true },
-  '1d': { label: '1D', tf: '5m', limit: 75, intraday: true },
-  '1w': { label: '1W', tf: '1h', limit: 35, intraday: true },
-  '6m': { label: '6M', tf: '1d', limit: 130, intraday: false },
-  '1y': { label: '1Y', tf: '1d', limit: 250, intraday: false },
+  live: { label: 'Live', tf: '1m', days: 1, live: true },
+  '1d': { label: '1D', tf: '5m', days: 1 },
+  '1w': { label: '1W', tf: '15m', days: 5 },
+  '1m': { label: '1M', tf: '1h', days: 21 },
+  '6m': { label: '6M', tf: '1d', days: 126 },
+  '1y': { label: '1Y', tf: '1d', days: 250 },
 }
-export const HISTORIC: RangeKey[] = ['1d', '1w', '6m', '1y']
+export const HISTORIC: RangeKey[] = ['1d', '1w', '1m', '6m', '1y']
+
+// --- timeframe ----------------------------------------------------------------------
+
+/** Timeframes the broker serves history for (history.ts HISTORY_DAYS). */
+export const CHART_TFS: Timeframe[] = ['1m', '5m', '15m', '1h', '1d']
+export type TfChoice = 'auto' | Timeframe
+export const TF_LABEL: Record<string, string> = {
+  '1m': '1 min',
+  '5m': '5 min',
+  '15m': '15 min',
+  '1h': '1 hour',
+  '1d': '1 day',
+}
+
+/** An NSE session (09:15 to 15:30) in bars of each timeframe. */
+const BARS_PER_DAY: Partial<Record<Timeframe, number>> = {
+  '1m': 375,
+  '5m': 75,
+  '15m': 25,
+  '1h': 7,
+  '1d': 1,
+}
+/** Most candles a range shows (1Y of 1-minute bars would be 90,000). */
+export const MAX_BARS = 2000
+/** Fewest candles a range shows (1D of daily bars would be one). */
+export const MIN_BARS = 30
+
+/** Timeframes a range can be drawn on: Live is intraday only. */
+export function tfsFor(range: RangeKey): Timeframe[] {
+  return RANGES[range].live ? ['1m', '5m', '15m'] : CHART_TFS
+}
+
+/** The timeframe drawn: the chosen one when the range allows it, else the range's own. */
+export function resolveTf(range: RangeKey, choice: TfChoice | undefined): Timeframe {
+  if (choice && choice !== 'auto' && tfsFor(range).includes(choice)) return choice
+  return RANGES[range].tf
+}
+
+/** Candles the range shows on this timeframe. */
+export function barsFor(range: RangeKey, tf: Timeframe): number {
+  const per = BARS_PER_DAY[tf] ?? 1
+  return Math.min(MAX_BARS, Math.max(MIN_BARS, Math.ceil(RANGES[range].days * per)))
+}
+
+/**
+ * Older candles read beyond what is shown, so every indicator is already running
+ * at the first candle on screen (an EMA 50 on 75 candles would start two thirds
+ * of the way in). Rounded up to 100s, so a small period change does not re-read.
+ */
+export function warmupFor(defs: readonly Pick<IndicatorDef, 'kind' | 'params'>[]): number {
+  let need = 0
+  for (const d of defs) {
+    const [a = 0, b = 0, c = 0] = d.params
+    const bars =
+      d.kind === 'ema' || d.kind === 'rsi' || d.kind === 'atr'
+        ? a * 3
+        : d.kind === 'adx'
+          ? a * 4
+          : d.kind === 'macd'
+            ? b * 3 + c
+            : d.kind === 'vwap'
+              ? 0
+              : a
+    need = Math.max(need, bars)
+  }
+  return Math.min(1000, Math.max(100, Math.ceil(need / 100) * 100))
+}
+
+/** What to ask the server for: the shown candles plus the warm-up (its cap is 5000). */
+export function fetchLimit(bars: number, warmup: number): number {
+  return Math.min(5000, bars + warmup)
+}
 
 const IST_MS = 5.5 * 3_600_000
 
@@ -160,41 +243,109 @@ export function cacheCandles(key: string, candles: readonly Candle[], at = Date.
 
 // --- indicators ---------------------------------------------------------------------
 
-export interface IndicatorSpec {
-  key: string
-  label: string
+/** One indicator on the chart, with the periods the person chose. */
+export interface IndicatorDef {
+  id: string
   kind: StudyKind
   params: number[]
   color: ColorKey
-  /** VWAP resets daily: only drawn on minute / hour bars. */
-  intradayOnly?: boolean
 }
 
-export const INDICATORS: IndicatorSpec[] = [
-  { key: 'ema20', label: 'EMA 20', kind: 'ema', params: [20], color: 'accent' },
-  { key: 'ema50', label: 'EMA 50', kind: 'ema', params: [50], color: 'warning' },
-  { key: 'vwap', label: 'VWAP', kind: 'vwap', params: [], color: 'info', intradayOnly: true },
-  { key: 'bb', label: 'Bollinger', kind: 'bb', params: [20, 2], color: 'dim' },
-  { key: 'rsi', label: 'RSI', kind: 'rsi', params: [14], color: 'accent' },
-  { key: 'macd', label: 'MACD', kind: 'macd', params: [12, 26, 9], color: 'accent' },
+export const INDICATOR_KINDS: StudyKind[] = KINDS.map((k) => k.kind)
+export const MAX_INDICATORS = 10
+export const INDICATORS_KEY = 'aureon.stocks.indicators.v2'
+/** The first version kept fixed toggles ("ema20", "rsi"...). */
+export const INDICATORS_V1_KEY = 'aureon.stocks.indicators.v1'
+
+export const DEFAULT_INDICATORS: IndicatorDef[] = [
+  { id: 'ema-8', kind: 'ema', params: [8], color: 'accent' },
+  { id: 'ema-20', kind: 'ema', params: [20], color: 'warning' },
 ]
 
-export function studyOf(spec: IndicatorSpec): Study {
-  return { id: spec.key, kind: spec.kind, params: spec.params, color: spec.color, visible: true }
+const COLORS = PALETTE.map((p) => p.key) as ColorKey[]
+
+/** VWAP resets each day: it means nothing on daily candles. */
+export function intradayOnly(kind: StudyKind): boolean {
+  return kind === 'vwap'
 }
 
-export const INDICATORS_KEY = 'aureon.stocks.indicators.v1'
-export const DEFAULT_INDICATORS = ['ema20']
+export function studyOf(d: IndicatorDef): Study {
+  return { id: d.id, kind: d.kind, params: d.params, color: d.color, visible: true }
+}
 
-/** Saved toggles, keeping only keys that still exist. */
-export function parseIndicators(raw: string | null): string[] {
-  if (raw === null) return [...DEFAULT_INDICATORS]
+export function indicatorLabel(d: Pick<IndicatorDef, 'kind' | 'params'>): string {
+  return studyLabel(d)
+}
+
+/** A new indicator of `kind`: its usual periods (an EMA not already drawn) and a free colour. */
+export function newIndicator(kind: StudyKind, existing: readonly IndicatorDef[]): IndicatorDef {
+  let params = [...kindInfo(kind).defaults]
+  if (kind === 'ema') {
+    const used = new Set(existing.filter((d) => d.kind === 'ema').map((d) => d.params[0]))
+    params = [EMA_PRESETS.find((p) => !used.has(p)) ?? 20]
+  }
+  const taken = new Set(existing.map((d) => d.color))
+  const color = COLORS.find((c) => !taken.has(c)) ?? COLORS[existing.length % COLORS.length]
+  const ids = new Set(existing.map((d) => d.id))
+  let n = existing.length + 1
+  while (ids.has(`${kind}-${n}`)) n++
+  return { id: `${kind}-${n}`, kind, params, color }
+}
+
+/**
+ * Saved indicators, each checked: unknown kinds dropped, periods clamped. With
+ * nothing saved, the first version's toggles carry over, else EMA 8 and EMA 20.
+ */
+export function parseIndicators(raw: string | null, v1: string | null = null): IndicatorDef[] {
+  if (raw === null) return v1 === null ? clone(DEFAULT_INDICATORS) : migrateV1(v1)
   try {
     const v: unknown = JSON.parse(raw)
-    if (!Array.isArray(v)) return [...DEFAULT_INDICATORS]
-    const known = new Set(INDICATORS.map((i) => i.key))
-    return v.filter((k): k is string => typeof k === 'string' && known.has(k))
+    if (!Array.isArray(v)) return clone(DEFAULT_INDICATORS)
+    const out: IndicatorDef[] = []
+    const ids = new Set<string>()
+    for (const x of v) {
+      if (!x || typeof x !== 'object') continue
+      const d = x as Partial<IndicatorDef>
+      if (!d.kind || !INDICATOR_KINDS.includes(d.kind)) continue
+      let id = typeof d.id === 'string' && d.id ? d.id : `${d.kind}-${out.length + 1}`
+      while (ids.has(id)) id = `${id}x`
+      ids.add(id)
+      const color = COLORS.includes(d.color as ColorKey)
+        ? (d.color as ColorKey)
+        : COLORS[out.length % COLORS.length]
+      out.push({
+        id,
+        kind: d.kind,
+        params: cleanParams(d.kind, Array.isArray(d.params) ? d.params : []),
+        color,
+      })
+      if (out.length >= MAX_INDICATORS) break
+    }
+    return out
   } catch {
-    return [...DEFAULT_INDICATORS]
+    return clone(DEFAULT_INDICATORS)
   }
+}
+
+const V1: Record<string, Omit<IndicatorDef, 'id'>> = {
+  ema20: { kind: 'ema', params: [20], color: 'accent' },
+  ema50: { kind: 'ema', params: [50], color: 'warning' },
+  vwap: { kind: 'vwap', params: [], color: 'info' },
+  bb: { kind: 'bb', params: [20, 2], color: 'dim' },
+  rsi: { kind: 'rsi', params: [14], color: 'accent' },
+  macd: { kind: 'macd', params: [12, 26, 9], color: 'accent' },
+}
+function migrateV1(raw: string): IndicatorDef[] {
+  try {
+    const v: unknown = JSON.parse(raw)
+    if (!Array.isArray(v)) return clone(DEFAULT_INDICATORS)
+    return v
+      .filter((k): k is string => typeof k === 'string' && k in V1)
+      .map((k) => ({ id: k, ...V1[k], params: [...V1[k].params] }))
+  } catch {
+    return clone(DEFAULT_INDICATORS)
+  }
+}
+function clone(list: IndicatorDef[]): IndicatorDef[] {
+  return list.map((d) => ({ ...d, params: [...d.params] }))
 }

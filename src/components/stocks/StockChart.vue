@@ -1,42 +1,70 @@
 <script setup lang="ts">
-// The stock page's chart: Live (today's minute candles, the newest one moving
-// with each streamed tick) while NSE is open, and the historic ranges beside it,
-// with a few indicators to switch on.
+// The stock page's chart: Live (today's candles, the newest one moving with each
+// streamed tick) while NSE is open, the historic ranges beside it, a timeframe
+// to draw them on, and indicators with the periods the person picks.
 //
-// Steady by design: it reloads only when the stock or the range changes (not on
-// every price tick), keeps the last chart on screen while a new one loads, and
-// draws a range it has already read at once from memory.
+// Steady by design: it reloads only when the stock, range or timeframe changes
+// (not on every price tick), keeps the last chart on screen while a new one
+// loads, and draws a range it has already read at once from memory.
+//
+// Indicators run on every candle on screen: older candles are read behind the
+// range (the warm-up) so an EMA 50 is already running at the first one, instead
+// of starting part-way across. Scrolling back shows them too.
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { aureon } from '@/api/client'
 import Button from '@/components/ui/Button.vue'
 import Icon from '@/components/ui/Icon.vue'
 import IconButton from '@/components/ui/IconButton.vue'
+import Select from '@/components/ui/Select.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import CandleChart, { type ChartGroup } from '@/components/trading/CandleChart.vue'
 import { explainHistory, forgetHistory, historyStatus, requestHistory } from '@/trading/history'
-import { isUnconfirmed } from '@/trading/chartView'
+import { isUnconfirmed, type Timeframe } from '@/trading/chartView'
 import { marketOpen } from '@/trading/dhanHealth'
 import { chartPath } from '@/trading/sections'
-import { computeStudy, toNumbers } from '@/trading/studies'
+import {
+  EMA_PRESETS,
+  KINDS,
+  PALETTE,
+  cleanParams,
+  colorCss,
+  computeStudy,
+  kindInfo,
+  toNumbers,
+  type ColorKey,
+  type StudyKind,
+} from '@/trading/studies'
 import { must } from '@/trading/useLoad'
 import { ago } from '@/trading/format'
 import {
   HISTORIC,
-  INDICATORS,
   INDICATORS_KEY,
+  INDICATORS_V1_KEY,
+  MAX_INDICATORS,
   RANGES,
+  TF_LABEL,
+  barsFor,
   cacheCandles,
   cachedCandles,
+  fetchLimit,
+  indicatorLabel,
+  intradayOnly,
   mergeTick,
+  newIndicator,
   parseIndicators,
-  sessionStart,
-  studyOf,
-  type Candle,
-  type RangeKey,
+  resolveTf,
   sameCandles,
+  sessionStart,
   stableCandles,
+  studyOf,
+  tfsFor,
+  warmupFor,
+  type Candle,
+  type IndicatorDef,
+  type RangeKey,
+  type TfChoice,
 } from '@/trading/stockChart'
 
 const props = defineProps<{
@@ -50,28 +78,32 @@ const props = defineProps<{
 }>()
 const router = useRouter()
 
+function readLocal(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+function writeLocal(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    /* not remembered */
+  }
+}
+
 // --- range ------------------------------------------------------------------------
 const RANGE_KEY = 'aureon.stocks.range.v1'
 const isOpen = computed(() => marketOpen(props.now))
 function savedRange(): RangeKey {
-  let saved: string | null = null
-  try {
-    saved = localStorage.getItem(RANGE_KEY)
-  } catch {
-    /* not remembered */
-  }
+  const saved = readLocal(RANGE_KEY)
   if (saved === 'live') return marketOpen(Date.now()) ? 'live' : '1d'
   if (saved && saved in RANGES) return saved as RangeKey
   return marketOpen(Date.now()) ? 'live' : '6m'
 }
 const range = ref<RangeKey>(savedRange())
-watch(range, (r) => {
-  try {
-    localStorage.setItem(RANGE_KEY, r)
-  } catch {
-    /* not remembered */
-  }
-})
+watch(range, (r) => writeLocal(RANGE_KEY, r))
 // The bell rang: Live has nothing new to show, so fall back to the day's chart.
 watch(isOpen, (open) => {
   if (!open && range.value === 'live') range.value = '1d'
@@ -80,12 +112,86 @@ const options = computed(() => [
   ...(isOpen.value ? [{ value: 'live', label: '● Live' }] : []),
   ...HISTORIC.map((k) => ({ value: k, label: RANGES[k].label })),
 ])
-const spec = computed(() => RANGES[range.value])
+
+// --- timeframe (chosen per range; "Auto" is the range's own) --------------------------
+const TF_KEY = 'aureon.stocks.tf.v1'
+function savedTfs(): Partial<Record<RangeKey, TfChoice>> {
+  try {
+    const v: unknown = JSON.parse(readLocal(TF_KEY) ?? '{}')
+    return v && typeof v === 'object' ? (v as Partial<Record<RangeKey, TfChoice>>) : {}
+  } catch {
+    return {}
+  }
+}
+const tfChoices = ref(savedTfs())
+const tfModel = computed({
+  get: () => {
+    const c = tfChoices.value[range.value]
+    return c && c !== 'auto' && tfsFor(range.value).includes(c) ? c : 'auto'
+  },
+  set: (v: string) => {
+    tfChoices.value = { ...tfChoices.value, [range.value]: v as TfChoice }
+    writeLocal(TF_KEY, JSON.stringify(tfChoices.value))
+  },
+})
+const tfOptions = computed(() => [
+  { value: 'auto', label: `Auto · ${TF_LABEL[RANGES[range.value].tf]}` },
+  ...tfsFor(range.value).map((t) => ({ value: t, label: TF_LABEL[t] ?? t })),
+])
+const tf = computed<Timeframe>(() => resolveTf(range.value, tfChoices.value[range.value]))
+
+// --- indicators (what the person set up) ------------------------------------------------
+const defs = ref<IndicatorDef[]>(
+  parseIndicators(readLocal(INDICATORS_KEY), readLocal(INDICATORS_V1_KEY)),
+)
+watch(defs, (d) => writeLocal(INDICATORS_KEY, JSON.stringify(d)), { deep: true })
+const editing = ref<string | null>(null)
+const adding = ref(false)
+const addKind = ref<StudyKind>('ema')
+const kindOptions = KINDS.map((k) => ({ value: k.kind, label: k.label }))
+const edited = computed(() => defs.value.find((d) => d.id === editing.value) ?? null)
+
+function addIndicator() {
+  if (defs.value.length >= MAX_INDICATORS) return
+  const d = newIndicator(addKind.value, defs.value)
+  defs.value = [...defs.value, d]
+  adding.value = false
+  editing.value = kindInfo(d.kind).params.length ? d.id : null
+}
+function removeIndicator(id: string) {
+  defs.value = defs.value.filter((d) => d.id !== id)
+  if (editing.value === id) editing.value = null
+}
+function setParam(id: string, i: number, raw: string) {
+  defs.value = defs.value.map((d) => {
+    if (d.id !== id) return d
+    const next = [...d.params]
+    next[i] = Number(raw)
+    return { ...d, params: cleanParams(d.kind, next) }
+  })
+}
+function setPreset(id: string, period: number) {
+  setParam(id, 0, String(period))
+}
+function setColor(id: string, color: ColorKey) {
+  defs.value = defs.value.map((d) => (d.id === id ? { ...d, color } : d))
+}
+function toggleEdit(id: string) {
+  adding.value = false
+  editing.value = editing.value === id ? null : id
+}
+
+// --- how much to read ---------------------------------------------------------------
+/** Candles the range shows; the warm-up is read behind them for the indicators. */
+const bars = computed(() => barsFor(range.value, tf.value))
+const warmup = computed(() => warmupFor(defs.value))
+const limit = computed(() => fetchLimit(bars.value, warmup.value))
 
 // --- candles ------------------------------------------------------------------------
 const candles = shallowRef<readonly Candle[]>([])
-/** The range the drawn candles belong to (the previous one while a new range loads). */
+/** The range and timeframe the drawn candles belong to (the previous ones while new ones load). */
 const shownRange = ref<RangeKey>(range.value)
+const shownTf = ref<Timeframe>(tf.value)
 const shownId = ref<number | null>(null)
 const state = ref<'loading' | 'ready' | 'fetching' | 'empty' | 'error'>('loading')
 const busy = ref(false)
@@ -107,16 +213,20 @@ onBeforeUnmount(() => {
 async function load(attempt = 0, quiet = false) {
   const id = props.instrumentId
   const r = range.value
-  const s = RANGES[r]
-  const key = `${id}:${r}`
+  const t = tf.value
+  const n = limit.value
+  const key = `${id}:${t}:${n}`
   const mine = ++seq
   clearTimeout(pollTimer)
+  /** The same chart, read deeper (an indicator needs more warm-up): no spinner. */
+  const sameSeries = shownId.value === id && shownTf.value === t && candles.value.length > 0
 
   if (attempt === 0 && !quiet) {
     const hit = cachedCandles(key)
     if (hit) {
       candles.value = hit.candles
       shownRange.value = r
+      shownTf.value = t
       shownId.value = id
       loadedAt.value = hit.at
       state.value = 'ready'
@@ -128,19 +238,18 @@ async function load(attempt = 0, quiet = false) {
     } else if (!candles.value.length) {
       state.value = 'loading'
     }
-    // Drawn from memory: check the server silently, and only redraw if it has
-    // something new. The spinner is for a range with nothing to show yet.
-    busy.value = !hit
+    // Drawn from memory, or the same candles read deeper: check the server
+    // silently and only redraw if it has something new. The spinner is for a
+    // chart with nothing of its own to show yet.
+    busy.value = !hit && !sameSeries
     note.value = ''
   }
 
   inflight = true
   try {
-    const query: Record<string, unknown> = { instrument_id: id, timeframe: s.tf, limit: s.limit }
-    if (s.live) query.start = new Date(sessionStart(Date.now())).toISOString()
     const rows = must(
       await aureon.GET('/api/trading/candles', {
-        params: { query: query as { instrument_id: number; timeframe: typeof s.tf } },
+        params: { query: { instrument_id: id, timeframe: t, limit: n } },
       }),
     )
     if (mine !== seq) return
@@ -149,9 +258,10 @@ async function load(attempt = 0, quiet = false) {
       .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))
     if (got.length) {
       // A refresh that brought nothing new keeps the same array: no redraw.
-      const same = shownRange.value === r && shownId.value === id && sameCandles(candles.value, got)
+      const same = shownTf.value === t && shownId.value === id && sameCandles(candles.value, got)
       if (!same) candles.value = got
       shownRange.value = r
+      shownTf.value = t
       shownId.value = id
       loadedAt.value = Date.now()
       cacheCandles(key, got)
@@ -162,12 +272,13 @@ async function load(attempt = 0, quiet = false) {
     }
     // A quiet refresh that found nothing new leaves the chart as it is.
     if (quiet) return
-    // Nothing on this range: the old range's candles must not pose as this one.
-    if (shownRange.value !== r) candles.value = []
+    // Nothing on this timeframe: the old one's candles must not pose as this one.
+    if (shownTf.value !== t) candles.value = []
     shownRange.value = r
+    shownTf.value = t
 
     // Nothing stored: ask the server to fetch it, then look again while it does.
-    const asked = await requestHistory(id, s.tf)
+    const asked = await requestHistory(id, t)
     if (mine !== seq) return
     if (asked.state !== 'queued') {
       state.value = 'empty'
@@ -175,7 +286,7 @@ async function load(attempt = 0, quiet = false) {
       note.value = `No history for this range: ${asked.reason}`
       return
     }
-    const status = attempt > 0 ? await historyStatus(id, s.tf) : null
+    const status = attempt > 0 ? await historyStatus(id, t) : null
     if (mine !== seq) return
     const said = status ? explainHistory(status) : null
     if ((said ? said.waiting : true) && attempt < POLLS) {
@@ -200,27 +311,26 @@ async function load(attempt = 0, quiet = false) {
 }
 
 function retry() {
-  forgetHistory(props.instrumentId, spec.value.tf)
+  forgetHistory(props.instrumentId, tf.value)
   void load()
 }
 
 // Separate sources: a new `row` object from the parent (every price tick) does
-// NOT reload the chart; only a different stock or range does.
-watch([() => props.instrumentId, range], () => void load(), { immediate: true })
+// NOT reload the chart; only a different stock, range, timeframe or depth does.
+watch([() => props.instrumentId, range, tf, limit], () => void load(), { immediate: true })
 
-// Keep intraday ranges current while the market is open, without a spinner.
+// Keep intraday charts current while the market is open, without a spinner.
 watch(
   () => props.now,
   (now) => {
-    if (!isOpen.value || !spec.value.intraday || inflight || state.value !== 'ready') return
+    if (!isOpen.value || tf.value === '1d' || inflight || state.value !== 'ready') return
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
-    const every = spec.value.live ? 30_000 : 60_000
+    const every = range.value === 'live' ? 30_000 : 60_000
     if (now - loadedAt.value >= every) void load(0, true)
   },
 )
 
 const isLive = computed(() => shownRange.value === 'live' && range.value === 'live')
-const shownTf = computed(() => RANGES[shownRange.value].tf)
 /**
  * What is drawn: the stored candles with the live price folded into the newest
  * one, on every range, while the market is open and the feed is live. When the
@@ -238,32 +348,22 @@ const unconfirmedLast = computed(() => {
   const last = drawn.value[drawn.value.length - 1]
   return !!last && isOpen.value && isUnconfirmed(last.ts, shownTf.value, props.now)
 })
+/** The view opens on the range itself (Live: today since 09:15); the warm-up sits off to the left. */
+const initialBars = computed(() => {
+  const n = barsFor(shownRange.value, shownTf.value)
+  if (shownRange.value !== 'live') return n + 2
+  const open = sessionStart(props.now)
+  const today = drawn.value.filter((c) => Date.parse(c.ts) >= open).length
+  return Math.max(30, today + 2)
+})
 
-// --- indicators ------------------------------------------------------------------------
-function savedIndicators(): string[] {
-  try {
-    return parseIndicators(localStorage.getItem(INDICATORS_KEY))
-  } catch {
-    return parseIndicators(null)
-  }
-}
-const on = ref<string[]>(savedIndicators())
-function toggle(key: string) {
-  on.value = on.value.includes(key) ? on.value.filter((k) => k !== key) : [...on.value, key]
-  try {
-    localStorage.setItem(INDICATORS_KEY, JSON.stringify(on.value))
-  } catch {
-    /* not remembered */
-  }
-}
-const available = computed(() =>
-  INDICATORS.filter((i) => !i.intradayOnly || RANGES[shownRange.value].intraday),
-)
+// --- indicator series ------------------------------------------------------------------
+const intraday = computed(() => shownTf.value !== '1d')
 const numbers = computed(() => toNumbers(drawn.value))
 const results = computed(() =>
-  available.value
-    .filter((i) => on.value.includes(i.key))
-    .map((i) => computeStudy(studyOf(i), numbers.value)),
+  defs.value
+    .filter((d) => !intradayOnly(d.kind) || intraday.value)
+    .map((d) => computeStudy(studyOf(d), numbers.value)),
 )
 const overlays = computed<ChartGroup[]>(() =>
   results.value
@@ -285,13 +385,13 @@ const panes = computed<ChartGroup[]>(() =>
 
 const footer = computed(() => {
   if (state.value === 'fetching' && drawn.value.length) return note.value
+  const tfText = TF_LABEL[shownTf.value] ?? shownTf.value
   if (isLive.value)
     return props.streaming
-      ? 'Live · 1-minute candles, moving with each tick'
-      : 'Today · 1-minute candles · waiting for the live feed'
+      ? `Live · ${tfText} candles, moving with each tick`
+      : `Today · ${tfText} candles · waiting for the live feed`
   if (!drawn.value.length) return ''
-  const tf = { '5m': '5-minute', '1h': 'hourly', '1d': 'daily' }[shownTf.value as string] ?? ''
-  return `${tf} candles · read ${ago(new Date(loadedAt.value).toISOString(), props.now)}`
+  return `${tfText} candles · read ${ago(new Date(loadedAt.value).toISOString(), props.now)} · scroll back for older`
 })
 </script>
 
@@ -305,13 +405,20 @@ const footer = computed(() => {
         :options="options"
         :class="{ 'is-liveOn': range === 'live' }"
       />
+      <Select
+        v-model="tfModel"
+        class="sc__tf"
+        size="sm"
+        aria-label="Timeframe"
+        :options="tfOptions"
+      />
       <span class="sc__barEnd">
         <span v-if="isOpen && streaming" class="sc__live" aria-hidden="true">LIVE</span>
         <IconButton
           label="Open the full chart: every indicator, drawing room, full screen"
           size="sm"
           tone="default"
-          @click="router.push(chartPath(instrumentId, RANGES[shownRange].tf))"
+          @click="router.push(chartPath(instrumentId, shownTf))"
         >
           <Icon name="maximize" size="sm" />
         </IconButton>
@@ -319,17 +426,89 @@ const footer = computed(() => {
     </div>
 
     <div class="sc__ind" role="group" aria-label="Indicators">
-      <button
-        v-for="i in available"
-        :key="i.key"
-        type="button"
-        class="sc__chip"
-        :class="{ 'is-on': on.includes(i.key) }"
-        :aria-pressed="on.includes(i.key)"
-        @click="toggle(i.key)"
+      <span
+        v-for="d in defs"
+        :key="d.id"
+        class="sc__chip is-on"
+        :class="{ 'is-editing': editing === d.id, 'is-off': intradayOnly(d.kind) && !intraday }"
+        :title="
+          intradayOnly(d.kind) && !intraday ? 'VWAP is drawn on intraday timeframes only' : ''
+        "
       >
-        {{ i.label }}
+        <button
+          type="button"
+          class="sc__chipLabel"
+          :aria-expanded="editing === d.id"
+          :aria-label="`Edit ${indicatorLabel(d)}`"
+          @click="toggleEdit(d.id)"
+        >
+          <span class="sc__dot" :style="{ background: colorCss(d.color) }" />
+          {{ indicatorLabel(d) }}
+        </button>
+        <button
+          type="button"
+          class="sc__chipX"
+          :aria-label="`Remove ${indicatorLabel(d)}`"
+          @click="removeIndicator(d.id)"
+        >
+          ×
+        </button>
+      </span>
+      <button
+        v-if="defs.length < MAX_INDICATORS"
+        type="button"
+        class="sc__chip sc__add"
+        :aria-expanded="adding"
+        @click="((adding = !adding), (editing = null))"
+      >
+        + Indicator
       </button>
+    </div>
+
+    <div v-if="adding" class="sc__edit">
+      <Select v-model="addKind" size="sm" aria-label="Indicator" :options="kindOptions" />
+      <Button size="sm" variant="secondary" @click="addIndicator()">Add</Button>
+      <Button size="sm" variant="ghost" @click="adding = false">Cancel</Button>
+    </div>
+    <div v-else-if="edited" class="sc__edit" :aria-label="`${indicatorLabel(edited)} settings`">
+      <label v-for="(p, i) in kindInfo(edited.kind).params" :key="p.label" class="sc__field">
+        <span>{{ p.label }}</span>
+        <input
+          type="number"
+          inputmode="decimal"
+          :min="p.min"
+          :max="p.max"
+          :step="p.step ?? 1"
+          :value="edited.params[i]"
+          @change="setParam(edited.id, i, ($event.target as HTMLInputElement).value)"
+          @keydown.enter="setParam(edited.id, i, ($event.target as HTMLInputElement).value)"
+        />
+      </label>
+      <span v-if="edited.kind === 'ema' || edited.kind === 'sma'" class="sc__presets">
+        <button
+          v-for="p in EMA_PRESETS"
+          :key="p"
+          type="button"
+          class="sc__preset"
+          :aria-pressed="edited.params[0] === p"
+          @click="setPreset(edited.id, p)"
+        >
+          {{ p }}
+        </button>
+      </span>
+      <span class="sc__colors" role="group" aria-label="Colour">
+        <button
+          v-for="c in PALETTE"
+          :key="c.key"
+          type="button"
+          class="sc__swatch"
+          :style="{ background: c.css }"
+          :aria-label="c.label"
+          :aria-pressed="edited.color === c.key"
+          @click="setColor(edited.id, c.key)"
+        />
+      </span>
+      <Button size="sm" variant="ghost" @click="editing = null">Done</Button>
     </div>
 
     <div class="sc__frame" :class="{ 'is-busy': busy && drawn.length }">
@@ -341,7 +520,8 @@ const footer = computed(() => {
         :overlays="overlays"
         :panes="panes"
         :unconfirmed-last="unconfirmedLast"
-        :series-key="`${shownId}:${shownRange}`"
+        :series-key="`${shownId}:${shownRange}:${shownTf}`"
+        :initial-bars="initialBars"
         :label="`${symbol} price chart`"
       />
       <div v-else-if="state === 'loading' || state === 'fetching'" class="sc__wait">
@@ -355,7 +535,7 @@ const footer = computed(() => {
           <Button size="sm" variant="secondary" @click="retry()">
             <Icon name="refresh-cw" size="sm" />Try again
           </Button>
-          <Button size="sm" variant="ghost" @click="router.push(chartPath(instrumentId, spec.tf))">
+          <Button size="sm" variant="ghost" @click="router.push(chartPath(instrumentId, tf))">
             Open in Charts
           </Button>
         </div>
@@ -381,9 +561,13 @@ const footer = computed(() => {
 }
 .sc__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: var(--sp-2);
+}
+.sc__tf {
+  flex: 0 1 150px;
+  min-width: 0;
 }
 .sc__barEnd {
   display: inline-flex;
@@ -419,8 +603,9 @@ const footer = computed(() => {
   gap: 6px;
 }
 .sc__chip {
+  display: inline-flex;
+  align-items: center;
   height: 26px;
-  padding: 0 10px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--theme-border);
   background: transparent;
@@ -428,23 +613,122 @@ const footer = computed(() => {
   font: inherit;
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
-  cursor: pointer;
   transition:
     background var(--dur-fast) ease,
     color var(--dur-fast) ease,
     border-color var(--dur-fast) ease;
 }
-.sc__chip:hover {
-  color: var(--theme-text);
-}
 .sc__chip.is-on {
-  background: color-mix(in oklch, var(--theme-accent) 16%, transparent);
-  border-color: color-mix(in oklch, var(--theme-accent) 55%, var(--theme-border));
+  background: color-mix(in oklch, var(--theme-accent) 10%, transparent);
   color: var(--theme-text);
 }
-.sc__chip:focus-visible {
+.sc__chip.is-editing {
+  border-color: color-mix(in oklch, var(--theme-accent) 60%, var(--theme-border));
+}
+.sc__chip.is-off {
+  opacity: 0.5;
+}
+.sc__chipLabel,
+.sc__chipX {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.sc__chipLabel {
+  padding: 0 4px 0 10px;
+}
+.sc__chipX {
+  padding: 0 9px 0 4px;
+  color: var(--theme-dim);
+  font-size: var(--text-sm);
+}
+.sc__chipX:hover {
+  color: var(--theme-danger);
+}
+.sc__add {
+  padding: 0 10px;
+  cursor: pointer;
+}
+.sc__add:hover {
+  color: var(--theme-text);
+}
+.sc__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.sc__chipLabel:focus-visible,
+.sc__chipX:focus-visible,
+.sc__add:focus-visible,
+.sc__preset:focus-visible,
+.sc__swatch:focus-visible {
   outline: 2px solid var(--theme-accent);
   outline-offset: 2px;
+}
+.sc__edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--theme-border);
+}
+.sc__field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+}
+.sc__field input {
+  width: 68px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg, transparent);
+  color: var(--theme-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.sc__presets,
+.sc__colors {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.sc__preset {
+  height: 26px;
+  min-width: 30px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--theme-border);
+  background: transparent;
+  color: var(--theme-dim);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.sc__preset[aria-pressed='true'] {
+  color: var(--theme-text);
+  border-color: var(--theme-accent);
+}
+.sc__swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.sc__swatch[aria-pressed='true'] {
+  border-color: var(--theme-text);
 }
 /* A fixed floor, so loading, fetching and the chart all take the same room. */
 .sc__frame {

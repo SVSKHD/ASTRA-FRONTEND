@@ -78,6 +78,8 @@ const props = withDefaults(
     unconfirmedLast?: boolean
     /** Names the series (instrument + timeframe): a change starts the view over. */
     seriesKey?: string
+    /** Candles the view opens on (the rest are scrolled back to). */
+    initialBars?: number
     timeframe?: Timeframe
     height?: number
     label?: string
@@ -89,6 +91,7 @@ const props = withDefaults(
     markers: () => [],
     unconfirmedLast: false,
     seriesKey: '',
+    initialBars: undefined,
     timeframe: '15m',
     height: 320,
     label: 'Candle chart',
@@ -109,7 +112,7 @@ const fullscreen = ref(false)
 const cssFull = ref(false)
 
 const total = computed(() => props.candles.length)
-const view = ref<View>(initialView(props.candles.length))
+const view = ref<View>(initialView(props.candles.length, props.initialBars))
 const times = computed(() => props.candles.map((c) => Date.parse(c.ts)))
 
 // Keep the view when the data changes: a different series (another stock or
@@ -119,8 +122,8 @@ const times = computed(() => props.candles.map((c) => Date.parse(c.ts)))
 // candle if it was. Without a seriesKey, reads that share no candle start over.
 watch([() => props.seriesKey, times], ([k, next], [prevK, prev]) => {
   const n = next.length
-  if (k !== prevK || !prev?.length) view.value = initialView(n)
-  else view.value = carryView(view.value, prev, next) ?? initialView(n)
+  if (k !== prevK || !prev?.length) view.value = initialView(n, props.initialBars)
+  else view.value = carryView(view.value, prev, next) ?? initialView(n, props.initialBars)
 })
 
 const range = computed(() => visibleRange(view.value, total.value))
@@ -554,7 +557,7 @@ function zoom(factor: number) {
   view.value = zoomView(view.value, factor, 1, total.value)
 }
 function reset() {
-  view.value = initialView(total.value)
+  view.value = initialView(total.value, props.initialBars)
 }
 
 async function toggleFullscreen() {

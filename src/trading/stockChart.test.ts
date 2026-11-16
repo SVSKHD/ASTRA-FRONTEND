@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_INDICATORS,
+  MAX_BARS,
+  MIN_BARS,
+  barsFor,
   cacheCandles,
+  fetchLimit,
+  newIndicator,
+  resolveTf,
+  tfsFor,
+  warmupFor,
   cachedCandles,
   mergeTick,
   parseIndicators,
@@ -78,13 +86,57 @@ describe('mergeTick', () => {
 })
 
 describe('parseIndicators', () => {
-  it('defaults when nothing is saved or it is unreadable', () => {
+  it('defaults to EMA 8 and EMA 20 when nothing is saved or it is unreadable', () => {
     expect(parseIndicators(null)).toEqual(DEFAULT_INDICATORS)
     expect(parseIndicators('{oops')).toEqual(DEFAULT_INDICATORS)
+    expect(DEFAULT_INDICATORS.map((d) => d.params[0])).toEqual([8, 20])
   })
-  it('keeps known keys only, and an empty choice stays empty', () => {
-    expect(parseIndicators('["rsi","nope",3]')).toEqual(['rsi'])
+  it('keeps any period, clamped, and drops unknown kinds', () => {
+    const out = parseIndicators(
+      JSON.stringify([
+        { id: 'a', kind: 'ema', params: [13], color: 'accent' },
+        { id: 'b', kind: 'ema', params: [9999], color: 'nope' },
+        { id: 'c', kind: 'zigzag', params: [3] },
+      ]),
+    )
+    expect(out.map((d) => d.params[0])).toEqual([13, 500])
+    expect(out[1].color).not.toBe('nope')
     expect(parseIndicators('[]')).toEqual([])
+  })
+  it('carries the first version toggles over', () => {
+    const out = parseIndicators(null, '["ema50","rsi","nope"]')
+    expect(out.map((d) => [d.kind, d.params])).toEqual([
+      ['ema', [50]],
+      ['rsi', [14]],
+    ])
+  })
+  it('gives a new EMA a period not yet drawn and a free colour', () => {
+    const d = newIndicator('ema', DEFAULT_INDICATORS)
+    expect(d.params).toEqual([9])
+    expect(DEFAULT_INDICATORS.map((x) => x.color)).not.toContain(d.color)
+    expect(DEFAULT_INDICATORS.map((x) => x.id)).not.toContain(d.id)
+  })
+})
+
+describe('timeframe and depth', () => {
+  it('uses the chosen timeframe only where the range allows it', () => {
+    expect(resolveTf('1d', 'auto')).toBe('5m')
+    expect(resolveTf('1d', '15m')).toBe('15m')
+    expect(resolveTf('live', '1d')).toBe('1m')
+    expect(tfsFor('live')).not.toContain('1d')
+  })
+  it('sizes a range in candles of its timeframe, within bounds', () => {
+    expect(barsFor('1d', '5m')).toBe(75)
+    expect(barsFor('1w', '15m')).toBe(125)
+    expect(barsFor('1d', '1d')).toBe(MIN_BARS)
+    expect(barsFor('1y', '1m')).toBe(MAX_BARS)
+  })
+  it('reads enough older candles for the longest indicator to be running', () => {
+    expect(warmupFor([])).toBe(100)
+    expect(warmupFor([{ kind: 'ema', params: [20] }])).toBe(100)
+    expect(warmupFor([{ kind: 'ema', params: [50] }])).toBe(200)
+    expect(warmupFor([{ kind: 'ema', params: [200] }])).toBe(600)
+    expect(fetchLimit(4900, 600)).toBe(5000)
   })
 })
 
