@@ -128,7 +128,9 @@ async function load(attempt = 0, quiet = false) {
     } else if (!candles.value.length) {
       state.value = 'loading'
     }
-    busy.value = true
+    // Drawn from memory: check the server silently, and only redraw if it has
+    // something new. The spinner is for a range with nothing to show yet.
+    busy.value = !hit
     note.value = ''
   }
 
