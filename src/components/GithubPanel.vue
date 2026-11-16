@@ -1,28 +1,39 @@
 <script setup lang="ts">
-import TextInput from '@/components/ui/TextInput.vue'
 // Settings → Integrations → GitHub (section 13a). "Connect GitHub", then a repo
-// picker listing the repos the App installation can see with a toggle per repo.
+// picker listing the repos the App installation can see with a switch per repo.
 //
 // The panel never sees a GitHub token: connecting means installing the GitHub
 // App, and every read here is a ghProxy Cloud Function call authenticated with
 // the user's Firebase ID token.
+//
+// Built on the app's drawer (focus trap, Escape, a labelled close button) and its
+// controls, so every switch and button works from the keyboard. The two actions
+// that throw something away ask first, in place: unlinking drops the repo's
+// mirrored issues, and disconnecting stops sync.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import { useStyles } from '@/composables/useStyles'
-import { DANGER, SUCCESS, WARNING, pxify, typeStep } from '@/styles'
+import SlideOver from '@/components/ui/SlideOver.vue'
+import Alert from '@/components/ui/Alert.vue'
+import Avatar from '@/components/ui/Avatar.vue'
+import Badge from '@/components/ui/Badge.vue'
+import Button from '@/components/ui/Button.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import SearchField from '@/components/ui/SearchField.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
+import Switch from '@/components/ui/Switch.vue'
 import { formatRelative } from '@/utils/timestamps'
 import { pausedLabel, rateLimitLabel } from '@/utils/ghPoll'
 import type { LinkedRepo } from '@/types'
 
 const app = useAppStore()
 const auth = useAuthStore()
-const { c, s } = useStyles()
 const { githubPanelOpen } = storeToRefs(auth)
 const { githubIntegration, repos, ghInstalled, ghBusy, ghError } = storeToRefs(app)
 
 const search = ref('')
+const installUrl = computed(() => app.githubInstallUrl())
 
 // Opening the panel is what triggers the installation read — there is no reason
 // to spend rate limit on a panel nobody opened.
@@ -32,25 +43,28 @@ watch(
     if (open && app.githubConfigured && ghInstalled.value === null && !ghBusy.value) {
       void app.loadInstalledRepos()
     }
+    if (!open) {
+      confirmUnlink.value = null
+      confirmDisconnect.value = false
+    }
   },
   { immediate: true },
 )
 
 const linkedIds = computed(() => new Set(repos.value.map((r) => r.id)))
 
-// The picker lists what the installation can see; linked repos sort first so the
-// current selection is readable at a glance.
-const pickerRepos = computed<LinkedRepo[]>(() => {
+// What the installation can see, split into what is linked and what is not, each
+// newest push first, filtered by the search.
+const matches = computed<LinkedRepo[]>(() => {
   const q = search.value.trim().toLowerCase()
   return (ghInstalled.value || [])
     .filter((r) => !q || r.fullName.toLowerCase().includes(q))
     .slice()
-    .sort((a, b) => {
-      const la = linkedIds.value.has(a.id) ? 0 : 1
-      const lb = linkedIds.value.has(b.id) ? 0 : 1
-      return la - lb || b.pushedAt - a.pushedAt
-    })
+    .sort((a, b) => b.pushedAt - a.pushedAt)
 })
+const linked = computed(() => matches.value.filter((r) => linkedIds.value.has(r.id)))
+const available = computed(() => matches.value.filter((r) => !linkedIds.value.has(r.id)))
+const installedCount = computed(() => ghInstalled.value?.length ?? 0)
 
 // Rate limit and the paused state are always on screen: a stalled sync should
 // be explicable at a glance rather than looking like nothing is happening.
@@ -73,157 +87,559 @@ watch(
 )
 onBeforeUnmount(() => clearInterval(clock))
 
+// --- sync ----------------------------------------------------------------------------
+const syncing = ref(false)
+const syncNote = ref<{ tone: 'success' | 'warning'; text: string } | null>(null)
 async function syncNow() {
-  for (const repo of repos.value) await app.refreshRepoIssues(repo.id, true)
+  if (syncing.value || !repos.value.length) return
+  syncing.value = true
+  syncNote.value = null
+  let failed = 0
+  try {
+    for (const repo of repos.value) {
+      if (!(await app.refreshRepoIssues(repo.id, true))) failed++
+    }
+  } finally {
+    syncing.value = false
+    now.value = Date.now()
+  }
+  const n = repos.value.length
+  syncNote.value = failed
+    ? {
+        tone: 'warning',
+        text: `${failed} of ${n} ${n === 1 ? 'repository' : 'repositories'} could not be synced.`,
+      }
+    : { tone: 'success', text: `Synced ${n} ${n === 1 ? 'repository' : 'repositories'}.` }
 }
 
-const rowStyle = pxify({ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' })
-const toggleTrack = (on: boolean) =>
-  pxify({
-    flexShrink: 0,
-    width: 38,
-    height: 22,
-    borderRadius: 'var(--radius-card)',
-    background: on ? SUCCESS : c.value.border,
-    border: '1px solid ' + c.value.border,
-    cursor: 'pointer',
-    position: 'relative',
-    transition: 'background .2s ease',
-  })
-const toggleKnob = (on: boolean) =>
-  pxify({
-    position: 'absolute',
-    top: 2,
-    left: on ? 18 : 2,
-    width: 16,
-    height: 16,
-    borderRadius: '50%',
-    background: '#fff',
-    transition: 'left .2s ease',
-  })
-const bannerStyle = (col: string) =>
-  pxify({
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--sp-1)',
-    padding: '8px 10px',
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid ' + col,
-    background: 'color-mix(in oklch, ' + col + ' 14%, transparent)',
-    ...typeStep('xs'),
-    color: c.value.text,
-  })
-const avatarStyle = pxify({ width: 26, height: 26, borderRadius: '50%', flexShrink: 0 })
+// --- link / unlink -----------------------------------------------------------------
+/** The repo whose unlink is waiting for a yes. */
+const confirmUnlink = ref<string | null>(null)
+function onSwitch(repo: LinkedRepo, on: boolean) {
+  if (on) {
+    if (!linkedIds.value.has(repo.id)) app.toggleRepoLink(repo)
+    return
+  }
+  confirmUnlink.value = repo.id
+}
+function unlink(repo: LinkedRepo) {
+  confirmUnlink.value = null
+  if (linkedIds.value.has(repo.id)) app.toggleRepoLink(repo)
+}
+
+// --- disconnect ----------------------------------------------------------------------
+const confirmDisconnect = ref(false)
+function disconnect() {
+  confirmDisconnect.value = false
+  syncNote.value = null
+  app.disconnectGithub()
+}
+
+function meta(repo: LinkedRepo): string {
+  const bits = [repo.language, repo.defaultBranch, `${repo.openIssuesCount} open`]
+  if (repo.pushedAt) bits.push(`pushed ${formatRelative(repo.pushedAt, now.value)}`)
+  return bits.filter(Boolean).join(' · ')
+}
 </script>
 
 <template>
-  <template v-if="githubPanelOpen">
-    <div :style="s.dialogOverlay" @click="auth.closeGithubPanel()"></div>
-    <div :style="s.ghPanel">
-      <div :style="s.drawerHeader">
-        <span :style="s.drawerTitle">GitHub</span>
-        <button :style="s.del" @click="auth.closeGithubPanel()">×</button>
-      </div>
-
+  <SlideOver :open="githubPanelOpen" title="GitHub" size="compact" @close="auth.closeGithubPanel()">
+    <div class="gh">
       <!-- No proxy URL: the integration is simply not deployed here. Say so
            rather than offering a Connect button that cannot work. -->
-      <div v-if="!app.githubConfigured" :style="s.ghLinkCard">
-        <span :style="s.finMeta">
-          GitHub is not configured for this workspace. Set <code>VITE_GH_PROXY_URL</code> to the
-          ghProxy Cloud Function endpoint — the access token stays in Secret Manager and never
-          reaches the browser.
-        </span>
-      </div>
+      <EmptyState
+        v-if="!app.githubConfigured"
+        glyph="🔌"
+        title="GitHub is not set up here"
+        description="This workspace has no GitHub proxy configured. Set VITE_GH_PROXY_URL to the ghProxy Cloud Function endpoint; the access token stays in Secret Manager and never reaches the browser."
+      />
 
+      <!-- Not connected: two steps, in order. -->
       <template v-else-if="!app.githubConnected">
-        <div :style="s.ghLinkCard">
-          <span :style="s.finMeta">
-            Install the GitHub App to pick exactly which repositories Spasta can read. Issues are
-            read/write; contents, metadata and pull requests are read-only.
-          </span>
-          <a
-            v-if="app.githubInstallUrl()"
-            :style="s.saveBtn"
-            :href="app.githubInstallUrl()"
-            target="_blank"
-            rel="noopener noreferrer"
-            >Connect GitHub</a
-          >
-          <button :style="s.editBtn" :disabled="ghBusy" @click="app.connectGithub()">
-            {{ ghBusy ? 'Checking…' : "I've installed it" }}
-          </button>
-          <span v-if="ghError" :style="s.finMeta">{{ ghError }}</span>
-        </div>
+        <section class="gh__intro">
+          <h3 class="gh__h">Connect GitHub</h3>
+          <p class="gh__muted">
+            Install the GitHub App and choose exactly which repositories this workspace can see.
+          </p>
+          <ul class="gh__perms">
+            <li><b>Issues</b> read and write, so tasks and issues stay in step</li>
+            <li><b>Contents, metadata, pull requests</b> read only</li>
+          </ul>
+        </section>
+
+        <ol class="gh__steps">
+          <li class="gh__step">
+            <span class="gh__num" aria-hidden="true">1</span>
+            <div class="gh__stepBody">
+              <span class="gh__stepTitle">Install the app on GitHub</span>
+              <span class="gh__muted">Opens in a new tab. Pick the repositories there.</span>
+              <a
+                v-if="installUrl"
+                class="gh__linkBtn"
+                :href="installUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Install on GitHub ↗</a
+              >
+            </div>
+          </li>
+          <li class="gh__step">
+            <span class="gh__num" aria-hidden="true">2</span>
+            <div class="gh__stepBody">
+              <span class="gh__stepTitle">Come back and check</span>
+              <span class="gh__muted">This reads the installation and lists its repositories.</span>
+              <Button
+                size="sm"
+                variant="secondary"
+                :loading="ghBusy"
+                :disabled="ghBusy"
+                @click="app.connectGithub()"
+              >
+                {{ ghBusy ? 'Checking…' : 'I’ve installed it' }}
+              </Button>
+            </div>
+          </li>
+        </ol>
+        <Alert v-if="ghError" tone="danger" title="Could not find the installation">
+          {{ ghError }}
+        </Alert>
       </template>
 
+      <!-- Connected. -->
       <template v-else>
-        <div :style="rowStyle">
-          <img
-            v-if="githubIntegration.avatarUrl"
-            :src="githubIntegration.avatarUrl"
-            :style="avatarStyle"
-            alt=""
+        <section class="gh__account">
+          <Avatar
+            :name="githubIntegration.login || 'GitHub'"
+            :src="githubIntegration.avatarUrl || undefined"
+            size="md"
           />
-          <div :style="s.taskMain">
-            <span :style="s.dlTitle">{{ githubIntegration.login || 'Installed' }}</span>
-            <span :style="s.finMeta">
+          <div class="gh__who">
+            <span class="gh__login">{{ githubIntegration.login || 'Installed' }}</span>
+            <span class="gh__muted">
               {{
                 githubIntegration.installationId
-                  ? 'installation ' + githubIntegration.installationId
-                  : 'server token'
+                  ? `Installation ${githubIntegration.installationId}`
+                  : 'Server token'
               }}
-              · connected
-              {{ formatRelative(githubIntegration.connectedAt ?? 0, now) }}
-              <template v-if="lastSync"> · synced {{ formatRelative(lastSync, now) }}</template>
+              · connected {{ formatRelative(githubIntegration.connectedAt ?? 0, now) }}
             </span>
           </div>
-          <button :style="s.del" title="Disconnect" @click="app.disconnectGithub()">
+          <Button
+            v-if="!confirmDisconnect"
+            size="sm"
+            variant="ghost"
+            @click="confirmDisconnect = true"
+          >
             Disconnect
-          </button>
+          </Button>
+        </section>
+
+        <div v-if="confirmDisconnect" class="gh__confirm" role="alertdialog" aria-live="polite">
+          <span>
+            Disconnect GitHub? Sync stops. Linked repositories and their issues stay in the
+            workspace, and nothing changes on GitHub.
+          </span>
+          <span class="gh__confirmActions">
+            <Button size="sm" variant="danger" @click="disconnect">Disconnect</Button>
+            <Button size="sm" variant="ghost" @click="confirmDisconnect = false">Cancel</Button>
+          </span>
         </div>
 
         <!-- Rate limit is always visible, so a stalled sync is explicable (13f). -->
-        <div :style="s.ghConnRow">
-          <span :style="s.finMeta">{{ rateLabel }}</span>
-          <button :style="s.importBtn" @click="syncNow">Sync now</button>
-        </div>
-        <div v-if="paused" :style="bannerStyle(WARNING)">
-          <strong>Sync paused</strong>
-          <span>{{ paused }}</span>
-          <button :style="s.editBtn" @click="app.resumeGithubSync()">Resume now</button>
-        </div>
-        <div v-if="ghError" :style="bannerStyle(DANGER)">{{ ghError }}</div>
-
-        <TextInput placeholder="Search repositories…" v-model="search" :autocorrect="false" />
-
-        <div v-if="ghBusy && !ghInstalled" :style="s.ghShimmer"></div>
-        <div v-else-if="!pickerRepos.length" :style="s.empty">
-          No repositories in this installation.
-        </div>
-        <div v-else :style="s.list">
-          <div v-for="repo in pickerRepos" :key="repo.id" :style="s.ghRepoCard">
-            <div :style="rowStyle">
-              <div :style="s.taskMain">
-                <span :style="s.dlTitle">{{ repo.fullName }}</span>
-                <span :style="s.finMeta">
-                  {{ repo.private ? 'private' : 'public' }}
-                  <template v-if="repo.language"> · {{ repo.language }}</template>
-                  · {{ repo.defaultBranch }} · {{ repo.openIssuesCount }} open
-                </span>
-              </div>
-              <div
-                :style="toggleTrack(linkedIds.has(repo.id))"
-                role="switch"
-                :aria-checked="linkedIds.has(repo.id)"
-                :title="linkedIds.has(repo.id) ? 'Unlink from workspace' : 'Link to workspace'"
-                @click="app.toggleRepoLink(repo)"
-              >
-                <div :style="toggleKnob(linkedIds.has(repo.id))"></div>
-              </div>
-            </div>
+        <section class="gh__status">
+          <div class="gh__statusText">
+            <span>{{ rateLabel }}</span>
+            <span class="gh__muted">
+              {{ lastSync ? `Last synced ${formatRelative(lastSync, now)}` : 'Not synced yet' }}
+            </span>
           </div>
-        </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            :loading="syncing"
+            :disabled="syncing || !repos.length || !!paused"
+            :title="!repos.length ? 'Link a repository first' : ''"
+            @click="syncNow"
+          >
+            {{ syncing ? 'Syncing…' : 'Sync now' }}
+          </Button>
+        </section>
+
+        <Alert v-if="paused" tone="warning" title="Sync paused">
+          <span class="gh__alertBody">
+            {{ paused }}
+            <Button size="sm" variant="secondary" @click="app.resumeGithubSync()">
+              Resume now
+            </Button>
+          </span>
+        </Alert>
+        <Alert v-if="syncNote" :tone="syncNote.tone" dismissible @dismiss="syncNote = null">
+          {{ syncNote.text }}
+        </Alert>
+        <Alert v-if="ghError" tone="danger" title="GitHub did not answer">
+          <span class="gh__alertBody">
+            {{ ghError }}
+            <Button
+              size="sm"
+              variant="secondary"
+              :loading="ghBusy"
+              @click="app.loadInstalledRepos()"
+            >
+              Try again
+            </Button>
+          </span>
+        </Alert>
+
+        <!-- The picker. -->
+        <section class="gh__repos" aria-label="Repositories">
+          <div class="gh__reposHead">
+            <h3 class="gh__h">Repositories</h3>
+            <span class="gh__muted">{{ repos.length }} linked of {{ installedCount }}</span>
+          </div>
+          <SearchField
+            v-if="installedCount > 6"
+            v-model="search"
+            size="sm"
+            placeholder="Search repositories"
+            label="Search repositories"
+          />
+
+          <Skeleton
+            v-if="ghBusy && !ghInstalled"
+            :lines="4"
+            height="52px"
+            radius="var(--radius-card)"
+          />
+          <EmptyState
+            v-else-if="!installedCount"
+            glyph="📦"
+            title="No repositories in this installation"
+            description="Add repositories to the GitHub App's installation, then refresh this list."
+          />
+          <EmptyState
+            v-else-if="!matches.length"
+            glyph="🔍"
+            :title="`Nothing matches “${search.trim()}”`"
+          >
+            <template #action>
+              <Button size="sm" variant="secondary" @click="search = ''">Clear search</Button>
+            </template>
+          </EmptyState>
+
+          <template v-else>
+            <template
+              v-for="group in [
+                { key: 'linked', title: 'Linked', items: linked },
+                { key: 'available', title: 'Available', items: available },
+              ]"
+              :key="group.key"
+            >
+              <h4 v-if="group.items.length" class="gh__group">
+                {{ group.title }} <span class="gh__count">{{ group.items.length }}</span>
+              </h4>
+              <ul v-if="group.items.length" class="gh__list">
+                <li
+                  v-for="repo in group.items"
+                  :key="repo.id"
+                  class="gh__repo"
+                  :class="{ 'is-linked': linkedIds.has(repo.id) }"
+                >
+                  <div class="gh__repoRow">
+                    <div class="gh__repoMain">
+                      <span class="gh__repoName">
+                        {{ repo.fullName }}
+                        <Badge v-if="repo.private" tone="neutral" label="Private" />
+                      </span>
+                      <span class="gh__muted">{{ meta(repo) }}</span>
+                    </div>
+                    <Switch
+                      class="gh__switch"
+                      :model-value="linkedIds.has(repo.id)"
+                      :label="`Link ${repo.fullName} to the workspace`"
+                      @update:model-value="onSwitch(repo, $event)"
+                    />
+                  </div>
+                  <div v-if="confirmUnlink === repo.id" class="gh__confirm" role="alertdialog">
+                    <span>
+                      Unlink {{ repo.fullName }}? Its mirrored issues leave the workspace; tasks
+                      keep their issue links, and nothing changes on GitHub.
+                    </span>
+                    <span class="gh__confirmActions">
+                      <Button size="sm" variant="danger" @click="unlink(repo)">Unlink</Button>
+                      <Button size="sm" variant="ghost" @click="confirmUnlink = null">
+                        Keep
+                      </Button>
+                    </span>
+                  </div>
+                </li>
+              </ul>
+            </template>
+          </template>
+
+          <p class="gh__foot">
+            Missing a repository?
+            <a v-if="installUrl" :href="installUrl" target="_blank" rel="noopener noreferrer"
+              >Add it to the installation on GitHub ↗</a
+            ><template v-else>Add it to the GitHub App's installation</template>, then
+            <button
+              type="button"
+              class="gh__textBtn"
+              :disabled="ghBusy"
+              @click="app.loadInstalledRepos()"
+            >
+              {{ ghBusy ? 'refreshing…' : 'refresh the list' }}</button
+            >.
+          </p>
+        </section>
       </template>
     </div>
-  </template>
+  </SlideOver>
 </template>
+
+<style scoped>
+.gh {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.gh__h {
+  margin: 0;
+  font-size: var(--text-md, var(--text-base));
+  font-weight: var(--weight-semibold);
+  color: var(--theme-text);
+}
+.gh__muted {
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+  overflow-wrap: anywhere;
+}
+.gh__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.gh__intro p {
+  margin: 0;
+}
+.gh__perms {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gh__perms b {
+  color: var(--theme-text);
+  font-weight: var(--weight-medium);
+}
+.gh__steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.gh__step {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-card);
+}
+.gh__num {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--theme-accent) 18%, transparent);
+  color: var(--theme-accent);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.gh__stepBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.gh__stepTitle {
+  font-weight: var(--weight-medium);
+  color: var(--theme-text);
+}
+.gh__stepBody > :last-child {
+  margin-top: var(--sp-1);
+}
+.gh__linkBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  background: var(--theme-accent);
+  color: var(--theme-on-accent, #fff);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+.gh__linkBtn:focus-visible,
+.gh__textBtn:focus-visible,
+.gh__foot a:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+.gh__account {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.gh__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.gh__login {
+  font-weight: var(--weight-semibold);
+  color: var(--theme-text);
+}
+.gh__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-card);
+  font-size: var(--text-sm);
+  color: var(--theme-text);
+}
+.gh__statusText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.gh__alertBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.gh__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in oklch, var(--theme-danger) 45%, var(--theme-border));
+  background: color-mix(in oklch, var(--theme-danger) 8%, transparent);
+  font-size: var(--text-xs);
+  color: var(--theme-text);
+}
+.gh__confirmActions {
+  display: flex;
+  gap: var(--sp-2);
+}
+.gh__repos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.gh__reposHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.gh__group {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-dim);
+}
+.gh__count {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.gh__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.gh__repo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-card);
+  transition: border-color var(--dur-fast) ease;
+}
+.gh__repo.is-linked {
+  border-color: color-mix(in oklch, var(--theme-success) 45%, var(--theme-border));
+}
+.gh__repoRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.gh__repoMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.gh__repoName {
+  min-width: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-weight: var(--weight-medium);
+  color: var(--theme-text);
+  overflow-wrap: anywhere;
+}
+/* The switch's label names the repo for a screen reader; the row already shows it. */
+.gh__switch :deep(.ui-switch__label) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.gh__foot {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
+}
+.gh__foot a {
+  color: var(--theme-accent);
+}
+.gh__textBtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--theme-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.gh__textBtn:disabled {
+  color: var(--theme-dim);
+  cursor: default;
+}
+</style>
