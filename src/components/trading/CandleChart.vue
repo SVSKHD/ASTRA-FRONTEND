@@ -24,11 +24,14 @@ import {
   carryView,
   clampView,
   fullTime,
+  indexOf,
   initialView,
   keyView,
   labelEvery,
+  measureOf,
   niceTicks,
   panView,
+  signed,
   stepDecimals,
   visibleRange,
   zoomView,
@@ -470,6 +473,59 @@ const legend = computed(() => {
   return { overlays: overlayGroups.value.map(row), panes: props.panes.map(row) }
 })
 
+// --- Ruler -----------------------------------------------------------------------------
+// Shift + drag (or the ruler button, then drag: touch has no Shift) from one price to
+// another: the points, the percentage and the candles between them, as TradingView
+// does. Its ends are kept as (candle time, price), so it stays on the same candles
+// when the chart pans or new candles arrive. Esc, the button or a click clears it.
+
+const rulerArmed = ref(false)
+const ruler = ref<{ a: { t: number; p: number }; b: { t: number; p: number } } | null>(null)
+let rulerDrag = false
+
+function rulerPoint(p: { x: number; y: number }) {
+  const i = Math.min(total.value - 1, Math.max(0, indexAt(p.x)))
+  const y = Math.min(layout.value.priceH, Math.max(0, p.y))
+  return { t: times.value[i], p: priceAt(y) }
+}
+function toggleRuler() {
+  if (ruler.value || rulerArmed.value) {
+    ruler.value = null
+    rulerArmed.value = false
+  } else rulerArmed.value = true
+}
+
+const rulerBox = computed(() => {
+  const r = ruler.value
+  if (!r) return null
+  const ia = indexOf(times.value, r.a.t)
+  const ib = indexOf(times.value, r.b.t)
+  if (ia < 0 || ib < 0) return null
+  const m = measureOf(r.a.p, r.b.p, ia, ib, props.timeframe)
+  const dp = Math.min(6, stepDecimals(niceTicks(prices.value.lo, prices.value.hi, 5)) + 1)
+  const xa = xOf(ia)
+  const xb = xOf(ib)
+  const ya = yPrice(r.a.p)
+  const yb = yPrice(r.b.p)
+  const up = m.change >= 0
+  return {
+    x: Math.min(xa, xb),
+    y: Math.min(ya, yb),
+    w: Math.max(1, Math.abs(xb - xa)),
+    h: Math.max(1, Math.abs(yb - ya)),
+    xa,
+    ya,
+    xb,
+    yb,
+    up,
+    // The tag sits past the end the move went to: above a rise, below a fall.
+    tagX: Math.min(Math.max((xa + xb) / 2, 70), plotW.value - 70),
+    tagY: up ? Math.min(ya, yb) - 6 : Math.max(ya, yb) + 6,
+    points: `${signed(m.change, dp)} (${signed(m.pct, 2)}%)`,
+    bars: `${Math.abs(m.bars)} ${Math.abs(m.bars) === 1 ? 'bar' : 'bars'} · ${m.span}`,
+  }
+})
+
 // --- Input ---------------------------------------------------------------------------
 
 function localX(e: { clientX: number; clientY: number }) {
@@ -481,7 +537,7 @@ function indexAt(x: number) {
 }
 
 const pointers = new Map<number, { x: number; y: number }>()
-let drag: { x: number; view: View } | null = null
+let drag: { x: number; view: View; moved: boolean } | null = null
 let pinch: { dist: number; view: View; anchor: number } | null = null
 
 function pinchInfo() {
@@ -501,9 +557,16 @@ function onPointerDown(e: PointerEvent) {
   }
   if (pointers.size === 2) {
     drag = null
+    rulerDrag = false
     pinch = { ...pinchInfo(), view: view.value }
+  } else if ((e.shiftKey || rulerArmed.value) && total.value && p.y <= layout.value.priceH) {
+    const at = rulerPoint(p)
+    ruler.value = { a: at, b: at }
+    rulerDrag = true
+    drag = null
+    hover.value = { i: indexAt(p.x), ...p }
   } else {
-    drag = { x: p.x, view: view.value }
+    drag = { x: p.x, view: view.value, moved: false }
     hover.value = { i: indexAt(p.x), ...p }
   }
 }
@@ -515,15 +578,30 @@ function onPointerMove(e: PointerEvent) {
     view.value = zoomView(pinch.view, pinch.dist / now.dist, pinch.anchor, total.value)
     return
   }
-  if (drag) {
+  if (rulerDrag && ruler.value) {
+    ruler.value = { ...ruler.value, b: rulerPoint(p) }
+  } else if (drag) {
     const dx = p.x - drag.x
-    if (Math.abs(dx) > 2) view.value = panView(drag.view, -dx / barPx.value, total.value)
+    if (Math.abs(dx) > 2) {
+      drag.moved = true
+      view.value = panView(drag.view, -dx / barPx.value, total.value)
+    }
   }
   if (p.x >= 0 && p.x <= plotW.value) hover.value = { i: indexAt(p.x), ...p }
   else hover.value = null
 }
 function onPointerUp(e: PointerEvent) {
   pointers.delete(e.pointerId)
+  if (rulerDrag) {
+    rulerDrag = false
+    rulerArmed.value = false
+    const r = ruler.value
+    // A click without a drag measures nothing.
+    if (r && r.a.t === r.b.t && Math.abs(r.a.p - r.b.p) < 1e-9) ruler.value = null
+  } else if (drag && !drag.moved && ruler.value && e.type === 'pointerup') {
+    // A plain click puts the ruler away; a pan keeps it.
+    ruler.value = null
+  }
   if (pointers.size < 2) pinch = null
   if (!pointers.size) drag = null
 }
@@ -543,6 +621,11 @@ function onWheel(e: WheelEvent) {
   view.value = zoomView(view.value, factor, x / plotW.value, total.value)
 }
 function onKey(e: KeyboardEvent) {
+  if (e.key === 'Escape' && (ruler.value || rulerArmed.value)) {
+    ruler.value = null
+    rulerArmed.value = false
+    return
+  }
   if (e.key === 'Escape' && cssFull.value) {
     cssFull.value = false
     fullscreen.value = false
@@ -623,11 +706,25 @@ defineExpose({ view, setView: (v: View) => (view.value = clampView(v, total.valu
   <figure
     ref="root"
     class="cc"
-    :class="{ 'is-fs': fullscreen, 'is-css-fs': cssFull }"
+    :class="{ 'is-fs': fullscreen, 'is-css-fs': cssFull, 'is-measuring': rulerArmed }"
     :aria-label="label"
   >
     <div class="cc__tools" role="toolbar" :aria-label="`${label} view`">
-      <span class="cc__hint">Drag to pan · wheel or pinch to zoom · ← → + − Home End</span>
+      <span class="cc__hint"
+        >Drag to pan · Shift + drag to measure · wheel or pinch to zoom · ← → + − Home End</span
+      >
+      <IconButton
+        :label="
+          ruler || rulerArmed
+            ? 'Put the ruler away'
+            : 'Measure: drag from one price to another (or Shift + drag)'
+        "
+        size="sm"
+        :active="rulerArmed || !!ruler"
+        @click="toggleRuler"
+      >
+        <Icon name="ruler" size="sm" />
+      </IconButton>
       <IconButton label="Zoom out" size="sm" @click="zoom(1.25)">
         <Icon name="zoom-out" size="sm" />
       </IconButton>
@@ -831,7 +928,25 @@ defineExpose({ view, setView: (v: View) => (view.value = clampView(v, total.valu
             <text :x="plotW + 6" :y="crossPrice.y + 4">{{ crossPrice.text }}</text>
           </template>
         </g>
+        <!-- ruler -->
+        <g v-if="rulerBox" class="cc__ruler" :class="rulerBox.up ? 'is-up' : 'is-down'">
+          <rect :x="rulerBox.x" :y="rulerBox.y" :width="rulerBox.w" :height="rulerBox.h" />
+          <line :x1="rulerBox.xa" :y1="rulerBox.ya" :x2="rulerBox.xb" :y2="rulerBox.yb" />
+          <circle :cx="rulerBox.xa" :cy="rulerBox.ya" r="3" />
+          <circle :cx="rulerBox.xb" :cy="rulerBox.yb" r="3" />
+        </g>
       </svg>
+
+      <div
+        v-if="rulerBox"
+        class="cc__ruler-tag tp-num"
+        :class="rulerBox.up ? 'is-up' : 'is-down'"
+        :style="{ left: `${rulerBox.tagX}px`, top: `${rulerBox.tagY}px` }"
+        role="status"
+      >
+        <b>{{ rulerBox.points }}</b>
+        <span>{{ rulerBox.bars }}</span>
+      </div>
 
       <div
         v-if="tooltip"
@@ -1036,6 +1151,49 @@ defineExpose({ view, setView: (v: View) => (view.value = clampView(v, total.valu
   stroke: var(--text-secondary);
   stroke-dasharray: 3 3;
   stroke-width: 1;
+}
+.cc.is-measuring .cc__plot {
+  cursor: copy;
+}
+.cc__ruler {
+  --ruler: var(--theme-success);
+  pointer-events: none;
+}
+.cc__ruler.is-down {
+  --ruler: var(--theme-danger);
+}
+.cc__ruler rect {
+  fill: color-mix(in oklch, var(--ruler) 14%, transparent);
+  stroke: color-mix(in oklch, var(--ruler) 55%, transparent);
+  stroke-width: 1;
+}
+.cc__ruler line {
+  stroke: var(--ruler);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.cc__ruler circle {
+  fill: var(--ruler);
+}
+.cc__ruler-tag {
+  position: absolute;
+  translate: -50% -100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--theme-success);
+  color: #fff;
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+.cc__ruler-tag.is-down {
+  background: var(--theme-danger);
+  translate: -50% 0;
 }
 .cc__tip {
   position: absolute;

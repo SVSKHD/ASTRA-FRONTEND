@@ -107,7 +107,7 @@ export function atLatest(v: View, total: number): boolean {
 }
 
 /** Index of `t` in ascending `times`, or -1. */
-function indexOf(times: readonly number[], t: number): number {
+export function indexOf(times: readonly number[], t: number): number {
   let lo = 0
   let hi = times.length - 1
   while (lo <= hi) {
@@ -139,6 +139,39 @@ export function carryView(v: View, prev: readonly number[], next: readonly numbe
   const appended = next.length - (prev.length + shift)
   const follow = atLatest(v, prev.length) && appended > 0
   return follow ? panView(moved, appended, next.length) : clampView(moved, next.length)
+}
+
+export interface Measure {
+  /** Price moved, in points (B minus A). */
+  change: number
+  /** The same as a percentage of A. */
+  pct: number
+  /** Candles from A to B (negative when B is left of A). */
+  bars: number
+  /** Those candles as trading time: "1h 30m", "18d". */
+  span: string
+}
+
+/** The ruler: from price `a` at candle `ia` to price `b` at candle `ib`. */
+export function measureOf(a: number, b: number, ia: number, ib: number, tf: Timeframe): Measure {
+  const change = b - a
+  const bars = ib - ia
+  const secs = Math.abs(bars) * TF_SECONDS[tf]
+  let span: string
+  if (tf === '1d') span = `${Math.abs(bars)}d`
+  else {
+    const d = Math.floor(secs / 86400)
+    const h = Math.floor((secs % 86400) / 3600)
+    const m = Math.floor((secs % 3600) / 60)
+    span = [d ? `${d}d` : '', h ? `${h}h` : '', m ? `${m}m` : ''].filter(Boolean).join(' ') || '0m'
+  }
+  return { change, pct: a ? (change / a) * 100 : 0, bars, span }
+}
+
+/** "+12.35", "−4.10": a signed figure with a real minus sign. */
+export function signed(v: number, dp: number): string {
+  const s = Math.abs(v).toFixed(dp)
+  return Number(s) === 0 ? s : v > 0 ? `+${s}` : `−${s}`
 }
 
 /** A keyboard key → the next view, or null when the key is not the chart's. */

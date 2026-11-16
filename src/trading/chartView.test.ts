@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  measureOf,
+  signed,
   carryView,
   MIN_BARS,
   RIGHT_PAD,
@@ -123,5 +125,28 @@ describe('carryView', () => {
   })
   it('starts over when the reads share no candle', () => {
     expect(carryView({ start: 10, end: 30 }, t(0, 100), t(500, 100))).toBeNull()
+  })
+})
+
+describe('measureOf (the ruler)', () => {
+  it('gives points, percent, bars and trading time', () => {
+    const m = measureOf(100, 112.35, 10, 28, '5m')
+    expect(m.change).toBeCloseTo(12.35)
+    expect(m.pct).toBeCloseTo(12.35)
+    expect(m.bars).toBe(18)
+    expect(m.span).toBe('1h 30m')
+  })
+  it('measures a fall and a backwards drag', () => {
+    const m = measureOf(200, 190, 30, 20, '1d')
+    expect(m.change).toBe(-10)
+    expect(m.pct).toBe(-5)
+    expect(m.bars).toBe(-10)
+    expect(m.span).toBe('10d')
+  })
+  it('signs figures with a real minus', () => {
+    expect(signed(12.345, 2)).toBe('+12.35')
+    expect(signed(-4.1, 2)).toBe('−4.10')
+    expect(signed(0, 2)).toBe('0.00')
+    expect(signed(-0.001, 2)).toBe('0.00')
   })
 })
