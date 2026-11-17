@@ -1,46 +1,41 @@
-// The stock-signal notification centre's state: one copy for the page (the bell,
-// the toasts and the Alerts tab read the same list).
+// The stock-signal notification centre (docs/37 §5): one copy for the page, so
+// the bell, the toasts and the Alerts tab read the same list.
 //
-// Events come from the backend's monitor: first a page read, then the trading
-// stream's `stock_signal` events while it is open, and a poll every minute when
-// it is not (or when the stream is up but the event never comes). Read state
-// lives on the server, so it survives a refresh on any device; the ids already
-// toasted are kept on this device, so a refresh never toasts them again.
+// The research worker creates notifications after every run, whether or not
+// anyone has the page open. Here: a first page read (history, not news), then
+// the SSE stream (GET /api/trading/stock-signals/stream; `notification` events
+// whose id is the cursor, so a reconnect replays what was missed), and while the
+// stream is not open, polling GET /notifications?after_id= every 30 seconds.
+// Read state lives on the server (it survives a refresh, on any device); the ids
+// already toasted are kept on this device so a refresh never toasts them again.
 
-import { computed, reactive, watch } from 'vue'
-import { live } from '@/trading/stream'
-import {
-  AlertsUnavailable,
-  fetchEvents,
-  markRead as postRead,
-  mergeEvents,
-  type StockSignalEvent,
-} from './alertsApi'
+import { computed, reactive } from 'vue'
+import { apiUrl } from '@/api/config'
+import { openStream, type StreamHandle, type StreamStatus } from '@/api/sse'
+import { fetchNotifications, markAllRead, markNotificationRead, type Notification } from './api'
 
-export type Availability = 'unknown' | 'available' | 'unavailable' | 'error'
-
-const TOASTED_KEY = 'aureon.stocksignals.toasted.v1'
-const POLL_MS = 60_000
+const TOASTED_KEY = 'aureon.stocksignals.toasted.v2'
+const POLL_MS = 30_000
 
 const state = reactive({
-  events: [] as StockSignalEvent[],
-  unreadServer: null as number | null,
-  availability: 'unknown' as Availability,
-  error: '',
+  items: [] as Notification[],
+  unread: 0,
+  loaded: false,
   loading: false,
-  lastLoadedAt: 0,
+  error: '',
+  stream: 'closed' as StreamStatus,
 })
 
-function readToasted(): Set<string> {
+function readToasted(): Set<number> {
   try {
     const v: unknown = JSON.parse(localStorage.getItem(TOASTED_KEY) ?? '[]')
-    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+    return new Set(Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [])
   } catch {
     return new Set()
   }
 }
-const toasted = readToasted()
-function rememberToasted(ids: string[]) {
+let toasted = readToasted()
+function rememberToasted(ids: number[]) {
   for (const id of ids) toasted.add(id)
   try {
     localStorage.setItem(TOASTED_KEY, JSON.stringify([...toasted].slice(-500)))
@@ -49,106 +44,147 @@ function rememberToasted(ids: string[]) {
   }
 }
 
-let toastFn: ((e: StockSignalEvent) => void) | null = null
+/** Merge newer notifications in, newest first, one per id. */
+export function mergeNotifications(
+  known: readonly Notification[],
+  incoming: readonly Notification[],
+): Notification[] {
+  const byId = new Map(known.map((n) => [n.id, n]))
+  for (const n of incoming) byId.set(n.id, { ...byId.get(n.id), ...n })
+  return [...byId.values()].sort((a, b) => b.id - a.id)
+}
+
+let toastFn: ((n: Notification) => void) | null = null
+let handle: StreamHandle | null = null
 let timer: ReturnType<typeof setInterval> | undefined
 let users = 0
-let firstLoad = true
 
-async function refresh(): Promise<void> {
-  if (state.loading) return
+function lastId(): number | undefined {
+  return state.items.length ? state.items[0].id : undefined
+}
+
+function take(incoming: Notification[], announce: boolean) {
+  const fresh = incoming.filter((n) => !state.items.some((k) => k.id === n.id))
+  if (!fresh.length) return
+  state.items = mergeNotifications(state.items, fresh)
+  state.unread += fresh.filter((n) => !n.read_at).length
+  if (!announce) return rememberToasted(fresh.map((n) => n.id))
+  const news = fresh.filter((n) => !n.read_at && !toasted.has(n.id))
+  rememberToasted(news.map((n) => n.id))
+  for (const n of news.slice(0, 3)) toastFn?.(n)
+}
+
+async function firstLoad() {
   state.loading = true
   try {
-    const page = await fetchEvents({ limit: 200 })
-    const fresh = page.items.filter((e) => !state.events.some((k) => k.id === e.id))
-    state.events = mergeEvents(state.events, page.items)
-    state.unreadServer = page.unread
-    state.availability = 'available'
+    const page = await fetchNotifications({ limit: 100 })
+    state.items = mergeNotifications([], page.items)
+    state.unread = page.unread_count
+    state.loaded = true
     state.error = ''
-    state.lastLoadedAt = Date.now()
-    // The first read is history, not news: only events after it are toasted.
-    if (firstLoad) rememberToasted(page.items.map((e) => e.id))
-    else announce(fresh)
-    firstLoad = false
+    rememberToasted(page.items.map((n) => n.id))
   } catch (e) {
-    if (e instanceof AlertsUnavailable) state.availability = 'unavailable'
-    else {
-      state.availability = state.availability === 'available' ? 'available' : 'error'
-      state.error = (e as Error).message || 'The alerts could not be loaded.'
-    }
+    state.error = (e as Error).message || 'The alerts could not be loaded.'
   } finally {
     state.loading = false
   }
 }
 
-function announce(events: StockSignalEvent[]) {
-  const news = events.filter((e) => !e.read && !toasted.has(e.id))
-  if (!news.length) return
-  rememberToasted(news.map((e) => e.id))
-  for (const e of news.slice(0, 3)) toastFn?.(e)
+async function poll() {
+  if (!state.loaded) return firstLoad()
+  try {
+    const page = await fetchNotifications({ afterId: lastId() ?? 0, limit: 100 })
+    take(page.items, true)
+    state.unread = page.unread_count
+    state.error = ''
+  } catch (e) {
+    state.error = (e as Error).message
+  }
 }
 
-// Stream events: merged at once, without waiting for the poll.
-watch(
-  () => live.stockSignals[0]?.id,
-  () => {
-    if (state.availability !== 'available') return
-    const incoming = live.stockSignals as unknown as StockSignalEvent[]
-    const fresh = incoming.filter((e) => !state.events.some((k) => k.id === e.id))
-    if (!fresh.length) return
-    state.events = mergeEvents(state.events, fresh)
-    if (state.unreadServer !== null) state.unreadServer += fresh.filter((e) => !e.read).length
-    announce(fresh)
-  },
-)
+function openFeed() {
+  handle?.close()
+  handle = openStream(apiUrl('/api/trading/stock-signals/stream'), {
+    events: ['hello', 'notification', 'bye'],
+    onEvent: (e) => {
+      let data: unknown
+      try {
+        data = JSON.parse(e.data)
+      } catch {
+        return
+      }
+      if (e.event === 'notification' && data && typeof (data as Notification).id === 'number')
+        take([data as Notification], true)
+      else if (e.event === 'hello') {
+        const unread = (data as { unread_count?: unknown })?.unread_count
+        if (typeof unread === 'number') state.unread = unread
+      }
+    },
+    onStatus: (s) => (state.stream = s),
+  })
+}
 
-const unread = computed(() => state.unreadServer ?? state.events.filter((e) => !e.read).length)
+const unread = computed(() => state.unread)
 
-async function markRead(ids: string[] | 'all') {
-  const before = state.events
-  state.events = state.events.map((e) =>
-    ids === 'all' || ids.includes(e.id) ? { ...e, read: true } : e,
+async function markRead(ids: number[] | 'all') {
+  const before = state.items
+  const beforeUnread = state.unread
+  const stamp = new Date().toISOString()
+  state.items = state.items.map((n) =>
+    (ids === 'all' || ids.includes(n.id)) && !n.read_at ? { ...n, read_at: stamp } : n,
   )
   try {
-    const left = await postRead(ids)
-    state.unreadServer = left ?? state.events.filter((e) => !e.read).length
+    if (ids === 'all') state.unread = await markAllRead(lastId())
+    else {
+      for (const id of ids) await markNotificationRead(id)
+      state.unread = Math.max(
+        0,
+        beforeUnread - before.filter((n) => ids.includes(n.id) && !n.read_at).length,
+      )
+    }
   } catch (e) {
-    state.events = before
+    state.items = before
+    state.unread = beforeUnread
     throw e
   }
 }
 
-/**
- * Join the notification centre. `toast` shows a new event; the poll runs while
- * at least one screen uses it, and only as a fallback when the stream is down.
- */
-export function useSignalNotifications(toast?: (e: StockSignalEvent) => void) {
+/** Join the notification centre; `toast` shows a new notification. */
+export function useSignalNotifications(toast?: (n: Notification) => void) {
   if (toast) toastFn = toast
   function start() {
     users++
-    if (users === 1) {
-      void refresh()
-      timer = setInterval(() => {
-        if (state.availability === 'unavailable') return
-        if (live.status === 'open' && Date.now() - state.lastLoadedAt < POLL_MS * 5) return
-        void refresh()
-      }, POLL_MS)
-    }
+    if (users > 1) return
+    void firstLoad().then(() => openFeed())
+    timer = setInterval(() => {
+      if (state.stream === 'open') return
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      void poll()
+    }, POLL_MS)
   }
   function stop() {
     users = Math.max(0, users - 1)
-    if (!users) clearInterval(timer)
+    if (users) return
+    clearInterval(timer)
+    handle?.close()
+    handle = null
+    state.stream = 'closed'
   }
-  return { state, unread, refresh, markRead, start, stop }
+  return { state, unread, refresh: poll, markRead, start, stop }
 }
+export type SignalCenter = ReturnType<typeof useSignalNotifications>
 
 /** Tests only. */
 export function resetSignalNotifications(): void {
-  state.events = []
-  state.unreadServer = null
-  state.availability = 'unknown'
-  state.error = ''
+  state.items = []
+  state.unread = 0
+  state.loaded = false
   state.loading = false
-  firstLoad = true
+  state.error = ''
+  state.stream = 'closed'
   users = 0
   clearInterval(timer)
+  handle?.close()
+  handle = null
+  toasted = readToasted()
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Where the chart viewer opens: a wide dialog (about 90% of the window) with a
-// fullscreen / restore toggle on desktop and tablet, a bottom drawer on a phone
+// fullscreen / restore toggle on desktop and tablet; a bottom drawer on a phone
 // (drag to resize; the chart's own button goes fullscreen). One viewer inside
 // either. The page behind does not scroll while it is open.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -10,25 +10,22 @@ import IconButton from '@/components/ui/IconButton.vue'
 import Icon from '@/components/ui/Icon.vue'
 import SignalChartViewer from './SignalChartViewer.vue'
 import { useStyles } from '@/composables/useStyles'
-import type { Timeframe } from '@/trading/chartView'
-import type { Instrument } from '@/trading/instruments'
-import type { HoldingView } from '@/trading/stockSignals/portfolio'
+import type { PortfolioHolding, SignalEvent, SignalTf, StateRow } from '@/trading/stockSignals/api'
+import type { Target } from '@/trading/stockSignals/useStockSignals'
 
 const props = defineProps<{
-  instrument: Instrument | null
-  tf: Timeframe
+  target: Target | null
+  tf: SignalTf
+  state?: StateRow | null
+  event?: SignalEvent | null
+  holding?: PortfolioHolding | null
   now: number
-  holding?: HoldingView | null
 }>()
-const emit = defineEmits<{ close: []; watchlist: [Instrument]; alert: [Instrument] }>()
+const emit = defineEmits<{ close: []; watchlist: [Target]; alert: [Target] }>()
 const { isMobile } = useStyles()
 const full = ref(false)
-const open = computed(() => !!props.instrument)
-const title = computed(() =>
-  props.instrument
-    ? `${props.instrument.trading_symbol || props.instrument.symbol} chart`
-    : 'Chart',
-)
+const open = computed(() => !!props.target)
+const title = computed(() => (props.target ? `${props.target.symbol} chart` : 'Chart'))
 
 // Scroll lock, restored on close or unmount.
 let saved: string | null = null
@@ -55,15 +52,19 @@ onBeforeUnmount(() => lock(false))
 
 <template>
   <BottomSheet v-if="isMobile" :open="open" :title="title" @close="emit('close')">
-    <SignalChartViewer
-      v-if="instrument"
-      :instrument="instrument"
-      :tf="tf"
-      :now="now"
-      :holding="holding"
-      @watchlist="emit('watchlist', instrument)"
-      @alert="emit('alert', instrument)"
-    />
+    <div class="ch ch--sheet">
+      <SignalChartViewer
+        v-if="target"
+        :target="target"
+        :tf="tf"
+        :state="state"
+        :event="event"
+        :holding="holding"
+        :now="now"
+        @watchlist="emit('watchlist', target)"
+        @alert="emit('alert', target)"
+      />
+    </div>
   </BottomSheet>
   <Modal v-else :open="open" :size="full ? 'full' : 'wide'" :title="title" @close="emit('close')">
     <div class="ch">
@@ -77,14 +78,16 @@ onBeforeUnmount(() => lock(false))
         <Icon :name="full ? 'minimize-2' : 'maximize-2'" size="sm" />
       </IconButton>
       <SignalChartViewer
-        v-if="instrument"
-        :instrument="instrument"
+        v-if="target"
+        :target="target"
         :tf="tf"
-        :now="now"
+        :state="state"
+        :event="event"
         :holding="holding"
+        :now="now"
         :tall="full"
-        @watchlist="emit('watchlist', instrument)"
-        @alert="emit('alert', instrument)"
+        @watchlist="emit('watchlist', target)"
+        @alert="emit('alert', target)"
       />
     </div>
   </Modal>
@@ -95,15 +98,13 @@ onBeforeUnmount(() => lock(false))
   position: relative;
   min-width: 0;
 }
+.ch--sheet {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
 .ch__full {
   position: absolute;
-  top: -2px;
+  top: 0;
   right: 0;
   z-index: 2;
-}
-@supports (padding: env(safe-area-inset-bottom)) {
-  :global(.ui-sheet) {
-    padding-bottom: max(var(--sp-3), env(safe-area-inset-bottom));
-  }
 }
 </style>

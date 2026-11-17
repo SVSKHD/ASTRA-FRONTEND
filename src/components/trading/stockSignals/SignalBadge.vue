@@ -1,12 +1,11 @@
 <script setup lang="ts">
-// A signal's class as a pill: colour AND an icon AND the word, so it never rests
-// on colour alone.
+// A signal state as a pill: colour AND an icon AND the words, so it never rests
+// on colour alone. The engine's eight states fall into five colours.
 import Icon from '@/components/ui/Icon.vue'
-import { SIGNAL_LABEL, type SignalClass } from '@/trading/stockSignals/classify'
+import { STATE_BUCKET, STATE_HELP, STATE_LABEL, type SignalState } from '@/trading/stockSignals/api'
 
-withDefaults(defineProps<{ cls: SignalClass; size?: 'sm' | 'md'; stale?: boolean }>(), {
+withDefaults(defineProps<{ state: SignalState | null | undefined; size?: 'sm' | 'md' }>(), {
   size: 'sm',
-  stale: false,
 })
 const ICON = {
   bullish: 'trending-up',
@@ -18,9 +17,13 @@ const ICON = {
 </script>
 
 <template>
-  <span class="sb" :class="[`is-${cls}`, `sb--${size}`, { 'is-stale': stale }]">
-    <Icon :name="ICON[cls]" size="xs" />
-    {{ SIGNAL_LABEL[cls] }}<template v-if="stale"> · stale</template>
+  <span
+    class="sb"
+    :class="[`is-${STATE_BUCKET[state ?? 'UNAVAILABLE']}`, `sb--${size}`]"
+    :title="STATE_HELP[state ?? 'UNAVAILABLE']"
+  >
+    <Icon :name="ICON[STATE_BUCKET[state ?? 'UNAVAILABLE']]" size="xs" />
+    {{ STATE_LABEL[state ?? 'UNAVAILABLE'] }}
   </span>
 </template>
 
@@ -52,8 +55,5 @@ const ICON = {
 .sb.is-pending,
 .sb.is-mixed {
   --sb: var(--theme-warning);
-}
-.sb.is-stale {
-  --sb: var(--theme-dim);
 }
 </style>

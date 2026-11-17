@@ -1,128 +1,165 @@
 <script setup lang="ts">
-// One stock's signal, in full: the class, EMA 8 / 32, the newest cross, VWAP and
-// how far price is from it, whether VWAP confirmed the cross, RSI / ADX /
-// relative volume, the explanation, how fresh it is, and the holding (weight and
-// P&L) when it is held. Used by the table's expanded row, the chart viewer and
-// the portfolio-impact dialog. Quick actions go in the default slot.
-import { computed } from 'vue'
+// One stock's signal in full, as the engine stored it: the state and what it
+// means, EMA 8 / 32 and their spread, VWAP and the distance from it, the newest
+// crossover (direction, cross time) and its VWAP confirmation (time and price,
+// kept apart), RSI / ADX / relative volume, the trend score, data freshness,
+// what is missing, and the holding (allocation, P&L, advisory class, reasons)
+// when held. Used by the table's expanded row, the chart viewer and the
+// portfolio-impact dialog. Quick actions go in the default slot.
 import SignalBadge from './SignalBadge.vue'
-import { dec, signed } from '@/trading/format'
-import { fullTime, type Timeframe } from '@/trading/chartView'
-import { isStaleAt, strengthWord, type Reading } from '@/trading/stockSignals/classify'
-import type { HoldingView } from '@/trading/stockSignals/portfolio'
-import { ago } from '@/trading/format'
+import { dec, signed, ago } from '@/trading/format'
+import {
+  CLASS_LABEL,
+  STATE_HELP,
+  num,
+  type PortfolioHolding,
+  type SignalEvent,
+  type StateRow,
+} from '@/trading/stockSignals/api'
 
-const props = defineProps<{
-  reading: Reading | null
-  tf: Timeframe
+defineProps<{
+  state: StateRow | null
+  event?: SignalEvent | null
+  holding?: PortfolioHolding | null
   now: number
-  holding?: HoldingView | null
-  /** Why there is no reading (the read failed). */
   error?: string
-  compact?: boolean
 }>()
 
-const stale = computed(() =>
-  props.reading ? isStaleAt(props.reading.asOf, props.tf, props.now) : false,
-)
-const p = (v: number | null | undefined, dp = 2) =>
-  v === null || v === undefined ? '—' : dec(v, dp)
-const at = (t: number | undefined | null) => (t ? fullTime(t, props.tf) : '—')
+const p = (v: string | number | null | undefined, dp = 2) => {
+  const n = num(v)
+  return n === null ? '—' : dec(n, dp)
+}
+const when = (iso: string | null | undefined) =>
+  iso
+    ? new Date(iso).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }) + ' IST'
+    : '—'
+const tone = (v: string | number | null | undefined) => {
+  const n = num(v)
+  return n === null || n === 0 ? '' : n > 0 ? 'is-up' : 'is-down'
+}
 </script>
 
 <template>
-  <div class="sd" :class="{ 'is-compact': compact }">
-    <p v-if="error && !reading" class="sd__error" role="alert">{{ error }}</p>
-    <template v-else-if="reading">
+  <div class="sd">
+    <p v-if="error && !state" class="sd__error" role="alert">{{ error }}</p>
+    <template v-else-if="state">
       <div class="sd__head">
-        <SignalBadge :cls="reading.cls" size="md" :stale="stale" />
-        <span v-if="reading.strength !== null" class="sd__strength tp-num">
-          Strength {{ reading.strength }} · {{ strengthWord(reading.strength) }}
+        <SignalBadge :state="state.state" size="md" />
+        <span v-if="state.trend_score !== null" class="sd__score tp-num">
+          Trend score {{ p(state.trend_score, 0) }} / 100
         </span>
-        <span class="sd__fresh" :class="{ 'is-stale': stale }">
-          {{ stale ? 'Stale: ' : '' }}newest bar
-          {{ reading.asOf ? ago(new Date(reading.asOf).toISOString(), now) : '—' }}
+        <span class="sd__fresh">
+          Newest closed candle {{ state.candle_close_at ? ago(state.candle_close_at, now) : '—' }}
         </span>
       </div>
-      <p class="sd__why">{{ reading.explanation }}</p>
+      <p class="sd__why">
+        {{ STATE_HELP[state.state] }}
+        <template v-if="state.reason"> {{ state.reason }}</template>
+      </p>
 
       <dl class="sd__grid tp-num">
         <div>
           <dt>EMA 8</dt>
-          <dd>{{ p(reading.ema8) }}</dd>
+          <dd>{{ p(state.ema_fast) }}</dd>
         </div>
         <div>
           <dt>EMA 32</dt>
-          <dd>{{ p(reading.ema32) }}</dd>
-        </div>
-        <div v-if="reading.usesVwap">
-          <dt>VWAP</dt>
           <dd>
-            {{ p(reading.vwap) }}
-            <span
-              v-if="reading.vwapDistPct !== null"
-              class="sd__dist"
-              :class="reading.vwapDistPct >= 0 ? 'is-up' : 'is-down'"
-              >{{ signed(reading.vwapDistPct, 2) }}%</span
+            {{ p(state.ema_slow) }}
+            <span v-if="state.ema_spread_pct !== null" class="sd__sub"
+              >spread {{ signed(state.ema_spread_pct, 2) }}%</span
             >
           </dd>
         </div>
-        <div v-else>
-          <dt>VWAP</dt>
-          <dd class="sd__na">Not on daily bars</dd>
+        <div>
+          <dt>Session VWAP</dt>
+          <dd>
+            {{ p(state.vwap) }}
+            <span
+              v-if="state.vwap_distance_pct !== null"
+              class="sd__sub"
+              :class="tone(state.vwap_distance_pct)"
+              >price {{ signed(state.vwap_distance_pct, 2) }}%</span
+            >
+          </dd>
         </div>
         <div>
           <dt>Last cross</dt>
           <dd>
-            <template v-if="reading.cross">
-              <span :class="reading.cross.direction === 'up' ? 'is-up' : 'is-down'">
-                {{ reading.cross.direction === 'up' ? '▲ Up' : '▼ Down' }}
+            <template v-if="event">
+              <span :class="event.direction === 'bullish' ? 'is-up' : 'is-down'">
+                {{ event.direction === 'bullish' ? '▲ Bullish' : '▼ Bearish' }}
               </span>
-              <span class="sd__sub">{{ at(reading.cross.at) }}</span>
+              <span class="sd__sub">{{ when(event.crossed_at) }}</span>
             </template>
-            <template v-else>None in view</template>
+            <template v-else>None recently</template>
           </dd>
         </div>
-        <div v-if="reading.usesVwap">
+        <div>
           <dt>VWAP confirmation</dt>
           <dd>
-            <template v-if="reading.confirmed">
-              Confirmed <span class="sd__sub">{{ at(reading.confirmed.at) }}</span>
+            <template v-if="event?.confirmed_at">
+              Confirmed at {{ p(event.confirm_price) }}
+              <span class="sd__sub">{{ when(event.confirmed_at) }}</span>
             </template>
-            <template v-else-if="reading.cls === 'pending'">Awaiting</template>
+            <template v-else-if="event">Awaiting</template>
             <template v-else>—</template>
           </dd>
         </div>
         <div>
           <dt>RSI 14</dt>
-          <dd>{{ p(reading.rsi, 1) }}</dd>
+          <dd>{{ p(state.rsi, 1) }}</dd>
         </div>
         <div>
           <dt>ADX 14</dt>
-          <dd>{{ p(reading.adx, 1) }}</dd>
+          <dd>{{ p(state.adx, 1) }}</dd>
         </div>
         <div>
           <dt>Rel. volume</dt>
-          <dd>{{ reading.relVolume === null ? '—' : `${reading.relVolume.toFixed(2)}×` }}</dd>
+          <dd>{{ num(state.rvol) === null ? '—' : `${p(state.rvol)}×` }}</dd>
+        </div>
+        <div>
+          <dt>vs Nifty 50</dt>
+          <dd :class="tone(state.relative_pct)">
+            {{ num(state.relative_pct) === null ? '—' : `${signed(state.relative_pct, 2)}%` }}
+          </dd>
         </div>
       </dl>
+      <p v-if="state.missing_features.length" class="sd__missing">
+        Not available: {{ state.missing_features.join(', ') }}
+      </p>
 
       <div class="sd__holding" :class="{ 'is-held': holding }">
         <template v-if="holding">
-          <span class="sd__label">In your portfolio</span>
+          <span class="sd__label"
+            >In your portfolio · {{ CLASS_LABEL[holding.classification] }}</span
+          >
           <span class="tp-num">
-            {{ (holding.weight * 100).toFixed(1) }}% of holdings · qty {{ dec(holding.quantity) }} ·
-            avg
-            {{ dec(holding.avgCost, 2) }}
+            {{ num(holding.allocation_pct) === null ? '—' : `${p(holding.allocation_pct, 1)}%` }}
+            of holdings · qty {{ p(holding.quantity, 0) }} · avg {{ p(holding.avg_cost) }}
           </span>
           <span
-            v-if="holding.pnl !== null"
+            v-if="holding.unrealized_pnl !== null"
             class="tp-num"
-            :class="holding.pnl >= 0 ? 'is-up' : 'is-down'"
+            :class="tone(holding.unrealized_pnl)"
           >
-            P&amp;L {{ signed(holding.pnl, 2) }} ({{ signed(holding.pnlPct, 2) }}%)
+            P&amp;L {{ signed(holding.unrealized_pnl, 2) }}
+            <template v-if="holding.unrealized_pnl_pct !== null"
+              >({{ signed(holding.unrealized_pnl_pct, 2) }}%)</template
+            >
           </span>
+          <ul v-if="holding.reasons.length" class="sd__reasons">
+            <li v-for="r in holding.reasons" :key="r">{{ r }}</li>
+          </ul>
         </template>
+        <span v-else-if="state.in_holdings" class="sd__label">Held (portfolio map not loaded)</span>
         <span v-else class="sd__label">Not held</span>
       </div>
     </template>
@@ -144,7 +181,7 @@ const at = (t: number | undefined | null) => (t ? fullTime(t, props.tf) : '—')
   align-items: center;
   gap: var(--sp-2) var(--sp-3);
 }
-.sd__strength {
+.sd__score {
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   color: var(--theme-text);
@@ -154,14 +191,11 @@ const at = (t: number | undefined | null) => (t ? fullTime(t, props.tf) : '—')
   font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
-.sd__fresh.is-stale {
-  color: var(--theme-warning);
-}
 .sd__why {
   margin: 0;
+  min-width: 0;
   font-size: var(--text-sm);
   color: var(--theme-text);
-  min-width: 0;
 }
 .sd__grid {
   display: grid;
@@ -183,27 +217,25 @@ const at = (t: number | undefined | null) => (t ? fullTime(t, props.tf) : '—')
 }
 .sd__grid dd {
   margin: 0;
+  min-width: 0;
   font-size: var(--text-sm);
   color: var(--theme-text);
-  min-width: 0;
 }
 .sd__sub {
   display: block;
   font-size: var(--text-2xs);
   color: var(--theme-dim);
 }
-.sd__dist {
-  margin-left: 4px;
-  font-size: var(--text-xs);
-}
-.sd__na {
-  color: var(--theme-dim) !important;
+.sd__missing {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--theme-warning);
 }
 .is-up {
-  color: var(--theme-success);
+  color: var(--theme-success) !important;
 }
 .is-down {
-  color: var(--theme-danger);
+  color: var(--theme-danger) !important;
 }
 .sd__holding {
   display: flex;
@@ -222,6 +254,12 @@ const at = (t: number | undefined | null) => (t ? fullTime(t, props.tf) : '—')
   font-weight: var(--weight-semibold);
   color: var(--theme-dim);
 }
+.sd__reasons {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: 1.1em;
+  color: var(--theme-dim);
+}
 .sd__error {
   margin: 0;
   font-size: var(--text-sm);
@@ -231,5 +269,8 @@ const at = (t: number | undefined | null) => (t ? fullTime(t, props.tf) : '—')
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
+}
+.sd__actions :deep(.ui-icon) {
+  margin-right: 4px;
 }
 </style>

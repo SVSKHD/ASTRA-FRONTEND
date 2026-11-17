@@ -1,117 +1,97 @@
 <script setup lang="ts">
-// Market Movers: fresh EMA 8 / 32 crosses across NSE stocks from the server's
-// screener (bullish and bearish, newest first), and the biggest moves today
-// among the stocks this page reads. Click one for its chart.
-import { computed } from 'vue'
+// Market Movers: the engine's rankings from its latest finished run (docs/37
+// §4): gainers, losers, unusual volume, and trending bullish / bearish by trend
+// score. Each says how much of the universe it covers and when. Click one for
+// its chart.
+import Button from '@/components/ui/Button.vue'
 import Icon from '@/components/ui/Icon.vue'
+import Skeleton from '@/components/ui/Skeleton.vue'
+import SignalNotice from './SignalNotice.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import SignalBadge from './SignalBadge.vue'
 import { dec, signed, ago } from '@/trading/format'
-import type { ScreenerItem } from '@/trading/screener'
-import type { RowData, UniverseItem } from '@/trading/stockSignals/useStockSignals'
+import { num, type Ranking, type StateRow } from '@/trading/stockSignals/api'
+import type { Movers } from '@/trading/stockSignals/useStockSignals'
 
-const props = defineProps<{
-  bullish: readonly ScreenerItem[]
-  bearish: readonly ScreenerItem[]
-  asOf: string | null
-  items: readonly UniverseItem[]
-  rows: Readonly<Record<number, RowData>>
-  now: number
-}>()
-const emit = defineEmits<{ chart: [number] }>()
+defineProps<{ movers: Movers | null; loading: boolean; error: string; now: number }>()
+const emit = defineEmits<{ chart: [StateRow]; retry: [] }>()
 
-const moves = computed(() =>
-  props.items
-    .map((i) => ({ item: i, change: props.rows[i.instrument.id]?.change ?? null }))
-    .filter((m): m is { item: UniverseItem; change: number } => m.change !== null)
-    .sort((a, b) => b.change - a.change),
-)
-const gainers = computed(() => moves.value.filter((m) => m.change > 0).slice(0, 8))
-const losers = computed(() =>
-  [...moves.value]
-    .reverse()
-    .filter((m) => m.change < 0)
-    .slice(0, 8),
-)
+const COLS: { key: keyof Movers; title: string; icon: string; tone: string }[] = [
+  { key: 'gainers', title: 'Top gainers', icon: 'trending-up', tone: 'is-up' },
+  { key: 'losers', title: 'Top losers', icon: 'trending-down', tone: 'is-down' },
+  { key: 'unusual', title: 'Unusual volume', icon: 'activity', tone: '' },
+  { key: 'bullish', title: 'Trending bullish', icon: 'arrow-up-right', tone: 'is-up' },
+  { key: 'bearish', title: 'Trending bearish', icon: 'arrow-down-right', tone: 'is-down' },
+]
+function coverage(r: Ranking | null, now: number): string {
+  if (!r) return 'Not available'
+  const c = r.coverage
+  const when = c.finished_at ?? c.data_as_of
+  return `${c.evaluated} of ${c.universe_size} evaluated${when ? ` · ${ago(when, now)}` : ''}`
+}
 </script>
 
 <template>
   <div class="mm">
-    <section
-      v-for="col in [
-        { key: 'bull', title: 'Fresh bullish crosses', list: bullish, up: true },
-        { key: 'bear', title: 'Fresh bearish crosses', list: bearish, up: false },
-      ]"
-      :key="col.key"
-      class="mm__card"
-    >
-      <header class="mm__head">
-        <h3 class="mm__title">
-          <Icon
-            :name="col.up ? 'trending-up' : 'trending-down'"
-            size="sm"
-            :class="col.up ? 'is-up' : 'is-down'"
-          />
-          {{ col.title }}
-        </h3>
-        <span class="mm__dim"
-          >NSE screener<template v-if="asOf"> · {{ ago(asOf, now) }}</template></span
-        >
-      </header>
-      <ol v-if="col.list.length" class="mm__list">
-        <li v-for="s in col.list" :key="s.instrument.id">
-          <button type="button" class="mm__row" @click="emit('chart', s.instrument.id)">
-            <span class="mm__sym">{{ s.instrument.symbol }}</span>
-            <span class="mm__dim mm__name">{{ s.instrument.name }}</span>
-            <span class="tp-num">{{ s.last ? dec(s.last, 2) : '—' }}</span>
-            <span class="tp-num" :class="Number(s.change_pct) >= 0 ? 'is-up' : 'is-down'">{{
-              s.change_pct ? `${signed(s.change_pct, 2)}%` : '—'
-            }}</span>
-            <span class="mm__dim">{{ s.crossed_at ? ago(s.crossed_at, now) : '' }}</span>
-          </button>
-        </li>
-      </ol>
-      <EmptyState
-        v-else
-        glyph="🕊️"
-        title="No fresh crosses"
-        description="The screener found none in the last few bars."
-      />
-    </section>
+    <SignalNotice v-if="error" tone="danger" title="Rankings could not be read">
+      {{ error }}
 
-    <section
-      v-for="col in [
-        { key: 'g', title: 'Top gainers (your stocks)', list: gainers },
-        { key: 'l', title: 'Top losers (your stocks)', list: losers },
-      ]"
-      :key="col.key"
-      class="mm__card"
+      <template #action>
+        <Button size="sm" variant="secondary" @click="emit('retry')">Try again</Button>
+      </template></SignalNotice
     >
-      <header class="mm__head">
-        <h3 class="mm__title">{{ col.title }}</h3>
-      </header>
-      <ol v-if="col.list.length" class="mm__list">
-        <li v-for="m in col.list" :key="m.item.instrument.id">
-          <button type="button" class="mm__row" @click="emit('chart', m.item.instrument.id)">
-            <span class="mm__sym">{{ m.item.instrument.symbol }}</span>
-            <span class="mm__dim mm__name">{{ m.item.instrument.name }}</span>
-            <span class="tp-num">{{
-              rows[m.item.instrument.id]?.reading?.close != null
-                ? dec(rows[m.item.instrument.id]!.reading!.close, 2)
-                : '—'
-            }}</span>
-            <span class="tp-num" :class="m.change >= 0 ? 'is-up' : 'is-down'"
-              >{{ signed(m.change, 2) }}%</span
-            >
-          </button>
-        </li>
-      </ol>
-      <p v-else class="mm__dim">No moves to show yet.</p>
-    </section>
+    <div v-if="loading && !movers" class="mm__grid">
+      <Skeleton v-for="n in 5" :key="n" :lines="1" height="260px" radius="var(--radius-card)" />
+    </div>
+    <div v-else-if="movers" class="mm__grid">
+      <section v-for="col in COLS" :key="col.key" class="mm__card">
+        <header class="mm__head">
+          <h3 class="mm__title">
+            <Icon :name="col.icon as never" size="sm" :class="col.tone" />{{ col.title }}
+          </h3>
+          <span class="mm__dim">{{ coverage(movers[col.key], now) }}</span>
+        </header>
+        <p v-if="movers[col.key]?.note" class="mm__dim">{{ movers[col.key]!.note }}</p>
+        <ol v-if="movers[col.key]?.items.length" class="mm__list">
+          <li v-for="s in movers[col.key]!.items" :key="s.instrument_id">
+            <button type="button" class="mm__row" @click="emit('chart', s)">
+              <span class="mm__sym">{{ s.symbol }}</span>
+              <SignalBadge :state="s.state" />
+              <span class="tp-num">{{
+                num(s.last_price) === null ? '—' : dec(s.last_price, 2)
+              }}</span>
+              <span class="tp-num" :class="(num(s.change_pct) ?? 0) >= 0 ? 'is-up' : 'is-down'">{{
+                num(s.change_pct) === null ? '—' : `${signed(s.change_pct, 2)}%`
+              }}</span>
+              <span class="tp-num mm__dim">
+                <template v-if="col.key === 'unusual'">{{
+                  num(s.rvol) === null ? '' : `${dec(s.rvol, 1)}× vol`
+                }}</template>
+                <template v-else>{{
+                  num(s.trend_score) === null ? '' : `score ${dec(s.trend_score, 0)}`
+                }}</template>
+              </span>
+            </button>
+          </li>
+        </ol>
+        <EmptyState
+          v-else
+          glyph="🕊️"
+          title="Nothing ranked"
+          description="The latest run ranked no stocks here."
+        />
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .mm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.mm__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: var(--sp-3);
@@ -149,7 +129,7 @@ const losers = computed(() =>
 }
 .mm__row {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) auto 64px auto;
+  grid-template-columns: 96px auto minmax(0, 1fr) 64px 80px;
   align-items: center;
   gap: var(--sp-2);
   width: 100%;
@@ -163,6 +143,11 @@ const losers = computed(() =>
   text-align: left;
   cursor: pointer;
 }
+.mm__row > :nth-child(3),
+.mm__row > :nth-child(4),
+.mm__row > :nth-child(5) {
+  text-align: right;
+}
 .mm__row:hover {
   background: color-mix(in oklch, var(--theme-text) 4%, transparent);
 }
@@ -170,22 +155,17 @@ const losers = computed(() =>
   outline: 2px solid var(--theme-accent);
   outline-offset: -2px;
 }
-.mm__row > :nth-child(4) {
-  text-align: right;
-}
 .mm__sym {
-  font-weight: var(--weight-semibold);
-}
-.mm__name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: var(--weight-semibold);
 }
 .mm__dim {
+  margin: 0;
+  min-width: 0;
   font-size: var(--text-xs);
   color: var(--theme-dim);
-  min-width: 0;
 }
 .is-up {
   color: var(--theme-success);

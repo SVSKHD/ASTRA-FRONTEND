@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// The Live Signals table: one row per stock in the universe, searchable,
-// filterable, sortable and paged. A chevron opens the row's details right under
-// it (only on demand; it reuses the row's already-read numbers, no extra fetch).
-// Actions: details, chart, watchlist, alert, portfolio impact (held stocks),
-// compare. The stock column stays put while the table scrolls sideways; less
-// important columns step out on narrow screens.
+// The Live Signals table: the engine's stored state of each evaluated stock,
+// searchable, filterable, sortable and paged. A chevron opens the row's details
+// right under it, on demand (the crossover event is read then if it is not
+// already known). Actions: chart, watchlist, alerts, portfolio impact (held
+// stocks), compare. The stock column stays put while the table scrolls
+// sideways; less important columns step out on narrow screens. The visible
+// page's ids go up so the page can follow their live prices.
 import { computed, ref, watch } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import Icon from '@/components/ui/Icon.vue'
@@ -17,50 +18,50 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import SignalBadge from './SignalBadge.vue'
 import SignalDetail from './SignalDetail.vue'
 import { dec, signed, ago } from '@/trading/format'
-import type { Timeframe } from '@/trading/chartView'
-import { isStaleAt, strengthWord, type SignalClass } from '@/trading/stockSignals/classify'
 import {
-  ORIGIN_LABEL,
-  type RowData,
-  type UniverseItem,
-} from '@/trading/stockSignals/useStockSignals'
-import type { HoldingView } from '@/trading/stockSignals/portfolio'
+  STATE_BUCKET,
+  num,
+  type Bucket,
+  type PortfolioHolding,
+  type SignalEvent,
+  type StateRow,
+} from '@/trading/stockSignals/api'
 import type { StreamQuote } from '@/trading/stream'
 
 const props = defineProps<{
-  items: readonly UniverseItem[]
-  rows: Readonly<Record<number, RowData>>
-  holdings: ReadonlyMap<number, HoldingView>
+  rows: readonly StateRow[]
+  total: number
+  events: ReadonlyMap<number, SignalEvent>
+  holdingOf: (id: number) => PortfolioHolding | null
   quotes: ReadonlyMap<number, StreamQuote>
-  tf: Timeframe
   now: number
   loading: boolean
 }>()
 const emit = defineEmits<{
-  chart: [UniverseItem]
-  watchlist: [UniverseItem]
-  alert: [UniverseItem]
-  impact: [UniverseItem]
-  compare: [UniverseItem]
+  chart: [StateRow]
+  watchlist: [StateRow]
+  alert: [StateRow]
+  impact: [StateRow]
+  compare: [StateRow]
+  expand: [StateRow]
+  visible: [number[]]
 }>()
 
-// --- query -------------------------------------------------------------------------------
 const q = ref('')
-const cls = ref<'all' | SignalClass>('all')
-const scope = ref<'all' | 'held' | 'watchlist' | 'screener'>('all')
-const CLASS_OPTIONS = [
+const bucket = ref<'all' | Bucket>('all')
+const scope = ref<'all' | 'held' | 'fresh'>('all')
+const BUCKET_OPTIONS = [
   { value: 'all', label: 'All signals' },
   { value: 'bullish', label: 'Bullish' },
   { value: 'bearish', label: 'Bearish' },
-  { value: 'pending', label: 'Pending VWAP' },
+  { value: 'pending', label: 'Awaiting VWAP' },
   { value: 'mixed', label: 'Mixed' },
   { value: 'unavailable', label: 'No data' },
 ]
 const SCOPE_OPTIONS = [
   { value: 'all', label: 'All stocks' },
-  { value: 'held', label: 'Held' },
-  { value: 'watchlist', label: 'Watchlists' },
-  { value: 'screener', label: 'Screener picks' },
+  { value: 'held', label: 'Held only' },
+  { value: 'fresh', label: 'Crossed recently' },
 ]
 
 type SortKey =
@@ -77,8 +78,7 @@ function sortBy(k: SortKey) {
 function ariaSort(k: SortKey) {
   return sortKey.value !== k ? 'none' : sortDir.value === 1 ? 'ascending' : 'descending'
 }
-
-const ORDER: Record<SignalClass, number> = {
+const ORDER: Record<Bucket, number> = {
   bullish: 4,
   pending: 3,
   mixed: 2,
@@ -86,86 +86,84 @@ const ORDER: Record<SignalClass, number> = {
   unavailable: 0,
 }
 
-interface Line {
-  item: UniverseItem
-  row: RowData | undefined
-  ltp: number | null
-  live: boolean
-  held: boolean
+function ltpOf(r: StateRow): { value: number | null; live: boolean } {
+  const quote = props.quotes.get(r.instrument_id)
+  const live = quote?.ltp && !quote.stale ? Number(quote.ltp) : null
+  return { value: live ?? num(r.last_price), live: live !== null }
 }
-const lines = computed<Line[]>(() =>
-  props.items.map((item) => {
-    const row = props.rows[item.instrument.id]
-    const quote = props.quotes.get(item.instrument.id)
-    const ltpLive = quote?.ltp && !quote.stale ? Number(quote.ltp) : null
-    return {
-      item,
-      row,
-      ltp: ltpLive ?? row?.reading?.close ?? null,
-      live: ltpLive !== null,
-      held: item.origins.includes('holding'),
-    }
-  }),
-)
-function keyOf(l: Line, k: SortKey): number | string {
-  const r = l.row?.reading
+function keyOf(r: StateRow, k: SortKey): number | string {
   switch (k) {
     case 'symbol':
-      return l.item.instrument.symbol
+      return r.symbol
     case 'ltp':
-      return l.ltp ?? -Infinity
+      return ltpOf(r).value ?? -Infinity
     case 'change':
-      return l.row?.change ?? -Infinity
+      return num(r.change_pct) ?? -Infinity
     case 'ema8':
-      return r?.ema8 ?? -Infinity
+      return num(r.ema_fast) ?? -Infinity
     case 'ema32':
-      return r?.ema32 ?? -Infinity
+      return num(r.ema_slow) ?? -Infinity
     case 'vwap':
-      return r?.vwapDistPct ?? -Infinity
+      return num(r.vwap_distance_pct) ?? -Infinity
     case 'signal':
-      return r ? ORDER[r.cls] : -1
+      return ORDER[STATE_BUCKET[r.state]]
     case 'strength':
-      return r?.strength ?? -1
-    case 'time':
-      return r?.cross?.at ?? -Infinity
+      return num(r.trend_score) ?? -1
+    case 'time': {
+      const e = props.events.get(r.instrument_id)
+      return e ? Date.parse(e.crossed_at) : -Infinity
+    }
   }
 }
 const filtered = computed(() => {
   const text = q.value.trim().toLowerCase()
-  return lines.value
+  return props.rows
     .filter(
-      (l) =>
+      (r) =>
         !text ||
-        l.item.instrument.symbol.toLowerCase().includes(text) ||
-        (l.item.instrument.name ?? '').toLowerCase().includes(text),
+        r.symbol.toLowerCase().includes(text) ||
+        (r.name ?? '').toLowerCase().includes(text),
     )
-    .filter((l) => cls.value === 'all' || (l.row?.reading?.cls ?? 'unavailable') === cls.value)
-    .filter(
-      (l) =>
-        scope.value === 'all' ||
-        l.item.origins.includes(scope.value === 'held' ? 'holding' : scope.value),
+    .filter((r) => bucket.value === 'all' || STATE_BUCKET[r.state] === bucket.value)
+    .filter((r) =>
+      scope.value === 'all'
+        ? true
+        : scope.value === 'held'
+          ? r.in_holdings
+          : props.events.has(r.instrument_id),
     )
     .sort((a, b) => {
       const x = keyOf(a, sortKey.value)
       const y = keyOf(b, sortKey.value)
       const c = typeof x === 'string' ? x.localeCompare(String(y)) : x - (y as number)
-      return c * sortDir.value || a.item.instrument.symbol.localeCompare(b.item.instrument.symbol)
+      return c * sortDir.value || a.symbol.localeCompare(b.symbol)
     })
 })
 
 const PAGE = 20
 const page = ref(1)
 const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / PAGE)))
-watch([q, cls, scope], () => (page.value = 1))
+watch([q, bucket, scope], () => (page.value = 1))
 watch(pageCount, (n) => (page.value = Math.min(page.value, n)))
 const shown = computed(() => filtered.value.slice((page.value - 1) * PAGE, page.value * PAGE))
+watch(
+  () => shown.value.map((r) => r.instrument_id).join(),
+  () =>
+    emit(
+      'visible',
+      shown.value.map((r) => r.instrument_id),
+    ),
+  { immediate: true },
+)
 
-// --- expanded rows -----------------------------------------------------------------------
 const open = ref<Set<number>>(new Set())
-function toggle(id: number) {
+function toggle(r: StateRow) {
   const s = new Set(open.value)
-  if (s.has(id)) s.delete(id)
-  else s.add(id)
+  if (s.has(r.instrument_id)) s.delete(r.instrument_id)
+  else {
+    s.add(r.instrument_id)
+    emit('expand', r)
+  }
   open.value = s
 }
 
@@ -178,14 +176,14 @@ const COLS = [
   { key: 'vwap', label: 'VWAP', cls: 'c-num c-lg' },
   { key: 'signal', label: 'Signal', cls: '' },
   { key: 'strength', label: 'Strength', cls: 'c-sm' },
-  { key: 'time', label: 'Cross time', cls: 'c-lg' },
+  { key: 'time', label: 'Signal time', cls: 'c-lg' },
 ] as const
 
-function crossTime(l: Line): string {
-  const c = l.row?.reading?.cross
-  return c ? ago(new Date(c.at).toISOString(), props.now) : '—'
+const p = (v: string | number | null | undefined) => {
+  const n = num(v)
+  return n === null ? '—' : dec(n, 2)
 }
-const p = (v: number | null | undefined) => (v === null || v === undefined ? '—' : dec(v, 2))
+const up = (v: string | null | undefined) => (num(v) ?? 0) >= 0
 </script>
 
 <template>
@@ -197,19 +195,21 @@ const p = (v: number | null | undefined) => (v === null || v === undefined ? '�
         placeholder="Search symbol or name"
         label="Search stocks"
       />
-      <Select v-model="cls" :options="CLASS_OPTIONS" size="sm" aria-label="Signal filter" />
+      <Select v-model="bucket" :options="BUCKET_OPTIONS" size="sm" aria-label="Signal filter" />
       <Select v-model="scope" :options="SCOPE_OPTIONS" size="sm" aria-label="Which stocks" />
       <span class="stb__count tp-num" role="status">
-        {{ filtered.length }} of {{ items.length }} stocks
+        {{ filtered.length }} of {{ rows.length }} stocks<template v-if="total > rows.length">
+          · first {{ rows.length }} of {{ total }} evaluated</template
+        >
       </span>
     </div>
 
-    <Skeleton v-if="loading && !items.length" :lines="8" height="44px" radius="var(--radius-md)" />
+    <Skeleton v-if="loading && !rows.length" :lines="8" height="44px" radius="var(--radius-md)" />
     <EmptyState
-      v-else-if="!items.length"
+      v-else-if="!rows.length"
       glyph="📈"
-      title="No stocks to read yet"
-      description="Signals are read for your Dhan holdings, your watchlists and today’s screener crosses. Add a stock to a watchlist, or connect Dhan, and they show here."
+      title="No signals stored yet"
+      description="The signal engine stores a state for each stock after every 15-minute close in market hours. Once its first run finishes, the stocks show here."
     />
     <EmptyState
       v-else-if="!filtered.length"
@@ -218,7 +218,7 @@ const p = (v: number | null | undefined) => (v === null || v === undefined ? '�
       description="Try another filter or a shorter search."
     >
       <template #action>
-        <Button size="sm" variant="secondary" @click="((q = ''), (cls = 'all'), (scope = 'all'))"
+        <Button size="sm" variant="secondary" @click="((q = ''), (bucket = 'all'), (scope = 'all'))"
           >Clear filters</Button
         >
       </template>
@@ -255,146 +255,135 @@ const p = (v: number | null | undefined) => (v === null || v === undefined ? '�
           </tr>
         </thead>
         <tbody>
-          <template v-for="l in shown" :key="l.item.instrument.id">
+          <template v-for="r in shown" :key="r.instrument_id">
             <tr
               class="stb__row"
-              :class="[
-                `is-${l.row?.reading?.cls ?? 'unavailable'}`,
-                { 'is-open': open.has(l.item.instrument.id) },
-              ]"
+              :class="[`is-${STATE_BUCKET[r.state]}`, { 'is-open': open.has(r.instrument_id) }]"
             >
               <td class="c-x">
                 <IconButton
-                  :label="`${open.has(l.item.instrument.id) ? 'Hide' : 'Show'} details for ${l.item.instrument.symbol}`"
+                  :label="`${open.has(r.instrument_id) ? 'Hide' : 'Show'} details for ${r.symbol}`"
                   size="sm"
-                  :aria-expanded="open.has(l.item.instrument.id)"
-                  @click="toggle(l.item.instrument.id)"
+                  :aria-expanded="open.has(r.instrument_id)"
+                  @click="toggle(r)"
                 >
                   <Icon name="chevron-down" size="sm" class="stb__chev" />
                 </IconButton>
               </td>
               <th scope="row" class="c-stock">
-                <span class="stb__sym">{{
-                  l.item.instrument.trading_symbol || l.item.instrument.symbol
-                }}</span>
-                <span class="stb__name">{{
-                  l.item.instrument.name || l.item.instrument.display_name
-                }}</span>
+                <span class="stb__sym">{{ r.symbol }}</span>
+                <span class="stb__name">{{ r.name }}</span>
               </th>
               <td class="c-num">
-                <span class="tp-num">{{ p(l.ltp) }}</span>
-                <span v-if="l.live" class="stb__live" title="Live from the broker feed">●</span>
+                <span class="tp-num">{{ p(ltpOf(r).value) }}</span>
+                <span v-if="ltpOf(r).live" class="stb__live" title="Live from the broker feed"
+                  >●</span
+                >
               </td>
               <td class="c-num">
                 <span
-                  v-if="l.row?.change !== null && l.row?.change !== undefined"
+                  v-if="num(r.change_pct) !== null"
                   class="tp-num"
-                  :class="l.row.change >= 0 ? 'is-up' : 'is-down'"
-                  >{{ signed(l.row.change, 2) }}%</span
+                  :class="up(r.change_pct) ? 'is-up' : 'is-down'"
+                  >{{ signed(r.change_pct, 2) }}%</span
                 >
                 <span v-else>—</span>
               </td>
-              <td class="c-num c-md tp-num">{{ p(l.row?.reading?.ema8) }}</td>
-              <td class="c-num c-md tp-num">{{ p(l.row?.reading?.ema32) }}</td>
+              <td class="c-num c-md tp-num">{{ p(r.ema_fast) }}</td>
+              <td class="c-num c-md tp-num">{{ p(r.ema_slow) }}</td>
               <td class="c-num c-lg tp-num">
-                <template v-if="l.row?.reading?.usesVwap">{{ p(l.row.reading.vwap) }}</template>
-                <span v-else class="stb__dim" title="Daily bars have no session VWAP">n/a</span>
-              </td>
-              <td>
-                <span v-if="l.row?.state === 'loading' && !l.row.reading" class="stb__dim"
-                  >Reading…</span
+                {{ p(r.vwap) }}
+                <span
+                  v-if="num(r.vwap_distance_pct) !== null"
+                  class="stb__dist"
+                  :class="up(r.vwap_distance_pct) ? 'is-up' : 'is-down'"
+                  >{{ signed(r.vwap_distance_pct, 2) }}%</span
                 >
-                <SignalBadge
-                  v-else
-                  :cls="l.row?.reading?.cls ?? 'unavailable'"
-                  :stale="!!l.row?.reading && isStaleAt(l.row.reading.asOf, tf, now)"
-                />
               </td>
+              <td><SignalBadge :state="r.state" /></td>
               <td class="c-sm">
-                <span v-if="l.row?.reading?.strength != null" class="stb__strength">
+                <span v-if="num(r.trend_score) !== null" class="stb__strength">
                   <span class="stb__meter" aria-hidden="true">
-                    <span :style="{ width: `${l.row.reading.strength}%` }" />
+                    <span :style="{ width: `${num(r.trend_score)}%` }" />
                   </span>
-                  <span class="tp-num">{{ l.row.reading.strength }}</span>
-                  <span class="sr">{{ strengthWord(l.row.reading.strength) }}</span>
+                  <span class="tp-num">{{ dec(r.trend_score, 0) }}</span>
                 </span>
                 <span v-else>—</span>
               </td>
-              <td class="c-lg stb__dim">{{ crossTime(l) }}</td>
+              <td class="c-lg stb__dim">
+                {{
+                  events.get(r.instrument_id)
+                    ? ago(events.get(r.instrument_id)!.crossed_at, now)
+                    : '—'
+                }}
+              </td>
               <td class="c-sm">
-                <span v-if="l.held" class="stb__held">Held</span>
-                <span v-else class="stb__dim">{{
-                  l.item.origins.map((o) => ORIGIN_LABEL[o]).join(', ')
-                }}</span>
+                <span v-if="r.in_holdings" class="stb__held">Held</span>
+                <span v-else class="stb__dim">Not held</span>
               </td>
               <td class="c-act">
                 <span class="stb__acts">
                   <IconButton
-                    :label="`View chart for ${l.item.instrument.symbol}`"
+                    :label="`View chart for ${r.symbol}`"
                     size="sm"
-                    @click="emit('chart', l.item)"
+                    @click="emit('chart', r)"
                   >
                     <Icon name="chart-candlestick" size="sm" />
                   </IconButton>
                   <IconButton
-                    :label="`Add ${l.item.instrument.symbol} to a watchlist`"
+                    :label="`Add ${r.symbol} to a watchlist`"
                     size="sm"
-                    @click="emit('watchlist', l.item)"
+                    @click="emit('watchlist', r)"
                   >
                     <Icon name="star" size="sm" />
                   </IconButton>
-                  <IconButton
-                    :label="`Create an alert for ${l.item.instrument.symbol}`"
-                    size="sm"
-                    @click="emit('alert', l.item)"
-                  >
+                  <IconButton :label="`Alerts for ${r.symbol}`" size="sm" @click="emit('alert', r)">
                     <Icon name="bell" size="sm" />
                   </IconButton>
                   <IconButton
-                    v-if="l.held"
-                    :label="`Portfolio impact of ${l.item.instrument.symbol}`"
+                    v-if="r.in_holdings"
+                    :label="`Portfolio impact of ${r.symbol}`"
                     size="sm"
-                    @click="emit('impact', l.item)"
+                    @click="emit('impact', r)"
                   >
                     <Icon name="briefcase" size="sm" />
                   </IconButton>
                   <IconButton
-                    :label="`Compare ${l.item.instrument.symbol} with another stock`"
+                    :label="`Compare ${r.symbol} with another stock`"
                     size="sm"
-                    @click="emit('compare', l.item)"
+                    @click="emit('compare', r)"
                   >
                     <Icon name="git-compare" size="sm" />
                   </IconButton>
                 </span>
               </td>
             </tr>
-            <tr v-if="open.has(l.item.instrument.id)" class="stb__detail">
+            <tr v-if="open.has(r.instrument_id)" class="stb__detail">
               <td :colspan="COLS.length + 3">
                 <SignalDetail
-                  :reading="l.row?.reading ?? null"
-                  :tf="tf"
+                  :state="r"
+                  :event="events.get(r.instrument_id) ?? null"
+                  :holding="holdingOf(r.instrument_id)"
                   :now="now"
-                  :holding="holdings.get(l.item.instrument.id) ?? null"
-                  :error="l.row?.state === 'error' ? l.row.error : ''"
                 >
-                  <Button size="sm" variant="tinted" @click="emit('chart', l.item)">
+                  <Button size="sm" variant="tinted" @click="emit('chart', r)">
                     <Icon name="chart-candlestick" size="sm" />View chart
                   </Button>
-                  <Button size="sm" variant="secondary" @click="emit('watchlist', l.item)">
+                  <Button size="sm" variant="secondary" @click="emit('watchlist', r)">
                     <Icon name="star" size="sm" />Watchlist
                   </Button>
-                  <Button size="sm" variant="secondary" @click="emit('alert', l.item)">
-                    <Icon name="bell" size="sm" />Alert
+                  <Button size="sm" variant="secondary" @click="emit('alert', r)">
+                    <Icon name="bell" size="sm" />Alerts
                   </Button>
                   <Button
-                    v-if="l.held"
+                    v-if="r.in_holdings"
                     size="sm"
                     variant="secondary"
-                    @click="emit('impact', l.item)"
+                    @click="emit('impact', r)"
                   >
                     <Icon name="briefcase" size="sm" />Portfolio impact
                   </Button>
-                  <Button size="sm" variant="ghost" @click="emit('compare', l.item)">
+                  <Button size="sm" variant="ghost" @click="emit('compare', r)">
                     <Icon name="git-compare" size="sm" />Compare
                   </Button>
                 </SignalDetail>
@@ -530,18 +519,21 @@ thead .c-stock {
 .stb__name {
   display: block;
   max-width: 200px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: var(--text-2xs);
   font-weight: var(--weight-normal);
   color: var(--theme-dim);
-  min-width: 0;
 }
 .stb__live {
   margin-left: 4px;
   font-size: var(--text-2xs);
   color: var(--theme-success);
-  vertical-align: middle;
+}
+.stb__dist {
+  display: block;
+  font-size: var(--text-2xs);
 }
 .is-up {
   color: var(--theme-success);
@@ -587,16 +579,12 @@ thead .c-stock {
 }
 .stb__acts {
   display: inline-flex;
-  gap: 0;
 }
 .stb__detail td {
   padding: var(--sp-3) var(--sp-4) var(--sp-4) 50px;
   white-space: normal;
   background: color-mix(in oklch, var(--theme-text) 2%, var(--theme-card));
   animation: stb-open var(--dur-fast, 150ms) ease-out;
-}
-.stb__detail :deep(.sd__actions .ui-icon) {
-  margin-right: 4px;
 }
 @keyframes stb-open {
   from {

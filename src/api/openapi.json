@@ -8893,6 +8893,237 @@
         "title": "MonitorOut",
         "type": "object"
       },
+      "Mt5BarOut": {
+        "properties": {
+          "atr14": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Atr14"
+          },
+          "close": {
+            "title": "Close",
+            "type": "string"
+          },
+          "ema200": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema200"
+          },
+          "ema32": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema32"
+          },
+          "ema8": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema8"
+          },
+          "high": {
+            "title": "High",
+            "type": "string"
+          },
+          "low": {
+            "title": "Low",
+            "type": "string"
+          },
+          "open": {
+            "title": "Open",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "server_ts": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Ts"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "spread": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "tick_volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tick Volume"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "timeframe",
+          "ts",
+          "server_ts",
+          "open",
+          "high",
+          "low",
+          "close",
+          "tick_volume",
+          "spread",
+          "ema8",
+          "ema32",
+          "ema200",
+          "atr14",
+          "source",
+          "received_at"
+        ],
+        "title": "Mt5BarOut",
+        "type": "object"
+      },
+      "Mt5BarRejected": {
+        "properties": {
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts"
+          }
+        },
+        "required": [
+          "index",
+          "reason"
+        ],
+        "title": "Mt5BarRejected",
+        "type": "object"
+      },
+      "Mt5BarsAck": {
+        "properties": {
+          "inserted": {
+            "title": "Inserted",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5BarRejected"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "inserted",
+          "updated",
+          "unchanged",
+          "rejected"
+        ],
+        "title": "Mt5BarsAck",
+        "type": "object"
+      },
+      "Mt5BarsOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5BarOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "timeframe",
+          "count",
+          "rows"
+        ],
+        "title": "Mt5BarsOut",
+        "type": "object"
+      },
       "Mt5BotStatusOut": {
         "description": "Status card: heartbeat = the time of the last accepted push (server clock).",
         "properties": {
@@ -9083,6 +9314,104 @@
           "ema"
         ],
         "title": "Mt5CandleOut",
+        "type": "object"
+      },
+      "Mt5CrossesOut": {
+        "description": "The EMA 8/32 cross training set (one row per completed cross). Outcome columns carry the\n`y_` prefix: they are known only after the cross and must never be used as features.",
+        "properties": {
+          "bars_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bars From"
+          },
+          "bars_used": {
+            "title": "Bars Used",
+            "type": "integer"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "definitions_version": {
+            "title": "Definitions Version",
+            "type": "string"
+          },
+          "feature_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Feature Columns",
+            "type": "array"
+          },
+          "outcome_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Outcome Columns",
+            "type": "array"
+          },
+          "row_count": {
+            "title": "Row Count",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          }
+        },
+        "required": [
+          "definitions_version",
+          "symbol",
+          "timeframe",
+          "date_from",
+          "date_to",
+          "bars_from",
+          "bars_used",
+          "row_count",
+          "feature_columns",
+          "outcome_columns",
+          "rows"
+        ],
+        "title": "Mt5CrossesOut",
         "type": "object"
       },
       "Mt5DailyOut": {
@@ -9619,6 +9948,60 @@
         "title": "Mt5InstrumentIn",
         "type": "object"
       },
+      "Mt5KindStats": {
+        "properties": {
+          "days_7": {
+            "title": "Days 7",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "newest_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Received At"
+          },
+          "newest_utc_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Utc Time"
+          },
+          "today": {
+            "title": "Today",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "today",
+          "days_7",
+          "total",
+          "newest_utc_time",
+          "newest_received_at"
+        ],
+        "title": "Mt5KindStats",
+        "type": "object"
+      },
       "Mt5MarketOut": {
         "properties": {
           "as_of": {
@@ -9812,6 +10195,253 @@
           "guardian_orphans"
         ],
         "title": "Mt5PositionsOut",
+        "type": "object"
+      },
+      "Mt5RecordOut": {
+        "properties": {
+          "account_login": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Login"
+          },
+          "batch_id": {
+            "format": "uuid",
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "bot_id": {
+            "title": "Bot Id",
+            "type": "string"
+          },
+          "bot_version": {
+            "title": "Bot Version",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "record_id": {
+            "format": "uuid",
+            "title": "Record Id",
+            "type": "string"
+          },
+          "server_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Time"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "utc_time": {
+            "format": "date-time",
+            "title": "Utc Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "record_id",
+          "kind",
+          "symbol",
+          "account_login",
+          "utc_time",
+          "server_time",
+          "bot_version",
+          "bot_id",
+          "payload",
+          "batch_id",
+          "received_at"
+        ],
+        "title": "Mt5RecordOut",
+        "type": "object"
+      },
+      "Mt5RecordStatsOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "bot_versions_24h": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bot Versions 24H",
+            "type": "array"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5KindStats"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "lag_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lag Seconds"
+          },
+          "newest_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Received At"
+          },
+          "newest_utc_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Utc Time"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "as_of",
+          "kinds",
+          "total",
+          "newest_utc_time",
+          "newest_received_at",
+          "lag_seconds",
+          "bot_versions_24h"
+        ],
+        "title": "Mt5RecordStatsOut",
+        "type": "object"
+      },
+      "Mt5RecordsAck": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5Rejected"
+            },
+            "title": "Rejected",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "duplicate",
+          "rejected"
+        ],
+        "title": "Mt5RecordsAck",
+        "type": "object"
+      },
+      "Mt5RecordsOut": {
+        "properties": {
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/Mt5RecordOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows",
+          "next_cursor"
+        ],
+        "title": "Mt5RecordsOut",
+        "type": "object"
+      },
+      "Mt5Rejected": {
+        "description": "One row the server did not store, and why (the batch itself still succeeds).",
+        "properties": {
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Id"
+          }
+        },
+        "required": [
+          "index",
+          "reason"
+        ],
+        "title": "Mt5Rejected",
         "type": "object"
       },
       "Mt5ReportOut": {
@@ -12542,6 +13172,301 @@
         "title": "PolicyOut",
         "type": "object"
       },
+      "PortfolioFreshnessOut": {
+        "properties": {
+          "cash_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash As Of"
+          },
+          "holdings_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holdings As Of"
+          },
+          "signals_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signals As Of"
+          }
+        },
+        "required": [
+          "holdings_as_of",
+          "cash_as_of",
+          "signals_as_of"
+        ],
+        "title": "PortfolioFreshnessOut",
+        "type": "object"
+      },
+      "PortfolioHoldingOut": {
+        "properties": {
+          "allocation_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocation Pct"
+          },
+          "avg_cost": {
+            "title": "Avg Cost",
+            "type": "string"
+          },
+          "classification": {
+            "enum": [
+              "HOLD_CANDIDATE",
+              "MONITOR",
+              "REVIEW_RISK",
+              "POTENTIAL_ADD"
+            ],
+            "title": "Classification",
+            "type": "string"
+          },
+          "current_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Value"
+          },
+          "deep_link": {
+            "title": "Deep Link",
+            "type": "string"
+          },
+          "ema_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "above",
+                  "below",
+                  "equal"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema State"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "invested": {
+            "title": "Invested",
+            "type": "string"
+          },
+          "isin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isin"
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price"
+          },
+          "price_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price As Of"
+          },
+          "price_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "dhan_holdings",
+                  "candle_close"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Source"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "signal_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal As Of"
+          },
+          "signal_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal State"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "trend_score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend Score"
+          },
+          "unrealized_pnl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealized Pnl"
+          },
+          "unrealized_pnl_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealized Pnl Pct"
+          },
+          "vwap_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "above",
+                  "below",
+                  "at"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vwap State"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "symbol",
+          "isin",
+          "exchange",
+          "quantity",
+          "avg_cost",
+          "last_price",
+          "price_source",
+          "price_as_of",
+          "invested",
+          "current_value",
+          "unrealized_pnl",
+          "unrealized_pnl_pct",
+          "allocation_pct",
+          "signal_state",
+          "ema_state",
+          "vwap_state",
+          "trend_score",
+          "signal_as_of",
+          "classification",
+          "reasons",
+          "deep_link"
+        ],
+        "title": "PortfolioHoldingOut",
+        "type": "object"
+      },
       "PortfolioIn": {
         "additionalProperties": false,
         "properties": {
@@ -12555,6 +13480,69 @@
           "content"
         ],
         "title": "PortfolioIn",
+        "type": "object"
+      },
+      "PortfolioMapOut": {
+        "properties": {
+          "accounts": {
+            "title": "Accounts",
+            "type": "integer"
+          },
+          "available_cash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Cash"
+          },
+          "classification_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Classification Counts",
+            "type": "object"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/PortfolioFreshnessOut"
+          },
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioHoldingOut"
+            },
+            "title": "Holdings",
+            "type": "array"
+          },
+          "sector_exposure": {
+            "$ref": "#/components/schemas/SectorExposureOut"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PortfolioTotalsOut"
+          }
+        },
+        "required": [
+          "timeframe",
+          "accounts",
+          "holdings",
+          "totals",
+          "available_cash",
+          "sector_exposure",
+          "freshness",
+          "classification_counts",
+          "disclaimer"
+        ],
+        "title": "PortfolioMapOut",
         "type": "object"
       },
       "PortfolioOut": {
@@ -12580,6 +13568,34 @@
           "updated_at"
         ],
         "title": "PortfolioOut",
+        "type": "object"
+      },
+      "PortfolioTotalsOut": {
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "string"
+          },
+          "invested": {
+            "title": "Invested",
+            "type": "string"
+          },
+          "unpriced_holdings": {
+            "title": "Unpriced Holdings",
+            "type": "string"
+          },
+          "unrealized_pnl": {
+            "title": "Unrealized Pnl",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invested",
+          "current",
+          "unrealized_pnl",
+          "unpriced_holdings"
+        ],
+        "title": "PortfolioTotalsOut",
         "type": "object"
       },
       "PositionOut": {
@@ -13873,6 +14889,124 @@
         "title": "QuoteOut",
         "type": "object"
       },
+      "RankingCoverageOut": {
+        "properties": {
+          "boundary": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boundary"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "evaluated": {
+            "default": 0,
+            "title": "Evaluated",
+            "type": "integer"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "history_wait_timed_out": {
+            "default": false,
+            "title": "History Wait Timed Out",
+            "type": "boolean"
+          },
+          "illiquid": {
+            "default": 0,
+            "title": "Illiquid",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "unavailable": {
+            "default": 0,
+            "title": "Unavailable",
+            "type": "integer"
+          },
+          "universe_size": {
+            "title": "Universe Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "timeframe",
+          "run_id",
+          "data_as_of",
+          "universe_size"
+        ],
+        "title": "RankingCoverageOut",
+        "type": "object"
+      },
+      "RankingOut": {
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/RankingCoverageOut"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StockSignalStateOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "coverage",
+          "items",
+          "note"
+        ],
+        "title": "RankingOut",
+        "type": "object"
+      },
       "RateLimitOut": {
         "properties": {
           "limit": {
@@ -13986,6 +15120,241 @@
           "ttl_seconds"
         ],
         "title": "ReauthOut",
+        "type": "object"
+      },
+      "RebalanceIn": {
+        "properties": {
+          "cash_buffer_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Buffer Pct"
+          },
+          "max_new": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max New"
+          },
+          "max_weight_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Weight Pct"
+          },
+          "min_trade_value": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Trade Value"
+          },
+          "timeframe": {
+            "default": "15m",
+            "enum": [
+              "5m",
+              "15m",
+              "1h",
+              "1d"
+            ],
+            "title": "Timeframe",
+            "type": "string"
+          }
+        },
+        "title": "RebalanceIn",
+        "type": "object"
+      },
+      "RebalancePreviewOut": {
+        "properties": {
+          "allocation_after": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Allocation After",
+            "type": "object"
+          },
+          "allocation_before": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Allocation Before",
+            "type": "object"
+          },
+          "cash_after": {
+            "title": "Cash After",
+            "type": "string"
+          },
+          "cash_before": {
+            "title": "Cash Before",
+            "type": "string"
+          },
+          "cash_known": {
+            "title": "Cash Known",
+            "type": "boolean"
+          },
+          "cash_required": {
+            "title": "Cash Required",
+            "type": "string"
+          },
+          "charges_model": {
+            "title": "Charges Model",
+            "type": "string"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/PortfolioFreshnessOut"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "title": "Inputs",
+            "type": "object"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "review": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Review",
+            "type": "array"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "total_charges": {
+            "title": "Total Charges",
+            "type": "string"
+          },
+          "trades": {
+            "items": {
+              "$ref": "#/components/schemas/RebalanceTradeOut"
+            },
+            "title": "Trades",
+            "type": "array"
+          }
+        },
+        "required": [
+          "timeframe",
+          "trades",
+          "cash_before",
+          "cash_after",
+          "cash_required",
+          "cash_known",
+          "total_charges",
+          "allocation_before",
+          "allocation_after",
+          "review",
+          "notes",
+          "inputs",
+          "charges_model",
+          "freshness",
+          "generated_at"
+        ],
+        "title": "RebalancePreviewOut",
+        "type": "object"
+      },
+      "RebalanceTradeOut": {
+        "properties": {
+          "charges": {
+            "title": "Charges",
+            "type": "string"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "side",
+          "symbol",
+          "instrument_id",
+          "quantity",
+          "price",
+          "value",
+          "charges",
+          "reason"
+        ],
+        "title": "RebalanceTradeOut",
         "type": "object"
       },
       "ReconciliationOut": {
@@ -17039,6 +18408,30 @@
         "title": "ScreenerStatus",
         "type": "object"
       },
+      "SectorExposureOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "SectorExposureOut",
+        "type": "object"
+      },
       "SecuredIn": {
         "additionalProperties": false,
         "properties": {
@@ -17936,6 +19329,844 @@
           }
         },
         "title": "StepOut",
+        "type": "object"
+      },
+      "StockSignalDetailOut": {
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StockSignalStateOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event": {
+            "$ref": "#/components/schemas/StockSignalEventOut"
+          }
+        },
+        "required": [
+          "event",
+          "current"
+        ],
+        "title": "StockSignalDetailOut",
+        "type": "object"
+      },
+      "StockSignalEventOut": {
+        "properties": {
+          "confirm_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Price"
+          },
+          "confirm_vwap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Vwap"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Close time of the first candle that closed beyond the session VWAP",
+            "title": "Confirmed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "crossed_at": {
+            "description": "Close time of the candle where EMA 8 crossed EMA 32",
+            "format": "date-time",
+            "title": "Crossed At",
+            "type": "string"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "data_source": {
+            "title": "Data Source",
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "bullish",
+              "bearish"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "ema_fast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Fast"
+          },
+          "ema_slow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Slow"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "in_holdings": {
+            "title": "In Holdings",
+            "type": "boolean"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Close of the cross candle",
+            "title": "Last Price"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "title": "Metrics",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "state": {
+            "enum": [
+              "BULLISH_CONFIRMED",
+              "BULLISH_PENDING",
+              "BEARISH_CONFIRMED",
+              "BEARISH_PENDING",
+              "BULLISH_TREND",
+              "BEARISH_TREND",
+              "MIXED",
+              "UNAVAILABLE"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "trend_score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0-100 ranking score; not a probability",
+            "title": "Trend Score"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "vwap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vwap"
+          }
+        },
+        "required": [
+          "id",
+          "instrument_id",
+          "symbol",
+          "name",
+          "exchange",
+          "timeframe",
+          "direction",
+          "state",
+          "crossed_at",
+          "confirmed_at",
+          "ema_fast",
+          "ema_slow",
+          "vwap",
+          "last_price",
+          "confirm_price",
+          "confirm_vwap",
+          "trend_score",
+          "in_holdings",
+          "data_source",
+          "data_as_of",
+          "metrics",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "StockSignalEventOut",
+        "type": "object"
+      },
+      "StockSignalNotificationOut": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "description": "instrument, signal_id, timeframe, prices, timestamps and deep_link",
+            "title": "Payload",
+            "type": "object"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "timeframe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeframe"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "event_id",
+          "instrument_id",
+          "timeframe",
+          "title",
+          "body",
+          "payload",
+          "created_at",
+          "read_at"
+        ],
+        "title": "StockSignalNotificationOut",
+        "type": "object"
+      },
+      "StockSignalNotificationsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StockSignalNotificationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "last_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Id"
+          },
+          "next_before_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before Id"
+          },
+          "unread_count": {
+            "title": "Unread Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "unread_count"
+        ],
+        "title": "StockSignalNotificationsOut",
+        "type": "object"
+      },
+      "StockSignalPrefsIn": {
+        "properties": {
+          "all_market": {
+            "default": false,
+            "title": "All Market",
+            "type": "boolean"
+          },
+          "confirmed_only": {
+            "default": false,
+            "title": "Confirmed Only",
+            "type": "boolean"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "kinds": {
+            "items": {
+              "enum": [
+                "bullish_cross",
+                "bearish_cross",
+                "vwap_confirmed",
+                "holding_reversal",
+                "portfolio_trend_change",
+                "replacement_candidate"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Kinds",
+            "type": "array"
+          },
+          "timeframes": {
+            "items": {
+              "enum": [
+                "5m",
+                "15m",
+                "1h",
+                "1d"
+              ],
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Timeframes",
+            "type": "array"
+          }
+        },
+        "title": "StockSignalPrefsIn",
+        "type": "object"
+      },
+      "StockSignalPrefsOut": {
+        "properties": {
+          "all_market": {
+            "default": false,
+            "title": "All Market",
+            "type": "boolean"
+          },
+          "confirmed_only": {
+            "default": false,
+            "title": "Confirmed Only",
+            "type": "boolean"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "kinds": {
+            "items": {
+              "enum": [
+                "bullish_cross",
+                "bearish_cross",
+                "vwap_confirmed",
+                "holding_reversal",
+                "portfolio_trend_change",
+                "replacement_candidate"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Kinds",
+            "type": "array"
+          },
+          "timeframes": {
+            "items": {
+              "enum": [
+                "5m",
+                "15m",
+                "1h",
+                "1d"
+              ],
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Timeframes",
+            "type": "array"
+          }
+        },
+        "title": "StockSignalPrefsOut",
+        "type": "object"
+      },
+      "StockSignalReadAllIn": {
+        "properties": {
+          "up_to_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only up to this id",
+            "title": "Up To Id"
+          }
+        },
+        "title": "StockSignalReadAllIn",
+        "type": "object"
+      },
+      "StockSignalStateOut": {
+        "properties": {
+          "adx": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adx"
+          },
+          "candle_close_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candle Close At"
+          },
+          "change_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "vs the previous session's last close",
+            "title": "Change Pct"
+          },
+          "ema_fast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Fast"
+          },
+          "ema_slow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Slow"
+          },
+          "ema_spread_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Spread Pct"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange"
+          },
+          "in_holdings": {
+            "title": "In Holdings",
+            "type": "boolean"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "last_price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Price"
+          },
+          "missing_features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Features",
+            "type": "array"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "relative_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "change_pct minus Nifty 50's",
+            "title": "Relative Pct"
+          },
+          "rsi": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rsi"
+          },
+          "rvol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rvol"
+          },
+          "segment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment"
+          },
+          "state": {
+            "enum": [
+              "BULLISH_CONFIRMED",
+              "BULLISH_PENDING",
+              "BEARISH_CONFIRMED",
+              "BEARISH_PENDING",
+              "BULLISH_TREND",
+              "BEARISH_TREND",
+              "MIXED",
+              "UNAVAILABLE"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "trend_score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend Score"
+          },
+          "vwap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vwap"
+          },
+          "vwap_distance_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vwap Distance Pct"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "symbol",
+          "name",
+          "exchange",
+          "segment",
+          "timeframe",
+          "state",
+          "last_price",
+          "change_pct",
+          "trend_score",
+          "rvol",
+          "rsi",
+          "adx",
+          "ema_fast",
+          "ema_slow",
+          "vwap",
+          "vwap_distance_pct",
+          "ema_spread_pct",
+          "relative_pct",
+          "missing_features",
+          "in_holdings",
+          "event_id",
+          "candle_close_at"
+        ],
+        "title": "StockSignalStateOut",
+        "type": "object"
+      },
+      "StockSignalStatesPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StockSignalStateOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "StockSignalStatesPage",
+        "type": "object"
+      },
+      "StockSignalUnreadOut": {
+        "properties": {
+          "unread_count": {
+            "title": "Unread Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unread_count"
+        ],
+        "title": "StockSignalUnreadOut",
+        "type": "object"
+      },
+      "StockSignalsPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StockSignalEventOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "StockSignalsPage",
         "type": "object"
       },
       "StoredPolicyOut": {
@@ -29571,7 +31802,7 @@
             }
           },
           {
-            "description": "repeatable: FUTIDX, FUTSTK, …",
+            "description": "repeatable: FUTIDX, FUTSTK, \u2026",
             "in": "query",
             "name": "instrument_type",
             "required": false,
@@ -29588,7 +31819,7 @@
                   "type": "null"
                 }
               ],
-              "description": "repeatable: FUTIDX, FUTSTK, …",
+              "description": "repeatable: FUTIDX, FUTSTK, \u2026",
               "title": "Instrument Type"
             }
           },
@@ -29618,7 +31849,7 @@
             }
           },
           {
-            "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I…",
+            "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I\u2026",
             "in": "query",
             "name": "segment",
             "required": false,
@@ -29635,7 +31866,7 @@
                   "type": "null"
                 }
               ],
-              "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I…",
+              "description": "repeatable: NSE_EQ, NSE_FNO, IDX_I\u2026",
               "title": "Segment"
             }
           },
@@ -29890,6 +32121,255 @@
         }
       }
     },
+    "/api/trading/mt5/bars": {
+      "get": {
+        "description": "Stored closed bars, ascending by ts (the first `limit` from `from`).",
+        "operationId": "get_bars_api_trading_mt5_bars_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9._#+-]{1,64}$",
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "M30",
+              "pattern": "^[A-Za-z0-9]{1,4}$",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5000,
+              "maximum": 20000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5BarsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Bars",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "database",
+          "id_field": "symbol",
+          "kind": "detail",
+          "label": "Get bars",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "symbol"
+        }
+      },
+      "post": {
+        "description": "Closed candles, upserted on (symbol, timeframe, ts): a resend with other values\ncorrects the stored bar. A bar with high < low or a non-positive price is rejected.",
+        "operationId": "post_bars_api_trading_mt5_bars_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "content-type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "content-encoding",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Encoding"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5BarsAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "bad or missing bearer token"
+          },
+          "413": {
+            "description": "body over MT5_INGEST_MAX_BYTES, or over the decompressed cap"
+          },
+          "415": {
+            "description": "Content-Type other than application/json, or encoding not gzip"
+          },
+          "422": {
+            "description": "wrong schema id, bad envelope, or too many rows"
+          },
+          "429": {
+            "description": "too many requests for this token (Retry-After)"
+          },
+          "503": {
+            "description": "MT5_RECORDS_TOKEN unset or misconfigured, or storage unavailable"
+          }
+        },
+        "summary": "Post Bars",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "hidden",
+          "danger_reason": "machine endpoint (bearer)",
+          "group": "markets",
+          "icon": "database",
+          "id_field": null,
+          "kind": "action",
+          "label": "Post bars",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "public",
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
     "/api/trading/mt5/bot-status": {
       "get": {
         "operationId": "bot_status_api_trading_mt5_bot_status_get",
@@ -29925,6 +32405,127 @@
             "admin"
           ],
           "title_field": null
+        }
+      }
+    },
+    "/api/trading/mt5/dataset/crosses": {
+      "get": {
+        "description": "The training set: one row per completed EMA 8/32 cross in [from, to], computed from\nmt5.bars with the bot's labels.py definitions. Features first; outcomes are prefixed\n`y_`. The last, still-open cross is excluded. csv / jsonl carry the row count, the range\nand the definitions version in X-Aureon-* headers.",
+        "operationId": "get_crosses_dataset_api_trading_mt5_dataset_crosses_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9._#+-]{1,64}$",
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "M30",
+              "pattern": "^[A-Za-z0-9]{1,4}$",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv",
+                "jsonl"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5CrossesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Crosses Dataset",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "database",
+          "id_field": "symbol",
+          "kind": "detail",
+          "label": "Get crosses dataset",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "symbol"
         }
       }
     },
@@ -30329,6 +32930,347 @@
             "admin"
           ],
           "title_field": "symbol"
+        }
+      }
+    },
+    "/api/trading/mt5/records": {
+      "get": {
+        "description": "Newest first. `kind` is repeatable; `label` matches payload.label; pass `next_cursor`\nback as `cursor` for the next page.",
+        "operationId": "get_records_api_trading_mt5_records_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 20,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._#+-]{1,64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "account_login",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Login"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "label",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Label"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5RecordsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Records",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "database",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Get records",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      },
+      "post": {
+        "description": "The bot sends its records (store.py rows) in batches. Idempotent per record_id; a bad\nrow is listed in `rejected` and never fails the batch. Never touches orders.",
+        "operationId": "post_records_api_trading_mt5_records_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "content-type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "content-encoding",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Content-Encoding"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5RecordsAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "bad or missing bearer token"
+          },
+          "413": {
+            "description": "body over MT5_INGEST_MAX_BYTES, or over the decompressed cap"
+          },
+          "415": {
+            "description": "Content-Type other than application/json, or encoding not gzip"
+          },
+          "422": {
+            "description": "wrong schema id, bad envelope, or too many rows"
+          },
+          "429": {
+            "description": "too many requests for this token (Retry-After)"
+          },
+          "503": {
+            "description": "MT5_RECORDS_TOKEN unset or misconfigured, or storage unavailable"
+          }
+        },
+        "summary": "Post Records",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "hidden",
+          "danger_reason": "machine endpoint (bearer)",
+          "group": "markets",
+          "icon": "database",
+          "id_field": null,
+          "kind": "action",
+          "label": "Post records",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "public",
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/mt5/records/stats": {
+      "get": {
+        "operationId": "get_record_stats_api_trading_mt5_records_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mt5RecordStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Record Stats",
+        "tags": [
+          "trading",
+          "mt5"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "database",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Get record stats",
+          "module": "mt5-records",
+          "order": 25,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
         }
       }
     },
@@ -31887,6 +34829,1334 @@
           "label": "Explain signal",
           "module": "trading",
           "order": 20,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/stock-signals": {
+      "get": {
+        "description": "EMA 8/32 crossover events (one per crossover; a VWAP confirmation updates it).",
+        "operationId": "list_signals_api_trading_stock_signals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "5m",
+                    "15m",
+                    "1h",
+                    "1d"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Timeframe"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exchange",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(NSE|BSE|nse|bse)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exchange"
+            }
+          },
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "bullish",
+                    "bearish"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Direction"
+            }
+          },
+          {
+            "in": "query",
+            "name": "confirmation",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "confirmed",
+                    "pending"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Confirmation"
+            }
+          },
+          {
+            "in": "query",
+            "name": "in_holdings",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "In Holdings"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_trend_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Trend Score"
+            }
+          },
+          {
+            "description": "Only instruments whose current data is usable",
+            "in": "query",
+            "name": "fresh_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only instruments whose current data is usable",
+              "title": "Fresh Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "-crossed_at",
+              "enum": [
+                "crossed_at",
+                "-crossed_at",
+                "trend_score",
+                "-trend_score"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockSignalsPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Signals",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": [
+            "id",
+            "instrument_id",
+            "symbol",
+            "name",
+            "exchange",
+            "timeframe"
+          ],
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": "id",
+          "kind": "list",
+          "label": "List signals",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "name"
+        }
+      }
+    },
+    "/api/trading/stock-signals/market-movers": {
+      "get": {
+        "description": "Top gainers / losers by real % change, or unusual volume (relative volume at or above\nSTOCK_SIGNALS_UNUSUAL_RVOL), among liquid instruments with usable data.",
+        "operationId": "market_movers_api_trading_stock_signals_market_movers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "gainers",
+              "enum": [
+                "gainers",
+                "losers",
+                "unusual_volume"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "15m",
+              "enum": [
+                "5m",
+                "15m",
+                "1h",
+                "1d"
+              ],
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exchange",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(NSE|BSE|nse|bse)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exchange"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Market Movers",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": [
+            "instrument_id",
+            "symbol",
+            "name",
+            "exchange",
+            "segment",
+            "timeframe"
+          ],
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": "name",
+          "kind": "list",
+          "label": "Market movers",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "name"
+        }
+      }
+    },
+    "/api/trading/stock-signals/notifications": {
+      "get": {
+        "description": "Your Stock Signals notifications, newest first (or, with after_id, oldest first).",
+        "operationId": "notifications_api_trading_stock_signals_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unread_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unread Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "bullish_cross",
+                    "bearish_cross",
+                    "vwap_confirmed",
+                    "holding_reversal",
+                    "portfolio_trend_change",
+                    "replacement_candidate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "instrument_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Instrument Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "5m",
+                    "15m",
+                    "1h",
+                    "1d"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Timeframe"
+            }
+          },
+          {
+            "description": "Older than this id",
+            "in": "query",
+            "name": "before_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Older than this id",
+              "title": "Before Id"
+            }
+          },
+          {
+            "description": "Polling fallback for /stream: newer, oldest first",
+            "in": "query",
+            "name": "after_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Polling fallback for /stream: newer, oldest first",
+              "title": "After Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockSignalNotificationsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Notifications",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": [
+            "id",
+            "kind",
+            "event_id",
+            "instrument_id",
+            "timeframe",
+            "title"
+          ],
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": "id",
+          "kind": "list",
+          "label": "Notifications",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "title"
+        }
+      }
+    },
+    "/api/trading/stock-signals/notifications/preferences": {
+      "get": {
+        "operationId": "get_preferences_api_trading_stock_signals_notifications_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockSignalPrefsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Preferences",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Get preferences",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      },
+      "put": {
+        "operationId": "put_preferences_api_trading_stock_signals_notifications_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockSignalPrefsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockSignalPrefsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Preferences",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "confirm",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "form",
+          "label": "Put preferences",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/stock-signals/notifications/read-all": {
+      "post": {
+        "operationId": "mark_all_read_api_trading_stock_signals_notifications_read_all_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockSignalReadAllIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockSignalUnreadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark All Read",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "confirm",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "form",
+          "label": "Mark all read",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/stock-signals/notifications/{notification_id}/read": {
+      "patch": {
+        "operationId": "mark_read_api_trading_stock_signals_notifications__notification_id__read_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "title": "Notification Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockSignalNotificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Read",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "confirm",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": "id",
+          "kind": "action",
+          "label": "Mark read",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "title"
+        }
+      }
+    },
+    "/api/trading/stock-signals/portfolio-map": {
+      "get": {
+        "description": "Your Dhan holdings with value, P&L, allocation, cash, EMA/VWAP state and an advisory\nclass (HOLD_CANDIDATE, MONITOR, REVIEW_RISK, POTENTIAL_ADD). Read-only; an admin sees\nevery Dhan account. Classes come from deterministic rules, not from a model.",
+        "operationId": "portfolio_map_view_api_trading_stock_signals_portfolio_map_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "15m",
+              "enum": [
+                "5m",
+                "15m",
+                "1h",
+                "1d"
+              ],
+              "title": "Timeframe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioMapOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Portfolio Map View",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Portfolio map view",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/stock-signals/rebalance-preview": {
+      "post": {
+        "description": "A deterministic preview: trims of overweight holdings, liquid bullish alternatives,\ncash needed, Dhan delivery charges and the allocation after. Nothing is stored and no\norder is placed or drafted.",
+        "operationId": "rebalance_preview_api_trading_stock_signals_rebalance_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RebalanceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebalancePreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rebalance Preview",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "confirm",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "form",
+          "label": "Rebalance preview",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/stock-signals/states": {
+      "get": {
+        "description": "The latest EMA 8/32 + VWAP state of every evaluated instrument (best score first).",
+        "operationId": "list_states_api_trading_stock_signals_states_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "15m",
+              "enum": [
+                "5m",
+                "15m",
+                "1h",
+                "1d"
+              ],
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "BULLISH_CONFIRMED",
+                      "BULLISH_PENDING",
+                      "BEARISH_CONFIRMED",
+                      "BEARISH_PENDING",
+                      "BULLISH_TREND",
+                      "BEARISH_TREND",
+                      "MIXED",
+                      "UNAVAILABLE"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 8,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exchange",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(NSE|BSE|nse|bse)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exchange"
+            }
+          },
+          {
+            "in": "query",
+            "name": "in_holdings",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "In Holdings"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_unavailable",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Unavailable",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockSignalStatesPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List States",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": [
+            "instrument_id",
+            "symbol",
+            "name",
+            "exchange",
+            "segment",
+            "timeframe"
+          ],
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": "name",
+          "kind": "list",
+          "label": "List states",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "name"
+        }
+      }
+    },
+    "/api/trading/stock-signals/stream": {
+      "get": {
+        "description": "Server-Sent Events: `notification` events (data = a notification, `id:` its id).\nReconnecting with Last-Event-ID (or ?last_event_id=) replays what was missed; `hello`\ncarries the cursor and unread count, `bye` ends the stream. Polling fallback:\nGET /notifications?after_id=.",
+        "operationId": "stream_api_trading_stock_signals_stream_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "last_event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last Event Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "stream",
+          "label": "Stream",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/stock-signals/trending": {
+      "get": {
+        "description": "Top trending bullish (highest score) or bearish (lowest score) instruments whose EMAs\nagree with the direction.",
+        "operationId": "trending_api_trading_stock_signals_trending_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "direction",
+            "required": false,
+            "schema": {
+              "default": "bullish",
+              "enum": [
+                "bullish",
+                "bearish"
+              ],
+              "title": "Direction",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "15m",
+              "enum": [
+                "5m",
+                "15m",
+                "1h",
+                "1d"
+              ],
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exchange",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(NSE|BSE|nse|bse)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exchange"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trending",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": [
+            "instrument_id",
+            "symbol",
+            "name",
+            "exchange",
+            "segment",
+            "timeframe"
+          ],
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": "name",
+          "kind": "list",
+          "label": "Trending",
+          "module": "stock-signals",
+          "order": 22,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "name"
+        }
+      }
+    },
+    "/api/trading/stock-signals/{signal_id}": {
+      "get": {
+        "description": "One crossover event and the instrument's current state on that timeframe.",
+        "operationId": "get_signal_api_trading_stock_signals__signal_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "signal_id",
+            "required": true,
+            "schema": {
+              "title": "Signal Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockSignalDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Signal",
+        "tags": [
+          "stock-signals"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Get signal",
+          "module": "stock-signals",
+          "order": 22,
           "roles": [
             "user",
             "admin"
@@ -40959,7 +45229,7 @@
     },
     "/api/v1/ingest/health_summary": {
       "get": {
-        "description": "For the V1.6.4 Windows watchdog (aureon/watchdog.py, via ApiStore.health_summary()).\n\nThe response is V1.6.4's own contract (aureon_v1/assembler/app.py), field for field:\n`state`, `heartbeats` [{service, state, last_beat, note}], `bars` [{tf, t, n24}],\n`indicators_m30_latest`, `signals` {t, n24}, `risk` {state, ref_source} | null,\n`control_desired`. One difference, on purpose: where V1.6.4's server filled in defaults\nfor missing rows (scheduler \"PAUSED\", desired \"RUN\"), this answers null — nothing is\nreported that no record shows (the watchdog acts only on desired == \"PAUSE\").\n\n`?detail=true` (never sent by the watchdog) adds `diagnostics`: heartbeat ages, the last\naccepted upload per ingest endpoint, open/failed collector jobs and failed alerts.\nEvery query reads an index (latest row per key, last-24 h ranges), so a 5-second poll\nstays cheap. A database failure answers 503, never a guessed state.",
+        "description": "For the V1.6.4 Windows watchdog (aureon/watchdog.py, via ApiStore.health_summary()).\n\nThe response is V1.6.4's own contract (aureon_v1/assembler/app.py), field for field:\n`state`, `heartbeats` [{service, state, last_beat, note}], `bars` [{tf, t, n24}],\n`indicators_m30_latest`, `signals` {t, n24}, `risk` {state, ref_source} | null,\n`control_desired`. One difference, on purpose: where V1.6.4's server filled in defaults\nfor missing rows (scheduler \"PAUSED\", desired \"RUN\"), this answers null \u2014 nothing is\nreported that no record shows (the watchdog acts only on desired == \"PAUSE\").\n\n`?detail=true` (never sent by the watchdog) adds `diagnostics`: heartbeat ages, the last\naccepted upload per ingest endpoint, open/failed collector jobs and failed alerts.\nEvery query reads an index (latest row per key, last-24 h ranges), so a 5-second poll\nstays cheap. A database failure answers 503, never a guessed state.",
         "operationId": "ingest_health_summary_api_v1_ingest_health_summary_get",
         "parameters": [
           {

@@ -15,7 +15,6 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import SlideOver from '@/components/ui/SlideOver.vue'
-import Alert from '@/components/ui/Alert.vue'
 import Avatar from '@/components/ui/Avatar.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -200,9 +199,10 @@ function meta(repo: LinkedRepo): string {
             </div>
           </li>
         </ol>
-        <Alert v-if="ghError" tone="danger" title="Could not find the installation">
-          {{ ghError }}
-        </Alert>
+        <div v-if="ghError" class="gh__notice is-danger" role="alert">
+          <strong>Could not find the installation</strong>
+          <span>{{ ghError }}</span>
+        </div>
       </template>
 
       <!-- Connected. -->
@@ -265,30 +265,24 @@ function meta(repo: LinkedRepo): string {
           </Button>
         </section>
 
-        <Alert v-if="paused" tone="warning" title="Sync paused">
-          <span class="gh__alertBody">
-            {{ paused }}
-            <Button size="sm" variant="secondary" @click="app.resumeGithubSync()">
-              Resume now
-            </Button>
-          </span>
-        </Alert>
-        <Alert v-if="syncNote" :tone="syncNote.tone" dismissible @dismiss="syncNote = null">
-          {{ syncNote.text }}
-        </Alert>
-        <Alert v-if="ghError" tone="danger" title="GitHub did not answer">
-          <span class="gh__alertBody">
-            {{ ghError }}
-            <Button
-              size="sm"
-              variant="secondary"
-              :loading="ghBusy"
-              @click="app.loadInstalledRepos()"
-            >
-              Try again
-            </Button>
-          </span>
-        </Alert>
+        <!-- Inline, beside what they are about, with their buttons (the library's
+             Alert goes to the app's warnings tray and drops actions). -->
+        <div v-if="paused" class="gh__notice is-warning" role="status">
+          <strong>Sync paused</strong>
+          <span>{{ paused }}</span>
+          <Button size="sm" variant="secondary" @click="app.resumeGithubSync()">Resume now</Button>
+        </div>
+        <div v-if="syncNote" class="gh__notice" :class="`is-${syncNote.tone}`" role="status">
+          <span>{{ syncNote.text }}</span>
+          <Button size="sm" variant="ghost" @click="syncNote = null">Dismiss</Button>
+        </div>
+        <div v-if="ghError" class="gh__notice is-danger" role="alert">
+          <strong>GitHub did not answer</strong>
+          <span>{{ ghError }}</span>
+          <Button size="sm" variant="secondary" :loading="ghBusy" @click="app.loadInstalledRepos()">
+            Try again
+          </Button>
+        </div>
 
         <!-- The picker. -->
         <section class="gh__repos" aria-label="Repositories">
@@ -526,11 +520,28 @@ function meta(repo: LinkedRepo): string {
   flex-direction: column;
   min-width: 0;
 }
-.gh__alertBody {
+.gh__notice {
+  --tone: var(--theme-accent);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid color-mix(in oklch, var(--tone) 40%, var(--theme-border));
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--tone) 9%, transparent);
+  font-size: var(--text-sm);
+  color: var(--theme-text);
+  min-width: 0;
+}
+.gh__notice.is-danger {
+  --tone: var(--theme-danger);
+}
+.gh__notice.is-warning {
+  --tone: var(--theme-warning);
+}
+.gh__notice.is-success {
+  --tone: var(--theme-success);
 }
 .gh__confirm {
   display: flex;

@@ -1,12 +1,14 @@
 <script setup lang="ts">
-// The one chart viewer for Stock Signals, shown inside the desktop dialog or the
-// phone's bottom drawer (SignalChartHost). Real Dhan candles with EMA 8, EMA 32
-// and session VWAP drawn from the server's computed values, the EMA cross marked
-// on its candle (▲ / ▼) and VWAP's confirmation marked separately (B / S), the
-// volume pane, crosshair, zoom / pan and fit-to-screen, a timeframe switch that
-// re-reads only this chart, and the signal's details beside it.
+// The one chart viewer for Stock Signals, inside the desktop dialog or the
+// phone's bottom drawer (SignalChartHost). Real Dhan candles with the server's
+// EMA 8, EMA 32 and session VWAP, the crossover candle marked (▲ / ▼) apart from
+// the VWAP-confirmation candle (B / S), the volume pane, crosshair, zoom / pan
+// and fit-to-screen, a timeframe switch that re-reads only this chart, and the
+// engine's own reading of the signal beside it.
 //
-// Daily bars have no session VWAP: the line is not drawn and the reading says so.
+// Daily bars: no VWAP line is drawn (the compute endpoint has no intraday VWAP
+// on them); the engine's daily state carries the session VWAP it built from
+// 15-minute candles, and the detail panel shows it as that.
 import { computed, ref, shallowRef, watch } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import Icon from '@/components/ui/Icon.vue'
@@ -18,32 +20,67 @@ import CandleChart, {
 } from '@/components/trading/CandleChart.vue'
 import SignalDetail from './SignalDetail.vue'
 import { colorCss, fmtNum } from '@/trading/studies'
-import type { Timeframe } from '@/trading/chartView'
-import { readSignal, SIGNAL_TFS, type Reading, type Series } from '@/trading/stockSignals/classify'
-import { loadSeries } from '@/trading/stockSignals/useStockSignals'
-import type { HoldingView } from '@/trading/stockSignals/portfolio'
-import type { Instrument } from '@/trading/instruments'
+import { loadSeries, type Series } from '@/trading/stockSignals/series'
+import {
+  SIGNAL_TFS,
+  barForClose,
+  latestFor,
+  type PortfolioHolding,
+  type SignalEvent,
+  type SignalTf,
+  type StateRow,
+} from '@/trading/stockSignals/api'
+import type { Target } from '@/trading/stockSignals/useStockSignals'
 
 const props = defineProps<{
-  instrument: Instrument
+  target: Target
   /** The signal's own timeframe: the chart opens on it. */
-  tf: Timeframe
+  tf: SignalTf
+  /** The engine's state and newest event on `tf`, when the page already has them. */
+  state?: StateRow | null
+  event?: SignalEvent | null
+  holding?: PortfolioHolding | null
   now: number
-  holding?: HoldingView | null
-  /** Taller chart (fullscreen). */
   tall?: boolean
 }>()
 const emit = defineEmits<{ watchlist: []; alert: [] }>()
 
-const tf = ref<Timeframe>(props.tf)
+const tf = ref<SignalTf>(props.tf)
 watch(
-  () => [props.instrument.id, props.tf] as const,
+  () => [props.target.id, props.tf] as const,
   ([, t]) => (tf.value = t),
 )
 const tfOptions = SIGNAL_TFS.map((t) => ({ value: t, label: t === '1d' ? '1D' : t.toUpperCase() }))
 
+// --- the engine's reading for the shown timeframe ----------------------------------------
+const state = shallowRef<StateRow | null>(props.state ?? null)
+const event = shallowRef<SignalEvent | null>(props.event ?? null)
+const signalNote = ref('')
+let sigSeq = 0
+async function loadSignal() {
+  const mine = ++sigSeq
+  signalNote.value = ''
+  if (tf.value === props.tf && (props.state || props.event)) {
+    state.value = props.state ?? null
+    event.value = props.event ?? null
+    return
+  }
+  state.value = null
+  event.value = null
+  try {
+    const d = await latestFor(props.target.id, props.target.symbol, tf.value)
+    if (mine !== sigSeq) return
+    if (d) {
+      state.value = d.current ?? null
+      event.value = d.event
+    } else signalNote.value = `No EMA 8/32 crossover on ${tf.value} within the stored history.`
+  } catch (e) {
+    if (mine === sigSeq) signalNote.value = (e as Error).message || 'The signal could not be read.'
+  }
+}
+
+// --- the candles and lines ------------------------------------------------------------
 const series = shallowRef<Series | null>(null)
-const reading = shallowRef<Reading | null>(null)
 const loading = ref(false)
 const error = ref('')
 let seq = 0
@@ -52,28 +89,26 @@ async function load(force = false) {
   loading.value = true
   error.value = ''
   try {
-    const s = await loadSeries(props.instrument.id, tf.value, force)
-    if (mine !== seq) return
-    series.value = s
-    reading.value = readSignal(s, tf.value)
+    const s = await loadSeries(props.target.id, tf.value, force)
+    if (mine === seq) series.value = s
   } catch (e) {
-    if (mine !== seq) return
-    error.value = (e as Error).message || 'The chart could not be loaded.'
+    if (mine === seq) error.value = (e as Error).message || 'The chart could not be loaded.'
   } finally {
     if (mine === seq) loading.value = false
   }
 }
-watch([() => props.instrument.id, tf], () => void load(), { immediate: true })
+watch(
+  [() => props.target.id, tf],
+  () => {
+    void load()
+    void loadSignal()
+  },
+  { immediate: true },
+)
 
-function line(
-  key: string,
-  label: string,
-  values: (number | null)[],
-  color: string,
-  dashed = false,
-) {
+function line(label: string, values: (number | null)[], color: string, dashed = false) {
   return {
-    key,
+    key: 'value',
     label,
     color,
     style: dashed ? ('dashed' as const) : ('line' as const),
@@ -89,13 +124,13 @@ const overlays = computed<ChartGroup[]>(() => {
       id: 'ema8',
       label: 'EMA 8',
       source: 'server',
-      lines: [line('value', 'EMA 8', s.ema8, colorCss('accent'))],
+      lines: [line('EMA 8', s.ema8, colorCss('accent'))],
     },
     {
       id: 'ema32',
       label: 'EMA 32',
       source: 'server',
-      lines: [line('value', 'EMA 32', s.ema32, colorCss('warning'))],
+      lines: [line('EMA 32', s.ema32, colorCss('warning'))],
     },
   ]
   if (tf.value !== '1d')
@@ -103,24 +138,29 @@ const overlays = computed<ChartGroup[]>(() => {
       id: 'vwap',
       label: 'VWAP (session)',
       source: 'server',
-      lines: [line('value', 'VWAP', s.vwap, colorCss('info'), true)],
+      lines: [line('VWAP', s.vwap, colorCss('info'), true)],
     })
   return out
 })
 const markers = computed<ChartMarker[]>(() => {
-  const r = reading.value
+  const s = series.value
+  const e = event.value
+  if (!s || !e) return []
   const out: ChartMarker[] = []
-  if (r?.cross)
+  const up = e.direction === 'bullish'
+  const cross = barForClose(s.time, e.crossed_at)
+  if (cross >= 0)
     out.push({
-      index: r.cross.index,
-      kind: r.cross.direction === 'up' ? 'bull' : 'bear',
+      index: cross,
+      kind: up ? 'bull' : 'bear',
       confirmed: true,
-      label: `EMA 8/32 cross ${r.cross.direction === 'up' ? 'up' : 'down'}`,
+      label: `EMA 8/32 ${up ? 'bullish' : 'bearish'} cross`,
     })
-  if (r?.confirmed)
+  const conf = barForClose(s.time, e.confirmed_at)
+  if (conf >= 0)
     out.push({
-      index: r.confirmed.index,
-      kind: r.cross?.direction === 'up' ? 'buy' : 'sell',
+      index: conf,
+      kind: up ? 'buy' : 'sell',
       confirmed: true,
       label: 'VWAP confirmed the cross',
     })
@@ -138,9 +178,10 @@ function fit() {
   <div class="cv" :class="{ 'is-tall': tall }">
     <div class="cv__bar">
       <div class="cv__id">
-        <span class="cv__sym">{{ instrument.trading_symbol || instrument.symbol }}</span>
+        <span class="cv__sym">{{ target.symbol }}</span>
         <span class="cv__name"
-          >{{ instrument.name || instrument.display_name }} · {{ instrument.exchange }}</span
+          >{{ target.name
+          }}<template v-if="target.exchange"> · {{ target.exchange }}</template></span
         >
       </div>
       <SegmentedControl v-model="tf" :options="tfOptions" size="sm" aria-label="Timeframe" />
@@ -154,9 +195,9 @@ function fit() {
       </span>
     </div>
     <p class="cv__key" aria-hidden="true">
-      <span>▲▼ EMA 8/32 cross</span>
-      <span v-if="tf !== '1d'">B / S VWAP confirmation</span>
-      <span v-else>Daily bars: no session VWAP</span>
+      <span>▲ ▼ EMA 8/32 cross candle</span>
+      <span>B / S VWAP confirmation candle</span>
+      <span v-if="tf === '1d'">Daily: no VWAP line</span>
     </p>
 
     <div class="cv__body">
@@ -184,24 +225,18 @@ function fit() {
           :overlays="overlays"
           :markers="markers"
           :height="tall ? 520 : 380"
-          :series-key="`${instrument.id}:${tf}`"
-          :label="`${instrument.symbol} ${tf} chart`"
+          :series-key="`${target.id}:${tf}`"
+          :label="`${target.symbol} ${tf} chart`"
         />
       </div>
       <aside class="cv__side">
-        <SignalDetail
-          :reading="reading"
-          :tf="tf"
-          :now="now"
-          :holding="holding"
-          :error="error"
-          compact
-        >
+        <p v-if="signalNote && !state" class="cv__note">{{ signalNote }}</p>
+        <SignalDetail :state="state" :event="event" :holding="holding" :now="now">
           <Button size="sm" variant="secondary" @click="emit('watchlist')">
             <Icon name="star" size="sm" />Add to watchlist
           </Button>
           <Button size="sm" variant="secondary" @click="emit('alert')">
-            <Icon name="bell" size="sm" />Create alert
+            <Icon name="bell" size="sm" />Alerts
           </Button>
         </SignalDetail>
       </aside>
@@ -221,6 +256,7 @@ function fit() {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2) var(--sp-3);
+  padding-right: 40px;
 }
 .cv__id {
   display: flex;
@@ -256,7 +292,7 @@ function fit() {
 }
 .cv__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 330px);
   gap: var(--sp-3);
   min-width: 0;
 }
@@ -269,14 +305,19 @@ function fit() {
   min-width: 0;
 }
 .cv__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
   min-width: 0;
   padding: var(--sp-3);
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-card);
   background: var(--theme-card);
 }
-.cv__side :deep(.ui-icon) {
-  margin-right: 4px;
+.cv__note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
 }
 .cv__empty {
   display: flex;
