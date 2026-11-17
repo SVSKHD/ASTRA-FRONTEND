@@ -439,38 +439,6 @@ const footer = computed(() => {
         :options="tfOptions"
       />
 
-      <!-- The indicators on the chart, in the bar's spare room: click to set periods. -->
-      <span class="sc__ind" role="group" aria-label="Indicators on the chart">
-        <span
-          v-for="d in defs"
-          :key="d.id"
-          class="sc__chip"
-          :class="{ 'is-editing': editing === d.id, 'is-off': intradayOnly(d.kind) && !intraday }"
-          :title="
-            intradayOnly(d.kind) && !intraday ? 'VWAP is drawn on intraday timeframes only' : ''
-          "
-        >
-          <button
-            type="button"
-            class="sc__chipLabel"
-            :aria-expanded="editing === d.id"
-            :aria-label="`Edit ${indicatorLabel(d)}`"
-            @click="toggleEdit(d.id)"
-          >
-            <span class="sc__dot" :style="{ background: colorCss(d.color) }" />
-            {{ indicatorLabel(d) }}
-          </button>
-          <button
-            type="button"
-            class="sc__chipX"
-            :aria-label="`Remove ${indicatorLabel(d)}`"
-            @click="removeIndicator(d.id)"
-          >
-            ×
-          </button>
-        </span>
-      </span>
-
       <span class="sc__barEnd">
         <MultiSelect
           v-model="picks"
@@ -490,6 +458,38 @@ const footer = computed(() => {
         >
           <Icon name="maximize" size="sm" />
         </IconButton>
+      </span>
+    </div>
+
+    <!-- The indicators on the chart, as pills under the bar: click one to set its periods. -->
+    <div v-if="defs.length" class="sc__ind" role="group" aria-label="Indicators on the chart">
+      <span
+        v-for="d in defs"
+        :key="d.id"
+        class="sc__chip"
+        :class="{ 'is-editing': editing === d.id, 'is-off': intradayOnly(d.kind) && !intraday }"
+        :title="
+          intradayOnly(d.kind) && !intraday ? 'VWAP is drawn on intraday timeframes only' : ''
+        "
+      >
+        <button
+          type="button"
+          class="sc__chipLabel"
+          :aria-expanded="editing === d.id"
+          :aria-label="`Edit ${indicatorLabel(d)}`"
+          @click="toggleEdit(d.id)"
+        >
+          <span class="sc__dot" :style="{ background: colorCss(d.color) }" />
+          {{ indicatorLabel(d) }}
+        </button>
+        <button
+          type="button"
+          class="sc__chipX"
+          :aria-label="`Remove ${indicatorLabel(d)}`"
+          @click="removeIndicator(d.id)"
+        >
+          ×
+        </button>
       </span>
     </div>
 
@@ -623,7 +623,6 @@ const footer = computed(() => {
 }
 .sc__ind {
   display: flex;
-  flex: 1 1 160px;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
