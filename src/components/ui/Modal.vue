@@ -21,7 +21,7 @@ const props = withDefaults(
   defineProps<{
     open: boolean
     title: string
-    size?: 'sm' | 'md' | 'lg' | 'full'
+    size?: 'sm' | 'md' | 'lg' | 'wide' | 'full'
     resizable?: boolean
   }>(),
   {
@@ -232,6 +232,18 @@ function onKeydown(event: KeyboardEvent) {
 }
 .ui-modal--lg {
   width: min(92vw, 760px);
+}
+/* A large viewer (a chart): most of the window, the body filling it. */
+.ui-modal--wide {
+  width: min(90vw, 1500px);
+  height: min(88dvh, 980px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+.ui-modal--wide .ui-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 /* A workspace, not a dialog: a backtest replay, a full trade log. Nearly the
    whole window, with the body filling it and scrolling inside. */
