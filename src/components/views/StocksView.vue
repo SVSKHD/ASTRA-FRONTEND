@@ -37,6 +37,7 @@ import MarketPanel from '@/components/trading/MarketPanel.vue'
 import StockRow from '@/components/stocks/StockRow.vue'
 import StockDetail from '@/components/stocks/StockDetail.vue'
 import StocksExplore from '@/components/stocks/StocksExplore.vue'
+import MarketClock from '@/components/stocks/MarketClock.vue'
 import { remember } from '@/trading/resolve'
 import { connect } from '@/trading/stream'
 import { allInstruments, watchlistStore } from '@/trading/watchlists'
@@ -254,7 +255,12 @@ const splitLayout = pxify({
       <template v-if="!isMobile" #left>
         <SegmentedControl v-model="mode" :options="MODES" size="sm" aria-label="Stocks view" />
       </template>
+      <template v-if="!isMobile" #right>
+        <MarketClock :now="now" />
+      </template>
     </PanelHeader>
+    <!-- On a phone, the market's clock gets its own line under the title. -->
+    <MarketClock v-if="isMobile" class="sv__clock" :now="now" compact />
     <!-- On a phone the header has no room beside the title: the switch sits under it. -->
     <SegmentedControl
       v-if="isMobile"
@@ -457,6 +463,10 @@ const splitLayout = pxify({
 </template>
 
 <style scoped>
+.sv__clock {
+  margin: 0 10px var(--sp-2);
+  width: calc(100% - 20px);
+}
 .sv__modes {
   margin: 0 10px var(--sp-3);
   width: calc(100% - 20px);
