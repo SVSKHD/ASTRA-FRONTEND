@@ -18,6 +18,7 @@ import Icon from '@/components/ui/Icon.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import Select from '@/components/ui/Select.vue'
+import MultiSelect from '@/components/ui/MultiSelect.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import SegmentedControl from '@/components/ui/SegmentedControl.vue'
 import CandleChart, { type ChartGroup } from '@/components/trading/CandleChart.vue'
@@ -27,7 +28,6 @@ import { marketOpen } from '@/trading/dhanHealth'
 import { chartPath } from '@/trading/sections'
 import {
   EMA_PRESETS,
-  KINDS,
   PALETTE,
   cleanParams,
   colorCss,
@@ -35,7 +35,6 @@ import {
   kindInfo,
   toNumbers,
   type ColorKey,
-  type StudyKind,
 } from '@/trading/studies'
 import { must } from '@/trading/useLoad'
 import { ago } from '@/trading/format'
@@ -43,7 +42,6 @@ import {
   HISTORIC,
   INDICATORS_KEY,
   INDICATORS_V1_KEY,
-  MAX_INDICATORS,
   RANGES,
   TF_LABEL,
   barsFor,
@@ -53,7 +51,9 @@ import {
   indicatorLabel,
   intradayOnly,
   mergeTick,
-  newIndicator,
+  applyPicks,
+  indicatorOptions,
+  indicatorSig,
   parseIndicators,
   resolveTf,
   sameCandles,
@@ -147,18 +147,18 @@ const defs = ref<IndicatorDef[]>(
 )
 watch(defs, (d) => writeLocal(INDICATORS_KEY, JSON.stringify(d)), { deep: true })
 const editing = ref<string | null>(null)
-const adding = ref(false)
-const addKind = ref<StudyKind>('ema')
-const kindOptions = KINDS.map((k) => ({ value: k.kind, label: k.label }))
 const edited = computed(() => defs.value.find((d) => d.id === editing.value) ?? null)
 
-function addIndicator() {
-  if (defs.value.length >= MAX_INDICATORS) return
-  const d = newIndicator(addKind.value, defs.value)
-  defs.value = [...defs.value, d]
-  adding.value = false
-  editing.value = kindInfo(d.kind).params.length ? d.id : null
-}
+// The picker (a MultiSelect): the usual indicators by group; any other period is
+// set by clicking its chip.
+const pickOptions = computed(() => indicatorOptions(defs.value))
+const picks = computed({
+  get: () => defs.value.map(indicatorSig),
+  set: (next: string[]) => {
+    defs.value = applyPicks(defs.value, next)
+    if (editing.value && !defs.value.some((d) => d.id === editing.value)) editing.value = null
+  },
+})
 function removeIndicator(id: string) {
   defs.value = defs.value.filter((d) => d.id !== id)
   if (editing.value === id) editing.value = null
@@ -204,7 +204,6 @@ function setColor(id: string, color: ColorKey) {
   defs.value = defs.value.map((d) => (d.id === id ? { ...d, color } : d))
 }
 function toggleEdit(id: string) {
-  adding.value = false
   editing.value = editing.value === id ? null : id
 }
 
@@ -439,7 +438,49 @@ const footer = computed(() => {
         aria-label="Timeframe"
         :options="tfOptions"
       />
+
+      <!-- The indicators on the chart, in the bar's spare room: click to set periods. -->
+      <span class="sc__ind" role="group" aria-label="Indicators on the chart">
+        <span
+          v-for="d in defs"
+          :key="d.id"
+          class="sc__chip"
+          :class="{ 'is-editing': editing === d.id, 'is-off': intradayOnly(d.kind) && !intraday }"
+          :title="
+            intradayOnly(d.kind) && !intraday ? 'VWAP is drawn on intraday timeframes only' : ''
+          "
+        >
+          <button
+            type="button"
+            class="sc__chipLabel"
+            :aria-expanded="editing === d.id"
+            :aria-label="`Edit ${indicatorLabel(d)}`"
+            @click="toggleEdit(d.id)"
+          >
+            <span class="sc__dot" :style="{ background: colorCss(d.color) }" />
+            {{ indicatorLabel(d) }}
+          </button>
+          <button
+            type="button"
+            class="sc__chipX"
+            :aria-label="`Remove ${indicatorLabel(d)}`"
+            @click="removeIndicator(d.id)"
+          >
+            ×
+          </button>
+        </span>
+      </span>
+
       <span class="sc__barEnd">
+        <MultiSelect
+          v-model="picks"
+          class="sc__picker"
+          size="sm"
+          display="count"
+          label="Indicators"
+          icon="chart-line"
+          :options="pickOptions"
+        />
         <span v-if="isOpen && streaming" class="sc__live" aria-hidden="true">LIVE</span>
         <IconButton
           label="Open the full chart: every indicator, drawing room, full screen"
@@ -452,52 +493,7 @@ const footer = computed(() => {
       </span>
     </div>
 
-    <div class="sc__ind" role="group" aria-label="Indicators">
-      <span
-        v-for="d in defs"
-        :key="d.id"
-        class="sc__chip is-on"
-        :class="{ 'is-editing': editing === d.id, 'is-off': intradayOnly(d.kind) && !intraday }"
-        :title="
-          intradayOnly(d.kind) && !intraday ? 'VWAP is drawn on intraday timeframes only' : ''
-        "
-      >
-        <button
-          type="button"
-          class="sc__chipLabel"
-          :aria-expanded="editing === d.id"
-          :aria-label="`Edit ${indicatorLabel(d)}`"
-          @click="toggleEdit(d.id)"
-        >
-          <span class="sc__dot" :style="{ background: colorCss(d.color) }" />
-          {{ indicatorLabel(d) }}
-        </button>
-        <button
-          type="button"
-          class="sc__chipX"
-          :aria-label="`Remove ${indicatorLabel(d)}`"
-          @click="removeIndicator(d.id)"
-        >
-          ×
-        </button>
-      </span>
-      <button
-        v-if="defs.length < MAX_INDICATORS"
-        type="button"
-        class="sc__chip sc__add"
-        :aria-expanded="adding"
-        @click="((adding = !adding), (editing = null))"
-      >
-        + Indicator
-      </button>
-    </div>
-
-    <div v-if="adding" class="sc__edit">
-      <Select v-model="addKind" size="sm" aria-label="Indicator" :options="kindOptions" />
-      <Button size="sm" variant="secondary" @click="addIndicator()">Add</Button>
-      <Button size="sm" variant="ghost" @click="adding = false">Cancel</Button>
-    </div>
-    <div v-else-if="edited" class="sc__edit" :aria-label="`${indicatorLabel(edited)} settings`">
+    <div v-if="edited" class="sc__edit" :aria-label="`${indicatorLabel(edited)} settings`">
       <label v-for="(p, i) in kindInfo(edited.kind).params" :key="p.label" class="sc__field">
         <span>{{ p.label }}</span>
         <NumberInput
@@ -627,8 +623,14 @@ const footer = computed(() => {
 }
 .sc__ind {
   display: flex;
+  flex: 1 1 160px;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+.sc__picker {
+  width: 150px;
 }
 .sc__chip {
   display: inline-flex;
@@ -646,7 +648,7 @@ const footer = computed(() => {
     color var(--dur-fast) ease,
     border-color var(--dur-fast) ease;
 }
-.sc__chip.is-on {
+.sc__ind .sc__chip {
   background: color-mix(in oklch, var(--theme-accent) 10%, transparent);
   color: var(--theme-text);
 }
@@ -679,13 +681,6 @@ const footer = computed(() => {
 .sc__chipX:hover {
   color: var(--theme-danger);
 }
-.sc__add {
-  padding: 0 10px;
-  cursor: pointer;
-}
-.sc__add:hover {
-  color: var(--theme-text);
-}
 .sc__dot {
   width: 8px;
   height: 8px;
@@ -693,7 +688,6 @@ const footer = computed(() => {
 }
 .sc__chipLabel:focus-visible,
 .sc__chipX:focus-visible,
-.sc__add:focus-visible,
 .sc__preset:focus-visible,
 .sc__swatch:focus-visible {
   outline: 2px solid var(--theme-accent);

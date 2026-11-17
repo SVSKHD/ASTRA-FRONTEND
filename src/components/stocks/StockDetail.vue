@@ -77,6 +77,7 @@ const facts = computed(() => {
         </div>
       </div>
 
+      <!-- The price sits on the name's row, to the right: one glance, no wasted line. -->
       <div v-if="last" class="sd__price">
         <span class="sd__last">₹{{ dec(last, 2) }}</span>
         <span v-if="row.change" class="sd__change" :class="row.change.up ? 'is-up' : 'is-down'">
@@ -84,6 +85,15 @@ const facts = computed(() => {
           {{ row.change.up ? '+' : '' }}{{ dec(row.change.change, 2) }} ({{
             row.change.up ? '+' : ''
           }}{{ row.change.pct }}%) today
+        </span>
+        <span
+          v-if="row.quote"
+          class="sd__fresh"
+          :class="row.quote.source === 'stream' ? 'is-live' : ''"
+        >
+          <span class="sd__dot" />
+          <template v-if="row.quote.source === 'stream'">Live</template>
+          <template v-else>Price from {{ ago(row.quote.at, now) }}</template>
         </span>
       </div>
       <div v-else class="sd__noprice">
@@ -95,15 +105,6 @@ const facts = computed(() => {
           }}</span>
         </div>
       </div>
-      <span
-        v-if="row.quote && last"
-        class="sd__fresh"
-        :class="row.quote.source === 'stream' ? 'is-live' : ''"
-      >
-        <span class="sd__dot" />
-        <template v-if="row.quote.source === 'stream'">Live</template>
-        <template v-else>Price from {{ ago(row.quote.at, now) }}</template>
-      </span>
       <p v-if="row.flag && row.flag.tone !== 'neutral'" class="sd__flag">{{ row.flag.text }}</p>
     </section>
 
@@ -209,10 +210,20 @@ const facts = computed(() => {
 .sd__noprice span {
   font-size: var(--text-sm);
 }
+/* Name on the left, price on the right; they stack only when there is no room. */
 .sd__hero {
   display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+}
+.sd__hero > .sd__id {
+  flex: 1 1 220px;
+}
+.sd__hero > .sd__noprice,
+.sd__hero > .sd__flag {
+  flex: 1 1 100%;
 }
 .sd__id {
   display: flex;
@@ -252,10 +263,11 @@ const facts = computed(() => {
 }
 .sd__price {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-  margin-top: var(--sp-2);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  text-align: right;
 }
 .sd__last {
   font-size: var(--text-2xl);

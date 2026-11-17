@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_INDICATORS,
   MAX_BARS,
+  applyPicks,
+  indicatorOptions,
+  indicatorSig,
   MIN_BARS,
   barsFor,
   cacheCandles,
@@ -162,5 +165,19 @@ describe('sameCandles / stableCandles', () => {
     expect(keep([c('2026-11-13T04:28:00Z', '100')])).toBe(first)
     const moved = [c('2026-11-13T04:28:00Z', '102')]
     expect(keep(moved)).toBe(moved)
+  })
+})
+
+describe('indicator picker', () => {
+  it('offers the presets, and your own periods under their own group', () => {
+    const opts = indicatorOptions([{ id: 'x', kind: 'ema', params: [13], color: 'accent' }])
+    expect(opts.find((o) => o.value === 'ema:20')?.group).toBe('Moving averages')
+    expect(opts.at(-1)).toEqual({ value: 'ema:13', label: 'EMA 13', group: 'Your periods' })
+  })
+  it('keeps what stays, adds what was picked, drops what was not', () => {
+    const next = applyPicks(DEFAULT_INDICATORS, ['ema:20', 'rsi:14', 'macd:12,26,9'])
+    expect(next.map(indicatorSig)).toEqual(['ema:20', 'rsi:14', 'macd:12,26,9'])
+    expect(next[0]).toBe(DEFAULT_INDICATORS[1])
+    expect(new Set(next.map((d) => d.id)).size).toBe(3)
   })
 })

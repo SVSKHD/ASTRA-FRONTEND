@@ -101,6 +101,10 @@ const props = withDefaults(
   },
 )
 
+/** How to drive the chart, behind the info mark in the toolbar. */
+const HELP =
+  'Drag to pan · Shift + drag (or the ruler) to measure · wheel or pinch to zoom · ← → + − Home End. Hollow candle = close above open, filled = close below open.'
+
 const AXIS_W = 64
 const TIME_H = 22
 const GAP = 6
@@ -709,58 +713,69 @@ defineExpose({ view, setView: (v: View) => (view.value = clampView(v, total.valu
     :class="{ 'is-fs': fullscreen, 'is-css-fs': cssFull, 'is-measuring': rulerArmed }"
     :aria-label="label"
   >
-    <div class="cc__tools" role="toolbar" :aria-label="`${label} view`">
-      <span class="cc__hint"
-        >Drag to pan · Shift + drag to measure · wheel or pinch to zoom · ← → + − Home End</span
-      >
-      <IconButton
-        :label="
-          ruler || rulerArmed
-            ? 'Put the ruler away'
-            : 'Measure: drag from one price to another (or Shift + drag)'
-        "
-        size="sm"
-        :active="rulerArmed || !!ruler"
-        @click="toggleRuler"
-      >
-        <Icon name="ruler" size="sm" />
-      </IconButton>
-      <IconButton label="Zoom out" size="sm" @click="zoom(1.25)">
-        <Icon name="zoom-out" size="sm" />
-      </IconButton>
-      <IconButton label="Zoom in" size="sm" @click="zoom(0.8)">
-        <Icon name="zoom-in" size="sm" />
-      </IconButton>
-      <IconButton label="Show latest candles" size="sm" @click="reset">
-        <Icon name="refresh-cw" size="sm" />
-      </IconButton>
-      <IconButton
-        :label="fullscreen ? 'Exit full screen' : 'Full screen'"
-        size="sm"
-        :active="fullscreen"
-        @click="toggleFullscreen"
-      >
-        <Icon :name="fullscreen ? 'minimize' : 'maximize'" size="sm" />
-      </IconButton>
-    </div>
-
-    <div class="cc__legend" aria-hidden="false">
-      <span class="cc__legend-key">Hollow = close above open · filled = close below open</span>
-      <span v-for="g in legend.overlays" :key="g.id" class="cc__legend-item">
-        <span v-for="v in g.values" :key="v.key" class="cc__legend-val">
-          <span
-            class="cc__swatch"
-            :class="{ 'is-dashed': v.dashed }"
-            :style="{ '--swatch': v.color }"
-            aria-hidden="true"
-          ></span>
-          {{ g.values.length > 1 ? `${g.label} ${v.label}` : g.label }}
-          <span class="tp-num">{{ v.text }}</span>
+    <!-- One row: the price overlays' values on the left, the tools on the right.
+         How to drive the chart sits behind the info mark rather than on a line of its own. -->
+    <div class="cc__head">
+      <div class="cc__legend" aria-hidden="false">
+        <span
+          v-for="g in legend.overlays"
+          :key="g.id"
+          class="cc__legend-item"
+          :title="
+            g.source
+              ? `${g.label}: ${g.source === 'server' ? 'stored on the server' : 'calculated in the browser'}`
+              : g.label
+          "
+        >
+          <span v-for="v in g.values" :key="v.key" class="cc__legend-val">
+            <span
+              class="cc__swatch"
+              :class="{ 'is-dashed': v.dashed }"
+              :style="{ '--swatch': v.color }"
+              aria-hidden="true"
+            ></span>
+            {{ g.values.length > 1 ? `${g.label} ${v.label}` : g.label }}
+            <span class="tp-num">{{ v.text }}</span>
+          </span>
+          <span v-if="g.source" class="cc__sr">{{
+            g.source === 'server' ? '(server)' : '(browser)'
+          }}</span>
         </span>
-        <span v-if="g.source" class="cc__src">{{
-          g.source === 'server' ? 'server' : 'browser'
-        }}</span>
-      </span>
+      </div>
+      <div class="cc__tools" role="toolbar" :aria-label="`${label} view`">
+        <span class="cc__info" tabindex="0" role="note" :title="HELP" :aria-label="HELP">
+          <Icon name="info" size="sm" />
+        </span>
+        <IconButton
+          :label="
+            ruler || rulerArmed
+              ? 'Put the ruler away'
+              : 'Measure: drag from one price to another (or Shift + drag)'
+          "
+          size="sm"
+          :active="rulerArmed || !!ruler"
+          @click="toggleRuler"
+        >
+          <Icon name="ruler" size="sm" />
+        </IconButton>
+        <IconButton label="Zoom out" size="sm" @click="zoom(1.25)">
+          <Icon name="zoom-out" size="sm" />
+        </IconButton>
+        <IconButton label="Zoom in" size="sm" @click="zoom(0.8)">
+          <Icon name="zoom-in" size="sm" />
+        </IconButton>
+        <IconButton label="Show latest candles" size="sm" @click="reset">
+          <Icon name="refresh-cw" size="sm" />
+        </IconButton>
+        <IconButton
+          :label="fullscreen ? 'Exit full screen' : 'Full screen'"
+          size="sm"
+          :active="fullscreen"
+          @click="toggleFullscreen"
+        >
+          <Icon :name="fullscreen ? 'minimize' : 'maximize'" size="sm" />
+        </IconButton>
+      </div>
     </div>
 
     <div
@@ -1013,13 +1028,36 @@ defineExpose({ view, setView: (v: View) => (view.value = clampView(v, total.valu
   inset: 0;
   z-index: 1000;
 }
+.cc__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  min-width: 0;
+}
+.cc__head > .cc__legend {
+  flex: 1 1 200px;
+}
 .cc__tools {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--sp-1);
-  flex-wrap: wrap;
+  margin-left: auto;
   min-width: 0;
+}
+.cc__info {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: help;
+}
+.cc__info:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
 }
 .cc__hint {
   margin-right: auto;

@@ -292,6 +292,70 @@ export function newIndicator(kind: StudyKind, existing: readonly IndicatorDef[])
   return { id: `${kind}-${n}`, kind, params, color }
 }
 
+// --- the picker ---------------------------------------------------------------------
+
+/** What the indicator picker offers, by group; any other period is set on the chip. */
+export const INDICATOR_PRESETS: { kind: StudyKind; params: number[]; group: string }[] = [
+  ...[8, 9, 20, 21, 50, 100, 200].map((n) => ({
+    kind: 'ema' as const,
+    params: [n],
+    group: 'Moving averages',
+  })),
+  ...[20, 50, 200].map((n) => ({ kind: 'sma' as const, params: [n], group: 'Moving averages' })),
+  { kind: 'vwap', params: [], group: 'Price levels' },
+  { kind: 'bb', params: [20, 2], group: 'Price levels' },
+  { kind: 'rsi', params: [14], group: 'Oscillators' },
+  { kind: 'macd', params: [12, 26, 9], group: 'Oscillators' },
+  { kind: 'atr', params: [14], group: 'Oscillators' },
+  { kind: 'adx', params: [14], group: 'Oscillators' },
+]
+
+/** One indicator's identity in the picker: its kind and periods ("ema:20"). */
+export function indicatorSig(d: Pick<IndicatorDef, 'kind' | 'params'>): string {
+  return `${d.kind}:${d.params.join(',')}`
+}
+
+/** The picker's options: the presets, then any indicator of yours with other periods. */
+export function indicatorOptions(
+  defs: readonly IndicatorDef[],
+): { value: string; label: string; group: string }[] {
+  const out = INDICATOR_PRESETS.map((p) => ({
+    value: indicatorSig(p),
+    label: studyLabel(p),
+    group: p.group,
+  }))
+  const known = new Set(out.map((o) => o.value))
+  for (const d of defs) {
+    const sig = indicatorSig(d)
+    if (known.has(sig)) continue
+    known.add(sig)
+    out.push({ value: sig, label: studyLabel(d), group: 'Your periods' })
+  }
+  return out
+}
+
+/**
+ * The picker's new selection → the indicator list: kept ones stay as they are
+ * (colour, id), picked ones are added with a free colour, up to MAX_INDICATORS.
+ */
+export function applyPicks(
+  defs: readonly IndicatorDef[],
+  picks: readonly string[],
+): IndicatorDef[] {
+  const want = new Set(picks)
+  const out = defs.filter((d) => want.has(indicatorSig(d)))
+  const have = new Set(out.map(indicatorSig))
+  for (const sig of picks) {
+    if (have.has(sig) || out.length >= MAX_INDICATORS) continue
+    const [kind, raw = ''] = sig.split(':') as [StudyKind, string?]
+    if (!INDICATOR_KINDS.includes(kind)) continue
+    const params = cleanParams(kind, raw ? raw.split(',').map(Number) : [])
+    out.push({ ...newIndicator(kind, out), params })
+    have.add(sig)
+  }
+  return out
+}
+
 /**
  * Saved indicators, each checked: unknown kinds dropped, periods clamped. With
  * nothing saved, the first version's toggles carry over, else EMA 8 and EMA 20.
