@@ -70,6 +70,9 @@ const ALLOWED = new Set([
   'components/stocks/Sparkline.vue',
   // A data chart (candles + EMA lines), not an icon — like the sparkline above.
   'components/trading/CandleChart.vue',
+  //   BacktestReplay      a backtest's equity curve as a step line — geometry
+  //                       computed from the closed trades, like the sparkline
+  'components/trading/BacktestReplay.vue',
 ])
 
 // The trade family (section 28b) is the one place a second set is allowed, and
