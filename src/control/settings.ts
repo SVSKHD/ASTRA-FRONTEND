@@ -37,7 +37,7 @@ export const CATEGORY_NOTE: Record<string, string> = {
   dhan: 'The broker connection, read-only. Connect logs in on Dhan’s own page; the manual access token is only a fallback.',
   github: 'The token for the GitHub modules and the coding agent.',
   discord: 'Where alerts and approval requests are posted.',
-  mt5: 'The token the MT5 bot pushes with.',
+  mt5: 'The tokens the MT5 bot pushes with: the ingest token (older bot) and the records token (bot 1.7.x).',
 }
 
 // --- groups ---------------------------------------------------------------------------------
@@ -45,6 +45,8 @@ export const CATEGORY_NOTE: Record<string, string> = {
 export interface GroupSpec {
   title: string
   keys: string[]
+  /** A line under the card's title, for what the fields alone do not say. */
+  hint?: string
 }
 
 /**
@@ -135,12 +137,25 @@ export const GROUPS: Record<string, GroupSpec[]> = {
   ],
   github: [{ title: 'Credentials', keys: ['GITHUB_TOKEN'] }],
   discord: [{ title: 'Alerts', keys: ['DISCORD_WEBHOOK_URL'] }],
-  mt5: [{ title: 'Bot', keys: ['MT5_INGEST_TOKEN'] }],
+  mt5: [
+    { title: 'Bot', keys: ['MT5_INGEST_TOKEN'] },
+    {
+      title: 'Records',
+      keys: [
+        'MT5_RECORDS_TOKEN',
+        'MT5_RECORDS_MAX_BATCH',
+        'MT5_RECORDS_RATE_PER_MINUTE',
+        'MT5_RECORDS_RETENTION_DAYS',
+      ],
+      hint: "Must be different from the ingest token. Put the same value in the bot's .env as ASSEMBLER_RECORDS_TOKEN.",
+    },
+  ],
 }
 
 export interface FieldGroup {
   title: string
   rows: SettingRow[]
+  hint?: string
 }
 
 /** A category's rows in its cards, in the map's order; unknown keys go to "Other". */
@@ -153,7 +168,12 @@ export function groupRows(category: string, rows: SettingRow[]): FieldGroup[] {
       .map((k) => rows.find((r) => r.key === k))
       .filter((r): r is SettingRow => !!r)
     groupRowsOut.forEach((r) => placed.add(r.key))
-    if (groupRowsOut.length) out.push({ title: spec.title, rows: groupRowsOut })
+    if (groupRowsOut.length)
+      out.push({
+        title: spec.title,
+        rows: groupRowsOut,
+        ...(spec.hint ? { hint: spec.hint } : {}),
+      })
   }
   const rest = rows.filter((r) => !placed.has(r.key))
   if (rest.length) out.push({ title: 'Other', rows: rest })
@@ -181,6 +201,10 @@ const LABEL: Record<string, string> = {
   GITHUB_TOKEN: 'GitHub token',
   DISCORD_WEBHOOK_URL: 'Webhook URL',
   MT5_INGEST_TOKEN: 'Ingest token',
+  MT5_RECORDS_TOKEN: 'Records token',
+  MT5_RECORDS_MAX_BATCH: 'Max rows per upload',
+  MT5_RECORDS_RATE_PER_MINUTE: 'Uploads per minute',
+  MT5_RECORDS_RETENTION_DAYS: 'Keep records (days, 0 = forever)',
   DHAN_CLIENT_ID: 'Client ID',
   DHAN_API_KEY: 'API key',
   DHAN_API_SECRET: 'API secret',

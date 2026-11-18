@@ -90,6 +90,40 @@ describe('groupRows', () => {
   })
 })
 
+describe('MT5 cards', () => {
+  it('gives the records settings their own card, with its hint', () => {
+    const rows = [
+      row('MT5_RECORDS_RETENTION_DAYS', 'mt5', 'int'),
+      row('MT5_INGEST_TOKEN', 'mt5', 'secret'),
+      row('MT5_RECORDS_TOKEN', 'mt5', 'secret'),
+      row('MT5_RECORDS_MAX_BATCH', 'mt5', 'int'),
+      row('MT5_RECORDS_RATE_PER_MINUTE', 'mt5', 'int'),
+    ]
+    const groups = groupRows('mt5', rows)
+    expect(groups.map((g) => [g.title, g.rows.map((r) => r.key)])).toEqual([
+      ['Bot', ['MT5_INGEST_TOKEN']],
+      [
+        'Records',
+        [
+          'MT5_RECORDS_TOKEN',
+          'MT5_RECORDS_MAX_BATCH',
+          'MT5_RECORDS_RATE_PER_MINUTE',
+          'MT5_RECORDS_RETENTION_DAYS',
+        ],
+      ],
+    ])
+    expect(groups[0].hint).toBeUndefined()
+    expect(groups[1].hint).toContain('ASSEMBLER_RECORDS_TOKEN')
+  })
+
+  it('labels the records settings', () => {
+    expect(labelOf('MT5_RECORDS_TOKEN')).toBe('Records token')
+    expect(labelOf('MT5_RECORDS_MAX_BATCH')).toBe('Max rows per upload')
+    expect(labelOf('MT5_RECORDS_RATE_PER_MINUTE')).toBe('Uploads per minute')
+    expect(labelOf('MT5_RECORDS_RETENTION_DAYS')).toBe('Keep records (days, 0 = forever)')
+  })
+})
+
 describe('labels and units', () => {
   it('names keys for people', () => {
     expect(labelOf('ANTHROPIC_API_KEY')).toBe('Anthropic API key')
