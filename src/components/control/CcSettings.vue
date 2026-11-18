@@ -471,6 +471,7 @@ async function saveAndLeave() {
           :data-group="g.title"
           @toggle="toggleGroup(g.title, $event)"
         >
+          <p v-if="g.hint" class="cs__hint">{{ g.hint }}</p>
           <ul class="cs__rows">
             <SettingField
               v-for="row in g.rows"
@@ -582,6 +583,11 @@ async function saveAndLeave() {
 }
 .cs__test-msg.is-error {
   color: var(--theme-danger);
+}
+.cs__hint {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-xs);
+  color: var(--theme-dim);
 }
 .cs__rows {
   margin: 0;
