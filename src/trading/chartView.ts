@@ -106,6 +106,74 @@ export function atLatest(v: View, total: number): boolean {
   return v.end >= total
 }
 
+/** Index of `t` in ascending `times`, or -1. */
+export function indexOf(times: readonly number[], t: number): number {
+  let lo = 0
+  let hi = times.length - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (times[mid] === t) return mid
+    if (times[mid] < t) lo = mid + 1
+    else hi = mid - 1
+  }
+  return -1
+}
+
+/**
+ * The same series, re-read: keep the candles the person was looking at on screen.
+ * A refresh of a fixed-size window drops the oldest candle as a new one arrives,
+ * so indices shift; this moves the view with them, and keeps following the newest
+ * candle when it was. Null when the two reads share no candle (start over).
+ */
+export function carryView(v: View, prev: readonly number[], next: readonly number[]): View | null {
+  if (!prev.length || !next.length) return null
+  // A candle at old index i sits at i + shift now.
+  let shift = indexOf(next, prev[0])
+  if (shift < 0) {
+    // The old first candle fell off the front: find the new first in the old read.
+    const back = indexOf(prev, next[0])
+    if (back < 0) return null
+    shift = -back
+  }
+  const moved = { start: v.start + shift, end: v.end + shift }
+  const appended = next.length - (prev.length + shift)
+  const follow = atLatest(v, prev.length) && appended > 0
+  return follow ? panView(moved, appended, next.length) : clampView(moved, next.length)
+}
+
+export interface Measure {
+  /** Price moved, in points (B minus A). */
+  change: number
+  /** The same as a percentage of A. */
+  pct: number
+  /** Candles from A to B (negative when B is left of A). */
+  bars: number
+  /** Those candles as trading time: "1h 30m", "18d". */
+  span: string
+}
+
+/** The ruler: from price `a` at candle `ia` to price `b` at candle `ib`. */
+export function measureOf(a: number, b: number, ia: number, ib: number, tf: Timeframe): Measure {
+  const change = b - a
+  const bars = ib - ia
+  const secs = Math.abs(bars) * TF_SECONDS[tf]
+  let span: string
+  if (tf === '1d') span = `${Math.abs(bars)}d`
+  else {
+    const d = Math.floor(secs / 86400)
+    const h = Math.floor((secs % 86400) / 3600)
+    const m = Math.floor((secs % 3600) / 60)
+    span = [d ? `${d}d` : '', h ? `${h}h` : '', m ? `${m}m` : ''].filter(Boolean).join(' ') || '0m'
+  }
+  return { change, pct: a ? (change / a) * 100 : 0, bars, span }
+}
+
+/** "+12.35", "−4.10": a signed figure with a real minus sign. */
+export function signed(v: number, dp: number): string {
+  const s = Math.abs(v).toFixed(dp)
+  return Number(s) === 0 ? s : v > 0 ? `+${s}` : `−${s}`
+}
+
 /** A keyboard key → the next view, or null when the key is not the chart's. */
 export function keyView(v: View, key: string, total: number): View | null {
   const span = v.end - v.start

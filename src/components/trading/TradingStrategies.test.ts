@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia, setActivePinia } from 'pinia'
 
 vi.setConfig({ testTimeout: 20_000 })
 
@@ -162,7 +163,9 @@ async function mountStrategies(admin = true) {
     routes: [{ path: '/:p(.*)*', component: { template: '<div />' } }],
   })
   await router.push('/trading/strategies')
-  const w = mount(C, { global: { plugins: [router] }, attachTo: document.body })
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const w = mount(C, { global: { plugins: [router, pinia] }, attachTo: document.body })
   mounted.push(w)
   for (let i = 0; i < 3; i++) await flushPromises()
   return w

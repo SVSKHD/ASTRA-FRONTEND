@@ -366,3 +366,25 @@ describe('TagInput', () => {
     w.unmount()
   })
 })
+
+describe('MultiSelect count display', () => {
+  it('shows the label and how many are picked, not chips', () => {
+    const w = mount(MultiSelect, {
+      props: {
+        modelValue: ['a', 'b'],
+        options: [
+          { value: 'a', label: 'Apple' },
+          { value: 'b', label: 'Banana' },
+          { value: 'c', label: 'Cherry' },
+        ],
+        display: 'count',
+        label: 'Fruit',
+      },
+      attachTo: document.body,
+    })
+    expect(w.find('.ui-ms__chip').exists()).toBe(false)
+    expect(w.find('.ui-ms__count').text()).toBe('Fruit2')
+    expect(w.find('button').attributes('aria-label')).toBe('Fruit, 2 selected')
+    w.unmount()
+  })
+})

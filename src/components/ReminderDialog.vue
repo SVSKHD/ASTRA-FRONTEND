@@ -1,241 +1,238 @@
 <script setup lang="ts">
-import Select from '@/components/ui/Select.vue'
-import TextInput from '@/components/ui/TextInput.vue'
-import TextArea from '@/components/ui/TextArea.vue'
-import { computed } from 'vue'
+// The reminder dialog, for creating AND editing: both show the same labelled
+// form (ReminderForm), so a field is never on one and missing from the other.
+//
+// Create holds its values in the store's dialogDraft and commits on Add (a
+// mistyped reminder is never half-saved); a killed tab or a stray close keeps
+// the draft (useDraft) and offers it back. Edit writes through on each change,
+// so its main button only dismisses.
+import { computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useUiStore } from '@/stores/ui'
 import { useStyles } from '@/composables/useStyles'
-import { pxify, typeStep } from '@/styles'
-import { occurrences, buildGCalUrl } from '@/utils/reminders'
-import ReminderTimeline from '@/components/ReminderTimeline.vue'
-import type { Reminder, RepeatType } from '@/types'
-import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
+import { useDraft } from '@/composables/useDraft'
+import { dialogCard, pxify } from '@/styles'
+import Button from '@/components/ui/Button.vue'
+import IconButton from '@/components/ui/IconButton.vue'
+import Icon from '@/components/ui/Icon.vue'
+import DraftBanner from '@/components/DraftBanner.vue'
+import ReminderForm from '@/components/reminders/ReminderForm.vue'
+import ReminderCalendar from '@/components/reminders/ReminderCalendar.vue'
+import {
+  defaultStart,
+  draftPatch,
+  formFromDraft,
+  formFromReminder,
+  isReminderDone,
+  type ReminderFormValue,
+} from '@/utils/reminderView'
+import type { Reminder } from '@/types'
 
 const app = useAppStore()
 const ui = useUiStore()
 const { c, s } = useStyles()
-const { dialogReminderId, dialogClosing, reminders, calendarNeedsAuth } = storeToRefs(app)
+const { itemDialog, dialogDraft, dialogClosing, reminders } = storeToRefs(app)
 const { now } = storeToRefs(ui)
 
-const CAL_STATUS: Record<string, string> = {
-  synced: 'in Google Calendar',
-  pending: 'syncing…',
-  error: 'sync failed',
-  local: 'local only',
-}
-const calStatusLabel = computed(
-  () => CAL_STATUS[reminder.value?.calSync || 'local'] || 'local only',
-)
-
+const active = computed(() => (itemDialog.value?.type === 'reminder' ? itemDialog.value : null))
+const isCreate = computed(() => active.value?.mode === 'create')
 const reminder = computed<Reminder | undefined>(() =>
-  reminders.value.find((r) => r.id === dialogReminderId.value),
+  active.value?.mode === 'edit'
+    ? reminders.value.find((r) => r.id === active.value!.id)
+    : undefined,
 )
-const rep = computed(() => reminder.value?.repeat || { type: 'none' as RepeatType })
-const isInterval = computed(() => rep.value.type !== 'none' && rep.value.type !== 'weekdays')
-const isWeekdays = computed(() => rep.value.type === 'weekdays')
+const open = computed(() => isCreate.value || !!reminder.value)
 
-const dialogCardStyle = computed(() =>
-  pxify({
-    position: 'fixed',
-    top: '50%',
-    left: '50%',
-    zIndex: 16,
-    width: 'min(92vw,460px)',
-    maxHeight: '86vh',
-    overflowY: 'auto',
-    background: c.value.glass,
-    backdropFilter: 'blur(30px) saturate(1.6)',
-    border: '1px solid ' + c.value.border,
-    borderRadius: 'var(--radius-dialog)',
-    padding: 22,
-    boxShadow: c.value.shadow,
-    color: c.value.text,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--sp-4)',
-    animation: dialogClosing.value
-      ? 'springOut .22s ease forwards'
-      : 'springIn .4s cubic-bezier(.34,1.56,.64,1) both',
-  }),
+const value = computed<ReminderFormValue>(() =>
+  reminder.value ? formFromReminder(reminder.value) : formFromDraft(dialogDraft.value),
 )
 
-const weekdayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-function weekdayBtnStyle(i: number) {
-  const active = (rep.value.weekdays || []).indexOf(i) !== -1
-  return pxify({
-    width: 26,
-    height: 26,
-    borderRadius: '50%',
-    border: '1px solid ' + c.value.border,
-    ...typeStep('2xs'),
-    cursor: 'pointer',
-    background: active ? c.value.accent : 'transparent',
-    color: active ? c.value.onAccent : c.value.dim,
-  })
+// A new reminder starts at a sensible time rather than an empty picker.
+watch(
+  () => isCreate.value && !dialogDraft.value.start,
+  (blank) => {
+    if (blank) app.setDialogDraft('start', defaultStart(Date.now()))
+  },
+  { immediate: true },
+)
+
+function patch(p: Partial<ReminderFormValue>) {
+  if (isCreate.value) {
+    for (const [k, v] of Object.entries(draftPatch(p))) app.setDialogDraft(k, v)
+    return
+  }
+  const r = reminder.value
+  if (!r) return
+  for (const [k, v] of Object.entries(p)) {
+    if (k === 'addToCalendar') continue
+    app.updateReminder(r.id, k as keyof Reminder, v)
+  }
 }
 
-const nextLabel = computed(() => {
-  if (!reminder.value) return ''
-  const occ = occurrences(reminder.value, now.value)
-  return occ.next
-    ? new Date(occ.next).toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      })
-    : 'elapsed'
+// Draft resume for create, as ItemDialog does for every other type.
+const createType = () => (isCreate.value ? 'reminder' : '')
+const blank = () => (isCreate.value ? app.blankDraft('reminder') : {})
+const draft = useDraft(createType, null, dialogDraft, {
+  entityUpdatedAt: () => 0,
+  baseline: blank,
+  // The default time alone is not work worth keeping.
+  isEmpty: (p) => {
+    const d = p as Record<string, unknown>
+    return !String(d.title ?? '').trim() && !String(d.note ?? '').trim()
+  },
 })
 
-function updTitle(value: string) {
-  if (reminder.value) app.updateReminder(reminder.value.id, 'title', value)
+function save() {
+  if (isCreate.value) {
+    if (app.commitCreate()) draft.clear()
+  } else app.closeItemDialog()
 }
-function updNote(value: string) {
-  if (reminder.value) app.updateReminder(reminder.value.id, 'note', value)
+function close() {
+  if (isCreate.value) draft.flush()
+  app.closeItemDialog()
 }
-// The picker hands back the value itself rather than an event.
-function onStart(value: string) {
-  if (reminder.value) app.updateReminder(reminder.value.id, 'start', value)
-}
-function updRepeatType(value: string) {
-  if (!reminder.value) return
-  const type = value as RepeatType
-  app.updateReminder(reminder.value.id, 'repeat', {
-    type,
-    n: rep.value.n || 1,
-    weekdays: rep.value.weekdays || [],
-  })
-}
-function updRepeatN(value: string) {
-  if (!reminder.value) return
-  const n = parseInt(value) || 1
-  app.updateReminder(reminder.value.id, 'repeat', { ...rep.value, n })
-}
-function updPriority(value: string) {
-  if (reminder.value) app.updateReminder(reminder.value.id, 'priority', value)
-}
-function onCalLink() {
-  if (reminder.value) window.open(buildGCalUrl(reminder.value), '_blank')
-}
-// Fields already write through on input, so Update confirms and dismisses
-// rather than committing — Enter is bound to the same action so the keyboard
-// path matches the button.
 function onEnter(e: KeyboardEvent) {
-  // Enter is a newline in the notes textarea, and activates a focused button
-  // (weekday toggles, calendar actions) — in neither case is it a confirmation.
-  const tag = (e.target as HTMLElement).tagName
-  if (tag === 'TEXTAREA' || tag === 'BUTTON') return
+  const el = e.target as HTMLElement
+  if (el.tagName === 'TEXTAREA' || el.tagName === 'BUTTON' || el.isContentEditable) return
+  // The date picker takes Enter for its own typed entry.
+  if (el.closest('.glass-dp, [role="dialog"] [role="grid"]')) return
   e.preventDefault()
-  app.closeReminderDialog()
+  save()
 }
 function onDelete() {
-  if (!reminder.value) return
-  app.deleteWithUndo('reminders', 'reminder', reminder.value.id)
-  app.closeReminderDialog()
+  const r = reminder.value
+  if (!r) return
+  app.deleteWithUndo('reminders', 'reminder', r.id)
+  app.closeItemDialog()
 }
+function toggleDone() {
+  const r = reminder.value
+  if (!r) return
+  if (isReminderDone(r)) app.patchReminder(r.id, { acknowledgedAt: null, cancelledAt: null })
+  else app.acknowledgeReminder(r.id)
+}
+
+const cardStyle = computed(() =>
+  pxify({
+    ...dialogCard(c.value, dialogClosing.value),
+    width: 'min(94vw, 520px)',
+    gap: 'var(--sp-5)',
+  }),
+)
 </script>
 
 <template>
-  <template v-if="dialogReminderId != null && reminder">
-    <div :style="s.dialogOverlay" @click="app.closeReminderDialog()"></div>
-    <div :style="dialogCardStyle" @keydown.enter="onEnter" @keydown.esc="app.closeReminderDialog()">
-      <div :style="s.dialogHeader">
-        <TextInput :model-value="reminder.title" @update:model-value="updTitle" />
-        <button :style="s.del" @click="app.closeReminderDialog()">×</button>
-      </div>
-      <div :style="s.dialogRow">
-        <GlassDatePicker
-          mode="datetime"
-          size="sm"
-          :model-value="reminder.start"
-          placeholder="When"
-          @update:model-value="onStart(String($event ?? ''))"
-        />
-        <Select
-          :model-value="rep.type"
-          @update:model-value="updRepeatType"
-          :options="[
-            { value: 'none', label: 'One-off' },
-            { value: 'minutes', label: 'Every N minutes' },
-            { value: 'hours', label: 'Every N hours' },
-            { value: 'days', label: 'Every N days' },
-            { value: 'weeks', label: 'Every N weeks' },
-            { value: 'months', label: 'Every N months' },
-            { value: 'years', label: 'Every N years' },
-            { value: 'weekdays', label: 'Specific weekdays' },
-          ]"
-        />
-      </div>
-      <div v-if="isInterval" :style="s.dialogRow">
-        <TextInput
-          type="number"
-          min="1"
-          :model-value="rep.n || 1"
-          @update:model-value="updRepeatN"
-        />
-      </div>
-      <div v-if="isWeekdays" :style="s.weekdayRow">
-        <button
-          v-for="(nm, i) in weekdayNames"
-          :key="i"
-          :style="weekdayBtnStyle(i)"
-          @click="app.toggleWeekday(reminder.id, i)"
-        >
-          {{ nm }}
-        </button>
-      </div>
-      <TextArea placeholder="Notes…" :model-value="reminder.note" @update:model-value="updNote" />
-      <div :style="s.dialogRow">
-        <Select
-          :model-value="reminder.priority"
-          @update:model-value="updPriority"
-          :options="[
-            { value: 'high', label: 'High priority' },
-            { value: 'normal', label: 'Normal priority' },
-            { value: 'low', label: 'Low priority' },
-          ]"
-        />
-      </div>
-      <div :style="s.dialogGithub">
-        <span :style="s.finMeta">Upcoming dates</span>
-        <ReminderTimeline :reminder="reminder" :now="now" />
-      </div>
-      <div :style="s.dialogGithub">
-        <span :style="s.finMeta">Next: {{ nextLabel }} · {{ calStatusLabel }}</span>
-        <span v-if="calendarNeedsAuth" :style="s.finMeta">
-          Google Calendar access expired — reconnect to sync again.
+  <template v-if="active && open">
+    <div :style="s.dialogOverlay" @click="close()"></div>
+    <div
+      :style="cardStyle"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="isCreate ? 'New reminder' : 'Edit reminder'"
+      data-testid="reminder-dialog"
+      @keydown.enter="onEnter"
+      @keydown.esc="close()"
+    >
+      <div class="rd__head">
+        <span class="rd__icon"><Icon name="bell" size="md" /></span>
+        <span :style="s.dialogHeading">{{ isCreate ? 'New reminder' : 'Edit reminder' }}</span>
+        <span v-if="reminder && isReminderDone(reminder)" class="rd__state">
+          {{ reminder.cancelledAt != null ? 'Cancelled' : 'Done' }}
         </span>
-        <div :style="s.dialogActions">
-          <button v-if="calendarNeedsAuth" :style="s.saveBtn" @click="app.reconnectCalendar()">
-            Reconnect Calendar
-          </button>
-          <button
-            v-else-if="reminder.calEventId"
-            :style="s.editBtn"
-            @click="app.syncCalendar(reminder.id)"
-          >
-            Update event
-          </button>
-          <button v-else :style="s.editBtn" @click="app.syncCalendar(reminder.id)">
-            Add to Google Calendar
-          </button>
-          <button
-            v-if="reminder.calEventId"
-            :style="s.cancelBtn"
-            @click="app.unsyncCalendar(reminder.id)"
-          >
-            Remove from calendar
-          </button>
-          <button :style="s.editBtn" @click="onCalLink">Open in Google</button>
-        </div>
+        <IconButton class="rd__close" label="Close" size="sm" tone="default" @click="close()">
+          <Icon name="x" size="sm" />
+        </IconButton>
       </div>
-      <div :style="s.dialogActions">
-        <button :style="s.saveBtn" @click="app.closeReminderDialog()">Update</button>
-        <button :style="s.editBtn" @click="app.share('reminder', reminder)">Share</button>
-        <button :style="s.cancelBtn" @click="onDelete">Delete</button>
+
+      <DraftBanner
+        v-if="isCreate && draft.hasDraft.value"
+        :restored-at="draft.restoredAt.value"
+        :from-other-device="draft.fromOtherDevice.value"
+        @use="draft.applyDraft()"
+        @ignore="draft.ignore()"
+        @discard="draft.discard()"
+      />
+
+      <ReminderForm
+        :value="value"
+        :now="now"
+        :create="isCreate"
+        :autofocus="isCreate"
+        @patch="patch"
+      >
+        <template v-if="reminder" #calendar>
+          <ReminderCalendar :reminder="reminder" />
+        </template>
+      </ReminderForm>
+
+      <div class="rd__foot">
+        <template v-if="reminder">
+          <Button variant="ghost" size="sm" class="rd__del" @click="onDelete">
+            <Icon name="trash" size="sm" />Delete
+          </Button>
+          <Button variant="ghost" size="sm" @click="app.share('reminder', reminder)">
+            <Icon name="share-2" size="sm" />Share
+          </Button>
+          <span class="rd__spacer" />
+          <Button variant="secondary" size="sm" @click="toggleDone">
+            <Icon :name="isReminderDone(reminder) ? 'rotate-ccw' : 'check'" size="sm" />
+            {{ isReminderDone(reminder) ? 'Reopen' : 'Mark done' }}
+          </Button>
+          <Button size="sm" @click="save">Done</Button>
+        </template>
+        <template v-else>
+          <span class="rd__spacer" />
+          <Button variant="ghost" size="sm" @click="close()">Cancel</Button>
+          <Button size="sm" data-testid="reminder-add" @click="save">
+            <Icon name="plus" size="sm" />Add reminder
+          </Button>
+        </template>
       </div>
     </div>
   </template>
 </template>
+
+<style scoped>
+.rd__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.rd__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: color-mix(in oklch, var(--theme-accent) 22%, transparent);
+  color: var(--theme-accent);
+}
+.rd__state {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-dim);
+}
+.rd__close {
+  margin-left: auto;
+}
+.rd__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.rd__spacer {
+  flex: 1;
+}
+.rd__foot :deep(.ui-icon) {
+  margin-right: 6px;
+}
+.rd__del {
+  color: var(--theme-danger);
+}
+</style>

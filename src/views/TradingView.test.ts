@@ -830,6 +830,7 @@ describe('TradingView — Stock Screener navigation', () => {
         'Market Explorer',
         'Charts & Indicators',
         'Stock Screener',
+        'Stock Signals',
         'Futures & Options',
         'Watchlists',
       ])

@@ -1,0 +1,183 @@
+import { describe, expect, it } from 'vitest'
+import {
+  DEFAULT_INDICATORS,
+  MAX_BARS,
+  applyPicks,
+  indicatorOptions,
+  indicatorSig,
+  MIN_BARS,
+  barsFor,
+  cacheCandles,
+  fetchLimit,
+  newIndicator,
+  resolveTf,
+  tfsFor,
+  warmupFor,
+  cachedCandles,
+  mergeTick,
+  parseIndicators,
+  sameCandles,
+  stableCandles,
+  sessionStart,
+  type Candle,
+} from './stockChart'
+
+// 13 Nov 2026, 10:00 IST = 04:30 UTC.
+const NOW = Date.parse('2026-11-13T04:30:00Z')
+const c = (ts: string, close: string, high = close, low = close): Candle => ({
+  ts,
+  open: close,
+  high,
+  low,
+  close,
+  volume: '10',
+})
+
+describe('sessionStart', () => {
+  it('is 09:15 IST on the IST day', () => {
+    expect(new Date(sessionStart(NOW)).toISOString()).toBe('2026-11-13T03:45:00.000Z')
+  })
+  it('uses the IST day just after midnight IST', () => {
+    // 00:30 IST on the 14th is 19:00 UTC on the 13th.
+    const t = Date.parse('2026-11-13T19:00:00Z')
+    expect(new Date(sessionStart(t)).toISOString()).toBe('2026-11-14T03:45:00.000Z')
+  })
+})
+
+describe('mergeTick', () => {
+  const base = [c('2026-11-13T04:28:00Z', '100'), c('2026-11-13T04:29:00Z', '101')]
+
+  it('moves the newest candle within its minute', () => {
+    const out = mergeTick(base, '103.5', '2026-11-13T04:29:40Z', '1m', NOW)
+    expect(out).toHaveLength(2)
+    expect(out[1]).toMatchObject({ close: '103.5', high: '103.5', low: '101' })
+    expect(out[0]).toBe(base[0])
+  })
+  it('opens a new candle for the next minute', () => {
+    const out = mergeTick(base, '99', '2026-11-13T04:30:05Z', '1m', NOW)
+    expect(out).toHaveLength(3)
+    expect(out[2]).toMatchObject({ ts: '2026-11-13T04:30:00.000Z', open: '99', close: '99' })
+  })
+  it('returns the same array for no change, an old tick, a bad price or a pre-open tick', () => {
+    expect(mergeTick(base, '101', '2026-11-13T04:29:10Z', '1m', NOW)).toBe(base)
+    expect(mergeTick(base, '120', '2026-11-13T04:20:00Z', '1m', NOW)).toBe(base)
+    expect(mergeTick(base, null, '2026-11-13T04:29:10Z', '1m', NOW)).toBe(base)
+    expect(mergeTick(base, '0', '2026-11-13T04:29:10Z', '1m', NOW)).toBe(base)
+    expect(mergeTick([], '100', '2026-11-13T03:00:00Z', '1m', NOW)).toEqual([])
+  })
+  it('moves the daily candle of today, but never invents one', () => {
+    const day = [c('2026-11-12T18:30:00Z', '100')] // 13 Nov 00:00 IST
+    expect(mergeTick(day, '104', '2026-11-13T04:29:40Z', '1d', NOW)[0]).toMatchObject({
+      close: '104',
+      high: '104',
+    })
+    const yesterday = [c('2026-11-11T18:30:00Z', '100')]
+    expect(mergeTick(yesterday, '104', '2026-11-13T04:29:40Z', '1d', NOW)).toBe(yesterday)
+  })
+  it('opens hourly bars on the 09:15 grid', () => {
+    const h = [c('2026-11-13T03:45:00Z', '100')] // 09:15 IST
+    const out = mergeTick(h, '101', '2026-11-13T04:50:00Z', '1h', NOW) // 10:20 IST
+    expect(out.at(-1)?.ts).toBe('2026-11-13T04:45:00.000Z') // 10:15 IST
+  })
+  it('ignores ticks after the close', () => {
+    const late = Date.parse('2026-11-13T10:30:00Z') // 16:00 IST
+    expect(mergeTick(base, '120', '2026-11-13T10:29:00Z', '1m', late)).toBe(base)
+  })
+  it('starts from nothing when the server has no candles yet', () => {
+    expect(mergeTick([], '100', '2026-11-13T04:29:40Z', '1m', NOW)).toHaveLength(1)
+  })
+})
+
+describe('parseIndicators', () => {
+  it('defaults to EMA 8 and EMA 20 when nothing is saved or it is unreadable', () => {
+    expect(parseIndicators(null)).toEqual(DEFAULT_INDICATORS)
+    expect(parseIndicators('{oops')).toEqual(DEFAULT_INDICATORS)
+    expect(DEFAULT_INDICATORS.map((d) => d.params[0])).toEqual([8, 20])
+  })
+  it('keeps any period, clamped, and drops unknown kinds', () => {
+    const out = parseIndicators(
+      JSON.stringify([
+        { id: 'a', kind: 'ema', params: [13], color: 'accent' },
+        { id: 'b', kind: 'ema', params: [9999], color: 'nope' },
+        { id: 'c', kind: 'zigzag', params: [3] },
+      ]),
+    )
+    expect(out.map((d) => d.params[0])).toEqual([13, 500])
+    expect(out[1].color).not.toBe('nope')
+    expect(parseIndicators('[]')).toEqual([])
+  })
+  it('carries the first version toggles over', () => {
+    const out = parseIndicators(null, '["ema50","rsi","nope"]')
+    expect(out.map((d) => [d.kind, d.params])).toEqual([
+      ['ema', [50]],
+      ['rsi', [14]],
+    ])
+  })
+  it('gives a new EMA a period not yet drawn and a free colour', () => {
+    const d = newIndicator('ema', DEFAULT_INDICATORS)
+    expect(d.params).toEqual([9])
+    expect(DEFAULT_INDICATORS.map((x) => x.color)).not.toContain(d.color)
+    expect(DEFAULT_INDICATORS.map((x) => x.id)).not.toContain(d.id)
+  })
+})
+
+describe('timeframe and depth', () => {
+  it('uses the chosen timeframe only where the range allows it', () => {
+    expect(resolveTf('1d', 'auto')).toBe('5m')
+    expect(resolveTf('1d', '15m')).toBe('15m')
+    expect(resolveTf('live', '1d')).toBe('1m')
+    expect(tfsFor('live')).not.toContain('1d')
+  })
+  it('sizes a range in candles of its timeframe, within bounds', () => {
+    expect(barsFor('1d', '5m')).toBe(75)
+    expect(barsFor('1w', '15m')).toBe(125)
+    expect(barsFor('1d', '1d')).toBe(MIN_BARS)
+    expect(barsFor('1y', '1m')).toBe(MAX_BARS)
+  })
+  it('reads enough older candles for the longest indicator to be running', () => {
+    expect(warmupFor([])).toBe(100)
+    expect(warmupFor([{ kind: 'ema', params: [20] }])).toBe(100)
+    expect(warmupFor([{ kind: 'ema', params: [50] }])).toBe(200)
+    expect(warmupFor([{ kind: 'ema', params: [200] }])).toBe(600)
+    expect(fetchLimit(4900, 600)).toBe(5000)
+  })
+})
+
+describe('candle cache', () => {
+  it('returns what was stored', () => {
+    const list = [c('2026-11-13T04:28:00Z', '1')]
+    cacheCandles('7:1d', list, 5)
+    expect(cachedCandles('7:1d')).toEqual({ candles: list, at: 5 })
+    expect(cachedCandles('8:1d')).toBeNull()
+  })
+})
+
+describe('sameCandles / stableCandles', () => {
+  const a = [c('2026-11-13T04:28:00Z', '100')]
+  it('compares value for value', () => {
+    expect(sameCandles(a, [c('2026-11-13T04:28:00Z', '100')])).toBe(true)
+    expect(sameCandles(a, [c('2026-11-13T04:28:00Z', '101')])).toBe(false)
+    expect(sameCandles(a, [])).toBe(false)
+  })
+  it('hands back the previous array while nothing changed', () => {
+    const keep = stableCandles()
+    const first = keep(a)
+    expect(keep([c('2026-11-13T04:28:00Z', '100')])).toBe(first)
+    const moved = [c('2026-11-13T04:28:00Z', '102')]
+    expect(keep(moved)).toBe(moved)
+  })
+})
+
+describe('indicator picker', () => {
+  it('offers the presets, and your own periods under their own group', () => {
+    const opts = indicatorOptions([{ id: 'x', kind: 'ema', params: [13], color: 'accent' }])
+    expect(opts.find((o) => o.value === 'ema:20')?.group).toBe('Moving averages')
+    expect(opts.at(-1)).toEqual({ value: 'ema:13', label: 'EMA 13', group: 'Your periods' })
+  })
+  it('keeps what stays, adds what was picked, drops what was not', () => {
+    const next = applyPicks(DEFAULT_INDICATORS, ['ema:20', 'rsi:14', 'macd:12,26,9'])
+    expect(next.map(indicatorSig)).toEqual(['ema:20', 'rsi:14', 'macd:12,26,9'])
+    expect(next[0]).toBe(DEFAULT_INDICATORS[1])
+    expect(new Set(next.map((d) => d.id)).size).toBe(3)
+  })
+})

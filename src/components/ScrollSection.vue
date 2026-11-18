@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A capped-height section that scrolls on its own with no scrollbar. Where
-// there is more to see above or below, a small arrow sits on that edge; a tap
-// on it scrolls most of a page that way. A list that fits shows no arrows.
+// there is more to see above or below, a small arrow sits on that edge as an
+// indicator: it takes no taps, scrolling is by wheel, touch and keyboard. A list that fits shows no arrows.
 //
 // Scroll moves the edges; a resize or a change of content (a row arriving, a
 // subtree opening) can too, so both are watched — the same as v-scroll-fade.
@@ -32,11 +32,6 @@ function schedule() {
     frame = undefined
     update()
   })
-}
-function page(dir: 1 | -1) {
-  const el = scroller.value
-  if (!el) return
-  el.scrollBy({ top: dir * el.clientHeight * 0.8, behavior: 'smooth' })
 }
 
 onMounted(() => {
@@ -74,26 +69,12 @@ onBeforeUnmount(() => {
     >
       <slot />
     </div>
-    <button
-      v-if="above"
-      type="button"
-      class="scroll-section__arrow scroll-section__arrow--up"
-      aria-label="Scroll up"
-      title="Scroll up"
-      @click="page(-1)"
-    >
+    <span v-if="above" aria-hidden="true" class="scroll-section__arrow scroll-section__arrow--up">
       <Icon name="chevron-down" size="sm" />
-    </button>
-    <button
-      v-if="below"
-      type="button"
-      class="scroll-section__arrow scroll-section__arrow--down"
-      aria-label="Scroll down"
-      title="Scroll down"
-      @click="page(1)"
-    >
+    </span>
+    <span v-if="below" aria-hidden="true" class="scroll-section__arrow scroll-section__arrow--down">
       <Icon name="chevron-down" size="sm" />
-    </button>
+    </span>
   </div>
 </template>
 
@@ -127,22 +108,19 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   background: var(--surface-overlay);
   color: var(--accent);
   box-shadow: var(--layer-raised-shadow, none);
-  cursor: pointer;
-  opacity: 0.92;
+  pointer-events: none;
+  opacity: 0.75;
   transition:
     opacity 0.15s ease,
     transform 0.15s ease;
-}
-.scroll-section__arrow:hover {
-  opacity: 1;
 }
 .scroll-section__arrow--up {
   top: 4px;

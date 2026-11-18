@@ -420,7 +420,8 @@ describe('<SettingsDiagnostics />', () => {
       .trigger('click')
     await w.get('[data-key="AI_EFFORT"] [data-testid="diag-edit"]').trigger('click')
     const editor = w.get('[data-key="AI_EFFORT"] .sd__editor')
-    expect(editor.find('[data-testid="value-in-use"] code').text()).toBe('medium')
+    // Prefilled: the effort in use is the one picked in the editor.
+    expect(editor.findComponent({ name: 'SegmentedControl' }).props('modelValue')).toBe('medium')
     // A pick applies at once through the shared writer.
     api.PUT.mockResolvedValue(res({ ok: true }))
     const high = editor.findAll('button').find((b) => b.text() === 'high')!

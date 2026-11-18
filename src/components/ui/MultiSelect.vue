@@ -10,8 +10,13 @@
 // Overflow collapses to "+N" rather than wrapping without limit. A control that
 // grows to four lines when you pick eight tags reflows the entire form under it,
 // and the list is one click away for anyone who needs the full set.
+//
+// `display="count"` is the toolbar form: a fixed-width button reading
+// "Indicators 3", for a strip where the picks are already shown elsewhere (a
+// chart's legend, a row of filter chips) and chips would only repeat them.
 import { computed, ref, useId } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
+import type { IconName } from '@/components/ui/icons'
 import ListboxPanel from '@/components/ui/internal/ListboxPanel.vue'
 import { useListbox, type ListOption } from '@/composables/useListbox'
 
@@ -28,8 +33,14 @@ const props = withDefaults(
     describedBy?: string
     /** How many chips show before the rest collapse to "+N". */
     maxChips?: number
+    /** `chips` inside the control (forms), or `count`: the label and how many (toolbars). */
+    display?: 'chips' | 'count'
+    /** What the control picks, shown in `count` mode ("Indicators") and read out. */
+    label?: string
+    /** An icon before the label in `count` mode. */
+    icon?: string
   }>(),
-  { size: 'md', placeholder: 'Select…', maxChips: 3 },
+  { size: 'md', placeholder: 'Select…', maxChips: 3, display: 'chips', label: '', icon: '' },
 )
 const emit = defineEmits<{ 'update:modelValue': [string[]] }>()
 
@@ -93,21 +104,32 @@ function onBlur(event: FocusEvent) {
       class="ui-control ui-ms__trigger"
       :class="[
         `ui-control--${size}`,
-        { 'is-disabled': disabled, 'is-readonly': readonly, 'is-invalid': invalid },
+        {
+          'is-disabled': disabled,
+          'is-readonly': readonly,
+          'is-invalid': invalid,
+          'ui-ms__trigger--count': display === 'count',
+        },
       ]"
       role="combobox"
       aria-haspopup="listbox"
       :aria-expanded="lb.open.value"
       :aria-controls="listboxId"
       :aria-describedby="describedBy"
+      :aria-label="display === 'count' && label ? `${label}, ${chosen.length} selected` : undefined"
       :aria-invalid="invalid"
       :disabled="disabled"
       @click="lb.open.value ? lb.closeList() : lb.openList()"
       @keydown="onKeydown"
       @blur="onBlur"
     >
-      <span v-if="!chosen.length" class="ui-ms__placeholder">{{ placeholder }}</span>
-      <span class="ui-ms__chips">
+      <span v-if="display === 'count'" class="ui-ms__count">
+        <Icon v-if="icon" :name="icon as IconName" size="xs" />
+        <span class="ui-ms__countLabel">{{ label || placeholder }}</span>
+        <span v-if="chosen.length" class="ui-ms__badge">{{ chosen.length }}</span>
+      </span>
+      <span v-else-if="!chosen.length" class="ui-ms__placeholder">{{ placeholder }}</span>
+      <span v-if="display === 'chips'" class="ui-ms__chips">
         <span v-for="option in shown" :key="option.value" class="ui-ms__chip">
           {{ option.label }}
           <span
@@ -150,6 +172,35 @@ function onBlur(event: FocusEvent) {
   /* Vertical padding, unlike the single-line controls: the chips have their own
      height and would otherwise touch the border. */
   padding-block: 3px;
+}
+.ui-ms__trigger--count {
+  padding-block: 0;
+}
+.ui-ms__count {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.ui-ms__countLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-ms__badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklch, var(--theme-accent) 22%, transparent);
+  color: var(--text-primary, var(--theme-text));
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
 }
 .ui-ms__placeholder {
   flex: 1;

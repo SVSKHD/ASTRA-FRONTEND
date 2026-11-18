@@ -14,12 +14,17 @@ import Card from '@/components/ui/Card.vue'
 import Chip from '@/components/ui/Chip.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import FormField from '@/components/ui/FormField.vue'
+import GlassDatePicker from '@/components/ui/GlassDatePicker.vue'
+import Modal from '@/components/ui/Modal.vue'
+import BacktestReplay from './BacktestReplay.vue'
+import BacktestTradeLog from './BacktestTradeLog.vue'
+import { placeTrades } from '@/trading/backtestReplay'
+import type { DateRange } from '@/utils/datePicker'
 import MultiSelect from '@/components/ui/MultiSelect.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import Pagination from '@/components/ui/Pagination.vue'
 import Select from '@/components/ui/Select.vue'
 import StatRow from '@/components/ui/StatRow.vue'
-import Table from '@/components/ui/Table.vue'
 import TextArea from '@/components/ui/TextArea.vue'
 import TextInput from '@/components/ui/TextInput.vue'
 import InstrumentPicker from './InstrumentPicker.vue'
@@ -33,6 +38,7 @@ import {
   STRATEGY_TYPES,
   TIMEFRAMES,
   buildBacktestRequest,
+  istDay,
   buildStrategyCreate,
   idsOf,
   metricEntries,
@@ -140,6 +146,8 @@ const bt = reactive({
   instrumentId: null as number | null,
   timeframe: '15m',
   days: 30 as number | null,
+  from: istDay(new Date(), 30) as string | null,
+  to: istDay(new Date()) as string | null,
   quantity: null as number | null,
   spread: 2 as number | null,
   slippage: 1 as number | null,
@@ -219,6 +227,44 @@ function headline(r: Run): string {
   return `${m.trades} trades · net ${signed(m.net_pnl ?? null, 2)} · win rate ${pct(m.win_rate ?? null)}`
 }
 
+// The period: a date range in IST, with the usual spans one click away.
+const today = istDay(new Date())
+const btRange = computed<DateRange>({
+  get: () => ({ start: bt.from, end: bt.to }),
+  set: (v) => {
+    bt.from = v?.start ?? null
+    bt.to = v?.end ?? null
+  },
+})
+const PERIODS = [
+  { label: '1W', days: 7 },
+  { label: '1M', days: 30 },
+  { label: '3M', days: 91 },
+  { label: '6M', days: 182 },
+  { label: '1Y', days: 365 },
+  { label: '3Y', days: 1095 },
+]
+function setPeriod(days: number) {
+  const now = new Date()
+  bt.from = istDay(now, days)
+  bt.to = istDay(now)
+}
+function isPeriod(days: number) {
+  const now = new Date()
+  return bt.from === istDay(now, days) && bt.to === istDay(now)
+}
+
+// --- replay (a finished run, bar by bar, full screen) ----------------------------------------
+const replayRun = ref<Run | null>(null)
+function openReplay(r: Run) {
+  replayRun.value = r
+}
+const replayTitle = computed(() =>
+  replayRun.value
+    ? `${versionLabel(replayRun.value.strategy_version_id)} · ${instrumentName(replayRun.value.instrument_id)} · ${replayRun.value.timeframe}`
+    : '',
+)
+
 // --- run detail --------------------------------------------------------------------------
 const openId = ref('')
 const explainMsg = ref('')
@@ -281,16 +327,19 @@ function otherMetrics(r: Run) {
             : String(e.value),
     }))
 }
-const tradeRows = computed(() =>
-  (detail.data.value?.trades ?? []).map((t, i) => ({
-    id: String(i),
-    side: t.side,
-    entry: `${dec(t.entry_price)} · ${when(t.entry_time)}`,
-    exit: t.exit_price ? `${dec(t.exit_price)} · ${when(t.exit_time)}` : '—',
-    pnl: signed(t.pnl, 2),
-    fees: dec(t.fees, 2),
-  })),
-)
+/** The run's trades as the log reads them, placed on their own entry / exit moments. */
+const resultTrades = computed(() => {
+  const trades = detail.data.value?.trades ?? []
+  const times = [
+    ...new Set(
+      trades
+        .flatMap((t) => [t.entry_time, t.exit_time])
+        .filter(Boolean)
+        .map((x) => Date.parse(x!)),
+    ),
+  ].sort((a, b) => a - b)
+  return placeTrades(trades, times)
+})
 async function explainRun(id: string) {
   try {
     const r = must(
@@ -462,13 +511,38 @@ function statusTone(s: string) {
             <FormField label="Timeframe" :error="btErrors.timeframe">
               <Select v-model="bt.timeframe" :options="TF_OPTIONS" size="sm" />
             </FormField>
-            <FormField label="Days back" :error="btErrors.days">
-              <NumberInput v-model="bt.days" :min="1" :max="3650" size="sm" />
-            </FormField>
             <FormField label="Quantity (optional)" :error="btErrors.quantity">
               <NumberInput v-model="bt.quantity" :min="0" size="sm" />
             </FormField>
           </div>
+          <FormField
+            label="Period (IST)"
+            hint="From the start of the first day to the end of the last."
+            :error="btErrors.period ?? btErrors.days"
+          >
+            <div class="st__period">
+              <GlassDatePicker
+                v-model="btRange"
+                mode="range"
+                size="sm"
+                timezone="Asia/Kolkata"
+                :max="today"
+                placeholder="Pick a start and an end"
+                label="Backtest period"
+              />
+              <div class="st__presets" role="group" aria-label="Quick periods">
+                <Button
+                  v-for="p in PERIODS"
+                  :key="p.label"
+                  size="sm"
+                  :variant="isPeriod(p.days) ? 'tinted' : 'ghost'"
+                  :aria-pressed="isPeriod(p.days) ? 'true' : 'false'"
+                  @click="setPeriod(p.days)"
+                  >{{ p.label }}</Button
+                >
+              </div>
+            </div>
+          </FormField>
           <div class="tp-row">
             <FormField label="Fast grid" hint="e.g. 5, 9" :error="btErrors.grid">
               <TextInput v-model="bt.fastGrid" size="sm" placeholder="5, 9" />
@@ -531,6 +605,14 @@ function statusTone(s: string) {
           </div>
           <div class="tp-row">
             <Badge :tone="statusTone(r.status)" :label="r.status" />
+            <Button
+              size="sm"
+              variant="tinted"
+              :disabled="r.status !== 'done'"
+              @click="openReplay(r)"
+            >
+              ▶ Replay
+            </Button>
             <Button size="sm" variant="ghost" :disabled="r.status !== 'done'" @click="openId = r.id"
               >Results</Button
             >
@@ -556,6 +638,9 @@ function statusTone(s: string) {
           <span class="tp-title">Results</span>
           <div class="tp-row">
             <SourceTag source="simulated" />
+            <Button size="sm" variant="tinted" @click="openReplay(detail.data.value.run)"
+              >▶ Replay</Button
+            >
             <Button size="sm" variant="secondary" @click="explainRun(openId)"
               >Explain with AI</Button
             >
@@ -592,23 +677,40 @@ function statusTone(s: string) {
         <p class="tp-note">{{ a.content }}</p>
         <span class="tp-note">{{ a.model }} · {{ when(a.created_at) }}</span>
       </article>
-      <Table
-        v-if="tradeRows.length"
-        :columns="[
-          { key: 'side', label: 'Side' },
-          { key: 'entry', label: 'Entry' },
-          { key: 'exit', label: 'Exit' },
-          { key: 'pnl', label: 'P&L', align: 'right' },
-          { key: 'fees', label: 'Fees', align: 'right' },
-        ]"
-        :rows="tradeRows"
-        caption="Backtest trades"
+      <BacktestTradeLog
+        v-if="resultTrades.length"
+        class="st__log"
+        :placed="resultTrades"
+        @seek="openReplay(detail.data.value.run)"
       />
     </Card>
+
+    <Modal
+      :open="!!replayRun"
+      size="full"
+      :title="`Replay · ${replayTitle}`"
+      @close="replayRun = null"
+    >
+      <BacktestReplay v-if="replayRun" :run="replayRun" :title="replayTitle" />
+    </Modal>
   </div>
 </template>
 
 <style scoped>
+.st__period {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.st__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.st__log {
+  max-height: 560px;
+}
 .st__analysis {
   display: flex;
   flex-direction: column;

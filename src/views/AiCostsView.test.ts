@@ -42,7 +42,7 @@ async function mountView() {
     routes: [
       { path: '/', component: { template: '<div />' } },
       { path: '/ai/costs', component: AiCostsView },
-      { path: '/dev/settings', component: { template: '<div />' } },
+      { path: '/settings', component: { template: '<div />' } },
     ],
   })
   await router.push('/ai/costs')
@@ -99,6 +99,6 @@ describe('<AiCostsView />', () => {
     const btn = w.findAll('button').find((b) => b.text().includes('Settings → AI'))!
     await btn.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.fullPath).toBe('/dev/settings?category=ai')
+    expect(router.currentRoute.value.fullPath).toBe('/settings?category=ai')
   })
 })
