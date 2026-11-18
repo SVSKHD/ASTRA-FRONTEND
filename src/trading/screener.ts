@@ -1,26 +1,15 @@
-// The Stock Screener's request, its validation, and the gate on the backend contract.
+// The Stock Screener (Dhan instruments only): the request, its validation, the run.
 //
-// BACKEND GAP (docs/market-terminal.md §6): there is NO screener endpoint
-// (re-verified 2026-11-11 against backend main @ 00ea4ee: migration 0028 adds the
-// screener tables, but no route serves them). The
-// screen builds exactly the `POST /api/trading/screener/run` body written down
-// there, validates it, and lets the user copy it for the backend. It never
-// screens in the browser and never shows sample results: scanning the market
-// needs the server's candles and indicator code, so the chart and the screener
-// agree to the digit.
+//   POST /api/trading/screener/run          up to SCREENER_INLINE_MAX instruments: the
+//                                           answer at once (status `done`); more: queued
+//                                           for the research worker (status `queued`)
+//   GET  /api/trading/screener/runs/{id}    a queued run, until it is `done` or `failed`
+//   GET  /api/trading/screener/status       the worker and the queue
 //
-// THE GATE is the OpenAPI contract, not hope. `SCREENER_RUN_PATH` is checked
-// against the generated `paths` (src/api/schema.d.ts) at type level:
-//
-//   - while the path is absent, `ScreenerInContract` is `false` and so is the
-//     constant below;
-//   - the day `npm run api:gen` brings the path in, `ScreenerInContract` becomes
-//     `true`, the `false` below stops type-checking, and `vue-tsc` fails right
-//     here — which is the prompt to flip it, switch `runScreener` to the typed
-//     call and delete this paragraph.
-//
-// screener.test.ts also reads src/api/openapi.json and fails if the constant and
-// the JSON contract disagree, so a schema regenerated without the .d.ts is caught.
+// It never screens in the browser and never shows sample results: scanning the market
+// needs the server's candles and indicator code, so the chart and the screener agree to
+// the digit. A watchlist is screened through its server copy (screenerWatchlistId): the
+// lists live on this device, the scan runs on the server.
 
 import { aureon, type components, type paths } from '@/api/client'
 import type { Instrument } from '@/trading/instruments'
@@ -83,6 +72,8 @@ export interface ScreenerItem {
   data_as_of: string
 }
 
+export type RunStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
+
 export interface ScreenerResponse {
   as_of: string
   candle: CandleMode
@@ -90,6 +81,19 @@ export interface ScreenerResponse {
   universe_size: number
   total: number
   items: ScreenerItem[]
+  /** The stored run; a queued one is polled at GET /screener/runs/{run_id}. */
+  run_id?: string
+  status?: RunStatus | string
+  /** Why a run failed, or what is missing (no candles for this universe yet). */
+  detail?: string | null
+  cached?: boolean
+}
+
+export type ScreenerStatus = components['schemas']['ScreenerStatus']
+
+/** Still on the server's queue: keep polling. */
+export function isPending(r: Pick<ScreenerResponse, 'status'>): boolean {
+  return r.status === 'queued' || r.status === 'running'
 }
 
 // --- vocabulary for the form -------------------------------------------------------------
@@ -345,11 +349,6 @@ export function watchlistFromQuery(q: unknown): string | null {
 
 // --- the call (only reachable once the contract has it) ----------------------------------
 
-type UntypedPost = (
-  path: string,
-  init: { body: unknown },
-) => Promise<{ data?: unknown; error?: unknown; response: Response }>
-
 /**
  * What went wrong with a run, in the terms the screen acts on:
  *
@@ -503,29 +502,34 @@ function isScreenerResponse(v: unknown): v is ScreenerResponse {
   )
 }
 
-/**
- * POST the request. The path is not in the generated contract yet, so the typed
- * client cannot name it; this goes through the same client untyped, which keeps
- * the session cookie, the CSRF header and the client's policy for unsafe methods
- * (a POST is sent once, never retried behind the user's back). When the gate
- * flips, replace the cast with `aureon.POST(SCREENER_RUN_PATH, { body })`.
- *
- * Callers gate on `SCREENER_AVAILABLE` first; the screen never calls this while
- * the endpoint is absent (TradingScreener.vue disables Run).
- *
- * Throws a ScreenerFailure for every way a run can fail.
- */
-export async function runScreener(body: ScreenerRequest): Promise<ScreenerResponse> {
-  const post = aureon.POST as unknown as UntypedPost
-  let r: Awaited<ReturnType<UntypedPost>>
-  try {
-    r = await post(SCREENER_RUN_PATH, { body })
-  } catch {
-    throw new ScreenerFailure(
-      'network',
-      'Aureon could not be reached. Check the connection and try again.',
+export interface RunOptions {
+  /** Told each time a queued scan is checked, with the server's latest word on it. */
+  onWaiting?: (r: ScreenerResponse) => void
+  signal?: AbortSignal
+  pollMs?: number
+  /** Give up waiting after this long (the run keeps going on the server). */
+  maxWaitMs?: number
+}
+
+export const POLL_MS = 3_000
+export const MAX_WAIT_MS = 15 * 60_000
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('aborted', 'AbortError'))
+    const t = setTimeout(resolve, ms)
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(t)
+        reject(new DOMException('aborted', 'AbortError'))
+      },
+      { once: true },
     )
-  }
+  })
+}
+
+function checked(r: { data?: unknown; error?: unknown; response: Response }): ScreenerResponse {
   if (!r.response.ok) throw screenerFailure(r.response.status, r.error, r.response.headers)
   if (!isScreenerResponse(r.data))
     throw new ScreenerFailure(
@@ -534,6 +538,131 @@ export async function runScreener(body: ScreenerRequest): Promise<ScreenerRespon
       r.response.status,
     )
   return r.data
+}
+
+/**
+ * Run a screen. A small universe answers at once; a large one is queued for the research
+ * worker, and this waits for it (checking every `pollMs`), telling `onWaiting` each time.
+ * Throws a ScreenerFailure for every way a run can fail, including a failed or cancelled
+ * run and a wait that ran out.
+ */
+export async function runScreener(
+  body: ScreenerRequest,
+  opts: RunOptions = {},
+): Promise<ScreenerResponse> {
+  let r: ScreenerResponse
+  try {
+    r = checked(
+      await aureon.POST(SCREENER_RUN_PATH, {
+        body: body as unknown as components['schemas']['ScreenerRequest'],
+      }),
+    )
+  } catch (e) {
+    if (e instanceof ScreenerFailure) throw e
+    throw new ScreenerFailure(
+      'network',
+      'Aureon could not be reached. Check the connection and try again.',
+    )
+  }
+  const started = Date.now()
+  while (isPending(r) && r.run_id) {
+    opts.onWaiting?.(r)
+    if (Date.now() - started > (opts.maxWaitMs ?? MAX_WAIT_MS)) {
+      throw new ScreenerFailure(
+        'server',
+        'The scan is still running on the server. Run it again later to see the result.',
+      )
+    }
+    await sleep(opts.pollMs ?? POLL_MS, opts.signal)
+    const runId: string = r.run_id
+    try {
+      r = checked(
+        await aureon.GET('/api/trading/screener/runs/{run_id}', {
+          params: {
+            path: { run_id: runId },
+            query: {
+              sort: body.sort.field,
+              dir: body.sort.dir,
+              limit: body.limit,
+              offset: body.offset,
+            },
+          },
+        }),
+      )
+    } catch (e) {
+      if (e instanceof ScreenerFailure) throw e
+      throw new ScreenerFailure('network', 'Aureon could not be reached while the scan ran.')
+    }
+  }
+  if (r.status === 'failed' || r.status === 'cancelled') {
+    throw new ScreenerFailure(
+      'server',
+      r.status === 'cancelled'
+        ? 'The scan was cancelled.'
+        : `The scan failed: ${r.detail || 'the server gave no reason'}.`,
+    )
+  }
+  return r
+}
+
+/** The research worker and the queue, for the line above the results. */
+export async function fetchScreenerStatus(): Promise<ScreenerStatus> {
+  const r = await aureon.GET('/api/trading/screener/status')
+  if (!r.response.ok || !r.data) throw new Error(`status ${r.response.status}`)
+  return r.data
+}
+
+// --- screening a watchlist ---------------------------------------------------------------
+
+/** A list as this device keeps it: a name and the instrument ids in it. */
+export interface LocalList {
+  name: string
+  items: { id: number }[]
+}
+
+/**
+ * The server copy of a local watchlist, made to match it (same name, same instruments),
+ * so the server can screen it. Returns the server's watchlist id. Only the user's own
+ * lists are touched (the server scopes watchlists to their owner); nothing on this
+ * device changes.
+ */
+export async function screenerWatchlistId(list: LocalList): Promise<string> {
+  const name = list.name.trim().slice(0, 40) || 'Watchlist'
+  const fail = (what: string, status?: number) =>
+    new ScreenerFailure(
+      'server',
+      `The watchlist could not be prepared for the server (${what}).`,
+      status ?? null,
+    )
+  const all = await aureon.GET('/api/trading/watchlists')
+  if (!all.response.ok || !all.data) throw fail('list', all.response.status)
+  let server = all.data.find((w) => w.name === name)
+  if (!server) {
+    const made = await aureon.POST('/api/trading/watchlists', { body: { name } })
+    if (!made.response.ok || !made.data) throw fail('create', made.response.status)
+    server = made.data
+  }
+  const id = server.id
+  const want = new Set(list.items.map((i) => i.id))
+  const have = new Set(server.items.map((i) => i.instrument_id))
+  for (const instrument_id of want) {
+    if (have.has(instrument_id)) continue
+    const r = await aureon.POST('/api/trading/watchlists/{watchlist_id}/items', {
+      params: { path: { watchlist_id: id } },
+      body: { instrument_id },
+    })
+    // 409: already there (another tab); 404: an instrument the server no longer has.
+    if (!r.response.ok && r.response.status !== 409 && r.response.status !== 404)
+      throw fail('add', r.response.status)
+  }
+  for (const instrument_id of have) {
+    if (want.has(instrument_id)) continue
+    const r = await aureon.DELETE('/api/trading/watchlists/{watchlist_id}/items/{instrument_id}', {
+      params: { path: { watchlist_id: id, instrument_id } },
+    })
+    if (!r.response.ok && r.response.status !== 404) throw fail('remove', r.response.status)
+  }
+  return id
 }
 
 // --- display helpers ---------------------------------------------------------------------
