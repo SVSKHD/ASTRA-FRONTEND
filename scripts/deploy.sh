@@ -171,8 +171,11 @@ main() {
 }
 
 # $1 = source dir, $2 = the command: run in the pinned node image as this user.
+# NODE_OPTIONS: `vue-tsc -b --force` needs more than Node's default ~2 GB heap on this
+# codebase (it aborted with "heap out of memory"); DEPLOY_NODE_OPTIONS overrides it.
 in_node() {
   docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e CI=true \
+    -e NODE_OPTIONS="${DEPLOY_NODE_OPTIONS:---max-old-space-size=4096}" \
     -e npm_config_prefix=/tmp/npm -e npm_config_store_dir=/store \
     -v "$BUILDS/pnpm-store:/store" -v "$1:/w" -w /w "$NODE_IMAGE" sh -euc "
       npm install -g --silent pnpm@$PNPM_VERSION >/dev/null
