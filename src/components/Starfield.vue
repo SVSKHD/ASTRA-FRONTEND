@@ -60,7 +60,8 @@ function starStyle(st: Star) {
 </script>
 
 <template>
-  <div :style="bgStyle">
+  <!-- `starfield`: style.css pauses it while a bottom sheet covers it. -->
+  <div class="starfield" :style="bgStyle">
     <Celestial :theme="theme" />
     <div :key="ui.effectiveThemeKey" :style="driftStyle">
       <span v-for="(st, i) in stars" :key="i" :style="starStyle(st)"></span>

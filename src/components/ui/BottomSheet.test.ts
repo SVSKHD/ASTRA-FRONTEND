@@ -67,4 +67,49 @@ describe('BottomSheet', () => {
       expect(css.slice(at, css.indexOf('}', at))).toContain('pointer-events: auto')
     }
   })
+
+  // Light on a phone: while a sheet is open the root says so, and style.css pauses
+  // the starfield behind it, so nothing blurred has to be redrawn every frame.
+  it('marks the root while any sheet is open, counting more than one', async () => {
+    const root = document.documentElement
+    const a = ref(false)
+    const b = ref(false)
+    const Host = defineComponent({
+      setup: () => () =>
+        h('div', [
+          h(BottomSheet, { open: a.value, title: 'More' }, () => 'more'),
+          h(BottomSheet, { open: b.value, title: 'Account' }, () => 'account'),
+        ]),
+    })
+    wrapper = mount(Host, { attachTo: document.body })
+    expect(root.classList.contains('ui-sheet-open')).toBe(false)
+    a.value = true
+    await nextTick()
+    expect(root.classList.contains('ui-sheet-open')).toBe(true)
+    b.value = true
+    await nextTick()
+    a.value = false
+    await nextTick()
+    // One is still open.
+    expect(root.classList.contains('ui-sheet-open')).toBe(true)
+    b.value = false
+    await nextTick()
+    expect(root.classList.contains('ui-sheet-open')).toBe(false)
+    // Unmounting an open sheet releases it too.
+    a.value = true
+    await nextTick()
+    wrapper.unmount()
+    wrapper = null
+    expect(root.classList.contains('ui-sheet-open')).toBe(false)
+  })
+
+  it('drops the backdrop blur on a touch screen and pauses the starfield while open', () => {
+    const sheet = readFileSync(resolve(__dirname, 'BottomSheet.vue'), 'utf8')
+    // The touch-screen block for the sheet: solid surface, no blur.
+    const coarse = sheet.match(/@media \(pointer: coarse\) \{\s*\.ui-sheet \{([^}]*)\}/)
+    expect(coarse?.[1]).toContain('backdrop-filter: none')
+    expect(coarse?.[1]).toContain('background: var(--glass-solid)')
+    const css = readFileSync(resolve(__dirname, '../../style.css'), 'utf8')
+    expect(css).toMatch(/\.ui-sheet-open \.starfield \*\s*\{\s*animation-play-state: paused/)
+  })
 })
