@@ -1735,6 +1735,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trading/mt5/bars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Bars
+         * @description Stored closed bars, ascending by ts (the first `limit` from `from`).
+         */
+        get: operations["get_bars_api_trading_mt5_bars_get"];
+        put?: never;
+        /**
+         * Post Bars
+         * @description Closed candles, upserted on (symbol, timeframe, ts): a resend with other values
+         *     corrects the stored bar. A bar with high < low or a non-positive price is rejected.
+         */
+        post: operations["post_bars_api_trading_mt5_bars_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trading/mt5/bot-status": {
         parameters: {
             query?: never;
@@ -1744,6 +1769,29 @@ export interface paths {
         };
         /** Bot Status */
         get: operations["bot_status_api_trading_mt5_bot_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/dataset/crosses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Crosses Dataset
+         * @description The training set: one row per completed EMA 8/32 cross in [from, to], computed from
+         *     mt5.bars with the bot's labels.py definitions. Features first; outcomes are prefixed
+         *     `y_`. The last, still-open cross is excluded. csv / jsonl carry the row count, the range
+         *     and the definitions version in X-Aureon-* headers.
+         */
+        get: operations["get_crosses_dataset_api_trading_mt5_dataset_crosses_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1837,6 +1885,49 @@ export interface paths {
         };
         /** Positions */
         get: operations["positions_api_trading_mt5_positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Records
+         * @description Newest first. `kind` is repeatable; `label` matches payload.label; pass `next_cursor`
+         *     back as `cursor` for the next page.
+         */
+        get: operations["get_records_api_trading_mt5_records_get"];
+        put?: never;
+        /**
+         * Post Records
+         * @description The bot sends its records (store.py rows) in batches. Idempotent per record_id; a bad
+         *     row is listed in `rejected` and never fails the batch. Never touches orders.
+         */
+        post: operations["post_records_api_trading_mt5_records_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/mt5/records/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Record Stats */
+        get: operations["get_record_stats_api_trading_mt5_records_stats_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2184,6 +2275,247 @@ export interface paths {
          * @description Ask the AI research agent (Claude) to explain a signal. Explanation only.
          */
         post: operations["explain_signal_api_trading_signals__signal_id__explain_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Signals
+         * @description EMA 8/32 crossover events (one per crossover; a VWAP confirmation updates it).
+         */
+        get: operations["list_signals_api_trading_stock_signals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/market-movers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Market Movers
+         * @description Top gainers / losers by real % change, or unusual volume (relative volume at or above
+         *     STOCK_SIGNALS_UNUSUAL_RVOL), among liquid instruments with usable data.
+         */
+        get: operations["market_movers_api_trading_stock_signals_market_movers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notifications
+         * @description Your Stock Signals notifications, newest first (or, with after_id, oldest first).
+         */
+        get: operations["notifications_api_trading_stock_signals_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/notifications/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Preferences */
+        get: operations["get_preferences_api_trading_stock_signals_notifications_preferences_get"];
+        /** Put Preferences */
+        put: operations["put_preferences_api_trading_stock_signals_notifications_preferences_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark All Read */
+        post: operations["mark_all_read_api_trading_stock_signals_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Mark Read */
+        patch: operations["mark_read_api_trading_stock_signals_notifications__notification_id__read_patch"];
+        trace?: never;
+    };
+    "/api/trading/stock-signals/portfolio-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Portfolio Map View
+         * @description Your Dhan holdings with value, P&L, allocation, cash, EMA/VWAP state and an advisory
+         *     class (HOLD_CANDIDATE, MONITOR, REVIEW_RISK, POTENTIAL_ADD). Read-only; an admin sees
+         *     every Dhan account. Classes come from deterministic rules, not from a model.
+         */
+        get: operations["portfolio_map_view_api_trading_stock_signals_portfolio_map_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/rebalance-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rebalance Preview
+         * @description A deterministic preview: trims of overweight holdings, liquid bullish alternatives,
+         *     cash needed, Dhan delivery charges and the allocation after. Nothing is stored and no
+         *     order is placed or drafted.
+         */
+        post: operations["rebalance_preview_api_trading_stock_signals_rebalance_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List States
+         * @description The latest EMA 8/32 + VWAP state of every evaluated instrument (best score first).
+         */
+        get: operations["list_states_api_trading_stock_signals_states_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream
+         * @description Server-Sent Events: `notification` events (data = a notification, `id:` its id).
+         *     Reconnecting with Last-Event-ID (or ?last_event_id=) replays what was missed; `hello`
+         *     carries the cursor and unread count, `bye` ends the stream. Polling fallback:
+         *     GET /notifications?after_id=.
+         */
+        get: operations["stream_api_trading_stock_signals_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/trending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trending
+         * @description Top trending bullish (highest score) or bearish (lowest score) instruments whose EMAs
+         *     agree with the direction.
+         */
+        get: operations["trending_api_trading_stock_signals_trending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/stock-signals/{signal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Signal
+         * @description One crossover event and the instrument's current state on that timeframe.
+         */
+        get: operations["get_signal_api_trading_stock_signals__signal_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7741,6 +8073,78 @@ export interface components {
             /** Latest At */
             latest_at?: string | null;
         };
+        /** Mt5BarOut */
+        Mt5BarOut: {
+            /** Atr14 */
+            atr14: string | null;
+            /** Close */
+            close: string;
+            /** Ema200 */
+            ema200: string | null;
+            /** Ema32 */
+            ema32: string | null;
+            /** Ema8 */
+            ema8: string | null;
+            /** High */
+            high: string;
+            /** Low */
+            low: string;
+            /** Open */
+            open: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Server Ts */
+            server_ts: string | null;
+            /** Source */
+            source: string;
+            /** Spread */
+            spread: number | null;
+            /** Symbol */
+            symbol: string;
+            /** Tick Volume */
+            tick_volume: number | null;
+            /** Timeframe */
+            timeframe: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+        };
+        /** Mt5BarRejected */
+        Mt5BarRejected: {
+            /** Index */
+            index: number;
+            /** Reason */
+            reason: string;
+            /** Ts */
+            ts?: string | null;
+        };
+        /** Mt5BarsAck */
+        Mt5BarsAck: {
+            /** Inserted */
+            inserted: number;
+            /** Rejected */
+            rejected: components["schemas"]["Mt5BarRejected"][];
+            /** Unchanged */
+            unchanged: number;
+            /** Updated */
+            updated: number;
+        };
+        /** Mt5BarsOut */
+        Mt5BarsOut: {
+            /** Count */
+            count: number;
+            /** Rows */
+            rows: components["schemas"]["Mt5BarOut"][];
+            /** Symbol */
+            symbol: string;
+            /** Timeframe */
+            timeframe: string;
+        };
         /**
          * Mt5BotStatusOut
          * @description Status card: heartbeat = the time of the last accepted push (server clock).
@@ -7806,6 +8210,37 @@ export interface components {
             t: string;
             /** V */
             v: string | null;
+        };
+        /**
+         * Mt5CrossesOut
+         * @description The EMA 8/32 cross training set (one row per completed cross). Outcome columns carry the
+         *     `y_` prefix: they are known only after the cross and must never be used as features.
+         */
+        Mt5CrossesOut: {
+            /** Bars From */
+            bars_from: string | null;
+            /** Bars Used */
+            bars_used: number;
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            /** Definitions Version */
+            definitions_version: string;
+            /** Feature Columns */
+            feature_columns: string[];
+            /** Outcome Columns */
+            outcome_columns: string[];
+            /** Row Count */
+            row_count: number;
+            /** Rows */
+            rows: {
+                [key: string]: unknown;
+            }[];
+            /** Symbol */
+            symbol: string;
+            /** Timeframe */
+            timeframe: string;
         };
         /** Mt5DailyOut */
         Mt5DailyOut: {
@@ -7971,6 +8406,21 @@ export interface components {
             /** Volume Step */
             volume_step?: number | string | null;
         };
+        /** Mt5KindStats */
+        Mt5KindStats: {
+            /** Days 7 */
+            days_7: number;
+            /** Kind */
+            kind: string;
+            /** Newest Received At */
+            newest_received_at: string | null;
+            /** Newest Utc Time */
+            newest_utc_time: string | null;
+            /** Today */
+            today: number;
+            /** Total */
+            total: number;
+        };
         /** Mt5MarketOut */
         Mt5MarketOut: {
             /** As Of */
@@ -8024,6 +8474,93 @@ export interface components {
             items: components["schemas"]["Mt5PositionOut"][];
             /** Stale */
             stale: boolean;
+        };
+        /** Mt5RecordOut */
+        Mt5RecordOut: {
+            /** Account Login */
+            account_login: number | null;
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Bot Id */
+            bot_id: string;
+            /** Bot Version */
+            bot_version: string;
+            /** Kind */
+            kind: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Record Id
+             * Format: uuid
+             */
+            record_id: string;
+            /** Server Time */
+            server_time: string | null;
+            /** Symbol */
+            symbol: string | null;
+            /**
+             * Utc Time
+             * Format: date-time
+             */
+            utc_time: string;
+        };
+        /** Mt5RecordStatsOut */
+        Mt5RecordStatsOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Bot Versions 24H */
+            bot_versions_24h: string[];
+            /** Kinds */
+            kinds: components["schemas"]["Mt5KindStats"][];
+            /** Lag Seconds */
+            lag_seconds: number | null;
+            /** Newest Received At */
+            newest_received_at: string | null;
+            /** Newest Utc Time */
+            newest_utc_time: string | null;
+            /** Total */
+            total: number;
+        };
+        /** Mt5RecordsAck */
+        Mt5RecordsAck: {
+            /** Accepted */
+            accepted: number;
+            /** Duplicate */
+            duplicate: number;
+            /** Rejected */
+            rejected: components["schemas"]["Mt5Rejected"][];
+        };
+        /** Mt5RecordsOut */
+        Mt5RecordsOut: {
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Rows */
+            rows: components["schemas"]["Mt5RecordOut"][];
+        };
+        /**
+         * Mt5Rejected
+         * @description One row the server did not store, and why (the batch itself still succeeds).
+         */
+        Mt5Rejected: {
+            /** Index */
+            index: number;
+            /** Reason */
+            reason: string;
+            /** Record Id */
+            record_id?: string | null;
         };
         /** Mt5ReportOut */
         Mt5ReportOut: {
@@ -8979,12 +9516,91 @@ export interface components {
             /** Risk Level */
             risk_level: string;
         };
+        /** PortfolioFreshnessOut */
+        PortfolioFreshnessOut: {
+            /** Cash As Of */
+            cash_as_of: string | null;
+            /** Holdings As Of */
+            holdings_as_of: string | null;
+            /** Signals As Of */
+            signals_as_of: string | null;
+        };
+        /** PortfolioHoldingOut */
+        PortfolioHoldingOut: {
+            /** Allocation Pct */
+            allocation_pct: string | null;
+            /** Avg Cost */
+            avg_cost: string;
+            /**
+             * Classification
+             * @enum {string}
+             */
+            classification: "HOLD_CANDIDATE" | "MONITOR" | "REVIEW_RISK" | "POTENTIAL_ADD";
+            /** Current Value */
+            current_value: string | null;
+            /** Deep Link */
+            deep_link: string;
+            /** Ema State */
+            ema_state: ("above" | "below" | "equal") | null;
+            /** Exchange */
+            exchange: string | null;
+            /** Instrument Id */
+            instrument_id: number | null;
+            /** Invested */
+            invested: string;
+            /** Isin */
+            isin: string | null;
+            /** Last Price */
+            last_price: string | null;
+            /** Price As Of */
+            price_as_of: string | null;
+            /** Price Source */
+            price_source: ("dhan_holdings" | "candle_close") | null;
+            /** Quantity */
+            quantity: string;
+            /** Reasons */
+            reasons: string[];
+            /** Signal As Of */
+            signal_as_of: string | null;
+            /** Signal State */
+            signal_state: string | null;
+            /** Symbol */
+            symbol: string;
+            /** Trend Score */
+            trend_score: string | null;
+            /** Unrealized Pnl */
+            unrealized_pnl: string | null;
+            /** Unrealized Pnl Pct */
+            unrealized_pnl_pct: string | null;
+            /** Vwap State */
+            vwap_state: ("above" | "below" | "at") | null;
+        };
         /** PortfolioIn */
         PortfolioIn: {
             /** Content */
             content: {
                 [key: string]: unknown;
             };
+        };
+        /** PortfolioMapOut */
+        PortfolioMapOut: {
+            /** Accounts */
+            accounts: number;
+            /** Available Cash */
+            available_cash: string | null;
+            /** Classification Counts */
+            classification_counts: {
+                [key: string]: number;
+            };
+            /** Disclaimer */
+            disclaimer: string;
+            freshness: components["schemas"]["PortfolioFreshnessOut"];
+            /** Holdings */
+            holdings: components["schemas"]["PortfolioHoldingOut"][];
+            sector_exposure: components["schemas"]["SectorExposureOut"];
+            /** Timeframe */
+            timeframe: string;
+            totals: components["schemas"]["PortfolioTotalsOut"];
         };
         /** PortfolioOut */
         PortfolioOut: {
@@ -8999,6 +9615,17 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** PortfolioTotalsOut */
+        PortfolioTotalsOut: {
+            /** Current */
+            current: string;
+            /** Invested */
+            invested: string;
+            /** Unpriced Holdings */
+            unpriced_holdings: string;
+            /** Unrealized Pnl */
+            unrealized_pnl: string;
         };
         /** PositionOut */
         PositionOut: {
@@ -9405,6 +10032,51 @@ export interface components {
             /** Volume */
             volume: string | null;
         };
+        /** RankingCoverageOut */
+        RankingCoverageOut: {
+            /** Boundary */
+            boundary?: string | null;
+            /** Data As Of */
+            data_as_of: string | null;
+            /**
+             * Evaluated
+             * @default 0
+             */
+            evaluated: number;
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * History Wait Timed Out
+             * @default false
+             */
+            history_wait_timed_out: boolean;
+            /**
+             * Illiquid
+             * @default 0
+             */
+            illiquid: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Timeframe */
+            timeframe: string;
+            /**
+             * Unavailable
+             * @default 0
+             */
+            unavailable: number;
+            /** Universe Size */
+            universe_size: number;
+        };
+        /** RankingOut */
+        RankingOut: {
+            coverage: components["schemas"]["RankingCoverageOut"];
+            /** Items */
+            items: components["schemas"]["StockSignalStateOut"][];
+            /** Kind */
+            kind: string;
+            /** Note */
+            note: string;
+        };
         /** RateLimitOut */
         RateLimitOut: {
             /** Limit */
@@ -9439,6 +10111,86 @@ export interface components {
             stamped_at: string;
             /** Ttl Seconds */
             ttl_seconds: number;
+        };
+        /** RebalanceIn */
+        RebalanceIn: {
+            /** Cash Buffer Pct */
+            cash_buffer_pct?: number | string | null;
+            /** Max New */
+            max_new?: number | null;
+            /** Max Weight Pct */
+            max_weight_pct?: number | string | null;
+            /** Min Trade Value */
+            min_trade_value?: number | string | null;
+            /**
+             * Timeframe
+             * @default 15m
+             * @enum {string}
+             */
+            timeframe: "5m" | "15m" | "1h" | "1d";
+        };
+        /** RebalancePreviewOut */
+        RebalancePreviewOut: {
+            /** Allocation After */
+            allocation_after: {
+                [key: string]: string;
+            };
+            /** Allocation Before */
+            allocation_before: {
+                [key: string]: string;
+            };
+            /** Cash After */
+            cash_after: string;
+            /** Cash Before */
+            cash_before: string;
+            /** Cash Known */
+            cash_known: boolean;
+            /** Cash Required */
+            cash_required: string;
+            /** Charges Model */
+            charges_model: string;
+            freshness: components["schemas"]["PortfolioFreshnessOut"];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Inputs */
+            inputs: {
+                [key: string]: unknown;
+            };
+            /** Notes */
+            notes: string[];
+            /** Review */
+            review: string[];
+            /** Timeframe */
+            timeframe: string;
+            /** Total Charges */
+            total_charges: string;
+            /** Trades */
+            trades: components["schemas"]["RebalanceTradeOut"][];
+        };
+        /** RebalanceTradeOut */
+        RebalanceTradeOut: {
+            /** Charges */
+            charges: string;
+            /** Instrument Id */
+            instrument_id: number | null;
+            /** Price */
+            price: string;
+            /** Quantity */
+            quantity: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "BUY" | "SELL";
+            /** Symbol */
+            symbol: string;
+            /** Value */
+            value: string;
         };
         /** ReconciliationOut */
         ReconciliationOut: {
@@ -10325,6 +11077,13 @@ export interface components {
              */
             worker: "ok" | "stale" | "down";
         };
+        /** SectorExposureOut */
+        SectorExposureOut: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason?: string | null;
+        };
         /** SecuredIn */
         SecuredIn: {
             /**
@@ -10636,6 +11395,268 @@ export interface components {
             started_at?: string | null;
             /** Status */
             status?: string | null;
+        };
+        /** StockSignalDetailOut */
+        StockSignalDetailOut: {
+            current: components["schemas"]["StockSignalStateOut"] | null;
+            event: components["schemas"]["StockSignalEventOut"];
+        };
+        /** StockSignalEventOut */
+        StockSignalEventOut: {
+            /** Confirm Price */
+            confirm_price: string | null;
+            /** Confirm Vwap */
+            confirm_vwap: string | null;
+            /**
+             * Confirmed At
+             * @description Close time of the first candle that closed beyond the session VWAP
+             */
+            confirmed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Crossed At
+             * Format: date-time
+             * @description Close time of the candle where EMA 8 crossed EMA 32
+             */
+            crossed_at: string;
+            /** Data As Of */
+            data_as_of: string | null;
+            /** Data Source */
+            data_source: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "bullish" | "bearish";
+            /** Ema Fast */
+            ema_fast: string | null;
+            /** Ema Slow */
+            ema_slow: string | null;
+            /** Exchange */
+            exchange: string;
+            /** Id */
+            id: number;
+            /** In Holdings */
+            in_holdings: boolean;
+            /** Instrument Id */
+            instrument_id: number;
+            /**
+             * Last Price
+             * @description Close of the cross candle
+             */
+            last_price: string | null;
+            /** Metrics */
+            metrics: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "BULLISH_CONFIRMED" | "BULLISH_PENDING" | "BEARISH_CONFIRMED" | "BEARISH_PENDING" | "BULLISH_TREND" | "BEARISH_TREND" | "MIXED" | "UNAVAILABLE";
+            /** Symbol */
+            symbol: string;
+            /** Timeframe */
+            timeframe: string;
+            /**
+             * Trend Score
+             * @description 0-100 ranking score; not a probability
+             */
+            trend_score: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Vwap */
+            vwap: string | null;
+        };
+        /** StockSignalNotificationOut */
+        StockSignalNotificationOut: {
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Event Id */
+            event_id: number | null;
+            /** Id */
+            id: number;
+            /** Instrument Id */
+            instrument_id: number | null;
+            /** Kind */
+            kind: string;
+            /**
+             * Payload
+             * @description instrument, signal_id, timeframe, prices, timestamps and deep_link
+             */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Read At */
+            read_at: string | null;
+            /** Timeframe */
+            timeframe: string | null;
+            /** Title */
+            title: string;
+        };
+        /** StockSignalNotificationsOut */
+        StockSignalNotificationsOut: {
+            /** Items */
+            items: components["schemas"]["StockSignalNotificationOut"][];
+            /** Last Id */
+            last_id?: number | null;
+            /** Next Before Id */
+            next_before_id?: number | null;
+            /** Unread Count */
+            unread_count: number;
+        };
+        /** StockSignalPrefsIn */
+        StockSignalPrefsIn: {
+            /**
+             * All Market
+             * @default false
+             */
+            all_market: boolean;
+            /**
+             * Confirmed Only
+             * @default false
+             */
+            confirmed_only: boolean;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Kinds */
+            kinds?: ("bullish_cross" | "bearish_cross" | "vwap_confirmed" | "holding_reversal" | "portfolio_trend_change" | "replacement_candidate")[];
+            /** Timeframes */
+            timeframes?: ("5m" | "15m" | "1h" | "1d")[];
+        };
+        /** StockSignalPrefsOut */
+        StockSignalPrefsOut: {
+            /**
+             * All Market
+             * @default false
+             */
+            all_market: boolean;
+            /**
+             * Confirmed Only
+             * @default false
+             */
+            confirmed_only: boolean;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Kinds */
+            kinds?: ("bullish_cross" | "bearish_cross" | "vwap_confirmed" | "holding_reversal" | "portfolio_trend_change" | "replacement_candidate")[];
+            /** Timeframes */
+            timeframes?: ("5m" | "15m" | "1h" | "1d")[];
+        };
+        /** StockSignalReadAllIn */
+        StockSignalReadAllIn: {
+            /**
+             * Up To Id
+             * @description Only up to this id
+             */
+            up_to_id?: number | null;
+        };
+        /** StockSignalStateOut */
+        StockSignalStateOut: {
+            /** Adx */
+            adx: string | null;
+            /** Candle Close At */
+            candle_close_at: string | null;
+            /**
+             * Change Pct
+             * @description vs the previous session's last close
+             */
+            change_pct: string | null;
+            /** Ema Fast */
+            ema_fast: string | null;
+            /** Ema Slow */
+            ema_slow: string | null;
+            /** Ema Spread Pct */
+            ema_spread_pct: string | null;
+            /** Event Id */
+            event_id: number | null;
+            /** Exchange */
+            exchange: string | null;
+            /** In Holdings */
+            in_holdings: boolean;
+            /** Instrument Id */
+            instrument_id: number;
+            /** Last Price */
+            last_price: string | null;
+            /** Missing Features */
+            missing_features: string[];
+            /** Name */
+            name: string | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Relative Pct
+             * @description change_pct minus Nifty 50's
+             */
+            relative_pct: string | null;
+            /** Rsi */
+            rsi: string | null;
+            /** Rvol */
+            rvol: string | null;
+            /** Segment */
+            segment: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "BULLISH_CONFIRMED" | "BULLISH_PENDING" | "BEARISH_CONFIRMED" | "BEARISH_PENDING" | "BULLISH_TREND" | "BEARISH_TREND" | "MIXED" | "UNAVAILABLE";
+            /** Symbol */
+            symbol: string;
+            /** Timeframe */
+            timeframe: string;
+            /** Trend Score */
+            trend_score: string | null;
+            /** Vwap */
+            vwap: string | null;
+            /** Vwap Distance Pct */
+            vwap_distance_pct: string | null;
+        };
+        /** StockSignalStatesPage */
+        StockSignalStatesPage: {
+            /** Items */
+            items: components["schemas"]["StockSignalStateOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** StockSignalUnreadOut */
+        StockSignalUnreadOut: {
+            /** Unread Count */
+            unread_count: number;
+        };
+        /** StockSignalsPage */
+        StockSignalsPage: {
+            /** Items */
+            items: components["schemas"]["StockSignalEventOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
         };
         /** StoredPolicyOut */
         StoredPolicyOut: {
@@ -15409,6 +16430,112 @@ export interface operations {
             };
         };
     };
+    get_bars_api_trading_mt5_bars_get: {
+        parameters: {
+            query: {
+                symbol: string;
+                timeframe?: string;
+                from?: string | null;
+                to?: string | null;
+                limit?: number;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5BarsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_bars_api_trading_mt5_bars_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "content-type"?: string | null;
+                "content-encoding"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5BarsAck"];
+                };
+            };
+            /** @description bad or missing bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description body over MT5_INGEST_MAX_BYTES, or over the decompressed cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Content-Type other than application/json, or encoding not gzip */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description wrong schema id, bad envelope, or too many rows */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description too many requests for this token (Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MT5_RECORDS_TOKEN unset or misconfigured, or storage unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     bot_status_api_trading_mt5_bot_status_get: {
         parameters: {
             query?: never;
@@ -15425,6 +16552,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Mt5BotStatusOut"];
+                };
+            };
+        };
+    };
+    get_crosses_dataset_api_trading_mt5_dataset_crosses_get: {
+        parameters: {
+            query: {
+                symbol: string;
+                timeframe?: string;
+                from?: string | null;
+                to?: string | null;
+                format?: "json" | "csv" | "jsonl";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5CrossesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -15623,6 +16785,134 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Mt5PositionsOut"];
+                };
+            };
+        };
+    };
+    get_records_api_trading_mt5_records_get: {
+        parameters: {
+            query?: {
+                kind?: string[] | null;
+                symbol?: string | null;
+                account_login?: number | null;
+                from?: string | null;
+                to?: string | null;
+                label?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5RecordsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_records_api_trading_mt5_records_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "content-type"?: string | null;
+                "content-encoding"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5RecordsAck"];
+                };
+            };
+            /** @description bad or missing bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description body over MT5_INGEST_MAX_BYTES, or over the decompressed cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Content-Type other than application/json, or encoding not gzip */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description wrong schema id, bad envelope, or too many rows */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description too many requests for this token (Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MT5_RECORDS_TOKEN unset or misconfigured, or storage unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_record_stats_api_trading_mt5_records_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mt5RecordStatsOut"];
                 };
             };
         };
@@ -16267,6 +17557,439 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExplainQueued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_signals_api_trading_stock_signals_get: {
+        parameters: {
+            query?: {
+                timeframe?: ("5m" | "15m" | "1h" | "1d") | null;
+                exchange?: string | null;
+                symbol?: string | null;
+                direction?: ("bullish" | "bearish") | null;
+                confirmation?: ("confirmed" | "pending") | null;
+                in_holdings?: boolean | null;
+                since?: string | null;
+                until?: string | null;
+                min_trend_score?: number | string | null;
+                /** @description Only instruments whose current data is usable */
+                fresh_only?: boolean;
+                sort?: "crossed_at" | "-crossed_at" | "trend_score" | "-trend_score";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockSignalsPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    market_movers_api_trading_stock_signals_market_movers_get: {
+        parameters: {
+            query?: {
+                kind?: "gainers" | "losers" | "unusual_volume";
+                timeframe?: "5m" | "15m" | "1h" | "1d";
+                exchange?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notifications_api_trading_stock_signals_notifications_get: {
+        parameters: {
+            query?: {
+                unread_only?: boolean;
+                kind?: ("bullish_cross" | "bearish_cross" | "vwap_confirmed" | "holding_reversal" | "portfolio_trend_change" | "replacement_candidate") | null;
+                instrument_id?: number | null;
+                timeframe?: ("5m" | "15m" | "1h" | "1d") | null;
+                /** @description Older than this id */
+                before_id?: number | null;
+                /** @description Polling fallback for /stream: newer, oldest first */
+                after_id?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockSignalNotificationsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_preferences_api_trading_stock_signals_notifications_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockSignalPrefsOut"];
+                };
+            };
+        };
+    };
+    put_preferences_api_trading_stock_signals_notifications_preferences_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockSignalPrefsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockSignalPrefsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_all_read_api_trading_stock_signals_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockSignalReadAllIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockSignalUnreadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_read_api_trading_stock_signals_notifications__notification_id__read_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockSignalNotificationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portfolio_map_view_api_trading_stock_signals_portfolio_map_get: {
+        parameters: {
+            query?: {
+                timeframe?: "5m" | "15m" | "1h" | "1d";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioMapOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rebalance_preview_api_trading_stock_signals_rebalance_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RebalanceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RebalancePreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_states_api_trading_stock_signals_states_get: {
+        parameters: {
+            query?: {
+                timeframe?: "5m" | "15m" | "1h" | "1d";
+                state?: ("BULLISH_CONFIRMED" | "BULLISH_PENDING" | "BEARISH_CONFIRMED" | "BEARISH_PENDING" | "BULLISH_TREND" | "BEARISH_TREND" | "MIXED" | "UNAVAILABLE")[] | null;
+                exchange?: string | null;
+                in_holdings?: boolean | null;
+                include_unavailable?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockSignalStatesPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_api_trading_stock_signals_stream_get: {
+        parameters: {
+            query?: {
+                last_event_id?: string | null;
+            };
+            header?: {
+                "last-event-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trending_api_trading_stock_signals_trending_get: {
+        parameters: {
+            query?: {
+                direction?: "bullish" | "bearish";
+                timeframe?: "5m" | "15m" | "1h" | "1d";
+                exchange?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RankingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_signal_api_trading_stock_signals__signal_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                signal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockSignalDetailOut"];
                 };
             };
             /** @description Validation Error */

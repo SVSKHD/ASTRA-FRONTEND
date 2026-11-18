@@ -135,29 +135,80 @@ export function seedDeadlines(): Deadline[] {
 }
 
 export function seedReminders(): Reminder[] {
+  // A local 'YYYY-MM-DDTHH:mm', `days` from the seed day at `hour`.
+  const at = (days: number, hour: number) => {
+    const d = new Date(noon(SEED_TODAY) + days * DAY)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(hour)}:00`
+  }
+  const base = {
+    note: '',
+    calSync: 'local' as const,
+    calEventId: null,
+    lastFiredOcc: null,
+    acknowledgedAt: null,
+    sourceRef: null,
+    cancelledAt: null,
+    createdAt: noon(SEED_TODAY),
+    updatedAt: noon(SEED_TODAY),
+  }
   return [
     {
+      ...base,
       id: 301,
       // Deliberately long. This is the string the pill has to truncate rather
       // than grow into the button beside it.
       title:
         'Review the monthly target against the secured ledger and decide whether to raise the daily',
-      at: new Date(noon(SEED_TODAY) + 3 * 3_600_000).toISOString(),
-      repeat: 'none',
-      enabled: true,
-      linked: [],
-      createdAt: noon(SEED_TODAY),
+      start: at(0, 15),
+      repeat: { type: 'none' },
+      priority: 'high',
+      note: 'Bring last month’s numbers',
     },
     {
+      ...base,
       id: 302,
       title: 'London open',
-      at: new Date(noon(SEED_TODAY) + 18 * 3_600_000).toISOString(),
-      repeat: 'daily',
-      enabled: true,
-      linked: [],
-      createdAt: noon(SEED_TODAY),
+      start: at(-3, 13),
+      repeat: { type: 'weekdays', weekdays: [1, 2, 3, 4, 5] },
+      priority: 'normal',
+      calSync: 'synced',
+      calEventId: 'evt1',
     },
-  ] as unknown as Reminder[]
+    {
+      ...base,
+      id: 303,
+      title: 'Pay the electricity bill',
+      start: at(-1, 9),
+      repeat: { type: 'none' },
+      priority: 'high',
+    },
+    {
+      ...base,
+      id: 304,
+      title: 'Water the plants',
+      start: at(1, 8),
+      repeat: { type: 'days', n: 3 },
+      priority: 'low',
+    },
+    {
+      ...base,
+      id: 305,
+      title: 'Renew the car insurance',
+      start: at(9, 10),
+      repeat: { type: 'years', n: 1 },
+      priority: 'normal',
+    },
+    {
+      ...base,
+      id: 306,
+      title: 'Send the weekly report',
+      start: at(-2, 17),
+      repeat: { type: 'none' },
+      priority: 'normal',
+      acknowledgedAt: noon(SEED_TODAY) - DAY,
+    },
+  ] as Reminder[]
 }
 
 export function seedIdeas(): Idea[] {

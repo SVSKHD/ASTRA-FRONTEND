@@ -20,14 +20,16 @@
 //
 // IT IS NOT FIXED (section 44, item 2): it fills the shell's `rail` region —
 // the grid gives it a column of its own — so nothing else lands on top of it.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { routerKey } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { useAppStore } from '@/stores/app'
 import { useStyles } from '@/composables/useStyles'
 import { pxify, typeStep } from '@/styles'
 import { TABS, TAB_ORDER } from '@/tabs.config'
 import TabGlyph from '@/components/TabGlyph.vue'
+import { tabUrl } from '@/utils/lastTab'
 import Icon from '@/components/ui/Icon.vue'
 import type { TabKey } from '@/types'
 
@@ -70,10 +72,21 @@ const reduced =
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
 const CHANGE_MS = reduced ? 0 : 380
 let changeTimer: ReturnType<typeof setTimeout> | undefined
+// Optional: the dock also mounts outside the router (tests, previews).
+const router = inject(routerKey, null)
+// /settings shows Settings on the stage, not a tab: the gear is the current page
+// then, and the tab tile steps back so no tab looks current.
+const onSettings = computed(() => router?.currentRoute?.value?.path === '/settings')
+function openSettings() {
+  menuOpen.value = false
+  if (!onSettings.value) void router?.push('/settings')
+}
 function settle() {
   clearTimeout(changeTimer)
   const commit = () => {
     if (tab.value !== centred.value) ui.setTab(centred.value)
+    // On /settings the tab may already be this one: picking it goes to its address.
+    else if (onSettings.value) void router?.push(tabUrl(centred.value))
   }
   if (CHANGE_MS === 0) commit()
   else changeTimer = setTimeout(commit, CHANGE_MS)
@@ -271,6 +284,7 @@ const menuItemLabel = computed(() => pxify({ ...typeStep('sm') }))
   <nav
     :style="capsule"
     class="dock"
+    :class="{ 'is-away': onSettings }"
     aria-label="Sections"
     @wheel="onWheel"
     @pointerenter="onPointerEnter"
@@ -287,7 +301,7 @@ const menuItemLabel = computed(() => pxify({ ...typeStep('sm') }))
         :class="{ 'is-centre': sl.d === 0, 'is-edge': Math.abs(sl.d) > REACH }"
         :style="slotStyle(sl.d)"
         :aria-label="tabAt(sl.v).label"
-        :aria-current="sl.d === 0 && tab === tabAt(sl.v).key ? 'page' : undefined"
+        :aria-current="!onSettings && sl.d === 0 && tab === tabAt(sl.v).key ? 'page' : undefined"
         :tabindex="Math.abs(sl.d) > REACH ? -1 : 0"
         :aria-hidden="Math.abs(sl.d) > REACH ? 'true' : undefined"
         @click="scrollTo(sl.v)"
@@ -298,7 +312,7 @@ const menuItemLabel = computed(() => pxify({ ...typeStep('sm') }))
       >
         <TabGlyph
           :name="tabAt(sl.v).key"
-          :filled="sl.d === 0"
+          :filled="sl.d === 0 && !onSettings"
           :size="GLYPH"
           col="currentColor"
           :ko="c.accent"
@@ -315,6 +329,21 @@ const menuItemLabel = computed(() => pxify({ ...typeStep('sm') }))
     >
 
     <span class="dock-rule" aria-hidden="true"></span>
+
+    <!-- Settings: not a section, so not in the column; current on /settings. -->
+    <button
+      type="button"
+      class="dock-btn dock-settings"
+      :class="{ 'is-on': onSettings }"
+      :style="tileSize"
+      aria-label="Settings"
+      :aria-current="onSettings ? 'page' : undefined"
+      data-testid="dock-settings"
+      @click="openSettings"
+    >
+      <Icon name="settings" size="md" />
+      <span class="dock-tip" :style="tip">Settings</span>
+    </button>
 
     <div class="dock-more-wrap">
       <button
@@ -491,6 +520,32 @@ const menuItemLabel = computed(() => pxify({ ...typeStep('sm') }))
 }
 .dock-btn:active {
   transform: scale(0.9);
+}
+/* The tip shows on hover/focus only, like the column's own labels. */
+.dock-settings > .dock-tip {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.dock-settings:hover > .dock-tip,
+.dock-settings:focus-visible > .dock-tip {
+  opacity: 1;
+}
+/* Current: the same gold tile the column draws behind its current tab. */
+.dock-settings.is-on {
+  background: var(--theme-accent);
+  color: var(--theme-on-accent);
+}
+.dock-settings.is-on > :deep(svg) {
+  animation: dock-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* On /settings the column's tile steps back: no tab is the current page. */
+.dock.is-away .dock-tile {
+  opacity: 0.18;
+}
+.dock.is-away .dock-item.is-centre {
+  color: var(--theme-dim);
+  cursor: pointer;
 }
 .dock-more > :deep(svg) {
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);

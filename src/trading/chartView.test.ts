@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  measureOf,
+  signed,
+  carryView,
   MIN_BARS,
   RIGHT_PAD,
   TIMEFRAMES,
@@ -101,5 +104,49 @@ describe('axes', () => {
     const c = Date.parse('2026-11-10T04:00:00Z') // 09:30 IST
     expect(axisLabel(b, a, '15m')).toMatch(/10/)
     expect(axisLabel(c, b, '15m')).toBe('09:30')
+  })
+})
+
+describe('carryView', () => {
+  const t = (from: number, n: number) => Array.from({ length: n }, (_, i) => (from + i) * 60_000)
+
+  it('keeps the same candles on screen when the window slid by one', () => {
+    // Looking at candles 10..30 of 100; a refresh drops the oldest and adds one.
+    const v = carryView({ start: 10, end: 30 }, t(0, 100), t(1, 100))
+    expect(v).toEqual({ start: 9, end: 29 })
+  })
+  it('keeps following the newest candle when it was', () => {
+    const v = carryView({ start: 50, end: 102 }, t(0, 100), t(1, 100))
+    expect(v?.end).toBe(102)
+    expect(v!.end - v!.start).toBe(52)
+  })
+  it('is unchanged for an identical re-read', () => {
+    expect(carryView({ start: 10, end: 30 }, t(0, 100), t(0, 100))).toEqual({ start: 10, end: 30 })
+  })
+  it('starts over when the reads share no candle', () => {
+    expect(carryView({ start: 10, end: 30 }, t(0, 100), t(500, 100))).toBeNull()
+  })
+})
+
+describe('measureOf (the ruler)', () => {
+  it('gives points, percent, bars and trading time', () => {
+    const m = measureOf(100, 112.35, 10, 28, '5m')
+    expect(m.change).toBeCloseTo(12.35)
+    expect(m.pct).toBeCloseTo(12.35)
+    expect(m.bars).toBe(18)
+    expect(m.span).toBe('1h 30m')
+  })
+  it('measures a fall and a backwards drag', () => {
+    const m = measureOf(200, 190, 30, 20, '1d')
+    expect(m.change).toBe(-10)
+    expect(m.pct).toBe(-5)
+    expect(m.bars).toBe(-10)
+    expect(m.span).toBe('10d')
+  })
+  it('signs figures with a real minus', () => {
+    expect(signed(12.345, 2)).toBe('+12.35')
+    expect(signed(-4.1, 2)).toBe('−4.10')
+    expect(signed(0, 2)).toBe('0.00')
+    expect(signed(-0.001, 2)).toBe('0.00')
   })
 })

@@ -47,3 +47,13 @@ describe('instruments', () => {
     expect(describeInstrument(base)).toBe('NSE · Option · 2026-11-27 · 24500 · CE')
   })
 })
+
+describe('broker test instruments', () => {
+  it('are told apart from real ones by symbol or ISIN', async () => {
+    const { isTestInstrument } = await import('./instruments')
+    expect(isTestInstrument({ symbol: '011NSETEST', isin: null })).toBe(true)
+    expect(isTestInstrument({ symbol: 'ABC', isin: 'DUMMYSAN007' })).toBe(true)
+    expect(isTestInstrument({ symbol: 'RELIANCE', isin: 'INE002A01018' })).toBe(false)
+    expect(isTestInstrument({ symbol: 'TESTBANK', isin: null })).toBe(false)
+  })
+})

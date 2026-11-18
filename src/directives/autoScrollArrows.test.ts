@@ -62,18 +62,20 @@ describe('left/right arrows', () => {
       Object.defineProperty(el, k, { configurable: true, writable: true, value: v })
     Object.defineProperty(el, 'offsetParent', { configurable: true, value: parent })
     const labels = () =>
-      [...parent.querySelectorAll('.scroll-arrow')].map((b) => b.getAttribute('aria-label')).sort()
+      [...parent.querySelectorAll('.scroll-arrow')]
+        .map((b) => (b as HTMLElement).dataset.dir)
+        .sort()
 
     const a = attachScrollArrows(el, { axis: 'x', passive: true })
     a.update()
-    expect(labels()).toEqual(['Scroll right'])
-    expect((parent.querySelector('.scroll-arrow') as HTMLButtonElement).tabIndex).toBe(-1)
+    expect(labels()).toEqual(['right'])
+    expect((parent.querySelector('.scroll-arrow') as HTMLElement).tabIndex).toBe(-1)
     ;(el as unknown as { scrollLeft: number }).scrollLeft = 300
     a.update()
-    expect(labels()).toEqual(['Scroll left', 'Scroll right'])
+    expect(labels()).toEqual(['left', 'right'])
     ;(el as unknown as { scrollLeft: number }).scrollLeft = 600
     a.update()
-    expect(labels()).toEqual(['Scroll left'])
+    expect(labels()).toEqual(['left'])
     a.destroy()
     expect(labels()).toEqual([])
     parent.remove()

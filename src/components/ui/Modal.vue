@@ -18,7 +18,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
 
 const props = withDefaults(
-  defineProps<{ open: boolean; title: string; size?: 'sm' | 'md' | 'lg'; resizable?: boolean }>(),
+  defineProps<{
+    open: boolean
+    title: string
+    size?: 'sm' | 'md' | 'lg' | 'wide' | 'full'
+    resizable?: boolean
+  }>(),
   {
     size: 'md',
   },
@@ -227,6 +232,32 @@ function onKeydown(event: KeyboardEvent) {
 }
 .ui-modal--lg {
   width: min(92vw, 760px);
+}
+/* A large viewer (a chart): most of the window, the body filling it. */
+.ui-modal--wide {
+  width: min(90vw, 1500px);
+  height: min(88dvh, 980px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+.ui-modal--wide .ui-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* A workspace, not a dialog: a backtest replay, a full trade log. Nearly the
+   whole window, with the body filling it and scrolling inside. */
+.ui-modal--full {
+  width: calc(100vw - 32px);
+  max-width: 1600px;
+  height: calc(100dvh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+.ui-modal--full .ui-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .ui-modal--resizable {
   max-width: calc(100vw - 32px);

@@ -1,10 +1,13 @@
 <script setup lang="ts">
-// Settings and secrets (backend docs/settings.md), built the way the Todos tab is
-// and from the same parts the /ui page documents: a PanelHeader with its
-// panel-action buttons (search, Test connection), Tabs for the categories (AI,
-// Agents, Dhan, GitHub, Discord, MT5), one Accordion per group of settings, and
-// each setting in a FormField. Page-wide states (encryption off, Claude off, the
-// list failing to load) are Alerts, which the app shows in its warnings area.
+// Settings and secrets (backend docs/settings.md), in the home screen's language.
+// It lives in the workspace itself (/settings renders WorkspaceView with this page
+// on the stage), so the shell, the dock and the type are home's, and the page is
+// built like the Dashboard: a PanelHeader (search, Diagnose), then an overview of
+// the categories as Dashboard blocks — AI spend against its cap, the Dhan session,
+// each credential set or not and its last test — which are also the navigation,
+// then the selected category: its header (purpose, Test connection), and its
+// settings in Accordions of FormFields. Page-wide states (encryption off, Claude
+// off, the list failing to load) are Alerts, shown in the app's warnings area.
 //
 // The server never sends a value back: each row shows a mask, where the value in
 // effect comes from, and when it changed. A typed value lives only in this page's
@@ -32,11 +35,11 @@ import GlassPanel from '@/components/ui/GlassPanel.vue'
 import Icon from '@/components/ui/Icon.vue'
 import SearchField from '@/components/ui/SearchField.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
-import Tabs from '@/components/ui/Tabs.vue'
 import UnsavedSheet from '@/components/ui/UnsavedSheet.vue'
 import BudgetCard from '@/components/ai/costs/BudgetCard.vue'
 import DhanSessionBar from '@/components/control/DhanSessionBar.vue'
 import SettingField from '@/components/control/SettingField.vue'
+import SettingsBlock from '@/components/settings/SettingsBlock.vue'
 import SettingReauth from '@/components/control/SettingReauth.vue'
 import SettingsDiagnostics from '@/components/control/settings/SettingsDiagnostics.vue'
 import { aureon } from '@/api/client'
@@ -55,6 +58,7 @@ import {
   type SearchHit,
 } from '@/control/settings'
 import { BUDGET_KEYS, type BudgetDraft } from '@/control/settingEditors'
+import { summarize } from '@/control/settingsOverview'
 import { useSettingWriter } from '@/control/useSettingWriter'
 import { useAppStore } from '@/stores/app'
 import { ago } from '@/trading/format'
@@ -92,13 +96,32 @@ function toggleDiagnose() {
   else query.diagnose = '1'
   void router.replace({ query })
 }
-/** Tabs carry the count of credentials still missing, as the control center's Approvals tab does. */
-const tabs = computed(() =>
-  categories.value.map((c) => {
-    const n = missingCount(c.rows)
-    return { value: c.category, label: n ? `${c.label} (${n})` : c.label }
-  }),
+// --- the overview: one Dashboard-style block per category, which is also the nav -------------
+const blockId = (c: string) => `settings-block-${c}`
+const PANEL_ID = 'settings-panel'
+const blocks = computed(() =>
+  categories.value.map((c) => ({ c, summary: summarize(c, usage.value) })),
 )
+/** Arrow keys move along the blocks, as in any tablist (Home/End to the ends). */
+async function onBlocksKey(e: KeyboardEvent) {
+  const keys = categories.value.map((c) => c.category)
+  const at = keys.indexOf(selected.value?.category ?? '')
+  const next =
+    e.key === 'ArrowRight' || e.key === 'ArrowDown'
+      ? (at + 1) % keys.length
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+        ? (at - 1 + keys.length) % keys.length
+        : e.key === 'Home'
+          ? 0
+          : e.key === 'End'
+            ? keys.length - 1
+            : -1
+  if (next < 0) return
+  e.preventDefault()
+  pick(keys[next])
+  await nextTick()
+  document.getElementById(blockId(keys[next]))?.focus()
+}
 const groups = computed(() =>
   selected.value ? groupRows(selected.value.category, selected.value.rows) : [],
 )
@@ -131,10 +154,11 @@ async function refreshUsage() {
   const r = await loadUsage()
   usage.value = r.ok ? r.data : null
 }
+// The AI block on the overview shows this month's spend, so it loads with the list.
 watch(
-  () => selected.value?.category,
-  (c) => {
-    if (c === 'ai' && !usage.value) void refreshUsage()
+  () => !!list.data.value,
+  (loaded) => {
+    if (loaded && !usage.value) void refreshUsage()
   },
   { immediate: true },
 )
@@ -150,7 +174,7 @@ const budgetSeed = computed<BudgetDraft | null>(() => {
 })
 const writer = useSettingWriter(async () => {
   await list.reload()
-  if (selected.value?.category === 'ai') await refreshUsage()
+  await refreshUsage()
 })
 /** The monthly budget to compare the split with: the typed one, else the one in use. */
 const monthlyBudget = computed<number | null>(() => {
@@ -295,20 +319,6 @@ async function saveAndLeave() {
         >
           <Icon name="stethoscope" size="sm" />Diagnose
         </button>
-        <Badge
-          v-if="selected && canTest(selected) && testChip(selected.test)"
-          v-bind="testChip(selected.test)!"
-        />
-        <button
-          v-if="selected && canTest(selected)"
-          type="button"
-          class="panel-action"
-          :disabled="writer.busy.value === `test:${selected.category}`"
-          data-testid="test-connection"
-          @click="runTest(selected)"
-        >
-          <Icon name="refresh-cw" size="sm" />Test connection
-        </button>
       </template>
     </PanelHeader>
 
@@ -376,16 +386,58 @@ async function saveAndLeave() {
         @reloaded="list.reload()"
       />
 
-      <Tabs
-        :model-value="selected?.category ?? ''"
-        :tabs="tabs"
+      <div
+        class="cs__blocks"
+        role="tablist"
         aria-label="Settings categories"
-        class="cs__tabs"
-        @update:model-value="pick"
-      />
+        data-testid="settings-overview"
+        @keydown="onBlocksKey"
+      >
+        <SettingsBlock
+          v-for="b in blocks"
+          :id="blockId(b.c.category)"
+          :key="b.c.category"
+          :panel-id="PANEL_ID"
+          :title="b.c.label"
+          :icon="b.c.icon"
+          :summary="b.summary"
+          :selected="selected?.category === b.c.category"
+          :data-category="b.c.category"
+          @select="pick(b.c.category)"
+        />
+      </div>
 
-      <section v-if="selected" class="cs__pane" :data-category="selected.category">
-        <p class="cs__purpose">{{ selected.note }}</p>
+      <section
+        v-if="selected"
+        :id="PANEL_ID"
+        role="tabpanel"
+        :aria-labelledby="blockId(selected.category)"
+        class="cs__pane"
+        :data-category="selected.category"
+      >
+        <header class="cs__dhead">
+          <div class="cs__dtext">
+            <h3 class="cs__dtitle">
+              <Icon :name="selected.icon" size="md" class="cs__dicon" />{{ selected.label }}
+              <span v-if="missingCount(selected.rows)" class="cs__dcount ui-label"
+                >{{ missingCount(selected.rows) }} to set</span
+              >
+            </h3>
+            <p class="cs__purpose">{{ selected.note }}</p>
+          </div>
+          <div v-if="canTest(selected)" class="cs__dactions">
+            <Badge v-if="testChip(selected.test)" v-bind="testChip(selected.test)!" />
+            <button
+              type="button"
+              class="panel-action"
+              :disabled="writer.busy.value === `test:${selected.category}`"
+              data-testid="test-connection"
+              @click="runTest(selected)"
+            >
+              <Icon name="refresh-cw" size="sm" />Test connection
+            </button>
+          </div>
+        </header>
         <p
           v-if="testMessage"
           class="cs__test-msg"
@@ -453,8 +505,62 @@ async function saveAndLeave() {
   gap: var(--sp-4);
   min-width: 0;
 }
-.cs__tabs {
-  max-width: 100%;
+/* Six categories as two even rows of three (the Dashboard's block gap), never
+   five and an orphan; two to a row on a phone. */
+.cs__blocks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  min-width: 0;
+}
+/* Two to a row on a phone: six categories in three short rows, not six tall ones. */
+@media (max-width: 520px) {
+  .cs__blocks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-2);
+  }
+}
+.cs__pane {
+  padding-top: var(--sp-2);
+}
+.cs__dhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.cs__dtext {
+  display: flex;
+  flex: 1 1 18rem;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.cs__dtitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-lg);
+  line-height: var(--lh-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary, var(--theme-text));
+}
+.cs__dicon {
+  color: var(--accent, var(--theme-accent));
+}
+.cs__dcount {
+  color: var(--theme-warning);
+}
+.cs__dactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
 }
 .cs__pane {
   display: flex;

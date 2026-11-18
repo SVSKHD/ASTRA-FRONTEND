@@ -224,7 +224,12 @@ const viewMap = {
   wallets: WalletsView,
   calendar: CalendarView,
 }
-const currentView = computed(() => viewMap[tab.value])
+// /settings is the workspace too: the same shell, dock and type, with Settings on
+// the stage instead of a tab (views/SettingsHome.vue). Lazy, so the home bundle
+// does not carry it. Picking any tab from the dock goes back to / (see below).
+const SettingsHome = defineAsyncComponent(() => import('@/views/SettingsHome.vue'))
+const onSettings = computed(() => route.path === '/settings')
+const currentView = computed(() => (onSettings.value ? SettingsHome : viewMap[tab.value]))
 // Every tab exposes `focus()` — "do the thing this tab is for", which for most
 // of them is opening their create form. `?.()` rather than a bare call: News
 // and Code have nothing to create and expose nothing, and reaching for a method
@@ -385,6 +390,8 @@ function onResume() {
 // /tasks/:id/view is a real route now, so the open task follows route params
 // rather than a hand-parsed popstate handler.
 const route = useRoute()
+// On /settings, choosing a different tab leaves Settings by itself: useTabRoute
+// writes that tab's address. No push here: a second navigation cancels that one.
 const importedTransferRoutes = new Set<string>()
 watch(
   () => (route.name === 'task-view' ? String(route.params.id ?? '') : ''),

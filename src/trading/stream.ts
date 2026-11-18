@@ -51,6 +51,22 @@ export interface StreamMt5 {
   generated_at: string
   open_failures: number
 }
+/**
+ * A stock-signal monitor event (EMA 8/32 cross, VWAP confirmation, portfolio
+ * reversal…), see src/trading/stockSignals/alertsApi.ts. Sent once the backend's
+ * monitor ships; until then the event simply never arrives.
+ */
+export interface StreamStockSignal {
+  id: string
+  type: string
+  instrument_id: number | null
+  symbol: string | null
+  timeframe: string | null
+  price: string | null
+  at: string
+  detail: string | null
+  read: boolean
+}
 export interface StreamBacktest {
   id: string
   status: string
@@ -67,6 +83,7 @@ export const live = reactive({
   quotes: {} as Record<number, StreamQuote>,
   backtests: {} as Record<string, StreamBacktest>,
   mt5: null as StreamMt5 | null,
+  stockSignals: [] as StreamStockSignal[],
   lastEventAt: null as string | null,
   /** The instrument ids this tab's stream follows (one EventSource per tab, never more). */
   subscribed: [] as number[],
@@ -117,6 +134,9 @@ export function applyEvent(event: string, raw: string): void {
     case 'mt5':
       live.mt5 = data as StreamMt5
       break
+    case 'stock_signal':
+      unshiftUnique(live.stockSignals, data as StreamStockSignal)
+      break
     case 'schema_changed': {
       // A deploy changed the API: the Modules nav re-reads its manifest.
       const hash = (data as { schema_hash?: unknown })?.schema_hash
@@ -134,6 +154,7 @@ const EVENTS = [
   'quote',
   'backtest',
   'mt5',
+  'stock_signal',
   'schema_changed',
   'bye',
 ]
