@@ -98,6 +98,13 @@ export interface BacktestDraft {
   instrumentId: number | null
   timeframe: string
   days: number | null
+  /**
+   * The period as dates, 'YYYY-MM-DD' in Indian time: from the start of `from`
+   * to the end of `to` (or now, if `to` is today). When both are set they win
+   * over `days`.
+   */
+  from?: string | null
+  to?: string | null
   quantity: number | null
   spread: number | null
   slippage: number | null
@@ -107,7 +114,10 @@ export interface BacktestDraft {
 }
 
 export type BacktestErrors = Partial<
-  Record<'version' | 'instrument' | 'timeframe' | 'days' | 'quantity' | 'costs' | 'grid', string>
+  Record<
+    'version' | 'instrument' | 'timeframe' | 'days' | 'period' | 'quantity' | 'costs' | 'grid',
+    string
+  >
 >
 
 /** "5, 9" → [5, 9]; null when any entry is not a positive whole number. */
@@ -125,7 +135,15 @@ export function validateBacktest(b: BacktestDraft): BacktestErrors {
   if (!b.versionId) e.version = 'Pick a strategy version.'
   if (!posInt(b.instrumentId)) e.instrument = 'Pick an instrument.'
   if (!TIMEFRAMES.includes(b.timeframe as Timeframe)) e.timeframe = 'Pick a timeframe.'
-  if (!posInt(b.days) || b.days > MAX_DAYS) e.days = `A whole number of days from 1 to ${MAX_DAYS}.`
+  if (b.from || b.to) {
+    const p = periodOf(b)
+    if (!p) e.period = 'Pick a start and an end date.'
+    else if (p.end <= p.start) e.period = 'The end must be after the start.'
+    else if (p.start.getTime() > Date.now()) e.period = 'The period cannot start in the future.'
+    else if (p.end.getTime() - p.start.getTime() > MAX_DAYS * 86_400_000)
+      e.period = `At most ${MAX_DAYS} days.`
+  } else if (!posInt(b.days) || b.days > MAX_DAYS)
+    e.days = `A whole number of days from 1 to ${MAX_DAYS}.`
   if (b.quantity !== null && !(typeof b.quantity === 'number' && b.quantity > 0))
     e.quantity = 'Leave empty, or a quantity above 0.'
   for (const c of [b.spread, b.slippage, b.fee])
@@ -135,9 +153,32 @@ export function validateBacktest(b: BacktestDraft): BacktestErrors {
   return e
 }
 
+const IST = '+05:30'
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** The draft's dates as instants: 00:00 IST on `from` to 23:59:59 IST on `to`, never past `now`. */
+export function periodOf(
+  b: Pick<BacktestDraft, 'from' | 'to'>,
+  now = new Date(),
+): { start: Date; end: Date } | null {
+  if (!b.from || !b.to || !DAY_RE.test(b.from) || !DAY_RE.test(b.to)) return null
+  const start = new Date(`${b.from}T00:00:00${IST}`)
+  const end = new Date(`${b.to}T23:59:59${IST}`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null
+  return { start, end: end > now ? now : end }
+}
+
+/** 'YYYY-MM-DD' in Indian time, `days` before `now` (0 = today). */
+export function istDay(now: Date, daysBack = 0): string {
+  return new Date(now.getTime() + 5.5 * 3_600_000 - daysBack * 86_400_000)
+    .toISOString()
+    .slice(0, 10)
+}
+
 export function buildBacktestRequest(b: BacktestDraft, now = new Date()): BacktestRequest {
-  const end = now
-  const start = new Date(end.getTime() - (b.days ?? 30) * 86_400_000)
+  const period = periodOf(b, now)
+  const end = period?.end ?? now
+  const start = period?.start ?? new Date(end.getTime() - (b.days ?? 30) * 86_400_000)
   const grid: Record<string, number[]> = {}
   const fast = intList(b.fastGrid) ?? []
   const slow = intList(b.slowGrid) ?? []

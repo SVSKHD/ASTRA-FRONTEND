@@ -29,7 +29,7 @@ import SourceTag from './SourceTag.vue'
 import { aureon, type components } from '@/api/client'
 import { useNow } from '@/control/poll'
 import { useUiStore } from '@/stores/ui'
-import { quoteFreshness } from '@/trading/dhanHealth'
+import { marketOpen, quoteFreshness } from '@/trading/dhanHealth'
 import { ago, dec } from '@/trading/format'
 import { ema } from '@/trading/indicators'
 import type { Instrument } from '@/trading/instruments'
@@ -38,6 +38,8 @@ import { syncStudio } from '@/trading/studioSync'
 import { requestHistory, type HistoryState } from '@/trading/history'
 import { connect, live } from '@/trading/stream'
 import { ApiFailure, must } from '@/trading/useLoad'
+import { useLiveQuotes } from '@/trading/liveQuotes'
+import { mergeTick, sameCandles, stableCandles } from '@/trading/stockChart'
 import { readWatchlist } from '@/trading/watchlist'
 import { allInstruments, watchlistStore } from '@/trading/watchlists'
 import {
@@ -145,9 +147,12 @@ async function loadCandles() {
     const rows = must(r)
     if (mine !== seq) return
     const date = Date.parse(r.response.headers.get('date') ?? '')
+    const got = rows.filter((c) => !c.is_gap)
+    const prev = loaded.value?.key === k ? loaded.value.candles : null
     loaded.value = {
       key: k,
-      candles: rows.filter((c) => !c.is_gap),
+      // Same candles as before: keep the same array, so the chart does not redraw.
+      candles: prev && sameCandles(prev, got) ? prev : got,
       serverNow: Number.isNaN(date) ? null : date,
       loadedAt: Date.now(),
     }
@@ -189,8 +194,20 @@ const emptyText = computed(() => {
   return `History could not be requested: ${h.reason}. Try another timeframe or reload.`
 })
 
-const candles = computed(() => loaded.value?.candles ?? [])
+const stored = computed(() => loaded.value?.candles ?? [])
 const now = useNow(5_000)
+// The live price moves the newest candle while the market is open (at most once a
+// second): the chart shows the price as it changes, between candle reads.
+const liveQuote = useLiveQuotes(() => (instrumentId.value ? [instrumentId.value] : []))
+const keep = stableCandles<Candle>()
+const candles = computed<Candle[]>(() => {
+  const q = instrumentId.value ? liveQuote.value.get(instrumentId.value) : undefined
+  const merged =
+    q && !q.stale && marketOpen(now.value)
+      ? (mergeTick(stored.value, q.ltp, q.received_at, tf.value, now.value) as Candle[])
+      : stored.value
+  return keep(merged) as Candle[]
+})
 /** The server's clock when it told us, carried forward by the browser's. */
 const serverNow = computed(() => {
   const l = loaded.value
@@ -389,6 +406,8 @@ onMounted(() => {
   if (!instrumentId.value && quick.value.length) open(quick.value[0].id)
   timer = setInterval(() => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    // The market is shut: nothing new to read, and a re-read would only redraw.
+    if (!marketOpen(Date.now())) return
     if (instrumentId.value && !loading.value) void loadCandles()
   }, REFRESH_MS)
   // While history is being fetched, look for it more often than the usual refresh.
@@ -549,6 +568,7 @@ const loadedAtText = computed(() =>
             :panes="panes"
             :markers="markers"
             :unconfirmed-last="unconfirmedLast"
+            :series-key="key"
             :timeframe="tf"
             :label="`${symbol} ${tf} candles`"
           />

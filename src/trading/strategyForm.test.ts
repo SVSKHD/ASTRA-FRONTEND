@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildBacktestRequest,
+  istDay,
+  periodOf,
   buildStrategyCreate,
   errorText,
   intList,
@@ -151,5 +153,31 @@ describe('display', () => {
     expect(paramsText({ fast: 9, slow: 21, instrument_ids: [1], timeframes: ['15m'] })).toBe(
       'fast 9 · slow 21',
     )
+  })
+})
+
+describe('backtest period as dates', () => {
+  const now = new Date('2026-11-17T10:00:00Z') // 15:30 IST
+  it('runs from the start of the first day to the end of the last, in IST', () => {
+    const p = periodOf({ from: '2026-10-01', to: '2026-10-31' }, now)!
+    expect(p.start.toISOString()).toBe('2026-09-30T18:30:00.000Z')
+    expect(p.end.toISOString()).toBe('2026-10-31T18:29:59.000Z')
+  })
+  it('stops at now when the period ends today', () => {
+    expect(periodOf({ from: '2026-11-01', to: '2026-11-17' }, now)!.end).toEqual(now)
+  })
+  it('wins over days back in the request', () => {
+    const r = buildBacktestRequest(BT({ days: 2, from: '2026-10-01', to: '2026-10-31' }), now)
+    expect(r.start).toBe('2026-09-30T18:30:00.000Z')
+    expect(r.end).toBe('2026-10-31T18:29:59.000Z')
+  })
+  it('checks the order of the dates', () => {
+    expect(validateBacktest(BT({ from: '2026-10-31', to: '2026-10-01' })).period).toBeTruthy()
+    expect(validateBacktest(BT({ from: '2026-10-01', to: null })).period).toBeTruthy()
+    expect(validateBacktest(BT({ from: '2026-10-01', to: '2026-10-31' }))).toEqual({})
+  })
+  it('names IST days', () => {
+    expect(istDay(now)).toBe('2026-11-17')
+    expect(istDay(now, 30)).toBe('2026-10-18')
   })
 })

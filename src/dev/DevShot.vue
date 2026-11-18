@@ -20,6 +20,7 @@ import CodeView from '@/components/views/CodeView.vue'
 import TodoView from '@/components/views/TodoView.vue'
 import TasksView from '@/components/views/TasksView.vue'
 import RemindersView from '@/components/views/RemindersView.vue'
+import StocksView from '@/components/views/StocksView.vue'
 import DeadlinesView from '@/components/views/DeadlinesView.vue'
 import FinancesView from '@/components/views/FinancesView.vue'
 import GoalsView from '@/components/views/GoalsView.vue'
@@ -33,7 +34,9 @@ import OverviewView from '@/components/views/OverviewView.vue'
 import AppShell from '@/components/shell/AppShell.vue'
 import TimelineDrawer from '@/components/TimelineDrawer.vue'
 import TimelineEditor from '@/components/TimelineEditor.vue'
+import ReminderDialog from '@/components/ReminderDialog.vue'
 import LoadingStates from '@/dev/LoadingStates.vue'
+import SettingsHome from '@/views/SettingsHome.vue'
 import { useAppStore } from '@/stores/app'
 import { supabase } from '@/supabase'
 import { useAuthStore } from '@/stores/auth'
@@ -107,6 +110,7 @@ const VIEWS = {
   // moved. They are not in the screenshot set.
   tasks: TasksView,
   reminders: RemindersView,
+  stocks: StocksView,
   deadlines: DeadlinesView,
   finances: FinancesView,
   goals: GoalsView,
@@ -118,6 +122,8 @@ const VIEWS = {
   calendar: CalendarView,
   // The five loading and glass states on one page (section 43, item 10).
   states: LoadingStates,
+  // /settings on the home stage (views/SettingsHome.vue), for the Settings screenshots.
+  settings: SettingsHome,
   trades: TradesView,
 } as const
 
@@ -373,6 +379,8 @@ const stage = ref<HTMLElement | null>(null)
   >
     <component :is="view" :show="which === 'states' ? show : undefined" />
   </div>
+  <!-- The reminder dialog (create and edit), so a shot can open it. -->
+  <ReminderDialog />
 </template>
 
 <style scoped>

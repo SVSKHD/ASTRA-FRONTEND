@@ -33,11 +33,12 @@ const app = useAppStore()
 const { c, s } = useStyles()
 const { itemDialog, dialogDraft, dialogClosing } = storeToRefs(app)
 
-// Tasks and reminders keep their own richer edit dialogs; this one only creates
-// them. Trips own both create and edit (places, maps, timeline live there), so
-// this dialog stands aside for them entirely. Their state rides the same slot.
-const OWN_EDIT_DIALOG = ['task', 'reminder']
-const OWN_DIALOG = ['trip']
+// Tasks keep their own richer edit dialog; this one only creates them. Trips
+// and reminders own both create and edit (ReminderDialog shows the same form
+// for both), so this dialog stands aside for them entirely. Their state rides
+// the same slot.
+const OWN_EDIT_DIALOG = ['task']
+const OWN_DIALOG = ['trip', 'reminder']
 const active = computed(() => {
   const d = itemDialog.value
   if (!d) return null

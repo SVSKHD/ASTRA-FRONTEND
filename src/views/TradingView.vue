@@ -34,6 +34,9 @@ const PAGES: Record<SectionKey, ReturnType<typeof defineAsyncComponent>> = {
   market: defineAsyncComponent(() => import('@/components/trading/TradingExplorer.vue')),
   charts: defineAsyncComponent(() => import('@/components/trading/TradingCharts.vue')),
   screener: defineAsyncComponent(() => import('@/components/trading/TradingScreener.vue')),
+  'stock-signals': defineAsyncComponent(
+    () => import('@/components/trading/TradingStockSignals.vue'),
+  ),
   options: defineAsyncComponent(() => import('@/components/trading/TradingOptions.vue')),
   watchlists: defineAsyncComponent(() => import('@/components/trading/TradingWatchlists.vue')),
   dhan: defineAsyncComponent(() => import('@/components/trading/TradingDhan.vue')),

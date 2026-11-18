@@ -18,6 +18,7 @@ export type SectionKey =
   | 'market'
   | 'charts'
   | 'screener'
+  | 'stock-signals'
   | 'options'
   | 'watchlists'
   | 'strategies'
@@ -65,6 +66,13 @@ export const SECTIONS: Section[] = [
     group: 'markets',
   },
   { key: 'screener', label: 'Stock Screener', short: 'Screener', icon: 'filter', group: 'markets' },
+  {
+    key: 'stock-signals',
+    label: 'Stock Signals',
+    short: 'Signals',
+    icon: 'activity',
+    group: 'markets',
+  },
   { key: 'options', label: 'Futures & Options', short: 'F&O', icon: 'layers', group: 'markets' },
   { key: 'watchlists', label: 'Watchlists', short: 'Watchlists', icon: 'star', group: 'markets' },
   {

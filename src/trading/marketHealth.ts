@@ -1,12 +1,12 @@
 // Market-data health as SEPARATE checks (docs/market-terminal.md §7):
 //
 //   session                 the Dhan login                   GET /api/v1/dhan/auth/status
-//   instrument_master       is there a master, how fresh     GET /api/trading/instruments?limit=1 (count only)
+//   instrument_master       is there a master, how fresh     GET /api/trading/instruments/status
 //   market_data_permission  the Dhan data plan               only a refusal is visible (feed code auth_failed)
 //   live_feed               the dhan-feed worker             GET /api/v1/dhan/feed/health
 //   historical_candles      stored candles, for one probe    GET /api/trading/candles?instrument_id&timeframe=1d&limit=1
 //   research_worker         the technical-analysis agent     GET /api/trading/agents
-//   screener                screener freshness               no endpoint (§6)
+//   screener                the screener queue and worker    GET /api/trading/screener/status
 //
 // The backend has no single market-health endpoint yet (contract requested in
 // §7). Whatever it cannot report is UNKNOWN, never OK. A Dhan login is a login:
@@ -50,6 +50,23 @@ export interface ResearchAgentLike {
   last_heartbeat_at: string | null
 }
 
+/** GET /api/trading/instruments/status, loosely. */
+export interface MasterStatusLike {
+  count?: number
+  last_synced_at?: string | null
+  last_run_status?: string | null
+  last_error?: string | null
+  stale?: boolean
+}
+
+/** GET /api/trading/screener/status, loosely. */
+export interface ScreenerStatusLike {
+  worker?: string
+  queued_runs?: number
+  queued_backfills?: number
+  last_run_at?: string | null
+}
+
 export interface MarketInputs {
   session: DhanInputs['session']
   sessionError: string
@@ -58,6 +75,11 @@ export interface MarketInputs {
   /** The instrument search's total for an unfiltered query; null when unread. */
   masterTotal: number | null
   masterError: string
+  /** GET /api/trading/instruments/status: when the master was last synced; null when unread. */
+  masterStatus?: MasterStatusLike | null
+  /** GET /api/trading/screener/status; null when unread. */
+  screener?: ScreenerStatusLike | null
+  screenerError?: string
   /** One instrument's stored daily candles; null when no instrument was probed. */
   candles: { symbol: string; count: number; newest: string | null } | null
   candlesError: string
@@ -117,19 +139,43 @@ function master(i: MarketInputs): MarketCheck {
   if (i.masterTotal == null) {
     return { ...base, level: 'unknown', text: 'The instrument search has not answered yet.' }
   }
+  const st = i.masterStatus
+  const count = i.masterTotal.toLocaleString()
+  const synced = st?.last_synced_at ? new Date(st.last_synced_at).toLocaleString() : null
+  if (st?.last_run_status === 'failed') {
+    return {
+      ...base,
+      level: 'error',
+      badge: 'Sync failed',
+      text: `The last instrument refresh failed${st.last_error ? `: ${st.last_error.slice(0, 200)}` : ''}. ${count} instruments stored${synced ? `, last synced ${synced}` : ''}.`,
+    }
+  }
   if (i.masterTotal === 0) {
     return {
       ...base,
       level: 'missing',
-      text: `No instruments are stored. The master may never have been synced (run the instrument refresh). Sync status is not reported (${DOC} §2).`,
+      text: 'No instruments are stored. Run the Dhan instrument refresh (dhan-refresh-instruments).',
     }
   }
-  return {
-    ...base,
-    level: 'unknown',
-    badge: 'Sync unknown',
-    text: `${i.masterTotal.toLocaleString()} instruments stored. When they were last synced is not reported, so freshness is unknown (${DOC} §2).`,
+  if (!st) {
+    return {
+      ...base,
+      level: 'unknown',
+      badge: 'Sync unknown',
+      text: `${count} instruments stored. The sync status could not be read.`,
+    }
   }
+  if (!synced || st.stale) {
+    return {
+      ...base,
+      level: 'stale',
+      badge: 'Stale',
+      text: synced
+        ? `${count} instruments, last synced ${synced}: older than it should be. Run the instrument refresh.`
+        : `${count} instruments stored, but no successful sync is recorded. Run the instrument refresh.`,
+    }
+  }
+  return { ...base, level: 'ok', text: `${count} instruments, synced ${synced}.` }
 }
 
 const FEED: Record<string, { level: Level; badge: string }> = {
@@ -245,12 +291,37 @@ function research(i: MarketInputs, now: number): MarketCheck {
   return { ...base, level, text: `${a.name}: ${a.state}, ${beat}.` }
 }
 
-function screener(): MarketCheck {
+function screener(i: MarketInputs): MarketCheck {
+  const base = { key: 'screener', label: 'Screener' } as const
+  if (i.screenerError) {
+    return { ...base, level: 'error', text: `The screener status failed: ${i.screenerError}` }
+  }
+  const s = i.screener
+  if (!s) return { ...base, level: 'unknown', text: 'The screener status has not answered yet.' }
+  const queued = s.queued_runs ?? 0
+  const last = s.last_run_at
+    ? `Last run ${new Date(s.last_run_at).toLocaleString()}.`
+    : 'No run yet.'
+  if (s.worker === 'down') {
+    return {
+      ...base,
+      level: 'error',
+      badge: 'Worker down',
+      text: `The research worker is not running, so scans of more than 100 instruments wait${queued ? ` (${queued} queued)` : ''}. Start it with the research profile. ${last}`,
+    }
+  }
+  if (s.worker === 'stale') {
+    return {
+      ...base,
+      level: 'stale',
+      badge: 'Worker stale',
+      text: `The research worker has not reported recently${queued ? `; ${queued} scans queued` : ''}. ${last}`,
+    }
+  }
   return {
-    key: 'screener',
-    label: 'Screener freshness',
-    level: 'unknown',
-    text: `There is no screener status endpoint yet (${DOC} §6, §7).`,
+    ...base,
+    level: 'ok',
+    text: `${queued ? `${queued} scans queued. ` : ''}${last}`,
   }
 }
 
@@ -264,6 +335,6 @@ export function marketChecks(i: MarketInputs): MarketCheck[] {
     feed(i),
     candles(i, now),
     research(i, now),
-    screener(),
+    screener(i),
   ]
 }

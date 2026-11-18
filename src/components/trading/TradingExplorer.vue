@@ -49,6 +49,7 @@ import {
 } from '@/trading/instruments'
 import { changeOf, fetchQuotes, NO_CHANGE_REASON, quoteView, type QuoteOut } from '@/trading/quotes'
 import { remember } from '@/trading/resolve'
+import { useLiveQuotes } from '@/trading/liveQuotes'
 import { live } from '@/trading/stream'
 import { ApiFailure } from '@/trading/useLoad'
 
@@ -254,38 +255,46 @@ async function loadQuotes(items: Instrument[] = rows.value) {
   }
 }
 
+// Stream ticks reach the table at most once a second, and only for rows on this
+// page: reading `live.quotes` here directly rebuilt (and re-rendered) every row on
+// every tick of every followed instrument.
+const streamQuotes = useLiveQuotes(() => rows.value.map((i) => i.id))
+
+function changeCell(quote: ReturnType<typeof quoteView>): { text: string; title: string } {
+  const c = quote ? changeOf(quote.last, quote.previousClose) : null
+  return c
+    ? { text: `${c.pct}%`, title: `${c.change} since the previous close` }
+    : { text: '—', title: NO_CHANGE_REASON }
+}
 const visible = computed(() =>
-  rows.value.map((i) => ({
-    i,
-    quote: quoteView(
-      live.quotes[i.id],
+  rows.value.map((i) => {
+    const quote = quoteView(
+      streamQuotes.value.get(i.id),
       snapshots.value.get(i.broker_instrument_id),
       live.status,
       now.value,
-    ),
-  })),
+    )
+    // Worked out once per row here, not twice per row on every render.
+    return { i, quote, change: changeCell(quote), contract: contract(i) }
+  }),
 )
-type Row = (typeof visible.value)[number]
 
 function contract(i: Instrument): string {
   const parts = [i.expiry, i.strike ? dec(i.strike) : null, i.option_type].filter(Boolean)
   return parts.length ? parts.join(' · ') : '—'
 }
-function changeText(r: Row): { text: string; title: string } {
-  const c = r.quote ? changeOf(r.quote.last, r.quote.previousClose) : null
-  return c
-    ? { text: `${c.pct}%`, title: `${c.change} since the previous close` }
-    : { text: '—', title: NO_CHANGE_REASON }
-}
 
-// --- the long list: virtualised past a page of 100 -----------------------------------------------
-const VIRTUAL_AFTER = 100
+// --- the long list: virtualised past a page of 50 ------------------------------------------------
+// Keyed on the row COUNT, not on `visible`: the options object is rebuilt only
+// when the page changes, not on every quote tick or clock tick.
+const VIRTUAL_AFTER = 50
 const ROW_PX = 44
 const scroller = ref<HTMLElement | null>(null)
-const virtual = computed(() => visible.value.length > VIRTUAL_AFTER)
+const rowCount = computed(() => rows.value.length)
+const virtual = computed(() => rowCount.value > VIRTUAL_AFTER)
 const virtualizer = useVirtualizer(
   computed(() => ({
-    count: virtual.value ? visible.value.length : 0,
+    count: virtual.value ? rowCount.value : 0,
     getScrollElement: () => scroller.value,
     estimateSize: () => ROW_PX,
     overscan: 8,
@@ -483,12 +492,12 @@ const range = computed(() =>
                 <span role="cell" :title="row.i.instrument_type">{{
                   KIND_LABEL[kindOf(row.i)]
                 }}</span>
-                <span role="cell">{{ contract(row.i) }}</span>
+                <span role="cell">{{ row.contract }}</span>
                 <span role="cell" class="is-num">{{ dec(row.i.lot_size) }}</span>
                 <span role="cell" class="is-num">{{ dec(row.i.tick_size) }}</span>
                 <span role="cell" class="is-num">{{ dec(row.quote?.last) }}</span>
-                <span role="cell" class="is-num" :title="changeText(row).title">{{
-                  changeText(row).text
+                <span role="cell" class="is-num" :title="row.change.title">{{
+                  row.change.text
                 }}</span>
                 <span role="cell" class="is-num">{{ dec(row.quote?.volume) }}</span>
                 <span role="cell" :title="row.quote ? when(row.quote.at) : 'No quote'">{{
@@ -510,8 +519,8 @@ const range = computed(() =>
                   <span class="tp-note"
                     >{{ exchangeOf(row.i) ?? segmentOf(row.i) ?? '—' }} ·
                     {{ KIND_LABEL[kindOf(row.i)]
-                    }}<template v-if="contract(row.i) !== '—'"> · {{ contract(row.i) }}</template> ·
-                    lot {{ dec(row.i.lot_size) }}</span
+                    }}<template v-if="row.contract !== '—'"> · {{ row.contract }}</template> · lot
+                    {{ dec(row.i.lot_size) }}</span
                   >
                 </span>
                 <span role="cell" class="mx__phone-side">

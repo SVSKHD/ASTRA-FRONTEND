@@ -56,7 +56,8 @@ describe('no native date inputs remain', () => {
       // dialog body each own a Starts/Target pair.
       'components/detail/GoalDetailBody.vue',
       'components/GoalDetail.vue',
-      'components/ReminderDialog.vue',
+      // The reminder dialog and detail pane share one form, which holds the picker.
+      'components/reminders/ReminderForm.vue',
       'components/ItemDialog.vue',
     ]) {
       expect(readFileSync(join(SRC, file), 'utf8'), file).toContain('GlassDatePicker')
