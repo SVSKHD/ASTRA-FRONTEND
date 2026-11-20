@@ -1635,6 +1635,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trading/chart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Chart
+         * @description Candles with EMA 8, EMA 32, session VWAP (intraday), volume, EMA crossover markers and
+         *     session boundaries. History is stored Dhan candles; with `include_live`, today's live bars
+         *     after the newest stored one are appended (`source: ticks`, `partial` when the server did not
+         *     watch them from their start) and the forming bar is last (`is_closed: false`). Missing
+         *     history is never filled. Continue with the `candle:<id>:<tf>` WebSocket topic.
+         */
+        get: operations["chart_api_trading_chart_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trading/executions": {
         parameters: {
             query?: never;
@@ -1727,6 +1751,70 @@ export interface paths {
          *     last run's error. `stale` once no sync succeeded within DHAN_INSTRUMENT_MAX_AGE_HOURS.
          */
         get: operations["instruments_status_api_trading_instruments_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/live/protocol": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live Protocol
+         * @description The WebSocket contract: topics, limits, close codes and the event types.
+         */
+        get: operations["live_protocol_api_trading_live_protocol_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/live/quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live Quotes
+         * @description The newest live quote per instrument: LTP, day OHLC, volume, the previous trading
+         *     session's close (and where it came from) and the change against it, with freshness.
+         *     Instruments nobody watches are not on the feed: subscribe on the WebSocket (or list them
+         *     in DHAN_FEED_INSTRUMENTS / a live universe) first.
+         */
+        get: operations["live_quotes_api_trading_live_quotes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trading/live/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live Status
+         * @description Market session, the Dhan feed's health and subscription counts, the market-live worker's
+         *     status record and this process's WebSocket hub.
+         */
+        get: operations["live_status_api_trading_live_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2312,6 +2400,12 @@ export interface paths {
          * Market Movers
          * @description Top gainers / losers by real % change, or unusual volume (relative volume at or above
          *     STOCK_SIGNALS_UNUSUAL_RVOL), among liquid instruments with usable data.
+         *
+         *     `basis=confirmed` (default): from the latest finished Stock Signals run (closed candles).
+         *     `basis=live`: from live quotes of a MARKET_LIVE_UNIVERSES `universe`, change against the
+         *     previous session's close, relative volume adjusted for time of day; `min_price`,
+         *     `min_avg_turnover` and `include_stale` override the liquidity defaults. `scope` says what
+         *     the list covers and is never market-wide for a subset.
          */
         get: operations["market_movers_api_trading_stock_signals_market_movers_get"];
         put?: never;
@@ -2491,7 +2585,9 @@ export interface paths {
         /**
          * Trending
          * @description Top trending bullish (highest score) or bearish (lowest score) instruments whose EMAs
-         *     agree with the direction.
+         *     agree with the direction. `basis=live` ranks the live EMA/VWAP state of the bar that is
+         *     still forming (MARKET_LIVE_SCREENER_TIMEFRAMES only): it can change until the bar closes,
+         *     and only the confirmed basis creates signals or notifications.
          */
         get: operations["trending_api_trading_stock_signals_trending_get"];
         put?: never;
@@ -6081,6 +6177,25 @@ export interface components {
             /** Verified */
             verified: number;
         };
+        /**
+         * ChangePctFilter
+         * @description % change of the evaluated bar's close against the previous trading session's last close
+         *     (the previous bar for 1d), e.g. {"type": "change_pct", "op": ">", "value": 2}.
+         */
+        ChangePctFilter: {
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "<" | ">";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "change_pct";
+            /** Value */
+            value: number;
+        };
         /** ChangesOut */
         ChangesOut: {
             /**
@@ -6103,6 +6218,115 @@ export interface components {
              * @default false
              */
             truncated: boolean;
+        };
+        /** ChartCandleOut */
+        ChartCandleOut: {
+            /** Close */
+            close: string;
+            /** Ema Fast */
+            ema_fast: string | null;
+            /** Ema Slow */
+            ema_slow: string | null;
+            /** High */
+            high: string;
+            /** Is Closed */
+            is_closed: boolean;
+            /** Low */
+            low: string;
+            /** Open */
+            open: string;
+            /**
+             * Partial
+             * @description a live bar the server did not watch from its start
+             */
+            partial: boolean;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "broker" | "ticks";
+            /**
+             * Ts
+             * Format: date-time
+             * @description bar open time (UTC)
+             */
+            ts: string;
+            /** Volume */
+            volume: string | null;
+            /** Vwap */
+            vwap: string | null;
+        };
+        /** ChartLiveOut */
+        ChartLiveOut: {
+            /** Bars */
+            bars: number;
+            /** Error */
+            error: string | null;
+            /** Included */
+            included: boolean;
+            /** Partial Bars */
+            partial_bars: number;
+        };
+        /** ChartMarkerOut */
+        ChartMarkerOut: {
+            /**
+             * Confirmed
+             * @description false while the bar is still forming
+             */
+            confirmed: boolean;
+            /** Ema Fast */
+            ema_fast: string | null;
+            /** Ema Slow */
+            ema_slow: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bullish_cross" | "bearish_cross";
+            /** Price */
+            price: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+        };
+        /** ChartOut */
+        ChartOut: {
+            /** Candles */
+            candles: components["schemas"]["ChartCandleOut"][];
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /** Data As Of */
+            data_as_of: string | null;
+            /** Ema Fast Period */
+            ema_fast_period: number;
+            /** Ema Slow Period */
+            ema_slow_period: number;
+            /** Instrument Id */
+            instrument_id: number;
+            live: components["schemas"]["ChartLiveOut"];
+            /** Markers */
+            markers: components["schemas"]["ChartMarkerOut"][];
+            market: components["schemas"]["MarketOut"];
+            /** Ref */
+            ref: string;
+            /** Sessions */
+            sessions: components["schemas"]["app__schemas__live__SessionOut"][];
+            /** Step Seconds */
+            step_seconds: number;
+            /** Symbol */
+            symbol: string;
+            /**
+             * Timeframe
+             * @enum {string}
+             */
+            timeframe: "1m" | "5m" | "15m" | "1h" | "1d";
+            /** Vwap Applicable */
+            vwap_applicable: boolean;
         };
         /** ChatAttachmentOut */
         ChatAttachmentOut: {
@@ -7861,6 +8085,172 @@ export interface components {
             /** Per Page */
             per_page: number;
         };
+        /**
+         * LiveProtocolOut
+         * @description GET /api/trading/live/protocol: the WebSocket contract, machine-readable.
+         */
+        LiveProtocolOut: {
+            /** Candle Timeframes */
+            candle_timeframes: string[];
+            client?: components["schemas"]["WsClientMessage"] | null;
+            /** Close Codes */
+            close_codes: {
+                [key: string]: string;
+            };
+            /** Events */
+            events: {
+                [key: string]: string;
+            };
+            example_ack?: components["schemas"]["WsAck"] | null;
+            example_bye?: components["schemas"]["WsBye"] | null;
+            example_candle?: components["schemas"]["WsCandle"] | null;
+            example_error?: components["schemas"]["WsError"] | null;
+            example_heartbeat?: components["schemas"]["WsHeartbeat"] | null;
+            example_hello?: components["schemas"]["WsHello"] | null;
+            example_quote?: components["schemas"]["WsQuote"] | null;
+            example_rankings?: components["schemas"]["WsRankings"] | null;
+            example_screener?: components["schemas"]["WsScreener"] | null;
+            example_snapshot?: components["schemas"]["WsSnapshot"] | null;
+            example_status?: components["schemas"]["WsStatus"] | null;
+            /** Limits */
+            limits: {
+                [key: string]: unknown;
+            };
+            /** Screener Timeframes */
+            screener_timeframes: string[];
+            /** Topics */
+            topics: {
+                [key: string]: string;
+            };
+            /** Universes */
+            universes: string[];
+            /** Url */
+            url: string;
+        };
+        /** LiveQuoteOut */
+        LiveQuoteOut: {
+            /** Age Seconds */
+            age_seconds: number | null;
+            /**
+             * Atp
+             * @description exchange average traded price
+             */
+            atp?: string | null;
+            /** Change */
+            change: string | null;
+            /** Change Pct */
+            change_pct: string | null;
+            /** Computed By */
+            computed_by?: ("market_live" | "feed_hash") | null;
+            /** Exchange */
+            exchange?: string | null;
+            /** High */
+            high?: string | null;
+            /** Instrument Id */
+            instrument_id: number | null;
+            /** Low */
+            low?: string | null;
+            /** Ltp */
+            ltp: string | null;
+            /**
+             * Ltt
+             * @description exchange time of the last trade
+             */
+            ltt: string | null;
+            /** Name */
+            name?: string | null;
+            /** Oi */
+            oi?: number | null;
+            /** Open */
+            open?: string | null;
+            /**
+             * Prev Close
+             * @description close of the previous trading session
+             */
+            prev_close: string | null;
+            /** Prev Close Date */
+            prev_close_date?: string | null;
+            /** Prev Close Source */
+            prev_close_source: ("feed" | "daily_candle") | null;
+            /** Received At */
+            received_at: string | null;
+            /**
+             * Ref
+             * @description Dhan SEGMENT:SECURITY_ID
+             */
+            ref?: string | null;
+            /** Segment */
+            segment?: string | null;
+            /**
+             * Session Date
+             * @description IST session the last trade belongs to
+             */
+            session_date: string | null;
+            /**
+             * Source
+             * @default dhan_feed
+             */
+            source: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "live" | "stale" | "closed" | "no_data";
+            /** Symbol */
+            symbol?: string | null;
+            /** Turnover */
+            turnover?: string | null;
+            /**
+             * Volume
+             * @description cumulative volume of the session
+             */
+            volume?: string | null;
+        };
+        /** LiveQuotesOut */
+        LiveQuotesOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Items */
+            items: components["schemas"]["LiveQuoteOut"][];
+            market: components["schemas"]["MarketOut"];
+            /**
+             * Missing
+             * @description requested instruments with no live data (not subscribed yet, or no trade)
+             */
+            missing: number[];
+        };
+        /** LiveStatusOut */
+        LiveStatusOut: {
+            /**
+             * Feed
+             * @description Dhan feed health (same as /api/v1/dhan/feed)
+             */
+            feed: {
+                [key: string]: unknown;
+            };
+            /**
+             * Hub
+             * @description this API process's WebSocket hub
+             */
+            hub: {
+                [key: string]: unknown;
+            };
+            market: components["schemas"]["MarketOut"];
+            /**
+             * Market Live
+             * @description market-live worker status record
+             */
+            market_live: {
+                [key: string]: unknown;
+            } | null;
+            /** Subscriptions */
+            subscriptions: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** LiveToken */
         LiveToken: {
             /** Expires In */
@@ -7946,6 +8336,21 @@ export interface components {
              * @description Mark everything up to this id
              */
             up_to_id?: number | null;
+        };
+        /** MarketOut */
+        MarketOut: {
+            /**
+             * Now
+             * Format: date-time
+             */
+            now: string;
+            /** Open */
+            open: boolean;
+            /**
+             * Session
+             * @description open, pre_open, closed, weekend or holiday (IST)
+             */
+            session: string;
         };
         /** MergeRequest */
         MergeRequest: {
@@ -10036,6 +10441,10 @@ export interface components {
         RankingCoverageOut: {
             /** Boundary */
             boundary?: string | null;
+            /** Closed */
+            closed?: number | null;
+            /** Computed At */
+            computed_at?: string | null;
             /** Data As Of */
             data_as_of: string | null;
             /**
@@ -10055,8 +10464,20 @@ export interface components {
              * @default 0
              */
             illiquid: number;
+            /** Liquidity Unknown */
+            liquidity_unknown?: number | null;
+            /** Live */
+            live?: number | null;
+            /** No Data */
+            no_data?: number | null;
+            /** No Prev Close */
+            no_prev_close?: number | null;
+            /** Quotes As Of */
+            quotes_as_of?: string | null;
             /** Run Id */
             run_id: string | null;
+            /** Stale */
+            stale?: number | null;
             /** Timeframe */
             timeframe: string;
             /**
@@ -10064,18 +10485,49 @@ export interface components {
              * @default 0
              */
             unavailable: number;
+            /** Universe */
+            universe?: string | null;
             /** Universe Size */
             universe_size: number;
+            /** With Quote */
+            with_quote?: number | null;
         };
         /** RankingOut */
         RankingOut: {
+            /**
+             * Basis
+             * @default confirmed
+             * @enum {string}
+             */
+            basis: "confirmed" | "live";
             coverage: components["schemas"]["RankingCoverageOut"];
             /** Items */
             items: components["schemas"]["StockSignalStateOut"][];
             /** Kind */
             kind: string;
+            /** Market */
+            market?: {
+                [key: string]: unknown;
+            } | null;
             /** Note */
             note: string;
+            scope?: components["schemas"]["RankingScopeOut"] | null;
+        };
+        /** RankingScopeOut */
+        RankingScopeOut: {
+            /** Capped */
+            capped: boolean;
+            /** Label */
+            label: string;
+            /**
+             * Market Wide
+             * @description true only for every NSE equity, uncapped, all with a live quote
+             */
+            market_wide: boolean;
+            /** Universe */
+            universe: string | null;
+            /** Universe Total */
+            universe_total: number | null;
         };
         /** RateLimitOut */
         RateLimitOut: {
@@ -10949,7 +11401,7 @@ export interface components {
              */
             candle: "confirmed" | "live";
             /** Filters */
-            filters: (components["schemas"]["EmaCrossFilter"] | components["schemas"]["EmaPositionFilter"] | components["schemas"]["PriceVsEmaFilter"] | components["schemas"]["RsiFilter"] | components["schemas"]["MacdCrossFilter"] | components["schemas"]["VolumeFilter"] | components["schemas"]["AdxFilter"] | components["schemas"]["VwapPositionFilter"])[];
+            filters: (components["schemas"]["EmaCrossFilter"] | components["schemas"]["EmaPositionFilter"] | components["schemas"]["PriceVsEmaFilter"] | components["schemas"]["RsiFilter"] | components["schemas"]["MacdCrossFilter"] | components["schemas"]["VolumeFilter"] | components["schemas"]["AdxFilter"] | components["schemas"]["VwapPositionFilter"] | components["schemas"]["ChangePctFilter"])[];
             /**
              * Limit
              * @default 50
@@ -11215,30 +11667,6 @@ export interface components {
          * @enum {string}
          */
         Session: "Asia" | "London" | "NY";
-        /** SessionOut */
-        SessionOut: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Current */
-            current: boolean;
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Ip */
-            ip: string | null;
-            /** User Agent */
-            user_agent: string | null;
-        };
         /** SettingIn */
         SettingIn: {
             /** Password */
@@ -11575,8 +12003,21 @@ export interface components {
         StockSignalStateOut: {
             /** Adx */
             adx: string | null;
+            /** Avg Turnover */
+            avg_turnover?: string | null;
+            /**
+             * Basis
+             * @default confirmed
+             * @enum {string}
+             */
+            basis: "confirmed" | "live";
             /** Candle Close At */
             candle_close_at: string | null;
+            /**
+             * Candle Closed
+             * @description live state: false while its bar is still forming
+             */
+            candle_closed?: boolean | null;
             /**
              * Change Pct
              * @description vs the previous session's last close
@@ -11598,10 +12039,22 @@ export interface components {
             instrument_id: number;
             /** Last Price */
             last_price: string | null;
+            /** Last Trade At */
+            last_trade_at?: string | null;
             /** Missing Features */
             missing_features: string[];
             /** Name */
             name: string | null;
+            /** Partial Bars */
+            partial_bars?: number | null;
+            /** Prev Close */
+            prev_close?: string | null;
+            /** Prev Close Source */
+            prev_close_source?: ("feed" | "daily_candle") | null;
+            /** Quote Age Seconds */
+            quote_age_seconds?: number | null;
+            /** Quote Status */
+            quote_status?: ("live" | "stale" | "closed" | "no_data") | null;
             /** Reason */
             reason?: string | null;
             /**
@@ -11626,6 +12079,10 @@ export interface components {
             timeframe: string;
             /** Trend Score */
             trend_score: string | null;
+            /** Turnover */
+            turnover?: string | null;
+            /** Volume */
+            volume?: string | null;
             /** Vwap */
             vwap: string | null;
             /** Vwap Distance Pct */
@@ -12177,6 +12634,457 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** WsAck */
+        WsAck: {
+            /**
+             * Accepted
+             * @description topic names, e.g. quote:42, candle:42:5m
+             */
+            accepted: string[];
+            /** Id */
+            id: string | null;
+            /** Op */
+            op: string;
+            /**
+             * Rejected
+             * @description {topic, reason}
+             */
+            rejected: {
+                [key: string]: string;
+            }[];
+            /** Seq */
+            seq: number;
+            /**
+             * Type
+             * @constant
+             */
+            type: "ack";
+        };
+        /** WsBye */
+        WsBye: {
+            /**
+             * Reason
+             * @description session_ended, slow_consumer, server_shutdown, …
+             */
+            reason: string;
+            /** Seq */
+            seq: number;
+            /**
+             * Type
+             * @constant
+             */
+            type: "bye";
+        };
+        /** WsCandle */
+        WsCandle: {
+            /** Close */
+            close: string;
+            /**
+             * Closed
+             * @description false: the bar is forming and will change
+             */
+            closed: boolean;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** High */
+            high: string;
+            /** Instrument Id */
+            instrument_id: number | null;
+            /** Key */
+            key: string;
+            /** Last Trade At */
+            last_trade_at: string | null;
+            /** Low */
+            low: string;
+            /** Open */
+            open: string;
+            /** Partial */
+            partial: boolean;
+            /** Seq */
+            seq: number;
+            /**
+             * Source
+             * @constant
+             */
+            source: "ticks";
+            /** Ticks */
+            ticks: number;
+            /**
+             * Timeframe
+             * @enum {string}
+             */
+            timeframe: "1m" | "5m" | "15m" | "1h" | "1d";
+            /** Topic */
+            topic: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /**
+             * Type
+             * @constant
+             */
+            type: "candle";
+            /** Volume */
+            volume: string | null;
+        };
+        /**
+         * WsClientMessage
+         * @description Client → server.
+         */
+        WsClientMessage: {
+            /**
+             * Id
+             * @description echoed in the ack
+             */
+            id?: string | null;
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "subscribe" | "unsubscribe" | "ping";
+            /** Topics */
+            topics?: components["schemas"]["WsTopicIn"][];
+        };
+        /** WsError */
+        WsError: {
+            /** Code */
+            code: string;
+            /** Detail */
+            detail: string;
+            /** Seq */
+            seq: number;
+            /**
+             * Type
+             * @constant
+             */
+            type: "error";
+        };
+        /** WsHeartbeat */
+        WsHeartbeat: {
+            /**
+             * Feed
+             * @description connected, status (feed health), redis
+             */
+            feed: {
+                [key: string]: unknown;
+            };
+            market: components["schemas"]["MarketOut"];
+            /** Seq */
+            seq: number;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /**
+             * Type
+             * @constant
+             */
+            type: "heartbeat";
+        };
+        /** WsHello */
+        WsHello: {
+            /** Connection Id */
+            connection_id: string;
+            /** Heartbeat Seconds */
+            heartbeat_seconds: number;
+            market: components["schemas"]["MarketOut"];
+            /** Max Topics */
+            max_topics: number;
+            /** Seq */
+            seq: number;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /**
+             * Type
+             * @constant
+             */
+            type: "hello";
+        };
+        /** WsQuote */
+        WsQuote: {
+            /** Age Seconds */
+            age_seconds: number | null;
+            /**
+             * Atp
+             * @description exchange average traded price
+             */
+            atp?: string | null;
+            /** Change */
+            change: string | null;
+            /** Change Pct */
+            change_pct: string | null;
+            /** Computed By */
+            computed_by?: ("market_live" | "feed_hash") | null;
+            /** Exchange */
+            exchange?: string | null;
+            /** High */
+            high?: string | null;
+            /** Instrument Id */
+            instrument_id: number | null;
+            /** Key */
+            key: string;
+            /** Low */
+            low?: string | null;
+            /** Ltp */
+            ltp: string | null;
+            /**
+             * Ltt
+             * @description exchange time of the last trade
+             */
+            ltt: string | null;
+            /** Name */
+            name?: string | null;
+            /** Oi */
+            oi?: number | null;
+            /** Open */
+            open?: string | null;
+            /**
+             * Prev Close
+             * @description close of the previous trading session
+             */
+            prev_close: string | null;
+            /** Prev Close Date */
+            prev_close_date?: string | null;
+            /** Prev Close Source */
+            prev_close_source: ("feed" | "daily_candle") | null;
+            /** Received At */
+            received_at: string | null;
+            /**
+             * Ref
+             * @description Dhan SEGMENT:SECURITY_ID
+             */
+            ref?: string | null;
+            /** Segment */
+            segment?: string | null;
+            /** Seq */
+            seq: number;
+            /**
+             * Session Date
+             * @description IST session the last trade belongs to
+             */
+            session_date: string | null;
+            /**
+             * Source
+             * @default dhan_feed
+             */
+            source: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "live" | "stale" | "closed" | "no_data";
+            /** Symbol */
+            symbol?: string | null;
+            /** Topic */
+            topic: string;
+            /** Turnover */
+            turnover?: string | null;
+            /**
+             * Type
+             * @constant
+             */
+            type: "quote";
+            /**
+             * Volume
+             * @description cumulative volume of the session
+             */
+            volume?: string | null;
+        };
+        /** WsRankings */
+        WsRankings: {
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /** Coverage */
+            coverage: {
+                [key: string]: number;
+            };
+            market: components["schemas"]["MarketOut"];
+            /** Quotes As Of */
+            quotes_as_of: string | null;
+            /** Scope */
+            scope: {
+                [key: string]: unknown;
+            };
+            /** Seq */
+            seq: number;
+            /**
+             * Top
+             * @description gainers, losers, unusual_volume
+             */
+            top: {
+                [key: string]: {
+                    [key: string]: unknown;
+                }[];
+            };
+            /** Topic */
+            topic: string;
+            /**
+             * Type
+             * @constant
+             */
+            type: "rankings";
+            /** Universe */
+            universe: string;
+        };
+        /**
+         * WsScreener
+         * @description `basis: live` = the forming bar's EMA/VWAP state (can still change, never stored);
+         *     `basis: confirmed` = a finished Stock Signals run on closed candles.
+         */
+        WsScreener: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "live" | "confirmed";
+            /** Boundary */
+            boundary?: string | null;
+            /** Changes */
+            changes: {
+                [key: string]: unknown;
+            }[];
+            /** Computed At */
+            computed_at?: string | null;
+            /** Run Id */
+            run_id?: string | null;
+            /** Seq */
+            seq: number;
+            /** Timeframe */
+            timeframe: string;
+            /** Topic */
+            topic: string;
+            /**
+             * Type
+             * @constant
+             */
+            type: "screener";
+        };
+        /**
+         * WsSnapshot
+         * @description Sent after every accepted subscription and again after a resync. Apply it, then the
+         *     updates that follow (they are never older than the snapshot).
+         */
+        WsSnapshot: {
+            /** Available */
+            available: boolean;
+            /**
+             * Closed
+             * @description candle: closed bars
+             */
+            closed?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Coverage */
+            coverage?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Data
+             * @description quote: a LiveQuoteOut
+             */
+            data?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Forming
+             * @description candle: the forming bar
+             */
+            forming?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "quote" | "candle" | "rankings" | "screener";
+            /**
+             * Rows
+             * @description screener (live)
+             */
+            rows?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Scope */
+            scope?: {
+                [key: string]: unknown;
+            } | null;
+            /** Seq */
+            seq: number;
+            /**
+             * Top
+             * @description rankings
+             */
+            top?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                }[];
+            } | null;
+            /** Topic */
+            topic: string;
+            /**
+             * Type
+             * @constant
+             */
+            type: "snapshot";
+        };
+        /** WsStatus */
+        WsStatus: {
+            /**
+             * Redis
+             * @enum {string}
+             */
+            redis: "ok" | "down";
+            /**
+             * Resync
+             * @description true: fresh snapshots follow for every topic
+             */
+            resync: boolean;
+            /** Seq */
+            seq: number;
+            /**
+             * Type
+             * @constant
+             */
+            type: "status";
+        };
+        /**
+         * WsTopicIn
+         * @description One topic in a subscribe/unsubscribe message. `kind` decides which fields are needed.
+         */
+        WsTopicIn: {
+            /**
+             * Instrument Id
+             * @description quote, candle
+             */
+            instrument_id?: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "quote" | "candle" | "rankings" | "screener";
+            /**
+             * Timeframe
+             * @description candle, screener
+             */
+            timeframe?: ("1m" | "5m" | "15m" | "1h" | "1d") | null;
+            /**
+             * Universe
+             * @description rankings (a MARKET_LIVE_UNIVERSES name)
+             */
+            universe?: string | null;
+        };
         /** ApprovalOut */
         app__api__v1__ai__ApprovalOut: {
             /** Action */
@@ -12359,6 +13267,30 @@ export interface components {
              * @default false
              */
             use_reauth: boolean;
+        };
+        /** SessionOut */
+        app__schemas__auth__SessionOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Current */
+            current: boolean;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ip */
+            ip: string | null;
+            /** User Agent */
+            user_agent: string | null;
         };
         /** ApproveIn */
         app__schemas__code__ApproveIn: {
@@ -12744,6 +13676,24 @@ export interface components {
             /** Width */
             width: number;
         };
+        /** SessionOut */
+        app__schemas__live__SessionOut: {
+            /**
+             * Close
+             * Format: date-time
+             */
+            close: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Open
+             * Format: date-time
+             */
+            open: string;
+        };
         /** ReviewOut */
         app__schemas__reviews__ReviewOut: {
             /**
@@ -13121,7 +14071,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Content Too Large */
+            /** @description Request Entity Too Large */
             413: {
                 headers: {
                     [name: string]: unknown;
@@ -13135,7 +14085,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13374,7 +14324,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SessionOut"][];
+                    "application/json": components["schemas"]["app__schemas__auth__SessionOut"][];
                 };
             };
         };
@@ -16257,6 +17207,40 @@ export interface operations {
             };
         };
     };
+    chart_api_trading_chart_get: {
+        parameters: {
+            query: {
+                instrument_id: number;
+                timeframe?: "1m" | "5m" | "15m" | "1h" | "1d";
+                limit?: number;
+                include_live?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     executions_api_trading_executions_get: {
         parameters: {
             query?: {
@@ -16426,6 +17410,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstrumentStatus"];
+                };
+            };
+        };
+    };
+    live_protocol_api_trading_live_protocol_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveProtocolOut"];
+                };
+            };
+        };
+    };
+    live_quotes_api_trading_live_quotes_get: {
+        parameters: {
+            query: {
+                instrument_id: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveQuotesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    live_status_api_trading_live_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveStatusOut"];
                 };
             };
         };
@@ -17621,6 +18676,11 @@ export interface operations {
                 timeframe?: "5m" | "15m" | "1h" | "1d";
                 exchange?: string | null;
                 limit?: number;
+                basis?: "confirmed" | "live";
+                universe?: string | null;
+                min_price?: number | null;
+                min_avg_turnover?: number | null;
+                include_stale?: boolean;
             };
             header?: never;
             path?: never;
@@ -17945,6 +19005,7 @@ export interface operations {
                 timeframe?: "5m" | "15m" | "1h" | "1d";
                 exchange?: string | null;
                 limit?: number;
+                basis?: "confirmed" | "live";
             };
             header?: never;
             path?: never;

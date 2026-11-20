@@ -2654,6 +2654,38 @@
         "title": "ChainOut",
         "type": "object"
       },
+      "ChangePctFilter": {
+        "additionalProperties": false,
+        "description": "% change of the evaluated bar's close against the previous trading session's last close\n(the previous bar for 1d), e.g. {\"type\": \"change_pct\", \"op\": \">\", \"value\": 2}.",
+        "properties": {
+          "op": {
+            "enum": [
+              "<",
+              ">"
+            ],
+            "title": "Op",
+            "type": "string"
+          },
+          "type": {
+            "const": "change_pct",
+            "title": "Type",
+            "type": "string"
+          },
+          "value": {
+            "maximum": 1000.0,
+            "minimum": -100.0,
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "op",
+          "value"
+        ],
+        "title": "ChangePctFilter",
+        "type": "object"
+      },
       "ChangesOut": {
         "properties": {
           "cursor": {
@@ -2711,6 +2743,308 @@
           "deleted"
         ],
         "title": "ChangesOut",
+        "type": "object"
+      },
+      "ChartCandleOut": {
+        "properties": {
+          "close": {
+            "title": "Close",
+            "type": "string"
+          },
+          "ema_fast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Fast"
+          },
+          "ema_slow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Slow"
+          },
+          "high": {
+            "title": "High",
+            "type": "string"
+          },
+          "is_closed": {
+            "title": "Is Closed",
+            "type": "boolean"
+          },
+          "low": {
+            "title": "Low",
+            "type": "string"
+          },
+          "open": {
+            "title": "Open",
+            "type": "string"
+          },
+          "partial": {
+            "description": "a live bar the server did not watch from its start",
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "source": {
+            "enum": [
+              "broker",
+              "ticks"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "ts": {
+            "description": "bar open time (UTC)",
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          },
+          "vwap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vwap"
+          }
+        },
+        "required": [
+          "ts",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume",
+          "is_closed",
+          "source",
+          "partial",
+          "ema_fast",
+          "ema_slow",
+          "vwap"
+        ],
+        "title": "ChartCandleOut",
+        "type": "object"
+      },
+      "ChartLiveOut": {
+        "properties": {
+          "bars": {
+            "title": "Bars",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "included": {
+            "title": "Included",
+            "type": "boolean"
+          },
+          "partial_bars": {
+            "title": "Partial Bars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "included",
+          "bars",
+          "partial_bars",
+          "error"
+        ],
+        "title": "ChartLiveOut",
+        "type": "object"
+      },
+      "ChartMarkerOut": {
+        "properties": {
+          "confirmed": {
+            "description": "false while the bar is still forming",
+            "title": "Confirmed",
+            "type": "boolean"
+          },
+          "ema_fast": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Fast"
+          },
+          "ema_slow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ema Slow"
+          },
+          "kind": {
+            "enum": [
+              "bullish_cross",
+              "bearish_cross"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ts",
+          "kind",
+          "price",
+          "ema_fast",
+          "ema_slow",
+          "confirmed"
+        ],
+        "title": "ChartMarkerOut",
+        "type": "object"
+      },
+      "ChartOut": {
+        "properties": {
+          "candles": {
+            "items": {
+              "$ref": "#/components/schemas/ChartCandleOut"
+            },
+            "title": "Candles",
+            "type": "array"
+          },
+          "computed_at": {
+            "format": "date-time",
+            "title": "Computed At",
+            "type": "string"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "ema_fast_period": {
+            "title": "Ema Fast Period",
+            "type": "integer"
+          },
+          "ema_slow_period": {
+            "title": "Ema Slow Period",
+            "type": "integer"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "integer"
+          },
+          "live": {
+            "$ref": "#/components/schemas/ChartLiveOut"
+          },
+          "markers": {
+            "items": {
+              "$ref": "#/components/schemas/ChartMarkerOut"
+            },
+            "title": "Markers",
+            "type": "array"
+          },
+          "market": {
+            "$ref": "#/components/schemas/MarketOut"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__live__SessionOut"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "step_seconds": {
+            "title": "Step Seconds",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeframe": {
+            "enum": [
+              "1m",
+              "5m",
+              "15m",
+              "1h",
+              "1d"
+            ],
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "vwap_applicable": {
+            "title": "Vwap Applicable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "ref",
+          "symbol",
+          "timeframe",
+          "ema_fast_period",
+          "ema_slow_period",
+          "vwap_applicable",
+          "candles",
+          "markers",
+          "sessions",
+          "market",
+          "live",
+          "data_as_of",
+          "step_seconds",
+          "computed_at"
+        ],
+        "title": "ChartOut",
         "type": "object"
       },
       "ChatAttachmentOut": {
@@ -8185,6 +8519,598 @@
         "title": "ListPage[RunOut]",
         "type": "object"
       },
+      "LiveProtocolOut": {
+        "description": "GET /api/trading/live/protocol: the WebSocket contract, machine-readable.",
+        "properties": {
+          "candle_timeframes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Candle Timeframes",
+            "type": "array"
+          },
+          "client": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsClientMessage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "close_codes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Close Codes",
+            "type": "object"
+          },
+          "events": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Events",
+            "type": "object"
+          },
+          "example_ack": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsAck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_bye": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsBye"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_candle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsCandle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_heartbeat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsHeartbeat"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_hello": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsHello"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsQuote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_rankings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsRankings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_screener": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsScreener"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_snapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "example_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WsStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limits": {
+            "additionalProperties": true,
+            "title": "Limits",
+            "type": "object"
+          },
+          "screener_timeframes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Screener Timeframes",
+            "type": "array"
+          },
+          "topics": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Topics",
+            "type": "object"
+          },
+          "universes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Universes",
+            "type": "array"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "topics",
+          "limits",
+          "close_codes",
+          "universes",
+          "screener_timeframes",
+          "candle_timeframes",
+          "events"
+        ],
+        "title": "LiveProtocolOut",
+        "type": "object"
+      },
+      "LiveQuoteOut": {
+        "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
+          "atp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "exchange average traded price",
+            "title": "Atp"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "change_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Pct"
+          },
+          "computed_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "market_live",
+                  "feed_hash"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed By"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "ltp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ltp"
+          },
+          "ltt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "exchange time of the last trade",
+            "title": "Ltt"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "oi": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oi"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "prev_close": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "close of the previous trading session",
+            "title": "Prev Close"
+          },
+          "prev_close_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Close Date"
+          },
+          "prev_close_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "feed",
+                  "daily_candle"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Close Source"
+          },
+          "received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received At"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Dhan SEGMENT:SECURITY_ID",
+            "title": "Ref"
+          },
+          "segment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment"
+          },
+          "session_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IST session the last trade belongs to",
+            "title": "Session Date"
+          },
+          "source": {
+            "default": "dhan_feed",
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "live",
+              "stale",
+              "closed",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "turnover": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turnover"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "cumulative volume of the session",
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "ltp",
+          "ltt",
+          "session_date",
+          "prev_close",
+          "prev_close_source",
+          "change",
+          "change_pct",
+          "status",
+          "age_seconds",
+          "received_at"
+        ],
+        "title": "LiveQuoteOut",
+        "type": "object"
+      },
+      "LiveQuotesOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LiveQuoteOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "market": {
+            "$ref": "#/components/schemas/MarketOut"
+          },
+          "missing": {
+            "description": "requested instruments with no live data (not subscribed yet, or no trade)",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Missing",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "missing",
+          "market",
+          "as_of"
+        ],
+        "title": "LiveQuotesOut",
+        "type": "object"
+      },
+      "LiveStatusOut": {
+        "properties": {
+          "feed": {
+            "additionalProperties": true,
+            "description": "Dhan feed health (same as /api/v1/dhan/feed)",
+            "title": "Feed",
+            "type": "object"
+          },
+          "hub": {
+            "additionalProperties": true,
+            "description": "this API process's WebSocket hub",
+            "title": "Hub",
+            "type": "object"
+          },
+          "market": {
+            "$ref": "#/components/schemas/MarketOut"
+          },
+          "market_live": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "market-live worker status record",
+            "title": "Market Live"
+          },
+          "subscriptions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscriptions"
+          }
+        },
+        "required": [
+          "market",
+          "feed",
+          "subscriptions",
+          "market_live",
+          "hub"
+        ],
+        "title": "LiveStatusOut",
+        "type": "object"
+      },
       "LiveToken": {
         "properties": {
           "expires_in": {
@@ -8403,6 +9329,31 @@
           }
         },
         "title": "MarkReadIn",
+        "type": "object"
+      },
+      "MarketOut": {
+        "properties": {
+          "now": {
+            "format": "date-time",
+            "title": "Now",
+            "type": "string"
+          },
+          "open": {
+            "title": "Open",
+            "type": "boolean"
+          },
+          "session": {
+            "description": "open, pre_open, closed, weekend or holiday (IST)",
+            "title": "Session",
+            "type": "string"
+          }
+        },
+        "required": [
+          "open",
+          "session",
+          "now"
+        ],
+        "title": "MarketOut",
         "type": "object"
       },
       "MergeRequest": {
@@ -14903,6 +15854,29 @@
             ],
             "title": "Boundary"
           },
+          "closed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
           "data_as_of": {
             "anyOf": [
               {
@@ -14942,6 +15916,62 @@
             "title": "Illiquid",
             "type": "integer"
           },
+          "liquidity_unknown": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidity Unknown"
+          },
+          "live": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Live"
+          },
+          "no_data": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Data"
+          },
+          "no_prev_close": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Prev Close"
+          },
+          "quotes_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quotes As Of"
+          },
           "run_id": {
             "anyOf": [
               {
@@ -14954,6 +15984,17 @@
             ],
             "title": "Run Id"
           },
+          "stale": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale"
+          },
           "timeframe": {
             "title": "Timeframe",
             "type": "string"
@@ -14963,9 +16004,31 @@
             "title": "Unavailable",
             "type": "integer"
           },
+          "universe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universe"
+          },
           "universe_size": {
             "title": "Universe Size",
             "type": "integer"
+          },
+          "with_quote": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "With Quote"
           }
         },
         "required": [
@@ -14979,6 +16042,15 @@
       },
       "RankingOut": {
         "properties": {
+          "basis": {
+            "default": "confirmed",
+            "enum": [
+              "confirmed",
+              "live"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
           "coverage": {
             "$ref": "#/components/schemas/RankingCoverageOut"
           },
@@ -14993,9 +16065,31 @@
             "title": "Kind",
             "type": "string"
           },
+          "market": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
           "note": {
             "title": "Note",
             "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RankingScopeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -15005,6 +16099,54 @@
           "note"
         ],
         "title": "RankingOut",
+        "type": "object"
+      },
+      "RankingScopeOut": {
+        "properties": {
+          "capped": {
+            "title": "Capped",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "market_wide": {
+            "description": "true only for every NSE equity, uncapped, all with a live quote",
+            "title": "Market Wide",
+            "type": "boolean"
+          },
+          "universe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universe"
+          },
+          "universe_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universe Total"
+          }
+        },
+        "required": [
+          "universe",
+          "market_wide",
+          "capped",
+          "universe_total",
+          "label"
+        ],
+        "title": "RankingScopeOut",
         "type": "object"
       },
       "RateLimitOut": {
@@ -18032,6 +19174,7 @@
               "discriminator": {
                 "mapping": {
                   "adx": "#/components/schemas/AdxFilter",
+                  "change_pct": "#/components/schemas/ChangePctFilter",
                   "ema_cross": "#/components/schemas/EmaCrossFilter",
                   "ema_position": "#/components/schemas/EmaPositionFilter",
                   "macd_cross": "#/components/schemas/MacdCrossFilter",
@@ -18066,6 +19209,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/VwapPositionFilter"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangePctFilter"
                 }
               ]
             },
@@ -18796,61 +19942,6 @@
         ],
         "title": "Session",
         "type": "string"
-      },
-      "SessionOut": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "current": {
-            "title": "Current",
-            "type": "boolean"
-          },
-          "expires_at": {
-            "format": "date-time",
-            "title": "Expires At",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "ip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ip"
-          },
-          "user_agent": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Agent"
-          }
-        },
-        "required": [
-          "id",
-          "created_at",
-          "expires_at",
-          "ip",
-          "user_agent",
-          "current"
-        ],
-        "title": "SessionOut",
-        "type": "object"
       },
       "SettingIn": {
         "additionalProperties": false,
@@ -19838,6 +20929,26 @@
             ],
             "title": "Adx"
           },
+          "avg_turnover": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Turnover"
+          },
+          "basis": {
+            "default": "confirmed",
+            "enum": [
+              "confirmed",
+              "live"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
           "candle_close_at": {
             "anyOf": [
               {
@@ -19849,6 +20960,18 @@
               }
             ],
             "title": "Candle Close At"
+          },
+          "candle_closed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "live state: false while its bar is still forming",
+            "title": "Candle Closed"
           },
           "change_pct": {
             "anyOf": [
@@ -19936,6 +21059,18 @@
             ],
             "title": "Last Price"
           },
+          "last_trade_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Trade At"
+          },
           "missing_features": {
             "items": {
               "type": "string"
@@ -19953,6 +21088,71 @@
               }
             ],
             "title": "Name"
+          },
+          "partial_bars": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial Bars"
+          },
+          "prev_close": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Close"
+          },
+          "prev_close_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "feed",
+                  "daily_candle"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Close Source"
+          },
+          "quote_age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Age Seconds"
+          },
+          "quote_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "live",
+                  "stale",
+                  "closed",
+                  "no_data"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Status"
           },
           "reason": {
             "anyOf": [
@@ -20042,6 +21242,28 @@
               }
             ],
             "title": "Trend Score"
+          },
+          "turnover": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turnover"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
           },
           "vwap": {
             "anyOf": [
@@ -21634,6 +22856,1108 @@
         "title": "WorkspaceTodoIn",
         "type": "object"
       },
+      "WsAck": {
+        "properties": {
+          "accepted": {
+            "description": "topic names, e.g. quote:42, candle:42:5m",
+            "items": {
+              "type": "string"
+            },
+            "title": "Accepted",
+            "type": "array"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "op": {
+            "title": "Op",
+            "type": "string"
+          },
+          "rejected": {
+            "description": "{topic, reason}",
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "type": {
+            "const": "ack",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "op",
+          "id",
+          "accepted",
+          "rejected",
+          "seq"
+        ],
+        "title": "WsAck",
+        "type": "object"
+      },
+      "WsBye": {
+        "properties": {
+          "reason": {
+            "description": "session_ended, slow_consumer, server_shutdown, \u2026",
+            "title": "Reason",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "type": {
+            "const": "bye",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "reason",
+          "seq"
+        ],
+        "title": "WsBye",
+        "type": "object"
+      },
+      "WsCandle": {
+        "properties": {
+          "close": {
+            "title": "Close",
+            "type": "string"
+          },
+          "closed": {
+            "description": "false: the bar is forming and will change",
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "high": {
+            "title": "High",
+            "type": "string"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "last_trade_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Trade At"
+          },
+          "low": {
+            "title": "Low",
+            "type": "string"
+          },
+          "open": {
+            "title": "Open",
+            "type": "string"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "source": {
+            "const": "ticks",
+            "title": "Source",
+            "type": "string"
+          },
+          "ticks": {
+            "title": "Ticks",
+            "type": "integer"
+          },
+          "timeframe": {
+            "enum": [
+              "1m",
+              "5m",
+              "15m",
+              "1h",
+              "1d"
+            ],
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "candle",
+            "title": "Type",
+            "type": "string"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "type",
+          "topic",
+          "instrument_id",
+          "key",
+          "timeframe",
+          "ts",
+          "end",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume",
+          "ticks",
+          "partial",
+          "closed",
+          "last_trade_at",
+          "source",
+          "seq"
+        ],
+        "title": "WsCandle",
+        "type": "object"
+      },
+      "WsClientMessage": {
+        "description": "Client \u2192 server.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "echoed in the ack",
+            "title": "Id"
+          },
+          "op": {
+            "enum": [
+              "subscribe",
+              "unsubscribe",
+              "ping"
+            ],
+            "title": "Op",
+            "type": "string"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/WsTopicIn"
+            },
+            "maxItems": 200,
+            "title": "Topics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "title": "WsClientMessage",
+        "type": "object"
+      },
+      "WsError": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "type": {
+            "const": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "code",
+          "detail",
+          "seq"
+        ],
+        "title": "WsError",
+        "type": "object"
+      },
+      "WsHeartbeat": {
+        "properties": {
+          "feed": {
+            "additionalProperties": true,
+            "description": "connected, status (feed health), redis",
+            "title": "Feed",
+            "type": "object"
+          },
+          "market": {
+            "$ref": "#/components/schemas/MarketOut"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "type": {
+            "const": "heartbeat",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "server_time",
+          "market",
+          "feed",
+          "seq"
+        ],
+        "title": "WsHeartbeat",
+        "type": "object"
+      },
+      "WsHello": {
+        "properties": {
+          "connection_id": {
+            "title": "Connection Id",
+            "type": "string"
+          },
+          "heartbeat_seconds": {
+            "title": "Heartbeat Seconds",
+            "type": "number"
+          },
+          "market": {
+            "$ref": "#/components/schemas/MarketOut"
+          },
+          "max_topics": {
+            "title": "Max Topics",
+            "type": "integer"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "type": {
+            "const": "hello",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "connection_id",
+          "server_time",
+          "heartbeat_seconds",
+          "max_topics",
+          "market",
+          "seq"
+        ],
+        "title": "WsHello",
+        "type": "object"
+      },
+      "WsQuote": {
+        "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
+          "atp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "exchange average traded price",
+            "title": "Atp"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "change_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Pct"
+          },
+          "computed_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "market_live",
+                  "feed_hash"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed By"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "ltp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ltp"
+          },
+          "ltt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "exchange time of the last trade",
+            "title": "Ltt"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "oi": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oi"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "prev_close": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "close of the previous trading session",
+            "title": "Prev Close"
+          },
+          "prev_close_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Close Date"
+          },
+          "prev_close_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "feed",
+                  "daily_candle"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Close Source"
+          },
+          "received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received At"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Dhan SEGMENT:SECURITY_ID",
+            "title": "Ref"
+          },
+          "segment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IST session the last trade belongs to",
+            "title": "Session Date"
+          },
+          "source": {
+            "default": "dhan_feed",
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "live",
+              "stale",
+              "closed",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          },
+          "turnover": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turnover"
+          },
+          "type": {
+            "const": "quote",
+            "title": "Type",
+            "type": "string"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "cumulative volume of the session",
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "ltp",
+          "ltt",
+          "session_date",
+          "prev_close",
+          "prev_close_source",
+          "change",
+          "change_pct",
+          "status",
+          "age_seconds",
+          "received_at",
+          "type",
+          "topic",
+          "key",
+          "seq"
+        ],
+        "title": "WsQuote",
+        "type": "object"
+      },
+      "WsRankings": {
+        "properties": {
+          "computed_at": {
+            "format": "date-time",
+            "title": "Computed At",
+            "type": "string"
+          },
+          "coverage": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Coverage",
+            "type": "object"
+          },
+          "market": {
+            "$ref": "#/components/schemas/MarketOut"
+          },
+          "quotes_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quotes As Of"
+          },
+          "scope": {
+            "additionalProperties": true,
+            "title": "Scope",
+            "type": "object"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "top": {
+            "additionalProperties": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "description": "gainers, losers, unusual_volume",
+            "title": "Top",
+            "type": "object"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          },
+          "type": {
+            "const": "rankings",
+            "title": "Type",
+            "type": "string"
+          },
+          "universe": {
+            "title": "Universe",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "topic",
+          "universe",
+          "computed_at",
+          "quotes_as_of",
+          "market",
+          "coverage",
+          "scope",
+          "top",
+          "seq"
+        ],
+        "title": "WsRankings",
+        "type": "object"
+      },
+      "WsScreener": {
+        "description": "`basis: live` = the forming bar's EMA/VWAP state (can still change, never stored);\n`basis: confirmed` = a finished Stock Signals run on closed candles.",
+        "properties": {
+          "basis": {
+            "enum": [
+              "live",
+              "confirmed"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "boundary": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boundary"
+          },
+          "changes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "timeframe": {
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          },
+          "type": {
+            "const": "screener",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "topic",
+          "basis",
+          "timeframe",
+          "changes",
+          "seq"
+        ],
+        "title": "WsScreener",
+        "type": "object"
+      },
+      "WsSnapshot": {
+        "description": "Sent after every accepted subscription and again after a resync. Apply it, then the\nupdates that follow (they are never older than the snapshot).",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "closed": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "candle: closed bars",
+            "title": "Closed"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "quote: a LiveQuoteOut",
+            "title": "Data"
+          },
+          "forming": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "candle: the forming bar",
+            "title": "Forming"
+          },
+          "kind": {
+            "enum": [
+              "quote",
+              "candle",
+              "rankings",
+              "screener"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "screener (live)",
+            "title": "Rows"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "rankings",
+            "title": "Top"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          },
+          "type": {
+            "const": "snapshot",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "topic",
+          "kind",
+          "available",
+          "seq"
+        ],
+        "title": "WsSnapshot",
+        "type": "object"
+      },
+      "WsStatus": {
+        "properties": {
+          "redis": {
+            "enum": [
+              "ok",
+              "down"
+            ],
+            "title": "Redis",
+            "type": "string"
+          },
+          "resync": {
+            "description": "true: fresh snapshots follow for every topic",
+            "title": "Resync",
+            "type": "boolean"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "type": {
+            "const": "status",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "redis",
+          "resync",
+          "seq"
+        ],
+        "title": "WsStatus",
+        "type": "object"
+      },
+      "WsTopicIn": {
+        "additionalProperties": false,
+        "description": "One topic in a subscribe/unsubscribe message. `kind` decides which fields are needed.",
+        "properties": {
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "quote, candle",
+            "title": "Instrument Id"
+          },
+          "kind": {
+            "enum": [
+              "quote",
+              "candle",
+              "rankings",
+              "screener"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "timeframe": {
+            "anyOf": [
+              {
+                "enum": [
+                  "1m",
+                  "5m",
+                  "15m",
+                  "1h",
+                  "1d"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "candle, screener",
+            "title": "Timeframe"
+          },
+          "universe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "rankings (a MARKET_LIVE_UNIVERSES name)",
+            "title": "Universe"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "WsTopicIn",
+        "type": "object"
+      },
       "app__api__v1__ai__ApprovalOut": {
         "properties": {
           "action": {
@@ -22214,6 +24538,61 @@
           }
         },
         "title": "ApproveIn",
+        "type": "object"
+      },
+      "app__schemas__auth__SessionOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "expires_at",
+          "ip",
+          "user_agent",
+          "current"
+        ],
+        "title": "SessionOut",
         "type": "object"
       },
       "app__schemas__code__ApproveIn": {
@@ -23555,6 +25934,32 @@
         "title": "JobOut",
         "type": "object"
       },
+      "app__schemas__live__SessionOut": {
+        "properties": {
+          "close": {
+            "format": "date-time",
+            "title": "Close",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "open": {
+            "format": "date-time",
+            "title": "Open",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "open",
+          "close"
+        ],
+        "title": "SessionOut",
+        "type": "object"
+      },
       "app__schemas__reviews__ReviewOut": {
         "properties": {
           "advisory": {
@@ -24472,13 +26877,13 @@
             "description": "Conflict"
           },
           "413": {
-            "description": "Content Too Large"
+            "description": "Request Entity Too Large"
           },
           "415": {
             "description": "Unsupported Media Type"
           },
           "422": {
-            "description": "Unprocessable Content"
+            "description": "Unprocessable Entity"
           },
           "503": {
             "description": "Service Unavailable"
@@ -24879,7 +27284,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/SessionOut"
+                    "$ref": "#/components/schemas/app__schemas__auth__SessionOut"
                   },
                   "title": "Response List Sessions Api Auth Sessions Get",
                   "type": "array"
@@ -31400,6 +33805,104 @@
         }
       }
     },
+    "/api/trading/chart": {
+      "get": {
+        "description": "Candles with EMA 8, EMA 32, session VWAP (intraday), volume, EMA crossover markers and\nsession boundaries. History is stored Dhan candles; with `include_live`, today's live bars\nafter the newest stored one are appended (`source: ticks`, `partial` when the server did not\nwatch them from their start) and the forming bar is last (`is_closed: false`). Missing\nhistory is never filled. Continue with the `candle:<id>:<tf>` WebSocket topic.",
+        "operationId": "chart_api_trading_chart_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "15m",
+              "enum": [
+                "1m",
+                "5m",
+                "15m",
+                "1h",
+                "1d"
+              ],
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 300,
+              "maximum": 2000,
+              "minimum": 10,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_live",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Live",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chart",
+        "tags": [
+          "live-market"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "none",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": "symbol",
+          "kind": "detail",
+          "label": "Chart",
+          "module": "live-market",
+          "order": 21,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "symbol"
+        }
+      }
+    },
     "/api/trading/executions": {
       "get": {
         "operationId": "executions_api_trading_executions_get",
@@ -32112,6 +34615,156 @@
           "kind": "detail",
           "label": "Instruments status",
           "module": "market",
+          "order": 21,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/live/protocol": {
+      "get": {
+        "description": "The WebSocket contract: topics, limits, close codes and the event types.",
+        "operationId": "live_protocol_api_trading_live_protocol_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveProtocolOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live Protocol",
+        "tags": [
+          "live-market"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "hidden",
+          "danger_reason": "LIVE trading",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Live protocol",
+          "module": "live-market",
+          "order": 21,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": null
+        }
+      }
+    },
+    "/api/trading/live/quotes": {
+      "get": {
+        "description": "The newest live quote per instrument: LTP, day OHLC, volume, the previous trading\nsession's close (and where it came from) and the change against it, with freshness.\nInstruments nobody watches are not on the feed: subscribe on the WebSocket (or list them\nin DHAN_FEED_INSTRUMENTS / a live universe) first.",
+        "operationId": "live_quotes_api_trading_live_quotes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "integer"
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "title": "Instrument Id",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveQuotesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Live Quotes",
+        "tags": [
+          "live-market"
+        ],
+        "x-ui": {
+          "columns": [
+            "instrument_id",
+            "ref",
+            "symbol",
+            "name",
+            "exchange",
+            "segment"
+          ],
+          "danger": "hidden",
+          "danger_reason": "LIVE trading",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": "name",
+          "kind": "list",
+          "label": "Live quotes",
+          "module": "live-market",
+          "order": 21,
+          "roles": [
+            "user",
+            "admin"
+          ],
+          "title_field": "name"
+        }
+      }
+    },
+    "/api/trading/live/status": {
+      "get": {
+        "description": "Market session, the Dhan feed's health and subscription counts, the market-live worker's\nstatus record and this process's WebSocket hub.",
+        "operationId": "live_status_api_trading_live_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live Status",
+        "tags": [
+          "live-market"
+        ],
+        "x-ui": {
+          "columns": null,
+          "danger": "hidden",
+          "danger_reason": "LIVE trading",
+          "group": "markets",
+          "icon": "activity",
+          "id_field": null,
+          "kind": "detail",
+          "label": "Live status",
+          "module": "live-market",
           "order": 21,
           "roles": [
             "user",
@@ -35115,7 +37768,7 @@
     },
     "/api/trading/stock-signals/market-movers": {
       "get": {
-        "description": "Top gainers / losers by real % change, or unusual volume (relative volume at or above\nSTOCK_SIGNALS_UNUSUAL_RVOL), among liquid instruments with usable data.",
+        "description": "Top gainers / losers by real % change, or unusual volume (relative volume at or above\nSTOCK_SIGNALS_UNUSUAL_RVOL), among liquid instruments with usable data.\n\n`basis=confirmed` (default): from the latest finished Stock Signals run (closed candles).\n`basis=live`: from live quotes of a MARKET_LIVE_UNIVERSES `universe`, change against the\nprevious session's close, relative volume adjusted for time of day; `min_price`,\n`min_avg_turnover` and `include_stale` override the liquidity defaults. `scope` says what\nthe list covers and is never market-wide for a subset.",
         "operationId": "market_movers_api_trading_stock_signals_market_movers_get",
         "parameters": [
           {
@@ -35176,6 +37829,81 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis",
+            "required": false,
+            "schema": {
+              "default": "confirmed",
+              "enum": [
+                "confirmed",
+                "live"
+              ],
+              "title": "Basis",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "universe",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Universe"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_price",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Price"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_avg_turnover",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Avg Turnover"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_stale",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Stale",
+              "type": "boolean"
             }
           }
         ],
@@ -35992,7 +38720,7 @@
     },
     "/api/trading/stock-signals/trending": {
       "get": {
-        "description": "Top trending bullish (highest score) or bearish (lowest score) instruments whose EMAs\nagree with the direction.",
+        "description": "Top trending bullish (highest score) or bearish (lowest score) instruments whose EMAs\nagree with the direction. `basis=live` ranks the live EMA/VWAP state of the bar that is\nstill forming (MARKET_LIVE_SCREENER_TIMEFRAMES only): it can change until the bar closes,\nand only the confirmed basis creates signals or notifications.",
         "operationId": "trending_api_trading_stock_signals_trending_get",
         "parameters": [
           {
@@ -36052,6 +38780,20 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "basis",
+            "required": false,
+            "schema": {
+              "default": "confirmed",
+              "enum": [
+                "confirmed",
+                "live"
+              ],
+              "title": "Basis",
+              "type": "string"
             }
           }
         ],
